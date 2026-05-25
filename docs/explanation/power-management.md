@@ -33,7 +33,9 @@ That is what `PowerMode.Automatic` does.
 The host app feeds battery state into MeshLink:
 
 ```kotlin
-meshLink.updateBattery(level = 0.45f, isCharging = false)
+meshLink.updateBattery(
+    snapshot = BatterySnapshot(level = 0.45f, isCharging = false),
+)
 ```
 
 MeshLink then recalculates the effective policy.

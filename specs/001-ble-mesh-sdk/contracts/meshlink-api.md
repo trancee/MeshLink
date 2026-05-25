@@ -126,7 +126,7 @@ interface MeshLinkApi {
 
     suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
 
-    fun updateBattery(level: Float, isCharging: Boolean)
+    fun updateBattery(snapshot: BatterySnapshot)
 }
 ```
 
@@ -145,7 +145,7 @@ interface MeshLinkApi {
 - `stop()` is a hard delivery boundary for in-flight send attempts in the current hard run.
 
 **`updateBattery` contract notes**
-- `level` is clamped into the inclusive `0.0..1.0` range.
+- `snapshot.level` is clamped into the inclusive `0.0..1.0` range during `BatterySnapshot` construction.
 - `PowerMode.Automatic` uses shared commonMain policy logic with bootstrap,
   hysteresis, and regulatory-region clamping.
 - Fixed `PowerMode` values keep the requested tier regardless of battery level,
@@ -163,6 +163,10 @@ interface MeshLinkApi {
 - `Running`
 - `Paused`
 - `Stopped`
+
+### `BatterySnapshot`
+- `level` (clamped into the inclusive `0.0..1.0` range during construction)
+- `isCharging`
 
 ### `DeliveryPriority`
 - `HIGH`

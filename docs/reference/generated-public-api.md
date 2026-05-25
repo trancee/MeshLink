@@ -9,6 +9,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 
 | Type | Kind | Public surface |
 |---|---|---|
+| `ch.trancee.meshlink.api.BatterySnapshot` | class | `level`, `isCharging()` |
 | `ch.trancee.meshlink.api.DeliveryPriority` | enum | constants: `HIGH`, `LOW`, `NORMAL` |
 | `ch.trancee.meshlink.api.ForgetPeerResult` | abstract class | — |
 | `ch.trancee.meshlink.api.ForgetPeerResult.Forgotten` | object | — |

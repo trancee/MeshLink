@@ -250,10 +250,10 @@ That gives Swift exhaustive switching without depending on the older nested Kotl
 
 ## 8. Feed battery state if you use automatic power mode
 
-`updateBattery(level:isCharging:)` is synchronous on the Swift side.
+`updateBattery(snapshot:)` is synchronous on the Swift side.
 
 ```swift
-api.updateBattery(level: 0.42, isCharging: false)
+api.updateBattery(snapshot: BatterySnapshot(level: 0.42, isCharging: false))
 ```
 
 Do this only if your app actually owns battery observation and wants MeshLink to react to it.

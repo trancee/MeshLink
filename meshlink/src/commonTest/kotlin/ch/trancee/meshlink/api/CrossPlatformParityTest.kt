@@ -41,7 +41,9 @@ class CrossPlatformParityTest {
                 listOf(
                     androidApi.start(),
                     androidApi
-                        .also { it.updateBattery(level = 0.20f, isCharging = false) }
+                        .also {
+                            it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
+                        }
                         .state
                         .value,
                     androidApi.pause(),
@@ -51,7 +53,12 @@ class CrossPlatformParityTest {
             val iosResults =
                 listOf(
                     iosApi.start(),
-                    iosApi.also { it.updateBattery(level = 0.20f, isCharging = false) }.state.value,
+                    iosApi
+                        .also {
+                            it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
+                        }
+                        .state
+                        .value,
                     iosApi.pause(),
                     iosApi.resume(),
                     iosApi.stop(),

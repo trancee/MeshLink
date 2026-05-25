@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.ResumeResult
@@ -144,17 +145,16 @@ internal class MeshEngineLifecycleSupport(
         }
     }
 
-    internal fun updateBattery(level: Float, isCharging: Boolean): Unit {
-        val clampedLevel = level.coerceIn(0f, 1f)
+    internal fun updateBattery(snapshot: BatterySnapshot): Unit {
         val policy =
             powerPolicyController.onBatterySnapshot(
-                level = clampedLevel,
-                isCharging = isCharging,
+                level = snapshot.level,
+                isCharging = snapshot.isCharging,
                 nowMillis = powerPolicyNowMillis(),
             )
         state.currentPowerPolicy = policy
         callbacks.launchTransportPowerPolicyUpdate(policy)
-        diagnostics.emitPowerModeChanged(policy, clampedLevel, isCharging)
+        diagnostics.emitPowerModeChanged(policy, snapshot.level, snapshot.isCharging)
     }
 }
 

@@ -1,3 +1,10 @@
+public final class ch/trancee/meshlink/api/BatterySnapshot {
+	public fun <init> (FZ)V
+	public final fun getLevel ()F
+	public final fun isCharging ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/api/DeliveryPriority : java/lang/Enum {
 	public static final field HIGH Lch/trancee/meshlink/api/DeliveryPriority;
 	public static final field LOW Lch/trancee/meshlink/api/DeliveryPriority;
@@ -97,7 +104,7 @@ public abstract interface class ch/trancee/meshlink/api/MeshLinkApi {
 	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLinkApi;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun updateBattery (FZ)V
+	public abstract fun updateBattery (Lch/trancee/meshlink/api/BatterySnapshot;)V
 }
 
 public final class ch/trancee/meshlink/api/MeshLinkApi$DefaultImpls {

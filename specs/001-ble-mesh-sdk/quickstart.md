@@ -60,7 +60,7 @@ Collect:
 
 Verify that both devices reach `Running` and begin peer discovery.
 
-If the host app forwards battery state with `updateBattery(level, isCharging)`,
+If the host app forwards battery state with `updateBattery(BatterySnapshot(...))`,
 confirm that `diagnosticEvents` emits `POWER_MODE_CHANGED` entries whose
 metadata includes `tier`, `advertisementIntervalMillis`,
 `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`,

@@ -216,7 +216,9 @@ logic, not exception handling.
 If your app is feeding battery snapshots into MeshLink, call `updateBattery()` with normalized values.
 
 ```kotlin
-meshLink.updateBattery(level = 0.42f, isCharging = false)
+meshLink.updateBattery(
+    snapshot = BatterySnapshot(level = 0.42f, isCharging = false),
+)
 ```
 
 This affects the effective policy when `powerMode` is `Automatic`.

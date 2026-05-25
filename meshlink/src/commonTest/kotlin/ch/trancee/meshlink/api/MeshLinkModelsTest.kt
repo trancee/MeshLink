@@ -55,6 +55,18 @@ class MeshLinkModelsTest {
     }
 
     @Test
+    fun `battery snapshot clamps level and exposes readable toString output`() {
+        // Arrange
+        val lowSnapshot = BatterySnapshot(level = -0.10f, isCharging = true)
+        val highSnapshot = BatterySnapshot(level = 1.50f, isCharging = false)
+
+        // Act / Assert
+        assertEquals(0.0f, lowSnapshot.level)
+        assertEquals(1.0f, highSnapshot.level)
+        assertEquals("BatterySnapshot(level=1.0, isCharging=false)", highSnapshot.toString())
+    }
+
+    @Test
     fun `result wrappers expose readable toString output`() {
         // Arrange
         val notSent = SendResult.NotSent(SendFailureReason.UNREACHABLE)

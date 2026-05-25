@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.ResumeResult
@@ -269,7 +270,7 @@ class MeshEngineLifecycleSupportTest {
         val support = harness.support
 
         // Act
-        support.updateBattery(level = 1.5f, isCharging = false)
+        support.updateBattery(BatterySnapshot(level = 1.5f, isCharging = false))
 
         // Assert
         assertEquals(1, harness.callbacks.launchedTransportPowerPolicies.size)

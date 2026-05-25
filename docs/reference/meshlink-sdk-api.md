@@ -140,7 +140,7 @@ interface MeshLinkApi {
 
     suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
 
-    fun updateBattery(level: Float, isCharging: Boolean)
+    fun updateBattery(snapshot: BatterySnapshot)
 }
 ```
 
@@ -227,14 +227,13 @@ Removes the pinned trust state for a peer.
 | `ForgetPeerResult.Forgotten` | Trust state existed and was removed. |
 | `ForgetPeerResult.NotFound` | No trust state existed for that peer. |
 
-### `updateBattery(level, isCharging)`
+### `updateBattery(snapshot)`
 
 Feeds battery information into the shared power-policy logic.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `level` | `Float` | Battery level in the inclusive `0.0..1.0` range. Values are clamped. |
-| `isCharging` | `Boolean` | Whether the device is currently charging. |
+| `snapshot` | `BatterySnapshot` | Battery input for automatic power policy. `snapshot.level` is clamped into the inclusive `0.0..1.0` range during construction. |
 
 When `powerMode` is `Automatic`, this call can change the effective power tier and emits `DiagnosticCode.POWER_MODE_CHANGED`.
 
@@ -257,6 +256,19 @@ Rules:
 
 - `value` must not be blank
 - `toString()` redacts the full identifier and prints only the suffix
+
+### `BatterySnapshot`
+
+```kotlin
+class BatterySnapshot(level: Float, val isCharging: Boolean) {
+    val level: Float
+}
+```
+
+Rules:
+
+- constructor input is clamped into the inclusive `0.0..1.0` range
+- `isCharging` records whether the device is currently charging
 
 ### `DeliveryPriority`
 

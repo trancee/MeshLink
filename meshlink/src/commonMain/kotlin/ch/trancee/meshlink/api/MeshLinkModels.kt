@@ -217,12 +217,8 @@ public interface MeshLinkApi {
     /** Removes the pinned trust state for [peerId], if one exists. */
     public suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
 
-    /**
-     * Feeds normalized battery state into MeshLink's shared automatic power-policy logic.
-     *
-     * [level] is clamped into the inclusive `0.0..1.0` range.
-     */
-    public fun updateBattery(level: Float, isCharging: Boolean): Unit
+    /** Feeds [snapshot] into MeshLink's shared automatic power-policy logic. */
+    public fun updateBattery(snapshot: BatterySnapshot): Unit
 }
 
 private const val REDACTED_PEER_SUFFIX_LENGTH: Int = 6

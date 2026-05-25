@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
+import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
@@ -119,5 +120,5 @@ private class RecordingMeshLinkApi : MeshLinkApi {
         return ForgetPeerResult.Forgotten
     }
 
-    override fun updateBattery(level: Float, isCharging: Boolean): Unit = Unit
+    override fun updateBattery(snapshot: BatterySnapshot): Unit = Unit
 }

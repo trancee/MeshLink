@@ -171,8 +171,8 @@ class MeshLinkApiContractTest {
                 // Act
                 androidApi.start()
                 iosApi.start()
-                androidApi.updateBattery(level = 0.42f, isCharging = false)
-                iosApi.updateBattery(level = 0.42f, isCharging = false)
+                androidApi.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
+                iosApi.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
                 val androidDiagnostic = androidPowerChanged.await()
                 val iosDiagnostic = iosPowerChanged.await()
 
