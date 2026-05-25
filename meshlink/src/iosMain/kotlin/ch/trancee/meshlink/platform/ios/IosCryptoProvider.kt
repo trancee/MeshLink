@@ -21,16 +21,16 @@ internal class IosCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val keyPair = requiredIosCryptoCallbacks().generateX25519KeyPair()
         return X25519KeyPair(
-            privateKey = keyPair.privateKey.copyOf(),
-            publicKey = keyPair.publicKey.copyOf(),
+            privateKey = keyPair.copyPrivateKey(),
+            publicKey = keyPair.copyPublicKey(),
         )
     }
 
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
         val keyPair = requiredIosCryptoCallbacks().generateEd25519KeyPair()
         return Ed25519KeyPair(
-            privateKey = keyPair.privateKey.copyOf(),
-            publicKey = keyPair.publicKey.copyOf(),
+            privateKey = keyPair.copyPrivateKey(),
+            publicKey = keyPair.copyPublicKey(),
         )
     }
 

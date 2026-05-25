@@ -462,17 +462,60 @@ Rules:
 
 ```kotlin
 class IosCryptoRawKeyPair(
-    val privateKey: ByteArray,
-    val publicKey: ByteArray,
+    privateKey: ByteArray,
+    publicKey: ByteArray,
+) {
+    val privateKey: ByteArray
+    val publicKey: ByteArray
+}
+```
+
+Notes:
+
+- both keys must be 32 bytes
+- MeshLink stores defensive copies and returns defensive copies from both properties
+
+### Grouped iOS crypto callback types
+
+```kotlin
+class IosHashCallbacks(
+    val sha256: (ByteArray) -> ByteArray,
+    val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
+)
+
+class IosKeyGenerationCallbacks(
+    val generateX25519KeyPair: () -> IosCryptoRawKeyPair,
+    val generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+)
+
+class IosEd25519Callbacks(
+    val sign: (ByteArray, ByteArray) -> ByteArray,
+    val verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
+)
+
+class IosChaCha20Poly1305Callbacks(
+    val seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+    val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+)
+
+class IosCryptoCallbacks(
+    val randomBytes: (Int) -> ByteArray,
+    val hashes: IosHashCallbacks,
+    val keyGeneration: IosKeyGenerationCallbacks,
+    val x25519: (ByteArray, ByteArray) -> ByteArray,
+    val ed25519: IosEd25519Callbacks,
+    val chacha20Poly1305: IosChaCha20Poly1305Callbacks,
 )
 ```
 
-Both keys must be 32 bytes.
+Use these grouped callback types when you want the iOS bridge install call site to stay organized by responsibility rather than passing one long flat parameter list.
 
 ### `IosCryptoBridge.install(...)`
 
 ```kotlin
 object IosCryptoBridge {
+    fun install(callbacks: IosCryptoCallbacks)
+
     fun install(
         randomBytes: (Int) -> ByteArray,
         sha256: (ByteArray) -> ByteArray,
@@ -492,6 +535,7 @@ Notes:
 
 - required for real iOS cryptographic operation
 - intended to be backed by app-owned Apple-native implementations such as CryptoKit
+- the grouped `install(callbacks)` overload is the easier default for long-lived app-owned bridge glue
 - ChaCha20-Poly1305 uses `ciphertext || tag`
 
 ### `IosBleTransportBridge`
@@ -508,6 +552,7 @@ Notes:
 - optional bridge for iPhone-hosted bearer paths that still need native CoreBluetooth bridging
 - opaque arguments are native iOS handles and must only be cast in app-owned iOS code
 - `installData(...)` avoids copying into a Kotlin `ByteArray` when the host app can work directly with Swift `Data` or `NSData`
+- when the side bearer is enabled, prefer `installData(...)` unless the host app truly needs the Kotlin `ByteArray` form
 
 ## Public limits and guarantees
 

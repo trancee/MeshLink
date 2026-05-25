@@ -15,8 +15,13 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.ForgetPeerResult.NotFound` | object | — |
 | `ch.trancee.meshlink.api.InboundMessage` | class | `originPeerId`, `payload`, `priority`, `receivedAtEpochMillis` |
 | `ch.trancee.meshlink.api.IosBleTransportBridge` | object | `install()`, `installData()` |
+| `ch.trancee.meshlink.api.IosChaCha20Poly1305Callbacks` | class | `open`, `seal` |
 | `ch.trancee.meshlink.api.IosCryptoBridge` | object | `install()` |
+| `ch.trancee.meshlink.api.IosCryptoCallbacks` | class | `chacha20Poly1305`, `ed25519`, `hashes`, `keyGeneration`, `randomBytes`, `x25519` |
 | `ch.trancee.meshlink.api.IosCryptoRawKeyPair` | class | `privateKey`, `publicKey` |
+| `ch.trancee.meshlink.api.IosEd25519Callbacks` | class | `sign`, `verify` |
+| `ch.trancee.meshlink.api.IosHashCallbacks` | class | `hmacSha256`, `sha256` |
+| `ch.trancee.meshlink.api.IosKeyGenerationCallbacks` | class | `generateEd25519KeyPair`, `generateX25519KeyPair` |
 | `ch.trancee.meshlink.api.MeshLink` | object | `create()` |
 | `ch.trancee.meshlink.api.MeshLinkApi` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()`, `updateBattery()` |
 | `ch.trancee.meshlink.api.MeshLinkException` | abstract class | `init` |

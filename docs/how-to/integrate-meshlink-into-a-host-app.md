@@ -94,10 +94,15 @@ func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
 ```
 
 Your `installMeshLinkCrypto()` wrapper should call
-`IosCryptoBridge.shared.install(...)` with app-owned CryptoKit-backed
-callbacks.
+`IosCryptoBridge.shared.install(callbacks: ...)` with app-owned
+CryptoKit-backed callbacks grouped into `IosCryptoCallbacks`,
+`IosHashCallbacks`, `IosKeyGenerationCallbacks`, `IosEd25519Callbacks`, and
+`IosChaCha20Poly1305Callbacks`.
 
-If you need the iPhone-hosted GATT-notify side bearer, install the optional `IosBleTransportBridge` during startup as well.
+If you need the iPhone-hosted GATT-notify side bearer, install the optional
+`IosBleTransportBridge` during startup as well. Prefer `installData(...)` when
+that path can work directly with Swift `Data` / `NSData`, because it avoids the
+extra per-byte bridge copy back into Kotlin.
 
 ## 4. Start MeshLink from one app-owned lifecycle boundary
 

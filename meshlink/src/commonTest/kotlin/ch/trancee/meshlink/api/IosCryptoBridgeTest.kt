@@ -42,6 +42,29 @@ class IosCryptoBridgeTest {
     }
 
     @Test
+    fun `ios crypto raw key pair stores defensive copies`() {
+        // Arrange
+        val originalPrivateKey = ByteArray(32) { 0x11 }
+        val originalPublicKey = ByteArray(32) { 0x22 }
+        val keyPair =
+            IosCryptoRawKeyPair(privateKey = originalPrivateKey, publicKey = originalPublicKey)
+
+        // Act
+        originalPrivateKey[0] = 0x7F
+        originalPublicKey[0] = 0x6E
+        val privateKeySnapshot = keyPair.privateKey
+        val publicKeySnapshot = keyPair.publicKey
+        privateKeySnapshot[1] = 0x5D
+        publicKeySnapshot[1] = 0x4C
+
+        // Assert
+        assertEquals(0x11, keyPair.privateKey[0].toInt() and 0xFF)
+        assertEquals(0x22, keyPair.publicKey[0].toInt() and 0xFF)
+        assertEquals(0x11, keyPair.privateKey[1].toInt() and 0xFF)
+        assertEquals(0x22, keyPair.publicKey[1].toInt() and 0xFF)
+    }
+
+    @Test
     fun `registry requireCallbacks fails when the bridge is not installed`() {
         // Arrange
         IosCryptoBridgeRegistry.clear()
@@ -113,6 +136,100 @@ class IosCryptoBridgeTest {
         assertContentEquals(
             openResult,
             callbacks.chacha20Poly1305Open(
+                byteArrayOf(1),
+                byteArrayOf(2),
+                byteArrayOf(3),
+                byteArrayOf(4),
+            ),
+        )
+    }
+
+    @Test
+    fun `install accepts grouped callback objects`() {
+        // Arrange
+        val randomBytesResult = byteArrayOf(31, 32, 33, 34)
+        val sha256Result = byteArrayOf(35, 36, 37, 38)
+        val hmacResult = byteArrayOf(39, 40, 41, 42)
+        val x25519KeyPair =
+            IosCryptoRawKeyPair(
+                privateKey = ByteArray(32) { 0x55 },
+                publicKey = ByteArray(32) { 0x66 },
+            )
+        val ed25519KeyPair =
+            IosCryptoRawKeyPair(
+                privateKey = ByteArray(32) { 0x77 },
+                publicKey = ByteArray(32) { 0x88.toByte() },
+            )
+        val x25519Result = byteArrayOf(43, 44, 45, 46)
+        val signatureResult = ByteArray(64) { index -> (index + 10).toByte() }
+        val sealResult = byteArrayOf(47, 48, 49, 50)
+        val openResult = byteArrayOf(51, 52, 53, 54)
+        val callbacks =
+            IosCryptoCallbacks(
+                randomBytes = { randomBytesResult.copyOf() },
+                hashes =
+                    IosHashCallbacks(
+                        sha256 = { sha256Result.copyOf() },
+                        hmacSha256 = { _, _ -> hmacResult.copyOf() },
+                    ),
+                keyGeneration =
+                    IosKeyGenerationCallbacks(
+                        generateX25519KeyPair = { x25519KeyPair },
+                        generateEd25519KeyPair = { ed25519KeyPair },
+                    ),
+                x25519 = { _, _ -> x25519Result.copyOf() },
+                ed25519 =
+                    IosEd25519Callbacks(
+                        sign = { _, _ -> signatureResult.copyOf() },
+                        verify = { _, _, _ -> true },
+                    ),
+                chacha20Poly1305 =
+                    IosChaCha20Poly1305Callbacks(
+                        seal = { _, _, _, _ -> sealResult.copyOf() },
+                        open = { _, _, _, _ -> openResult.copyOf() },
+                    ),
+            )
+        IosCryptoBridge.install(callbacks = callbacks)
+
+        // Act
+        val installedCallbacks = IosCryptoBridgeRegistry.requireCallbacks()
+
+        // Assert
+        assertContentEquals(randomBytesResult, installedCallbacks.randomBytes(4))
+        assertContentEquals(sha256Result, installedCallbacks.sha256(byteArrayOf(1)))
+        assertContentEquals(
+            hmacResult,
+            installedCallbacks.hmacSha256(byteArrayOf(1), byteArrayOf(2)),
+        )
+        assertContentEquals(
+            x25519KeyPair.privateKey,
+            installedCallbacks.generateX25519KeyPair().privateKey,
+        )
+        assertContentEquals(
+            ed25519KeyPair.publicKey,
+            installedCallbacks.generateEd25519KeyPair().publicKey,
+        )
+        assertContentEquals(x25519Result, installedCallbacks.x25519(byteArrayOf(1), byteArrayOf(2)))
+        assertContentEquals(
+            signatureResult,
+            installedCallbacks.ed25519Sign(byteArrayOf(1), byteArrayOf(2)),
+        )
+        assertEquals(
+            true,
+            installedCallbacks.ed25519Verify(byteArrayOf(1), byteArrayOf(2), byteArrayOf(3)),
+        )
+        assertContentEquals(
+            sealResult,
+            installedCallbacks.chacha20Poly1305Seal(
+                byteArrayOf(1),
+                byteArrayOf(2),
+                byteArrayOf(3),
+                byteArrayOf(4),
+            ),
+        )
+        assertContentEquals(
+            openResult,
+            installedCallbacks.chacha20Poly1305Open(
                 byteArrayOf(1),
                 byteArrayOf(2),
                 byteArrayOf(3),

@@ -35,9 +35,44 @@ struct ChatApp: App {
 }
 ```
 
-Your `installMeshLinkCrypto()` wrapper should call `IosCryptoBridge.shared.install(...)` with CryptoKit-backed callbacks.
+Prefer installing the crypto bridge through grouped callback objects so the app-owned CryptoKit glue stays organized by responsibility:
 
-If you need the iPhone-hosted GATT-notify bearer, install `IosBleTransportBridge.shared.install(...)` or `installData(...)` during the same startup path.
+```swift
+func installMeshLinkCrypto() {
+    let callbacks = IosCryptoCallbacks(
+        randomBytes: makeRandomBytes,
+        hashes: IosHashCallbacks(
+            sha256: sha256Bytes,
+            hmacSha256: hmacSha256Bytes
+        ),
+        keyGeneration: IosKeyGenerationCallbacks(
+            generateX25519KeyPair: generateX25519KeyPair,
+            generateEd25519KeyPair: generateEd25519KeyPair
+        ),
+        x25519: x25519SharedSecret,
+        ed25519: IosEd25519Callbacks(
+            sign: ed25519Sign,
+            verify: ed25519Verify
+        ),
+        chacha20Poly1305: IosChaCha20Poly1305Callbacks(
+            seal: chacha20Poly1305Seal,
+            open: chacha20Poly1305Open
+        )
+    )
+
+    IosCryptoBridge.shared.install(callbacks: callbacks)
+}
+```
+
+Those helper functions remain app-owned. Their contracts must match the MeshLink bridge rules:
+
+- X25519 and Ed25519 key pairs use 32-byte raw private/public keys
+- Ed25519 signing returns the 64-byte raw signature format
+- ChaCha20-Poly1305 sealing returns `ciphertext || tag`
+
+The older flat `IosCryptoBridge.shared.install(...)` overload still exists, but the grouped callback objects are easier to keep readable as the bridge glue grows.
+
+If you need the iPhone-hosted GATT-notify bearer, install `IosBleTransportBridge.shared.install(...)` or, preferably, `installData(...)` during the same startup path. `installData(...)` lets the host app work directly with Swift `Data` / `NSData` and avoids a per-byte bridge hop back into Kotlin.
 
 Make sure the app has a Bluetooth usage description and that the first-run Bluetooth prompt is handled before you debug discovery or delivery. If you need that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
