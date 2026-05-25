@@ -81,7 +81,8 @@ reference only when that extra depth becomes useful.
 
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and iOS bridge APIs.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
-- [Generated public API symbol tables](reference/generated-public-api.md) — the BCV-tracked public surface rendered from the checked-in API dump.
+- [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring project terms such as AGP 9, BCV, SKIE, TOFU, GATT, and L2CAP.
+- [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in Binary Compatibility Validator (BCV) dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
 - [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.

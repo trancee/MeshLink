@@ -257,11 +257,20 @@ A good default mapping is:
 
 If you need application-level delivery confirmation, implement your own application receipt message on top of MeshLink rather than treating `SendResult.Sent` as a read receipt.
 
+## Troubleshooting
+
+- **`send()` throws `InvalidStateTransition`** — MeshLink is not currently `Running`. Start the runtime first, or resume it if it is paused.
+- **No peers appear after `start()`** — check permissions and Bluetooth prompts first, then confirm both devices use the same `appId`. For full-session visibility, also make sure your long-lived collectors were attached before startup.
+- **`SendResult.NotSent(UNREACHABLE)` keeps happening** — no usable route or transport path is available yet. Wait for peer discovery and route convergence, then inspect `diagnosticEvents` for the current delivery failure reason.
+- **Trust reset leaves the UI in a confusing state** — `forgetPeer()` clears MeshLink trust and session continuity, but it does not clear your app-owned labels, conversation history, or support notes. Clean those up explicitly in your host app.
+
 ## Related docs
 
 - [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
 - [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [Glossary and acronym reference](../reference/glossary.md)
 - [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)
 - [The trust model](../explanation/trust-model.md)
 - [The peer lifecycle model](../explanation/peer-lifecycle.md)

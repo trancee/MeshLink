@@ -33,6 +33,7 @@ Quick entry points:
 - [How to use MeshLink from Swift](docs/how-to/use-meshlink-from-swift.md)
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](docs/reference/meshlink-runtime-behavior.md)
+- [Glossary and acronym reference](docs/reference/glossary.md)
 - [About how MeshLink works](docs/explanation/about-how-meshlink-works.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 

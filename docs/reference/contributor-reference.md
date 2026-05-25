@@ -158,6 +158,7 @@ A public API change currently requires all of the following:
 - [MeshLink documentation map](../README.md)
 - [AGP 9 migration plan](../tooling/agp-9-migration-plan.md)
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
+- [Glossary and acronym reference](glossary.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
 - [MeshLink reference app overview](../../meshlink-reference/README.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)

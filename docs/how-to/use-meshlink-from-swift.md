@@ -1,13 +1,16 @@
 # How to use MeshLink from Swift
 
-This guide shows you how to consume MeshLink from Swift through the SKIE-enhanced
-Apple framework surface generated from `:meshlink`.
+This guide shows you how to consume MeshLink from Swift through the
+Swift-friendly Apple framework surface generated from `:meshlink`.
+
+In MeshLink docs, SKIE refers to the Swift interop tooling used to shape that
+generated framework surface.
 
 This guide assumes:
 
 - you are calling MeshLink from Swift, not from shared Kotlin code
 - your Xcode app links the generated `MeshLink` framework
-- SKIE is enabled on the `:meshlink` module
+- the `:meshlink` module is generated with SKIE, the Swift interop tooling used in this repository
 
 If your Xcode app does not yet link the generated framework, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
@@ -281,10 +284,19 @@ That means:
 - preview features such as SwiftUI observing and Combine bridges stay off
 - default-argument interop stays off unless maintainers opt in selectively later
 
+## Troubleshooting
+
+- **Swift cannot import `MeshLink`** — the generated Apple framework is not linked into the Xcode target yet. Go back to [How to add MeshLink to your app](add-meshlink-to-your-app.md) and confirm the framework build and linker configuration first.
+- **The runtime fails early or discovery never begins on iPhone** — make sure `IosCryptoBridge` is installed before runtime creation and clear the first-run Bluetooth prompt before debugging anything deeper.
+- **Early peer, diagnostic, or message events are missing** — attach your `for await` tasks before you call `start()`. These event streams are live and non-replaying.
+- **Binary payload handling still feels awkward** — this is expected. SKIE improves Swift naming and concurrency interop, but it does not remove the need to convert payload data into `KotlinByteArray`.
+
 ## Related docs
 
 - [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [Glossary and acronym reference](../reference/glossary.md)
 - [Generated public API symbol tables](../reference/generated-public-api.md)
 - [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
 - [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)

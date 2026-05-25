@@ -1,6 +1,7 @@
 # About the L2CAP-first transport posture
 
-MeshLink still thinks in L2CAP-first terms, even though the current mixed
+MeshLink still thinks in L2CAP-first terms, where L2CAP is the
+channel-oriented BLE bearer MeshLink prefers, even though the current mixed
 Android/iOS product path can use an iPhone-hosted GATT-notify side bearer for
 part of the large-transfer path.
 
@@ -41,8 +42,8 @@ That is a refinement of an L2CAP-first design, not a retreat from it.
 
 ## Why MeshLink never wanted to be GATT-only
 
-GATT is excellent for attribute-style work: reading values, writing values, and
-subscribing to characteristics.
+GATT, the Generic Attribute Profile, is excellent for attribute-style work:
+reading values, writing values, and subscribing to characteristics.
 
 MeshLink is solving a different problem. It needs to move framed encrypted mesh
 traffic, sometimes in large bursts, while keeping one stable application model.
