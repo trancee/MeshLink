@@ -14,7 +14,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
-class ReferenceNavHostSupportTest {
+class SessionBoundaryCoordinatorTest {
     @Test
     fun followUpSupportedEntrySurfacePreservesAdvancedSurfaceOfOrigin() = runTest {
         // Arrange

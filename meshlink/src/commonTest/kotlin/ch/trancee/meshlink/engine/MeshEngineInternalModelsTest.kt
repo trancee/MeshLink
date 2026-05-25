@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
-class MeshEngineSupportTest {
+class MeshEngineInternalModelsTest {
     @Test
     fun `chunkTransferPayload splits payload into fixed-size chunks`() {
         // Arrange
