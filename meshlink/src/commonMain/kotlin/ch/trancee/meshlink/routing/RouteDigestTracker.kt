@@ -5,43 +5,72 @@ import ch.trancee.meshlink.wire.WireFrame
 import ch.trancee.meshlink.wire.WriteBuffer
 
 internal class RouteDigestTracker {
+    private val routeBytesByDestinationPeerId: MutableMap<String, ByteArray> = linkedMapOf()
+    private val orderedDestinationPeerIds: MutableList<String> = mutableListOf()
     private var cachedRouteDigest: ByteArray? = null
 
-    internal fun routeDigestFrame(
-        localPeerId: PeerId,
-        routes: Collection<RouteEntry>,
-    ): WireFrame.RouteDigest {
-        return WireFrame.RouteDigest(peerId = localPeerId, digest = routeDigest(routes))
+    internal fun routeDigestFrame(localPeerId: PeerId): WireFrame.RouteDigest {
+        return WireFrame.RouteDigest(peerId = localPeerId, digest = routeDigest())
     }
 
-    internal fun invalidate(): Unit {
+    internal fun upsert(route: RouteEntry): Unit {
+        val destinationPeerIdValue = route.destinationPeerId.value
+        val isNewDestination =
+            routeBytesByDestinationPeerId.put(destinationPeerIdValue, encode(route)) == null
+        if (isNewDestination) {
+            insertDestinationPeerId(destinationPeerIdValue)
+        }
         cachedRouteDigest = null
     }
 
-    private fun routeDigest(routes: Collection<RouteEntry>): ByteArray {
+    internal fun remove(destinationPeerIdValue: String): Unit {
+        if (routeBytesByDestinationPeerId.remove(destinationPeerIdValue) != null) {
+            orderedDestinationPeerIds.remove(destinationPeerIdValue)
+            cachedRouteDigest = null
+        }
+    }
+
+    internal fun clear(): Unit {
+        if (routeBytesByDestinationPeerId.isNotEmpty()) {
+            routeBytesByDestinationPeerId.clear()
+            orderedDestinationPeerIds.clear()
+            cachedRouteDigest = null
+        }
+    }
+
+    private fun routeDigest(): ByteArray {
         cachedRouteDigest?.let {
             return it
         }
 
         val buffer = WriteBuffer()
-        routes
-            .sortedWith(
-                compareBy<RouteEntry> { route -> route.destinationPeerId.value }
-                    .thenBy { route -> route.nextHopPeerId.value }
-            )
-            .forEach { route ->
-                buffer.writeIntLittleEndian(route.destinationPeerIdBytes.size)
-                buffer.writeBytes(route.destinationPeerIdBytes)
-                buffer.writeIntLittleEndian(route.nextHopPeerIdBytes.size)
-                buffer.writeBytes(route.nextHopPeerIdBytes)
-                buffer.writeIntLittleEndian(route.metric)
-                buffer.writeIntLittleEndian(route.seqNo.toInt())
-                buffer.writeIntLittleEndian(route.ed25519PublicKey.size)
-                buffer.writeBytes(route.ed25519PublicKey)
-                buffer.writeIntLittleEndian(route.x25519PublicKey.size)
-                buffer.writeBytes(route.x25519PublicKey)
-            }
+        orderedDestinationPeerIds.forEach { destinationPeerIdValue ->
+            buffer.writeBytes(routeBytesByDestinationPeerId.getValue(destinationPeerIdValue))
+        }
         return fnv1a32(buffer.toByteArray()).also { digest -> cachedRouteDigest = digest }
+    }
+
+    private fun encode(route: RouteEntry): ByteArray {
+        val buffer = WriteBuffer()
+        buffer.writeIntLittleEndian(route.destinationPeerIdBytes.size)
+        buffer.writeBytes(route.destinationPeerIdBytes)
+        buffer.writeIntLittleEndian(route.nextHopPeerIdBytes.size)
+        buffer.writeBytes(route.nextHopPeerIdBytes)
+        buffer.writeIntLittleEndian(route.metric)
+        buffer.writeIntLittleEndian(route.seqNo.toInt())
+        buffer.writeIntLittleEndian(route.ed25519PublicKey.size)
+        buffer.writeBytes(route.ed25519PublicKey)
+        buffer.writeIntLittleEndian(route.x25519PublicKey.size)
+        buffer.writeBytes(route.x25519PublicKey)
+        return buffer.toByteArray()
+    }
+
+    private fun insertDestinationPeerId(destinationPeerIdValue: String): Unit {
+        val insertionIndex =
+            orderedDestinationPeerIds.binarySearch(destinationPeerIdValue).let { index ->
+                if (index >= 0) index else -index - 1
+            }
+        orderedDestinationPeerIds.add(insertionIndex, destinationPeerIdValue)
     }
 
     private fun fnv1a32(bytes: ByteArray): ByteArray {

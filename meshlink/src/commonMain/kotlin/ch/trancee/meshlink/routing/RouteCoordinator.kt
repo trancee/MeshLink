@@ -43,10 +43,10 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         val previousRoute = selectedRoutes[peerId.value]
         selectedRoutes[peerId.value] = directRoute
         updateFeasibilityDistance(directRoute)
-        routeDigestTracker.invalidate()
+        routeDigestTracker.upsert(directRoute)
 
         val directRouteFrame = directRoute.asRouteUpdateFrame()
-        val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId, selectedRoutes.values)
+        val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
         val advertisements = mutableListOf<RoutingAdvertisement>()
         connectedPeers.forEach { connectedPeerId ->
             if (connectedPeerId == peerId.value) {
@@ -98,10 +98,11 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
         val advertisements = mutableListOf<RoutingAdvertisement>()
         if (removedRoutes.isNotEmpty()) {
-            routeDigestTracker.invalidate()
+            removedRoutes.forEach { route ->
+                routeDigestTracker.remove(route.destinationPeerId.value)
+            }
             advanceTopologyVersion()
-            val digestFrame =
-                routeDigestTracker.routeDigestFrame(localPeerId, selectedRoutes.values)
+            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
             removedRoutes.forEach { route ->
                 val retractionFrame = route.asRouteRetractionFrame()
                 connectedPeers.forEach { connectedPeerId ->
@@ -136,7 +137,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         val removedRoutes = selectedRoutes.values.toList()
         selectedRoutes.clear()
         feasibilityDistances.clear()
-        routeDigestTracker.invalidate()
+        routeDigestTracker.clear()
         if (removedRoutes.isNotEmpty()) {
             advanceTopologyVersion()
         }
@@ -175,7 +176,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         } else {
             selectedRoutes[update.destinationPeerId.value] = candidate
             updateFeasibilityDistance(candidate)
-            routeDigestTracker.invalidate()
+            routeDigestTracker.upsert(candidate)
             advanceTopologyVersion()
             val routeChange =
                 if (current == null) {
@@ -184,8 +185,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                     RouteSelectionChange.Updated(route = candidate, previousRoute = current)
                 }
             val candidateFrame = candidate.asRouteUpdateFrame()
-            val digestFrame =
-                routeDigestTracker.routeDigestFrame(localPeerId, selectedRoutes.values)
+            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
             val advertisements = mutableListOf<RoutingAdvertisement>()
             connectedPeers.forEach { connectedPeerId ->
                 if (
@@ -217,11 +217,10 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         } else {
             selectedRoutes.remove(retraction.destinationPeerId.value)
             feasibilityDistances.remove(retraction.destinationPeerId.value)
-            routeDigestTracker.invalidate()
+            routeDigestTracker.remove(retraction.destinationPeerId.value)
             advanceTopologyVersion()
             val retractionFrame = current.asRouteRetractionFrame()
-            val digestFrame =
-                routeDigestTracker.routeDigestFrame(localPeerId, selectedRoutes.values)
+            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
             val advertisements = mutableListOf<RoutingAdvertisement>()
             connectedPeers.forEach { connectedPeerId ->
                 if (connectedPeerId == fromPeerId.value) {
