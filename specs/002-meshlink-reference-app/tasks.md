@@ -244,7 +244,7 @@ Task: "Implement the lab scenario catalog and lab screen shell in meshlink-refer
 
 ```bash
 # Validation tasks
-Task: "Add timeline filter and search tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt"
+Task: "Add timeline filter/search correctness and ≤1-second 2,000-entry performance tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/timeline/TimelineFilterTest.kt"
 Task: "Add retained-history pruning tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepositoryTest.kt"
 Task: "Add session-artifact contract serialization tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactContractTest.kt"
 
@@ -260,7 +260,7 @@ Task: "Implement timeline, recent-history, and export UI surfaces in meshlink-re
 
 ```bash
 # Validation tasks
-Task: "Add shared workflow catalog parity tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt"
+Task: "Add shared workflow catalog and diagnostic-category parity tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt"
 Task: "Add Android and iOS parity smoke tests in meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt and meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt"
 
 # Implementation tasks
