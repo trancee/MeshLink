@@ -64,7 +64,7 @@ public class AdvancedControlsViewModel(
             return
         }
         scope.launch {
-            platformServices.meshLinkController.sendSamplePayload(
+            platformServices.meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = state.composerText,
                 priority = state.selectedPriority,
@@ -79,7 +79,7 @@ public class AdvancedControlsViewModel(
             return
         }
         scope.launch {
-            platformServices.meshLinkController.sendSamplePayload(
+            platformServices.meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = buildAdvancedLargeTransferPreviewPayload(),
                 priority = DeliveryPriority.HIGH,

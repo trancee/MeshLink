@@ -72,11 +72,7 @@ internal class ScriptedReferenceMeshRuntime(
         stopScriptedMesh(stateStore)
     }
 
-    suspend fun sendSamplePayload(
-        peerId: String,
-        payloadText: String,
-        priority: DeliveryPriority,
-    ): Unit {
+    suspend fun sendPayload(peerId: String, payloadText: String, priority: DeliveryPriority): Unit {
         val blocker =
             sendRecorder.blockerFor(
                 peerId = peerId,

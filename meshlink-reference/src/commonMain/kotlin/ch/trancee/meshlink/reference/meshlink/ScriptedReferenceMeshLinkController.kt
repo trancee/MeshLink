@@ -39,12 +39,12 @@ public class ScriptedReferenceMeshLinkController(
         runtime.stop()
     }
 
-    override suspend fun sendSamplePayload(
+    override suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        runtime.sendSamplePayload(peerId = peerId, payloadText = payloadText, priority = priority)
+        runtime.sendPayload(peerId = peerId, payloadText = payloadText, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {

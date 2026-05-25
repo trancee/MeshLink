@@ -61,7 +61,7 @@ internal class RecordingLiveProofAutomationActions(
 
     override fun requestMeshResume() = Unit
 
-    override fun requestSendSamplePayload(
+    override fun requestSendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,

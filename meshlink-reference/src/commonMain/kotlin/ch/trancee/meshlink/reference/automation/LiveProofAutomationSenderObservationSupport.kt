@@ -23,7 +23,7 @@ internal fun requestSenderPayload(
             "requiredPeerCount=${automationConfig.requiredPeerCount} " +
             "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
     )
-    actions.requestSendSamplePayload(
+    actions.requestSendPayload(
         peerId = targetPeer.peerId,
         payloadText = payloadText,
         priority = priority,

@@ -52,17 +52,13 @@ public class ReferenceSessionController(
         runOnSupportedLiveController { controller -> controller.stop() }
     }
 
-    override suspend fun sendSamplePayload(
+    override suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
         runOnSupportedLiveController { controller ->
-            controller.sendSamplePayload(
-                peerId = peerId,
-                payloadText = payloadText,
-                priority = priority,
-            )
+            controller.sendPayload(peerId = peerId, payloadText = payloadText, priority = priority)
         }
     }
 

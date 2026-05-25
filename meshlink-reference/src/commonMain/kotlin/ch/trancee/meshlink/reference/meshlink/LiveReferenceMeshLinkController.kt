@@ -103,7 +103,7 @@ public class LiveReferenceMeshLinkController(
         )
     }
 
-    override suspend fun sendSamplePayload(
+    override suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,

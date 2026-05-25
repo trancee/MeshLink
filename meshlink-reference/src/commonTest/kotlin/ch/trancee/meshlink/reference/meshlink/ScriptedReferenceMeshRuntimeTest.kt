@@ -15,7 +15,7 @@ class ScriptedReferenceMeshRuntimeTest {
         val runtime = scriptedRuntime()
 
         // Act
-        runtime.sendSamplePayload(
+        runtime.sendPayload(
             peerId = "peer-unknown-999999",
             payloadText = "payload",
             priority = DeliveryPriority.NORMAL,
@@ -34,7 +34,7 @@ class ScriptedReferenceMeshRuntimeTest {
 
         // Act
         runtime.start()
-        runtime.sendSamplePayload(
+        runtime.sendPayload(
             peerId = DEFAULT_SCRIPTED_PEER_ID,
             payloadText = "hello mesh",
             priority = DeliveryPriority.NORMAL,
@@ -56,7 +56,7 @@ class ScriptedReferenceMeshRuntimeTest {
         // Arrange
         val runtime = scriptedRuntime()
         runtime.start()
-        runtime.sendSamplePayload(
+        runtime.sendPayload(
             peerId = DEFAULT_SCRIPTED_PEER_ID,
             payloadText = "hello mesh",
             priority = DeliveryPriority.NORMAL,

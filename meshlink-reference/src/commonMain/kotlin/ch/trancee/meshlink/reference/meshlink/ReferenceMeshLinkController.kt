@@ -21,7 +21,7 @@ public interface ReferenceMeshLinkController {
 
     public suspend fun stop(): Unit
 
-    public suspend fun sendSamplePayload(
+    public suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority = DeliveryPriority.NORMAL,

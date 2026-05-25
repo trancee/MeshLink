@@ -20,7 +20,7 @@ internal interface LiveProofAutomationActions {
 
     fun requestMeshResume()
 
-    fun requestSendSamplePayload(peerId: String, payloadText: String, priority: DeliveryPriority)
+    fun requestSendPayload(peerId: String, payloadText: String, priority: DeliveryPriority)
 
     fun requestForgetPeer(peerId: String)
 
@@ -56,13 +56,13 @@ internal class TimelineStoreLiveProofAutomationActions(
         timelineStore.scope.launch { platformServices.meshLinkController.resume() }
     }
 
-    override fun requestSendSamplePayload(
+    override fun requestSendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,
     ) {
         timelineStore.scope.launch {
-            platformServices.meshLinkController.sendSamplePayload(
+            platformServices.meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = payloadText,
                 priority = priority,

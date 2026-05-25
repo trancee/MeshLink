@@ -85,7 +85,7 @@ private class ControllableReferenceMeshLinkController(snapshot: ReferenceControl
 
     override suspend fun stop(): Unit = Unit
 
-    override suspend fun sendSamplePayload(
+    override suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,

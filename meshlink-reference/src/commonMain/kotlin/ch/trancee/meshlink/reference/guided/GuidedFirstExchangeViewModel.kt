@@ -42,7 +42,7 @@ public class GuidedFirstExchangeViewModel(
 
     public fun sendHelloToPeer(peerId: String): Unit {
         scope.launch {
-            platformServices.meshLinkController.sendSamplePayload(
+            platformServices.meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = "hello mesh from ${platformServices.platformName}",
                 priority = DeliveryPriority.NORMAL,

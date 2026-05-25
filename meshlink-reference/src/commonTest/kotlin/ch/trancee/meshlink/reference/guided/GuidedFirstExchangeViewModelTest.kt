@@ -213,7 +213,7 @@ private class FakeReferenceMeshLinkController(snapshot: ReferenceControllerSnaps
 
     override suspend fun stop() = Unit
 
-    override suspend fun sendSamplePayload(
+    override suspend fun sendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,
