@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
@@ -50,7 +49,7 @@ internal fun resolveAndroidMaximumPayloadBytesPerDelivery(
 
 internal class AndroidBleTransport(
     internal val context: Context,
-    private val appId: String,
+    internal val appId: String,
     advertisementKeyHash: ByteArray,
 ) : BleTransport {
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
@@ -136,105 +135,27 @@ internal class AndroidBleTransport(
         }
 
     override suspend fun start(): Unit {
-        ensurePermissionsGranted()
-        val bluetoothManager =
-            try {
-                context.getSystemService(BluetoothManager::class.java)
-                    ?: error("BluetoothManager is unavailable")
-            } catch (exception: SecurityException) {
-                throw androidPermissionDenied(exception)
-            }
-        val adapter =
-            try {
-                bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable")
-            } catch (exception: SecurityException) {
-                throw androidPermissionDenied(exception)
-            }
-        bluetoothAdapter = adapter
-        advertiser =
-            try {
-                adapter.bluetoothLeAdvertiser
-            } catch (exception: SecurityException) {
-                throw androidPermissionDenied(exception)
-            }
-        scanner =
-            try {
-                adapter.bluetoothLeScanner
-            } catch (exception: SecurityException) {
-                throw androidPermissionDenied(exception)
-            }
-
-        val serverSocket =
-            runCatching {
-                    AndroidL2capSocketFactory.listenInsecure(adapter) { error ->
-                        log(
-                            "explicit insecure L2CAP server socket fallback: ${error.message.orEmpty()}"
-                        )
-                    }
-                }
-                .onFailure { error ->
-                    log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
-                }
-                .getOrNull()
-        l2capServerSocket = serverSocket
-        currentDiscoveryPayload =
-            buildAndroidDiscoveryPayload(
-                appId = appId,
-                localKeyHash = localKeyHash,
-                currentPowerProfile = currentPowerProfile,
-                l2capPsm = (serverSocket?.psm ?: 0).toUByte(),
-            )
-        log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
-        serverSocket?.let(::launchAcceptLoop)
-
-        inboundFrameQueue?.close()
-        inboundFrameQueue = createInboundFrameQueue()
-
-        started = true
-        refreshDiscoveryState()
+        startTransport()
     }
 
     override suspend fun pause(): Unit {
-        stopTransports(clearPeers = false)
-        started = false
+        pauseTransport()
     }
 
     override suspend fun resume(): Unit {
-        if (!started) {
-            start()
-        }
+        resumeTransport()
     }
 
     override suspend fun stop(): Unit {
-        stopTransports(clearPeers = true)
-        started = false
+        stopTransport()
     }
 
     override suspend fun updatePowerPolicy(policy: PowerPolicy): Unit {
-        currentPowerProfile = AndroidPowerMonitor.profileFor(policy)
-        currentDiscoveryPayload =
-            buildAndroidDiscoveryPayload(
-                appId = appId,
-                localKeyHash = localKeyHash,
-                currentPowerProfile = currentPowerProfile,
-                l2capPsm = currentDiscoveryPayload.l2capPsm,
-            )
-        if (!started) {
-            return
-        }
-        refreshDiscoveryState()
+        updatePowerPolicyState(policy)
     }
 
     override suspend fun setDiscoverySuspended(suspended: Boolean): Unit {
-        if (discoverySuspended == suspended) {
-            return
-        }
-        discoverySuspended = suspended
-        if (!started) {
-            return
-        }
-        log("discovery suspended=$suspended")
-        refreshDiscoveryState()
+        setDiscoverySuspendedState(suspended)
     }
 
     override suspend fun promoteTemporaryPeer(
@@ -384,7 +305,7 @@ internal class AndroidBleTransport(
         )
     }
 
-    private fun enqueueInboundFrame(peerId: PeerId, payload: ByteArray): Boolean {
+    internal fun enqueueInboundFrame(peerId: PeerId, payload: ByteArray): Boolean {
         val queue = inboundFrameQueue
         if (queue == null) {
             log(
@@ -399,7 +320,7 @@ internal class AndroidBleTransport(
         return enqueued
     }
 
-    private fun createInboundFrameQueue(): AndroidInboundFrameQueue {
+    internal fun createInboundFrameQueue(): AndroidInboundFrameQueue {
         return AndroidInboundFrameQueue(scope = coroutineScope) { event ->
             mutableEvents.emit(event)
         }
