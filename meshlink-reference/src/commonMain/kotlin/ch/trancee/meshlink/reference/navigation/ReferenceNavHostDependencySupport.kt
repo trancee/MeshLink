@@ -77,6 +77,7 @@ internal fun rememberReferenceNavHostDependencies(
                     TimelineStoreLiveProofAutomationActions(
                         platformServices = sessionPlatformServices,
                         timelineStore = timelineStore,
+                        sessionTransitionService = sessionTransitionService,
                     ),
             )
         }
