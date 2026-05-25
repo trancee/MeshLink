@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @Composable
 internal fun ReferenceShellScaffold(
@@ -15,6 +16,7 @@ internal fun ReferenceShellScaffold(
     contentState: ReferenceRouteContentState,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,
+    onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     pendingBoundary: SessionBoundaryRequest?,
     onDismissBoundary: () -> Unit,
     onConfirmBoundary: (SessionBoundaryRequest, Boolean) -> Unit,
@@ -29,6 +31,7 @@ internal fun ReferenceShellScaffold(
                     contentState = contentState,
                     followUpSupportedSessionLabel = followUpSupportedSessionLabel,
                     onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
+                    onEndSupportedSession = onEndSupportedSession,
                     onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
                 )
             }

@@ -5,6 +5,7 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
+import ch.trancee.meshlink.reference.timeline.endCurrentSessionNow
 import ch.trancee.meshlink.reference.timeline.startNewSupportedSessionNow
 import ch.trancee.meshlink.reference.timeline.syncLiveSnapshot
 import ch.trancee.meshlink.reference.timeline.transitionAlternativeSessionNow
@@ -61,6 +62,10 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         val targetSurface = followUpSupportedEntrySurface(currentSnapshot)
         applySurfaceSelection(targetSurface)
         timelineStore.startNewSupportedSessionNow(surfaceOfOrigin = targetSurface.route)
+    }
+
+    suspend fun endSupportedSession(preEndExportPolicy: ExportPayloadPolicy? = null): Unit {
+        timelineStore.endCurrentSessionNow(preEndExportPolicy)
     }
 
     suspend fun confirmBoundary(

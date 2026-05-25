@@ -3,8 +3,10 @@ package ch.trancee.meshlink.reference.navigation
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceSession
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TimelineStoreHarness
+import ch.trancee.meshlink.reference.timeline.timelineStoreEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -126,6 +128,33 @@ class ReferenceNavHostSupportTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun endSupportedSessionRetainsEndedEvidenceAndHonorsFullExport() = runTest {
+        // Arrange
+        val harness =
+            transitionServiceHarness(
+                scope = this,
+                initialTimeline = listOf(timelineStoreEntry("live-1", "Live")),
+            )
+        advanceUntilIdle()
+
+        try {
+            // Act
+            harness.transitionService.endSupportedSession(
+                preEndExportPolicy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
+            )
+            advanceUntilIdle()
+
+            // Assert
+            assertEquals(true, harness.timelineStore.uiState.value.isCurrentSessionEnded)
+            assertEquals(1, harness.timelineStore.uiState.value.retainedSessions.size)
+            assertTrue(harness.timelineStore.uiState.value.lastExportPath!!.endsWith("-full.json"))
+        } finally {
+            coroutineContext.cancelChildren()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun startAlternativeSessionUpdatesTheSessionBeforeRoutingToLab() = runTest {
         // Arrange
         val harness = transitionServiceHarness(scope = this)
@@ -166,9 +195,10 @@ private data class SessionTransitionServiceHarness(
 )
 
 private fun transitionServiceHarness(
-    scope: kotlinx.coroutines.CoroutineScope
+    scope: kotlinx.coroutines.CoroutineScope,
+    initialTimeline: List<ch.trancee.meshlink.reference.model.TimelineEntry> = emptyList(),
 ): SessionTransitionServiceHarness {
-    val timelineStore = TimelineStoreHarness().createStore(scope)
+    val timelineStore = TimelineStoreHarness(initialTimeline = initialTimeline).createStore(scope)
     return SessionTransitionServiceHarness(
         timelineStore = timelineStore,
         transitionService = SessionTransitionService(timelineStore),

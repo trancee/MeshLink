@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -24,6 +25,7 @@ public fun TechnicalTimelineScreen(
     store: TechnicalTimelineStore,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,
+    onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by store.uiState.collectAsState()
@@ -39,6 +41,7 @@ public fun TechnicalTimelineScreen(
         store = store,
         followUpSupportedSessionLabel = followUpSupportedSessionLabel,
         onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
+        onEndSupportedSession = onEndSupportedSession,
         modifier = modifier,
     )
 }
@@ -53,6 +56,7 @@ private fun TechnicalTimelineContent(
     store: TechnicalTimelineStore,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,
+    onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     modifier: Modifier,
 ): Unit {
     var showExportDialog by remember { mutableStateOf(false) }
@@ -69,6 +73,7 @@ private fun TechnicalTimelineContent(
                 store = store,
                 followUpSupportedSessionLabel = followUpSupportedSessionLabel,
                 onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
+                onEndSupportedSession = onEndSupportedSession,
                 showExportDialog = showExportDialog,
                 showEndSessionDialog = showEndSessionDialog,
                 onOpenExportDialog = { showExportDialog = true },

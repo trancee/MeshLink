@@ -9,6 +9,7 @@ import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.history.RecentSessionHistoryScreen
 import ch.trancee.meshlink.reference.lab.LabScreen
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.solo.SoloExplorationScreen
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineScreen
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
@@ -18,6 +19,7 @@ internal fun ReferenceRouteContent(
     contentState: ReferenceRouteContentState,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,
+    onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     onOpenSolo: () -> Unit,
 ): Unit {
     when (contentState.activeRoute) {
@@ -42,6 +44,7 @@ internal fun ReferenceRouteContent(
                 store = contentState.timelineStore,
                 followUpSupportedSessionLabel = followUpSupportedSessionLabel,
                 onStartFollowUpSupportedSession = onStartFollowUpSupportedSession,
+                onEndSupportedSession = onEndSupportedSession,
                 modifier = Modifier.fillMaxSize(),
             )
 

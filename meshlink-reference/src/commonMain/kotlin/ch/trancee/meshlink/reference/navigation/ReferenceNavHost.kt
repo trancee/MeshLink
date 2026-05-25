@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.launch
 
 /** Shared navigation shell for the reference app surfaces. */
@@ -74,6 +75,14 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         }
     }
 
+    fun endSupportedSessionFromEvidenceSurface(
+        preEndExportPolicy: ExportPayloadPolicy? = null
+    ): Unit {
+        coroutineScope.launch {
+            dependencies.sessionTransitionService.endSupportedSession(preEndExportPolicy)
+        }
+    }
+
     val shellHeaderState =
         ReferenceShellHeaderState(
             activeSection = primarySectionFor(activeRoute),
@@ -100,6 +109,7 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
             ),
         followUpSupportedSessionLabel = followUpSupportedSessionLabel,
         onStartFollowUpSupportedSession = ::startFollowUpSupportedSessionFromEvidenceSurface,
+        onEndSupportedSession = ::endSupportedSessionFromEvidenceSurface,
         pendingBoundary = pendingBoundary,
         onDismissBoundary = { pendingBoundary = null },
         onConfirmBoundary = { request, exportFirst ->

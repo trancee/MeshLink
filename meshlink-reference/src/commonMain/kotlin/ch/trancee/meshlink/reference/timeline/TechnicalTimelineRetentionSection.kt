@@ -21,6 +21,7 @@ internal fun TimelineRetentionSection(
     store: TechnicalTimelineStore,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,
+    onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     showExportDialog: Boolean,
     showEndSessionDialog: Boolean,
     onOpenExportDialog: () -> Unit,
@@ -86,13 +87,11 @@ internal fun TimelineRetentionSection(
                 exportLabel = "Export full and end",
                 continueLabel = "End without full export",
                 onExportAndContinue = {
-                    store.endCurrentSession(
-                        preEndExportPolicy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
-                    )
+                    onEndSupportedSession(ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN)
                     onDismissEndSessionDialog()
                 },
                 onContinueWithoutExport = {
-                    store.endCurrentSession()
+                    onEndSupportedSession(null)
                     onDismissEndSessionDialog()
                 },
                 onCancel = onDismissEndSessionDialog,
