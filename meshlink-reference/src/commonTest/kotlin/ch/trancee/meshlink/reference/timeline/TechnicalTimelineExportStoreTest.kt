@@ -11,7 +11,7 @@ import kotlinx.coroutines.test.runTest
 class TechnicalTimelineExportStoreTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun exportCurrentSessionCreatesUniqueArtifactInstancePath() = runTest {
+    fun exportVisibleSessionCreatesUniqueArtifactInstancePath() = runTest {
         // Arrange
         val harness = TimelineStoreHarness()
         val store = harness.createStore(scope = this)
@@ -19,10 +19,10 @@ class TechnicalTimelineExportStoreTest {
         val firstNow = harness.nowMillis
 
         // Act
-        store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
+        store.exportVisibleSession(ExportPayloadPolicy.REDACTED_PREVIEW)
         advanceUntilIdle()
         harness.nowMillis = firstNow + 100L
-        store.exportCurrentSession(ExportPayloadPolicy.REDACTED_PREVIEW)
+        store.exportVisibleSession(ExportPayloadPolicy.REDACTED_PREVIEW)
         advanceUntilIdle()
 
         // Assert

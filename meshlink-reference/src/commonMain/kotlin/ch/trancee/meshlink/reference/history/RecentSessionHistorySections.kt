@@ -20,10 +20,6 @@ import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
-import ch.trancee.meshlink.reference.timeline.clearHistory
-import ch.trancee.meshlink.reference.timeline.deleteRetainedSession
-import ch.trancee.meshlink.reference.timeline.openRetainedSession
-import ch.trancee.meshlink.reference.timeline.returnToLive
 
 @Composable
 internal fun historyIntroText(): Unit {
@@ -58,9 +54,9 @@ internal fun historyActionRow(
                 Text("Open")
             }
         }
-        Button(onClick = store::clearHistory) { Text("Clear all") }
+        Button(onClick = store::clearRetainedSessions) { Text("Clear all") }
         if (uiState.viewingRetained) {
-            Button(onClick = store::returnToLive) { Text("Return to live") }
+            Button(onClick = store::openLiveSession) { Text("Return to live") }
         }
     }
 }

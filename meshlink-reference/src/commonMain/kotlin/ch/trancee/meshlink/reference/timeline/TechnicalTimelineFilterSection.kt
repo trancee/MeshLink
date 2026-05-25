@@ -32,7 +32,7 @@ internal fun TimelineFilterSection(
     ) {
         OutlinedTextField(
             value = uiState.filters.searchText,
-            onValueChange = store::updateSearch,
+            onValueChange = store::setSearchText,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Search events") },
         )
@@ -53,7 +53,9 @@ internal fun TimelineFilterSection(
                 FilterChip(
                     selected = uiState.filters.family == family,
                     onClick = {
-                        store.updateFamily(if (uiState.filters.family == family) null else family)
+                        store.setFamilyFilter(
+                            if (uiState.filters.family == family) null else family
+                        )
                     },
                     label = { Text(referenceTimelineFamilyLabel(family)) },
                 )
@@ -67,7 +69,7 @@ internal fun TimelineFilterSection(
                 FilterChip(
                     selected = uiState.filters.severity == severity,
                     onClick = {
-                        store.updateSeverity(
+                        store.setSeverityFilter(
                             if (uiState.filters.severity == severity) null else severity
                         )
                     },
@@ -84,7 +86,7 @@ internal fun TimelineFilterSection(
                     FilterChip(
                         selected = uiState.filters.peerSuffix == peerSuffix,
                         onClick = {
-                            store.updatePeer(
+                            store.setPeerFilter(
                                 if (uiState.filters.peerSuffix == peerSuffix) null else peerSuffix
                             )
                         },

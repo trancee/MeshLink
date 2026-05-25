@@ -5,7 +5,6 @@ import ch.trancee.meshlink.reference.navigation.SessionTransitionService
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
-import ch.trancee.meshlink.reference.timeline.exportCurrentSession
 import kotlinx.coroutines.launch
 
 internal interface LiveProofAutomationActions {
@@ -79,6 +78,6 @@ internal class TimelineStoreLiveProofAutomationActions(
     }
 
     override fun requestExportCurrentSession(policy: ExportPayloadPolicy) {
-        timelineStore.exportCurrentSession(policy)
+        timelineStore.exportVisibleSession(policy)
     }
 }

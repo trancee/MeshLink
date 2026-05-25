@@ -53,13 +53,13 @@ internal fun TimelineRetentionSection(
             if (uiState.isSupportedLiveSession && !uiState.viewingRetained) {
                 Button(onClick = onOpenEndSessionDialog) { Text("End session") }
             }
-            if (uiState.showStartNewSession && !uiState.viewingRetained) {
+            if (uiState.shouldShowStartNewSession && !uiState.viewingRetained) {
                 Button(onClick = onStartFollowUpSupportedSession) {
                     Text(followUpSupportedSessionLabel)
                 }
             }
             if (uiState.viewingRetained) {
-                Button(onClick = store::returnToLive) { Text("Return to live") }
+                Button(onClick = store::openLiveSession) { Text("Return to live") }
             }
             Button(onClick = onOpenExportDialog) { Text("Export session") }
         }
@@ -100,11 +100,11 @@ internal fun TimelineRetentionSection(
         if (showExportDialog) {
             ExportSessionDialog(
                 onExport = { policy ->
-                    store.exportCurrentSession(policy)
+                    store.exportVisibleSession(policy)
                     onDismissExportDialog()
                 },
                 onDismiss = onDismissExportDialog,
-                allowFullPayload = uiState.allowFullPayloadExport,
+                allowFullPayload = uiState.canExportFullPayload,
             )
         }
         if (uiState.lastExportPath != null) {

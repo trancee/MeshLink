@@ -3,7 +3,10 @@ package ch.trancee.meshlink.reference.timeline
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
+import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
@@ -60,10 +63,103 @@ public class TechnicalTimelineStore(
         }
     }
 
+    public fun setSearchText(text: String): Unit {
+        applyFilters(uiState.value.filters.copy(searchText = text))
+    }
+
+    public fun setPeerFilter(peerSuffix: String?): Unit {
+        applyFilters(uiState.value.filters.copy(peerSuffix = peerSuffix))
+    }
+
+    public fun setFamilyFilter(family: TimelineFamily?): Unit {
+        applyFilters(uiState.value.filters.copy(family = family))
+    }
+
+    public fun setSeverityFilter(severity: TimelineSeverity?): Unit {
+        applyFilters(uiState.value.filters.copy(severity = severity))
+    }
+
+    public fun clearFilters(): Unit {
+        applyFilters(TimelineFilters())
+    }
+
+    public fun openRetainedSession(sessionId: String): Unit {
+        scope.launch {
+            val retained = historyRepository.loadRetainedSnapshot(sessionId) ?: return@launch
+            updateState { current ->
+                current.copy(
+                    retainedSnapshot = retained,
+                    visibleEntries = current.filters.apply(retained.timeline),
+                )
+            }
+        }
+    }
+
+    public fun openLiveSession(): Unit {
+        updateState { current ->
+            current.copy(
+                retainedSnapshot = null,
+                visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
+            )
+        }
+    }
+
+    public fun deleteRetainedSession(sessionId: String): Unit {
+        scope.launch {
+            historyRepository.deleteSession(sessionId)
+            val retainedSessions = historyRepository.loadRetainedSessions()
+            updateState { current ->
+                val retainedSnapshot =
+                    current.retainedSnapshot?.takeUnless { snapshot ->
+                        snapshot.session.sessionId == sessionId
+                    }
+                val updated =
+                    current.copy(
+                        retainedSessions = retainedSessions,
+                        retainedSnapshot = retainedSnapshot,
+                    )
+                updated.copy(
+                    visibleEntries = updated.filters.apply(updated.currentSnapshot.timeline)
+                )
+            }
+        }
+    }
+
+    public fun clearRetainedSessions(): Unit {
+        scope.launch {
+            historyRepository.clearAll()
+            updateState { current ->
+                current.copy(
+                    retainedSessions = emptyList(),
+                    retainedSnapshot = null,
+                    visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
+                )
+            }
+        }
+    }
+
+    public fun exportVisibleSession(policy: ExportPayloadPolicy): Unit {
+        scope.launch {
+            val currentSnapshot = uiState.value.currentSnapshot
+            val storagePath =
+                writeExport(currentSnapshot, normalizeExportPolicy(currentSnapshot, policy))
+            updateState { current -> current.copy(lastExportPath = storagePath) }
+        }
+    }
+
     internal fun updateState(
         transform: (TechnicalTimelineUiState) -> TechnicalTimelineUiState
     ): Unit {
         stateFlow.update(transform)
+    }
+
+    private fun applyFilters(filters: TimelineFilters): Unit {
+        updateState { current ->
+            current.copy(
+                filters = filters,
+                visibleEntries = filters.apply(current.currentSnapshot.timeline),
+            )
+        }
     }
 }
 
@@ -89,10 +185,10 @@ public data class TechnicalTimelineUiState(
             currentSessionKind == ReferenceSessionKind.SOLO ||
                 currentSessionKind == ReferenceSessionKind.LAB
 
-    public val allowFullPayloadExport: Boolean
+    public val canExportFullPayload: Boolean
         get() = isSupportedLiveSession && !viewingRetained
 
-    public val showStartNewSession: Boolean
+    public val shouldShowStartNewSession: Boolean
         get() = isCurrentSessionEnded || isAlternativeSession
 
     public val currentSnapshot: ReferenceControllerSnapshot
