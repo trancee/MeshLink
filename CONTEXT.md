@@ -77,7 +77,7 @@ A live session on the supported guided or advanced path rather than the solo or 
 _Avoid_: Any live session, solo session, lab session
 
 **Surface of origin**:
-The surface where a session began and from which its surface identity is derived. Surface of origin stays fixed for the session and is not replaced by whichever surface happens to be active when the operator exports or ends it.
+The surface where a session began and from which its surface identity is derived. Surface of origin stays fixed for the session and is not replaced by whichever surface happens to be active when the operator exports or ends it. A solo session begins on the solo exploration surface, and a lab session begins on the lab surface.
 _Avoid_: Last viewed surface, export surface, current tab
 
 **Supported surface switch**:
