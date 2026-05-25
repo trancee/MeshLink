@@ -6,7 +6,7 @@ import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
 
 /** Serialization contract for redacted and opt-in session exports. */
-public interface SessionArtifactSerializer {
+internal interface SessionArtifactSerializer {
     public suspend fun serializeRedacted(
         artifact: SessionArtifact,
         session: ReferenceSession,

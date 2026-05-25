@@ -28,7 +28,7 @@ public interface PlatformServices {
 }
 
 /** Mutable options bag used by the shared default platform-services bridge. */
-public class DefaultPlatformServicesOptions {
+internal class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
     public var platformContext: Any? = null
@@ -40,7 +40,7 @@ public class DefaultPlatformServicesOptions {
 }
 
 /** Lightweight default implementation used by the reference app entry points. */
-public class DefaultPlatformServices(
+internal class DefaultPlatformServices(
     override val platformName: String,
     override val defaultAuthorityMode: ReferenceAuthorityMode,
     override val readinessGuidance: List<String>,

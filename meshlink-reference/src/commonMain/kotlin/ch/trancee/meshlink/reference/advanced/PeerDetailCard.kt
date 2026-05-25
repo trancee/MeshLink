@@ -20,7 +20,7 @@ import ch.trancee.meshlink.reference.design.ReferenceBadge
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun PeerDetailCard(
+internal fun PeerDetailCard(
     peer: AdvancedPeerRow,
     selected: Boolean,
     enabled: Boolean,

@@ -3,7 +3,7 @@ package ch.trancee.meshlink.reference.advanced
 import ch.trancee.meshlink.api.DeliveryPriority
 
 /** Operator-visible configuration summary for the advanced controls surface. */
-public data class AdvancedConfigState(
+internal data class AdvancedConfigState(
     public val appId: String,
     public val regulatoryRegion: String,
     public val powerModeLabel: String,
@@ -11,7 +11,7 @@ public data class AdvancedConfigState(
     public val authorityModeLabel: String,
 )
 
-public data class AdvancedControlsUiState(
+internal data class AdvancedControlsUiState(
     public val config: AdvancedConfigState,
     public val meshStateLabel: String,
     public val activePowerModeLabel: String,
@@ -41,7 +41,7 @@ public data class AdvancedControlsUiState(
         get() = !isSessionEnded && selectedPeerId != null
 }
 
-public data class AdvancedPeerRow(
+internal data class AdvancedPeerRow(
     public val peerId: String,
     public val peerSuffix: String,
     public val trustLabel: String,

@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-public class ReferenceSessionController(
+internal class ReferenceSessionController(
     private val platformName: String,
     private val nowProvider: () -> Long,
     supportedControllerFactory: (String) -> ReferenceMeshLinkController,

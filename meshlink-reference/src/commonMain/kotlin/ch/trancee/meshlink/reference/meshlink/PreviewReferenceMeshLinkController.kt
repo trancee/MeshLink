@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Preview fallback used when the live controller cannot be created. */
-public class PreviewReferenceMeshLinkController(
+internal class PreviewReferenceMeshLinkController(
     private val platformName: String,
     nowEpochMillis: Long,
 ) : ReferenceMeshLinkController {

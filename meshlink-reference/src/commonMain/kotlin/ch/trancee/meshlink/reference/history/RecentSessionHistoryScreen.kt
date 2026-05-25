@@ -20,7 +20,7 @@ import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun RecentSessionHistoryScreen(
+internal fun RecentSessionHistoryScreen(
     store: TechnicalTimelineStore,
     modifier: Modifier = Modifier,
 ) {

@@ -11,7 +11,7 @@ import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import okio.FileSystem
 
-public fun createAndroidPlatformServices(context: Context): DefaultPlatformServices {
+public fun createAndroidPlatformServices(context: Context): PlatformServices {
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
@@ -31,7 +31,7 @@ public fun createAndroidAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     blocked: Boolean,
-): DefaultPlatformServices {
+): PlatformServices {
     val clock = { System.currentTimeMillis() }
     val automationDirectory = "${context.filesDir.absolutePath}/ui-automation/$storageSubdirectory"
     return DefaultPlatformServices(
@@ -80,7 +80,7 @@ public fun createAndroidLiveAutomationPlatformServices(
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
     scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
-): DefaultPlatformServices {
+): PlatformServices {
     val clock = { System.currentTimeMillis() }
     val automationDirectory =
         "${context.filesDir.absolutePath}/live-automation/$storageSubdirectory"

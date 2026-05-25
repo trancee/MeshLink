@@ -9,7 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 
 /** Live shared controller that wraps the existing MeshLink SDK and emits app-facing state. */
-public class LiveReferenceMeshLinkController(
+internal class LiveReferenceMeshLinkController(
     private val platformName: String,
     private val authorityMode: ReferenceAuthorityMode,
     private val appId: String,

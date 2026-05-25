@@ -6,7 +6,7 @@ import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
 
 /** JSON serializer for redacted and explicit full-payload session exports. */
-public class JsonSessionArtifactSerializer(private val documentStore: ReferenceDocumentStore) :
+internal class JsonSessionArtifactSerializer(private val documentStore: ReferenceDocumentStore) :
     SessionArtifactSerializer {
     override suspend fun serializeRedacted(
         artifact: SessionArtifact,

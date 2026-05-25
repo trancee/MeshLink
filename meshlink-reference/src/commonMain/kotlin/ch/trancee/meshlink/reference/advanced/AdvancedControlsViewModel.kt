@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /** Shared state holder for the advanced controls surface. */
-public class AdvancedControlsViewModel(
+internal class AdvancedControlsViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {

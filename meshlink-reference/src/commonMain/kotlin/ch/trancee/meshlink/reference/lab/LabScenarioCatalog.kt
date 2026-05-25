@@ -1,12 +1,12 @@
 package ch.trancee.meshlink.reference.lab
 
-public data class LabScenario(
+internal data class LabScenario(
     public val scenarioId: String,
     public val title: String,
     public val summary: String,
 )
 
-public object LabScenarioCatalog {
+internal object LabScenarioCatalog {
     public val scenarios: List<LabScenario> =
         listOf(
             LabScenario(

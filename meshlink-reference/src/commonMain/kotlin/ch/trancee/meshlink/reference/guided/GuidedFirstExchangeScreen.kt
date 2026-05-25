@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 /** Shared guided first-exchange surface. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun GuidedFirstExchangeScreen(
+internal fun GuidedFirstExchangeScreen(
     viewModel: GuidedFirstExchangeViewModel,
     onOpenSolo: () -> Unit,
     modifier: Modifier = Modifier,

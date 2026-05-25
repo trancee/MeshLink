@@ -5,7 +5,7 @@ import ch.trancee.meshlink.reference.model.RecentSessionHistory
 import ch.trancee.meshlink.reference.model.ReferenceSession
 
 /** Persistence contract for retained recent session history. */
-public interface SessionHistoryRepository {
+internal interface SessionHistoryRepository {
     public suspend fun loadHistory(): RecentSessionHistory
 
     public suspend fun retainSession(session: ReferenceSession): RecentSessionHistory

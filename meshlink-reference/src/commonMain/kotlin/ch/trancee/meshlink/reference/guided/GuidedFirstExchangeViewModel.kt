@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /** Shared state holder for the guided first-exchange surface. */
-public class GuidedFirstExchangeViewModel(
+internal class GuidedFirstExchangeViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
@@ -51,7 +51,7 @@ public class GuidedFirstExchangeViewModel(
     }
 }
 
-public data class GuidedFirstExchangeUiState(
+internal data class GuidedFirstExchangeUiState(
     public val readiness: ReadinessEvaluation,
     public val snapshot: ReferenceControllerSnapshot,
 ) {

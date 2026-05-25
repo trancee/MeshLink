@@ -4,7 +4,7 @@ import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 
-public data class TimelineFilters(
+internal data class TimelineFilters(
     public val searchText: String = "",
     public val peerSuffix: String? = null,
     public val family: TimelineFamily? = null,

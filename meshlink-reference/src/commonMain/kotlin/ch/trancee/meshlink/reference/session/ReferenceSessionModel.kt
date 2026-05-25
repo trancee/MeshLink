@@ -3,7 +3,7 @@ package ch.trancee.meshlink.reference.session
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 
-public enum class ReferenceSessionKind {
+internal enum class ReferenceSessionKind {
     SUPPORTED_LIVE,
     SUPPORTED_ENDED,
     SOLO,

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 
 /** Clearly labeled non-authoritative exploration path for one-device review. */
 @Composable
-public fun SoloExplorationScreen(modifier: Modifier = Modifier) {
+internal fun SoloExplorationScreen(modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = "Solo exploration", style = MaterialTheme.typography.headlineSmall)
         Card(modifier = Modifier.fillMaxWidth().testTag("solo-screen")) {

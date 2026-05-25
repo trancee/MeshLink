@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun AdvancedControlsScreen(
+internal fun AdvancedControlsScreen(
     viewModel: AdvancedControlsViewModel,
     modifier: Modifier = Modifier,
 ) {

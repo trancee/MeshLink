@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** Bounded retained-session index shown separately from the live session. */
 @Serializable
-public data class RecentSessionHistory(
+internal data class RecentSessionHistory(
     public val maxSessions: Int = DEFAULT_MAX_SESSIONS,
     public val sessionIds: List<String> = emptyList(),
     public val lastPrunedAtEpochMillis: Long? = null,

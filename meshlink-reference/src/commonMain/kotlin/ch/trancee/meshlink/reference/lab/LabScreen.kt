@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-public fun LabScreen(
+internal fun LabScreen(
     scenarios: List<LabScenario> = LabScenarioCatalog.scenarios,
     modifier: Modifier = Modifier,
 ) {

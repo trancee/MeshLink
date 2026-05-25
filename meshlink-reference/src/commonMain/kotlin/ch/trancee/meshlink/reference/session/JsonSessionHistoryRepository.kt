@@ -5,7 +5,7 @@ import ch.trancee.meshlink.reference.model.RecentSessionHistory
 import ch.trancee.meshlink.reference.model.ReferenceSession
 
 /** JSON-backed retained-session repository using a single bounded history document. */
-public class JsonSessionHistoryRepository(
+internal class JsonSessionHistoryRepository(
     private val documentStore: ReferenceDocumentStore,
     private val historyPath: String = DEFAULT_HISTORY_PATH,
 ) : SessionHistoryRepository {

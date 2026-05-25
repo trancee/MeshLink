@@ -9,7 +9,7 @@ public interface ReferenceDocumentStore {
     public suspend fun delete(path: String): Unit
 }
 
-public class InMemoryReferenceDocumentStore : ReferenceDocumentStore {
+internal class InMemoryReferenceDocumentStore : ReferenceDocumentStore {
     private val documents: LinkedHashMap<String, String> = linkedMapOf()
 
     override suspend fun readText(path: String): String? {

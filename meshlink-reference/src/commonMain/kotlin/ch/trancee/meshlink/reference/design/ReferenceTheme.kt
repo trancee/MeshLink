@@ -90,7 +90,7 @@ private val ReferenceTypography =
 
 /** Editorial-technical Material 3 wrapper for the reference app. */
 @Composable
-public fun ReferenceTheme(
+internal fun ReferenceTheme(
     useDarkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

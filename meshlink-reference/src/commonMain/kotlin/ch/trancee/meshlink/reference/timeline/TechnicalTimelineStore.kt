@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-public class TechnicalTimelineStore(
+internal class TechnicalTimelineStore(
     internal val platformServices: PlatformServices,
     internal val historyRepository: JsonSessionHistoryRepository,
     internal val artifactSerializer: JsonSessionArtifactSerializer,
@@ -163,7 +163,7 @@ public class TechnicalTimelineStore(
     }
 }
 
-public data class TechnicalTimelineUiState(
+internal data class TechnicalTimelineUiState(
     public val liveSnapshot: ReferenceControllerSnapshot,
     public val retainedSnapshot: ReferenceControllerSnapshot? = null,
     public val retainedSessions: List<ReferenceSession> = emptyList(),

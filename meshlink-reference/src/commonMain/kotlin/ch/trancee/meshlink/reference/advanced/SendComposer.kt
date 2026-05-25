@@ -20,7 +20,7 @@ import ch.trancee.meshlink.reference.model.referencePriorityLabel
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun SendComposer(
+internal fun SendComposer(
     state: AdvancedControlsUiState,
     actions: SendComposerActions,
     modifier: Modifier = Modifier,
@@ -79,7 +79,7 @@ public fun SendComposer(
     }
 }
 
-public class SendComposerActions(
+internal class SendComposerActions(
     public val onTextChanged: (String) -> Unit,
     public val onPriorityChanged: (DeliveryPriority) -> Unit,
     public val onSend: () -> Unit,

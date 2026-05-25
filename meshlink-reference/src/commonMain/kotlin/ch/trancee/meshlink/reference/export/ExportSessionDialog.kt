@@ -19,7 +19,7 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun ExportSessionDialog(
+internal fun ExportSessionDialog(
     onExport: (ExportPayloadPolicy) -> Unit,
     onDismiss: () -> Unit,
     allowFullPayload: Boolean,

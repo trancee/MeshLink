@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.guided
 
 /** Builds the explanatory readiness list used by the guided first-exchange surface. */
-public class ReadinessChecker {
+internal class ReadinessChecker {
     public fun evaluate(
         platformName: String,
         guidance: List<String>,

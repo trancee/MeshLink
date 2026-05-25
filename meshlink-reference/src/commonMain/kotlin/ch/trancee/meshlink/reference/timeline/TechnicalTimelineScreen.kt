@@ -21,7 +21,7 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-public fun TechnicalTimelineScreen(
+internal fun TechnicalTimelineScreen(
     store: TechnicalTimelineStore,
     followUpSupportedSessionLabel: String,
     onStartFollowUpSupportedSession: () -> Unit,

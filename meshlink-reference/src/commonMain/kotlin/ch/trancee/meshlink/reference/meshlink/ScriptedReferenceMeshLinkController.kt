@@ -5,7 +5,7 @@ import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.flow.StateFlow
 
 /** Deterministic reference-app controller used by host-platform UI automation. */
-public class ScriptedReferenceMeshLinkController(
+internal class ScriptedReferenceMeshLinkController(
     platformName: String,
     authorityMode: ReferenceAuthorityMode,
     nowProvider: () -> Long,

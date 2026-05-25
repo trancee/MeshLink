@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 
 /** Shared navigation shell for the reference app surfaces. */
 @Composable
-public fun ReferenceNavHost(platformServices: PlatformServices) {
+internal fun ReferenceNavHost(platformServices: PlatformServices) {
     var activeRoute: ReferenceSurface by remember { mutableStateOf(ReferenceSurface.MAIN_GUIDED) }
     var pendingBoundary by remember { mutableStateOf<SessionBoundaryRequest?>(null) }
     val coroutineScope = rememberCoroutineScope()

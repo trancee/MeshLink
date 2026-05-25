@@ -5,7 +5,7 @@ import okio.Path
 import okio.Path.Companion.toPath
 
 /** File-backed document store for retained history and export artifacts. */
-public class OkioReferenceDocumentStore(
+internal class OkioReferenceDocumentStore(
     private val baseDirectory: String,
     private val fileSystem: FileSystem,
 ) : ReferenceDocumentStore {

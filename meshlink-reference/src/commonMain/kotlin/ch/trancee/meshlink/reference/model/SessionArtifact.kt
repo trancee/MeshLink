@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** Structured session export or retained artifact metadata. */
 @Serializable
-public data class SessionArtifact(
+internal data class SessionArtifact(
     public val artifactId: String,
     public val sourceSessionId: String,
     public val createdAtEpochMillis: Long,
@@ -17,7 +17,7 @@ public data class SessionArtifact(
 )
 
 @Serializable
-public enum class ArtifactPayloadPolicy {
+internal enum class ArtifactPayloadPolicy {
     METADATA_ONLY,
     REDACTED_PREVIEW,
     FULL_OPT_IN,

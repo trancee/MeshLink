@@ -3,7 +3,7 @@ package ch.trancee.meshlink.reference.navigation
 import kotlinx.serialization.Serializable
 
 @Serializable
-public enum class ReferenceSurface(public val route: String) {
+internal enum class ReferenceSurface(public val route: String) {
     MAIN_GUIDED("main-guided"),
     SOLO_EXPLORATION("solo-exploration"),
     ADVANCED_CONTROLS("advanced-controls"),
@@ -12,12 +12,12 @@ public enum class ReferenceSurface(public val route: String) {
     RECENT_HISTORY("recent-history"),
 }
 
-public data class ReferenceWorkflowDescriptor(
+internal data class ReferenceWorkflowDescriptor(
     public val surface: ReferenceSurface,
     public val title: String,
 )
 
-public object ReferenceWorkflowCatalog {
+internal object ReferenceWorkflowCatalog {
     public fun descriptors(): List<ReferenceWorkflowDescriptor> {
         return listOf(
             ReferenceWorkflowDescriptor(ReferenceSurface.MAIN_GUIDED, "Guided first exchange"),
