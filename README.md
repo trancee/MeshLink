@@ -30,6 +30,7 @@ Quick entry points:
 - [How to unblock MeshLink permissions on Android and iOS](docs/how-to/unblock-meshlink-permissions.md)
 - [How to use MeshLink from Swift](docs/how-to/use-meshlink-from-swift.md)
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
+- [About how MeshLink works](docs/explanation/about-how-meshlink-works.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 
 Maintainers can run `./gradlew verifyDocs` to check markdown links and the

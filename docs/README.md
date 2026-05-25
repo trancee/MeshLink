@@ -47,6 +47,7 @@ start with your goal:
 
 ### Integration and lifecycle
 
+- [About how MeshLink works](explanation/about-how-meshlink-works.md) — the runtime mental model, lifecycle side effects, delivery pipeline, and integration consequences.
 - [About integrating MeshLink well](explanation/about-integrating-meshlink.md)
 - [The trust model](explanation/trust-model.md)
 - [The peer lifecycle model](explanation/peer-lifecycle.md)

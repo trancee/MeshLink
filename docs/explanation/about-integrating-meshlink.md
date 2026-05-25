@@ -4,6 +4,8 @@ This page explains what a good MeshLink integration looks like.
 
 It does not walk through setup step by step. For that, use
 [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
+If you want the deeper runtime mental model and API-boundary side effects, use
+[About how MeshLink works](about-how-meshlink-works.md).
 If you want a shorter production-shaped checklist, use
 [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md).
 For the exact public surface, use the
