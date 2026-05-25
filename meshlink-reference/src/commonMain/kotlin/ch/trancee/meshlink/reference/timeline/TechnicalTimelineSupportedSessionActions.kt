@@ -1,7 +1,9 @@
 package ch.trancee.meshlink.reference.timeline
 
+import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
+import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import kotlinx.coroutines.launch
 
 public fun TechnicalTimelineStore.endCurrentSession(
@@ -51,20 +53,7 @@ public fun TechnicalTimelineStore.transitionToSoloSession(
 internal suspend fun TechnicalTimelineStore.transitionToSoloSessionNow(
     preBoundaryExportPolicy: ExportPayloadPolicy? = null
 ): Unit {
-    val current = uiState.value
-    if (!current.isSupportedLiveSession || current.viewingRetained) {
-        return
-    }
-
-    val supportedSnapshot = current.liveSnapshot
-    val exportPath =
-        preBoundaryExportPolicy?.let { policy ->
-            writeExport(supportedSnapshot, normalizeExportPolicy(supportedSnapshot, policy))
-        } ?: current.lastExportPath
-    retainIfEligible(endedBoundarySnapshot(supportedSnapshot, platformServices.currentTimeMillis()))
-    val soloSnapshot = sessionController.startSoloSession()
-    syncLiveSnapshot(soloSnapshot)
-    refreshRetainedSessions(lastExportPath = exportPath)
+    transitionFromSupportedLive(preBoundaryExportPolicy) { startSoloSession() }
 }
 
 public fun TechnicalTimelineStore.transitionToLabSession(
@@ -76,20 +65,7 @@ public fun TechnicalTimelineStore.transitionToLabSession(
 internal suspend fun TechnicalTimelineStore.transitionToLabSessionNow(
     preBoundaryExportPolicy: ExportPayloadPolicy? = null
 ): Unit {
-    val current = uiState.value
-    if (!current.isSupportedLiveSession || current.viewingRetained) {
-        return
-    }
-
-    val supportedSnapshot = current.liveSnapshot
-    val exportPath =
-        preBoundaryExportPolicy?.let { policy ->
-            writeExport(supportedSnapshot, normalizeExportPolicy(supportedSnapshot, policy))
-        } ?: current.lastExportPath
-    retainIfEligible(endedBoundarySnapshot(supportedSnapshot, platformServices.currentTimeMillis()))
-    val labSnapshot = sessionController.startLabSession()
-    syncLiveSnapshot(labSnapshot)
-    refreshRetainedSessions(lastExportPath = exportPath)
+    transitionFromSupportedLive(preBoundaryExportPolicy) { startLabSession() }
 }
 
 public fun TechnicalTimelineStore.transitionAlternativeSession(
@@ -124,5 +100,24 @@ internal suspend fun TechnicalTimelineStore.transitionAlternativeSessionNow(
             )
         else -> startNewSupportedSessionNow(surfaceOfOrigin = ReferenceSurfaceId.MAIN_GUIDED.route)
     }
+    refreshRetainedSessions(lastExportPath = exportPath)
+}
+
+private suspend fun TechnicalTimelineStore.transitionFromSupportedLive(
+    preBoundaryExportPolicy: ExportPayloadPolicy?,
+    startNextSession: suspend ReferenceSessionController.() -> ReferenceControllerSnapshot,
+): Unit {
+    val current = uiState.value
+    if (!current.isSupportedLiveSession || current.viewingRetained) {
+        return
+    }
+
+    val supportedSnapshot = current.liveSnapshot
+    val exportPath =
+        preBoundaryExportPolicy?.let { policy ->
+            writeExport(supportedSnapshot, normalizeExportPolicy(supportedSnapshot, policy))
+        } ?: current.lastExportPath
+    retainIfEligible(endedBoundarySnapshot(supportedSnapshot, platformServices.currentTimeMillis()))
+    syncLiveSnapshot(sessionController.startNextSession())
     refreshRetainedSessions(lastExportPath = exportPath)
 }
