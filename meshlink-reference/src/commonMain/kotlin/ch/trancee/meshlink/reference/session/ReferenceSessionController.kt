@@ -41,27 +41,19 @@ public class ReferenceSessionController(
     }
 
     override suspend fun start(): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.start()
-        }
+        runOnSupportedLiveController { controller -> controller.start() }
     }
 
     override suspend fun pause(): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.pause()
-        }
+        runOnSupportedLiveController { controller -> controller.pause() }
     }
 
     override suspend fun resume(): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.resume()
-        }
+        runOnSupportedLiveController { controller -> controller.resume() }
     }
 
     override suspend fun stop(): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.stop()
-        }
+        runOnSupportedLiveController { controller -> controller.stop() }
     }
 
     override suspend fun sendSamplePayload(
@@ -69,8 +61,8 @@ public class ReferenceSessionController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.sendSamplePayload(
+        runOnSupportedLiveController { controller ->
+            controller.sendSamplePayload(
                 peerId = peerId,
                 payloadText = payloadText,
                 priority = priority,
@@ -79,9 +71,7 @@ public class ReferenceSessionController(
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.forgetPeer(peerId)
-        }
+        runOnSupportedLiveController { controller -> controller.forgetPeer(peerId) }
     }
 
     override suspend fun close(): Unit {
@@ -108,39 +98,25 @@ public class ReferenceSessionController(
     }
 
     public suspend fun startSoloSession(): ReferenceControllerSnapshot {
-        closeSupportedSessionIfLive()
-        currentKind = ReferenceSessionKind.SOLO
-        val soloSnapshot =
-            createStaticReferenceSessionSnapshot(
-                platformName = platformName,
-                nowProvider = nowProvider,
-                currentSnapshot = snapshotFlow.value,
-                scenarioId = "solo-exploration",
-                authorityMode = ReferenceAuthorityMode.SOLO,
-                surfaceOfOrigin = "main-guided",
-                title = "Solo exploration opened",
-                detail = "Solo exploration is active on $platformName.",
-            )
-        snapshotFlow.value = soloSnapshot
-        return soloSnapshot
+        return startAlternativeSession(
+            kind = ReferenceSessionKind.SOLO,
+            scenarioId = "solo-exploration",
+            authorityMode = ReferenceAuthorityMode.SOLO,
+            surfaceOfOrigin = "main-guided",
+            title = "Solo exploration opened",
+            detail = "Solo exploration is active on $platformName.",
+        )
     }
 
     public suspend fun startLabSession(): ReferenceControllerSnapshot {
-        closeSupportedSessionIfLive()
-        currentKind = ReferenceSessionKind.LAB
-        val labSnapshot =
-            createStaticReferenceSessionSnapshot(
-                platformName = platformName,
-                nowProvider = nowProvider,
-                currentSnapshot = snapshotFlow.value,
-                scenarioId = "lab",
-                authorityMode = ReferenceAuthorityMode.LIVE,
-                surfaceOfOrigin = "lab",
-                title = "Lab session opened",
-                detail = "The non-normative lab surface is active on $platformName.",
-            )
-        snapshotFlow.value = labSnapshot
-        return labSnapshot
+        return startAlternativeSession(
+            kind = ReferenceSessionKind.LAB,
+            scenarioId = "lab",
+            authorityMode = ReferenceAuthorityMode.LIVE,
+            surfaceOfOrigin = "lab",
+            title = "Lab session opened",
+            detail = "The non-normative lab surface is active on $platformName.",
+        )
     }
 
     public suspend fun startNewSupportedSession(
@@ -156,6 +132,39 @@ public class ReferenceSessionController(
         snapshotFlow.value = initialSnapshot
         bindSupportedSnapshot()
         return initialSnapshot
+    }
+
+    private suspend fun runOnSupportedLiveController(
+        action: suspend (ReferenceMeshLinkController) -> Unit
+    ): Unit {
+        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
+            action(supportedController)
+        }
+    }
+
+    private suspend fun startAlternativeSession(
+        kind: ReferenceSessionKind,
+        scenarioId: String,
+        authorityMode: ReferenceAuthorityMode,
+        surfaceOfOrigin: String,
+        title: String,
+        detail: String,
+    ): ReferenceControllerSnapshot {
+        closeSupportedSessionIfLive()
+        currentKind = kind
+        val snapshot =
+            createStaticReferenceSessionSnapshot(
+                platformName = platformName,
+                nowProvider = nowProvider,
+                currentSnapshot = snapshotFlow.value,
+                scenarioId = scenarioId,
+                authorityMode = authorityMode,
+                surfaceOfOrigin = surfaceOfOrigin,
+                title = title,
+                detail = detail,
+            )
+        snapshotFlow.value = snapshot
+        return snapshot
     }
 
     private suspend fun closeSupportedSessionIfLive(): Unit {

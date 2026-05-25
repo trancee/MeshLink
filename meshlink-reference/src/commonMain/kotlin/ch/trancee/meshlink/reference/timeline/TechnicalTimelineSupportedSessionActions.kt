@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.timeline
 
+import ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.launch
 
@@ -82,7 +83,7 @@ public fun TechnicalTimelineStore.transitionToLabSession(
 }
 
 public fun TechnicalTimelineStore.transitionAlternativeSession(
-    targetSurface: ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId,
+    targetSurface: ReferenceSurfaceId,
     exportBeforeExit: Boolean,
 ): Unit {
     scope.launch {
@@ -98,76 +99,12 @@ public fun TechnicalTimelineStore.transitionAlternativeSession(
                 current.lastExportPath
             }
         when (targetSurface) {
-            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.SOLO_EXPLORATION ->
-                sessionController.startSoloSession()
-            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.LAB ->
-                sessionController.startLabSession()
-            ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId.ADVANCED_CONTROLS ->
+            ReferenceSurfaceId.SOLO_EXPLORATION -> sessionController.startSoloSession()
+            ReferenceSurfaceId.LAB -> sessionController.startLabSession()
+            ReferenceSurfaceId.ADVANCED_CONTROLS ->
                 sessionController.startNewSupportedSession(surfaceOfOrigin = "advanced-controls")
             else -> sessionController.startNewSupportedSession(surfaceOfOrigin = "main-guided")
         }
         refreshRetainedSessions(lastExportPath = exportPath)
-    }
-}
-
-public fun TechnicalTimelineStore.openRetainedSession(sessionId: String): Unit {
-    scope.launch {
-        val retained = historyRepository.loadRetainedSnapshot(sessionId) ?: return@launch
-        updateState { current ->
-            current.copy(
-                retainedSnapshot = retained,
-                visibleEntries = current.filters.apply(retained.timeline),
-            )
-        }
-    }
-}
-
-public fun TechnicalTimelineStore.returnToLive(): Unit {
-    updateState { current ->
-        current.copy(
-            retainedSnapshot = null,
-            visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
-        )
-    }
-}
-
-public fun TechnicalTimelineStore.deleteRetainedSession(sessionId: String): Unit {
-    scope.launch {
-        historyRepository.deleteSession(sessionId)
-        val retainedSessions = historyRepository.loadRetainedSessions()
-        updateState { current ->
-            val retainedSnapshot =
-                current.retainedSnapshot?.takeUnless { snapshot ->
-                    snapshot.session.sessionId == sessionId
-                }
-            val updated =
-                current.copy(
-                    retainedSessions = retainedSessions,
-                    retainedSnapshot = retainedSnapshot,
-                )
-            updated.copy(visibleEntries = updated.filters.apply(updated.currentSnapshot.timeline))
-        }
-    }
-}
-
-public fun TechnicalTimelineStore.clearHistory(): Unit {
-    scope.launch {
-        historyRepository.clearAll()
-        updateState { current ->
-            current.copy(
-                retainedSessions = emptyList(),
-                retainedSnapshot = null,
-                visibleEntries = current.filters.apply(current.liveSnapshot.timeline),
-            )
-        }
-    }
-}
-
-public fun TechnicalTimelineStore.exportCurrentSession(policy: ExportPayloadPolicy): Unit {
-    scope.launch {
-        val currentSnapshot = uiState.value.currentSnapshot
-        val storagePath =
-            writeExport(currentSnapshot, normalizeExportPolicy(currentSnapshot, policy))
-        updateState { current -> current.copy(lastExportPath = storagePath) }
     }
 }
