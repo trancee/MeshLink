@@ -4,11 +4,6 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
-import ch.trancee.meshlink.reference.model.ReferenceSession
-import ch.trancee.meshlink.reference.model.TimelineEntry
-import ch.trancee.meshlink.reference.model.TimelineFamily
-import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,27 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-
-public enum class ReferenceSessionKind {
-    SUPPORTED_LIVE,
-    SUPPORTED_ENDED,
-    SOLO,
-    LAB,
-}
-
-internal fun ReferenceControllerSnapshot.referenceSessionKind(): ReferenceSessionKind {
-    val surfaceOfOrigin = session.configurationSnapshot["surface"]
-    return when {
-        session.authorityMode == ReferenceAuthorityMode.SOLO -> ReferenceSessionKind.SOLO
-        surfaceOfOrigin == "lab" -> ReferenceSessionKind.LAB
-        session.endedAtEpochMillis != null -> ReferenceSessionKind.SUPPORTED_ENDED
-        else -> ReferenceSessionKind.SUPPORTED_LIVE
-    }
-}
-
-internal fun ReferenceControllerSnapshot.allowsFullPayloadExport(): Boolean {
-    return referenceSessionKind() == ReferenceSessionKind.SUPPORTED_LIVE
-}
 
 public class ReferenceSessionController(
     private val platformName: String,
@@ -134,13 +108,13 @@ public class ReferenceSessionController(
     }
 
     public suspend fun startSoloSession(): ReferenceControllerSnapshot {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedSnapshotJob?.cancel()
-            supportedController.close()
-        }
+        closeSupportedSessionIfLive()
         currentKind = ReferenceSessionKind.SOLO
         val soloSnapshot =
-            staticSessionSnapshot(
+            createStaticReferenceSessionSnapshot(
+                platformName = platformName,
+                nowProvider = nowProvider,
+                currentSnapshot = snapshotFlow.value,
                 scenarioId = "solo-exploration",
                 authorityMode = ReferenceAuthorityMode.SOLO,
                 surfaceOfOrigin = "main-guided",
@@ -152,13 +126,13 @@ public class ReferenceSessionController(
     }
 
     public suspend fun startLabSession(): ReferenceControllerSnapshot {
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedSnapshotJob?.cancel()
-            supportedController.close()
-        }
+        closeSupportedSessionIfLive()
         currentKind = ReferenceSessionKind.LAB
         val labSnapshot =
-            staticSessionSnapshot(
+            createStaticReferenceSessionSnapshot(
+                platformName = platformName,
+                nowProvider = nowProvider,
+                currentSnapshot = snapshotFlow.value,
                 scenarioId = "lab",
                 authorityMode = ReferenceAuthorityMode.LIVE,
                 surfaceOfOrigin = "lab",
@@ -173,9 +147,7 @@ public class ReferenceSessionController(
         surfaceOfOrigin: String = "main-guided"
     ): ReferenceControllerSnapshot {
         supportedSnapshotJob?.cancel()
-        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.close()
-        }
+        closeSupportedControllerIfNeeded()
         currentKind = ReferenceSessionKind.SUPPORTED_LIVE
         currentSupportedSurfaceOfOrigin = surfaceOfOrigin
         supportedController = supportedControllerFactory(surfaceOfOrigin)
@@ -186,44 +158,17 @@ public class ReferenceSessionController(
         return initialSnapshot
     }
 
-    private fun staticSessionSnapshot(
-        scenarioId: String,
-        authorityMode: ReferenceAuthorityMode,
-        surfaceOfOrigin: String,
-        title: String,
-        detail: String,
-    ): ReferenceControllerSnapshot {
-        val now = nowProvider()
-        val sessionId = "${scenarioId}-${platformName.lowercase()}-$now"
-        val baseConfiguration = snapshotFlow.value.session.configurationSnapshot
-        val configurationSnapshot =
-            baseConfiguration + mapOf("platform" to platformName, "surface" to surfaceOfOrigin)
-        return ReferenceControllerSnapshot(
-            session =
-                ReferenceSession(
-                    sessionId = sessionId,
-                    scenarioId = scenarioId,
-                    authorityMode = authorityMode,
-                    startedAtEpochMillis = now,
-                    meshStateLabel = snapshotFlow.value.session.meshStateLabel,
-                    configurationSnapshot = configurationSnapshot,
-                    historyStatus = ReferenceHistoryStatus.LIVE,
-                ),
-            peers = emptyList(),
-            timeline =
-                listOf(
-                    TimelineEntry(
-                        entryId = "$sessionId-1",
-                        sessionId = sessionId,
-                        occurredAtEpochMillis = now,
-                        family = TimelineFamily.USER,
-                        severity = TimelineSeverity.INFO,
-                        title = title,
-                        detail = detail,
-                    )
-                ),
-            activePowerModeLabel = snapshotFlow.value.activePowerModeLabel,
-        )
+    private suspend fun closeSupportedSessionIfLive(): Unit {
+        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
+            supportedSnapshotJob?.cancel()
+            supportedController.close()
+        }
+    }
+
+    private suspend fun closeSupportedControllerIfNeeded(): Unit {
+        if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
+            supportedController.close()
+        }
     }
 
     private fun bindSupportedSnapshot(): Unit {
@@ -237,16 +182,4 @@ public class ReferenceSessionController(
             }
         }
     }
-}
-
-private fun ReferenceControllerSnapshot.withSurfaceOfOrigin(
-    surfaceOfOrigin: String
-): ReferenceControllerSnapshot {
-    return copy(
-        session =
-            session.copy(
-                configurationSnapshot =
-                    session.configurationSnapshot + mapOf("surface" to surfaceOfOrigin)
-            )
-    )
 }
