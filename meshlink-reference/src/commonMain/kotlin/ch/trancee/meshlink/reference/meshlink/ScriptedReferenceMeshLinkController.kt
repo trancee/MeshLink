@@ -3,11 +3,8 @@ package ch.trancee.meshlink.reference.meshlink
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
-import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
-import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.flow.StateFlow
@@ -27,43 +24,13 @@ public class ScriptedReferenceMeshLinkController(
     private val stateStore: ReferenceControllerStateStore =
         ReferenceControllerStateStore(
             initialSnapshot =
-                ReferenceControllerSnapshot(
-                    session =
-                        ReferenceSession(
-                            sessionId = sessionId,
-                            scenarioId = "guided-first-exchange",
-                            authorityMode = authorityMode,
-                            startedAtEpochMillis = startedAtEpochMillis,
-                            meshStateLabel = MeshLinkState.Uninitialized.toString(),
-                            configurationSnapshot =
-                                mapOf(
-                                    "platform" to platformName,
-                                    "surface" to surfaceOfOrigin,
-                                    "appId" to appId,
-                                    "regulatoryRegion" to "DEFAULT",
-                                    "powerMode" to "Automatic",
-                                    "deliveryRetryDeadline" to "15s",
-                                ),
-                            historyStatus = ReferenceHistoryStatus.LIVE,
-                        ),
-                    peers = emptyList(),
-                    timeline =
-                        listOf(
-                            ReferenceTimelineEvent(
-                                    family = TimelineFamily.USER,
-                                    severity = TimelineSeverity.INFO,
-                                    title = "Automation session created",
-                                    detail =
-                                        "A deterministic scripted controller is active " +
-                                            "for $platformName UI automation.",
-                                )
-                                .toTimelineEntry(
-                                    sessionId = sessionId,
-                                    entryIndex = 1,
-                                    occurredAtEpochMillis = nowProvider(),
-                                )
-                        ),
-                    activePowerModeLabel = "Automatic",
+                createScriptedReferenceInitialSnapshot(
+                    platformName = platformName,
+                    authorityMode = authorityMode,
+                    nowProvider = nowProvider,
+                    appId = appId,
+                    surfaceOfOrigin = surfaceOfOrigin,
+                    sessionId = sessionId,
                 ),
             sessionId = sessionId,
             nowProvider = nowProvider,
@@ -73,7 +40,14 @@ public class ScriptedReferenceMeshLinkController(
             stateStore = stateStore,
             scriptedPeerId = scriptedPeerId,
             scriptedPeerSuffix = scriptedPeerSuffix,
-            updatePeerOutcome = ::updatePeerOutcome,
+            updatePeerOutcome = { outcome ->
+                updateScriptedPeerOutcome(
+                    stateStore = stateStore,
+                    nowProvider = nowProvider,
+                    scriptedPeerId = scriptedPeerId,
+                    lastDeliveryOutcome = outcome,
+                )
+            },
         )
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
@@ -104,7 +78,12 @@ public class ScriptedReferenceMeshLinkController(
                 detail = "The scripted automation mesh moved into Running.",
             )
         )
-        ensurePeerAvailable()
+        ensureScriptedPeerAvailable(
+            stateStore = stateStore,
+            nowProvider = nowProvider,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
+        )
     }
 
     override suspend fun pause(): Unit {
@@ -135,7 +114,12 @@ public class ScriptedReferenceMeshLinkController(
                 detail = "The scripted automation mesh returned to Running.",
             )
         )
-        ensurePeerAvailable()
+        ensureScriptedPeerAvailable(
+            stateStore = stateStore,
+            nowProvider = nowProvider,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
+        )
     }
 
     override suspend fun stop(): Unit {
@@ -173,8 +157,17 @@ public class ScriptedReferenceMeshLinkController(
             return
         }
 
-        ensurePeerAvailable()
-        promotePeerTrust()
+        ensureScriptedPeerAvailable(
+            stateStore = stateStore,
+            nowProvider = nowProvider,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
+        )
+        promoteScriptedPeerTrust(
+            stateStore = stateStore,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
+        )
         sendRecorder.recordCompletion(
             payloadText = payloadText,
             priority = priority,
@@ -214,94 +207,6 @@ public class ScriptedReferenceMeshLinkController(
     }
 
     override suspend fun close(): Unit = Unit
-
-    private fun ensurePeerAvailable(): Unit {
-        if (stateStore.currentSnapshot.peers.any { peer -> peer.peerId == scriptedPeerId }) {
-            stateStore.updatePeers { peers ->
-                peers.map { peer ->
-                    if (peer.peerId == scriptedPeerId) {
-                        peer.copy(
-                            connectionState = PeerConnectionSnapshotState.CONNECTED,
-                            lastSeenAtEpochMillis = nowProvider(),
-                        )
-                    } else {
-                        peer
-                    }
-                }
-            }
-            return
-        }
-
-        stateStore.updatePeers { peers ->
-            peers +
-                PeerSnapshot(
-                    peerId = scriptedPeerId,
-                    peerSuffix = scriptedPeerSuffix,
-                    trustState = PeerTrustState.UNKNOWN,
-                    connectionState = PeerConnectionSnapshotState.CONNECTED,
-                    lastSeenAtEpochMillis = nowProvider(),
-                    capabilityNotes = listOf("Scripted UI automation peer"),
-                )
-        }
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.PEER,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Peer found",
-                detail = "Discovered scripted peer $scriptedPeerSuffix for the guided exchange.",
-                peerSuffix = scriptedPeerSuffix,
-            )
-        )
-    }
-
-    private fun promotePeerTrust(): Unit {
-        val peer =
-            stateStore.currentSnapshot.peers.firstOrNull { existing ->
-                existing.peerId == scriptedPeerId
-            }
-        if (peer?.trustState == PeerTrustState.TRUSTED) {
-            return
-        }
-        stateStore.updatePeers { peers ->
-            peers.map { existing ->
-                if (existing.peerId == scriptedPeerId) {
-                    existing.copy(trustState = PeerTrustState.TRUSTED)
-                } else {
-                    existing
-                }
-            }
-        }
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.DIAGNOSTIC,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Trust established",
-                detail = "The scripted peer $scriptedPeerSuffix is now treated as trusted.",
-                peerSuffix = scriptedPeerSuffix,
-            )
-        )
-    }
-
-    private fun updatePeerOutcome(lastDeliveryOutcome: String): Unit {
-        stateStore.updatePeers { peers ->
-            peers.map { peer ->
-                if (peer.peerId == scriptedPeerId) {
-                    peer.copy(
-                        trustState =
-                            if (peer.trustState == PeerTrustState.FORGOTTEN) {
-                                PeerTrustState.TRUSTED
-                            } else {
-                                peer.trustState
-                            },
-                        lastDeliveryOutcome = lastDeliveryOutcome,
-                        lastSeenAtEpochMillis = nowProvider(),
-                    )
-                } else {
-                    peer
-                }
-            }
-        }
-    }
 
     private companion object {
         private const val LARGE_TRANSFER_THRESHOLD_BYTES: Int = 4_096
