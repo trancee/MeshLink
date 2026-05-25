@@ -2,52 +2,6 @@ package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 
-internal fun requestSenderPayload(
-    phase: String,
-    targetPeer: AutoSendTargetPeer,
-    payloadPlan: SenderPayloadPlan,
-    automationConfig: ReferenceAutomationConfig,
-    actions: LiveProofAutomationActions,
-): Unit {
-    val payloadText = payloadPlan.payload(actions.platformName)
-    val priority = payloadPlan.priority
-    val payloadBytes = payloadText.encodeToByteArray().size
-    actions.emitAutomationLog(
-        "REFERENCE_AUTOMATION send.requested role=sender " +
-            "phase=$phase " +
-            "peer=${targetPeer.peerSuffix} " +
-            "priority=$priority " +
-            "bytes=$payloadBytes " +
-            "payload=${payloadPlan.label} " +
-            "targetIndex=${automationConfig.targetPeerIndex} " +
-            "requiredPeerCount=${automationConfig.requiredPeerCount} " +
-            "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
-    )
-    actions.requestSendPayload(
-        peerId = targetPeer.peerId,
-        payloadText = payloadText,
-        priority = priority,
-    )
-}
-
-internal fun emitSenderFailure(
-    snapshot: ReferenceControllerSnapshot,
-    targetPeerSuffix: String?,
-    actions: LiveProofAutomationActions,
-    progress: LiveProofAutomationProgress,
-): Unit {
-    val latestObservation =
-        latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
-    actions.emitAutomationLog(
-        "REFERENCE_AUTOMATION proof.failed role=sender " +
-            "outcome=${snapshot.session.lastOutcomeSummary.orEmpty()} " +
-            "peer=${targetPeerSuffix ?: "none"} " +
-            "observation=${latestObservation?.title ?: "none"} " +
-            "detail=${latestObservation?.detail ?: "none"}"
-    )
-    progress.completionLogged = true
-}
-
 internal fun announceBootstrapObservationIfNeeded(
     snapshot: ReferenceControllerSnapshot,
     bootstrapPeer: AutoSendTargetPeer?,
@@ -118,4 +72,22 @@ internal fun announceSenderOutcomeIfNeeded(
         "REFERENCE_AUTOMATION sender.outcome role=sender summary=$lastOutcomeSummary"
     )
     progress.lastSenderOutcomeSummary = lastOutcomeSummary
+}
+
+internal fun emitSenderFailure(
+    snapshot: ReferenceControllerSnapshot,
+    targetPeerSuffix: String?,
+    actions: LiveProofAutomationActions,
+    progress: LiveProofAutomationProgress,
+): Unit {
+    val latestObservation =
+        latestAutomationObservation(snapshot = snapshot, peerSuffix = targetPeerSuffix)
+    actions.emitAutomationLog(
+        "REFERENCE_AUTOMATION proof.failed role=sender " +
+            "outcome=${snapshot.session.lastOutcomeSummary.orEmpty()} " +
+            "peer=${targetPeerSuffix ?: "none"} " +
+            "observation=${latestObservation?.title ?: "none"} " +
+            "detail=${latestObservation?.detail ?: "none"}"
+    )
+    progress.completionLogged = true
 }
