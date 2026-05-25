@@ -11,7 +11,7 @@ import ch.trancee.meshlink.platform.createMeshLink
  *
  * @throws MeshLinkException.InvalidConfiguration on Android when no platform context is supplied.
  */
-public fun createMeshLinkRuntime(config: MeshLinkConfig): MeshLinkApi {
+public fun meshLink(config: MeshLinkConfig): MeshLinkApi {
     return createMeshLink(config = config)
 }
 
@@ -19,10 +19,10 @@ public fun createMeshLinkRuntime(config: MeshLinkConfig): MeshLinkApi {
  * Creates a MeshLink runtime on platforms that require extra bootstrap input, such as Android.
  *
  * The supplied value must be an Android `Context` on Android targets. On platforms that do not
- * require extra bootstrap input, prefer [createMeshLinkRuntime].
+ * require extra bootstrap input, prefer [meshLink].
  *
  * @throws MeshLinkException.InvalidConfiguration when [context] is missing or invalid.
  */
-public fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi {
+public fun meshLink(config: MeshLinkConfig, context: Any): MeshLinkApi {
     return createMeshLink(config = config, context = context)
 }

@@ -129,7 +129,7 @@ A good install check is simple:
 Android or shared Kotlin code should compile with:
 
 ```kotlin
-import ch.trancee.meshlink.api.createMeshLinkRuntime
+import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.config.meshLinkConfig
 ```
 

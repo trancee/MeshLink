@@ -97,7 +97,7 @@ Two practical notes:
 
 ## 3. Create the runtime from Swift
 
-Use the top-level `createMeshLinkRuntime(config:)` helper directly.
+Use the top-level `meshLink(config:)` helper directly.
 
 ```swift
 import MeshLink
@@ -106,7 +106,7 @@ final class MeshLinkService {
     let api: MeshLinkApi
 
     init() {
-        api = createMeshLinkRuntime(config: makeMeshLinkConfig())
+        api = meshLink(config: makeMeshLinkConfig())
     }
 }
 ```

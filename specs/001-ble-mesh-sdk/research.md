@@ -130,14 +130,14 @@ identities survive switching between the JCA-backed and software paths.
 - Samsung `SM-G970U1`, Android 12 / API 31: `XDH` works, `X25519`
   `KeyPairGenerator` alias does not, `Ed25519` JCA is unavailable, and
   `ChaCha20-Poly1305` works. After installing the in-repo Ed25519 fallback,
-  `createMeshLinkRuntime(config, context)` succeeds on-device even though the JCA Ed25519
+  `meshLink(config, context)` succeeds on-device even though the JCA Ed25519
   probe still fails.
 - OPPO `CPH2689`, Android 16 / API 36: `Ed25519` and `ChaCha20-Poly1305`
   work, but Conscrypt's `OpenSSLXDHKeyPairGenerator` rejects
   `initialize(AlgorithmParameterSpec)` with `InvalidAlgorithmParameterException`.
   This means `XDH` key generation must use `generateKeyPair()` directly instead
   of `NamedParameterSpec.X25519` initialization on Android. With that fix,
-  `createMeshLinkRuntime(config, context)` also succeeds on-device.
+  `meshLink(config, context)` also succeeds on-device.
 - Samsung `SM-G970U1` ↔ OPPO `CPH2689` real-device proof run: Android's new
   direct BLE transport now establishes a real L2CAP channel using the
   advertised PSM, completes the Noise XX hop handshake, pins trust, and

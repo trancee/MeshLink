@@ -42,8 +42,8 @@ val config = meshLinkConfig {
 
 ## 3. Construct the platform instance
 
-- Android calls `createMeshLinkRuntime(config, context)`.
-- iOS calls `createMeshLinkRuntime(config)`.
+- Android calls `meshLink(config, context)`.
+- iOS calls `meshLink(config)`.
 - Both factories return the same `MeshLinkApi` surface.
 - If local signing, device trust, or reference hardware blocks this step, treat
   that as an environmental blocker for the validation run rather than claiming

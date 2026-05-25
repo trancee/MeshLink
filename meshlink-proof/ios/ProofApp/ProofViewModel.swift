@@ -54,7 +54,7 @@ final class ProofViewModel: ObservableObject {
             builder.appId = resolvedLaunchConfig.appId
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
-        api = createMeshLinkRuntime(config: config)
+        api = meshLink(config: config)
         if resolvedLaunchConfig.benchmarkTransport == .meshLink {
             startTransportLogCaptureIfNeeded()
             bindFlows()

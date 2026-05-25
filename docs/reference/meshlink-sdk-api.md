@@ -21,8 +21,8 @@ These notes matter when you consume the generated Apple framework from Swift.
 
 | Kotlin surface | Swift-facing shape |
 |---|---|
-| `createMeshLinkRuntime(config)` | `createMeshLinkRuntime(config:)` |
-| `createMeshLinkRuntime(config, context)` | `createMeshLinkRuntime(config:context:)` |
+| `meshLink(config)` | `meshLink(config:)` |
+| `meshLink(config, context)` | `meshLink(config:context:)` |
 | `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
 | suspend functions like `start()` | `try await api.start()` |
 | `StateFlow` / `Flow` values | `AsyncSequence` values collected with `for await` |
@@ -35,21 +35,21 @@ These notes matter when you consume the generated Apple framework from Swift.
 ### Top-level runtime helpers
 
 ```kotlin
-fun createMeshLinkRuntime(config: MeshLinkConfig): MeshLinkApi
-fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi
+fun meshLink(config: MeshLinkConfig): MeshLinkApi
+fun meshLink(config: MeshLinkConfig, context: Any): MeshLinkApi
 ```
 
 | API | Use | Notes |
 |---|---|---|
-| `createMeshLinkRuntime(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
-| `createMeshLinkRuntime(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
+| `meshLink(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
+| `meshLink(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
 
 Factory instances are created in `MeshLinkState.Uninitialized`. Construction does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called. The current implementation may still load or create local identity material during construction so the runtime can derive its stable peer identity.
 
 ### Example
 
 ```kotlin
-val meshLink = createMeshLinkRuntime(
+val runtime = meshLink(
     config = meshLinkConfig { appId = "com.example.chat" },
     context = applicationContext,
 )

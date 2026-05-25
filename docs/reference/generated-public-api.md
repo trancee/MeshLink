@@ -61,7 +61,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.StopResult` | abstract class | — |
 | `ch.trancee.meshlink.api.StopResult.AlreadyStopped` | object | — |
 | `ch.trancee.meshlink.api.StopResult.Stopped` | object | — |
-| `top-level declarations` | top-level | `createMeshLinkRuntime()` |
+| `top-level declarations` | top-level | `meshLink()` |
 
 ## Package `ch.trancee.meshlink.config`
 
