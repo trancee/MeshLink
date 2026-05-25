@@ -1,12 +1,7 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.api.MeshLinkState
-import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
-import ch.trancee.meshlink.reference.model.PeerTrustState
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.model.TimelineFamily
-import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.flow.StateFlow
 
 /** Deterministic reference-app controller used by host-platform UI automation. */
@@ -53,32 +48,7 @@ public class ScriptedReferenceMeshLinkController(
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
 
     override suspend fun start(): Unit {
-        val currentState = stateStore.currentSnapshot.session.meshStateLabel
-        if (currentState == MeshLinkState.Running.toString()) {
-            stateStore.appendEvent(
-                ReferenceTimelineEvent(
-                    family = TimelineFamily.LIFECYCLE,
-                    severity = TimelineSeverity.INFO,
-                    title = "Mesh already running",
-                    detail = "The scripted automation mesh was already running.",
-                )
-            )
-            return
-        }
-
-        stateStore.updateSession(
-            meshStateLabel = MeshLinkState.Running.toString(),
-            lastOutcomeSummary = "StartResult.Started",
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Mesh started",
-                detail = "The scripted automation mesh moved into Running.",
-            )
-        )
-        ensureScriptedPeerAvailable(
+        startScriptedMesh(
             stateStore = stateStore,
             nowProvider = nowProvider,
             scriptedPeerId = scriptedPeerId,
@@ -87,34 +57,11 @@ public class ScriptedReferenceMeshLinkController(
     }
 
     override suspend fun pause(): Unit {
-        stateStore.updateSession(
-            meshStateLabel = MeshLinkState.Paused.toString(),
-            lastOutcomeSummary = "PauseResult.Paused",
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.INFO,
-                title = "Mesh paused",
-                detail = "The scripted automation mesh moved into Paused.",
-            )
-        )
+        pauseScriptedMesh(stateStore)
     }
 
     override suspend fun resume(): Unit {
-        stateStore.updateSession(
-            meshStateLabel = MeshLinkState.Running.toString(),
-            lastOutcomeSummary = "ResumeResult.Resumed",
-        )
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.SUCCESS,
-                title = "Mesh resumed",
-                detail = "The scripted automation mesh returned to Running.",
-            )
-        )
-        ensureScriptedPeerAvailable(
+        resumeScriptedMesh(
             stateStore = stateStore,
             nowProvider = nowProvider,
             scriptedPeerId = scriptedPeerId,
@@ -123,23 +70,7 @@ public class ScriptedReferenceMeshLinkController(
     }
 
     override suspend fun stop(): Unit {
-        stateStore.updateSession(
-            meshStateLabel = MeshLinkState.Stopped.toString(),
-            lastOutcomeSummary = "StopResult.Stopped",
-        )
-        stateStore.updatePeers { peers ->
-            peers.map { peer ->
-                peer.copy(connectionState = PeerConnectionSnapshotState.DISCONNECTED)
-            }
-        }
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.LIFECYCLE,
-                severity = TimelineSeverity.INFO,
-                title = "Mesh stopped",
-                detail = "The scripted automation mesh moved into Stopped.",
-            )
-        )
+        stopScriptedMesh(stateStore)
     }
 
     override suspend fun sendSamplePayload(
@@ -177,32 +108,11 @@ public class ScriptedReferenceMeshLinkController(
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
-        if (peerId != scriptedPeerId) {
-            return
-        }
-        stateStore.updatePeers { peers ->
-            peers.map { peer ->
-                if (peer.peerId == peerId) {
-                    peer.copy(trustState = PeerTrustState.FORGOTTEN)
-                } else {
-                    peer
-                }
-            }
-        }
-        stateStore.appendEvent(
-            ReferenceTimelineEvent(
-                family = TimelineFamily.PEER,
-                severity = TimelineSeverity.INFO,
-                title = "Peer trust reset",
-                detail =
-                    "The scripted peer $scriptedPeerSuffix was forgotten and must be trusted again.",
-                peerSuffix = scriptedPeerSuffix,
-            )
-        )
-        stateStore.updateSession(
-            meshStateLabel = stateStore.currentSnapshot.session.meshStateLabel,
-            lastOutcomeSummary = "ForgetPeerResult.Forgotten",
-            selectedPeerId = scriptedPeerId,
+        forgetScriptedPeer(
+            stateStore = stateStore,
+            peerId = peerId,
+            scriptedPeerId = scriptedPeerId,
+            scriptedPeerSuffix = scriptedPeerSuffix,
         )
     }
 
