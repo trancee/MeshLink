@@ -184,6 +184,40 @@ class ReferenceNavHostSupportTest {
             coroutineContext.cancelChildren()
         }
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun confirmBoundaryDoesNotRouteWhenTheSupportedSessionAlreadyEnded() = runTest {
+        // Arrange
+        val harness =
+            TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
+                .createTransitionServiceHarness(scope = this)
+        val routes = mutableListOf<String>()
+        advanceUntilIdle()
+        harness.transitionService.endSupportedSession()
+        advanceUntilIdle()
+
+        try {
+            // Act
+            harness.transitionService.confirmBoundary(
+                request = SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION),
+                exportFirst = false,
+                applySurfaceSelection = { surface -> routes += surface.route },
+            )
+            advanceUntilIdle()
+
+            // Assert
+            assertEquals(emptyList(), routes)
+            assertEquals(true, harness.timelineStore.uiState.value.isCurrentSessionEnded)
+            assertEquals(
+                ReferenceSurfaceId.MAIN_GUIDED.route,
+                harness.timelineStore.uiState.value.liveSnapshot.session.configurationSnapshot
+                    .getValue("surface"),
+            )
+        } finally {
+            coroutineContext.cancelChildren()
+        }
+    }
 }
 
 private fun navigationSnapshot(

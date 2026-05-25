@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +12,7 @@ import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /** Shared navigation shell for the reference app surfaces. */
@@ -65,6 +67,15 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
 
     val followUpSupportedSessionLabel =
         dependencies.sessionTransitionService.followUpSupportedSessionLabel(snapshot)
+
+    LaunchedEffect(pendingBoundary) {
+        val request = pendingBoundary ?: return@LaunchedEffect
+        dependencies.timelineStore.uiState.collect {
+            if (!dependencies.sessionTransitionService.canConfirmBoundary(request)) {
+                pendingBoundary = null
+            }
+        }
+    }
 
     fun startFollowUpSupportedSessionFromEvidenceSurface(): Unit {
         coroutineScope.launch {

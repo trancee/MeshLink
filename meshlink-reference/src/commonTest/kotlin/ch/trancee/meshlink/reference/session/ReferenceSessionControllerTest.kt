@@ -98,6 +98,45 @@ class ReferenceSessionControllerTest {
         // Assert
         assertEquals(0, factory.createdControllers.single().startCalls)
     }
+
+    @Test
+    fun endingThenRestartingSupportedSessionDoesNotCloseTheEndedControllerTwice() = runTest {
+        // Arrange
+        val factory = RecordingControllerFactory()
+        val controller =
+            ReferenceSessionController(
+                platformName = "iOS",
+                nowProvider = { 42L },
+                supportedControllerFactory = factory::create,
+            )
+
+        // Act
+        controller.endSupportedSession()
+        controller.startNewSupportedSession(surfaceOfOrigin = "advanced-controls")
+
+        // Assert
+        assertEquals(2, factory.createdControllers.size)
+        assertEquals(1, factory.createdControllers.first().closeCalls)
+    }
+
+    @Test
+    fun closingAfterLeavingSupportedLiveStateDoesNotCloseTheControllerTwice() = runTest {
+        // Arrange
+        val factory = RecordingControllerFactory()
+        val controller =
+            ReferenceSessionController(
+                platformName = "iOS",
+                nowProvider = { 42L },
+                supportedControllerFactory = factory::create,
+            )
+        controller.startSoloSession()
+
+        // Act
+        controller.close()
+
+        // Assert
+        assertEquals(1, factory.createdControllers.single().closeCalls)
+    }
 }
 
 private class RecordingControllerFactory {

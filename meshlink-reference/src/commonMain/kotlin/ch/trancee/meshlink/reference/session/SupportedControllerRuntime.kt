@@ -14,6 +14,7 @@ internal class SupportedControllerRuntime(
 ) {
     private var controller: ReferenceMeshLinkController =
         supportedControllerFactory(initialSurfaceOfOrigin)
+    private var controllerClosed: Boolean = false
     private var snapshotJob: Job? = null
     private var surfaceOfOrigin: String = initialSurfaceOfOrigin
 
@@ -37,6 +38,7 @@ internal class SupportedControllerRuntime(
         closeCurrent()
         this.surfaceOfOrigin = surfaceOfOrigin
         controller = supportedControllerFactory(surfaceOfOrigin)
+        controllerClosed = false
         val initialSnapshot = currentSnapshot()
         onSnapshotChanged(initialSnapshot)
         bind(onSnapshotChanged)
@@ -55,7 +57,12 @@ internal class SupportedControllerRuntime(
 
     suspend fun closeCurrent(): Unit {
         snapshotJob?.cancel()
+        snapshotJob = null
+        if (controllerClosed) {
+            return
+        }
         controller.close()
+        controllerClosed = true
     }
 
     suspend fun run(action: suspend (ReferenceMeshLinkController) -> Unit): Unit {

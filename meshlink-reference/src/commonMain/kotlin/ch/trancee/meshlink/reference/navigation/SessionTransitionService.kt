@@ -40,6 +40,20 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         }
     }
 
+    fun canConfirmBoundary(request: SessionBoundaryRequest): Boolean {
+        val current = timelineStore.uiState.value
+        return when (request) {
+            is SessionBoundaryRequest.SupportedTo ->
+                current.isSupportedLiveSession &&
+                    !current.viewingRetained &&
+                    (request.targetSurface == ReferenceSurfaceId.SOLO_EXPLORATION ||
+                        request.targetSurface == ReferenceSurfaceId.LAB)
+
+            is SessionBoundaryRequest.AlternativeTo ->
+                current.isAlternativeSession && !current.viewingRetained
+        }
+    }
+
     suspend fun startAlternativeSession(
         surface: ReferenceSurfaceId,
         applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
@@ -139,6 +153,9 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         exportFirst: Boolean,
         applySurfaceSelection: (ReferenceSurfaceId) -> Unit,
     ): Unit {
+        if (!canConfirmBoundary(request)) {
+            return
+        }
         when (request) {
             is SessionBoundaryRequest.SupportedTo -> {
                 applySurfaceSelection(request.targetSurface)
