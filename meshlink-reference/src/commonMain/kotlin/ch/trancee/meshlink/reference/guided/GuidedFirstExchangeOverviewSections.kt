@@ -14,13 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.trancee.meshlink.reference.design.ReferenceBadge
 import ch.trancee.meshlink.reference.design.ReferenceSectionCard
-import ch.trancee.meshlink.reference.model.TimelineEntry
-import ch.trancee.meshlink.reference.model.referenceTimelineFamilyLabel
-import ch.trancee.meshlink.reference.model.referenceTimelineSeverityLabel
 
 @Composable
 internal fun GuidedFirstExchangeHeader(): Unit {
@@ -151,34 +147,6 @@ internal fun GuidedReadinessChecklist(items: List<ReadinessItem>): Unit {
         }
     }
 }
-
-@Composable
-internal fun GuidedRecentTimelineHeader(): Unit {
-    Text(
-        text = "Recent timeline",
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun GuidedTimelineEntryCard(entry: TimelineEntry): Unit {
-    ReferenceSectionCard(title = entry.title, subtitle = entry.detail) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ReferenceBadge(label = referenceTimelineFamilyLabel(entry.family))
-            ReferenceBadge(label = referenceTimelineSeverityLabel(entry.severity))
-            if (entry.peerSuffix != null) {
-                ReferenceBadge(label = "Peer ${entry.peerSuffix}")
-            }
-        }
-    }
-}
-
-internal const val RECENT_GUIDED_TIMELINE_ENTRY_COUNT: Int = 4
 
 private const val GUIDED_FIRST_EXCHANGE_INTRO_TEXT: String =
     "Use the fastest product-like path to start MeshLink, discover one peer, and prove the " +

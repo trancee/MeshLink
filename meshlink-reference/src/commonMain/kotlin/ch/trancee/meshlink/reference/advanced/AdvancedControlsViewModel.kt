@@ -1,10 +1,6 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
-import ch.trancee.meshlink.reference.model.referenceConnectionLabel
-import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
-import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,12 +16,14 @@ public class AdvancedControlsViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
+    private val defaultComposerText: String =
+        "hello mesh from ${platformServices.platformName} advanced"
     private val uiStateFlow: MutableStateFlow<AdvancedControlsUiState> =
         MutableStateFlow(
             buildAdvancedControlsUiState(
                 platformServices = platformServices,
                 selectedPeerId = null,
-                composerText = "hello mesh from ${platformServices.platformName} advanced",
+                composerText = defaultComposerText,
                 selectedPriority = DeliveryPriority.NORMAL,
             )
         )
@@ -39,14 +37,11 @@ public class AdvancedControlsViewModel(
         scope.launch {
             platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
                 val current = uiStateFlow.value
-                val selectedPeerId = current.selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId
-                uiStateFlow.value =
-                    buildAdvancedControlsUiState(
-                        platformServices = platformServices,
-                        selectedPeerId = selectedPeerId,
-                        composerText = current.composerText,
-                        selectedPriority = current.selectedPriority,
-                    )
+                rebuildUiState(
+                    selectedPeerId = current.selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId,
+                    composerText = current.composerText,
+                    selectedPriority = current.selectedPriority,
+                )
                 lifecycleStateFlow.value =
                     LifecycleActionState.from(snapshot.session.meshStateLabel)
             }
@@ -54,23 +49,19 @@ public class AdvancedControlsViewModel(
     }
 
     public fun selectPeer(peerId: String): Unit {
-        uiStateFlow.value =
-            buildAdvancedControlsUiState(
-                platformServices = platformServices,
-                selectedPeerId = peerId,
-                composerText = uiStateFlow.value.composerText,
-                selectedPriority = uiStateFlow.value.selectedPriority,
-            )
+        rebuildUiState(
+            selectedPeerId = peerId,
+            composerText = uiStateFlow.value.composerText,
+            selectedPriority = uiStateFlow.value.selectedPriority,
+        )
     }
 
     public fun updateComposerText(text: String): Unit {
-        uiStateFlow.value =
-            buildAdvancedControlsUiState(
-                platformServices = platformServices,
-                selectedPeerId = uiStateFlow.value.selectedPeerId,
-                composerText = text,
-                selectedPriority = uiStateFlow.value.selectedPriority,
-            )
+        rebuildUiState(
+            selectedPeerId = uiStateFlow.value.selectedPeerId,
+            composerText = text,
+            selectedPriority = uiStateFlow.value.selectedPriority,
+        )
     }
 
     public fun updatePriority(priority: DeliveryPriority): Unit {
@@ -114,13 +105,10 @@ public class AdvancedControlsViewModel(
         if (!state.canSendLargeTransfer) {
             return
         }
-        val largePayload = buildString {
-            repeat(LARGE_TRANSFER_PREVIEW_REPEAT_COUNT) { append(LARGE_TRANSFER_PREVIEW_SEGMENT) }
-        }
         scope.launch {
             platformServices.meshLinkController.sendSamplePayload(
                 peerId = peerId,
-                payloadText = largePayload,
+                payloadText = buildAdvancedLargeTransferPreviewPayload(),
                 priority = DeliveryPriority.HIGH,
             )
         }
@@ -130,67 +118,18 @@ public class AdvancedControlsViewModel(
         val peerId = uiStateFlow.value.selectedPeerId ?: return
         scope.launch { platformServices.meshLinkController.forgetPeer(peerId) }
     }
-}
 
-private fun buildAdvancedControlsUiState(
-    platformServices: PlatformServices,
-    selectedPeerId: String?,
-    composerText: String,
-    selectedPriority: DeliveryPriority,
-): AdvancedControlsUiState {
-    val snapshot = platformServices.meshLinkController.snapshot.value
-    val effectivePeerId = selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId
-    val configSnapshot = snapshot.session.configurationSnapshot
-    val payloadSizeBytes = composerText.encodeToByteArray().size
-    return AdvancedControlsUiState(
-        config =
-            AdvancedConfigState(
-                appId = configSnapshot["appId"] ?: "demo.meshlink.reference",
-                regulatoryRegion = configSnapshot["regulatoryRegion"] ?: "DEFAULT",
-                powerModeLabel = configSnapshot["powerMode"] ?: snapshot.activePowerModeLabel,
-                deliveryRetryDeadlineLabel = configSnapshot["deliveryRetryDeadline"] ?: "15s",
-                authorityModeLabel = referenceAuthorityLabel(snapshot.session.authorityMode),
-            ),
-        meshStateLabel = snapshot.session.meshStateLabel,
-        activePowerModeLabel = snapshot.activePowerModeLabel,
-        isSessionEnded = snapshot.session.endedAtEpochMillis != null,
-        selectedPeerId = effectivePeerId,
-        composerText = composerText,
-        selectedPriority = selectedPriority,
-        peerRows =
-            snapshot.peers.map { peer ->
-                AdvancedPeerRow(
-                    peerId = peer.peerId,
-                    peerSuffix = peer.peerSuffix,
-                    trustLabel = referencePeerTrustLabel(peer.trustState),
-                    connectionLabel = referenceConnectionLabel(peer.connectionState),
-                    lastDeliveryOutcome = peer.lastDeliveryOutcome,
-                )
-            },
-        timelineHighlights =
-            snapshot.timeline.takeLast(RECENT_TIMELINE_HIGHLIGHTS_COUNT).map { entry ->
-                "${entry.title}: ${entry.detail}"
-            },
-        lastOutcomeSummary = snapshot.session.lastOutcomeSummary,
-        lastOutcomeDisplayText = referenceOutcomeLabel(snapshot.session.lastOutcomeSummary),
-        payloadSizeBytes = payloadSizeBytes,
-        payloadLimitBytes = ADVANCED_PAYLOAD_LIMIT_BYTES,
-        payloadValidationMessage = payloadValidationMessage(payloadSizeBytes),
-    )
-}
-
-internal const val ADVANCED_PAYLOAD_LIMIT_BYTES: Int = 64 * 1024
-
-private fun payloadValidationMessage(payloadSizeBytes: Int): String? {
-    return if (payloadSizeBytes > ADVANCED_PAYLOAD_LIMIT_BYTES) {
-        "Payload is $payloadSizeBytes bytes. MeshLink currently supports up to " +
-            "$ADVANCED_PAYLOAD_LIMIT_BYTES bytes per message. Shorten the text before sending."
-    } else {
-        null
+    private fun rebuildUiState(
+        selectedPeerId: String?,
+        composerText: String,
+        selectedPriority: DeliveryPriority,
+    ): Unit {
+        uiStateFlow.value =
+            buildAdvancedControlsUiState(
+                platformServices = platformServices,
+                selectedPeerId = selectedPeerId,
+                composerText = composerText,
+                selectedPriority = selectedPriority,
+            )
     }
 }
-
-private const val LARGE_TRANSFER_PREVIEW_REPEAT_COUNT: Int = 256
-private const val LARGE_TRANSFER_PREVIEW_SEGMENT: String =
-    "MeshLink reference large transfer preview · "
-private const val RECENT_TIMELINE_HIGHLIGHTS_COUNT: Int = 3
