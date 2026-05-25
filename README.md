@@ -18,7 +18,7 @@ This repository contains:
 bootstrap the runtime, react to peers and messages, send payloads correctly,
 and find the right supporting document when you need more detail.
 
-The documentation follows the Diátaxis model. Start with the full
+The documentation follows the Diataxis model. Start with the full
 [documentation map](docs/README.md).
 
 Quick entry points:

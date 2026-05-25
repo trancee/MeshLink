@@ -115,7 +115,7 @@ A quick rule of thumb:
 | Runtime dependency budget | `:meshlink` keeps the current runtime dependency budget unless governance changes. |
 | Public behavior parity | Android and iOS public behavior stays aligned. |
 | Documentation parity | Android and iOS public workflow/API docs update together. |
-| Documentation structure | Each user-facing page stays in one Diátaxis type. |
+| Documentation structure | Each user-facing page stays in one Diataxis type. |
 | Branching | Governed work happens on feature branches rather than `main`. |
 | Commit format | Commits use Conventional Commit messages. |
 

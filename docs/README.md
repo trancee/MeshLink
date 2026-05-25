@@ -2,7 +2,7 @@
 
 Use this page to find the right MeshLink document for the job.
 
-The docs follow the Diátaxis model, so the fastest way to the right page is to
+The docs follow the Diataxis model, so the fastest way to the right page is to
 start with your goal:
 
 | If you want to... | Start here |
@@ -11,7 +11,7 @@ start with your goal:
 | complete an integration task | [How-to guides](#how-to-guides) |
 | look up exact API facts | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
-| run proof flows or inspect retained evidence | [Proof and validation guides](#proof-and-validation-guides) |
+| run proof flows or inspect retained evidence | [How-to guides](#how-to-guides) and [Reference](#reference) |
 
 ## Tutorials
 
@@ -19,13 +19,20 @@ start with your goal:
 
 ## How-to guides
 
+### Integration and operation
+
 - [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md) — wire the current source-distributed SDK into an Android Gradle app or iOS Xcode app.
 - [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the runtime, manage lifecycle, collect streams, send payloads, and handle trust resets.
 - [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — move from a working demo to an app-owned integration with explicit lifecycle, diagnostics, trust-reset, and delivery semantics.
 - [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear Android and iPhone permission blockers before you debug discovery or delivery.
+- [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift and interpret the Swift-facing API surface.
+
+### Validation and proof workflows
+
 - [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — run the shared Android and iOS reference app, complete a guided exchange, and export a retained artifact.
 - [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — retain direct, relay, and permission-recovery physical proofs with scenario-specific analysis artifacts.
-- [How to use MeshLink from Swift](how-to/use-meshlink-from-swift.md) — call the generated Apple framework safely from Swift and interpret the Swift-facing API surface.
+- [How to run the Android proof app](../meshlink-proof/android/README.md) — retain Android-side physical proof evidence.
+- [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) — retain iPhone-side physical proof evidence.
 
 ## Reference
 
@@ -61,10 +68,3 @@ start with your goal:
 - [Why MeshLink keeps FlatBuffers in pure Kotlin](explanation/why-pure-kotlin-flatbuffers.md)
 - [Why MeshLink requires full coverage](explanation/why-full-coverage.md)
 
-## Proof and validation guides
-
-- [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — guided reference workflows, retained history, exports, and the handoff point to the proof harnesses.
-- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — direct proof, relay proof, and the retained physical matrix.
-- [How to run the Android proof app](../meshlink-proof/android/README.md)
-- [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
-- [Benchmark and validation baselines](../benchmarks/README.md)

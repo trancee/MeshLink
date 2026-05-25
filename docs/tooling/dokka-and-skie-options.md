@@ -74,7 +74,7 @@ Dokka remains **supplemental generated reference output**.
 
 It does not replace:
 
-- the human-written Diátaxis documentation
+- the human-written Diataxis documentation
 - the generated BCV appendix
 - contributor KDoc discipline
 
