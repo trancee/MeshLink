@@ -11,6 +11,8 @@ It does not show setup steps. For those, use
 [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
 For the exact public surface, limits, and result types, use the
 [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
+For lifecycle, stream, delivery, persistence, and power tables, use the
+[MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md).
 For a shorter integration-rationale companion, use
 [About integrating MeshLink well](about-integrating-meshlink.md).
 

@@ -10,6 +10,8 @@ For integration steps, use
 [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
 For Swift examples, use
 [How to use MeshLink from Swift](../how-to/use-meshlink-from-swift.md).
+For runtime semantics and side-effect tables, use
+[MeshLink runtime behavior reference](meshlink-runtime-behavior.md).
 For rationale and best practices, use
 [About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
 For a completeness appendix rendered from the public API dump, use
