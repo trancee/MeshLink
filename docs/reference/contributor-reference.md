@@ -77,6 +77,29 @@ Use this page when you need exact commands, matrices, or policy details.
 | Proof apps and reference app | Physical validation and retained evidence | Evidence surface, not a replacement for automated library tests. |
 | JVM benchmark suite | Benchmark-covered operations | Covers retained JVM performance evidence. |
 
+## Reference-app architecture landmarks
+
+Use these landmarks when a change touches `meshlink-reference` and you need to
+find the right module quickly.
+
+| Concern | Primary module | Notes |
+|---|---|---|
+| Route selection and shell wiring | `ReferenceNavHost` | Owns active surface state and route callbacks; does not own session-boundary semantics. |
+| Session-transition execution | `SessionTransitionService` | Owns supported/ended/solo/lab transition sequencing, boundary confirmation execution, and follow-up supported-session starts. |
+| Session boundaries and session-state publication | `ReferenceSessionController` | Owns supported live vs ended vs solo vs lab session state and publishes the currently active session snapshot. |
+| Supported runtime lifecycle and binding | `SupportedControllerRuntime` | Owns supported controller creation, restart, closure, and snapshot binding. |
+| Evidence-surface state | `TechnicalTimelineStore` | Owns live/retained evidence state, visible timeline entries, retained-session loading, and export/retention state. |
+| Live SDK-backed controller behavior | `LiveReferenceMeshLinkController` + `LiveReferenceMeshRuntime` | The controller stays app-facing; the runtime owns MeshLink API creation, binding, and command delegation. |
+| Scripted automation controller behavior | `ScriptedReferenceMeshLinkController` + `ScriptedReferenceMeshRuntime` | Mirrors the live split for deterministic UI automation and proof scripting. |
+| Reference-app automation orchestration | `LiveProofAutomationDriver` + `LiveProofAutomationActions` | The driver owns proof-flow progression; the actions bridge automation intents into the current reference-app seams. |
+
+A quick rule of thumb:
+
+- If the change is about **which surface the operator sees**, start in navigation.
+- If it is about **when one session ends and another begins**, start in `SessionTransitionService` and `ReferenceSessionController`.
+- If it is about **what evidence the operator can inspect or export**, start in `TechnicalTimelineStore`.
+- If it is about **how the live or scripted controller talks to MeshLink or scripted state**, start in the matching runtime/controller pair.
+
 ## Coding and documentation rules
 
 | Rule | Current requirement |
