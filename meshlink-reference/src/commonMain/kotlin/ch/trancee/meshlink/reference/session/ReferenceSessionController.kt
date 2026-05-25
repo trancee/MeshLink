@@ -102,7 +102,7 @@ public class ReferenceSessionController(
             kind = ReferenceSessionKind.SOLO,
             scenarioId = "solo-exploration",
             authorityMode = ReferenceAuthorityMode.SOLO,
-            surfaceOfOrigin = "main-guided",
+            surfaceOfOrigin = "solo-exploration",
             title = "Solo exploration opened",
             detail = "Solo exploration is active on $platformName.",
         )

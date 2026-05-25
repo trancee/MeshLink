@@ -65,6 +65,7 @@ internal fun payloadMetadata(entry: TimelineEntry): Map<String, String>? {
 internal fun normalizeSurface(surface: String?): String {
     return when (surface) {
         "advanced-controls" -> "advanced"
+        "solo-exploration" -> "solo"
         "lab" -> "lab"
         else -> "main"
     }

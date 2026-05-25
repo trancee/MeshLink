@@ -43,7 +43,7 @@ Optional timestamp fields are absent when unknown.
 |---|---|---:|---|
 | `scenarioId` | string | Yes | Stable scenario identifier |
 | `title` | string | Yes | Operator-facing scenario name |
-| `surface` | string | Yes | `main`, `advanced`, or `lab` |
+| `surface` | string | Yes | `main`, `advanced`, `solo`, or `lab` |
 | `authorityMode` | string | Yes | `live` or `solo` |
 | `startedAt` | string | Yes | UTC ISO 8601 session start timestamp |
 | `endedAt` | string | No | UTC ISO 8601 session end timestamp when the session has ended |
@@ -146,5 +146,7 @@ Optional timestamp fields are absent when unknown.
 - Retained-session exports must keep `fullPayloadIncluded = false` because
   retained history strips sensitive payload content.
 - `authorityMode = solo` must not be exported as authoritative live proof.
+- `surface = solo` must preserve the non-authoritative solo exploration identity
+  in the exported scenario block.
 - `surface = lab` must preserve a non-normative indicator in the exported
   scenario block.

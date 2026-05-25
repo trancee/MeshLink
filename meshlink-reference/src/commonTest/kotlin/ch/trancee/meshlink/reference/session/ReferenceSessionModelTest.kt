@@ -110,7 +110,7 @@ class ReferenceSessionModelTest {
                 currentSnapshot = currentSnapshot,
                 scenarioId = "solo-exploration",
                 authorityMode = ReferenceAuthorityMode.SOLO,
-                surfaceOfOrigin = "main-guided",
+                surfaceOfOrigin = "solo-exploration",
                 title = "Solo exploration opened",
                 detail = "Solo exploration is active on iOS.",
             )
@@ -120,7 +120,7 @@ class ReferenceSessionModelTest {
         assertEquals("Running", actual.session.meshStateLabel)
         assertEquals("Performance", actual.activePowerModeLabel)
         assertEquals(ReferenceHistoryStatus.LIVE, actual.session.historyStatus)
-        assertEquals("main-guided", actual.session.configurationSnapshot.getValue("surface"))
+        assertEquals("solo-exploration", actual.session.configurationSnapshot.getValue("surface"))
         assertTrue(actual.peers.isEmpty())
         assertEquals(1, actual.timeline.size)
         assertEquals("Solo exploration opened", actual.timeline.single().title)

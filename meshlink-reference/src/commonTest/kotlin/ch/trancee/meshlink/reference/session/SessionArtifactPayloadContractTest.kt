@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.session
 
 import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
+import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,6 +102,41 @@ class SessionArtifactPayloadContractTest {
             "1970-01-01T00:00:01.500Z",
             redactedTimelineEntry.getValue("occurredAt").jsonPrimitive.content,
         )
+    }
+
+    @Test
+    fun soloExportPreservesTheSoloSurfaceIdentity() = runTest {
+        // Arrange
+        val serializer = sessionArtifactSerializer()
+        val session =
+            sessionArtifactSession(
+                sessionId = "session-solo",
+                scenarioId = "solo-exploration",
+                authorityMode = ReferenceAuthorityMode.SOLO,
+                surfaceOfOrigin = "solo-exploration",
+            )
+        val artifact =
+            sessionArtifact(
+                artifactId = "artifact-session-solo",
+                sourceSessionId = session.sessionId,
+                createdAtEpochMillis = 2_000L,
+                storagePath = "reference/exports/session-solo.json",
+            )
+
+        // Act
+        val redacted =
+            serializer.serializeRedacted(
+                artifact = artifact,
+                session = session,
+                peers = emptyList(),
+                timeline = emptyList(),
+            )
+        val redactedDocument = Json.parseToJsonElement(redacted).jsonObject
+        val redactedScenario = redactedDocument.getValue("scenario").jsonObject
+
+        // Assert
+        assertEquals("solo", redactedScenario.getValue("surface").jsonPrimitive.content)
+        assertEquals("solo", redactedScenario.getValue("authorityMode").jsonPrimitive.content)
     }
 
     @Test

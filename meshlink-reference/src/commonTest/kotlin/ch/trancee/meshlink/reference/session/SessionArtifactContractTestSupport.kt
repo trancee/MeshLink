@@ -21,6 +21,8 @@ internal fun sessionArtifactSerializer(): JsonSessionArtifactSerializer {
 internal fun sessionArtifactSession(
     sessionId: String,
     scenarioId: String = "guided-first-exchange",
+    authorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE,
+    surfaceOfOrigin: String = "main-guided",
     startedAtEpochMillis: Long = 1_000L,
     endedAtEpochMillis: Long? = null,
     lastOutcomeSummary: String? = null,
@@ -29,9 +31,10 @@ internal fun sessionArtifactSession(
     return ReferenceSession(
         sessionId = sessionId,
         scenarioId = scenarioId,
-        authorityMode = ReferenceAuthorityMode.LIVE,
+        authorityMode = authorityMode,
         startedAtEpochMillis = startedAtEpochMillis,
         endedAtEpochMillis = endedAtEpochMillis,
+        configurationSnapshot = mapOf("surface" to surfaceOfOrigin),
         lastOutcomeSummary = lastOutcomeSummary,
         historyStatus = historyStatus,
     )

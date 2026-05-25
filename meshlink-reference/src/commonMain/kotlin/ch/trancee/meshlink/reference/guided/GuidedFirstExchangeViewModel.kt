@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-/** Shared state holder for the guided first-exchange and solo-exploration surfaces. */
+/** Shared state holder for the guided first-exchange surface. */
 public class GuidedFirstExchangeViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),

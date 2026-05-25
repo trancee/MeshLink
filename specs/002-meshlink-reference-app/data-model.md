@@ -22,7 +22,7 @@ Represents a named workflow or exercise the operator can run.
 | Field | Type | Description | Validation |
 |---|---|---|---|
 | `scenarioId` | String | Stable unique identifier for the scenario | Required; unique across the app |
-| `surface` | Enum | `main`, `advanced`, or `lab` | Required |
+| `surface` | Enum | `main`, `advanced`, `solo`, or `lab` | Required |
 | `mode` | Enum | `live` or `solo` | Required |
 | `title` | String | Operator-facing scenario name | Required; non-blank |
 | `summary` | String | One-line description of the goal | Required |
@@ -34,7 +34,7 @@ Represents a named workflow or exercise the operator can run.
 **Relationships**:
 - One `ReferenceScenario` can produce many `ReferenceSession` values.
 - `ReferenceScenario.surface` controls whether the scenario appears in the main
-  experience, advanced area, or lab.
+  experience, advanced area, solo exploration surface, or lab.
 
 ### `ReferenceSession`
 
