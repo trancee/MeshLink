@@ -23,3 +23,17 @@ Reason:
 - keeps route application in navigation callbacks instead of moving route ownership into the service
 - lets automation, timeline actions, and follow-up supported-session starts share one execution seam
 - allows the technical timeline to focus on evidence projection, retention visibility, and export state
+
+## 2026-05-25 — Final transition architecture
+
+Chosen shape: keep `SessionTransitionService` as the single transition execution module,
+with `ReferenceSessionController` as the session boundary owner and
+`TechnicalTimelineStore` as the evidence-state module. Do not introduce a separate
+planner/executor seam or a second session-state-machine seam at this time.
+
+Reason:
+- keeps one real seam for transition execution instead of splitting the same logic across planner, executor, and callers
+- preserves the current ownership split: navigation owns routes, the controller owns session boundaries, the service owns transition orchestration
+- avoids shallow wrapper modules that would mostly forward to the same controller/export/retention calls
+- keeps the deletion test strong: removing the service would re-spread the branching matrix into navigation, automation, and the evidence surface
+- leaves room for future private helper extraction inside the service if one branch family becomes materially more complex, without committing to a second public seam too early
