@@ -12,6 +12,10 @@ _Avoid_: Screen, tab, mode
 The supported surface for deliberate operator inspection and runtime actions beyond the guided flow. It exposes a curated set of evaluation-relevant controls without becoming a general-purpose SDK console.
 _Avoid_: Debug shell, expert mode, full SDK console
 
+**Evidence surface**:
+A surface used to inspect live or retained evidence without defining the surface of origin of a supported live session. The technical timeline and recent history are evidence surfaces.
+_Avoid_: Session origin surface, supported entry surface, hidden workflow owner
+
 **Evaluation-relevant capability**:
 A supported MeshLink capability that materially changes what an operator can demonstrate, compare, or explain in the reference app. Evaluation-relevant capabilities may belong in advanced controls; low-level SDK knobs that do not improve evaluation do not.
 _Avoid_: Every supported option, internal knob, full SDK parity
