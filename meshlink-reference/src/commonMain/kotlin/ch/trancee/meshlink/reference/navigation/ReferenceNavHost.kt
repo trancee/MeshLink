@@ -10,8 +10,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
 import ch.trancee.meshlink.reference.platform.PlatformServices
-import ch.trancee.meshlink.reference.session.referenceSessionKind
-import ch.trancee.meshlink.reference.timeline.startNewSupportedSessionNow
 import kotlinx.coroutines.launch
 
 /** Shared navigation shell for the reference app surfaces. */
@@ -34,30 +32,27 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
 
     fun selectSurface(surface: ReferenceSurfaceId): Unit {
         when (
-            val decision =
-                resolveSurfaceSelection(
-                    ReferenceSurfaceSelectionRequest(
-                        currentKind = snapshot.referenceSessionKind(),
-                        activeRoute = activeRoute,
-                        targetSurface = surface,
-                    )
+            val choice =
+                dependencies.sessionTransitionService.chooseSurface(
+                    activeRoute = activeRoute,
+                    currentSnapshot = snapshot,
+                    targetSurface = surface,
                 )
         ) {
-            is ReferenceSurfaceSelectionDecision.SelectSurface -> {
-                applySurfaceSelection(decision.surface)
+            is SessionSurfaceChoice.Select -> {
+                applySurfaceSelection(choice.surface)
             }
 
-            is ReferenceSurfaceSelectionDecision.RequireBoundary -> {
-                pendingBoundary = decision.request
+            is SessionSurfaceChoice.RequireBoundary -> {
+                pendingBoundary = choice.request
             }
 
-            is ReferenceSurfaceSelectionDecision.StartNewSession -> {
+            is SessionSurfaceChoice.StartAlternative -> {
                 coroutineScope.launch {
-                    startAlternativeSession(
-                        surface = decision.surface,
-                        sessionController = dependencies.sessionController,
+                    dependencies.sessionTransitionService.startAlternativeSession(
+                        surface = choice.surface,
+                        applySurfaceSelection = ::applySurfaceSelection,
                     )
-                    applySurfaceSelection(decision.surface)
                 }
             }
         }
@@ -67,18 +62,14 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         selectSurface(lastRouteBySection[section] ?: section.defaultSurface)
     }
 
-    val followUpSupportedSessionLabel = followUpSupportedSessionLabel(snapshot)
+    val followUpSupportedSessionLabel =
+        dependencies.sessionTransitionService.followUpSupportedSessionLabel(snapshot)
 
     fun startFollowUpSupportedSessionFromEvidenceSurface(): Unit {
         coroutineScope.launch {
-            startFollowUpSupportedSession(
+            dependencies.sessionTransitionService.startFollowUpSupportedSession(
                 currentSnapshot = snapshot,
                 applySurfaceSelection = ::applySurfaceSelection,
-                startSupportedSession = { targetSurface ->
-                    dependencies.timelineStore.startNewSupportedSessionNow(
-                        surfaceOfOrigin = targetSurface.route
-                    )
-                },
             )
         }
     }
@@ -113,10 +104,9 @@ public fun ReferenceNavHost(platformServices: PlatformServices) {
         onDismissBoundary = { pendingBoundary = null },
         onConfirmBoundary = { request, exportFirst ->
             coroutineScope.launch {
-                handleBoundaryConfirmation(
+                dependencies.sessionTransitionService.confirmBoundary(
                     request = request,
                     exportFirst = exportFirst,
-                    timelineStore = dependencies.timelineStore,
                     applySurfaceSelection = ::applySurfaceSelection,
                 )
             }

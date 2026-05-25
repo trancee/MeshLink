@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.reference.timeline
 
-import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.navigation.ReferenceSurfaceId
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.launch
@@ -126,16 +125,4 @@ internal suspend fun TechnicalTimelineStore.transitionAlternativeSessionNow(
         else -> startNewSupportedSessionNow(surfaceOfOrigin = ReferenceSurfaceId.MAIN_GUIDED.route)
     }
     refreshRetainedSessions(lastExportPath = exportPath)
-}
-
-private fun TechnicalTimelineStore.syncLiveSnapshot(
-    liveSnapshot: ReferenceControllerSnapshot
-): Unit {
-    updateState { current ->
-        current.copy(
-            liveSnapshot = liveSnapshot,
-            retainedSnapshot = null,
-            visibleEntries = current.filters.apply(liveSnapshot.timeline),
-        )
-    }
 }

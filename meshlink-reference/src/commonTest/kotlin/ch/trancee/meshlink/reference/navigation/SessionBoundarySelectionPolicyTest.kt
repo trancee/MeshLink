@@ -9,18 +9,18 @@ class SessionBoundarySelectionPolicyTest {
     @Test
     fun `supported live selection to solo requires a supported boundary`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SUPPORTED_LIVE,
+        val currentKind = ReferenceSessionKind.SUPPORTED_LIVE
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val boundaryDecision = assertIs<ReferenceSurfaceSelectionDecision.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
         assertEquals(
             SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION),
             boundaryDecision.request,
@@ -30,18 +30,18 @@ class SessionBoundarySelectionPolicyTest {
     @Test
     fun `supported live selection to lab requires a supported boundary`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SUPPORTED_LIVE,
+        val currentKind = ReferenceSessionKind.SUPPORTED_LIVE
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val boundaryDecision = assertIs<ReferenceSurfaceSelectionDecision.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
         assertEquals(
             SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.LAB),
             boundaryDecision.request,
@@ -51,18 +51,18 @@ class SessionBoundarySelectionPolicyTest {
     @Test
     fun `alternative sessions require a boundary before switching to another primary surface`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SOLO,
+        val currentKind = ReferenceSessionKind.SOLO
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION,
                 targetSurface = ReferenceSurfaceId.ADVANCED_CONTROLS,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val boundaryDecision = assertIs<ReferenceSurfaceSelectionDecision.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
         assertEquals(
             SessionBoundaryRequest.AlternativeTo(ReferenceSurfaceId.ADVANCED_CONTROLS),
             boundaryDecision.request,
@@ -72,90 +72,90 @@ class SessionBoundarySelectionPolicyTest {
     @Test
     fun `alternative sessions keep the current surface without a new boundary`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.LAB,
+        val currentKind = ReferenceSessionKind.LAB
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.LAB,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val selectionDecision = assertIs<ReferenceSurfaceSelectionDecision.SelectSurface>(decision)
+        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
         assertEquals(ReferenceSurfaceId.LAB, selectionDecision.surface)
     }
 
     @Test
     fun `alternative sessions can open evidence surfaces without a new boundary`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SOLO,
+        val currentKind = ReferenceSessionKind.SOLO
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION,
                 targetSurface = ReferenceSurfaceId.TECHNICAL_TIMELINE,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val selectionDecision = assertIs<ReferenceSurfaceSelectionDecision.SelectSurface>(decision)
+        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
         assertEquals(ReferenceSurfaceId.TECHNICAL_TIMELINE, selectionDecision.surface)
     }
 
     @Test
     fun `supported ended selection to solo starts a new session immediately`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SUPPORTED_ENDED,
+        val currentKind = ReferenceSessionKind.SUPPORTED_ENDED
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val startDecision = assertIs<ReferenceSurfaceSelectionDecision.StartNewSession>(decision)
+        val startDecision = assertIs<SessionSurfaceChoice.StartAlternative>(decision)
         assertEquals(ReferenceSurfaceId.SOLO_EXPLORATION, startDecision.surface)
     }
 
     @Test
     fun `supported ended selection to lab starts a new session immediately`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SUPPORTED_ENDED,
+        val currentKind = ReferenceSessionKind.SUPPORTED_ENDED
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val startDecision = assertIs<ReferenceSurfaceSelectionDecision.StartNewSession>(decision)
+        val startDecision = assertIs<SessionSurfaceChoice.StartAlternative>(decision)
         assertEquals(ReferenceSurfaceId.LAB, startDecision.surface)
     }
 
     @Test
     fun `supported routes stay in session when moving between guided and advanced surfaces`() {
         // Arrange
-        val request =
-            ReferenceSurfaceSelectionRequest(
-                currentKind = ReferenceSessionKind.SUPPORTED_LIVE,
+        val currentKind = ReferenceSessionKind.SUPPORTED_LIVE
+
+        // Act
+        val decision =
+            chooseSessionSurfaceChoice(
+                currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.ADVANCED_CONTROLS,
             )
 
-        // Act
-        val decision = resolveSurfaceSelection(request)
-
         // Assert
-        val selectionDecision = assertIs<ReferenceSurfaceSelectionDecision.SelectSurface>(decision)
+        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
         assertEquals(ReferenceSurfaceId.ADVANCED_CONTROLS, selectionDecision.surface)
     }
 }

@@ -29,6 +29,18 @@ internal fun mergeRetainedSessions(
         }
 }
 
+internal fun TechnicalTimelineStore.syncLiveSnapshot(
+    liveSnapshot: ReferenceControllerSnapshot
+): Unit {
+    updateState { current ->
+        current.copy(
+            liveSnapshot = liveSnapshot,
+            retainedSnapshot = null,
+            visibleEntries = current.filters.apply(liveSnapshot.timeline),
+        )
+    }
+}
+
 private fun appendedVisibleEntries(
     current: TechnicalTimelineUiState,
     snapshot: ReferenceControllerSnapshot,
