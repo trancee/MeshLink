@@ -84,6 +84,10 @@ _Avoid_: Any live session, solo session, lab session
 The surface where a session began and from which its surface identity is derived. Surface of origin stays fixed for the session and is not replaced by whichever surface happens to be active when the operator exports or ends it. A solo session begins on the solo exploration surface, and a lab session begins on the lab surface.
 _Avoid_: Last viewed surface, export surface, current tab
 
+**Supported entry surface**:
+A supported surface on which a new supported live session may begin. The supported entry surfaces are guided first exchange and advanced controls; evidence surfaces, solo exploration, and lab are not supported entry surfaces.
+_Avoid_: Any surface, evidence surface, non-authoritative entry surface
+
 **Supported surface switch**:
 A move between the guided and advanced surfaces within the same supported live session. Supported surface switches change the operator's view, not the session boundary.
 _Avoid_: New session for disclosure change, guided-to-advanced reset, advanced-to-guided reset
