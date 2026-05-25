@@ -56,10 +56,23 @@ public fun SendComposer(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = actions.onSend, enabled = state.canSendMessage) {
+            Button(
+                onClick = actions.onSend,
+                enabled = state.canSendMessage,
+                modifier =
+                    Modifier.referenceActionAccessibility("Send message", "advanced-send-message"),
+            ) {
                 Text("Send message")
             }
-            Button(onClick = actions.onSendLargeTransfer, enabled = state.canSendLargeTransfer) {
+            Button(
+                onClick = actions.onSendLargeTransfer,
+                enabled = state.canSendLargeTransfer,
+                modifier =
+                    Modifier.referenceActionAccessibility(
+                        "Send large transfer",
+                        "advanced-send-large-transfer",
+                    ),
+            ) {
                 Text("Send large transfer")
             }
         }

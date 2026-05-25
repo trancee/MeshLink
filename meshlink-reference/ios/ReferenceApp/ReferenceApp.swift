@@ -2,8 +2,8 @@ import ReferenceAppShared
 import SwiftUI
 import UIKit
 
-private struct ReferenceRootViewControllerRepresentable: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController {
+private struct ReferenceRootViewRepresentable: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
         let environment = ProcessInfo.processInfo.environment
         let automationMode = environment["MESHLINK_REFERENCE_AUTOMATION_MODE"]
         if automationMode == "live-proof" {
@@ -16,7 +16,7 @@ private struct ReferenceRootViewControllerRepresentable: UIViewControllerReprese
             let targetPeerIndex = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_INDEX"] ?? "0") ?? 0
             let targetPeerId = environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID"]
             let scenario = environment["MESHLINK_REFERENCE_AUTOMATION_SCENARIO"] ?? "direct-guided"
-            return createReferenceLiveAutomationRootViewController(
+            return createReferenceLiveAutomationRootView(
                 storageSubdirectory: storageSubdirectory,
                 appId: appId,
                 role: role,
@@ -34,15 +34,15 @@ private struct ReferenceRootViewControllerRepresentable: UIViewControllerReprese
                 environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"]
                 ?? "default"
             let blocked = environment["MESHLINK_REFERENCE_AUTOMATION_BLOCKED"] == "true"
-            return createReferenceAutomationRootViewController(
+            return createReferenceAutomationRootView(
                 storageSubdirectory: storageSubdirectory,
                 blocked: blocked
             )
         }
-        return createReferenceRootViewController()
+        return createReferenceRootView()
     }
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+    func updateUIView(_ uiView: UIView, context: Context) {
     }
 }
 
@@ -55,7 +55,8 @@ struct ReferenceAppApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ReferenceRootViewControllerRepresentable()
+            ReferenceRootViewRepresentable()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
         }
     }

@@ -40,12 +40,12 @@ final class ReferenceAppWorkflowUITests: XCTestCase {
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Mesh state: Running")
 
         // Act
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Pause")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Resume")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Pause")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Resume")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Send large transfer")
-        ReferenceAppUITestSupport.tapButton(in: app, labeled: "Reset trust for selected peer")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-pause")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-resume")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-pause")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-resume")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-send-large-transfer")
+        ReferenceAppUITestSupport.tapButton(in: app, identifier: "advanced-forget-peer")
         ReferenceAppUITestSupport.waitForStaticTextContaining(in: app, text: "Trust: Forgotten")
         app.swipeDown()
         app.swipeDown()

@@ -144,24 +144,28 @@ private fun AdvancedLifecycleSection(
             Button(
                 onClick = viewModel::startMesh,
                 enabled = lifecycleActions.startEnabled && !isSessionEnded,
+                modifier = Modifier.referenceActionAccessibility("Start", "advanced-start"),
             ) {
                 Text("Start")
             }
             Button(
                 onClick = viewModel::pauseMesh,
                 enabled = lifecycleActions.pauseEnabled && !isSessionEnded,
+                modifier = Modifier.referenceActionAccessibility("Pause", "advanced-pause"),
             ) {
                 Text("Pause")
             }
             Button(
                 onClick = viewModel::resumeMesh,
                 enabled = lifecycleActions.resumeEnabled && !isSessionEnded,
+                modifier = Modifier.referenceActionAccessibility("Resume", "advanced-resume"),
             ) {
                 Text("Resume")
             }
             Button(
                 onClick = viewModel::stopMesh,
                 enabled = lifecycleActions.stopEnabled && !isSessionEnded,
+                modifier = Modifier.referenceActionAccessibility("Stop", "advanced-stop"),
             ) {
                 Text("Stop")
             }
@@ -209,7 +213,11 @@ private fun AdvancedSendSection(
         Button(
             onClick = viewModel::forgetSelectedPeer,
             enabled = uiState.canForgetPeer,
-            modifier = Modifier.testTag("advanced-forget-peer"),
+            modifier =
+                Modifier.referenceActionAccessibility(
+                    "Reset trust for selected peer",
+                    "advanced-forget-peer",
+                ),
         ) {
             Text("Reset trust for selected peer")
         }

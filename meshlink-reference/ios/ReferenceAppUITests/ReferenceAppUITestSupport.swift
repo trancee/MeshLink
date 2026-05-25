@@ -69,13 +69,9 @@ enum ReferenceAppUITestSupport {
         timeout: TimeInterval = 10
     ) {
         let button = application.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
-        if !button.waitForExistence(timeout: 1) {
-            for _ in 0..<4 where !button.exists {
-                application.swipeUp()
-                _ = button.waitForExistence(timeout: 1)
-            }
-        }
-        XCTAssertTrue(button.waitForExistence(timeout: timeout), "Expected button '\(label)' to appear")
+        revealButton(button, in: application, timeout: timeout)
+        XCTAssertTrue(button.exists, "Expected button '\(label)' to appear")
+        XCTAssertTrue(button.isHittable, "Expected button '\(label)' to become hittable")
         button.tap()
     }
 
@@ -85,11 +81,37 @@ enum ReferenceAppUITestSupport {
         timeout: TimeInterval = 10
     ) {
         let button = application.buttons[identifier]
+        revealButton(button, in: application, timeout: timeout)
         XCTAssertTrue(
-            button.waitForExistence(timeout: timeout),
+            button.exists,
             "Expected button identifier '\(identifier)' to appear"
         )
+        XCTAssertTrue(
+            button.isHittable,
+            "Expected button identifier '\(identifier)' to become hittable"
+        )
         button.tap()
+    }
+
+    private static func revealButton(
+        _ button: XCUIElement,
+        in application: XCUIApplication,
+        timeout: TimeInterval
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if button.exists && button.isHittable {
+                return
+            }
+            if !button.exists {
+                _ = button.waitForExistence(timeout: 0.5)
+            }
+            if button.exists && button.isHittable {
+                return
+            }
+            application.swipeUp()
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+        }
     }
 
     static func lastExportRelativePath(

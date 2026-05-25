@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -262,34 +261,32 @@ private fun ReferenceShellScaffold(
     onSelectSurface: (ReferenceSurfaceId) -> Unit,
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { ReferenceShellHeader(state = headerState, onSelectSurface = onSelectSurface) },
-        bottomBar = {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ReferenceShellHeader(state = headerState, onSelectSurface = onSelectSurface)
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                ReferenceRouteContent(
+                    contentState = contentState,
+                    onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
+                )
+            }
             ReferenceBottomBar(
                 activeSection = headerState.activeSection,
                 onSelectSection = onSelectSection,
             )
-        },
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            ReferenceRouteContent(
-                contentState = contentState,
-                onOpenSolo = { onSelectSurface(ReferenceSurfaceId.SOLO_EXPLORATION) },
+        }
+        pendingBoundary?.let { boundary ->
+            val dialogContent = boundary.toDialogContent()
+            SessionBoundaryDialog(
+                title = dialogContent.title,
+                body = dialogContent.body,
+                exportLabel = dialogContent.exportLabel,
+                continueLabel = dialogContent.continueLabel,
+                onExportAndContinue = { onConfirmBoundary(boundary, true) },
+                onContinueWithoutExport = { onConfirmBoundary(boundary, false) },
+                onCancel = onDismissBoundary,
+                modifier = Modifier.padding(16.dp),
             )
-            pendingBoundary?.let { boundary ->
-                val dialogContent = boundary.toDialogContent()
-                SessionBoundaryDialog(
-                    title = dialogContent.title,
-                    body = dialogContent.body,
-                    exportLabel = dialogContent.exportLabel,
-                    continueLabel = dialogContent.continueLabel,
-                    onExportAndContinue = { onConfirmBoundary(boundary, true) },
-                    onContinueWithoutExport = { onConfirmBoundary(boundary, false) },
-                    onCancel = onDismissBoundary,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
         }
     }
 }
@@ -299,14 +296,20 @@ private fun ReferenceBottomBar(
     activeSection: ReferencePrimarySection,
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
-    NavigationBar {
-        ReferencePrimarySection.entries.forEach { section ->
-            NavigationBarItem(
-                selected = section == activeSection,
-                onClick = { onSelectSection(section) },
-                icon = { Icon(imageVector = section.icon, contentDescription = section.label) },
-                label = { Text(section.label) },
-            )
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+            NavigationBar {
+                ReferencePrimarySection.entries.forEach { section ->
+                    NavigationBarItem(
+                        selected = section == activeSection,
+                        onClick = { onSelectSection(section) },
+                        icon = {
+                            Icon(imageVector = section.icon, contentDescription = section.label)
+                        },
+                        label = { Text(section.label) },
+                    )
+                }
+            }
         }
     }
 }
