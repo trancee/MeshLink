@@ -95,13 +95,27 @@ For SC-001 evidence:
 - record the proof time when matching delivery and diagnostic evidence are visible
 - confirm the live proof path completes within 5 minutes
 
-## 5. Inspect the advanced surface
+## 5. Run the scripted advanced evaluation
 
-Use the advanced area to confirm that the app exposes:
+Use the advanced area on both platforms to complete the SC-002 flow without
+consulting source code:
 
-- lifecycle controls
+1. confirm the same peer-selection controls are visible and select the
+   discovered peer
+2. use lifecycle controls to pause and resume mesh participation, then confirm
+   the resulting state change is visible
+3. send a short payload from the composer and confirm the delivery outcome is
+   visible
+4. start the large transfer action and confirm progress plus the final outcome
+   are visible
+5. trigger trust reset for the selected peer and confirm the trust status
+   changes in the UI
+6. inspect the technical timeline or diagnostics surface and confirm it shows
+   lifecycle, send, transfer, and trust-related evidence for the actions above
+
+Also confirm that the advanced surface still exposes:
+
 - the visible power mode
-- trust reset
 - the current configuration snapshot relevant to the app
 
 ## 6. Confirm retained history and export behavior
@@ -110,8 +124,8 @@ After you choose **End session** from the technical timeline:
 
 - open recent local session history
 - verify the eligible ended session appears separately from any live session
-- if you are collecting SC-004 timing evidence, use a live or retained session containing up to 2,000 timeline entries for the filter/search/export check
-- record the timeline entry count used for the check
+- if you are collecting SC-004 timing evidence, use a live or retained session containing 2,000 timeline entries for the filter/search/export check
+- record that the session contains 2,000 timeline entries before exporting
 - record the redacted export start time
 - open the export chooser and export a redacted session artifact
 - record the redacted export completion time

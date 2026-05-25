@@ -329,8 +329,8 @@ operating-system rules force a clearly explained difference.
   operating-system setup differences that are explicitly explained in the app.
 - **SC-004**: A QA or support operator can filter the current session to a
   specific peer or failure class and export a redacted session artifact with
-  payload metadata and redacted previews in under 60 seconds for sessions
-  containing up to 2,000 timeline entries.
+  payload metadata and redacted previews in under 60 seconds for a session
+  containing 2,000 timeline entries.
 - **SC-005**: After the guided or advanced flow completes, an independent
   reviewer can identify the current mesh state, selected-peer trust status,
   and reason for the last send outcome directly from the app's visible summary
