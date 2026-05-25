@@ -15,11 +15,11 @@ import kotlinx.coroutines.test.runTest
 class LiveProofAutomationActionsTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun requestEndCurrentSessionEndsTheSupportedSessionThroughTheTransitionService() = runTest {
+    fun requestEndCurrentSessionEndsTheSupportedSessionThroughTheBoundaryCoordinator() = runTest {
         // Arrange
         val timelineStore = TimelineStoreHarness().createStore(scope = this)
-        val transitionService =
-            ch.trancee.meshlink.reference.navigation.SessionTransitionService(timelineStore)
+        val sessionBoundaryCoordinator =
+            ch.trancee.meshlink.reference.navigation.SessionBoundaryCoordinator(timelineStore)
         val platformServices =
             object : PlatformServices {
                 override val platformName: String = "Test"
@@ -40,7 +40,7 @@ class LiveProofAutomationActionsTest {
             TimelineStoreLiveProofAutomationActions(
                 platformServices = platformServices,
                 timelineStore = timelineStore,
-                sessionTransitionService = transitionService,
+                sessionBoundaryCoordinator = sessionBoundaryCoordinator,
             )
         advanceUntilIdle()
 

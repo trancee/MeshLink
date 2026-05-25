@@ -14,12 +14,12 @@ class TechnicalTimelineTransitionStoreTest {
     @Test
     fun transitionToSoloSessionStartsSoloSnapshotWithoutRetention() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.transitionSupportedSession(
+            harness.boundaryCoordinator.transitionSupportedSession(
                 targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
             )
             advanceUntilIdle()
@@ -39,18 +39,20 @@ class TechnicalTimelineTransitionStoreTest {
     @Test
     fun transitionAlternativeSessionCanReturnToSupportedLiveSession() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         advanceUntilIdle()
-        harness.transitionService.transitionSupportedSession(
+        harness.boundaryCoordinator.transitionSupportedSession(
             targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
         )
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.transitionAlternativeSession(
+            harness.boundaryCoordinator.transitionAlternativeSession(
                 targetSurface = ReferenceSurfaceId.MAIN_GUIDED,
-                exportBeforeExit = false,
+                continuation =
+                    ch.trancee.meshlink.reference.navigation.BoundaryContinuation
+                        .CONTINUE_WITHOUT_EXPORT,
             )
             advanceUntilIdle()
 

@@ -19,7 +19,7 @@ internal fun ReferenceShellScaffold(
     onEndSupportedSession: (ExportPayloadPolicy?) -> Unit,
     pendingBoundary: SessionBoundaryRequest?,
     onDismissBoundary: () -> Unit,
-    onConfirmBoundary: (SessionBoundaryRequest, Boolean) -> Unit,
+    onCompleteBoundary: (SessionBoundaryRequest, BoundaryContinuation) -> Unit,
     onSelectSurface: (ReferenceSurfaceId) -> Unit,
     onSelectSection: (ReferencePrimarySection) -> Unit,
 ): Unit {
@@ -47,8 +47,12 @@ internal fun ReferenceShellScaffold(
                 body = dialogContent.body,
                 exportLabel = dialogContent.exportLabel,
                 continueLabel = dialogContent.continueLabel,
-                onExportAndContinue = { onConfirmBoundary(boundary, true) },
-                onContinueWithoutExport = { onConfirmBoundary(boundary, false) },
+                onExportAndContinue = {
+                    onCompleteBoundary(boundary, BoundaryContinuation.EXPORT_AND_CONTINUE)
+                },
+                onContinueWithoutExport = {
+                    onCompleteBoundary(boundary, BoundaryContinuation.CONTINUE_WITHOUT_EXPORT)
+                },
                 onCancel = onDismissBoundary,
                 modifier = Modifier.padding(16.dp),
             )

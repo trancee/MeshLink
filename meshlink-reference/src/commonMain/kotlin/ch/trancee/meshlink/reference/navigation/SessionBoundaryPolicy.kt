@@ -7,12 +7,18 @@ internal data class SessionBoundaryDialogContent(
     val continueLabel: String,
 )
 
+internal enum class BoundaryContinuation {
+    EXPORT_AND_CONTINUE,
+    CONTINUE_WITHOUT_EXPORT,
+}
+
 internal sealed interface SessionBoundaryRequest {
     val targetSurface: ReferenceSurfaceId
 
-    data class SupportedTo(override val targetSurface: ReferenceSurfaceId) : SessionBoundaryRequest
+    data class LeaveSupportedSession(override val targetSurface: ReferenceSurfaceId) :
+        SessionBoundaryRequest
 
-    data class AlternativeTo(override val targetSurface: ReferenceSurfaceId) :
+    data class LeaveAlternativeSession(override val targetSurface: ReferenceSurfaceId) :
         SessionBoundaryRequest
 }
 
@@ -27,31 +33,32 @@ internal fun SessionBoundaryRequest.toDialogContent(): SessionBoundaryDialogCont
 
 private fun SessionBoundaryRequest.dialogTitle(): String {
     return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Start a new session"
-        is SessionBoundaryRequest.AlternativeTo -> "Leave current session"
+        is SessionBoundaryRequest.LeaveSupportedSession -> "Start a new session"
+        is SessionBoundaryRequest.LeaveAlternativeSession -> "Leave current session"
     }
 }
 
 private fun SessionBoundaryRequest.dialogBody(): String {
     return when (this) {
-        is SessionBoundaryRequest.SupportedTo ->
+        is SessionBoundaryRequest.LeaveSupportedSession ->
             "This closes the current supported session and starts a new ${targetSurface.titleForBoundary()} session."
-        is SessionBoundaryRequest.AlternativeTo ->
+
+        is SessionBoundaryRequest.LeaveAlternativeSession ->
             "This closes the current solo or lab session and starts a new ${targetSurface.titleForBoundary()} session."
     }
 }
 
 private fun SessionBoundaryRequest.exportLabel(): String {
     return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Export full and continue"
-        is SessionBoundaryRequest.AlternativeTo -> "Export redacted and continue"
+        is SessionBoundaryRequest.LeaveSupportedSession -> "Export full and continue"
+        is SessionBoundaryRequest.LeaveAlternativeSession -> "Export redacted and continue"
     }
 }
 
 private fun SessionBoundaryRequest.continueLabel(): String {
     return when (this) {
-        is SessionBoundaryRequest.SupportedTo -> "Continue without export"
-        is SessionBoundaryRequest.AlternativeTo -> "Continue without export"
+        is SessionBoundaryRequest.LeaveSupportedSession -> "Continue without export"
+        is SessionBoundaryRequest.LeaveAlternativeSession -> "Continue without export"
     }
 }
 

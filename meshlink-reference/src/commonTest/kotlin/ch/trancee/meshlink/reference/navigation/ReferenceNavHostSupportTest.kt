@@ -20,12 +20,12 @@ class ReferenceNavHostSupportTest {
         // Arrange
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
 
         try {
             // Act
             val actual = followUpSupportedEntrySurface(snapshot)
-            val label = harness.transitionService.followUpSupportedSessionLabel(snapshot)
+            val label = followUpSupportedSessionLabel(snapshot)
 
             // Assert
             assertEquals(ReferenceSurfaceId.ADVANCED_CONTROLS, actual)
@@ -43,12 +43,12 @@ class ReferenceNavHostSupportTest {
                 authorityMode = ReferenceAuthorityMode.SOLO,
                 surfaceOfOrigin = ReferenceSurfaceId.SOLO_EXPLORATION.route,
             )
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
 
         try {
             // Act
             val actual = followUpSupportedEntrySurface(snapshot)
-            val label = harness.transitionService.followUpSupportedSessionLabel(snapshot)
+            val label = followUpSupportedSessionLabel(snapshot)
 
             // Assert
             assertEquals(ReferenceSurfaceId.MAIN_GUIDED, actual)
@@ -62,7 +62,7 @@ class ReferenceNavHostSupportTest {
     @Test
     fun startFollowUpSupportedSessionNavigatesBeforeStartingTheNewSession() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
         val events = mutableListOf<String>()
@@ -70,7 +70,7 @@ class ReferenceNavHostSupportTest {
 
         try {
             // Act
-            harness.transitionService.startFollowUpSupportedSession(
+            harness.boundaryCoordinator.startFollowUpSupportedSession(
                 currentSnapshot = snapshot,
                 applySurfaceSelection = { surface ->
                     val surfaceOfOrigin =
@@ -99,15 +99,18 @@ class ReferenceNavHostSupportTest {
     @Test
     fun confirmBoundaryTransitionsSupportedLiveSessionToSoloAndWritesFullExport() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         val routes = mutableListOf<String>()
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.confirmBoundary(
-                request = SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION),
-                exportFirst = true,
+            harness.boundaryCoordinator.completeBoundary(
+                request =
+                    SessionBoundaryRequest.LeaveSupportedSession(
+                        ReferenceSurfaceId.SOLO_EXPLORATION
+                    ),
+                continuation = BoundaryContinuation.EXPORT_AND_CONTINUE,
                 applySurfaceSelection = { surface -> routes += surface.route },
             )
             advanceUntilIdle()
@@ -131,12 +134,12 @@ class ReferenceNavHostSupportTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-                .createTransitionServiceHarness(scope = this)
+                .createBoundaryCoordinatorHarness(scope = this)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.endSupportedSession(
+            harness.boundaryCoordinator.endSupportedSession(
                 preEndExportPolicy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
             )
             advanceUntilIdle()
@@ -154,13 +157,13 @@ class ReferenceNavHostSupportTest {
     @Test
     fun startAlternativeSessionUpdatesTheSessionBeforeRoutingToLab() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
         val events = mutableListOf<String>()
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.startAlternativeSession(
+            harness.boundaryCoordinator.startAlternativeSession(
                 surface = ReferenceSurfaceId.LAB,
                 applySurfaceSelection = { surface ->
                     val surfaceOfOrigin =
@@ -191,17 +194,20 @@ class ReferenceNavHostSupportTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-                .createTransitionServiceHarness(scope = this)
+                .createBoundaryCoordinatorHarness(scope = this)
         val routes = mutableListOf<String>()
         advanceUntilIdle()
-        harness.transitionService.endSupportedSession()
+        harness.boundaryCoordinator.endSupportedSession()
         advanceUntilIdle()
 
         try {
             // Act
-            harness.transitionService.confirmBoundary(
-                request = SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION),
-                exportFirst = false,
+            harness.boundaryCoordinator.completeBoundary(
+                request =
+                    SessionBoundaryRequest.LeaveSupportedSession(
+                        ReferenceSurfaceId.SOLO_EXPLORATION
+                    ),
+                continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,
                 applySurfaceSelection = { surface -> routes += surface.route },
             )
             advanceUntilIdle()

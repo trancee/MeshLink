@@ -7,7 +7,8 @@ class SessionBoundaryDialogContentTest {
     @Test
     fun `supported boundary dialog content explains the new solo session`() {
         // Arrange
-        val request = SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION)
+        val request =
+            SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurfaceId.SOLO_EXPLORATION)
 
         // Act
         val dialogContent = request.toDialogContent()
@@ -25,7 +26,7 @@ class SessionBoundaryDialogContentTest {
     @Test
     fun `alternative boundary dialog content explains the new lab session`() {
         // Arrange
-        val request = SessionBoundaryRequest.AlternativeTo(ReferenceSurfaceId.LAB)
+        val request = SessionBoundaryRequest.LeaveAlternativeSession(ReferenceSurfaceId.LAB)
 
         // Act
         val dialogContent = request.toDialogContent()
@@ -43,7 +44,7 @@ class SessionBoundaryDialogContentTest {
     @Test
     fun `alternative boundary dialog treats guided return as a supported session`() {
         // Arrange
-        val request = SessionBoundaryRequest.AlternativeTo(ReferenceSurfaceId.MAIN_GUIDED)
+        val request = SessionBoundaryRequest.LeaveAlternativeSession(ReferenceSurfaceId.MAIN_GUIDED)
 
         // Act
         val dialogContent = request.toDialogContent()

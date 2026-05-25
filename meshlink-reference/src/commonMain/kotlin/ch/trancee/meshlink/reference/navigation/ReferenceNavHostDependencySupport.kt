@@ -18,7 +18,7 @@ internal data class ReferenceNavHostDependencies(
     val guidedViewModel: GuidedFirstExchangeViewModel,
     val advancedViewModel: AdvancedControlsViewModel,
     val timelineStore: TechnicalTimelineStore,
-    val sessionTransitionService: SessionTransitionService,
+    val sessionBoundaryCoordinator: SessionBoundaryCoordinator,
     val liveProofAutomationDriver: LiveProofAutomationDriver,
 )
 
@@ -66,8 +66,8 @@ internal fun rememberReferenceNavHostDependencies(
                 sessionController = sessionController,
             )
         }
-    val sessionTransitionService =
-        remember(platformServices.platformName) { SessionTransitionService(timelineStore) }
+    val sessionBoundaryCoordinator =
+        remember(platformServices.platformName) { SessionBoundaryCoordinator(timelineStore) }
     val liveProofAutomationDriver =
         remember(platformServices.platformName) {
             LiveProofAutomationDriver(
@@ -77,7 +77,7 @@ internal fun rememberReferenceNavHostDependencies(
                     TimelineStoreLiveProofAutomationActions(
                         platformServices = sessionPlatformServices,
                         timelineStore = timelineStore,
-                        sessionTransitionService = sessionTransitionService,
+                        sessionBoundaryCoordinator = sessionBoundaryCoordinator,
                     ),
             )
         }
@@ -88,7 +88,7 @@ internal fun rememberReferenceNavHostDependencies(
         guidedViewModel = guidedViewModel,
         advancedViewModel = advancedViewModel,
         timelineStore = timelineStore,
-        sessionTransitionService = sessionTransitionService,
+        sessionBoundaryCoordinator = sessionBoundaryCoordinator,
         liveProofAutomationDriver = liveProofAutomationDriver,
     )
 }

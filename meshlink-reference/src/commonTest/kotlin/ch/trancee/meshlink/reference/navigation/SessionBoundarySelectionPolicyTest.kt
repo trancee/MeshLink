@@ -13,16 +13,16 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION,
             )
 
         // Assert
-        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SurfaceSelectionAction.RequireBoundary>(decision)
         assertEquals(
-            SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.SOLO_EXPLORATION),
+            SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurfaceId.SOLO_EXPLORATION),
             boundaryDecision.request,
         )
     }
@@ -34,16 +34,16 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
         // Assert
-        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SurfaceSelectionAction.RequireBoundary>(decision)
         assertEquals(
-            SessionBoundaryRequest.SupportedTo(ReferenceSurfaceId.LAB),
+            SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurfaceId.LAB),
             boundaryDecision.request,
         )
     }
@@ -55,16 +55,16 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION,
                 targetSurface = ReferenceSurfaceId.ADVANCED_CONTROLS,
             )
 
         // Assert
-        val boundaryDecision = assertIs<SessionSurfaceChoice.RequireBoundary>(decision)
+        val boundaryDecision = assertIs<SurfaceSelectionAction.RequireBoundary>(decision)
         assertEquals(
-            SessionBoundaryRequest.AlternativeTo(ReferenceSurfaceId.ADVANCED_CONTROLS),
+            SessionBoundaryRequest.LeaveAlternativeSession(ReferenceSurfaceId.ADVANCED_CONTROLS),
             boundaryDecision.request,
         )
     }
@@ -76,14 +76,14 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.LAB,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
         // Assert
-        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
+        val selectionDecision = assertIs<SurfaceSelectionAction.Select>(decision)
         assertEquals(ReferenceSurfaceId.LAB, selectionDecision.surface)
     }
 
@@ -94,14 +94,14 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.SOLO_EXPLORATION,
                 targetSurface = ReferenceSurfaceId.TECHNICAL_TIMELINE,
             )
 
         // Assert
-        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
+        val selectionDecision = assertIs<SurfaceSelectionAction.Select>(decision)
         assertEquals(ReferenceSurfaceId.TECHNICAL_TIMELINE, selectionDecision.surface)
     }
 
@@ -112,14 +112,14 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION,
             )
 
         // Assert
-        val startDecision = assertIs<SessionSurfaceChoice.StartAlternative>(decision)
+        val startDecision = assertIs<SurfaceSelectionAction.StartAlternativeSession>(decision)
         assertEquals(ReferenceSurfaceId.SOLO_EXPLORATION, startDecision.surface)
     }
 
@@ -130,14 +130,14 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.LAB,
             )
 
         // Assert
-        val startDecision = assertIs<SessionSurfaceChoice.StartAlternative>(decision)
+        val startDecision = assertIs<SurfaceSelectionAction.StartAlternativeSession>(decision)
         assertEquals(ReferenceSurfaceId.LAB, startDecision.surface)
     }
 
@@ -148,14 +148,14 @@ class SessionBoundarySelectionPolicyTest {
 
         // Act
         val decision =
-            chooseSessionSurfaceChoice(
+            determineSurfaceSelectionAction(
                 currentKind = currentKind,
                 activeRoute = ReferenceSurfaceId.MAIN_GUIDED,
                 targetSurface = ReferenceSurfaceId.ADVANCED_CONTROLS,
             )
 
         // Assert
-        val selectionDecision = assertIs<SessionSurfaceChoice.Select>(decision)
+        val selectionDecision = assertIs<SurfaceSelectionAction.Select>(decision)
         assertEquals(ReferenceSurfaceId.ADVANCED_CONTROLS, selectionDecision.surface)
     }
 }
