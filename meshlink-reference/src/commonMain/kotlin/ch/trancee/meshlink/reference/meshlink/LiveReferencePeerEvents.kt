@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.PeerEvent
-import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
 import ch.trancee.meshlink.reference.model.TimelineFamily
@@ -69,50 +68,6 @@ private fun handlePeerFound(
     )
 }
 
-private fun handlePeerStateChanged(
-    stateStore: ReferenceControllerStateStore,
-    nowProvider: () -> Long,
-    event: PeerEvent.StateChanged,
-): Unit {
-    updatePeerConnectionState(
-        stateStore = stateStore,
-        peerId = event.peerId.value,
-        connectionState = event.state.toSnapshotState(),
-        lastSeenAtEpochMillis = nowProvider(),
-    )
-    stateStore.appendEvent(
-        ReferenceTimelineEvent(
-            family = TimelineFamily.PEER,
-            severity = TimelineSeverity.INFO,
-            title = "Peer state changed",
-            detail = "${redactedSuffix(event.peerId.value)} -> ${event.state}",
-            peerSuffix = redactedSuffix(event.peerId.value),
-        )
-    )
-}
-
-private fun handlePeerLost(
-    stateStore: ReferenceControllerStateStore,
-    nowProvider: () -> Long,
-    event: PeerEvent.Lost,
-): Unit {
-    updatePeerConnectionState(
-        stateStore = stateStore,
-        peerId = event.peerId.value,
-        connectionState = PeerConnectionSnapshotState.LOST,
-        lastSeenAtEpochMillis = nowProvider(),
-    )
-    stateStore.appendEvent(
-        ReferenceTimelineEvent(
-            family = TimelineFamily.PEER,
-            severity = TimelineSeverity.WARNING,
-            title = "Peer lost",
-            detail = "${redactedSuffix(event.peerId.value)} left the current guided view.",
-            peerSuffix = redactedSuffix(event.peerId.value),
-        )
-    )
-}
-
 private fun discoveredPeerSnapshot(event: PeerEvent.Found, nowProvider: () -> Long): PeerSnapshot {
     return PeerSnapshot(
         peerId = event.peerId.value,
@@ -122,24 +77,4 @@ private fun discoveredPeerSnapshot(event: PeerEvent.Found, nowProvider: () -> Lo
         lastSeenAtEpochMillis = nowProvider(),
         capabilityNotes = listOf("Discovered by live MeshLink flow"),
     )
-}
-
-private fun updatePeerConnectionState(
-    stateStore: ReferenceControllerStateStore,
-    peerId: String,
-    connectionState: PeerConnectionSnapshotState,
-    lastSeenAtEpochMillis: Long,
-): Unit {
-    stateStore.updatePeers { peers ->
-        peers.map { peer ->
-            if (peer.peerId == peerId) {
-                peer.copy(
-                    connectionState = connectionState,
-                    lastSeenAtEpochMillis = lastSeenAtEpochMillis,
-                )
-            } else {
-                peer
-            }
-        }
-    }
 }
