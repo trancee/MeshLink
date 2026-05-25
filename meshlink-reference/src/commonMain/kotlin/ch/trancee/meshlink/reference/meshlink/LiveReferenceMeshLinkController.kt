@@ -2,23 +2,13 @@ package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkApi
-import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.api.meshLink
-import ch.trancee.meshlink.config.PowerMode
-import ch.trancee.meshlink.config.RegulatoryRegion
-import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
-import ch.trancee.meshlink.reference.model.ReferenceSession
-import ch.trancee.meshlink.reference.model.TimelineFamily
-import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 /** Live shared controller that wraps the existing MeshLink SDK and emits app-facing state. */
 public class LiveReferenceMeshLinkController(
@@ -36,57 +26,19 @@ public class LiveReferenceMeshLinkController(
     private val stateStore: ReferenceControllerStateStore =
         ReferenceControllerStateStore(
             initialSnapshot =
-                ReferenceControllerSnapshot(
-                    session =
-                        ReferenceSession(
-                            sessionId = sessionId,
-                            scenarioId = "guided-first-exchange",
-                            authorityMode = authorityMode,
-                            startedAtEpochMillis = startedAtEpochMillis,
-                            meshStateLabel = MeshLinkState.Uninitialized.toString(),
-                            configurationSnapshot =
-                                mapOf(
-                                    "platform" to platformName,
-                                    "surface" to surfaceOfOrigin,
-                                    "appId" to appId,
-                                    "regulatoryRegion" to RegulatoryRegion.DEFAULT.name,
-                                    "powerMode" to PowerMode.Automatic.toString(),
-                                    "deliveryRetryDeadline" to "15s",
-                                ),
-                            historyStatus = ReferenceHistoryStatus.LIVE,
-                        ),
-                    peers = emptyList(),
-                    timeline =
-                        listOf(
-                            ReferenceTimelineEvent(
-                                    family = TimelineFamily.USER,
-                                    severity = TimelineSeverity.INFO,
-                                    title = "Reference session created",
-                                    detail =
-                                        "The guided first-exchange controller is ready on $platformName.",
-                                )
-                                .toTimelineEntry(
-                                    sessionId = sessionId,
-                                    entryIndex = 1,
-                                    occurredAtEpochMillis = nowProvider(),
-                                )
-                        ),
-                    activePowerModeLabel = "Automatic",
+                createLiveReferenceInitialSnapshot(
+                    platformName = platformName,
+                    authorityMode = authorityMode,
+                    nowProvider = nowProvider,
+                    appId = appId,
+                    surfaceOfOrigin = surfaceOfOrigin,
+                    sessionId = sessionId,
                 ),
             sessionId = sessionId,
             nowProvider = nowProvider,
         )
     private val meshLinkApi: MeshLinkApi by lazy {
-        val config = meshLinkConfig {
-            appId = this@LiveReferenceMeshLinkController.appId
-            regulatoryRegion = RegulatoryRegion.DEFAULT
-            powerMode = PowerMode.Automatic
-        }
-        if (platformContext != null) {
-            meshLink(config = config, context = platformContext)
-        } else {
-            meshLink(config = config)
-        }
+        createLiveReferenceMeshLinkApi(appId = appId, platformContext = platformContext)
     }
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
     private val sessionProjector: LiveReferenceSessionProjector =
@@ -183,25 +135,12 @@ public class LiveReferenceMeshLinkController(
             return
         }
         flowsBound = true
-        scope.launch {
-            meshLinkApi.state.collect { meshState ->
-                stateStore.updateSession(meshStateLabel = meshState.toString())
-            }
-        }
-        scope.launch {
-            meshLinkApi.peerEvents.collect { event ->
-                applyPeerEvent(stateStore = stateStore, nowProvider = nowProvider, event = event)
-            }
-        }
-        scope.launch {
-            meshLinkApi.diagnosticEvents.collect { event ->
-                sessionProjector.recordDiagnostic(event)
-            }
-        }
-        scope.launch {
-            meshLinkApi.messages.collect { message ->
-                sessionProjector.recordInboundMessage(message)
-            }
-        }
+        bindLiveReferenceControllerFlows(
+            scope = scope,
+            meshLinkApi = meshLinkApi,
+            stateStore = stateStore,
+            nowProvider = nowProvider,
+            sessionProjector = sessionProjector,
+        )
     }
 }
