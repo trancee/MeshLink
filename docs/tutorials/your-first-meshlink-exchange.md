@@ -52,8 +52,8 @@ At this point you have a runtime object, but it is not doing anything yet.
 
 ## 2. Add a tiny controller
 
-Now create a controller that starts the runtime, watches peers, and keeps the
-first discovered peer ID.
+Now create a controller that watches peers, keeps the first discovered peer
+ID, and starts the runtime after the collectors are attached.
 
 ```kotlin
 import ch.trancee.meshlink.api.MeshLinkApi
@@ -72,10 +72,6 @@ class MeshLinkTutorialController(
     private var firstPeerId: PeerId? = null
 
     fun start() {
-        scope.launch {
-            println("start() -> ${meshLink.start()}")
-        }
-
         scope.launch {
             meshLink.peerEvents.collect { event ->
                 when (event) {
@@ -99,6 +95,10 @@ class MeshLinkTutorialController(
                     "Message from ${message.originPeerId.value}: ${message.payload.decodeToString()}"
                 )
             }
+        }
+
+        scope.launch {
+            println("start() -> ${meshLink.start()}")
         }
     }
 

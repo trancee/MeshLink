@@ -37,17 +37,19 @@ Use a different `appId` for test, staging, or proof work when you do not want de
 
 ## 2. Create the runtime on Android
 
-On Android, create the runtime with an application `Context`.
+On Android, create the runtime with an application `Context` wrapped in the
+Android bootstrap helper.
 
 ```kotlin
 import android.content.Context
+import ch.trancee.meshlink.api.androidMeshLinkBootstrap
 import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.api.MeshLinkApi
 
 fun createAndroidRuntime(context: Context): MeshLinkApi {
     return meshLink(
         config = meshLinkConfiguration(),
-        context = context.applicationContext,
+        bootstrap = androidMeshLinkBootstrap(context.applicationContext),
     )
 }
 ```
@@ -98,59 +100,10 @@ If you need the iPhone-hosted GATT-notify side bearer, install the optional
 that path can work directly with Swift `Data` / `NSData`, because it avoids the
 extra per-byte bridge copy back into Kotlin.
 
-## 4. Start MeshLink from one app-owned lifecycle boundary
+## 4. Collect state, peer, diagnostic, and message streams
 
-Start MeshLink from one owner such as a service, app controller, or view
-model.
-
-```kotlin
-import ch.trancee.meshlink.api.MeshLinkApi
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-
-class MeshLinkController(
-    private val meshLink: MeshLinkApi,
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-
-    fun start() {
-        scope.launch {
-            val result = meshLink.start()
-            println("mesh.start() -> $result")
-        }
-    }
-
-    fun stop() {
-        scope.launch {
-            val result = meshLink.stop()
-            println("mesh.stop() -> $result")
-        }
-    }
-}
-```
-
-Do not create a fresh runtime for every send.
-
-Repeated lifecycle calls do not throw. They return the matching `Already*`
-result variant so your controller can stay idempotent.
-
-Before you call `start()`, make sure the platform permission work is already
-finished. On Android, request the runtime Bluetooth permissions first. On iOS,
-ship the Bluetooth usage description and handle the first-run prompt. If startup
-or discovery stalls, follow [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
-
-If you need full-session visibility, bind your long-lived collectors before you
-call `start()`. `peerEvents`, `diagnosticEvents`, and `messages` are hot,
-non-replaying streams, so collectors attached after startup can miss early
-events.
-
-## 5. Collect state, peer, diagnostic, and message streams
-
-Collect the four public streams and route their data into your UI, logs, or app
-state. For full-session visibility, attach these collectors before you call
-`start()`.
+If you need full-session visibility, attach your long-lived collectors before
+you call `start()`.
 
 ```kotlin
 import ch.trancee.meshlink.api.InboundMessage
@@ -187,7 +140,57 @@ fun bindMeshLinkFlows(meshLink: MeshLinkApi, scope: CoroutineScope) {
 }
 ```
 
-Use `peerEvents` to drive peer presence in your UI. Use `diagnosticEvents` for operator visibility and troubleshooting. `InboundMessage.receivedAtEpochMillis` records when MeshLink delivered the message to your app, so you can reuse it for ordering, logging, or UI timestamps.
+Use `peerEvents` to drive peer presence in your UI. Use `diagnosticEvents` for
+operator visibility and troubleshooting. `InboundMessage.receivedAtEpochMillis`
+records when MeshLink delivered the message to your app, so you can reuse it
+for ordering, logging, or UI timestamps.
+
+## 5. Start and stop MeshLink from one app-owned lifecycle boundary
+
+Create one owner such as a service, app controller, or view model. Bind the
+flows once from that owner, then start and stop the runtime there.
+
+```kotlin
+import ch.trancee.meshlink.api.MeshLinkApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class MeshLinkController(
+    private val meshLink: MeshLinkApi,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    init {
+        bindMeshLinkFlows(meshLink, scope)
+    }
+
+    fun start() {
+        scope.launch {
+            val result = meshLink.start()
+            println("mesh.start() -> $result")
+        }
+    }
+
+    fun stop() {
+        scope.launch {
+            val result = meshLink.stop()
+            println("mesh.stop() -> $result")
+        }
+    }
+}
+```
+
+Do not create a fresh runtime for every send.
+
+Repeated lifecycle calls do not throw. They return the matching `Already*`
+result variant so your controller can stay idempotent.
+
+Before you call `start()`, make sure the platform permission work is already
+finished. On Android, request the runtime Bluetooth permissions first. On iOS,
+ship the Bluetooth usage description and handle the first-run prompt. If startup
+or discovery stalls, follow [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
 ## 6. Send a payload
 

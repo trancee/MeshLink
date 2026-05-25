@@ -12,7 +12,7 @@ This guide helps you:
 - decide when to switch to the proof apps or the live-proof harness
 
 If you need the app overview itself, use
-[MeshLink reference app](../../meshlink-reference/README.md).
+[MeshLink reference app overview](../../meshlink-reference/README.md).
 
 If you already know you need retained physical evidence for direct and relay
 scenarios, skip ahead to

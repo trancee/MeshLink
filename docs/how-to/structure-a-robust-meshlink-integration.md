@@ -139,7 +139,7 @@ Use the right validation path for the question you are answering:
 
 - first success path → [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md)
 - host-app bootstrap → [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
-- guided evaluation and logs → [How to use the MeshLink reference app](../../meshlink-reference/README.md)
+- guided evaluation and logs → [How to evaluate MeshLink with the reference app](evaluate-meshlink-with-the-reference-app.md)
 - real-device physical validation → the proof apps and retained benchmark evidence
 
 ## Quick review checklist
