@@ -23,8 +23,6 @@ import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBPeripheralManager
 
-private const val NO_ADVERTISED_L2CAP_PSM: UByte = 0u
-
 internal class IosBleTransport(internal val appId: String, advertisementKeyHash: ByteArray) :
     BleTransport {
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
