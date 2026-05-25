@@ -20,21 +20,34 @@ import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 
 class GuidedFirstExchangeViewModelTest {
     @Test
     fun nextActionStartsWithMeshStartWhenUninitialized() {
+        // Arrange
         val viewModel = GuidedFirstExchangeViewModel(platformServices = fakePlatformServices())
 
-        assertEquals("Start MeshLink", viewModel.uiState.value.nextActionLabel)
-        assertTrue(viewModel.uiState.value.readiness.isReadyToGuide)
+        // Act
+        val uiState = viewModel.uiState.value
+
+        // Assert
+        assertEquals("Start MeshLink", uiState.nextActionLabel)
+        assertTrue(uiState.readiness.isReadyToGuide)
     }
 
     @Test
     fun sendBecomesAvailableWhenPeerExists() {
+        // Arrange
         val controller =
             FakeReferenceMeshLinkController(
                 snapshot =
@@ -60,13 +73,18 @@ class GuidedFirstExchangeViewModelTest {
                 platformServices = fakePlatformServices(controller = controller)
             )
 
-        assertTrue(viewModel.uiState.value.canSendHello)
-        assertEquals("123456", viewModel.uiState.value.selectedPeerSuffix)
-        assertEquals("Send the first guided message", viewModel.uiState.value.nextActionLabel)
+        // Act
+        val uiState = viewModel.uiState.value
+
+        // Assert
+        assertTrue(uiState.canSendHello)
+        assertEquals("123456", uiState.selectedPeerSuffix)
+        assertEquals("Send the first guided message", uiState.nextActionLabel)
     }
 
     @Test
     fun nextActionShowsRecoveryWhenStartupIsBlocked() {
+        // Arrange
         val viewModel =
             GuidedFirstExchangeViewModel(
                 platformServices =
@@ -75,8 +93,56 @@ class GuidedFirstExchangeViewModelTest {
                     )
             )
 
-        assertEquals("Resolve startup blockers", viewModel.uiState.value.nextActionLabel)
-        assertTrue(viewModel.uiState.value.readiness.isBlocked)
+        // Act
+        val uiState = viewModel.uiState.value
+
+        // Assert
+        assertEquals("Resolve startup blockers", uiState.nextActionLabel)
+        assertTrue(uiState.readiness.isBlocked)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun uiStateTracksSnapshotUpdatesFromTheController() = runTest {
+        // Arrange
+        val controller = FakeReferenceMeshLinkController(snapshot = baseSnapshot())
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val viewModel =
+            GuidedFirstExchangeViewModel(
+                platformServices = fakePlatformServices(controller = controller),
+                scope = scope,
+            )
+        val updatedSnapshot =
+            baseSnapshot()
+                .copy(
+                    session =
+                        baseSnapshot()
+                            .session
+                            .copy(meshStateLabel = MeshLinkState.Running.toString()),
+                    peers =
+                        listOf(
+                            PeerSnapshot(
+                                peerId = "peer-123456",
+                                peerSuffix = "123456",
+                                trustState = PeerTrustState.TRUSTED,
+                                connectionState = PeerConnectionSnapshotState.CONNECTED,
+                            )
+                        ),
+                )
+        advanceUntilIdle()
+
+        try {
+            // Act
+            controller.emitSnapshot(updatedSnapshot)
+            advanceUntilIdle()
+
+            // Assert
+            assertTrue(viewModel.uiState.value.canSendHello)
+            assertEquals("123456", viewModel.uiState.value.selectedPeerSuffix)
+            assertEquals("Send the first guided message", viewModel.uiState.value.nextActionLabel)
+        } finally {
+            scope.cancel()
+        }
     }
 }
 
@@ -134,6 +200,10 @@ private class FakeReferenceMeshLinkController(snapshot: ReferenceControllerSnaps
     private val flow: MutableStateFlow<ReferenceControllerSnapshot> = MutableStateFlow(snapshot)
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = flow.asStateFlow()
+
+    fun emitSnapshot(snapshot: ReferenceControllerSnapshot): Unit {
+        flow.value = snapshot
+    }
 
     override suspend fun start() = Unit
 

@@ -6,9 +6,7 @@ import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -17,36 +15,19 @@ public class GuidedFirstExchangeViewModel(
     private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
-    private val readinessChecker: ReadinessChecker = ReadinessChecker()
-    private val uiStateFlow: MutableStateFlow<GuidedFirstExchangeUiState> =
-        MutableStateFlow(
-            GuidedFirstExchangeUiState(
-                readiness =
-                    readinessChecker.evaluate(
-                        platformName = platformServices.platformName,
-                        guidance = platformServices.readinessGuidance,
-                        blockers = platformServices.readinessBlockers,
-                    ),
-                snapshot = platformServices.meshLinkController.snapshot.value,
-            )
+    private val stateStore: GuidedFirstExchangeStateStore =
+        GuidedFirstExchangeStateStore(
+            platformName = platformServices.platformName,
+            readinessGuidance = platformServices.readinessGuidance,
+            readinessBlockers = platformServices.readinessBlockers,
+            initialSnapshot = platformServices.meshLinkController.snapshot.value,
         )
 
-    public val uiState: StateFlow<GuidedFirstExchangeUiState> = uiStateFlow.asStateFlow()
+    public val uiState: StateFlow<GuidedFirstExchangeUiState> = stateStore.uiState
 
     init {
         scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
-                uiStateFlow.value =
-                    uiStateFlow.value.copy(
-                        readiness =
-                            readinessChecker.evaluate(
-                                platformName = platformServices.platformName,
-                                guidance = platformServices.readinessGuidance,
-                                blockers = platformServices.readinessBlockers,
-                            ),
-                        snapshot = snapshot,
-                    )
-            }
+            platformServices.meshLinkController.snapshot.collectLatest(stateStore::applySnapshot)
         }
     }
 
@@ -55,7 +36,7 @@ public class GuidedFirstExchangeViewModel(
     }
 
     public fun sendHelloToFirstPeer(): Unit {
-        val firstPeer = uiStateFlow.value.snapshot.peers.firstOrNull() ?: return
+        val firstPeer = uiState.value.snapshot.peers.firstOrNull() ?: return
         sendHelloToPeer(firstPeer.peerId)
     }
 
