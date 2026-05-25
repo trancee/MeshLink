@@ -6,38 +6,34 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 
 public class ReferenceSessionController(
     private val platformName: String,
     private val nowProvider: () -> Long,
-    private val supportedControllerFactory: (String) -> ReferenceMeshLinkController,
+    supportedControllerFactory: (String) -> ReferenceMeshLinkController,
     initialSupportedSurface: String = "main-guided",
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
-    private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot>
-    private var supportedController: ReferenceMeshLinkController
-    private var supportedSnapshotJob: Job? = null
-    private var currentSupportedSurfaceOfOrigin: String = initialSupportedSurface
+    private val supportedControllerRuntime: SupportedControllerRuntime =
+        SupportedControllerRuntime(
+            initialSurfaceOfOrigin = initialSupportedSurface,
+            supportedControllerFactory = supportedControllerFactory,
+            scope = scope,
+        )
+    private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot> =
+        MutableStateFlow(supportedControllerRuntime.currentSnapshot())
     private var currentKind: ReferenceSessionKind = ReferenceSessionKind.SUPPORTED_LIVE
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot>
         get() = snapshotFlow.asStateFlow()
 
     init {
-        supportedController = supportedControllerFactory(initialSupportedSurface)
-        snapshotFlow =
-            MutableStateFlow(
-                supportedController.snapshot.value.withSurfaceOfOrigin(initialSupportedSurface)
-            )
-        bindSupportedSnapshot()
+        supportedControllerRuntime.bind(::publishSupportedSnapshot)
     }
 
     override suspend fun start(): Unit {
@@ -75,8 +71,7 @@ public class ReferenceSessionController(
     }
 
     override suspend fun close(): Unit {
-        supportedSnapshotJob?.cancel()
-        supportedController.close()
+        supportedControllerRuntime.closeCurrent()
         scope.cancel()
     }
 
@@ -86,12 +81,7 @@ public class ReferenceSessionController(
             return currentSnapshot
         }
 
-        val endedSnapshot =
-            currentSnapshot.copy(
-                session = currentSnapshot.session.copy(endedAtEpochMillis = nowProvider())
-            )
-        supportedSnapshotJob?.cancel()
-        supportedController.close()
+        val endedSnapshot = supportedControllerRuntime.end(nowProvider)
         currentKind = ReferenceSessionKind.SUPPORTED_ENDED
         snapshotFlow.value = endedSnapshot
         return endedSnapshot
@@ -122,23 +112,18 @@ public class ReferenceSessionController(
     public suspend fun startNewSupportedSession(
         surfaceOfOrigin: String = "main-guided"
     ): ReferenceControllerSnapshot {
-        supportedSnapshotJob?.cancel()
-        closeSupportedControllerIfNeeded()
         currentKind = ReferenceSessionKind.SUPPORTED_LIVE
-        currentSupportedSurfaceOfOrigin = surfaceOfOrigin
-        supportedController = supportedControllerFactory(surfaceOfOrigin)
-        val initialSnapshot =
-            supportedController.snapshot.value.withSurfaceOfOrigin(surfaceOfOrigin)
-        snapshotFlow.value = initialSnapshot
-        bindSupportedSnapshot()
-        return initialSnapshot
+        return supportedControllerRuntime.restart(
+            surfaceOfOrigin = surfaceOfOrigin,
+            onSnapshotChanged = ::publishSupportedSnapshot,
+        )
     }
 
     private suspend fun runOnSupportedLiveController(
         action: suspend (ReferenceMeshLinkController) -> Unit
     ): Unit {
         if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            action(supportedController)
+            supportedControllerRuntime.run(action)
         }
     }
 
@@ -169,26 +154,13 @@ public class ReferenceSessionController(
 
     private suspend fun closeSupportedSessionIfLive(): Unit {
         if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedSnapshotJob?.cancel()
-            supportedController.close()
+            supportedControllerRuntime.closeCurrent()
         }
     }
 
-    private suspend fun closeSupportedControllerIfNeeded(): Unit {
+    private fun publishSupportedSnapshot(snapshot: ReferenceControllerSnapshot): Unit {
         if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-            supportedController.close()
-        }
-    }
-
-    private fun bindSupportedSnapshot(): Unit {
-        supportedSnapshotJob?.cancel()
-        supportedSnapshotJob = scope.launch {
-            supportedController.snapshot.collect { nextSnapshot ->
-                if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
-                    snapshotFlow.value =
-                        nextSnapshot.withSurfaceOfOrigin(currentSupportedSurfaceOfOrigin)
-                }
-            }
+            snapshotFlow.value = snapshot
         }
     }
 }
