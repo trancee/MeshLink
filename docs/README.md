@@ -13,6 +13,49 @@ start with your goal:
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | run proof flows or inspect retained evidence | [How-to guides](#how-to-guides) and [Reference](#reference) |
 
+## Recommended reading order
+
+If you are not sure where to start, use one of these short reading paths.
+They deliberately move from task-oriented documents into explanation and
+reference only when that extra depth becomes useful.
+
+### New integrator: first success, then understanding
+
+1. [Your first MeshLink exchange](tutorials/your-first-meshlink-exchange.md)
+2. [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md)
+3. [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md)
+4. [About how MeshLink works](explanation/about-how-meshlink-works.md)
+5. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+6. [MeshLink SDK API reference](reference/meshlink-sdk-api.md)
+
+### Production-shaped integration: architecture and guardrails
+
+1. [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md)
+2. [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md)
+3. [About integrating MeshLink well](explanation/about-integrating-meshlink.md)
+4. [The trust model](explanation/trust-model.md)
+5. [The peer lifecycle model](explanation/peer-lifecycle.md)
+6. [Power management](explanation/power-management.md)
+7. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+
+### Debugging live behavior: from symptoms to machinery
+
+1. [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md)
+2. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+3. [About how MeshLink works](explanation/about-how-meshlink-works.md)
+4. [The trust model](explanation/trust-model.md)
+5. [The peer lifecycle model](explanation/peer-lifecycle.md)
+6. [Power management](explanation/power-management.md)
+7. [About the L2CAP-first transport posture](explanation/why-l2cap-first.md)
+
+### Technical evaluation: reference app first, deeper review second
+
+1. [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md)
+2. [About how MeshLink works](explanation/about-how-meshlink-works.md)
+3. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+4. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
+5. [Benchmark and validation baselines](../benchmarks/README.md)
+
 ## Tutorials
 
 - [Your first MeshLink exchange](tutorials/your-first-meshlink-exchange.md) — build a minimal Android-side controller, discover a proof peer, and send a first message.

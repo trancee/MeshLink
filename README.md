@@ -19,7 +19,9 @@ bootstrap the runtime, react to peers and messages, send payloads correctly,
 and find the right supporting document when you need more detail.
 
 The documentation follows the Diataxis model. Start with the full
-[documentation map](docs/README.md).
+[documentation map](docs/README.md), which also includes recommended reading
+orders for new integrators, production integrations, debugging, and technical
+evaluation.
 
 Quick entry points:
 
