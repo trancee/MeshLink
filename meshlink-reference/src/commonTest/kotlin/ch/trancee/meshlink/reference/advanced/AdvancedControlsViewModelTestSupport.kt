@@ -17,121 +17,9 @@ import ch.trancee.meshlink.reference.model.TimelineSeverity
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runTest
-
-class AdvancedControlsViewModelTest {
-    @Test
-    fun exposesConfigAndFirstPeerSelection() {
-        // Arrange
-        val viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
-
-        // Act
-        val uiState = viewModel.uiState.value
-
-        // Assert
-        assertEquals("demo.meshlink.reference", uiState.config.appId)
-        assertEquals("abc123", uiState.peerRows.first().peerSuffix)
-        assertEquals("peer-abc123", uiState.selectedPeerId)
-    }
-
-    @Test
-    fun priorityChangeUpdatesComposerState() {
-        // Arrange
-        val viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
-
-        // Act
-        viewModel.updatePriority(DeliveryPriority.HIGH)
-        viewModel.updateComposerText("payload")
-
-        // Assert
-        assertEquals(DeliveryPriority.HIGH, viewModel.uiState.value.selectedPriority)
-        assertTrue(viewModel.uiState.value.canSendMessage)
-    }
-
-    @Test
-    fun oversizePayloadDisablesMessageSendButKeepsLargeTransferAvailable() {
-        // Arrange
-        val viewModel = AdvancedControlsViewModel(platformServices = advancedPlatformServices())
-        val oversizePayload = "a".repeat(ADVANCED_PAYLOAD_LIMIT_BYTES + 1)
-
-        // Act
-        viewModel.updateComposerText(oversizePayload)
-        val uiState = viewModel.uiState.value
-
-        // Assert
-        assertEquals(ADVANCED_PAYLOAD_LIMIT_BYTES + 1, uiState.payloadSizeBytes)
-        assertFalse(uiState.canSendMessage)
-        assertTrue(uiState.canSendLargeTransfer)
-        assertNotNull(uiState.payloadValidationMessage)
-        assertTrue(
-            uiState.payloadValidationMessage.contains(ADVANCED_PAYLOAD_LIMIT_BYTES.toString())
-        )
-    }
-
-    @Test
-    fun mapsTechnicalOutcomeSummaryToOperatorFacingCopy() {
-        // Arrange
-        val viewModel =
-            AdvancedControlsViewModel(
-                platformServices =
-                    advancedPlatformServices(
-                        controller =
-                            TestReferenceMeshLinkController(
-                                initialSnapshot =
-                                    advancedSnapshot(
-                                        lastOutcomeSummary = "ForgetPeerResult.Forgotten"
-                                    )
-                            )
-                    )
-            )
-
-        // Act
-        val uiState = viewModel.uiState.value
-
-        // Assert
-        assertEquals("Trust reset", uiState.lastOutcomeDisplayText)
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun lifecycleActionsTrackSnapshotState() = runTest {
-        // Arrange
-        val controller = TestReferenceMeshLinkController()
-        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
-        val viewModel =
-            AdvancedControlsViewModel(
-                platformServices = advancedPlatformServices(controller = controller),
-                scope = scope,
-            )
-        val expected = LifecycleActionState.from(MeshLinkState.Paused.toString())
-        advanceUntilIdle()
-
-        try {
-            // Act
-            controller.updateMeshState(MeshLinkState.Paused.toString())
-            advanceUntilIdle()
-
-            // Assert
-            assertEquals(expected, viewModel.lifecycleActions.value)
-        } finally {
-            scope.cancel()
-        }
-    }
-}
 
 internal fun advancedPlatformServices(
     controller: ReferenceMeshLinkController = TestReferenceMeshLinkController()
@@ -151,7 +39,7 @@ internal fun advancedPlatformServices(
     }
 }
 
-private class TestReferenceMeshLinkController(
+internal class TestReferenceMeshLinkController(
     initialSnapshot: ReferenceControllerSnapshot = advancedSnapshot()
 ) : ReferenceMeshLinkController {
     private val flow: MutableStateFlow<ReferenceControllerSnapshot> =
@@ -181,7 +69,7 @@ private class TestReferenceMeshLinkController(
     }
 }
 
-private fun advancedSnapshot(lastOutcomeSummary: String? = null): ReferenceControllerSnapshot {
+internal fun advancedSnapshot(lastOutcomeSummary: String? = null): ReferenceControllerSnapshot {
     return ReferenceControllerSnapshot(
         session =
             ReferenceSession(
