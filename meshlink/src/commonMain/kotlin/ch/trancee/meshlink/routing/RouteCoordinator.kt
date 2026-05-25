@@ -100,7 +100,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 routeDigestTracker.remove(route.destinationPeerId.value)
             }
             advanceTopologyVersion()
-            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
+            var digestFrame: WireFrame.RouteDigest? = null
             removedRoutes.forEach { route ->
                 val retractionFrame = route.asRouteRetractionFrame()
                 connectedPeers.forEach { connectedPeerId ->
@@ -112,10 +112,15 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 }
             }
             connectedPeers.forEach { connectedPeerId ->
+                val resolvedDigestFrame =
+                    digestFrame
+                        ?: routeDigestTracker.routeDigestFrame(localPeerId).also { frame ->
+                            digestFrame = frame
+                        }
                 advertisements +=
                     RoutingAdvertisement(
                         targetPeerId = PeerId(connectedPeerId),
-                        frame = digestFrame,
+                        frame = resolvedDigestFrame,
                     )
             }
         }
@@ -182,7 +187,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                     RouteSelectionChange.Updated(route = candidate, previousRoute = current)
                 }
             val candidateFrame = candidate.asRouteUpdateFrame()
-            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
+            var digestFrame: WireFrame.RouteDigest? = null
             val advertisements = mutableListOf<RoutingAdvertisement>()
             connectedPeers.forEach { connectedPeerId ->
                 if (
@@ -194,8 +199,13 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 val targetPeerId = PeerId(connectedPeerId)
                 advertisements +=
                     RoutingAdvertisement(targetPeerId = targetPeerId, frame = candidateFrame)
+                val resolvedDigestFrame =
+                    digestFrame
+                        ?: routeDigestTracker.routeDigestFrame(localPeerId).also { frame ->
+                            digestFrame = frame
+                        }
                 advertisements +=
-                    RoutingAdvertisement(targetPeerId = targetPeerId, frame = digestFrame)
+                    RoutingAdvertisement(targetPeerId = targetPeerId, frame = resolvedDigestFrame)
             }
             RoutingMutation(advertisements = advertisements, routeChanges = listOf(routeChange))
         }
@@ -217,7 +227,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
             routeDigestTracker.remove(retraction.destinationPeerId.value)
             advanceTopologyVersion()
             val retractionFrame = current.asRouteRetractionFrame()
-            val digestFrame = routeDigestTracker.routeDigestFrame(localPeerId)
+            var digestFrame: WireFrame.RouteDigest? = null
             val advertisements = mutableListOf<RoutingAdvertisement>()
             connectedPeers.forEach { connectedPeerId ->
                 if (connectedPeerId == fromPeerId.value) {
@@ -226,8 +236,13 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 val targetPeerId = PeerId(connectedPeerId)
                 advertisements +=
                     RoutingAdvertisement(targetPeerId = targetPeerId, frame = retractionFrame)
+                val resolvedDigestFrame =
+                    digestFrame
+                        ?: routeDigestTracker.routeDigestFrame(localPeerId).also { frame ->
+                            digestFrame = frame
+                        }
                 advertisements +=
-                    RoutingAdvertisement(targetPeerId = targetPeerId, frame = digestFrame)
+                    RoutingAdvertisement(targetPeerId = targetPeerId, frame = resolvedDigestFrame)
             }
             RoutingMutation(
                 advertisements = advertisements,
