@@ -6,18 +6,14 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.ParcelUuid
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
@@ -97,7 +93,13 @@ internal class AndroidBleTransport(
     private var started: Boolean = false
     private var discoverySuspended: Boolean = false
     private var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
-    private var currentDiscoveryPayload: BleDiscoveryPayload = discoveryPayload(l2capPsm = 0u)
+    private var currentDiscoveryPayload: BleDiscoveryPayload =
+        buildAndroidDiscoveryPayload(
+            appId = appId,
+            localKeyHash = localKeyHash,
+            currentPowerProfile = currentPowerProfile,
+            l2capPsm = 0u,
+        )
 
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
 
@@ -167,7 +169,13 @@ internal class AndroidBleTransport(
                 }
                 .getOrNull()
         l2capServerSocket = serverSocket
-        currentDiscoveryPayload = discoveryPayload(l2capPsm = (serverSocket?.psm ?: 0).toUByte())
+        currentDiscoveryPayload =
+            buildAndroidDiscoveryPayload(
+                appId = appId,
+                localKeyHash = localKeyHash,
+                currentPowerProfile = currentPowerProfile,
+                l2capPsm = (serverSocket?.psm ?: 0).toUByte(),
+            )
         log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
         serverSocket?.let(::launchAcceptLoop)
 
@@ -196,7 +204,13 @@ internal class AndroidBleTransport(
 
     override suspend fun updatePowerPolicy(policy: PowerPolicy): Unit {
         currentPowerProfile = AndroidPowerMonitor.profileFor(policy)
-        currentDiscoveryPayload = discoveryPayload(currentDiscoveryPayload.l2capPsm)
+        currentDiscoveryPayload =
+            buildAndroidDiscoveryPayload(
+                appId = appId,
+                localKeyHash = localKeyHash,
+                currentPowerProfile = currentPowerProfile,
+                l2capPsm = currentDiscoveryPayload.l2capPsm,
+            )
         if (!started) {
             return
         }
@@ -762,59 +776,20 @@ internal class AndroidBleTransport(
                 return
             }
             ensurePermissionsGranted()
-            scanner?.startScan(scanFilters(), scanSettings(), scanCallback)
+            scanner?.startScan(
+                buildAndroidScanFilters(),
+                buildAndroidScanSettings(currentPowerProfile),
+                scanCallback,
+            )
             log("scan started")
             advertiser?.startAdvertising(
-                advertiseSettings(),
-                advertiseData(currentDiscoveryPayload),
+                buildAndroidAdvertiseSettings(currentPowerProfile),
+                buildAndroidAdvertiseData(currentDiscoveryPayload),
                 advertiseCallback,
             )
         } catch (exception: SecurityException) {
             throw androidPermissionDenied(exception)
         }
-    }
-
-    private fun advertiseData(payload: BleDiscoveryPayload): AdvertiseData {
-        return AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .addServiceUuid(
-                ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
-            )
-            .addServiceUuid(ParcelUuid.fromString(payload.payloadUuidString()))
-            .build()
-    }
-
-    private fun advertiseSettings(): AdvertiseSettings {
-        return AdvertiseSettings.Builder()
-            .setAdvertiseMode(currentPowerProfile.advertiseMode)
-            .setConnectable(true)
-            .setTxPowerLevel(currentPowerProfile.txPowerLevel)
-            .build()
-    }
-
-    private fun scanFilters(): List<ScanFilter> {
-        return listOf(
-            ScanFilter.Builder()
-                .setServiceUuid(
-                    ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
-                )
-                .build()
-        )
-    }
-
-    private fun scanSettings(): ScanSettings {
-        return ScanSettings.Builder().setScanMode(currentPowerProfile.scanMode).build()
-    }
-
-    private fun discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
-        return BleDiscoveryPayload(
-            protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
-            powerMode = currentPowerProfile.discoveryPowerMode,
-            meshHash = BleDiscoveryContract.computeMeshHash(appId),
-            l2capPsm = l2capPsm,
-            keyHash = localKeyHash,
-            platformFamily = BleDiscoveryPlatformFamily.ANDROID,
-        )
     }
 
     private fun ensurePermissionsGranted(): Unit {
