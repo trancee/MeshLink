@@ -15,21 +15,24 @@ class TechnicalTimelineRetentionStoreTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-        val store = harness.createStore(scope = this)
+                .createTransitionServiceHarness(scope = this)
         advanceUntilIdle()
 
-        // Act
-        store.endCurrentSession()
-        advanceUntilIdle()
+        try {
+            // Act
+            harness.transitionService.endSupportedSession()
+            advanceUntilIdle()
 
-        // Assert
-        assertEquals(true, store.uiState.value.isCurrentSessionEnded)
-        assertEquals(1, store.uiState.value.retainedSessions.size)
-        assertEquals(
-            ReferenceHistoryStatus.RETAINED,
-            store.uiState.value.retainedSessions.single().historyStatus,
-        )
-        coroutineContext.cancelChildren()
+            // Assert
+            assertEquals(true, harness.timelineStore.uiState.value.isCurrentSessionEnded)
+            assertEquals(1, harness.timelineStore.uiState.value.retainedSessions.size)
+            assertEquals(
+                ReferenceHistoryStatus.RETAINED,
+                harness.timelineStore.uiState.value.retainedSessions.single().historyStatus,
+            )
+        } finally {
+            coroutineContext.cancelChildren()
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,21 +41,27 @@ class TechnicalTimelineRetentionStoreTest {
         // Arrange
         val retainedEntry = timelineStoreEntry(entryId = "retained-1", title = "Retained")
         val liveEntry = timelineStoreEntry(entryId = "live-1", title = "Live")
-        val harness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
-        val store = harness.createStore(scope = this)
+        val timelineHarness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
+        val harness = timelineHarness.createTransitionServiceHarness(scope = this)
         advanceUntilIdle()
-        store.endCurrentSession()
+        harness.transitionService.endSupportedSession()
         advanceUntilIdle()
-        store.openRetainedSession(sessionId = "timeline-session")
-        advanceUntilIdle()
-
-        // Act
-        harness.emitLiveSnapshot(timeline = listOf(liveEntry))
+        harness.timelineStore.openRetainedSession(sessionId = "timeline-session")
         advanceUntilIdle()
 
-        // Assert
-        assertEquals(true, store.uiState.value.viewingRetained)
-        assertEquals(listOf("retained-1"), store.uiState.value.visibleEntries.map { it.entryId })
-        coroutineContext.cancelChildren()
+        try {
+            // Act
+            timelineHarness.emitLiveSnapshot(timeline = listOf(liveEntry))
+            advanceUntilIdle()
+
+            // Assert
+            assertEquals(true, harness.timelineStore.uiState.value.viewingRetained)
+            assertEquals(
+                listOf("retained-1"),
+                harness.timelineStore.uiState.value.visibleEntries.map { it.entryId },
+            )
+        } finally {
+            coroutineContext.cancelChildren()
+        }
     }
 }

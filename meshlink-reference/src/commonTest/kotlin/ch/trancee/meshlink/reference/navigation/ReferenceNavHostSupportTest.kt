@@ -4,7 +4,6 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
-import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.TimelineStoreHarness
 import ch.trancee.meshlink.reference.timeline.timelineStoreEntry
 import kotlin.test.Test
@@ -21,7 +20,7 @@ class ReferenceNavHostSupportTest {
         // Arrange
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
-        val harness = transitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
 
         try {
             // Act
@@ -44,7 +43,7 @@ class ReferenceNavHostSupportTest {
                 authorityMode = ReferenceAuthorityMode.SOLO,
                 surfaceOfOrigin = ReferenceSurfaceId.SOLO_EXPLORATION.route,
             )
-        val harness = transitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
 
         try {
             // Act
@@ -63,7 +62,7 @@ class ReferenceNavHostSupportTest {
     @Test
     fun startFollowUpSupportedSessionNavigatesBeforeStartingTheNewSession() = runTest {
         // Arrange
-        val harness = transitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurfaceId.ADVANCED_CONTROLS.route)
         val events = mutableListOf<String>()
@@ -100,7 +99,7 @@ class ReferenceNavHostSupportTest {
     @Test
     fun confirmBoundaryTransitionsSupportedLiveSessionToSoloAndWritesFullExport() = runTest {
         // Arrange
-        val harness = transitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
         val routes = mutableListOf<String>()
         advanceUntilIdle()
 
@@ -131,10 +130,8 @@ class ReferenceNavHostSupportTest {
     fun endSupportedSessionRetainsEndedEvidenceAndHonorsFullExport() = runTest {
         // Arrange
         val harness =
-            transitionServiceHarness(
-                scope = this,
-                initialTimeline = listOf(timelineStoreEntry("live-1", "Live")),
-            )
+            TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
+                .createTransitionServiceHarness(scope = this)
         advanceUntilIdle()
 
         try {
@@ -157,7 +154,7 @@ class ReferenceNavHostSupportTest {
     @Test
     fun startAlternativeSessionUpdatesTheSessionBeforeRoutingToLab() = runTest {
         // Arrange
-        val harness = transitionServiceHarness(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
         val events = mutableListOf<String>()
         advanceUntilIdle()
 
@@ -187,22 +184,6 @@ class ReferenceNavHostSupportTest {
             coroutineContext.cancelChildren()
         }
     }
-}
-
-private data class SessionTransitionServiceHarness(
-    val timelineStore: TechnicalTimelineStore,
-    val transitionService: SessionTransitionService,
-)
-
-private fun transitionServiceHarness(
-    scope: kotlinx.coroutines.CoroutineScope,
-    initialTimeline: List<ch.trancee.meshlink.reference.model.TimelineEntry> = emptyList(),
-): SessionTransitionServiceHarness {
-    val timelineStore = TimelineStoreHarness(initialTimeline = initialTimeline).createStore(scope)
-    return SessionTransitionServiceHarness(
-        timelineStore = timelineStore,
-        transitionService = SessionTransitionService(timelineStore),
-    )
 }
 
 private fun navigationSnapshot(

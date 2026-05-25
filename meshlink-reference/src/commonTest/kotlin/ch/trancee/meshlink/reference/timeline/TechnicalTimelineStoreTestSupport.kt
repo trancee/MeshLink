@@ -10,6 +10,7 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.navigation.SessionTransitionService
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
@@ -92,10 +93,25 @@ internal class TimelineStoreHarness(
         )
     }
 
+    fun createTransitionServiceHarness(
+        scope: kotlinx.coroutines.CoroutineScope
+    ): SessionTransitionServiceHarness {
+        val timelineStore = createStore(scope)
+        return SessionTransitionServiceHarness(
+            timelineStore = timelineStore,
+            transitionService = SessionTransitionService(timelineStore),
+        )
+    }
+
     fun emitLiveSnapshot(timeline: List<TimelineEntry>): Unit {
         controllerFlow.value = timelineStoreSnapshot(timeline = timeline)
     }
 }
+
+internal data class SessionTransitionServiceHarness(
+    val timelineStore: TechnicalTimelineStore,
+    val transitionService: SessionTransitionService,
+)
 
 internal fun timelineStoreSnapshot(timeline: List<TimelineEntry>): ReferenceControllerSnapshot {
     return ReferenceControllerSnapshot(

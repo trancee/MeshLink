@@ -14,46 +14,57 @@ class TechnicalTimelineTransitionStoreTest {
     @Test
     fun transitionToSoloSessionStartsSoloSnapshotWithoutRetention() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness()
-        val store = harness.createStore(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
         advanceUntilIdle()
 
-        // Act
-        store.transitionToSoloSession()
-        advanceUntilIdle()
+        try {
+            // Act
+            harness.transitionService.transitionSupportedSession(
+                targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
+            )
+            advanceUntilIdle()
 
-        // Assert
-        assertEquals(
-            ReferenceAuthorityMode.SOLO,
-            store.uiState.value.liveSnapshot.session.authorityMode,
-        )
-        assertEquals(0, store.uiState.value.retainedSessions.size)
-        coroutineContext.cancelChildren()
+            // Assert
+            assertEquals(
+                ReferenceAuthorityMode.SOLO,
+                harness.timelineStore.uiState.value.liveSnapshot.session.authorityMode,
+            )
+            assertEquals(0, harness.timelineStore.uiState.value.retainedSessions.size)
+        } finally {
+            coroutineContext.cancelChildren()
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun transitionAlternativeSessionCanReturnToSupportedLiveSession() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness()
-        val store = harness.createStore(scope = this)
+        val harness = TimelineStoreHarness().createTransitionServiceHarness(scope = this)
         advanceUntilIdle()
-        store.transitionToSoloSession()
-        advanceUntilIdle()
-
-        // Act
-        store.transitionAlternativeSession(
-            targetSurface = ReferenceSurfaceId.MAIN_GUIDED,
-            exportBeforeExit = false,
+        harness.transitionService.transitionSupportedSession(
+            targetSurface = ReferenceSurfaceId.SOLO_EXPLORATION
         )
         advanceUntilIdle()
 
-        // Assert
-        assertEquals(
-            ReferenceAuthorityMode.LIVE,
-            store.uiState.value.liveSnapshot.session.authorityMode,
-        )
-        assertEquals(null, store.uiState.value.liveSnapshot.session.endedAtEpochMillis)
-        coroutineContext.cancelChildren()
+        try {
+            // Act
+            harness.transitionService.transitionAlternativeSession(
+                targetSurface = ReferenceSurfaceId.MAIN_GUIDED,
+                exportBeforeExit = false,
+            )
+            advanceUntilIdle()
+
+            // Assert
+            assertEquals(
+                ReferenceAuthorityMode.LIVE,
+                harness.timelineStore.uiState.value.liveSnapshot.session.authorityMode,
+            )
+            assertEquals(
+                null,
+                harness.timelineStore.uiState.value.liveSnapshot.session.endedAtEpochMillis,
+            )
+        } finally {
+            coroutineContext.cancelChildren()
+        }
     }
 }

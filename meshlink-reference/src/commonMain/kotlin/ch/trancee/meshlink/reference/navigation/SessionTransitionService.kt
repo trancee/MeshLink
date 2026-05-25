@@ -5,12 +5,12 @@ import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
-import ch.trancee.meshlink.reference.timeline.endCurrentSessionNow
-import ch.trancee.meshlink.reference.timeline.startNewSupportedSessionNow
+import ch.trancee.meshlink.reference.timeline.endedBoundarySnapshot
+import ch.trancee.meshlink.reference.timeline.normalizeExportPolicy
+import ch.trancee.meshlink.reference.timeline.refreshRetainedSessions
+import ch.trancee.meshlink.reference.timeline.retainIfEligible
 import ch.trancee.meshlink.reference.timeline.syncLiveSnapshot
-import ch.trancee.meshlink.reference.timeline.transitionAlternativeSessionNow
-import ch.trancee.meshlink.reference.timeline.transitionToLabSessionNow
-import ch.trancee.meshlink.reference.timeline.transitionToSoloSessionNow
+import ch.trancee.meshlink.reference.timeline.writeExport
 
 internal sealed interface SessionSurfaceChoice {
     data class Select(val surface: ReferenceSurfaceId) : SessionSurfaceChoice
@@ -61,11 +61,98 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
     ): Unit {
         val targetSurface = followUpSupportedEntrySurface(currentSnapshot)
         applySurfaceSelection(targetSurface)
-        timelineStore.startNewSupportedSessionNow(surfaceOfOrigin = targetSurface.route)
+        startSupportedSession(targetSurface.route)
+    }
+
+    suspend fun startSupportedSession(
+        surfaceOfOrigin: String = ReferenceSurfaceId.MAIN_GUIDED.route
+    ): Unit {
+        val snapshot = timelineStore.sessionController.startNewSupportedSession(surfaceOfOrigin)
+        timelineStore.syncLiveSnapshot(snapshot)
     }
 
     suspend fun endSupportedSession(preEndExportPolicy: ExportPayloadPolicy? = null): Unit {
-        timelineStore.endCurrentSessionNow(preEndExportPolicy)
+        val current = timelineStore.uiState.value
+        if (!current.isSupportedLiveSession || current.viewingRetained) {
+            return
+        }
+
+        val snapshotBeforeEnd = current.liveSnapshot
+        val exportPath =
+            preEndExportPolicy?.let { policy ->
+                timelineStore.writeExport(
+                    snapshotBeforeEnd,
+                    normalizeExportPolicy(snapshotBeforeEnd, policy),
+                )
+            } ?: current.lastExportPath
+        val endedSnapshot = timelineStore.sessionController.endSupportedSession()
+        timelineStore.syncLiveSnapshot(endedSnapshot)
+        timelineStore.retainIfEligible(endedSnapshot)
+        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
+    }
+
+    suspend fun transitionSupportedSession(
+        targetSurface: ReferenceSurfaceId,
+        preBoundaryExportPolicy: ExportPayloadPolicy? = null,
+    ): Unit {
+        val current = timelineStore.uiState.value
+        if (!current.isSupportedLiveSession || current.viewingRetained) {
+            return
+        }
+
+        val supportedSnapshot = current.liveSnapshot
+        val exportPath =
+            preBoundaryExportPolicy?.let { policy ->
+                timelineStore.writeExport(
+                    supportedSnapshot,
+                    normalizeExportPolicy(supportedSnapshot, policy),
+                )
+            } ?: current.lastExportPath
+        timelineStore.retainIfEligible(
+            endedBoundarySnapshot(
+                supportedSnapshot,
+                timelineStore.platformServices.currentTimeMillis(),
+            )
+        )
+        val snapshot =
+            when (targetSurface) {
+                ReferenceSurfaceId.SOLO_EXPLORATION ->
+                    timelineStore.sessionController.startSoloSession()
+                ReferenceSurfaceId.LAB -> timelineStore.sessionController.startLabSession()
+                else -> return
+            }
+        timelineStore.syncLiveSnapshot(snapshot)
+        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
+    }
+
+    suspend fun transitionAlternativeSession(
+        targetSurface: ReferenceSurfaceId,
+        exportBeforeExit: Boolean,
+    ): Unit {
+        val current = timelineStore.uiState.value
+        if (!current.isAlternativeSession || current.viewingRetained) {
+            return
+        }
+
+        val exportPath =
+            if (exportBeforeExit) {
+                timelineStore.writeExport(
+                    current.liveSnapshot,
+                    ExportPayloadPolicy.REDACTED_PREVIEW,
+                )
+            } else {
+                current.lastExportPath
+            }
+        when (targetSurface) {
+            ReferenceSurfaceId.SOLO_EXPLORATION ->
+                timelineStore.syncLiveSnapshot(timelineStore.sessionController.startSoloSession())
+            ReferenceSurfaceId.LAB ->
+                timelineStore.syncLiveSnapshot(timelineStore.sessionController.startLabSession())
+            ReferenceSurfaceId.ADVANCED_CONTROLS ->
+                startSupportedSession(ReferenceSurfaceId.ADVANCED_CONTROLS.route)
+            else -> startSupportedSession(ReferenceSurfaceId.MAIN_GUIDED.route)
+        }
+        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
     }
 
     suspend fun confirmBoundary(
@@ -76,22 +163,15 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         when (request) {
             is SessionBoundaryRequest.SupportedTo -> {
                 applySurfaceSelection(request.targetSurface)
-                when (request.targetSurface) {
-                    ReferenceSurfaceId.SOLO_EXPLORATION ->
-                        timelineStore.transitionToSoloSessionNow(
-                            preBoundaryExportPolicy = supportedBoundaryExportPolicy(exportFirst)
-                        )
-                    ReferenceSurfaceId.LAB ->
-                        timelineStore.transitionToLabSessionNow(
-                            preBoundaryExportPolicy = supportedBoundaryExportPolicy(exportFirst)
-                        )
-                    else -> Unit
-                }
+                transitionSupportedSession(
+                    targetSurface = request.targetSurface,
+                    preBoundaryExportPolicy = supportedBoundaryExportPolicy(exportFirst),
+                )
             }
 
             is SessionBoundaryRequest.AlternativeTo -> {
                 applySurfaceSelection(request.targetSurface)
-                timelineStore.transitionAlternativeSessionNow(
+                transitionAlternativeSession(
                     targetSurface = request.targetSurface,
                     exportBeforeExit = exportFirst,
                 )
