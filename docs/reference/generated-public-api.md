@@ -31,7 +31,6 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.MeshLinkException.PlatformFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.StorageFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.TransportFailure` | nested type | `init` |
-| `ch.trancee.meshlink.api.MeshLinkFactoriesKt` | class | `createMeshLinkRuntime()` |
 | `ch.trancee.meshlink.api.MeshLinkState` | abstract class | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Paused` | object | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Running` | object | — |
@@ -62,6 +61,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.StopResult` | abstract class | — |
 | `ch.trancee.meshlink.api.StopResult.AlreadyStopped` | object | — |
 | `ch.trancee.meshlink.api.StopResult.Stopped` | object | — |
+| `top-level declarations` | top-level | `createMeshLinkRuntime()` |
 
 ## Package `ch.trancee.meshlink.config`
 
@@ -69,7 +69,6 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 |---|---|---|
 | `ch.trancee.meshlink.config.MeshLinkConfig` | class | `init`, `appId`, `deliveryRetryDeadline`, `powerMode`, `regulatoryRegion` |
 | `ch.trancee.meshlink.config.MeshLinkConfigBuilder` | class | `build()`, `appId`, `deliveryRetryDeadline`, `powerMode`, `regulatoryRegion`, `appId =`, `deliveryRetryDeadline =`, `powerMode =`, `regulatoryRegion =` |
-| `ch.trancee.meshlink.config.MeshLinkConfigKt` | class | `meshLinkConfig()` |
 | `ch.trancee.meshlink.config.MeshLinkDsl` | annotation | — |
 | `ch.trancee.meshlink.config.PowerMode` | abstract class | — |
 | `ch.trancee.meshlink.config.PowerMode.Automatic` | object | — |
@@ -77,6 +76,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.config.PowerMode.Performance` | object | — |
 | `ch.trancee.meshlink.config.PowerMode.PowerSaver` | object | — |
 | `ch.trancee.meshlink.config.RegulatoryRegion` | enum | constants: `DEFAULT`, `EU` |
+| `top-level declarations` | top-level | `meshLinkConfig()` |
 
 ## Package `ch.trancee.meshlink.diagnostics`
 

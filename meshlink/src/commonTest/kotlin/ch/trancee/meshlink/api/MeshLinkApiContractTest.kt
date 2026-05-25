@@ -192,7 +192,7 @@ class MeshLinkApiContractTest {
         }
 
     @Test
-    fun `creating meshlink stays uninitialized and side effect free`() {
+    fun `creating meshengine stays uninitialized without touching transport or diagnostics`() {
         // Arrange
         val transport = RecordingBleTransport()
         val diagnosticSink = RecordingDiagnosticSink()

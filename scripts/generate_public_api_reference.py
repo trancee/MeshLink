@@ -26,11 +26,19 @@ class TypeSurface:
     members: list[str] = field(default_factory=list)
 
     @property
+    def is_top_level_container(self) -> bool:
+        return "$" not in self.internal_name and self.internal_name.rsplit("/", 1)[-1].endswith("Kt")
+
+    @property
     def display_name(self) -> str:
+        if self.is_top_level_container:
+            return "top-level declarations"
         return self.internal_name.replace("/", ".").replace("$", ".")
 
     @property
     def kind(self) -> str:
+        if self.is_top_level_container:
+            return "top-level"
         if "annotation class" in self.declaration:
             return "annotation"
         if "interface class" in self.declaration:

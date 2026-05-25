@@ -29,9 +29,10 @@ fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi
 - Factory overloads are the only public place where platform bootstrap inputs
   may differ by target.
 - New instances are created in `MeshLinkState.Uninitialized`.
-- Factory creation is side-effect-free: it must not start transport activity,
-  emit lifecycle diagnostics, or begin peer/session work before `start()` is
-  called.
+- Factory creation must not start transport activity, emit lifecycle
+  diagnostics, or begin peer/session work before `start()` is called.
+- Factory creation may still load or create local identity material so the
+  runtime can derive its stable peer identity before the first hard run.
 - Invalid bootstrap input must fail as `MeshLinkException.InvalidConfiguration`
   or the closest matching public exception type rather than leaking a
   platform-native exception.

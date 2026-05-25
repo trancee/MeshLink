@@ -44,7 +44,7 @@ fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi
 | `createMeshLinkRuntime(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
 | `createMeshLinkRuntime(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
 
-Factory instances are created in `MeshLinkState.Uninitialized`. Construction is side-effect-free: it does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called.
+Factory instances are created in `MeshLinkState.Uninitialized`. Construction does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called. The current implementation may still load or create local identity material during construction so the runtime can derive its stable peer identity.
 
 ### Example
 
