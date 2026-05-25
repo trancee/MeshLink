@@ -17,10 +17,8 @@ import android.os.Build
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
-import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
@@ -33,7 +31,6 @@ import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
-import ch.trancee.meshlink.transport.shouldInitiateDiscoveryDrivenL2capConnection
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
@@ -347,75 +344,66 @@ internal class AndroidBleTransport(
     }
 
     private fun handleScanResult(result: ScanResult): Unit {
-        val serviceUuids =
-            result.scanRecord?.serviceUuids?.map { parcelUuid -> parcelUuid.uuid.toString() }
-                ?: return
-        val payloadUuid =
-            serviceUuids.firstOrNull { uuid ->
-                !BleDiscoveryContract.isAdvertisementServiceUuid(uuid)
-            } ?: return
-        val payload =
-            runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return
-        if (payload.meshHash != currentDiscoveryPayload.meshHash) {
-            return
-        }
-        if (payload.keyHash.contentEquals(localKeyHash)) {
-            return
-        }
-        if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {
-            log(
-                "ignoring discovery payload with unsupported protocolVersion=${payload.protocolVersion} addr=${result.device.address}"
-            )
-            return
-        }
+        val discovery =
+            parseAndroidDiscoveryScanResultOrNull(
+                serviceUuids =
+                    result.scanRecord?.serviceUuids?.map { parcelUuid ->
+                        parcelUuid.uuid.toString()
+                    },
+                deviceAddress = result.device.address,
+                localMeshHash = currentDiscoveryPayload.meshHash,
+                localKeyHash = localKeyHash,
+                log = ::log,
+            ) ?: return
 
-        val hintPeerId = PeerId(payload.keyHash.toHexString())
-        val transportMode =
-            if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
-        if (transportMode == TransportMode.L2CAP) {
-            promoteTemporaryLink(address = result.device.address, hintPeerId = hintPeerId)
+        if (discovery.transportMode == TransportMode.L2CAP) {
+            promoteTemporaryLink(address = result.device.address, hintPeerId = discovery.hintPeerId)
         }
         peerBindings.retainDevice(result.device.address, result.device)
-        val discoveredPeer = peerRegistry.peer(hintPeerId.value)
+        val discoveredPeer = peerRegistry.peer(discovery.hintPeerId.value)
         val sameTransportAdvertisement =
             discoveredPeer != null &&
                 discoveredPeer.deviceAddress == result.device.address &&
-                discoveredPeer.l2capPsm == payload.l2capPsm.toInt() &&
-                discoveredPeer.transportMode == transportMode
+                discoveredPeer.l2capPsm == discovery.payload.l2capPsm.toInt() &&
+                discoveredPeer.transportMode == discovery.transportMode
         if (!sameTransportAdvertisement) {
             log(
-                "scan found ${hintPeerId.value.takeLast(6)} mode=$transportMode psm=${payload.l2capPsm} platform=${payload.platformFamily} addr=${result.device.address}"
+                "scan found ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} addr=${result.device.address}"
             )
         }
         val resolvedPeer =
             peerRegistry
                 .upsertDiscovery(
-                    hintPeerId = hintPeerId,
+                    hintPeerId = discovery.hintPeerId,
                     discovery =
                         DiscoveredPeerDiscovery(
                             address = result.device.address,
-                            keyHash = payload.keyHash,
-                            l2capPsm = payload.l2capPsm.toInt(),
-                            transportMode = transportMode,
-                            platformFamily = payload.platformFamily,
+                            keyHash = discovery.payload.keyHash,
+                            l2capPsm = discovery.payload.l2capPsm.toInt(),
+                            transportMode = discovery.transportMode,
+                            platformFamily = discovery.payload.platformFamily,
                         ),
                 )
                 .also { update -> update.events.forEach(mutableEvents::tryEmit) }
                 .peer
         maybeLogRediscoveryWithoutLink(
             peer = resolvedPeer,
-            transportMode = transportMode,
+            transportMode = discovery.transportMode,
             address = result.device.address,
         )
         maybeStartGattNotifySideLink(resolvedPeer)
         if (
-            transportMode == TransportMode.L2CAP &&
-                shouldInitiateL2cap(payload.keyHash, payload.platformFamily) &&
-                shouldInitiateDiscoveryDrivenL2capConnection(
-                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                    remotePlatformFamily = resolvedPeer.platformFamily,
-                    gattSideLinkReady = hasActiveGattNotifyLink(resolvedPeer.hintPeerId.value),
-                )
+            shouldConnectAfterAndroidDiscovery(
+                transportMode = discovery.transportMode,
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = resolvedPeer.platformFamily,
+                shouldInitiateL2cap =
+                    shouldInitiateL2cap(
+                        discovery.payload.keyHash,
+                        discovery.payload.platformFamily,
+                    ),
+                gattSideLinkReady = hasActiveGattNotifyLink(resolvedPeer.hintPeerId.value),
+            )
         ) {
             connectIfNeeded(resolvedPeer)
         }
