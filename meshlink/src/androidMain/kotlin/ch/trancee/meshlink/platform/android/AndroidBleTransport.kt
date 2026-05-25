@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.platform.android
 
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
@@ -10,8 +9,6 @@ import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
@@ -20,12 +17,9 @@ import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
-import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
-import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
@@ -55,13 +49,13 @@ internal fun resolveAndroidMaximumPayloadBytesPerDelivery(
 }
 
 internal class AndroidBleTransport(
-    private val context: Context,
+    internal val context: Context,
     private val appId: String,
     advertisementKeyHash: ByteArray,
 ) : BleTransport {
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
+    internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val peerBindings = AndroidPeerBindings()
     internal val peerRegistry = AndroidPeerRegistry(bindings = peerBindings)
     internal val activeLinksByHint: MutableMap<String, AndroidL2capLink> = linkedMapOf()
@@ -104,10 +98,10 @@ internal class AndroidBleTransport(
     internal var scanner: BluetoothLeScanner? = null
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
-    private var started: Boolean = false
-    private var discoverySuspended: Boolean = false
-    private var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
-    private var currentDiscoveryPayload: BleDiscoveryPayload =
+    internal var started: Boolean = false
+    internal var discoverySuspended: Boolean = false
+    internal var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
+    internal var currentDiscoveryPayload: BleDiscoveryPayload =
         buildAndroidDiscoveryPayload(
             appId = appId,
             localKeyHash = localKeyHash,
@@ -357,87 +351,6 @@ internal class AndroidBleTransport(
         )
     }
 
-    private fun handleScanResult(result: ScanResult): Unit {
-        val discovery =
-            parseAndroidDiscoveryScanResultOrNull(
-                serviceUuids =
-                    result.scanRecord?.serviceUuids?.map { parcelUuid ->
-                        parcelUuid.uuid.toString()
-                    },
-                deviceAddress = result.device.address,
-                localMeshHash = currentDiscoveryPayload.meshHash,
-                localKeyHash = localKeyHash,
-                log = ::log,
-            ) ?: return
-
-        if (discovery.transportMode == TransportMode.L2CAP) {
-            promoteTemporaryLink(address = result.device.address, hintPeerId = discovery.hintPeerId)
-        }
-        peerBindings.retainDevice(result.device.address, result.device)
-        val discoveredPeer = peerRegistry.peer(discovery.hintPeerId.value)
-        val sameTransportAdvertisement =
-            discoveredPeer != null &&
-                discoveredPeer.deviceAddress == result.device.address &&
-                discoveredPeer.l2capPsm == discovery.payload.l2capPsm.toInt() &&
-                discoveredPeer.transportMode == discovery.transportMode
-        if (!sameTransportAdvertisement) {
-            log(
-                "scan found ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} addr=${result.device.address}"
-            )
-        }
-        val resolvedPeer =
-            peerRegistry
-                .upsertDiscovery(
-                    hintPeerId = discovery.hintPeerId,
-                    discovery =
-                        DiscoveredPeerDiscovery(
-                            address = result.device.address,
-                            keyHash = discovery.payload.keyHash,
-                            l2capPsm = discovery.payload.l2capPsm.toInt(),
-                            transportMode = discovery.transportMode,
-                            platformFamily = discovery.payload.platformFamily,
-                        ),
-                )
-                .also { update -> update.events.forEach(mutableEvents::tryEmit) }
-                .peer
-        maybeLogRediscoveryWithoutLink(
-            peer = resolvedPeer,
-            transportMode = discovery.transportMode,
-            address = result.device.address,
-        )
-        gattSideLinks.ensureStarted(
-            peer = resolvedPeer,
-            localPlatformFamily = currentDiscoveryPayload.platformFamily,
-        )
-        if (
-            shouldConnectAfterAndroidDiscovery(
-                transportMode = discovery.transportMode,
-                localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                remotePlatformFamily = resolvedPeer.platformFamily,
-                shouldInitiateL2cap =
-                    shouldInitiateL2cap(
-                        discovery.payload.keyHash,
-                        discovery.payload.platformFamily,
-                    ),
-                gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),
-            )
-        ) {
-            connectIfNeeded(resolvedPeer)
-        }
-    }
-
-    private fun shouldInitiateL2cap(
-        remoteKeyHash: ByteArray,
-        remotePlatformFamily: BleDiscoveryPlatformFamily,
-    ): Boolean {
-        return shouldLocalPeerInitiateL2capConnection(
-            localKeyHash = localKeyHash,
-            localPlatformFamily = currentDiscoveryPayload.platformFamily,
-            remoteKeyHash = remoteKeyHash,
-            remotePlatformFamily = remotePlatformFamily,
-        )
-    }
-
     private suspend fun tryPreferredGattSend(
         peer: DiscoveredPeer,
         frame: OutboundFrame,
@@ -468,86 +381,6 @@ internal class AndroidBleTransport(
                     },
                     log = ::log,
                 ),
-        )
-    }
-
-    private fun maybeLogRediscoveryWithoutLink(
-        peer: DiscoveredPeer,
-        transportMode: TransportMode,
-        address: String,
-    ): Unit {
-        val hasPendingConnect = hasPendingConnect(peer.hintPeerId.value)
-        val decision =
-            evaluateRediscoveryWithoutLink(
-                RediscoveryWithoutLinkDecisionRequest(
-                    transportMode = transportMode,
-                    hintPeerIdValue = peer.hintPeerId.value,
-                    temporaryHintPeerIdValue = peerBindings.temporaryHintForAddress(address),
-                    activeHintIds = activeLinksByHint.keys,
-                    hasActiveSideLink = gattSideLinks.hasReadyLink(peer.hintPeerId.value),
-                    hasPendingConnect = hasPendingConnect,
-                    rediscoveryLoggedWithoutLink = peer.rediscoveryLoggedWithoutLink,
-                )
-            )
-        if (decision.shouldLogRediscoveryWithoutLink) {
-            log(
-                "scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect addr=$address"
-            )
-        }
-        peerRegistry.setRediscoveryLoggedWithoutLink(
-            peer.hintPeerId.value,
-            decision.rediscoveryLoggedWithoutLink,
-        )
-    }
-
-    private fun resolvePeer(peerId: PeerId): DiscoveredPeer? {
-        return peerRegistry.resolve(peerId)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun refreshDiscoveryState(): Unit {
-        try {
-            log(
-                "refreshDiscoveryState started=$started suspended=$discoverySuspended scanner=${scanner != null} advertiser=${advertiser != null} psm=${currentDiscoveryPayload.l2capPsm}"
-            )
-            scanner?.stopScan(scanCallback)
-            advertiser?.stopAdvertising(advertiseCallback)
-            if (!started || discoverySuspended) {
-                log(
-                    "refreshDiscoveryState skipped after stop started=$started suspended=$discoverySuspended"
-                )
-                return
-            }
-            ensurePermissionsGranted()
-            scanner?.startScan(
-                buildAndroidScanFilters(),
-                buildAndroidScanSettings(currentPowerProfile),
-                scanCallback,
-            )
-            log("scan started")
-            advertiser?.startAdvertising(
-                buildAndroidAdvertiseSettings(currentPowerProfile),
-                buildAndroidAdvertiseData(currentDiscoveryPayload),
-                advertiseCallback,
-            )
-        } catch (exception: SecurityException) {
-            throw androidPermissionDenied(exception)
-        }
-    }
-
-    private fun ensurePermissionsGranted(): Unit {
-        AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
-            sdkInt = Build.VERSION.SDK_INT,
-            isGranted = { permission ->
-                context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-            },
-        )
-    }
-
-    private fun androidPermissionDenied(cause: SecurityException): Throwable {
-        return ch.trancee.meshlink.platform.PlatformPermissionDeniedException(
-            message = "Android BLE permissions denied",
-            cause = cause,
         )
     }
 
