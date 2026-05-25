@@ -89,7 +89,7 @@ A supported surface on which a new supported live session may begin. The support
 _Avoid_: Any surface, evidence surface, non-authoritative entry surface
 
 **Supported surface switch**:
-A move between the guided and advanced surfaces within the same supported live session. Supported surface switches change the operator's view, not the session boundary.
+A move between the guided and advanced surfaces within the same supported session. Supported surface switches change the operator's view, not the session boundary. For an ended supported session, the switch remains review-only and does not reopen runtime controls.
 _Avoid_: New session for disclosure change, guided-to-advanced reset, advanced-to-guided reset
 
 **Authority mode**:
