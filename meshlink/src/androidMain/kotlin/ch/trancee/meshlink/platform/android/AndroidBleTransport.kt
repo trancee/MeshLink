@@ -76,7 +76,35 @@ internal class AndroidBleTransport(
     private val peerBindings = AndroidPeerBindings()
     private val peerRegistry = AndroidPeerRegistry(bindings = peerBindings)
     private val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
-    private val gattNotifyClientsByHint: MutableMap<String, AndroidGattNotifyClient> = linkedMapOf()
+    private val gattSideLinks =
+        AndroidGattSideLinkCoordinator(
+            dependencies =
+                AndroidGattSideLinkCoordinatorDependencies(
+                    deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
+                    hasActiveL2capLink = { hintPeerIdValue ->
+                        synchronized(activeLinksByHint) {
+                            activeLinksByHint.containsKey(hintPeerIdValue)
+                        }
+                    },
+                    setPresenceAnnounced = peerRegistry::setPresenceAnnounced,
+                    onFrameReceived = ::enqueueInboundFrame,
+                    onPeerLost = { peerId ->
+                        mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
+                    },
+                    createClient = { peerHintId, device, onFrameReceived, onDisconnected ->
+                        createAndroidGattSideLinkClient(
+                            context = context,
+                            appId = appId,
+                            peerHintId = peerHintId,
+                            device = device,
+                            log = ::log,
+                            onFrameReceived = onFrameReceived,
+                            onDisconnected = onDisconnected,
+                        )
+                    },
+                    log = ::log,
+                )
+        )
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     private val pendingConnectLock = Any()
     private val transportMutex = Mutex()
@@ -270,13 +298,10 @@ internal class AndroidBleTransport(
                 )
             update.events.forEach(mutableEvents::tryEmit)
         }
-        gattNotifyClientsByHint.remove(temporaryPeerId.value)?.let { client ->
-            if (!gattNotifyClientsByHint.containsKey(canonicalPeerId.value)) {
-                gattNotifyClientsByHint[canonicalPeerId.value] = client
-            } else {
-                client.close()
-            }
-        }
+        gattSideLinks.promoteHint(
+            temporaryHintPeerIdValue = temporaryPeerId.value,
+            canonicalHintPeerIdValue = canonicalPeerId.value,
+        )
         log(
             "promoted temporary peer ${temporaryPeerId.value} -> ${canonicalPeerId.value} addr=${remoteDevice.address}"
         )
@@ -391,7 +416,10 @@ internal class AndroidBleTransport(
             transportMode = discovery.transportMode,
             address = result.device.address,
         )
-        maybeStartGattNotifySideLink(resolvedPeer)
+        gattSideLinks.ensureStarted(
+            peer = resolvedPeer,
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+        )
         if (
             shouldConnectAfterAndroidDiscovery(
                 transportMode = discovery.transportMode,
@@ -402,7 +430,7 @@ internal class AndroidBleTransport(
                         discovery.payload.keyHash,
                         discovery.payload.platformFamily,
                     ),
-                gattSideLinkReady = hasActiveGattNotifyLink(resolvedPeer.hintPeerId.value),
+                gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),
             )
         ) {
             connectIfNeeded(resolvedPeer)
@@ -421,38 +449,6 @@ internal class AndroidBleTransport(
         )
     }
 
-    private fun maybeStartGattNotifySideLink(peer: DiscoveredPeer): Unit {
-        if (
-            !shouldUseMixedPlatformGattNotifyBearer(
-                localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                remotePlatformFamily = peer.platformFamily,
-            )
-        ) {
-            return
-        }
-        val device = peerBindings.deviceFor(peer.deviceAddress) ?: return
-        val existingClient = gattNotifyClientsByHint[peer.hintPeerId.value]
-        if (existingClient != null) {
-            if (!existingClient.isReady()) {
-                existingClient.start()
-            }
-            return
-        }
-        val client =
-            AndroidGattNotifyClient(
-                context = context,
-                appId = appId,
-                peerHintId = peer.hintPeerId,
-                device = device,
-                log = ::log,
-                onFrameReceived = ::enqueueInboundFrame,
-                onDisconnected = ::handleGattNotifySideLinkDisconnected,
-            )
-        gattNotifyClientsByHint[peer.hintPeerId.value] = client
-        log("initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)}")
-        client.start()
-    }
-
     private suspend fun tryPreferredGattSend(
         peer: DiscoveredPeer,
         frame: OutboundFrame,
@@ -467,34 +463,23 @@ internal class AndroidBleTransport(
                 ),
             dependencies =
                 AndroidPreferredGattSendDependencies(
-                    ensureSideLink = { maybeStartGattNotifySideLink(peer) },
-                    currentClient = {
-                        gattNotifyClientsByHint[peer.hintPeerId.value]?.let { client ->
-                            object : AndroidPreferredGattSendClient {
-                                override fun isReady(): Boolean {
-                                    return client.isReady()
-                                }
-
-                                override suspend fun write(payload: ByteArray): Boolean {
-                                    return client.write(payload)
-                                }
-                            }
-                        }
+                    ensureSideLink = {
+                        gattSideLinks.ensureStarted(
+                            peer = peer,
+                            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                        )
                     },
-                    restartSideLink = { reason -> restartGattNotifySideLink(peer, reason) },
+                    currentClient = { gattSideLinks.currentClient(peer.hintPeerId.value) },
+                    restartSideLink = { reason ->
+                        gattSideLinks.restart(
+                            peer = peer,
+                            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                            reason = reason,
+                        )
+                    },
                     log = ::log,
                 ),
         )
-    }
-
-    private fun restartGattNotifySideLink(peer: DiscoveredPeer, reason: String): Unit {
-        gattNotifyClientsByHint.remove(peer.hintPeerId.value)?.let { existingClient ->
-            log(
-                "restarting GATT notify side link for ${peer.hintPeerId.value.takeLast(6)}: $reason"
-            )
-            existingClient.close()
-        }
-        maybeStartGattNotifySideLink(peer)
     }
 
     @SuppressLint("MissingPermission")
@@ -699,7 +684,7 @@ internal class AndroidBleTransport(
                     hintPeerIdValue = peer.hintPeerId.value,
                     temporaryHintPeerIdValue = peerBindings.temporaryHintForAddress(address),
                     activeHintIds = activeLinksByHint.keys,
-                    hasActiveSideLink = hasActiveGattNotifyLink(peer.hintPeerId.value),
+                    hasActiveSideLink = gattSideLinks.hasReadyLink(peer.hintPeerId.value),
                     hasPendingConnect = hasPendingConnect,
                     rediscoveryLoggedWithoutLink = peer.rediscoveryLoggedWithoutLink,
                 )
@@ -810,8 +795,7 @@ internal class AndroidBleTransport(
         l2capServerSocket = null
         val hintIds = activeLinksByHint.keys.toList()
         hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
-        gattNotifyClientsByHint.values.forEach { client -> client.close() }
-        gattNotifyClientsByHint.clear()
+        gattSideLinks.stopAll()
         inboundFrameQueue?.close()
         inboundFrameQueue = null
         coroutineScope.coroutineContext.cancelChildren()
@@ -829,7 +813,7 @@ internal class AndroidBleTransport(
         )
         link.readLoopJob?.cancel()
         closeQuietly(link)
-        if (hasActiveGattNotifyLink(hintPeer)) {
+        if (gattSideLinks.hasReadyLink(hintPeer)) {
             log(
                 "retaining peer ${hintPeer.takeLast(6)} after L2CAP close because the GATT side link is still active"
             )
@@ -838,21 +822,6 @@ internal class AndroidBleTransport(
         peerRegistry.setPresenceAnnounced(hintPeer, false)
         val peerId = PeerId(hintPeer)
         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
-    }
-
-    private fun handleGattNotifySideLinkDisconnected(peerHintId: PeerId): Unit {
-        val removedClient = gattNotifyClientsByHint.remove(peerHintId.value) ?: return
-        log("removed GATT notify side link for ${peerHintId.value.takeLast(6)}")
-        if (synchronized(activeLinksByHint) { activeLinksByHint.containsKey(peerHintId.value) }) {
-            return
-        }
-        removedClient.close()
-        peerRegistry.setPresenceAnnounced(peerHintId.value, false)
-        mutableEvents.tryEmit(TransportEvent.PeerLost(peerHintId))
-    }
-
-    private fun hasActiveGattNotifyLink(hintPeer: String): Boolean {
-        return gattNotifyClientsByHint[hintPeer]?.isReady() == true
     }
 
     private fun hasPendingConnect(hintPeer: String): Boolean {
