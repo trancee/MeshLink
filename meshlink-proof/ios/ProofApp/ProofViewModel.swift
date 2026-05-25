@@ -677,10 +677,6 @@ private final class PendingBenchmarkReceipt {
     }
 }
 
-private func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
-    return MeshLink_.shared.create(config: config)
-}
-
 private struct BenchmarkPayloadEnvelope {
     static let magic = Array("MLBM1000".utf8)
     static let headerBytes = 16

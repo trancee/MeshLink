@@ -41,11 +41,11 @@ On Android, create the runtime with an application `Context`.
 
 ```kotlin
 import android.content.Context
-import ch.trancee.meshlink.api.MeshLink
+import ch.trancee.meshlink.api.createMeshLinkRuntime
 import ch.trancee.meshlink.api.MeshLinkApi
 
 fun createAndroidRuntime(context: Context): MeshLinkApi {
-    return MeshLink.create(
+    return createMeshLinkRuntime(
         config = meshLinkConfiguration(),
         context = context.applicationContext,
     )
@@ -85,13 +85,7 @@ struct ChatApp: App {
 }
 ```
 
-Add the tiny Swift wrapper once near your app boundary:
-
-```swift
-func createMeshLinkRuntime(config: MeshLinkConfig) -> MeshLinkApi {
-    MeshLink_.shared.create(config: config)
-}
-```
+`createMeshLinkRuntime(config:)` is exported directly as a top-level Swift helper, so you can call it without adding an extra wrapper near your app boundary.
 
 Your `installMeshLinkCrypto()` wrapper should call
 `IosCryptoBridge.shared.install(callbacks: ...)` with app-owned

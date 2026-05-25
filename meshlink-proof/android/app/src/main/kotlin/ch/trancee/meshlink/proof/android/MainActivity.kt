@@ -17,7 +17,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
-import ch.trancee.meshlink.api.MeshLink
+import ch.trancee.meshlink.api.createMeshLinkRuntime
 import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerEvent
@@ -313,7 +313,7 @@ private object MeshLinkProofRuntime {
                 gattNotifyBenchmarkClient?.stop()
                 meshLink =
                     if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
-                        MeshLink.create(
+                        createMeshLinkRuntime(
                             config = meshLinkConfig {
                                 appId = resolvedLaunchConfig.appId
                                 regulatoryRegion = RegulatoryRegion.DEFAULT

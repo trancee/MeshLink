@@ -8,10 +8,10 @@ import kotlinx.coroutines.runBlocking
 
 class MeshLinkCreateJvmTest {
     @Test
-    fun `create without context supports the full lifecycle on jvm`() = runBlocking {
+    fun `createMeshLinkRuntime without context supports the full lifecycle on jvm`() = runBlocking {
         // Arrange
-        val config = meshLinkConfig { appId = "demo.meshlink.${Random.nextInt()}" }
-        val api = MeshLink.create(config = config)
+        val config = meshLinkConfig { appId = "demo.meshlink.runtime.${Random.nextInt()}" }
+        val api = createMeshLinkRuntime(config = config)
 
         // Act
         val results = listOf(api.start(), api.pause(), api.resume(), api.stop())

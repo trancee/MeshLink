@@ -27,6 +27,7 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "MeshLink"
             isStatic = true
+            binaryOption("bundleId", "ch.trancee.meshlink")
         }
     }
     applyDefaultHierarchyTemplate()

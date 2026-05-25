@@ -85,12 +85,6 @@ public final class ch/trancee/meshlink/api/IosKeyGenerationCallbacks {
 	public final fun getGenerateX25519KeyPair ()Lkotlin/jvm/functions/Function0;
 }
 
-public final class ch/trancee/meshlink/api/MeshLink {
-	public static final field INSTANCE Lch/trancee/meshlink/api/MeshLink;
-	public final fun create (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
-	public final fun create (Lch/trancee/meshlink/config/MeshLinkConfig;Ljava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkApi;
-}
-
 public abstract interface class ch/trancee/meshlink/api/MeshLinkApi {
 	public abstract fun forgetPeer (Lch/trancee/meshlink/api/PeerId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getDiagnosticEvents ()Lkotlinx/coroutines/flow/Flow;
@@ -148,6 +142,11 @@ public final class ch/trancee/meshlink/api/MeshLinkException$StorageFailure : ch
 public final class ch/trancee/meshlink/api/MeshLinkException$TransportFailure : ch/trancee/meshlink/api/MeshLinkException {
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class ch/trancee/meshlink/api/MeshLinkFactoriesKt {
+	public static final fun createMeshLinkRuntime (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
+	public static final fun createMeshLinkRuntime (Lch/trancee/meshlink/config/MeshLinkConfig;Ljava/lang/Object;)Lch/trancee/meshlink/api/MeshLinkApi;
 }
 
 public abstract class ch/trancee/meshlink/api/MeshLinkState {

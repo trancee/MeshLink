@@ -1,11 +1,11 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.createMeshLinkRuntime
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
@@ -122,9 +122,9 @@ public class LiveReferenceMeshLinkController(
             powerMode = PowerMode.Automatic
         }
         if (platformContext != null) {
-            MeshLink.create(config = config, context = platformContext)
+            createMeshLinkRuntime(config = config, context = platformContext)
         } else {
-            MeshLink.create(config = config)
+            createMeshLinkRuntime(config = config)
         }
     }
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)

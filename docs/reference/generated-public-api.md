@@ -22,7 +22,6 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.IosEd25519Callbacks` | class | `sign`, `verify` |
 | `ch.trancee.meshlink.api.IosHashCallbacks` | class | `hmacSha256`, `sha256` |
 | `ch.trancee.meshlink.api.IosKeyGenerationCallbacks` | class | `generateEd25519KeyPair`, `generateX25519KeyPair` |
-| `ch.trancee.meshlink.api.MeshLink` | object | `create()` |
 | `ch.trancee.meshlink.api.MeshLinkApi` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()`, `updateBattery()` |
 | `ch.trancee.meshlink.api.MeshLinkException` | abstract class | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.CryptoFailure` | nested type | `init` |
@@ -32,6 +31,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.MeshLinkException.PlatformFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.StorageFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.TransportFailure` | nested type | `init` |
+| `ch.trancee.meshlink.api.MeshLinkFactoriesKt` | class | `createMeshLinkRuntime()` |
 | `ch.trancee.meshlink.api.MeshLinkState` | abstract class | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Paused` | object | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Running` | object | — |

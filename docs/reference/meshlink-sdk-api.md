@@ -18,40 +18,38 @@ For a completeness appendix rendered from the public API dump, use
 ## Swift naming notes
 
 These notes matter when you consume the generated Apple framework from Swift.
-The direct factory singleton currently appears as `MeshLink_` because the
-framework module itself is also named `MeshLink`.
 
 | Kotlin surface | Swift-facing shape |
 |---|---|
-| `MeshLink.create(...)` | `MeshLink_.shared.create(...)` (usually wrapped once in app code) |
+| `createMeshLinkRuntime(config)` | `createMeshLinkRuntime(config:)` |
+| `createMeshLinkRuntime(config, context)` | `createMeshLinkRuntime(config:context:)` |
 | `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
 | suspend functions like `start()` | `try await api.start()` |
 | `StateFlow` / `Flow` values | `AsyncSequence` values collected with `for await` |
 | sealed results and events | exhaustive switching through `onEnum(of: ...)` |
 | `ByteArray` payloads | still bridged as `KotlinByteArray` |
 
+
 ## Factory entry points
 
-### `MeshLink`
+### Top-level runtime helpers
 
 ```kotlin
-object MeshLink {
-    fun create(config: MeshLinkConfig): MeshLinkApi
-    fun create(config: MeshLinkConfig, context: Any): MeshLinkApi
-}
+fun createMeshLinkRuntime(config: MeshLinkConfig): MeshLinkApi
+fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi
 ```
 
 | API | Use | Notes |
 |---|---|---|
-| `create(config)` | iOS and platforms that do not need extra bootstrap input | Fails if platform prerequisites are missing. |
-| `create(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
+| `createMeshLinkRuntime(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
+| `createMeshLinkRuntime(config, context)` | Android | `context` must be an Android `Context`. Use the application context. |
 
 Factory instances are created in `MeshLinkState.Uninitialized`. Construction is side-effect-free: it does not start transport activity, emit lifecycle diagnostics, or begin peer/session work before `start()` is called.
 
 ### Example
 
 ```kotlin
-val meshLink = MeshLink.create(
+val meshLink = createMeshLinkRuntime(
     config = meshLinkConfig { appId = "com.example.chat" },
     context = applicationContext,
 )

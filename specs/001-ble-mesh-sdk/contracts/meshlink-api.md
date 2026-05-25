@@ -10,16 +10,14 @@ shape must stay identical across platforms.
 ### Factory entry points
 
 ```kotlin
-object MeshLink {
-    fun create(config: MeshLinkConfig): MeshLinkApi
-    fun create(config: MeshLinkConfig, context: Any): MeshLinkApi
-}
+fun createMeshLinkRuntime(config: MeshLinkConfig): MeshLinkApi
+fun createMeshLinkRuntime(config: MeshLinkConfig, context: Any): MeshLinkApi
 ```
 
 **Contract notes**
-- `create(config)` is the primary entry point for platforms that do not need
+- `createMeshLinkRuntime(config)` is the primary entry point for platforms that do not need
   extra bootstrap input.
-- `create(config, context)` is the Android bootstrap overload.
+- `createMeshLinkRuntime(config, context)` is the Android bootstrap overload.
 - Platform-specific parameters belong in factory overloads, not in the shared
   DSL.
 - Android-specific handles, iOS/CoreBluetooth handles, and other platform

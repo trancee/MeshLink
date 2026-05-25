@@ -29,7 +29,7 @@ Create a single long-lived MeshLink runtime for your app process:
 
 ```kotlin
 import android.content.Context
-import ch.trancee.meshlink.api.MeshLink
+import ch.trancee.meshlink.api.createMeshLinkRuntime
 import ch.trancee.meshlink.api.MeshLinkApi
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.RegulatoryRegion
@@ -40,7 +40,7 @@ fun createMeshLink(context: Context): MeshLinkApi {
         appId = "com.example.meshlink.tutorial"
         regulatoryRegion = RegulatoryRegion.DEFAULT
     }
-    return MeshLink.create(config = config, context = context.applicationContext)
+    return createMeshLinkRuntime(config = config, context = context.applicationContext)
 }
 ```
 
