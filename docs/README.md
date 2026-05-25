@@ -31,6 +31,7 @@ start with your goal:
 
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and iOS bridge APIs.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the BCV-tracked public surface rendered from the checked-in API dump.
+- [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
 - [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.
 - [Release decision](../specs/001-ble-mesh-sdk/release-decision.md) — current release framing and waiver history.

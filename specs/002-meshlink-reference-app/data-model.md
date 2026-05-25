@@ -15,26 +15,29 @@ session-artifact timestamps are UTC ISO 8601 strings defined normatively in
 
 ## Entities
 
-### `ReferenceScenario`
+### `ReferenceWorkflowDescriptor`
 
-Represents a named workflow or exercise the operator can run.
+Represents one named operator-facing workflow or review surface in the app
+shell.
 
 | Field | Type | Description | Validation |
 |---|---|---|---|
-| `scenarioId` | String | Stable unique identifier for the scenario | Required; unique across the app |
-| `surface` | Enum | `main`, `advanced`, `solo`, or `lab` | Required |
-| `mode` | Enum | `live` or `solo` | Required |
-| `title` | String | Operator-facing scenario name | Required; non-blank |
-| `summary` | String | One-line description of the goal | Required |
-| `prerequisites` | List<String> | Conditions the operator must satisfy | May be empty for solo-only flows |
-| `successSignals` | List<String> | Observable outcomes proving success | Required |
-| `blockedGuidance` | List<String> | Recovery hints when prerequisites fail | Required |
-| `capabilityTags` | Set<String> | MeshLink capabilities demonstrated | Required; at least one tag |
+| `surface` | Enum | `main-guided`, `advanced-controls`, `technical-timeline`, `recent-history`, `solo-exploration`, or `lab` | Required |
+| `title` | String | Operator-facing workflow name | Required; non-blank |
 
 **Relationships**:
-- One `ReferenceScenario` can produce many `ReferenceSession` values.
-- `ReferenceScenario.surface` controls whether the scenario appears in the main
-  experience, advanced area, solo exploration surface, or lab.
+- One `ReferenceWorkflowDescriptor` can anchor many `ReferenceSession` values
+  over time.
+- `main-guided`, `advanced-controls`, `technical-timeline`, and
+  `recent-history` are supported-session surfaces.
+- `solo-exploration` and `lab` are alternative-session surfaces that require a
+  boundary transition when entered from a supported live session.
+
+**Implementation note**: Supported workflow descriptors are currently cataloged
+through `ReferenceWorkflowCatalog`. Live snapshots and exported artifacts also
+retain a `scenarioId` string on `ReferenceSession`; the current values are
+`guided-first-exchange`, `solo-exploration`, and `lab`. Lab-only exercises use
+an additional `LabScenario` catalog inside the lab surface.
 
 ### `ReferenceSession`
 
@@ -43,7 +46,7 @@ Represents one run of a scenario.
 | Field | Type | Description | Validation |
 |---|---|---|---|
 | `sessionId` | String | Stable unique session identifier | Required; unique |
-| `scenarioId` | String | Owning scenario | Must reference an existing `ReferenceScenario` |
+| `scenarioId` | String | Owning session scenario identifier | Must reference a supported session scenario such as `guided-first-exchange`, `solo-exploration`, or `lab` |
 | `authorityMode` | Enum | `live` or `solo` | Required |
 | `startedAt` | Timestamp | Session start timestamp | Required |
 | `endedAt` | Timestamp? | Session end timestamp | Null while active |
@@ -148,16 +151,29 @@ optional epoch-millis field inside the retained-history store.
 
 ## State transitions
 
-### Scenario surface state
+### Workflow surface state
 
-`main` ↔ `advanced`  
-`main`/`advanced` → `lab`  
-`main`/`advanced` → `solo`
+Supported-session surfaces:
+- `main-guided`
+- `advanced-controls`
+- `technical-timeline`
+- `recent-history`
+
+Alternative-session surfaces:
+- `solo-exploration`
+- `lab`
 
 Rules:
-- `main` ↔ `advanced` is a supported surface switch inside the same supported live session.
-- Entering `lab` starts a new non-normative lab session.
-- Entering `solo` starts a new non-authoritative solo session.
+- Switching among supported-session surfaces does not end the current
+  supported session.
+- `technical-timeline` and `recent-history` are review surfaces; selecting them
+  changes the visible surface, not the session authority.
+- Entering `solo-exploration` or `lab` from a supported live session requires a
+  boundary transition that ends the supported session first.
+- Returning from `solo-exploration` or `lab` to `main-guided` or
+  `advanced-controls` starts a new supported session.
+- Selecting `technical-timeline` or `recent-history` while viewing an
+  alternative session does not by itself start a new session.
 
 ### Session lifecycle
 
