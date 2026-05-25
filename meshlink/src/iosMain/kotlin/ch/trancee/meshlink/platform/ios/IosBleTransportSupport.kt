@@ -25,7 +25,6 @@ import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
-import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.toKString
@@ -42,7 +41,6 @@ import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
 import platform.CoreBluetooth.CBAttributePermissionsWriteable
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBCentralManager
-import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBCharacteristic
 import platform.CoreBluetooth.CBCharacteristicPropertyNotify
 import platform.CoreBluetooth.CBCharacteristicPropertyWrite
@@ -51,19 +49,15 @@ import platform.CoreBluetooth.CBManagerStatePoweredOn
 import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBMutableService
 import platform.CoreBluetooth.CBPeripheral
-import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBPeripheralManager
 import platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow
-import platform.CoreBluetooth.CBPeripheralManagerDelegateProtocol
 import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSData
 import platform.Foundation.NSError
-import platform.Foundation.NSNumber
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSStreamStatusAtEnd
 import platform.Foundation.NSStreamStatusClosed
 import platform.Foundation.NSStreamStatusError
-import platform.darwin.NSObject
 import platform.posix.getenv
 import platform.posix.memcpy
 
@@ -1132,13 +1126,6 @@ internal fun String.logSuffix(): String {
     return takeLast(PEER_LOG_SUFFIX_CHARS)
 }
 
-internal data class IncomingL2capHintCandidate(
-    internal val hintPeerIdValue: String,
-    internal val keyHash: ByteArray,
-    internal val platformFamily: BleDiscoveryPlatformFamily,
-    internal val transportMode: TransportMode,
-)
-
 internal fun isStreamClosed(streamStatus: ULong, hasError: Boolean): Boolean {
     return hasError ||
         streamStatus == NSStreamStatusAtEnd ||
@@ -1164,153 +1151,5 @@ private fun NSData.toByteArray(): ByteArray {
     }
     return ByteArray(lengthInt).also { output ->
         output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
-    }
-}
-
-internal class IncomingL2capSelectionIgnoredHints(
-    val activeHintIds: Collection<String>,
-    val pendingHintIds: Collection<String>,
-)
-
-internal class IncomingL2capSelectionLocalPeer(
-    localKeyHash: ByteArray,
-    val platformFamily: BleDiscoveryPlatformFamily,
-) {
-    val keyHash: ByteArray = localKeyHash.copyOf()
-}
-
-internal class IncomingL2capHintSelectionRequest(
-    val peripheralIdentifier: String,
-    val peerHintByIdentifier: Map<String, String>,
-    val discoveredPeers: List<IncomingL2capHintCandidate>,
-    val ignoredHints: IncomingL2capSelectionIgnoredHints,
-    val localPeer: IncomingL2capSelectionLocalPeer,
-)
-
-internal fun selectIncomingL2capHintPeerId(request: IncomingL2capHintSelectionRequest): String? {
-    request.peerHintByIdentifier[request.peripheralIdentifier]?.let { mappedHint ->
-        return mappedHint
-    }
-    val waitingCandidates =
-        request.discoveredPeers.filter { candidate ->
-            candidate.transportMode == TransportMode.L2CAP &&
-                candidate.hintPeerIdValue !in request.ignoredHints.activeHintIds &&
-                candidate.hintPeerIdValue !in request.ignoredHints.pendingHintIds &&
-                !shouldLocalPeerInitiateL2capConnection(
-                    localKeyHash = request.localPeer.keyHash,
-                    localPlatformFamily = request.localPeer.platformFamily,
-                    remoteKeyHash = candidate.keyHash,
-                    remotePlatformFamily = candidate.platformFamily,
-                )
-        }
-    return waitingCandidates.singleOrNull()?.hintPeerIdValue
-}
-
-internal class IosCentralDelegate(private val owner: IosBleTransport) :
-    NSObject(), CBCentralManagerDelegateProtocol {
-    override fun centralManagerDidUpdateState(central: CBCentralManager) {
-        owner.reportLog("centralManagerDidUpdateState state=${central.state}")
-        owner.startScanIfReady(central)
-    }
-
-    override fun centralManager(
-        central: CBCentralManager,
-        didDiscoverPeripheral: CBPeripheral,
-        advertisementData: Map<Any?, *>,
-        RSSI: NSNumber,
-    ) {
-        val rawServiceUuids = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? List<*>
-        val serviceUuids = rawServiceUuids?.filterIsInstance<CBUUID>() ?: return
-        if (serviceUuids.size != rawServiceUuids.size) {
-            return
-        }
-        owner.handleDiscoveredPeripheral(didDiscoverPeripheral, serviceUuids)
-    }
-
-    override fun centralManager(central: CBCentralManager, didConnectPeripheral: CBPeripheral) {
-        owner.handleConnectedPeripheral(didConnectPeripheral)
-    }
-
-    @ObjCSignatureOverride
-    override fun centralManager(
-        central: CBCentralManager,
-        didFailToConnectPeripheral: CBPeripheral,
-        error: NSError?,
-    ) {
-        owner.handleFailedConnection(didFailToConnectPeripheral, error)
-    }
-
-    @ObjCSignatureOverride
-    override fun centralManager(
-        central: CBCentralManager,
-        didDisconnectPeripheral: CBPeripheral,
-        error: NSError?,
-    ) {
-        owner.handleDisconnectedPeripheral(didDisconnectPeripheral)
-    }
-}
-
-internal class IosPeripheralClientDelegate(private val owner: IosBleTransport) :
-    NSObject(), CBPeripheralDelegateProtocol {
-    override fun peripheral(
-        peripheral: CBPeripheral,
-        didOpenL2CAPChannel: CBL2CAPChannel?,
-        error: NSError?,
-    ) {
-        owner.handleOpenedOutgoingChannel(peripheral, didOpenL2CAPChannel, error)
-    }
-}
-
-internal class IosPeripheralManagerDelegate(private val owner: IosBleTransport) :
-    NSObject(), CBPeripheralManagerDelegateProtocol {
-    override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
-        owner.reportLog("peripheralManagerDidUpdateState state=${peripheral.state}")
-        owner.installGattNotifyServiceIfReady(peripheral)
-        owner.publishL2capChannelIfReady(peripheral)
-    }
-
-    @ObjCSignatureOverride
-    override fun peripheralManager(
-        peripheral: CBPeripheralManager,
-        central: CBCentral,
-        didSubscribeToCharacteristic: CBCharacteristic,
-    ) {
-        owner.handleGattNotifySubscribed(central, didSubscribeToCharacteristic)
-    }
-
-    @ObjCSignatureOverride
-    override fun peripheralManager(
-        peripheral: CBPeripheralManager,
-        central: CBCentral,
-        didUnsubscribeFromCharacteristic: CBCharacteristic,
-    ) {
-        owner.handleGattNotifyUnsubscribed(central, didUnsubscribeFromCharacteristic)
-    }
-
-    override fun peripheralManagerIsReadyToUpdateSubscribers(peripheral: CBPeripheralManager) {
-        owner.pumpGattNotifyLinks()
-    }
-
-    override fun peripheralManager(
-        peripheral: CBPeripheralManager,
-        didReceiveWriteRequests: List<*>,
-    ) {
-        owner.handleGattWriteRequests(didReceiveWriteRequests)
-    }
-
-    override fun peripheralManager(
-        peripheral: CBPeripheralManager,
-        didPublishL2CAPChannel: UShort,
-        error: NSError?,
-    ) {
-        owner.handlePublishedL2capChannel(didPublishL2CAPChannel, error)
-    }
-
-    override fun peripheralManager(
-        peripheral: CBPeripheralManager,
-        didOpenL2CAPChannel: CBL2CAPChannel?,
-        error: NSError?,
-    ) {
-        owner.handleOpenedIncomingChannel(didOpenL2CAPChannel, error)
     }
 }
