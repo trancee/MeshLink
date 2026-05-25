@@ -37,3 +37,17 @@ Reason:
 - avoids shallow wrapper modules that would mostly forward to the same controller/export/retention calls
 - keeps the deletion test strong: removing the service would re-spread the branching matrix into navigation, automation, and the evidence surface
 - leaves room for future private helper extraction inside the service if one branch family becomes materially more complex, without committing to a second public seam too early
+
+## 2026-05-25 — ReferenceSessionController internal state seam
+
+Chosen shape: keep `ReferenceSessionController` as the single internal owner of
+`currentKind`, `snapshotFlow`, and the supported/alternative session publication
+rules. Do not extract a separate session-state store or session-boundary state
+machine at this time.
+
+Reason:
+- the controller already has a small, cohesive interface centered on session boundaries
+- `SupportedControllerRuntime` already hides the supported-runtime-specific lifecycle/binding concerns
+- extracting `currentKind` + snapshot publication into another module now would mostly move a compact transition table into a shallow wrapper
+- a second state-machine seam would overlap awkwardly with `SessionTransitionService`, weakening ownership clarity instead of improving it
+- if the controller grows later, private helper extraction remains available without committing to another architectural module early
