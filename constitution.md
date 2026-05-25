@@ -212,9 +212,13 @@ All features and changes MUST respect these non-negotiable boundaries.
 - Deployed FlatBuffers wire formats MUST remain backward compatible.
   Breaking wire changes require a major version bump and a migration
   period.
-- The runtime dependency budget is exactly one runtime dependency,
-  `kotlinx-coroutines-core`. Adding another runtime dependency requires
-  constitutional amendment.
+- The shipped `:meshlink` library artifact runtime dependency budget is
+  exactly one runtime dependency, `kotlinx-coroutines-core`.
+  Application, host, proof, benchmark, and documentation-supporting
+  modules MAY add additional runtime dependencies only when those
+  dependencies do not leak into the shipped `:meshlink` artifact.
+  Adding another runtime dependency to the shipped library artifact
+  requires constitutional amendment.
 
 ## Governance
 
@@ -237,4 +241,4 @@ development.
 - Day-to-day conventions that do not rise to constitutional level MUST
   live in `docs/` or other project documentation.
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-05-22
+**Version**: 1.2.0 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-05-25

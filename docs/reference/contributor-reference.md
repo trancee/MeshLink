@@ -112,7 +112,7 @@ A quick rule of thumb:
 | Unfinished work markers | Merged code does not contain `TODO` comments. |
 | Dependency versions | Versions are pinned exactly. |
 | Shared logic placement | Shared logic stays in `commonMain`; platform source sets are for `actual` implementations and platform glue. |
-| Runtime dependency budget | `:meshlink` keeps the current runtime dependency budget unless governance changes. |
+| Runtime dependency budget | The shipped `:meshlink` library artifact keeps the current runtime dependency budget unless governance changes; app and host modules must keep their dependencies from leaking into `:meshlink`. |
 | Public behavior parity | Android and iOS public behavior stays aligned. |
 | Documentation parity | Android and iOS public workflow/API docs update together. |
 | Documentation structure | Each user-facing page stays in one Diataxis type. |

@@ -126,6 +126,8 @@ After you choose **End session** from the technical timeline:
 - verify the eligible ended session appears separately from any live session
 - if you are collecting SC-004 timing evidence, use a live or retained session containing 2,000 timeline entries for the filter/search/export check
 - record that the session contains 2,000 timeline entries before exporting
+- record the filter or search start time for a peer or failure-class narrowing action
+- confirm the visible filter/search result completes within 1 second
 - record the redacted export start time
 - open the export chooser and export a redacted session artifact
 - record the redacted export completion time

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-meshlink-reference-app`  
 **Created**: 2026-05-18  
-**Status**: Draft  
+**Status**: Current  
 **Input**: User description: "Create a modern, user-friendly MeshLink reference app that showcases the full library, explains what is happening, exposes logs and diagnostics, and offers the same experience on Android and iOS."
 
 This specification defines the user-facing goals and acceptance criteria for the
@@ -84,7 +84,7 @@ resulting state changes.
    technical reviewers.
 3. **Given** a first-time evaluator is using the app, **When** they stay in the
    default reference flow, **Then** they see only the guided controls needed
-   for the current scenario, and **When** they choose the advanced area,
+   for the current guided workflow, and **When** they choose the advanced area,
    **Then** the operator-visible configuration snapshot and runtime controls
    become available without replacing the guided experience.
 
@@ -140,9 +140,9 @@ operating-system rules force a clearly explained difference.
 **Acceptance Scenarios**:
 
 1. **Given** supported Android and iOS devices are prepared for the same
-   reference scenario, **When** a reviewer opens the same screen or workflow on
+   reference workflow, **When** a reviewer opens the same screen or workflow on
    each platform, **Then** both platforms expose the same task sequence,
-   terminology, and diagnostic meaning for that scenario.
+   terminology, and diagnostic meaning for that workflow.
 2. **Given** a platform-specific prerequisite or limitation blocks one platform
    temporarily, **When** the reviewer reaches that workflow, **Then** the app
    explains the reason explicitly instead of silently renaming, hiding, or
@@ -219,7 +219,7 @@ operating-system rules force a clearly explained difference.
   area exposes the operator-visible configuration snapshot, runtime controls,
   and deeper technical detail for users who want it.
 - **FR-011**: The system MUST let the operator capture and export a session
-  artifact containing the active scenario, current configuration, peer summary,
+  artifact containing the active workflow, current configuration, peer summary,
   technical timeline, delivery outcomes, and payload metadata, with sensitive
   details and payload content redacted by default.
 - **FR-011b**: Exported session artifacts MUST include redacted payload
@@ -241,10 +241,11 @@ operating-system rules force a clearly explained difference.
   currently supported MeshLink SDK capabilities. Proof-only, benchmark-only, or
   otherwise non-normative behaviors MAY be shown only in a clearly labeled
   separate lab section so adopters are not misled about the product surface.
-- **FR-015**: The system MUST support named reference scenarios that make it
+- **FR-015**: The system MUST support named reference workflows that make it
   easy to demonstrate first exchange, lifecycle control, trust reset, power
   behavior, successful delivery, and bounded failure behavior without relying
-  on hidden operator knowledge.
+  on hidden operator knowledge. Lab-only exercises MAY define additional named
+  lab scenarios inside the clearly labeled lab surface.
 - **FR-016**: The system MUST remain useful offline after installation and MUST
   keep retained session history and exported evidence separate from live
   runtime state so operators can tell whether they are viewing current
@@ -252,9 +253,12 @@ operating-system rules force a clearly explained difference.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Reference Scenario**: A named walkthrough or exercise such as first
-  exchange, large transfer, trust reset, or failure handling, with clear
-  prerequisites, steps, and expected success indicators.
+- **Reference Workflow**: A named operator-facing workflow or review surface
+  such as guided first exchange, advanced controls, technical timeline, recent
+  history, solo exploration, or lab.
+- **Lab Scenario**: A named lab-only exercise inside the lab surface, such as
+  proof-only transport investigation, telemetry review, or benchmark-oriented
+  exploration.
 - **Peer Snapshot**: The current reference view of one peer, including
   availability, trust status, connection status, latest delivery outcome, and
   actions the operator can take next.
@@ -262,7 +266,7 @@ operating-system rules force a clearly explained difference.
   change, message event, or diagnostic event, including category, severity,
   peer context, and explanatory detail.
 - **Session Artifact**: A retained summary of one reference-app session,
-  including scenario context, configuration snapshot, peer summary, timeline,
+  including workflow context, configuration snapshot, peer summary, timeline,
   payload metadata, and selected evidence intended for debugging, review, or
   sharing.
 - **Recent Session History**: A clearly separated local record of recent
@@ -289,14 +293,11 @@ operating-system rules force a clearly explained difference.
   MUST be explicitly explained rather than silently diverging.
 - **Performance & Technical Constraints**: The feature MUST preserve offline
   operation, minimum supported mobile platforms, redaction expectations,
-  transport and wire-compatibility guarantees, and the library's existing
-  runtime-dependency budget. Reference-app-only dependencies are confined to
-  `meshlink-reference/` and host-app modules and MUST NOT leak into the shipped
-  `:meshlink` runtime artifact or alter the library's cryptographic or
-  wire-format posture. This specification assumes the root runtime-dependency
-  budget applies to the shipped library artifact; if governance review
-  interprets that budget as repository-wide, additional runtime dependencies
-  for the reference app are out of scope until the constitution is amended.
+  transport and wire-compatibility guarantees, and the shipped `:meshlink`
+  library artifact runtime-dependency budget. Reference-app-only dependencies
+  MAY be introduced only inside `meshlink-reference/` and host-app modules, and
+  they MUST NOT leak into the shipped `:meshlink` runtime artifact or alter the
+  library's cryptographic or wire-format posture.
 
 ## Out of Scope *(mandatory)*
 
@@ -328,9 +329,9 @@ operating-system rules force a clearly explained difference.
   workflows, terminology, and diagnostic categories, excluding only
   operating-system setup differences that are explicitly explained in the app.
 - **SC-004**: A QA or support operator can filter the current session to a
-  specific peer or failure class and export a redacted session artifact with
-  payload metadata and redacted previews in under 60 seconds for a session
-  containing 2,000 timeline entries.
+  specific peer or failure class in under 1 second, and can export a redacted
+  session artifact with payload metadata and redacted previews in under
+  60 seconds, for a session containing 2,000 timeline entries.
 - **SC-005**: After the guided or advanced flow completes, an independent
   reviewer can identify the current mesh state, selected-peer trust status,
   and reason for the last send outcome directly from the app's visible summary
