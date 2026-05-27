@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-class MeshLinkApiContractTest {
+class MeshLinkContractTest {
     @Test
     fun `deliveryRetryDeadline must be greater than zero`() {
         // Arrange / Act

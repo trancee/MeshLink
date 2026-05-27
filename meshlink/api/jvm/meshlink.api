@@ -92,7 +92,7 @@ public final class ch/trancee/meshlink/api/IosKeyGenerationCallbacks {
 	public final fun getGenerateX25519KeyPair ()Lkotlin/jvm/functions/Function0;
 }
 
-public abstract interface class ch/trancee/meshlink/api/MeshLinkApi {
+public abstract interface class ch/trancee/meshlink/api/MeshLink {
 	public abstract fun forgetPeer (Lch/trancee/meshlink/api/PeerId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getDiagnosticEvents ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getMessages ()Lkotlinx/coroutines/flow/Flow;
@@ -101,14 +101,14 @@ public abstract interface class ch/trancee/meshlink/api/MeshLinkApi {
 	public abstract fun pause (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun resume (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun send (Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLinkApi;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLink;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun updateBattery (Lch/trancee/meshlink/api/BatterySnapshot;)V
 }
 
-public final class ch/trancee/meshlink/api/MeshLinkApi$DefaultImpls {
-	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLinkApi;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+public final class ch/trancee/meshlink/api/MeshLink$DefaultImpls {
+	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLink;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract class ch/trancee/meshlink/api/MeshLinkBootstrap {
@@ -155,8 +155,8 @@ public final class ch/trancee/meshlink/api/MeshLinkException$TransportFailure : 
 }
 
 public final class ch/trancee/meshlink/api/MeshLinkFactoriesKt {
-	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLinkApi;
-	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/MeshLinkBootstrap;)Lch/trancee/meshlink/api/MeshLinkApi;
+	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;)Lch/trancee/meshlink/api/MeshLink;
+	public static final fun meshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/MeshLinkBootstrap;)Lch/trancee/meshlink/api/MeshLink;
 }
 
 public abstract class ch/trancee/meshlink/api/MeshLinkState {

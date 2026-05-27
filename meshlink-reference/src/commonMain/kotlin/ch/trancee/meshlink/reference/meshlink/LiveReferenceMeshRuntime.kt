@@ -2,7 +2,7 @@ package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerId
@@ -16,10 +16,10 @@ internal class LiveReferenceMeshRuntime(
     private val appId: String,
     private val meshLinkBootstrap: MeshLinkBootstrap?,
     private val scope: CoroutineScope,
-    private val meshLinkApiFactory: (String, MeshLinkBootstrap?) -> MeshLinkApi =
-        ::createLiveReferenceMeshLinkApi,
+    private val meshLinkFactory: (String, MeshLinkBootstrap?) -> MeshLink =
+        ::createLiveReferenceMeshLink,
 ) {
-    private var meshLinkApi: MeshLinkApi? = null
+    private var meshLink: MeshLink? = null
     private var flowsBound: Boolean = false
 
     suspend fun start(
@@ -28,7 +28,7 @@ internal class LiveReferenceMeshRuntime(
         sessionProjector: LiveReferenceSessionProjector,
     ): Result<StartResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
-        return runCatching { requireMeshLinkApi().start() }
+        return runCatching { requireMeshLink().start() }
     }
 
     suspend fun pause(
@@ -37,7 +37,7 @@ internal class LiveReferenceMeshRuntime(
         sessionProjector: LiveReferenceSessionProjector,
     ): Result<PauseResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
-        return runCatching { requireMeshLinkApi().pause() }
+        return runCatching { requireMeshLink().pause() }
     }
 
     suspend fun resume(
@@ -46,7 +46,7 @@ internal class LiveReferenceMeshRuntime(
         sessionProjector: LiveReferenceSessionProjector,
     ): Result<ResumeResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
-        return runCatching { requireMeshLinkApi().resume() }
+        return runCatching { requireMeshLink().resume() }
     }
 
     suspend fun stop(
@@ -55,7 +55,7 @@ internal class LiveReferenceMeshRuntime(
         sessionProjector: LiveReferenceSessionProjector,
     ): Result<StopResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
-        return runCatching { requireMeshLinkApi().stop() }
+        return runCatching { requireMeshLink().stop() }
     }
 
     suspend fun send(
@@ -68,7 +68,7 @@ internal class LiveReferenceMeshRuntime(
     ): Result<SendResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
         return runCatching {
-            requireMeshLinkApi()
+            requireMeshLink()
                 .send(
                     peerId = PeerId(peerId),
                     payload = payloadText.encodeToByteArray(),
@@ -84,11 +84,11 @@ internal class LiveReferenceMeshRuntime(
         sessionProjector: LiveReferenceSessionProjector,
     ): Result<ForgetPeerResult> {
         ensureBindings(stateStore, nowProvider, sessionProjector)
-        return runCatching { requireMeshLinkApi().forgetPeer(PeerId(peerId)) }
+        return runCatching { requireMeshLink().forgetPeer(PeerId(peerId)) }
     }
 
     suspend fun close(): Unit {
-        meshLinkApi?.let { api -> runCatching { api.stop() } }
+        meshLink?.let { api -> runCatching { api.stop() } }
     }
 
     private fun ensureBindings(
@@ -102,15 +102,14 @@ internal class LiveReferenceMeshRuntime(
         flowsBound = true
         bindLiveReferenceControllerFlows(
             scope = scope,
-            meshLinkApi = requireMeshLinkApi(),
+            meshLink = requireMeshLink(),
             stateStore = stateStore,
             nowProvider = nowProvider,
             sessionProjector = sessionProjector,
         )
     }
 
-    private fun requireMeshLinkApi(): MeshLinkApi {
-        return meshLinkApi
-            ?: meshLinkApiFactory(appId, meshLinkBootstrap).also { api -> meshLinkApi = api }
+    private fun requireMeshLink(): MeshLink {
+        return meshLink ?: meshLinkFactory(appId, meshLinkBootstrap).also { api -> meshLink = api }
     }
 }

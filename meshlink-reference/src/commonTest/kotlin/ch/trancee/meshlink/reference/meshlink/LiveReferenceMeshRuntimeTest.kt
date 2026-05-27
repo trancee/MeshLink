@@ -4,7 +4,7 @@ import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
@@ -25,15 +25,15 @@ import kotlinx.coroutines.test.runTest
 
 class LiveReferenceMeshRuntimeTest {
     @Test
-    fun sendDelegatesPeerIdPayloadAndPriorityToMeshLinkApi() = runTest {
+    fun sendDelegatesPeerIdPayloadAndPriorityToMeshLink() = runTest {
         // Arrange
-        val api = RecordingMeshLinkApi()
+        val api = RecordingMeshLink()
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
                 meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
-                meshLinkApiFactory = { _, _ -> api },
+                meshLinkFactory = { _, _ -> api },
             )
         val stateStore = referenceStateStore()
         val sessionProjector = LiveReferenceSessionProjector(stateStore)
@@ -59,13 +59,13 @@ class LiveReferenceMeshRuntimeTest {
     @Test
     fun forgetPeerDelegatesTheRuntimePeerId() = runTest {
         // Arrange
-        val api = RecordingMeshLinkApi()
+        val api = RecordingMeshLink()
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
                 meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
-                meshLinkApiFactory = { _, _ -> api },
+                meshLinkFactory = { _, _ -> api },
             )
         val stateStore = referenceStateStore()
         val sessionProjector = LiveReferenceSessionProjector(stateStore)
@@ -85,7 +85,7 @@ class LiveReferenceMeshRuntimeTest {
     }
 }
 
-private class RecordingMeshLinkApi : MeshLinkApi {
+private class RecordingMeshLink : MeshLink {
     override val state = MutableStateFlow<MeshLinkState>(MeshLinkState.Uninitialized)
     override val peerEvents: Flow<PeerEvent> = MutableSharedFlow()
     override val diagnosticEvents: Flow<DiagnosticEvent> = MutableSharedFlow()

@@ -70,7 +70,7 @@ or routing is a correctness and security risk.
 MeshLink's public developer experience MUST behave the same across
 Android and iOS.
 
-- The primary public API surface, currently `MeshLinkApi`, MUST be
+- The primary public API surface, currently `MeshLink`, MUST be
   identical in shape across all targets. Platform differences MUST stay
   behind consumer-invisible `expect/actual` implementations.
 - Configuration MUST use one cross-platform DSL builder, currently

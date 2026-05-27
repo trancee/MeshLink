@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.meshLink
@@ -61,10 +61,10 @@ internal fun createLiveReferenceInitialSnapshot(
     )
 }
 
-internal fun createLiveReferenceMeshLinkApi(
+internal fun createLiveReferenceMeshLink(
     appId: String,
     meshLinkBootstrap: MeshLinkBootstrap?,
-): MeshLinkApi {
+): MeshLink {
     val config = meshLinkConfig {
         this.appId = appId
         regulatoryRegion = RegulatoryRegion.DEFAULT
@@ -79,25 +79,25 @@ internal fun createLiveReferenceMeshLinkApi(
 
 internal fun bindLiveReferenceControllerFlows(
     scope: CoroutineScope,
-    meshLinkApi: MeshLinkApi,
+    meshLink: MeshLink,
     stateStore: ReferenceControllerStateStore,
     nowProvider: () -> Long,
     sessionProjector: LiveReferenceSessionProjector,
 ): Unit {
     scope.launch {
-        meshLinkApi.state.collect { meshState ->
+        meshLink.state.collect { meshState ->
             stateStore.updateSession(meshStateLabel = meshState.toString())
         }
     }
     scope.launch {
-        meshLinkApi.peerEvents.collect { event ->
+        meshLink.peerEvents.collect { event ->
             applyPeerEvent(stateStore = stateStore, nowProvider = nowProvider, event = event)
         }
     }
     scope.launch {
-        meshLinkApi.diagnosticEvents.collect { event -> sessionProjector.recordDiagnostic(event) }
+        meshLink.diagnosticEvents.collect { event -> sessionProjector.recordDiagnostic(event) }
     }
     scope.launch {
-        meshLinkApi.messages.collect { message -> sessionProjector.recordInboundMessage(message) }
+        meshLink.messages.collect { message -> sessionProjector.recordInboundMessage(message) }
     }
 }

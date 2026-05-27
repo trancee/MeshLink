@@ -2,7 +2,7 @@ package ch.trancee.meshlink.platform
 
 import ch.trancee.meshlink.api.AndroidContextMeshLinkBootstrap
 import ch.trancee.meshlink.api.AndroidFactoryTestMeshLinkBootstrap
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.config.MeshLinkConfig
@@ -15,14 +15,11 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 private const val ANDROID_BOOTSTRAP_REQUIRED_MESSAGE =
     "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
 
-internal actual fun createMeshLink(config: MeshLinkConfig): MeshLinkApi {
+internal actual fun createMeshLink(config: MeshLinkConfig): MeshLink {
     throw MeshLinkException.InvalidConfiguration(ANDROID_BOOTSTRAP_REQUIRED_MESSAGE)
 }
 
-internal actual fun createMeshLink(
-    config: MeshLinkConfig,
-    bootstrap: MeshLinkBootstrap,
-): MeshLinkApi {
+internal actual fun createMeshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink {
     if (bootstrap === AndroidFactoryTestMeshLinkBootstrap) {
         return createFactoryTestMeshLink(config = config)
     }
@@ -52,7 +49,7 @@ internal actual fun createMeshLink(
     )
 }
 
-private fun createFactoryTestMeshLink(config: MeshLinkConfig): MeshLinkApi {
+private fun createFactoryTestMeshLink(config: MeshLinkConfig): MeshLink {
     val secureStorage = InMemorySecureStorage()
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity =

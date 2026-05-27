@@ -47,12 +47,12 @@ Create one long-lived MeshLink runtime for your app process:
 import android.content.Context
 import ch.trancee.meshlink.api.androidMeshLinkBootstrap
 import ch.trancee.meshlink.api.meshLink
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
 
-fun createMeshLink(context: Context): MeshLinkApi {
+fun createMeshLink(context: Context): MeshLink {
     val config: MeshLinkConfig = meshLinkConfig {
         appId = "com.example.meshlink.tutorial"
         regulatoryRegion = RegulatoryRegion.DEFAULT
@@ -75,7 +75,7 @@ Create a controller that:
 - starts the runtime only after the collectors are attached
 
 ```kotlin
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import kotlinx.coroutines.CoroutineScope
@@ -85,7 +85,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class MeshLinkTutorialController(
-    private val meshLink: MeshLinkApi,
+    private val meshLink: MeshLink,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var firstPeerId: PeerId? = null

@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.test
 
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
@@ -118,7 +118,7 @@ internal class MeshTestHarness {
 internal class NodeHandle
 internal constructor(
     internal val peerId: PeerId,
-    internal val api: MeshLinkApi,
+    internal val api: MeshLink,
     internal val transport: VirtualMeshTransport,
     internal val storage: InMemorySecureStorage,
     internal val diagnosticSink: RecordingDiagnosticSink,

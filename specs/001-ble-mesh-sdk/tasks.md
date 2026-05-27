@@ -82,7 +82,7 @@ reviewable.
 
 ### Validation for User Story 1 (REQUIRED) ⚠️
 
-- [X] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
+- [X] T011 [P] [US1] Add API contract tests for lifecycle, TOFU pinning, `deliveryRetryDeadline` validation, `MeshLinkException` wrapping, shared `DiagnosticCode` contract stability, trust-failure outcomes, and direct-message Android/iOS parity expectations in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`
 - [X] T012 [P] [US1] Add two-peer offline direct messaging integration tests for direct send/receive, restart recovery, and end-to-end payload confidentiality in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`
 - [X] T013 [US1] Validate the first-message flow, including default `deliveryRetryDeadline` guidance and proof-integration behavior, against `specs/001-ble-mesh-sdk/quickstart.md`, `meshlink-proof/android/`, and `meshlink-proof/ios/`, then record any corrections directly in the affected docs
 
@@ -275,7 +275,7 @@ release-readiness claim.
   `firstSeenAtEpochMillis` / `lastVerifiedAtEpochMillis`, and does not persist
   developer-visible diagnostics, plaintext payloads, decrypted message content,
   or other disallowed runtime data, using
-  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
   and the affected storage / trust code paths.
 - [X] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
@@ -301,13 +301,13 @@ delivery history.
 - [X] T079 [P] Add explicit `FR-003a` reset/forget/revoke coverage by
   exercising `forgetPeer` / trust-reset flows, then proving the same peer is
   treated as a fresh TOFU candidate on recontact in
-  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/DirectMessagingIntegrationTest.kt`,
   and the affected trust-store code paths.
 - [X] T080 [P] Add explicit missing/revoked BLE permission coverage for the
   blocked-validation edge case by asserting
   `MeshLinkException.PermissionDenied` behavior in
-  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`,
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`,
   adding Android/iOS platform-specific permission-denial tests in
   `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/AndroidPermissionContractTest.kt`
   and
@@ -369,7 +369,7 @@ connection-interval floor without rewriting completed delivery history.
 - [X] T087 [P] Add API contract coverage for the shared `meshLinkConfig`
   builder, platform-factory injection boundaries, and Android/iOS
   configuration parity in
-  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkApiContractTest.kt`
+  `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`
   and `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`.
 - [X] T088 [P] Add discovery-advertisement contract coverage for the fixed
   `4d455348` discovery UUID, 16-byte payload UUID, single-advertisement /

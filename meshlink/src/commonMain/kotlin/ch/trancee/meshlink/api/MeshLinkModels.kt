@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
+import kotlin.experimental.ExperimentalObjCName
+import kotlin.native.ObjCName
 
 /**
  * Stable peer handle used for addressing MeshLink operations and events.
@@ -38,7 +40,7 @@ public enum class DeliveryPriority {
     LOW,
 }
 
-/** Categorizes expected non-exceptional delivery outcomes from [MeshLinkApi.send]. */
+/** Categorizes expected non-exceptional delivery outcomes from [MeshLink.send]. */
 public enum class SendFailureReason {
     PAYLOAD_TOO_LARGE,
     TRANSFER_TIMED_OUT,
@@ -47,7 +49,7 @@ public enum class SendFailureReason {
     TRUST_FAILURE,
 }
 
-/** Result of a call to [MeshLinkApi.send]. */
+/** Result of a call to [MeshLink.send]. */
 public sealed class SendResult {
     /**
      * MeshLink accepted the payload and completed its local protocol path for this send attempt.
@@ -62,7 +64,7 @@ public sealed class SendResult {
     }
 }
 
-/** Idempotent result from [MeshLinkApi.start]. */
+/** Idempotent result from [MeshLink.start]. */
 public sealed class StartResult {
     public data object Started : StartResult()
 
@@ -76,7 +78,7 @@ public sealed class StartResult {
     }
 }
 
-/** Idempotent result from [MeshLinkApi.pause]. */
+/** Idempotent result from [MeshLink.pause]. */
 public sealed class PauseResult {
     public data object Paused : PauseResult()
 
@@ -90,7 +92,7 @@ public sealed class PauseResult {
     }
 }
 
-/** Idempotent result from [MeshLinkApi.resume]. */
+/** Idempotent result from [MeshLink.resume]. */
 public sealed class ResumeResult {
     public data object Resumed : ResumeResult()
 
@@ -104,14 +106,14 @@ public sealed class ResumeResult {
     }
 }
 
-/** Idempotent result from [MeshLinkApi.stop]. */
+/** Idempotent result from [MeshLink.stop]. */
 public sealed class StopResult {
     public data object Stopped : StopResult()
 
     public data object AlreadyStopped : StopResult()
 }
 
-/** Result of a call to [MeshLinkApi.forgetPeer]. */
+/** Result of a call to [MeshLink.forgetPeer]. */
 public sealed class ForgetPeerResult {
     public data object Forgotten : ForgetPeerResult()
 
@@ -124,7 +126,7 @@ public enum class PeerConnectionState {
     DISCONNECTED,
 }
 
-/** Peer-discovery and connectivity events emitted by [MeshLinkApi.peerEvents]. */
+/** Peer-discovery and connectivity events emitted by [MeshLink.peerEvents]. */
 public sealed class PeerEvent {
     /** A peer became visible to the current runtime. */
     public class Found
@@ -176,7 +178,9 @@ public constructor(
  * Lifecycle methods are idempotent and report repeated calls through `Already*` result variants
  * instead of throwing.
  */
-public interface MeshLinkApi {
+@OptIn(ExperimentalObjCName::class)
+@ObjCName(name = "MeshLinkRuntime", swiftName = "MeshLinkRuntime", exact = true)
+public interface MeshLink {
     /** Current lifecycle state for this MeshLink runtime. */
     public val state: kotlinx.coroutines.flow.StateFlow<MeshLinkState>
 

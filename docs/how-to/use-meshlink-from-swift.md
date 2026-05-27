@@ -10,6 +10,9 @@ Use it when:
 - you want the Swift-facing startup, lifecycle, flow-collection, and send
   patterns
 
+In Swift, the Kotlin `MeshLink` interface is exposed as `MeshLink.MeshLinkRuntime` to
+avoid a naming collision with the `MeshLink` framework module.
+
 If your Xcode target does not yet link the generated framework, start with
 [How to add MeshLink to your app](add-meshlink-to-your-app.md).
 For the exact Kotlin-side public contract, use the
@@ -106,7 +109,7 @@ Create the runtime with the top-level `meshLink(config:)` helper:
 import MeshLink
 
 final class MeshLinkService {
-    let api: MeshLinkApi
+    let api: MeshLink.MeshLinkRuntime
 
     init() {
         api = meshLink(config: makeMeshLinkConfig())
@@ -128,7 +131,7 @@ Two practical notes:
 Suspend functions surface as Swift `async` APIs.
 
 ```swift
-func startMesh(api: MeshLinkApi) async throws {
+func startMesh(api: MeshLink.MeshLinkRuntime) async throws {
     let result = try await api.start()
 
     switch onEnum(of: result) {
@@ -141,7 +144,7 @@ func startMesh(api: MeshLinkApi) async throws {
     }
 }
 
-func stopMesh(api: MeshLinkApi) async throws {
+func stopMesh(api: MeshLink.MeshLinkRuntime) async throws {
     let result = try await api.stop()
     print("mesh.stop() -> \(result)")
 }
@@ -154,7 +157,7 @@ return the matching `Already*` or `InvalidState` result variant instead.
 `StateFlow` and `Flow` values surface as `AsyncSequence` values:
 
 ```swift
-func bindFlows(api: MeshLinkApi) {
+func bindFlows(api: MeshLink.MeshLinkRuntime) {
     Task {
         for await state in api.state {
             print("state = \(state)")
@@ -224,7 +227,7 @@ extension String {
 Send with Swift async and switch on the sealed result through `onEnum(of:)`:
 
 ```swift
-func sendHello(api: MeshLinkApi, peerId: PeerId) async throws {
+func sendHello(api: MeshLink.MeshLinkRuntime, peerId: PeerId) async throws {
     let result = try await api.send(
         peerId: peerId,
         payload: "hello mesh from Swift".toKotlinByteArray(),
@@ -267,7 +270,7 @@ api.updateBattery(snapshot: BatterySnapshot(level: 0.42, isCharging: false))
 A stable integration pattern is:
 
 - install native bridges in app startup
-- create one long-lived `MeshLinkApi`
+- create one long-lived `MeshLink.MeshLinkRuntime`
 - translate the generated Swift surface into app-owned view models or services
 - keep product logic working with your own app models, not raw framework
   objects everywhere
@@ -283,6 +286,7 @@ What you get:
 
 - suspend functions surface as `async`
 - `Flow` and `StateFlow` surface as `AsyncSequence`
+- the Kotlin `MeshLink` interface surfaces in Swift as `MeshLink.MeshLinkRuntime`
 - global Kotlin functions lose the older `FileKt` or `*Kt` entry-point names
 - sealed types are easier to switch over through `onEnum(of:)`
 

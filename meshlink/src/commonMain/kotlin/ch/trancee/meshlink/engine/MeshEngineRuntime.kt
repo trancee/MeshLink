@@ -4,7 +4,7 @@ import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
@@ -80,7 +80,7 @@ internal class MeshEngineRuntime
 constructor(
     publishedSurface: MeshEnginePublishedRuntimeSurface,
     private val facadeOperations: MeshEngineRuntimeFacadeOperations,
-) : MeshLinkApi {
+) : MeshLink {
     override val state: StateFlow<MeshLinkState> = publishedSurface.state
     override val peerEvents: Flow<PeerEvent> = publishedSurface.peerEvents
     override val diagnosticEvents: Flow<DiagnosticEvent> = publishedSurface.diagnosticEvents

@@ -60,7 +60,7 @@ The shared public API matches the approved contract, including the factory
 entry points, shared config DSL, lifecycle surface, and 26-code diagnostic
 catalog.
 
-Supporting verification includes `MeshLinkApiContractTest`,
+Supporting verification includes `MeshLinkContractTest`,
 `CrossPlatformParityTest`, and a fresh `apiCheck` pass.
 
 ### 2. TOFU trust, identity change handling, and trust reset

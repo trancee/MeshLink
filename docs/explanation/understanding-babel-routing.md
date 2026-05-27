@@ -88,7 +88,7 @@ Host apps do not need to implement their own routing policy. The public job is
 simpler:
 
 - observe peer and diagnostic events
-- send payloads through `MeshLinkApi`
+- send payloads through `MeshLink`
 - treat routing behavior as runtime-owned infrastructure
 
 If you want the peer-presence side of this story, read

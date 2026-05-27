@@ -27,7 +27,7 @@ For a completeness appendix rendered from the public API dump, use
 |---|---|
 | create a runtime | [Factory entry points](#factory-entry-points) |
 | build config | [Configuration](#configuration) |
-| inspect the main interface | [MeshLinkApi](#meshlinkapi) |
+| inspect the main interface | [MeshLink](#meshlink) |
 | check stream behavior | [Streams](#streams) |
 | check method results | [Runtime methods](#runtime-methods) |
 | check public model types | [Core public types](#core-public-types) |
@@ -41,6 +41,7 @@ These notes matter when you consume the generated Apple framework from Swift.
 
 | Kotlin surface | Swift-facing shape |
 |---|---|
+| `MeshLink` | `MeshLink.MeshLinkRuntime` |
 | `meshLink(config)` | `meshLink(config:)` |
 | `meshLink(config, bootstrap)` | `meshLink(config:bootstrap:)` |
 | `meshLinkConfig { ... }` | `meshLinkConfig { ... }` |
@@ -52,8 +53,8 @@ These notes matter when you consume the generated Apple framework from Swift.
 ## Factory entry points
 
 ```kotlin
-fun meshLink(config: MeshLinkConfig): MeshLinkApi
-fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi
+fun meshLink(config: MeshLinkConfig): MeshLink
+fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
 
 // Android only
@@ -132,10 +133,10 @@ val config = meshLinkConfig {
 }
 ```
 
-## `MeshLinkApi`
+## `MeshLink`
 
 ```kotlin
-interface MeshLinkApi {
+interface MeshLink {
     val state: StateFlow<MeshLinkState>
     val peerEvents: Flow<PeerEvent>
     val diagnosticEvents: Flow<DiagnosticEvent>

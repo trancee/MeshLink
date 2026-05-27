@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
@@ -20,7 +20,7 @@ internal object MeshEngine {
         secureStorage: SecureStorage = InMemorySecureStorage(),
         bleTransport: BleTransport? = null,
         diagnosticSink: DiagnosticSink? = null,
-    ): MeshLinkApi {
+    ): MeshLink {
         return MeshEngineRuntime.assembleMeshEngineRuntime(
             config = config,
             localIdentity = localIdentity,

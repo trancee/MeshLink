@@ -19,7 +19,7 @@ state, diagnostics, and power policy.
 
 ```mermaid
 flowchart TD
-    Host["Host app"] --> Api["MeshLinkApi (public boundary)"]
+    Host["Host app"] --> Api["MeshLink (public boundary)"]
     Api --> Engine["MeshEngine runtime"]
 
     subgraph Services["Internal runtime services"]

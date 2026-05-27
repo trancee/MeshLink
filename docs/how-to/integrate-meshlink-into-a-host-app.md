@@ -53,9 +53,9 @@ Android bootstrap helper.
 import android.content.Context
 import ch.trancee.meshlink.api.androidMeshLinkBootstrap
 import ch.trancee.meshlink.api.meshLink
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 
-fun createAndroidRuntime(context: Context): MeshLinkApi {
+fun createAndroidRuntime(context: Context): MeshLink {
     return meshLink(
         config = meshLinkConfiguration(),
         bootstrap = androidMeshLinkBootstrap(context.applicationContext),
@@ -77,7 +77,7 @@ import SwiftUI
 
 @main
 struct ChatApp: App {
-    let api: MeshLinkApi
+    let api: MeshLink.MeshLinkRuntime
 
     init() {
         installMeshLinkCrypto()
@@ -116,13 +116,13 @@ you call `start()`.
 
 ```kotlin
 import ch.trancee.meshlink.api.InboundMessage
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-fun bindMeshLinkFlows(meshLink: MeshLinkApi, scope: CoroutineScope) {
+fun bindMeshLinkFlows(meshLink: MeshLink, scope: CoroutineScope) {
     scope.launch {
         meshLink.state.collect { state ->
             println("state = $state")
@@ -166,14 +166,14 @@ Create one owner such as a service, app controller, or view model. Bind the
 flows once from that owner, then start and stop the runtime there.
 
 ```kotlin
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class MeshLinkController(
-    private val meshLink: MeshLinkApi,
+    private val meshLink: MeshLink,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -214,11 +214,11 @@ Keep the discovered `PeerId` you want to target and send bytes.
 
 ```kotlin
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
 
-suspend fun sendChatMessage(meshLink: MeshLinkApi, peerId: PeerId, text: String): SendResult {
+suspend fun sendChatMessage(meshLink: MeshLink, peerId: PeerId, text: String): SendResult {
     return meshLink.send(
         peerId = peerId,
         payload = text.encodeToByteArray(),

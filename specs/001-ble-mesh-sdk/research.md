@@ -36,7 +36,7 @@ published runtime artifact.
   because they violate the no-extra-runtime-dependency goal and create KMP or
   audit complexity.
 
-## Decision: Keep the public API thin: `MeshLinkApi` + `MeshLink` shell over an internal `MeshEngine` coordinator
+## Decision: Keep the public runtime surface thin: `MeshLink` over an internal `MeshEngine` coordinator
 
 **Rationale:** Existing repository guidance favors a thin public shell and a single
 internal coordinator that wires subsystems together. This keeps the public API
@@ -358,7 +358,7 @@ interval of `500 ms`.
 Fresh retained verification from this repository state:
 
 - shared JVM contract tests:
-  `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.power.PowerPolicyTest' --tests 'ch.trancee.meshlink.api.MeshLinkApiContractTest' --tests 'ch.trancee.meshlink.api.CrossPlatformParityTest' --console=plain`
+  `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.power.PowerPolicyTest' --tests 'ch.trancee.meshlink.api.MeshLinkContractTest' --tests 'ch.trancee.meshlink.api.CrossPlatformParityTest' --console=plain`
   - result: `BUILD SUCCESSFUL`
   - shared policy assertions now verify:
     - automatic LOW-tier policy resolves `connectionIntervalMillis=500`

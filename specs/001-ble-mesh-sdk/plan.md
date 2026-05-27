@@ -11,8 +11,7 @@ posture for the MeshLink SDK work.
 ## Summary
 
 Implement MeshLink as a Kotlin Multiplatform, library-first SDK centered on a
-single shared `meshlink` module. The public API remains a thin `MeshLinkApi` /
-`MeshLink` shell over an internal `MeshEngine` coordinator. Security is split
+single shared `meshlink` module. The public runtime surface remains a thin `MeshLink` layer over an internal `MeshEngine` coordinator. Security is split
 between Noise XX hop-to-hop sessions on each adjacent link and Noise K
 end-to-end payload sealing between the origin and final destination peers.
 Diagnostics use one shared 26-code `DiagnosticCode` catalog in `commonMain`,

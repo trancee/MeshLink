@@ -39,7 +39,7 @@ flowchart LR
 
 ### `MeshLink` is the API boundary
 
-`MeshLink` implements `MeshLinkApi` and keeps a narrow job:
+`MeshLink` implements `MeshLink` and keeps a narrow job:
 
 - own the public lifecycle surface
 - expose factory entry points

@@ -15,10 +15,12 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.api.androidMeshLinkBootstrap
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
@@ -264,7 +266,7 @@ private object MeshLinkProofRuntime {
     private val logLines: ArrayDeque<String> = ArrayDeque()
 
     private var launchConfig: ProofLaunchConfig = ProofLaunchConfig(appId = "demo.meshlink")
-    private var meshLink: MeshLinkApi? = null
+    private var meshLink: MeshLink? = null
     private var currentLaunchConfig: ProofLaunchConfig? = null
     private var localAdvertisementKeyHash: ByteArray? = null
     private var localAdvertisementKeyHashHex: String? = null
@@ -321,7 +323,7 @@ private object MeshLinkProofRuntime {
                                     deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
                                 }
                             },
-                            context = appContext!!,
+                            bootstrap = androidMeshLinkBootstrap(appContext!!),
                         )
                     } else {
                         null
@@ -1031,7 +1033,7 @@ private object MeshLinkProofRuntime {
         }
     }
 
-    private fun requireMeshLink(): MeshLinkApi {
+    private fun requireMeshLink(): MeshLink {
         return meshLink ?: error("MeshLink transport is not active for the current proof launch config")
     }
 
@@ -1041,7 +1043,7 @@ private object MeshLinkProofRuntime {
         }
         val level = launchConfig.benchmarkBatteryLevel ?: return
         val isCharging = launchConfig.benchmarkIsCharging ?: return
-        requireMeshLink().updateBattery(level = level, isCharging = isCharging)
+        requireMeshLink().updateBattery(BatterySnapshot(level = level, isCharging = isCharging))
         appendLog(
             "BENCHMARK power batteryLevel=$level isCharging=$isCharging powerMode=${launchConfig.powerMode.logLabel()}"
         )

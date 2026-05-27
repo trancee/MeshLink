@@ -11,7 +11,7 @@ import ch.trancee.meshlink.platform.createMeshLink
  *
  * @throws MeshLinkException.InvalidConfiguration on Android when no platform bootstrap is supplied.
  */
-public fun meshLink(config: MeshLinkConfig): MeshLinkApi {
+public fun meshLink(config: MeshLinkConfig): MeshLink {
     return createMeshLink(config = config)
 }
 
@@ -24,6 +24,6 @@ public fun meshLink(config: MeshLinkConfig): MeshLinkApi {
  * @throws MeshLinkException.InvalidConfiguration when [bootstrap] is missing or invalid for the
  *   current platform.
  */
-public fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi {
+public fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink {
     return createMeshLink(config = config, bootstrap = bootstrap)
 }

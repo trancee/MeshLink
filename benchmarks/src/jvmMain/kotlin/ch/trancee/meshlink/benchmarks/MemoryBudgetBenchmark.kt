@@ -2,7 +2,7 @@
 
 package ch.trancee.meshlink.benchmarks
 
-import ch.trancee.meshlink.api.MeshLinkApi
+import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.meshLinkConfig
@@ -107,7 +107,7 @@ private class BenchmarkMeshScenario {
 private class BenchmarkNode
 internal constructor(
     internal val peerId: PeerId,
-    internal val api: MeshLinkApi,
+    internal val api: MeshLink,
     internal val transport: BenchmarkVirtualMeshTransport,
 )
 

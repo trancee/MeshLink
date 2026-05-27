@@ -44,7 +44,7 @@ val config = meshLinkConfig {
 
 - Android calls `meshLink(config, bootstrap = androidMeshLinkBootstrap(context))`.
 - iOS calls `meshLink(config)`.
-- Both factories return the same `MeshLinkApi` surface.
+- Both factories return the same `MeshLink` surface.
 - If local signing, device trust, or reference hardware blocks this step, treat
   that as an environmental blocker for the validation run rather than claiming
   quickstart success.

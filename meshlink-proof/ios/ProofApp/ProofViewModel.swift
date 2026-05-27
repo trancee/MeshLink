@@ -13,7 +13,7 @@ final class ProofViewModel: ObservableObject {
         logs.joined(separator: "\n")
     }
 
-    private let api: MeshLinkApi
+    private let api: MeshLink.MeshLinkRuntime
     private let logFileUrl: URL
     private let launchConfig: ProofLaunchConfig
     private lazy var gattBenchmarkClient: ProofGattBenchmarkClient = ProofGattBenchmarkClient(
@@ -157,7 +157,7 @@ final class ProofViewModel: ObservableObject {
             _ = await sendPayload(
                 to: peer,
                 payload: "hello mesh from iPhone".toKotlinByteArray(),
-                priority: DeliveryPriority.normal,
+                priority: MeshLink.__DeliveryPriority.normal,
                 logPrefix: "mesh.send"
             )
         }
@@ -288,7 +288,7 @@ final class ProofViewModel: ObservableObject {
                 let result = await sendPayload(
                     to: receiptPeerId,
                     payload: receiptPayload.encode().toKotlinByteArray(),
-                    priority: DeliveryPriority.high
+                    priority: MeshLink.__DeliveryPriority.high
                 )
                 appendBenchmarkCorrelation(
                     role: "passive.receipt.result",
@@ -349,7 +349,7 @@ final class ProofViewModel: ObservableObject {
                 _ = await sendPayload(
                     to: peerId,
                     payload: "benchmark warmup".toKotlinByteArray(),
-                    priority: DeliveryPriority.normal,
+                    priority: MeshLink.__DeliveryPriority.normal,
                     benchmarkWarmup: true
                 )
                 try? await Task.sleep(nanoseconds: benchmarkWarmupSettlementDelayNanos)
@@ -384,7 +384,7 @@ final class ProofViewModel: ObservableObject {
                         )
                     }
                 }
-                let result = await sendPayload(to: peerId, payload: payload, priority: DeliveryPriority.normal)
+                let result = await sendPayload(to: peerId, payload: payload, priority: MeshLink.__DeliveryPriority.normal)
                 if let result {
                     appendLog(
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
@@ -441,7 +441,7 @@ final class ProofViewModel: ObservableObject {
         else {
             return
         }
-        api.updateBattery(level: batteryLevel, isCharging: isCharging)
+        api.updateBattery(snapshot: BatterySnapshot(level: batteryLevel, isCharging: isCharging))
         appendLog(
             "BENCHMARK power batteryLevel=\(batteryLevel) isCharging=\(isCharging) powerMode=\(launchConfig.powerModeLabel)"
         )

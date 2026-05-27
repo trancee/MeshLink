@@ -10,8 +10,8 @@ shape must stay identical across platforms.
 ### Factory entry points
 
 ```kotlin
-fun meshLink(config: MeshLinkConfig): MeshLinkApi
-fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLinkApi
+fun meshLink(config: MeshLinkConfig): MeshLink
+fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
 fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap // Android only
 ```
@@ -107,7 +107,7 @@ class MeshLinkConfigBuilder {
 ### Main interface
 
 ```kotlin
-interface MeshLinkApi {
+interface MeshLink {
     val state: StateFlow<MeshLinkState>
     val peerEvents: Flow<PeerEvent>
     val diagnosticEvents: Flow<DiagnosticEvent>
