@@ -1,10 +1,15 @@
 # MeshLink runtime behavior reference
 
-This page describes the runtime semantics of MeshLink.
+This page describes MeshLink runtime semantics.
 
-Use it when you need exact facts about lifecycle boundaries, stream behavior,
-delivery-path selection, persistence, trust-reset effects, and operational
-limits.
+Use it when you need exact facts about:
+
+- lifecycle boundaries
+- stream behavior
+- delivery-path selection
+- persistence and trust-reset effects
+- power-policy behavior
+- operational limits
 
 For setup steps, use
 [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
@@ -12,6 +17,19 @@ For architecture and rationale, use
 [About how MeshLink works](../explanation/about-how-meshlink-works.md).
 For public types and signatures, use the
 [MeshLink SDK API reference](meshlink-sdk-api.md).
+
+## Quick lookup
+
+| Need | Start here |
+|---|---|
+| lifecycle call validity and results | [Lifecycle transitions](#lifecycle-transitions) |
+| what `pause()` or `stop()` clears | [Boundary effects](#boundary-effects) |
+| whether streams replay | [Public stream semantics](#public-stream-semantics) |
+| what persists across restart | [Persistence and volatility](#persistence-and-volatility) |
+| how send-path choice works | [Send-path semantics](#send-path-semantics) |
+| how trust and `forgetPeer()` behave | [Trust semantics](#trust-semantics) |
+| how automatic power mode chooses a tier | [Power-policy semantics](#power-policy-semantics) |
+| current limits and guarantees | [Operational limits and guarantees](#operational-limits-and-guarantees) |
 
 ## Runtime model
 
@@ -42,48 +60,24 @@ A hard run begins on `start()` from `Uninitialized` or `Stopped` and ends on
 | `resume()` | `Paused` | `ResumeResult.Resumed` | `ResumeResult.AlreadyRunning` from `Running`; `ResumeResult.InvalidState(...)` from `Uninitialized` or `Stopped` | resumes transport inside the same hard run, refreshes the current power policy, and emits `MESH_RESUMED` |
 | `stop()` | `Uninitialized`, `Running`, `Paused` | `StopResult.Stopped` | `StopResult.AlreadyStopped` from `Stopped` | ends the current hard run, clears volatile runtime state, clears transfer state, and emits `MESH_STOPPED` |
 
-## Lifecycle boundary effects
+## Boundary effects
 
-### Runtime creation
-
-| Effect | Behavior |
-|---|---|
-| Public lifecycle state | starts in `MeshLinkState.Uninitialized` |
-| Transport activity | not started |
-| Discovery / peer collection | not started |
-| Lifecycle diagnostics | not emitted yet |
-| Local identity preparation | may occur during construction |
-
-### `pause()` boundary
-
-| Area | Behavior |
-|---|---|
-| Hard run | remains active |
-| Transport | paused |
-| Transport event collector | stopped |
-| Presence tracker | cleared |
-| Connected-route view | cleared |
-| Pending hop-session establishment | completed as unreachable |
-| Pinned trust | retained |
-| Outbound / inbound / relay transfer maps | not cleared by `pause()` |
-| Public peer events | `PeerEvent.Lost` is emitted for peers removed from the current runtime view |
-
-### `stop()` boundary
-
-| Area | Behavior |
-|---|---|
-| Hard run | ended |
-| Transport | stopped |
-| Transport event collector | stopped |
-| Presence tracker | cleared |
-| Connected-route view | cleared |
-| Pending hop-session establishment | completed as unreachable |
-| Committed local transfers | aborted with runtime-stopped semantics |
-| Outbound transfer state | cleared |
-| Inbound transfer state | cleared |
-| Relay transfer state | cleared |
-| Pinned trust | retained |
-| Public peer events | `PeerEvent.Lost` is emitted for peers removed from the current runtime view |
+| Area | Construction | `pause()` | `stop()` |
+|---|---|---|---|
+| Public lifecycle state | starts in `MeshLinkState.Uninitialized` | becomes `Paused` | becomes `Stopped` |
+| Hard run | not started yet | remains active | ends |
+| Transport activity | not started | paused | stopped |
+| Transport event collector | not started | stopped | stopped |
+| Discovery / peer collection | not started | current runtime view cleared | current runtime view cleared |
+| Presence tracker | not started | cleared | cleared |
+| Connected-route view | not started | cleared | cleared |
+| Pending hop-session establishment | not started | completed as unreachable | completed as unreachable |
+| Outbound / inbound / relay transfer maps | not started | retained | cleared |
+| Committed local transfers | not started | not aborted by `pause()` | aborted with runtime-stopped semantics |
+| Pinned trust | may be prepared or loaded | retained | retained |
+| Public peer events | none yet | `PeerEvent.Lost` is emitted for peers removed from the current runtime view | `PeerEvent.Lost` is emitted for peers removed from the current runtime view |
+| Lifecycle diagnostics | not emitted yet | emits `MESH_PAUSED` | emits `MESH_STOPPED` |
+| Local identity preparation | may occur during construction | unchanged | unchanged |
 
 ## Runtime-gated waiting behavior
 
@@ -95,8 +89,8 @@ MeshLink gates retry and wait paths on the current hard run.
 | Runtime enters `Paused` | active waits are interrupted and resume only after the runtime becomes `Running` again |
 | Runtime ends its hard run | active waits terminate as hard-run ended |
 
-`deliveryRetryDeadline` is measured against active running time. Paused time does
-not continue the active wait budget.
+`deliveryRetryDeadline` is measured against active running time. Paused time
+does not continue the active wait budget.
 
 ## Public stream semantics
 
@@ -117,7 +111,7 @@ not continue the active wait budget.
 
 ### `InboundMessage` delivery facts
 
-| Field / behavior | Semantics |
+| Field or behavior | Semantics |
 |---|---|
 | `originPeerId` | final sender identity carried through the MeshLink message envelope |
 | `payload` | defensively copied on construction |
@@ -142,18 +136,13 @@ flowchart LR
 
 ## Send-path semantics
 
-### Preconditions and immediate outcomes
+### Preconditions and delivery-mode selection
 
-| Check | Behavior |
+| Condition | Outcome |
 |---|---|
 | runtime state is not `Running` | `send()` throws `MeshLinkException.InvalidStateTransition` |
 | payload size is greater than 64 KiB | returns `SendResult.NotSent(PAYLOAD_TOO_LARGE)` and emits `SIZE_LIMIT_REJECTED` |
-| no transport is available | returns `SendResult.NotSent(UNREACHABLE)` and emits retry / no-route diagnostics |
-
-### Current delivery-path selection
-
-| Condition | Delivery mode |
-|---|---|
+| no transport is available | returns `SendResult.NotSent(UNREACHABLE)` and emits retry or no-route diagnostics |
 | payload size is `<= 1024` bytes | inline message path |
 | payload size is `> 1024` bytes and the next hop is the final destination and the transport delivery budget is at least `16 KiB` | inline message path |
 | all other supported payloads | large-transfer path |
@@ -183,8 +172,8 @@ flowchart TD
 | Maximum supported payload | `64 KiB` |
 | Retry window | bounded by `deliveryRetryDeadline` |
 | Retry persistence | in memory only |
-| Retry survival across `stop()` / restart | does not survive |
-| `SendResult.Sent` meaning | MeshLink completed the delivery path it owns |
+| Retry survival across `stop()` or restart | does not survive |
+| `SendResult.Sent` means | MeshLink completed the delivery path it owns |
 | `SendResult.Sent` does not imply | remote app persistence, user visibility, read receipt, or application-level acknowledgement |
 
 ## Trust semantics
@@ -203,7 +192,7 @@ flowchart TD
 |---|---|
 | persisted trust record for `peerId` | deleted |
 | pending initiator handshake for `peerId` | completed as unreachable |
-| route view for `peerId` | disconnected / retracted through routing mutation |
+| route view for `peerId` | disconnected or retracted through routing mutation |
 | presence view for `peerId` | removed if present |
 | public peer events | `PeerEvent.Lost(peerId)` is emitted when the peer was visible |
 | host-app data | unchanged unless the host app changes it |
@@ -221,7 +210,7 @@ flowchart TD
 
 ### Automatic-mode selection
 
-| Input / condition | Effective behavior |
+| Input or condition | Effective behavior |
 |---|---|
 | runtime has just started and is still inside the bootstrap window | performance tier |
 | device is charging | performance tier |
