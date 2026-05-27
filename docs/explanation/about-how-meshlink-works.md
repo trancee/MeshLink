@@ -23,22 +23,28 @@ The most important thing to understand is that MeshLink is not shaped like a
 transport sessions, routing, trust continuity, transfer state, diagnostics, and
 power policy.
 
-```text
-host app
-   |
-   v
-MeshLinkApi (public boundary)
-   |
-   v
-MeshEngine runtime
-   |
-   +-- lifecycle gate and public streams
-   +-- platform transport bridge
-   +-- hop-session registry
-   +-- route coordinator
-   +-- trust store
-   +-- outbound / inbound / relay transfer pipeline
-   +-- diagnostics sink
+```mermaid
+flowchart TD
+    Host["Host app"] --> Api["MeshLinkApi (public boundary)"]
+    Api --> Engine["MeshEngine runtime"]
+
+    subgraph Services["Internal runtime services"]
+        Streams["Lifecycle gate and public streams"]
+        Transport["Platform transport bridge"]
+        Sessions["Hop-session registry"]
+        Routing["Route coordinator"]
+        Trust["Trust store"]
+        Transfers["Outbound / inbound / relay transfer pipeline"]
+        Diagnostics["Diagnostics sink"]
+    end
+
+    Engine --> Streams
+    Engine --> Transport
+    Engine --> Sessions
+    Engine --> Routing
+    Engine --> Trust
+    Engine --> Transfers
+    Engine --> Diagnostics
 ```
 
 That structure has two practical consequences.
@@ -70,17 +76,17 @@ MeshLink distinguishes between runtime construction and an active mesh run.
 Internally, `start()` begins a new hard run. `pause()` and `resume()` move
 within that run. `stop()` ends it.
 
-```text
-create runtime
-     |
-     v
-Uninitialized -- start() --> Running -- pause() --> Paused -- resume() --> Running
-                                  \                                    /
-                                   \------------ stop() --------------/
-                                                    |
-                                                    v
-                                                 Stopped -- start() --> Running
-                                                             (new hard run)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Uninitialized: create runtime
+    Uninitialized --> Running: start() - new hard run
+    Running --> Paused: pause()
+    Paused --> Running: resume() - same hard run
+    Running --> Stopped: stop() - end hard run
+    Paused --> Stopped: stop() - end hard run
+    Uninitialized --> Stopped: stop()
+    Stopped --> Running: start() - new hard run
 ```
 
 The important distinction is that `pause()` is a soft boundary and `stop()` is
@@ -122,29 +128,15 @@ A peer is not "usable" just because the radio saw it once. MeshLink moves a
 peer through several internal stages before the host app gets a stable delivery
 experience.
 
-```text
-advertisement seen
-      |
-      v
-mesh-domain filter (`appId` / mesh hash)
-      |
-      v
-peer discovered
-      |
-      v
-prewarm hop session
-      |
-      v
-Noise XX hop handshake
-      |
-      v
-TOFU trust pin or trust verification
-      |
-      v
-route updates converge
-      |
-      v
-peer becomes a usable destination or next hop
+```mermaid
+flowchart TD
+    Advertisement["Advertisement seen"] --> Filter["Mesh-domain filter (appId / mesh hash)"]
+    Filter --> Discovered["Peer discovered"]
+    Discovered --> Prewarm["Prewarm hop session"]
+    Prewarm --> Noise["Noise XX hop handshake"]
+    Noise --> Trust["TOFU trust pin / verify"]
+    Trust --> Routes["Route updates converge"]
+    Routes --> Usable["Peer becomes a usable destination or next hop"]
 ```
 
 ### `appId` is the first routing decision
@@ -190,45 +182,22 @@ A call to `send()` is only the public front door. Internally, MeshLink still
 has to choose a delivery shape, establish or reuse sessions, find a route, and
 possibly relay or transfer in chunks.
 
-```text
-app calls send(peerId, payload, priority)
-              |
-              v
-      validate state and size
-              |
-              +--> payload > 64 KiB ---------> NotSent(PAYLOAD_TOO_LARGE)
-              |
-              v
-      choose delivery shape
-              |
-              +--> inline message path
-              |
-              +--> large-transfer path
-              |
-              v
-      resolve route / wait for convergence
-      (bounded by deliveryRetryDeadline)
-              |
-              v
-      ensure hop session to next hop
-              |
-              v
-      seal inner envelope for final recipient
-              |
-              v
-      encrypt transport frame for current hop
-              |
-              v
-      BLE transport sends to next hop
-              |
-              v
-      relay repeats hop decrypt / re-encrypt / forward if needed
-              |
-              v
-      destination verifies sender trust and opens the inner envelope
-              |
-              v
-      host app receives InboundMessage
+```mermaid
+flowchart TD
+    Send["App calls send(peerId, payload, priority)"] --> Validate["Validate runtime state and payload size"]
+    Validate --> Size{"Payload > 64 KiB?"}
+    Size -- Yes --> Reject["NotSent(PAYLOAD_TOO_LARGE)"]
+    Size -- No --> Shape["Choose delivery shape"]
+    Shape --> Inline["Inline message path"]
+    Shape --> Transfer["Large-transfer path"]
+    Inline --> Route["Resolve route / wait for convergence (bounded by deliveryRetryDeadline)"]
+    Transfer --> Route
+    Route --> Session["Ensure hop session to next hop"]
+    Session --> Seal["Seal inner envelope for final recipient"]
+    Seal --> Encrypt["Encrypt transport frame for current hop"]
+    Encrypt --> Relay["BLE transport sends to next hop; relay may decrypt, re-encrypt, and forward"]
+    Relay --> Verify["Destination verifies sender trust and opens the inner envelope"]
+    Verify --> Receive["Host app receives InboundMessage"]
 ```
 
 Several details are easy to miss if you think of `send()` as one atomic action.
@@ -276,18 +245,19 @@ waiting for full reassembly at every hop would make BLE relays much slower.
 A lot of integration confusion comes from not knowing what MeshLink treats as
 volatile and what it treats as continuity.
 
-```text
-PERSISTS BEYOND A RUN
-- pinned trust records
-- app-owned labels, conversations, logs, and UI state
-- platform/bootstrap decisions your app owns
+```mermaid
+flowchart LR
+    Boundary["stop() / start() / app restart boundary"]
 
-VOLATILE WITHIN A RUN
-- current peer visibility
-- route table view
-- active hop sessions
-- in-memory retry scheduling
-- outbound / inbound / relay transfer sessions
+    Boundary --> Trust["Pinned trust records"]
+    Boundary --> AppState["App-owned labels, conversations, logs, and UI state"]
+    Boundary --> Bootstrap["Platform and bootstrap decisions your app owns"]
+
+    Boundary -. clears .-> Peers["Current peer visibility"]
+    Boundary -. clears .-> Routes["Route table view"]
+    Boundary -. clears .-> Sessions["Active hop sessions"]
+    Boundary -. clears .-> Retry["In-memory retry scheduling"]
+    Boundary -. clears .-> Transfers["Outbound / inbound / relay transfer sessions"]
 ```
 
 This is why `stop()` feels stronger than "stop scanning". It is the boundary at
@@ -304,11 +274,12 @@ stream as the answer to every question.
 
 MeshLink deliberately does not do that.
 
-```text
-state ------------ latest lifecycle snapshot ----------> app runtime owner
-peerEvents ------- live visibility changes ------------> peer list / availability UI
-diagnosticEvents - live operator narrative ------------> logs / support / debugging
-messages --------- live inbound payloads --------------> product message handling
+```mermaid
+flowchart LR
+    State["state"] --> StateUse["Latest lifecycle snapshot for the app runtime owner"]
+    PeerEvents["peerEvents"] --> PeerUse["Live visibility changes for peer list and availability UI"]
+    Diagnostics["diagnosticEvents"] --> DiagnosticsUse["Live operator narrative for logs, support, and debugging"]
+    Messages["messages"] --> MessageUse["Live inbound payloads for product message handling"]
 ```
 
 Two stream properties matter a lot in practice.
@@ -430,12 +401,13 @@ shared as possible.
 
 If you want one compact way to think about MeshLink, use this:
 
-```text
-MeshLink = app-owned runtime
-         + local trust continuity
-         + runtime-owned routing and transport policy
-         + event streams for observation
-         + one send contract over several internal delivery paths
+```mermaid
+flowchart LR
+    MeshLink["MeshLink"] --> Runtime["App-owned runtime"]
+    MeshLink --> TrustContinuity["Local trust continuity"]
+    MeshLink --> Policy["Runtime-owned routing and transport policy"]
+    MeshLink --> Observation["Event streams for observation"]
+    MeshLink --> SendContract["One send contract over several internal delivery paths"]
 ```
 
 That model explains most of the library's side effects:

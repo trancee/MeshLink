@@ -17,14 +17,17 @@ For public types and signatures, use the
 
 One constructed MeshLink runtime can span multiple hard runs.
 
-```text
-constructed runtime
-       |
-       +--> Uninitialized -- start() --> Running -- pause() --> Paused -- resume() --> Running
-       |                                  |                                           |
-       |                                  +---------------- stop() -------------------+
-       |
-       +--> Stopped -- start() --> Running
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Uninitialized: construct runtime
+    Uninitialized --> Running: start()
+    Running --> Paused: pause()
+    Paused --> Running: resume()
+    Running --> Stopped: stop()
+    Paused --> Stopped: stop()
+    Uninitialized --> Stopped: stop()
+    Stopped --> Running: start()
 ```
 
 A hard run begins on `start()` from `Uninitialized` or `Stopped` and ends on
@@ -123,17 +126,18 @@ not continue the active wait budget.
 
 ## Persistence and volatility
 
-```text
-PERSISTS ACROSS STOP / START / APP RESTART
-- pinned trust records
-- host-app state outside MeshLink
+```mermaid
+flowchart LR
+    Boundary["stop() / start() / app restart boundary"]
 
-VOLATILE WITHIN THE CURRENT HARD RUN
-- current peer visibility
-- connected-route view
-- active hop sessions and pending session establishment
-- in-memory retry scheduling
-- outbound / inbound / relay transfer state
+    Boundary --> Trust["Pinned trust records"]
+    Boundary --> HostState["Host-app state outside MeshLink"]
+
+    Boundary -. clears .-> PeerView["Current peer visibility"]
+    Boundary -. clears .-> RouteView["Connected-route view"]
+    Boundary -. clears .-> HopSessions["Active hop sessions and pending session establishment"]
+    Boundary -. clears .-> Retry["In-memory retry scheduling"]
+    Boundary -. clears .-> Transfers["Outbound / inbound / relay transfer state"]
 ```
 
 ## Send-path semantics
@@ -153,6 +157,24 @@ VOLATILE WITHIN THE CURRENT HARD RUN
 | payload size is `<= 1024` bytes | inline message path |
 | payload size is `> 1024` bytes and the next hop is the final destination and the transport delivery budget is at least `16 KiB` | inline message path |
 | all other supported payloads | large-transfer path |
+
+```mermaid
+flowchart TD
+    Send["send(peerId, payload)"] --> Running{"Runtime running?"}
+    Running -- No --> Invalid["Throw InvalidStateTransition"]
+    Running -- Yes --> Size{"Payload <= 64 KiB?"}
+    Size -- No --> TooLarge["NotSent(PAYLOAD_TOO_LARGE)<br/>+ SIZE_LIMIT_REJECTED"]
+    Size -- Yes --> Transport{"Transport available?"}
+    Transport -- No --> Unreachable["NotSent(UNREACHABLE)<br/>+ retry / no-route diagnostics"]
+    Transport -- Yes --> Shape{"Inline eligible?"}
+    Shape -- "payload <= 1024 bytes" --> Inline["Inline message path"]
+    Shape -- "direct next hop + budget >= 16 KiB" --> Inline
+    Shape -- Otherwise --> Transfer["Large-transfer path"]
+    Inline --> Route["Resolve route / wait for convergence<br/>(bounded by deliveryRetryDeadline)"]
+    Transfer --> Route
+    Route --> Session["Ensure hop session to next hop"]
+    Session --> Sent["MeshLink completes the delivery path it owns"]
+```
 
 ### Delivery-path facts
 

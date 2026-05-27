@@ -4,8 +4,30 @@
 
 MeshLink keeps a strict top-level split:
 
-```text
-MeshLink (public API shell) -> MeshEngine (internal coordinator) -> subsystems
+```mermaid
+flowchart LR
+    Host["Host app"] --> MeshLink["MeshLink (public API shell)"]
+    MeshLink --> MeshEngine["MeshEngine (internal coordinator)"]
+
+    subgraph Subsystems["Subsystems composed by MeshEngine.create()"]
+        Routing["Routing"]
+        Transfer["Transfer"]
+        Handshake["Handshake / hop sessions"]
+        Presence["Presence"]
+        Power["Power"]
+        Storage["Storage"]
+        Diagnostics["Diagnostics"]
+        Transport["Transport bridge"]
+    end
+
+    MeshEngine --> Routing
+    MeshEngine --> Transfer
+    MeshEngine --> Handshake
+    MeshEngine --> Presence
+    MeshEngine --> Power
+    MeshEngine --> Storage
+    MeshEngine --> Diagnostics
+    MeshEngine --> Transport
 ```
 
 - **`MeshLink`** is the public boundary

@@ -14,14 +14,24 @@ The naive approach is to forget a peer as soon as a BLE link drops. That causes:
 
 ## The three-state model
 
-```text
-         ┌─── BLE connected ───┐
-         │                      │
-         ▼                      │
-    CONNECTED ──── link lost ────► DISCONNECTED ──── 2 sweeps (60s) ────► GONE
-         ▲                                │
-         │                                │
-         └──── BLE reconnects ────────────┘
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "CONNECTED" as Connected
+    state "DISCONNECTED" as Disconnected
+    state "GONE" as Gone
+
+    [*] --> Connected: peer discovered
+    Connected --> Disconnected: link lost
+    Disconnected --> Connected: BLE reconnects
+    Disconnected --> Gone: 2 sweeps (~30-60 s)
+    Gone --> [*]
+
+    note right of Disconnected
+        Grace tracking keeps volatile
+        peer, route, and transfer state
+        alive briefly before cleanup.
+    end note
 ```
 
 ### Connected

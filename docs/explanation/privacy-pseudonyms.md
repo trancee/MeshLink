@@ -23,6 +23,16 @@ That payload contains:
 SHA-256(Ed25519Pub || X25519Pub)
 ```
 
+```mermaid
+flowchart TD
+    Advertisement["BLE discovery packet with two advertised service UUIDs"] --> Fields["Advertised fields: version, power mode, meshHash, L2CAP PSM hint, keyHash"]
+    Fields --> Matching["MeshLink gets deterministic pre-connection matching"]
+    Fields --> Correlation["Passive observers can correlate repeated sightings"]
+    Matching --> Handshake["Noise XX hop handshake"]
+    Handshake --> Trust["TOFU trust pin / verify"]
+    Handshake --> Protected["Full public keys and message plaintext stay off advertisements"]
+```
+
 ## What this changes for privacy
 
 This is a deliberate trade-off.

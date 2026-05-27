@@ -23,6 +23,21 @@ You need:
 
 We will create one controller class and log the full flow.
 
+```mermaid
+sequenceDiagram
+    participant Host as Android host app
+    participant Runtime as MeshLink runtime
+    participant Peer as Proof peer
+
+    Host->>Runtime: create runtime
+    Host->>Runtime: start()
+    Runtime-->>Host: PeerEvent.Found(peerId)
+    Host->>Runtime: send(peerId, "hello mesh")
+    Runtime->>Peer: deliver payload
+    Peer-->>Host: visible proof on receiving device
+    Host->>Runtime: stop()
+```
+
 ## 1. Create the runtime
 
 Create a single long-lived MeshLink runtime for your app process:
