@@ -1,10 +1,10 @@
 # How to run the reference-app physical integration scenarios
 
-Use this guide when you need retained physical evidence for the MeshLink
-reference app, not just scripted UI coverage.
+Use this guide when you need retained physical evidence from the MeshLink
+reference app on real devices.
 
-This guide is for the physical-only behaviors that a simulator or scripted UI
-surface cannot prove on its own:
+It focuses on behaviors that simulators and scripted UI tests cannot prove on
+their own:
 
 - real peer discovery and trust establishment
 - mixed-platform direct delivery
@@ -13,13 +13,12 @@ surface cannot prove on its own:
 - large-transfer delivery over real transports
 - constrained `A → B → C` routed delivery
 - retained redacted export behavior after a live session
-- full-payload export only while the live session is still authoritative
-- teardown side effects such as route retraction and route expiry
+- the live-only full-export boundary
+- teardown signals such as route retraction and route expiry
 
 If you only need deterministic surface coverage for guided, advanced, timeline,
 lab, or blocked-start UI flows, use the scripted Android and iOS workflow tests
-instead. Physical scenarios are for transport, routing, and retained-evidence
-validation.
+instead.
 
 ## Before you start
 
@@ -47,21 +46,20 @@ If Android or iOS is still blocked on permissions, clear that first with
 
 ## Choose the right scenario
 
-| Scenario | What it proves | Why it exists |
+| Scenario | Pick it when you need to prove... | Why it matters |
 |---|---|---|
-| **Direct guided proof** | iPhone sender ↔ one Android passive peer, trust, inbound delivery, retained redacted export | This is the baseline physical proof. If this is not stable, nothing more complex matters. |
-| **Direct pause/resume recovery** | The direct proof after an explicit mesh pause and resume on the sender | This verifies that lifecycle control does not strand a live session or silently break the next send. |
-| **Direct full-export boundary** | A live full-payload export before session end, then a retained redacted export after end | This verifies the export-policy boundary instead of assuming it works from the UI contract alone. |
-| **Direct trust-reset recovery** | One successful send, a real `forgetPeer`, then a second successful send | This verifies that trust reset actually clears the route and that recovery still works on real devices. |
-| **Direct large transfer** | A physically delivered oversized payload rather than the default 19-byte hello | This exercises the transfer path with real radios instead of only the inline hello path. |
-| **Direct XCTest permission recovery** | The same direct proof, but through the physical iPhone XCTest launch path | This is the edge-case runner for first-run Bluetooth prompts and other physical iPhone launch friction. |
-| **Constrained relay proof** | `A = iPhone 15` sender, `B = Samsung` relay, `C = OPPO` passive recipient, with `routeIsDirect=false` | This proves routing, relay forwarding, and recipient-side retained export instead of a sender-only false positive. Temporary-peer promotion remains a valuable supporting signal when that transport path is exercised. |
-| **Physical matrix** | Runs the selected scenarios in order and writes one summary for the full campaign | This keeps physical validation repeatable and makes regressions obvious to reviewers. |
+| **Direct guided proof** | one clean iPhone ↔ Android exchange with retained redacted export | Baseline proof. If this is unstable, stop here first. |
+| **Direct pause/resume recovery** | that pause and resume do not strand the next send | Covers lifecycle recovery on a live mesh. |
+| **Direct full-export boundary** | that live full export and retained redacted export stay separate | Covers the export-policy boundary. |
+| **Direct trust-reset recovery** | that `forgetPeer` really clears state and the next send recovers | Covers trust reset as an end-to-end behavior. |
+| **Direct large transfer** | that a payload larger than the default hello still arrives | Covers the transfer path on real radios. |
+| **Direct XCTest permission recovery** | that the first physical iPhone launch can get past Bluetooth prompt friction | Recovery-only path for first-run device setup problems. |
+| **Constrained relay proof** | a real `A = iPhone 15 → B = Samsung → C = OPPO` routed send with `routeIsDirect=false` | Prevents sender-only relay false positives. |
+| **Physical matrix** | a repeatable multi-scenario campaign with one retained summary | Best for review-ready physical validation. |
 
 ## Run the direct guided proof
 
-Use the stable one-hop proof when you want the fastest end-to-end retained
-artifact.
+Fastest end-to-end physical proof.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -79,8 +77,8 @@ Expected pass signals:
 
 ## Run the direct XCTest permission-recovery path
 
-Use this when the first physical iPhone launch still needs help clearing a
-Bluetooth permission prompt.
+Use this only when the first physical iPhone launch still needs help clearing
+a Bluetooth permission prompt.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -95,8 +93,8 @@ sender path is permission-clean, prefer the normal direct guided proof again.
 
 ## Run the direct pause/resume recovery
 
-Use this when you want to prove that the sender can pause and resume the mesh
-before the first proof send.
+Checks that the sender can pause and resume the mesh before the first proof
+send.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -116,8 +114,8 @@ Expected sender-side physical markers:
 
 ## Run the direct full-export boundary
 
-Use this when you want to verify the live full-export path separately from the
-retained redacted export path.
+Checks the live full-export path separately from the retained redacted export
+path.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -136,8 +134,7 @@ Expected pass signals:
 
 ## Run the direct trust-reset recovery
 
-Use this when you want to verify that `forgetPeer` is not just a UI control but
-an end-to-end recovery path.
+Checks that `forgetPeer` is an end-to-end recovery path, not just a UI control.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -156,8 +153,8 @@ Expected sender-side physical markers:
 
 ## Run the direct large transfer
 
-Use this when you want to verify that the direct proof path still works with a
-larger payload and not only the default hello.
+Checks that the direct proof path still works with a payload larger than the
+default hello.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -175,8 +172,7 @@ Expected sender-side physical markers:
 
 ## Run the constrained relay proof
 
-Use this when you need to prove that the reference app can drive a real routed
-send instead of silently succeeding on a direct peer.
+Checks a real routed send instead of an accidental direct success.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_relay_proof.py \
@@ -205,8 +201,8 @@ this scenario is meant to prevent.
 
 ## Run the full physical matrix
 
-Use the matrix when you want one retained directory that shows which physical
-scenarios passed, which failed, and where to look next.
+Runs a selected scenario set and writes one retained directory that shows what
+passed, what failed, and where to look next.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_physical_matrix.py \

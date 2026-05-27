@@ -1,21 +1,20 @@
 # How to structure a robust MeshLink integration
 
-This guide shows you how to shape a MeshLink integration that stays predictable
-once it moves beyond a proof of concept.
+This guide shows you how to move from a working MeshLink demo to an integration
+that stays predictable in day-to-day app use.
 
 Use it when you want to:
 
-- move from a first working demo to an app-owned integration
 - choose where MeshLink should live in your app architecture
-- add the guardrails that make delivery, trust, and diagnostics easier to
-  reason about
+- keep lifecycle, trust, and delivery behavior easy to reason about
+- add the guardrails that make support and debugging simpler later
 
-If you still need the basic runtime bootstrap steps, use
+If you still need the basic bootstrap steps, use
 [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).
-If you want the design rationale behind these choices, read
+If you want the reasoning behind these recommendations, read
 [About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
 
-## 1. Put MeshLink behind one long-lived app owner
+## 1. Put MeshLink behind one long-lived owner
 
 Create one app-owned MeshLink runtime for the mesh domain you are operating in.
 
@@ -26,42 +25,40 @@ Good owners include:
 - a long-lived view model
 - a shared app runtime object
 
-Keep that runtime alive across many send and receive operations.
+Do **not** create a fresh runtime per screen visit or per send. You will lose
+peer visibility, trust continuity, retry state, and diagnostics exactly when
+you need them most.
 
-Do **not** create a fresh runtime per screen visit or per send. That throws away
-peer visibility, trust continuity, retry state, and diagnostics.
+## 2. Choose `appId` per environment
 
-## 2. Choose `appId` deliberately
+Treat `appId` as a mesh boundary, not as display text.
 
-Treat `appId` as an environment boundary, not as display text.
+A practical default is:
 
-A good default pattern is:
-
-- one production `appId` for production peers
-- one staging `appId` for staging peers
+- one production `appId`
+- one staging `appId`
 - one isolated `appId` for proof, lab, or test work
 
-If devices unexpectedly discover each other, or unexpectedly fail to discover
-one another, check `appId` first.
+If devices are unexpectedly discovering each other, or failing to discover one
+another, check `appId` first.
 
-## 3. Clear platform readiness before you call `start()`
+## 3. Clear platform prerequisites before `start()`
 
-Before you start MeshLink, make sure the platform-specific prerequisites are
-already resolved.
+Make sure platform readiness is already handled before you start MeshLink.
 
 - On Android, request the required Bluetooth and Nearby/Location permissions
   first.
 - On iOS, install the required crypto bridge during app startup and clear the
-  Bluetooth prompt before debugging discovery.
+  Bluetooth prompt before you debug discovery.
 
-Treat permissions and bridge installation as startup prerequisites, not as
-something to debug after routing or trust.
+Treat these as startup prerequisites, not as later routing or trust bugs.
 
-If you are blocked here, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+If you are blocked here, use
+[How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## 4. Collect all four public streams and keep them separate
+## 4. Give each public stream one job
 
-Map each public stream to one clear responsibility:
+Map the public streams to distinct responsibilities in app state:
 
 - `state` → runtime lifecycle state
 - `peerEvents` → peer presence and connectivity
@@ -69,22 +66,23 @@ Map each public stream to one clear responsibility:
 - `messages` → inbound application payloads
 
 Do not try to infer mesh health from `messages` alone. When discovery or
-delivery looks wrong, `diagnosticEvents` is the first place to look.
+delivery looks wrong, `diagnosticEvents` is usually the first place to look.
 
 ## 5. Treat `PeerId` as opaque
 
-Use `PeerId` as a stable handle in your app state, but do not parse business
-meaning out of it.
+Use `PeerId` as a stable routing handle.
 
 A good pattern is:
 
-- keep the `PeerId` as the routing handle
+- keep the `PeerId` in app state
 - store your own human-friendly label next to it
-- log the redacted `PeerId` string form when you need support visibility
+- log the redacted string form when you need support visibility
+
+Do not parse business meaning out of the `PeerId` itself.
 
 ## 6. Treat `SendResult.Sent` as transport success only
 
-`SendResult.Sent` means MeshLink completed its delivery path.
+`SendResult.Sent` means MeshLink completed the delivery path it owns.
 
 It does **not** mean that the remote app:
 
@@ -94,7 +92,7 @@ It does **not** mean that the remote app:
 - produced a user-visible acknowledgement
 
 If your product needs stronger guarantees, add an application-level receipt or
-response message on top of MeshLink.
+response on top of MeshLink.
 
 ## 7. Make trust reset explicit
 
@@ -114,33 +112,34 @@ Do not silently forget peers as part of ordinary retry logic.
 If you use `PowerMode.Automatic`, feed real battery updates into
 `updateBattery()`.
 
-If your app will not own battery observation, prefer an explicit fixed mode and
-make that choice visible in your integration code.
+If your app will not own battery observation, prefer a fixed power mode and
+make that decision visible in your integration code.
 
-For the underlying model, read [Power management](../explanation/power-management.md).
+For the policy model, read [Power management](../explanation/power-management.md).
 
 ## 9. Give diagnostics a home
 
 At minimum, keep MeshLink diagnostics visible in development builds.
 
-A stronger production-shaped pattern is to expose diagnostics in:
+A stronger production-shaped pattern is to expose diagnostics in one or more of
+these places:
 
 - a hidden support screen
 - an operator log surface
 - structured app logging
 - issue-reproduction notes
 
-Keep diagnostics separate from payload archives. Diagnostics should explain what
-MeshLink is doing without turning logs into message storage.
+Keep diagnostics separate from payload archives. They should explain runtime
+behavior without turning logs into message storage.
 
 ## 10. Verify with the right harness
 
-Use the right validation path for the question you are answering:
+Use the validation path that matches the question you are answering:
 
 - first success path → [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md)
 - host-app bootstrap → [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
-- guided evaluation and logs → [How to evaluate MeshLink with the reference app](evaluate-meshlink-with-the-reference-app.md)
-- real-device physical validation → the proof apps and retained benchmark evidence
+- guided evaluation and timeline review → [How to evaluate MeshLink with the reference app](evaluate-meshlink-with-the-reference-app.md)
+- real-device validation → the proof apps and retained benchmark evidence
 
 ## Quick review checklist
 
@@ -151,7 +150,7 @@ Before you call the integration done, check that you have:
 - platform readiness cleared before `start()`
 - all four public streams wired to distinct responsibilities
 - application-level receipts if your product needs stronger guarantees
-- explicit trust reset UX
+- explicit trust reset UX or operator flow
 - a visible diagnostics surface
 - an intentional power-policy choice
 

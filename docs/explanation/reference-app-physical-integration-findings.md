@@ -1,8 +1,8 @@
 # Physical reference-app integration findings
 
-This page explains what the retained physical reference-app runs taught us, why
-we shaped the physical scenario matrix the way we did, and which optimizations
-matter most for keeping MeshLink stable and easy to evaluate.
+This page summarizes what recent retained physical reference-app runs taught us,
+why the physical scenario matrix is shaped the way it is, and which
+optimizations are worth keeping or pursuing.
 
 ## Why physical scenarios still matter
 
@@ -53,7 +53,7 @@ only on paper.
 
 The direct baseline is necessary, but it is not sufficient on its own.
 
-The new direct scenarios exposed three useful truths.
+The new direct scenarios exposed four useful truths.
 
 ### 1. Direct and relay proofs do not naturally share the same room geometry
 
@@ -272,15 +272,18 @@ manual review, but the next step would be even stronger: emit a small structured
 summary directly from the runtime or automation layer for both direct and relay
 proofs.
 
-### Move passive automation off the UI surface
+### Keep hardening the sender-side recovery scenarios
 
-The current passive proof automation is driven from the reference-app UI layer.
-That is convenient, but the latest direct-device runs suggest it is not equally
-robust on every Android device role and placement.
+The passive-side blind spot is fixed, but two advanced direct scenarios still
+expose real sender/runtime issues:
 
-A better next step would be to move passive proof orchestration into a
-non-Compose automation engine attached to the live session/runtime surface. That
-would make retained end/export behavior less sensitive to UI lifecycle quirks.
+- post-resume recovery still expires as `SendResult.NotSent(UNREACHABLE)` on the
+  current iPhone 15 → Samsung setup
+- the first large-transfer proof send can still fail before route establishment
+  completes
+
+The next useful work is therefore better sender-side recovery and observability,
+not more passive-side UI automation.
 
 ## What should stay out of the physical matrix
 

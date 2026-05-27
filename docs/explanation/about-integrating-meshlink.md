@@ -1,138 +1,171 @@
 # About integrating MeshLink well
 
-This page explains what a good MeshLink integration looks like.
+This page explains what good MeshLink integration looks like after the first
+proof of concept works.
 
-It does not walk through setup step by step. For that, use
-[How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
-If you want the deeper runtime mental model and API-boundary side effects, use
-[About how MeshLink works](about-how-meshlink-works.md).
-If you want a shorter production-shaped checklist, use
-[How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md).
-For the exact public surface, use the
-[MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
+It is an explanation page, not a setup guide. Use these docs for the other job
+shapes:
 
-## MeshLink is an app service, not a utility call
+- setup and wiring — [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- production checklist — [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
+- runtime mental model — [About how MeshLink works](about-how-meshlink-works.md)
+- exact public surface — [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 
-MeshLink works best when you treat it as a long-lived app-owned runtime.
+## Treat MeshLink as an app-owned runtime
 
-That means:
+MeshLink works best when one long-lived app-owned object owns it.
 
-- create it once for the app service, controller, or view model that owns mesh behavior
-- keep it alive across many send and receive operations
-- bind its public streams into your app state instead of polling for status
+That owner might be:
 
-A poor integration pattern is creating a fresh runtime per send. That throws
-away discovery, trust continuity, diagnostics, retry state, and peer
-visibility.
+- an application service
+- a controller
+- a long-lived view model
+- a shared app runtime object
 
-## `appId` is part of your architecture
+Why this matters:
 
-`appId` is not cosmetic. It defines the logical mesh domain.
+- discovery gets time to converge
+- trust continuity survives across many sends
+- diagnostics tell one coherent story
+- retry and peer state stay attached to the same runtime
 
-Developers should treat it the same way they treat an environment boundary:
+The main anti-pattern is creating a fresh runtime per screen visit or per send.
+That throws away exactly the state that makes MeshLink useful.
 
-- production peers share one production `appId`
-- staging peers use a different staging `appId`
-- local proof and benchmark work often uses an isolated transient `appId`
+## Treat `appId` as a mesh boundary
 
-If devices are unexpectedly discovering each other, the first thing to inspect is whether they are still sharing an `appId`.
+`appId` is not display text. It defines which peers belong to the same logical
+mesh.
 
-## The public streams are the integration surface
+A healthy setup usually means:
 
-MeshLink exposes four distinct signals because they solve different app problems:
+- one production `appId` for production peers
+- one staging `appId` for staging peers
+- one isolated `appId` for proof, lab, or benchmark work
 
-- `state` tells you what the runtime is doing
-- `peerEvents` tells you what nearby peers are doing
-- `diagnosticEvents` tells you what the mesh machinery is doing
-- `messages` tells you what user payloads arrived
+When discovery looks wrong, check `appId` early. A mismatched `appId` often
+looks like "nothing is happening" rather than like a clear error.
 
-Good integrations keep those concerns separate.
+## Keep the four public streams separate
 
-A common mistake is using `messages` as the only source of truth and ignoring diagnostics. That works until you need to explain why delivery is retrying, why a peer disappeared, or why a trust mismatch blocked traffic.
+MeshLink exposes four public streams because each answers a different question:
 
-## `SendResult.Sent` is transport success, not a user read receipt
+- `state` — what is the runtime doing right now?
+- `peerEvents` — which peers are visible and how did that change?
+- `diagnosticEvents` — what is the runtime machinery doing?
+- `messages` — which application payloads arrived?
 
-MeshLink's public `send()` contract describes whether the SDK successfully delivered the payload through the mesh transport path.
+Good integrations keep those responsibilities separate in app state.
 
-That does **not** automatically mean:
+A common failure mode is to look only at `messages`. That works until something
+fails and nobody can explain whether the problem was discovery, trust,
+routing, power policy, or delivery.
 
-- the receiving app surfaced the content to a human
-- the remote app persisted it
-- the user read it
-- the business operation tied to that message completed
+## Model delivery honestly
 
-If your product needs application-level acknowledgement, add an application-level receipt or response message on top of MeshLink rather than overloading `SendResult`.
+`SendResult.Sent` means MeshLink completed the delivery path it owns.
 
-## Trust reset is a product decision
+It does **not** mean that the remote app:
 
-MeshLink uses local continuity, not central account identity.
+- stored the payload
+- showed it to a user
+- completed a business action
+- sent an application-level acknowledgement
 
-That means trust reset needs an explicit app UX and policy:
+If your product needs that stronger meaning, add an application-level receipt
+or response on top of MeshLink.
 
-- when should the user be allowed to forget a peer?
-- what should happen to cached conversation or device metadata afterward?
-- how should a trust failure be explained?
+## Make trust reset a visible product action
 
-A good integration does not silently call `forgetPeer()` behind the user's back. That turns an identity continuity event into hidden mutable state.
+MeshLink uses local continuity, not central account identity. That makes trust
+reset a product decision, not just a transport detail.
+
+A good integration answers these questions explicitly:
+
+- who is allowed to forget a peer?
+- what happens to labels, conversation history, or device metadata afterward?
+- how is a trust failure explained to the user or operator?
+
+A bad integration silently calls `forgetPeer()` in ordinary retry logic. That
+turns a meaningful identity event into hidden mutable state.
 
 For the underlying model, read [The trust model](trust-model.md).
 
-## The peer lifecycle is intentionally conservative
+## Let MeshLink own peer smoothing
 
-Peers in a BLE mesh are noisy. They appear, disappear, reconnect, and drift through degraded states.
+BLE peer visibility is noisy. Peers disappear briefly, reconnect, and drift
+through degraded transport states.
 
-MeshLink intentionally smooths that churn into a cleaner lifecycle so host apps do not need to reimplement transport timing policy themselves.
+MeshLink intentionally smooths that churn into a cleaner lifecycle so host apps
+do not have to invent their own timers and grace windows.
 
-That is why a good integration should react to the emitted peer lifecycle
-instead of inventing a second timeout system in the UI layer.
+That is why a good integration reacts to `PeerEvent`s instead of layering a
+second peer timeout system on top of them.
 
-For the lifecycle model itself, read [The peer lifecycle model](peer-lifecycle.md).
+For the details, read [The peer lifecycle model](peer-lifecycle.md).
 
-## Diagnostics belong in product-grade tooling
+## Give diagnostics a real home
 
-The best MeshLink integrations treat diagnostics as a first-class surface:
+Diagnostics are part of a production-shaped integration, not just a debugging
+extra.
 
-- development logging
-- support tooling
-- operator views
-- issue reproduction notes
-- in some products, even user-facing troubleshooting copy
+Useful places for them include:
 
-That does not mean dumping every diagnostic into the primary UI. It means
-choosing one place where those signals can be observed when things go wrong.
+- development logs
+- operator tooling
+- support screens
+- issue-reproduction notes
+- user-facing troubleshooting copy in products that need it
 
-Because MeshLink redacts aggressively, diagnostics are also the safest place to reason about runtime behavior without turning logs into plaintext payload archives.
+This does **not** mean that every diagnostic belongs in the main UI. It means
+there should be one deliberate place to inspect runtime behavior when things go
+wrong.
 
-## Automatic power policy only works if you feed it reality
+## Use automatic power mode only when you can support it
 
-`PowerMode.Automatic` is useful because it keeps policy in shared code, but it depends on the host app telling MeshLink when battery conditions change.
+`PowerMode.Automatic` is useful, but it depends on the host app feeding real
+battery updates into MeshLink.
 
-If your product cares about power behavior, make `updateBattery()` part of your battery observation path. Otherwise, choose an explicit fixed `PowerMode` and own that decision deliberately.
+If your app already owns battery observation, wire `updateBattery()` into that
+path.
+
+If it does not, choose a fixed `PowerMode` instead. That is often the cleaner
+and more honest choice.
 
 For the policy model, read [Power management](power-management.md).
 
-## Platform differences should stay at the edges
+## Keep platform code at the edges
 
-MeshLink is intentionally shared-first.
+MeshLink is shared-first. A clean integration keeps platform-specific work near
+startup and bootstrap:
 
-A clean integration keeps platform-specific logic at the edges:
+- Android-specific bootstrap stays where `Context` is available
+- iOS-specific crypto and optional BLE bridge installation stay in native app
+  startup
+- message handling, lifecycle observation, and most product logic stay in
+  shared app code when possible
 
-- Android-specific bootstrap belongs at runtime creation, where `Context` is required
-- iOS-specific crypto and optional BLE transport bridging belong in app-owned native startup code
-- message, diagnostics, lifecycle, and routing behavior stay in shared app logic as much as possible
+That split keeps platform glue small and keeps MeshLink behavior consistent
+across Android and iOS.
 
-That split keeps your host app from re-implementing MeshLink's decisions on each platform.
+## What good looks like
 
-## Use the right document for the right need
+A production-shaped MeshLink integration usually has all of the following:
 
-When teams say "the docs are missing," the real problem is often that the
-right information exists in the wrong form.
+- one long-lived runtime owner
+- one deliberate `appId` per environment
+- separate handling for `state`, `peerEvents`, `diagnosticEvents`, and
+  `messages`
+- application-level receipts if the product needs stronger guarantees than
+  transport success
+- explicit trust reset UX or operator flow
+- a visible diagnostics surface
+- a deliberate power-policy choice
+- platform-specific bootstrap code kept at the edges
 
-Use these docs by question type:
+## Use the right doc for the next question
 
-- **I want to learn by doing** → [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md)
-- **I need to integrate this now** → [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- **I need setup steps** → [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- **I need a production checklist** → [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
 - **I need exact API facts** → [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
-- **I need to understand the design** → the explanation docs in this section
-
-That separation is deliberate. It keeps lessons teachable, guides actionable, reference precise, and explanations readable.
+- **I need the deeper runtime model** → [About how MeshLink works](about-how-meshlink-works.md)

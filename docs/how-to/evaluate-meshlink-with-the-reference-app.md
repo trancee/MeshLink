@@ -1,21 +1,23 @@
 # How to evaluate MeshLink with the reference app
 
-Use this guide when you want to evaluate MeshLink as an SDK and runtime
-experience, not just as a transport proof harness.
+Use this guide when you want to evaluate MeshLink through the reference app as
+one shared Android and iOS operator experience, not just as a transport proof
+harness.
 
-This guide helps you:
+By the end of this guide you will:
 
 - install the Android and iOS reference app builds
 - complete one guided first exchange
 - inspect the advanced controls and technical timeline
 - retain one session and export one redacted artifact
-- decide when to switch to the proof apps or the live-proof harness
+- decide whether to stay in the reference app or switch to the proof apps or
+  live-proof harness
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).
 
 If you already know you need retained physical evidence for direct and relay
-scenarios, skip ahead to
+scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
 
 ## Before you start
@@ -152,15 +154,15 @@ full-payload export is only available from the supported live session before it 
 Use the reference app when you need:
 
 - a guided first proof for SDK evaluation
-- a product-like operator surface
-- technical evidence that is easy to walk through with another engineer
+- a shared Android and iOS operator surface
+- timeline evidence that is easy to walk through with another engineer
 
 Switch to the proof apps or the live-proof harness when you need:
 
-- retained transport validation evidence
+- retained transport-validation evidence
 - physical Android ↔ iPhone proof runs
-- benchmark-only or proof-only behavior that the app keeps isolated from the main
-  reference surfaces
+- proof-only or benchmark-only behavior that the reference app keeps separate
+  from its main surfaces
 
 For proof-specific workflows, use:
 
@@ -211,5 +213,6 @@ After following this guide, you should be able to:
 1. complete a guided first exchange
 2. explain the last trust or delivery outcome from the timeline
 3. inspect retained session history separately from the live run
-4. open the export chooser and export a redacted session artifact
-5. distinguish supported reference behavior from proof-only or benchmark-only behavior
+4. export a redacted session artifact
+5. tell when the reference app is the right tool and when the proof apps or
+   live-proof harness are the better fit

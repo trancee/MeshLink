@@ -54,7 +54,7 @@ public surface changed.
 contributor-facing API browsing output for the SDK and shared reference-app
 module.
 
-**Notes:** Dokka output is supplemental to the human-written Diátaxis docs.
+**Notes:** Dokka output is supplemental to the human-written Diataxis docs.
 
 ### `GATT`
 

@@ -1,20 +1,23 @@
 # How to use MeshLink from Swift
 
-This guide shows you how to consume MeshLink from Swift through the
-Swift-friendly Apple framework surface generated from `:meshlink`.
+This guide shows you how to call MeshLink from Swift through the generated
+`MeshLink` Apple framework.
 
-In MeshLink docs, SKIE refers to the Swift interop tooling used to shape that
-generated framework surface.
+In this repository, SKIE is the Swift interop layer that shapes the generated
+framework surface.
 
-This guide assumes:
+Use this guide when:
 
-- you are calling MeshLink from Swift, not from shared Kotlin code
-- your Xcode app links the generated `MeshLink` framework
-- the `:meshlink` module is generated with SKIE, the Swift interop tooling used in this repository
+- your app code is Swift, not shared Kotlin UI or business logic
+- your Xcode target already links the generated `MeshLink` framework
+- you want the Swift-facing startup, lifecycle, flow-collection, and send
+  patterns
 
-If your Xcode app does not yet link the generated framework, start with [How to add MeshLink to your app](add-meshlink-to-your-app.md).
+If your Xcode app does not yet link the generated framework, start with
+[How to add MeshLink to your app](add-meshlink-to-your-app.md).
 
-For the exact Kotlin-side public contract, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
+For the exact Kotlin-side public contract, use the
+[MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
 ## 1. Install the required iOS bridge during app startup
 
@@ -38,7 +41,7 @@ struct ChatApp: App {
 }
 ```
 
-Prefer installing the crypto bridge through grouped callback objects so the app-owned CryptoKit glue stays organized by responsibility:
+Prefer grouped callback objects so the app-owned CryptoKit glue stays organized by responsibility:
 
 ```swift
 func installMeshLinkCrypto() {
@@ -67,15 +70,20 @@ func installMeshLinkCrypto() {
 }
 ```
 
-Those helper functions remain app-owned. Their contracts must match the MeshLink bridge rules:
+Those helper functions stay app-owned. Their contracts must match the MeshLink bridge rules:
 
 - X25519 and Ed25519 key pairs use 32-byte raw private/public keys
 - Ed25519 signing returns the 64-byte raw signature format
 - ChaCha20-Poly1305 sealing returns `ciphertext || tag`
 
-The older flat `IosCryptoBridge.shared.install(...)` overload still exists, but the grouped callback objects are easier to keep readable as the bridge glue grows.
+The older flat `IosCryptoBridge.shared.install(...)` overload still exists, but
+the grouped form is easier to maintain once the bridge glue grows.
 
-If you need the iPhone-hosted GATT-notify bearer, install `IosBleTransportBridge.shared.install(...)` or, preferably, `installData(...)` during the same startup path. `installData(...)` lets the host app work directly with Swift `Data` / `NSData` and avoids a per-byte bridge hop back into Kotlin.
+If you need the iPhone-hosted GATT-notify bearer, install
+`IosBleTransportBridge.shared.install(...)` or, preferably, `installData(...)`
+during the same startup path. `installData(...)` lets the host app work
+directly with Swift `Data` / `NSData` and avoids a per-byte bridge hop back
+into Kotlin.
 
 Make sure the app has a Bluetooth usage description and that the first-run Bluetooth prompt is handled before you debug discovery or delivery. If you need that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
@@ -272,17 +280,17 @@ A stable integration pattern is:
 
 That keeps the generated Swift names from leaking through your entire app.
 
-## 10. What SKIE does not change by default
+## 10. What SKIE still does not change by default
 
 The current MeshLink setup uses SKIE's stable default features only.
 
 That means:
 
-- suspend functions are `async`
-- `Flow` and `StateFlow` are `AsyncSequence`
+- suspend functions surface as `async`
+- `Flow` and `StateFlow` surface as `AsyncSequence`
 - global Kotlin functions lose the older `FileKt`/`*Kt` entry-point names
 - preview features such as SwiftUI observing and Combine bridges stay off
-- default-argument interop stays off unless maintainers opt in selectively later
+- default-argument interop stays off unless maintainers opt in later
 
 ## Troubleshooting
 
