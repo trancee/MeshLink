@@ -20,6 +20,19 @@ If you only need deterministic surface coverage for guided, advanced, timeline,
 lab, or blocked-start UI flows, use the scripted Android and iOS workflow tests
 instead.
 
+## Quick scenario picker
+
+| Use this when you need to prove... | Scenario |
+|---|---|
+| one clean iPhone ↔ Android exchange with retained redacted export | **Direct guided proof** |
+| that pause and resume do not strand the next send | **Direct pause/resume recovery** |
+| that live full export and retained redacted export stay separate | **Direct full-export boundary** |
+| that `forgetPeer` really clears state and the next send recovers | **Direct trust-reset recovery** |
+| that a payload larger than the default hello still arrives | **Direct large transfer** |
+| that the first physical iPhone launch can get past Bluetooth prompt friction | **Direct XCTest permission recovery** |
+| a real `A = iPhone 15 → B = Samsung → C = OPPO` routed send with `routeIsDirect=false` | **Constrained relay proof** |
+| a repeatable multi-scenario campaign with one retained summary | **Physical matrix** |
+
 ## Before you start
 
 Prepare the following first:
@@ -44,29 +57,27 @@ Keep the relay topology honest:
 If Android or iOS is still blocked on permissions, clear that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## Choose the right scenario
+## Direct runner shape
 
-| Scenario | Pick it when you need to prove... | Why it matters |
-|---|---|---|
-| **Direct guided proof** | one clean iPhone ↔ Android exchange with retained redacted export | Baseline proof. If this is unstable, stop here first. |
-| **Direct pause/resume recovery** | that pause and resume do not strand the next send | Covers lifecycle recovery on a live mesh. |
-| **Direct full-export boundary** | that live full export and retained redacted export stay separate | Covers the export-policy boundary. |
-| **Direct trust-reset recovery** | that `forgetPeer` really clears state and the next send recovers | Covers trust reset as an end-to-end behavior. |
-| **Direct large transfer** | that a payload larger than the default hello still arrives | Covers the transfer path on real radios. |
-| **Direct XCTest permission recovery** | that the first physical iPhone launch can get past Bluetooth prompt friction | Recovery-only path for first-run device setup problems. |
-| **Constrained relay proof** | a real `A = iPhone 15 → B = Samsung → C = OPPO` routed send with `routeIsDirect=false` | Prevents sender-only relay false positives. |
-| **Physical matrix** | a repeatable multi-scenario campaign with one retained summary | Best for review-ready physical validation. |
-
-## Run the direct guided proof
-
-Fastest end-to-end physical proof.
+All direct scenarios use the same runner:
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial> \
+  --android-serial <android-serial-in-direct-range> \
   --ios-device <iphone-15-udid> \
-  --run-dir /tmp/reference_direct_guided
+  [extra flags] \
+  --run-dir <run-dir>
 ```
+
+Use these variants.
+
+### Direct guided proof
+
+Fastest end-to-end physical proof.
+
+Extra flags: none
+
+Suggested run dir: `/tmp/reference_direct_guided`
 
 Expected pass signals:
 
@@ -75,36 +86,36 @@ Expected pass signals:
 - the retained export stays redacted by default
 - the retained history entry is marked as retained
 
-## Run the direct XCTest permission-recovery path
+### Direct XCTest permission recovery
 
-Use this only when the first physical iPhone launch still needs help clearing
-a Bluetooth permission prompt.
+Use this only when the first physical iPhone launch still needs help clearing a
+Bluetooth permission prompt.
+
+Extra flags:
 
 ```bash
-python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial> \
-  --ios-device <iphone-15-udid> \
-  --ios-launch-mode xcuitest \
-  --run-dir /tmp/reference_direct_xcuitest
+--ios-launch-mode xcuitest
 ```
 
-Use this as a recovery tool, not as the only physical proof. Once the physical
-sender path is permission-clean, prefer the normal direct guided proof again.
+Suggested run dir: `/tmp/reference_direct_xcuitest`
 
-## Run the direct pause/resume recovery
+Use this as a recovery tool, not as the main physical proof. Once the physical
+sender path is permission-clean, go back to the normal direct guided proof.
+
+### Direct pause/resume recovery
 
 Checks that the sender can pause and resume the mesh before the first proof
 send.
 
+Extra flags:
+
 ```bash
-python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial-in-direct-range> \
-  --ios-device <iphone-15-udid> \
-  --scenario direct-pause-resume \
-  --run-dir /tmp/reference_direct_pause_resume
+--scenario direct-pause-resume
 ```
 
-Expected sender-side physical markers:
+Suggested run dir: `/tmp/reference_direct_pause_resume`
+
+Expected sender-side markers:
 
 - `pause.requested`
 - `pause.observed`
@@ -112,18 +123,18 @@ Expected sender-side physical markers:
 - `resume.observed`
 - `proof.complete`
 
-## Run the direct full-export boundary
+### Direct full-export boundary
 
 Checks the live full-export path separately from the retained redacted export
 path.
 
+Extra flags:
+
 ```bash
-python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial-in-direct-range> \
-  --ios-device <iphone-15-udid> \
-  --scenario direct-full-export \
-  --run-dir /tmp/reference_direct_full_export
+--scenario direct-full-export
 ```
+
+Suggested run dir: `/tmp/reference_direct_full_export`
 
 Expected pass signals:
 
@@ -132,45 +143,45 @@ Expected pass signals:
 - the retained export still records `operatorOptInRecorded=false`
 - the retained export still excludes `fullPayload`
 
-## Run the direct trust-reset recovery
+### Direct trust-reset recovery
 
 Checks that `forgetPeer` is an end-to-end recovery path, not just a UI control.
 
+Extra flags:
+
 ```bash
-python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial-in-direct-range> \
-  --ios-device <iphone-15-udid> \
-  --scenario direct-trust-reset-recovery \
-  --run-dir /tmp/reference_direct_trust_reset
+--scenario direct-trust-reset-recovery
 ```
 
-Expected sender-side physical markers:
+Suggested run dir: `/tmp/reference_direct_trust_reset`
+
+Expected sender-side markers:
 
 - `trust.reset.requested`
 - `trust.reset.observed`
 - `phase=recovery`
 - `proof.complete ... deliveries=2`
 
-## Run the direct large transfer
+### Direct large transfer
 
 Checks that the direct proof path still works with a payload larger than the
 default hello.
 
+Extra flags:
+
 ```bash
-python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
-  --android-serial <android-serial-in-direct-range> \
-  --ios-device <iphone-15-udid> \
-  --scenario direct-large-transfer \
-  --run-dir /tmp/reference_direct_large_transfer
+--scenario direct-large-transfer
 ```
 
-Expected sender-side physical markers:
+Suggested run dir: `/tmp/reference_direct_large_transfer`
+
+Expected sender-side markers:
 
 - `payload=large-transfer`
 - a send request larger than 4 KiB
 - `proof.complete ... bytes=<large-payload-size>`
 
-## Run the constrained relay proof
+## Constrained relay proof
 
 Checks a real routed send instead of an accidental direct success.
 
@@ -196,10 +207,10 @@ Expected pass signals:
 - the OPPO retained export still stays redacted by default
 
 If the sender completes on a direct route and the passive peer never completes,
-do **not** count that as a passing relay proof. That is the exact false positive
-this scenario is meant to prevent.
+do **not** count that as a passing relay proof. That is the false positive this
+scenario is meant to prevent.
 
-## Run the full physical matrix
+## Full physical matrix
 
 Runs a selected scenario set and writes one retained directory that shows what
 passed, what failed, and where to look next.
@@ -232,26 +243,33 @@ python3 meshlink-reference/scripts/run_headless_reference_physical_matrix.py \
   --scenarios direct-guided,direct-pause-resume,direct-trust-reset-recovery,relay-constrained
 ```
 
-If your relay placement makes direct adjacency impossible, run the direct and
-relay phases separately with different physical placement. The matrix supports
-that split explicitly through `--direct-android-serial` and `--scenarios`.
+Two practical notes:
 
-When both Android serials are provided, the direct runner now force-stops the
-non-participating Android peer before and after each direct scenario so the
-extra device does not silently contaminate the one-hop proof.
+- if your relay placement makes direct adjacency impossible, run the direct and
+  relay phases separately with different physical placement; the matrix supports
+  that through `--direct-android-serial` and `--scenarios`
+- when both Android serials are provided, the direct runner force-stops the
+  non-participating Android peer before and after each direct scenario so the
+  extra device does not silently contaminate the one-hop proof
 
-When passive-side retention is temporarily blocked but you still need sender-side
-physical evidence for lifecycle recovery, trust reset, or large transfer, add
-`--skip-android-completion-wait`. That mode is not a full end-to-end pass, but
-it still gives retained sender logs for the scenario-specific markers.
+When passive-side retention is temporarily blocked but you still need
+sender-side physical evidence for lifecycle recovery, trust reset, or large
+transfer, add:
 
-## Read the retained outputs
+```bash
+--skip-android-completion-wait
+```
 
-Each scenario directory writes the raw logs plus two summary artifacts:
+That mode is not a full end-to-end pass, but it still gives retained sender
+logs for the scenario-specific markers.
 
-- `summary.json` — the scenario-specific completion lines and retained export path
+## Retained outputs
+
+Each scenario directory writes the raw logs plus these summary artifacts:
+
+- `summary.json` — scenario-specific completion lines and retained export path
 - `analysis.json` — machine-readable pass/fail analysis for the scenario
-- `analysis.md` — a reviewer-friendly explanation of what passed, what failed,
+- `analysis.md` — reviewer-friendly explanation of what passed, what failed,
   and what to investigate next
 
 The direct scenario also captures the Android retained history and redacted
@@ -263,56 +281,19 @@ The relay scenario additionally captures:
 - the passive Android identity preferences
 - the relay Android identity preferences
 
-Use the analysis artifact as the review surface. The goal is to stop relying on
-raw log scrolling to decide whether a physical run was meaningful.
+Use the analysis artifact as the main review surface. The goal is to avoid raw
+log scrolling as the primary way to judge whether a physical run was meaningful.
 
-## What counts as a pass
+## Hard pass criteria
 
-Treat these as hard pass criteria:
-
-### Direct proof
-
-- sender completion
-- passive completion
-- retained redacted export captured locally
-- retained history captured locally
-- no full payload bytes in the redacted export
-
-### Direct pause/resume recovery
-
-- all direct-proof criteria
-- sender `pause.requested` and `pause.observed`
-- sender `resume.requested` and `resume.observed`
-
-### Direct full-export boundary
-
-- all direct-proof criteria
-- live full export captured locally
-- full export records operator opt-in and includes full payload content
-- retained export still remains redacted
-
-### Direct trust-reset recovery
-
-- all direct-proof criteria
-- trust reset requested and observed on the sender
-- a second successful recovery send after the reset
-- two deliveries observed for the sender-side proof
-
-### Direct large transfer
-
-- all direct-proof criteria
-- sender requests the large-transfer payload
-- the payload is larger than the inline hello size by a wide margin
-- the passive side records a large inbound payload when full end-to-end retention is available
-
-### Relay proof
-
-- sender completion
-- bootstrap before routed send
-- sender delivery with `routeIsDirect=false`
-- relay queued-forward and delivered-forward observations
-- passive completion
-- no `transport.data.noSession` failure
+| Scenario | Hard pass criteria |
+|---|---|
+| Direct proof | sender completion; passive completion; retained redacted export captured locally; retained history captured locally; no full payload bytes in the redacted export |
+| Direct pause/resume recovery | all direct-proof criteria plus sender `pause.requested`, `pause.observed`, `resume.requested`, and `resume.observed` |
+| Direct full-export boundary | all direct-proof criteria plus live full export captured locally; full export records operator opt-in and includes full payload content; retained export still remains redacted |
+| Direct trust-reset recovery | all direct-proof criteria plus trust reset requested and observed on the sender; a second successful recovery send after the reset; two deliveries observed for the sender-side proof |
+| Direct large transfer | all direct-proof criteria plus sender requests the large-transfer payload; the payload is much larger than the inline hello size; the passive side records a large inbound payload when full end-to-end retention is available |
+| Relay proof | sender completion; bootstrap before routed send; sender delivery with `routeIsDirect=false`; relay queued-forward and delivered-forward observations; passive completion; no `transport.data.noSession` failure |
 
 Everything else is supporting evidence. Useful, but not a substitute for the
 hard criteria above.

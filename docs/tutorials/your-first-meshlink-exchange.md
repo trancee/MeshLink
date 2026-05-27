@@ -1,17 +1,17 @@
 # Your first MeshLink exchange
 
-In this tutorial, we will build a minimal Android host-side MeshLink
-controller, discover a nearby proof peer, and send a first message
-successfully.
+In this tutorial, you will build a minimal Android host-side MeshLink
+controller, discover a nearby proof peer, and send one message successfully.
 
-This lesson is intentionally narrow:
+This lesson stays intentionally narrow:
 
-- we use Android for the shortest path to a visible result
-- we use a proof app on a second device as the receiving peer
+- it uses Android for the shortest path to a visible result
+- it uses a proof app on a second device as the receiving peer
 
-If you still need to add the library to your build, follow [How to add MeshLink to your app](../how-to/add-meshlink-to-your-app.md).
-
-If you need full Android + iOS bootstrap guidance after that, follow [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
+If you still need to add the library to your build, follow
+[How to add MeshLink to your app](../how-to/add-meshlink-to-your-app.md).
+If you need the broader Android and iOS bootstrap guidance afterward, follow
+[How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
 
 ## Before you start
 
@@ -19,9 +19,10 @@ You need:
 
 - an Android app that can depend on MeshLink
 - a second device running one of the MeshLink proof apps
-- the Android host app already has the permissions described in [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md)
+- the Android host app already has the permissions described in
+  [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md)
 
-We will create one controller class and log the full flow.
+You will create one small controller class and log the full flow.
 
 ```mermaid
 sequenceDiagram
@@ -40,7 +41,7 @@ sequenceDiagram
 
 ## 1. Create the runtime
 
-Create a single long-lived MeshLink runtime for your app process:
+Create one long-lived MeshLink runtime for your app process:
 
 ```kotlin
 import android.content.Context
@@ -67,8 +68,11 @@ At this point you have a runtime object, but it is not doing anything yet.
 
 ## 2. Add a tiny controller
 
-Now create a controller that watches peers, keeps the first discovered peer
-ID, and starts the runtime after the collectors are attached.
+Create a controller that:
+
+- watches peers
+- remembers the first discovered peer
+- starts the runtime only after the collectors are attached
 
 ```kotlin
 import ch.trancee.meshlink.api.MeshLinkApi
@@ -134,9 +138,10 @@ class MeshLinkTutorialController(
 }
 ```
 
-## 3. Start the controller
+## 3. Wire it into your app and start it
 
-Wire the controller into a screen, activity, or app-owned service and call `start()`.
+Wire the controller into a screen, activity, or app-owned service and call
+`start()`.
 
 ```kotlin
 class MainViewModel(context: Context) {
@@ -156,57 +161,49 @@ class MainViewModel(context: Context) {
 }
 ```
 
-When you trigger your start action, the first visible result should be a line
-like:
+Expected first visible output:
 
 ```text
 start() -> Started
 ```
 
-## 4. Wait for a nearby peer
+## 4. Wait for a peer and send the first message
 
-Launch a MeshLink proof app on a second device with the same `appId` and wait
+Launch a MeshLink proof app on the second device with the same `appId` and wait
 for discovery.
 
-You should soon see a line like:
+Expected discovery output:
 
 ```text
 Peer found: <peer-id>
 ```
 
-If you do not, stop here and fix discovery before moving on. If the missing
-piece is still platform permission setup, use [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md).
+Then call `sendHello()`.
 
-## 5. Send the first message
-
-Call `sendHello()` after the peer appears.
-
-The expected result is:
+Expected send output:
 
 ```text
 sendHello() -> Sent
 ```
 
-You now have a complete first exchange from a host app through the MeshLink
-runtime.
+If discovery never happens, stop here and fix that first. If the missing piece
+is still platform permission setup, use
+[How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md).
 
-## 6. Verify the result on the receiving device
+## 5. Verify on the receiving device and stop cleanly
 
-On the proof peer, confirm that the message arrived.
-
-The visible result might be a UI entry or a retained log line such as:
+On the proof peer, confirm that the message arrived. The visible result might be
+a UI entry or a retained log line such as:
 
 ```text
 MSG from ... text=hello mesh
 ```
 
-If you see that result, the lesson succeeded.
+If you see that result, the exchange worked.
 
-## 7. Stop cleanly
+Now stop the runtime.
 
-Call `stop()` when your app is done with MeshLink.
-
-The expected final line is:
+Expected final output:
 
 ```text
 stop() -> Stopped
@@ -224,6 +221,9 @@ You now know how to:
 
 Next:
 
-- for production-shaped bootstrap and platform setup, use [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
-- for the complete public API, use the [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
-- for design guidance and best practices, read [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)
+- for broader bootstrap and platform setup, use
+  [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- for the complete public API, use the
+  [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- for design guidance and best practices, read
+  [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)

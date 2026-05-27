@@ -3,23 +3,19 @@
 This guide shows you how to call MeshLink from Swift through the generated
 `MeshLink` Apple framework.
 
-In this repository, SKIE is the Swift interop layer that shapes the generated
-framework surface.
-
-Use this guide when:
+Use it when:
 
 - your app code is Swift, not shared Kotlin UI or business logic
 - your Xcode target already links the generated `MeshLink` framework
 - you want the Swift-facing startup, lifecycle, flow-collection, and send
   patterns
 
-If your Xcode app does not yet link the generated framework, start with
+If your Xcode target does not yet link the generated framework, start with
 [How to add MeshLink to your app](add-meshlink-to-your-app.md).
-
 For the exact Kotlin-side public contract, use the
 [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
-## 1. Install the required iOS bridge during app startup
+## 1. Install the required iOS bridges at app startup
 
 Before creating a MeshLink runtime, install the required crypto bridge.
 
@@ -41,7 +37,8 @@ struct ChatApp: App {
 }
 ```
 
-Prefer grouped callback objects so the app-owned CryptoKit glue stays organized by responsibility:
+Use grouped callback objects so the bridge setup stays organized by
+responsibility:
 
 ```swift
 func installMeshLinkCrypto() {
@@ -70,26 +67,28 @@ func installMeshLinkCrypto() {
 }
 ```
 
-Those helper functions stay app-owned. Their contracts must match the MeshLink bridge rules:
+Bridge rules to keep in mind:
 
-- X25519 and Ed25519 key pairs use 32-byte raw private/public keys
+- X25519 and Ed25519 key pairs use 32-byte raw private and public keys
 - Ed25519 signing returns the 64-byte raw signature format
 - ChaCha20-Poly1305 sealing returns `ciphertext || tag`
 
 The older flat `IosCryptoBridge.shared.install(...)` overload still exists, but
-the grouped form is easier to maintain once the bridge glue grows.
+the grouped form is easier to maintain.
 
-If you need the iPhone-hosted GATT-notify bearer, install
-`IosBleTransportBridge.shared.install(...)` or, preferably, `installData(...)`
-during the same startup path. `installData(...)` lets the host app work
-directly with Swift `Data` / `NSData` and avoids a per-byte bridge hop back
-into Kotlin.
+`IosBleTransportBridge` is optional. Install it only when you need the
+iPhone-hosted GATT-notify bearer. Prefer `installData(...)` when the host app
+can work directly with Swift `Data` or `NSData`, because it avoids an extra
+per-byte bridge copy back into Kotlin.
 
-Make sure the app has a Bluetooth usage description and that the first-run Bluetooth prompt is handled before you debug discovery or delivery. If you need that checklist, use [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+Also make sure the app has a Bluetooth usage description and that the first-run
+Bluetooth prompt is cleared before you debug discovery or delivery. If you need
+that checklist, use
+[How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## 2. Build config values with the direct Swift-visible function
+## 2. Build config and create the runtime
 
-With SKIE enabled, the Kotlin config DSL appears as a global Swift function instead of through `MeshLinkConfigKt`.
+With SKIE enabled, the Kotlin config DSL appears as a global Swift function.
 
 ```swift
 import MeshLink
@@ -101,14 +100,7 @@ func makeMeshLinkConfig() -> MeshLinkConfig {
 }
 ```
 
-Two practical notes:
-
-- keep this example minimal unless you need non-default region or power settings
-- enum case names now come from SKIE-generated Swift enums, so do not rely on older bridge spellings such as `default_`
-
-## 3. Create the runtime from Swift
-
-Use the top-level `meshLink(config:)` helper directly.
+Create the runtime with the top-level `meshLink(config:)` helper:
 
 ```swift
 import MeshLink
@@ -124,10 +116,16 @@ final class MeshLinkService {
 
 On iOS, you do not pass a platform context.
 
+Two practical notes:
 
-## 4. Start and stop with Swift async APIs
+- keep the config example minimal unless you need non-default region or power
+  settings
+- enum case names come from SKIE-generated Swift enums, so do not rely on older
+  bridge spellings such as `default_`
 
-With SKIE enabled, suspend functions surface as Swift `async` APIs.
+## 3. Start, stop, and collect streams with Swift async APIs
+
+Suspend functions surface as Swift `async` APIs.
 
 ```swift
 func startMesh(api: MeshLinkApi) async throws {
@@ -150,27 +148,19 @@ func stopMesh(api: MeshLinkApi) async throws {
 ```
 
 Use the same pattern for `pause`, `resume`, `send`, and `forgetPeer`.
+Repeated lifecycle calls do not throw for expected idempotent cases. They
+return the matching `Already*` or `InvalidState` result variant instead.
 
-Repeated lifecycle calls do not throw for expected idempotent cases. They return the matching `Already*` or `InvalidState` result variant instead.
-
-## 5. Collect state, peer, diagnostic, and message streams with `for await`
-
-`StateFlow` and `Flow` values surface as `AsyncSequence` values.
+`StateFlow` and `Flow` values surface as `AsyncSequence` values:
 
 ```swift
-func observeState(api: MeshLinkApi) {
+func bindFlows(api: MeshLinkApi) {
     Task {
         for await state in api.state {
             print("state = \(state)")
         }
     }
-}
-```
 
-Use separate tasks for peer events, diagnostics, and inbound messages:
-
-```swift
-func bindFlows(api: MeshLinkApi) {
     Task {
         for await event in api.peerEvents {
             switch onEnum(of: event) {
@@ -198,11 +188,17 @@ func bindFlows(api: MeshLinkApi) {
 }
 ```
 
-When the value is an `InboundMessage`, the framework also exposes `receivedAtEpochMillis`, which you can reuse for arrival ordering, logging, or UI timestamps.
+Attach these long-lived tasks before you call `start()` if you need full-session
+visibility. The event streams are live and non-replaying.
 
-## 6. Send bytes from Swift
+When the value is an `InboundMessage`, the framework also exposes
+`receivedAtEpochMillis`, which you can reuse for arrival ordering, logging, or
+UI timestamps.
 
-SKIE does not remove the Kotlin `ByteArray` bridge requirement, so payloads still need a `KotlinByteArray` conversion helper.
+## 4. Send bytes from Swift
+
+SKIE improves naming and concurrency interop, but payloads still need a
+`KotlinByteArray` conversion helper.
 
 ```swift
 import Foundation
@@ -225,7 +221,7 @@ extension String {
 }
 ```
 
-Send with Swift async and match on the sealed result through `onEnum(of:)`:
+Send with Swift async and switch on the sealed result through `onEnum(of:)`:
 
 ```swift
 func sendHello(api: MeshLinkApi, peerId: PeerId) async throws {
@@ -244,68 +240,82 @@ func sendHello(api: MeshLinkApi, peerId: PeerId) async throws {
 }
 ```
 
-Default arguments are still not enabled for Swift, so pass every argument explicitly unless maintainers deliberately turn SKIE default-argument interop on later.
+Default arguments are still not enabled for Swift, so pass every argument
+explicitly unless maintainers opt into that interop later.
 
-## 7. Handle sealed results and events with `onEnum(of:)`
+## 5. Handle results and optional battery updates
 
-SKIE keeps the original Kotlin sealed classes available, but it also generates Swift enums for exhaustive switching through `onEnum(of:)`.
-
-Use that pattern for results and events:
+SKIE keeps the original Kotlin sealed classes available, but it also generates
+Swift enums for exhaustive switching through `onEnum(of:)`.
 
 ```swift
 let peerEventEnum = onEnum(of: somePeerEvent)
 let startResultEnum = onEnum(of: someStartResult)
 ```
 
-That gives Swift exhaustive switching without depending on the older nested Kotlin class names everywhere.
+Use that pattern for public results and events.
 
-## 8. Feed battery state if you use automatic power mode
-
-`updateBattery(snapshot:)` is synchronous on the Swift side.
+If your app owns battery observation and you want automatic power mode to react,
+feed battery snapshots into MeshLink:
 
 ```swift
 api.updateBattery(snapshot: BatterySnapshot(level: 0.42, isCharging: false))
 ```
 
-Do this only if your app actually owns battery observation and wants MeshLink to react to it.
-
-## 9. Keep the Swift surface at the app edge
+## 6. Keep the generated Swift surface at the app edge
 
 A stable integration pattern is:
 
 - install native bridges in app startup
 - create one long-lived `MeshLinkApi`
 - translate the generated Swift surface into app-owned view models or services
-- keep your product logic working with your own app models, not raw framework objects everywhere
+- keep product logic working with your own app models, not raw framework
+  objects everywhere
 
-That keeps the generated Swift names from leaking through your entire app.
+That keeps generated Swift names and bridge-specific details from leaking
+through the whole app.
 
-## 10. What SKIE still does not change by default
+## 7. What SKIE changes, and what it does not
 
-The current MeshLink setup uses SKIE's stable default features only.
+In this repository, MeshLink uses SKIE's stable default features only.
 
-That means:
+What you get:
 
 - suspend functions surface as `async`
 - `Flow` and `StateFlow` surface as `AsyncSequence`
-- global Kotlin functions lose the older `FileKt`/`*Kt` entry-point names
-- preview features such as SwiftUI observing and Combine bridges stay off
-- default-argument interop stays off unless maintainers opt in later
+- global Kotlin functions lose the older `FileKt` or `*Kt` entry-point names
+- sealed types are easier to switch over through `onEnum(of:)`
+
+What you do **not** get by default:
+
+- SwiftUI observing preview features
+- Combine bridges
+- automatic removal of the `KotlinByteArray` payload bridge
+- default-argument interop unless maintainers opt in later
 
 ## Troubleshooting
 
-- **Swift cannot import `MeshLink`** — the generated Apple framework is not linked into the Xcode target yet. Go back to [How to add MeshLink to your app](add-meshlink-to-your-app.md) and confirm the framework build and linker configuration first.
-- **The runtime fails early or discovery never begins on iPhone** — make sure `IosCryptoBridge` is installed before runtime creation and clear the first-run Bluetooth prompt before debugging anything deeper.
-- **Early peer, diagnostic, or message events are missing** — attach your `for await` tasks before you call `start()`. These event streams are live and non-replaying.
-- **Binary payload handling still feels awkward** — this is expected. SKIE improves Swift naming and concurrency interop, but it does not remove the need to convert payload data into `KotlinByteArray`.
+- **Swift cannot import `MeshLink`** — the generated Apple framework is not
+  linked into the Xcode target yet. Go back to
+  [How to add MeshLink to your app](add-meshlink-to-your-app.md) and confirm
+  the framework build and linker configuration first.
+- **The runtime fails early or discovery never begins on iPhone** — make sure
+  `IosCryptoBridge` is installed before runtime creation and clear the first-run
+  Bluetooth prompt before debugging anything deeper.
+- **Early peer, diagnostic, or message events are missing** — attach your
+  `for await` tasks before you call `start()`.
+- **Binary payload handling still feels awkward** — this is expected. SKIE
+  improves Swift naming and concurrency interop, but it does not remove the
+  need to convert payload data into `KotlinByteArray`.
 
 ## Related docs
 
+- [How to add MeshLink to your app](add-meshlink-to-your-app.md)
 - [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md)
+- [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
+- [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - [Glossary and acronym reference](../reference/glossary.md)
 - [Generated public API symbol tables](../reference/generated-public-api.md)
-- [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md)
-- [How to structure a robust MeshLink integration](structure-a-robust-meshlink-integration.md)
 - [About integrating MeshLink well](../explanation/about-integrating-meshlink.md)
