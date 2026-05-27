@@ -8,11 +8,11 @@ import ch.trancee.meshlink.storage.InMemorySecureStorage
 
 internal actual fun installFactoryTestBridges(): Unit = Unit
 
-internal actual fun createAndroidFactoryParityApi(config: MeshLinkConfig): MeshLink {
+internal actual fun createAndroidFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
     return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
 }
 
-internal actual fun createIosFactoryParityApi(config: MeshLinkConfig): MeshLink {
+internal actual fun createIosFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
     val secureStorage = InMemorySecureStorage()
     val cryptoProvider = AndroidCryptoProviderFactory.create()
     val localIdentity =

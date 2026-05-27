@@ -120,21 +120,32 @@ class MeshLinkContractTest {
         // Arrange
         installFactoryTestBridges()
         val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidApi = createAndroidFactoryParityApi(config = config)
-        val iosApi = createIosFactoryParityApi(config = config)
+        val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
+        val iosMeshLink = createIosFactoryParityMeshLink(config = config)
 
         // Act
         val androidResults =
-            listOf(androidApi.start(), androidApi.pause(), androidApi.resume(), androidApi.stop())
-        val iosResults = listOf(iosApi.start(), iosApi.pause(), iosApi.resume(), iosApi.stop())
+            listOf(
+                androidMeshLink.start(),
+                androidMeshLink.pause(),
+                androidMeshLink.resume(),
+                androidMeshLink.stop(),
+            )
+        val iosResults =
+            listOf(
+                iosMeshLink.start(),
+                iosMeshLink.pause(),
+                iosMeshLink.resume(),
+                iosMeshLink.stop(),
+            )
 
         // Assert
         assertEquals(
             androidResults.map { it::class.simpleName },
             iosResults.map { it::class.simpleName },
         )
-        assertEquals(MeshLinkState.Stopped, androidApi.state.value)
-        assertEquals(MeshLinkState.Stopped, iosApi.state.value)
+        assertEquals(MeshLinkState.Stopped, androidMeshLink.state.value)
+        assertEquals(MeshLinkState.Stopped, iosMeshLink.state.value)
     }
 
     @Test
@@ -148,12 +159,12 @@ class MeshLinkContractTest {
                 powerMode = PowerMode.Performance
                 deliveryRetryDeadline = 9.seconds
             }
-            val androidApi = createAndroidFactoryParityApi(config = config)
-            val iosApi = createIosFactoryParityApi(config = config)
+            val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
+            val iosMeshLink = createIosFactoryParityMeshLink(config = config)
             val androidPowerChanged =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {
-                        androidApi.diagnosticEvents.first {
+                        androidMeshLink.diagnosticEvents.first {
                             it.code == DiagnosticCode.POWER_MODE_CHANGED
                         }
                     }
@@ -161,7 +172,7 @@ class MeshLinkContractTest {
             val iosPowerChanged =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {
-                        iosApi.diagnosticEvents.first {
+                        iosMeshLink.diagnosticEvents.first {
                             it.code == DiagnosticCode.POWER_MODE_CHANGED
                         }
                     }
@@ -169,10 +180,10 @@ class MeshLinkContractTest {
 
             try {
                 // Act
-                androidApi.start()
-                iosApi.start()
-                androidApi.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
-                iosApi.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
+                androidMeshLink.start()
+                iosMeshLink.start()
+                androidMeshLink.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
+                iosMeshLink.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
                 val androidDiagnostic = androidPowerChanged.await()
                 val iosDiagnostic = iosPowerChanged.await()
 
@@ -186,8 +197,8 @@ class MeshLinkContractTest {
                 assertEquals("4096", androidDiagnostic.metadata["chunkBudgetBytes"])
                 assertEquals(androidDiagnostic.metadata, iosDiagnostic.metadata)
             } finally {
-                runCatching { androidApi.stop() }
-                runCatching { iosApi.stop() }
+                runCatching { androidMeshLink.stop() }
+                runCatching { iosMeshLink.stop() }
             }
         }
 
@@ -198,7 +209,7 @@ class MeshLinkContractTest {
         val diagnosticSink = RecordingDiagnosticSink()
 
         // Act
-        val api =
+        val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "create.meshlink" },
                 bleTransport = transport,
@@ -206,7 +217,7 @@ class MeshLinkContractTest {
             )
 
         // Assert
-        assertEquals(MeshLinkState.Uninitialized, api.state.value)
+        assertEquals(MeshLinkState.Uninitialized, meshLink.state.value)
         assertEquals(0, transport.startCalls)
         assertEquals(0, transport.pauseCalls)
         assertEquals(0, transport.resumeCalls)
@@ -217,17 +228,17 @@ class MeshLinkContractTest {
     @Test
     fun `lifecycle methods enforce the documented state machine`() = runBlocking {
         // Arrange
-        val api = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
+        val meshLink = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
 
         // Act
-        val stopFromUninitialized = api.stop()
-        val restartFromStopped = api.start()
-        val pauseFromRunning = api.pause()
-        val startFromPaused = api.start()
-        val resumeFromPaused = api.resume()
-        val stopFromRunning = api.stop()
-        val pauseFromStopped = api.pause()
-        val resumeFromStopped = api.resume()
+        val stopFromUninitialized = meshLink.stop()
+        val restartFromStopped = meshLink.start()
+        val pauseFromRunning = meshLink.pause()
+        val startFromPaused = meshLink.start()
+        val resumeFromPaused = meshLink.resume()
+        val stopFromRunning = meshLink.stop()
+        val pauseFromStopped = meshLink.pause()
+        val resumeFromStopped = meshLink.resume()
 
         // Assert
         assertEquals(StopResult.Stopped, stopFromUninitialized)
@@ -252,14 +263,15 @@ class MeshLinkContractTest {
     @Test
     fun `send throws invalid state when meshlink is not running`() = runBlocking {
         // Arrange
-        val api = MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
-        api.start()
-        api.pause()
+        val meshLink =
+            MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
+        meshLink.start()
+        meshLink.pause()
 
         // Act
         val error =
             assertFailsWith<MeshLinkException.InvalidStateTransition> {
-                api.send(PeerId("peer-abcdef"), "hello".encodeToByteArray())
+                meshLink.send(PeerId("peer-abcdef"), "hello".encodeToByteArray())
             }
 
         // Assert
@@ -269,7 +281,7 @@ class MeshLinkContractTest {
     @Test
     fun `start wraps permission exceptions as permission denied`() {
         // Arrange
-        val api =
+        val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "permission.meshlink" },
                 bleTransport =
@@ -293,13 +305,13 @@ class MeshLinkContractTest {
             )
 
         // Act / Assert
-        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking { api.start() } }
+        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking { meshLink.start() } }
     }
 
     @Test
     fun `start wraps transport exceptions as platform failures`() {
         // Arrange
-        val api =
+        val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "failing.meshlink" },
                 bleTransport =
@@ -321,7 +333,7 @@ class MeshLinkContractTest {
             )
 
         // Act / Assert
-        assertFailsWith<MeshLinkException.PlatformFailure> { runBlocking { api.start() } }
+        assertFailsWith<MeshLinkException.PlatformFailure> { runBlocking { meshLink.start() } }
     }
 
     @Test
@@ -333,9 +345,9 @@ class MeshLinkContractTest {
             val sender = harness.createNode("peer-sender")
             val trustStore = TofuTrustStore(receiver.storage)
 
-            receiver.api.start()
-            sender.api.start()
-            sender.api.send(receiver.peerId, "hello".encodeToByteArray())
+            receiver.meshLink.start()
+            sender.meshLink.start()
+            sender.meshLink.send(receiver.peerId, "hello".encodeToByteArray())
             val initialRecord =
                 withTimeout(1_000) {
                     while (trustStore.read(sender.peerId.value) == null) {
@@ -344,13 +356,13 @@ class MeshLinkContractTest {
                     trustStore.read(sender.peerId.value)
                         ?: error("Expected initial trust record to be persisted")
                 }
-            sender.api.stop()
+            sender.meshLink.stop()
             kotlinx.coroutines.delay(10)
             val restartedSender = harness.restartNode(sender)
-            restartedSender.api.start()
+            restartedSender.meshLink.start()
 
             // Act
-            restartedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
+            restartedSender.meshLink.send(receiver.peerId, "hello-again".encodeToByteArray())
             val refreshedRecord =
                 withTimeout(1_000) {
                     var candidate = trustStore.read(sender.peerId.value)
@@ -384,9 +396,9 @@ class MeshLinkContractTest {
             val sender = harness.createNode("peer-sender")
             val trustStore = TofuTrustStore(receiver.storage)
 
-            receiver.api.start()
-            sender.api.start()
-            sender.api.send(receiver.peerId, "hello".encodeToByteArray())
+            receiver.meshLink.start()
+            sender.meshLink.start()
+            sender.meshLink.send(receiver.peerId, "hello".encodeToByteArray())
             val initialRecord =
                 withTimeout(1_000) {
                     while (trustStore.read(sender.peerId.value) == null) {
@@ -399,16 +411,16 @@ class MeshLinkContractTest {
                 receiver.diagnosticSink.events().count {
                     it.code == DiagnosticCode.TRUST_ESTABLISHED
                 }
-            sender.api.stop()
+            sender.meshLink.stop()
             kotlinx.coroutines.delay(50)
 
             // Act
-            val forgetResult = receiver.api.forgetPeer(sender.peerId)
+            val forgetResult = receiver.meshLink.forgetPeer(sender.peerId)
             assertEquals(ForgetPeerResult.Forgotten, forgetResult)
             assertNull(trustStore.read(sender.peerId.value))
             val restartedSender = harness.restartNode(sender)
-            restartedSender.api.start()
-            restartedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
+            restartedSender.meshLink.start()
+            restartedSender.meshLink.send(receiver.peerId, "hello-again".encodeToByteArray())
             val relearnedRecord =
                 withTimeout(1_000) {
                     var candidate = trustStore.read(sender.peerId.value)
@@ -442,20 +454,20 @@ class MeshLinkContractTest {
         val receiver = harness.createNode("peer-receiver")
         val trustedSender = harness.createNode("peer-sender")
 
-        receiver.api.start()
-        trustedSender.api.start()
-        trustedSender.api.send(receiver.peerId, "hello".encodeToByteArray())
+        receiver.meshLink.start()
+        trustedSender.meshLink.start()
+        trustedSender.meshLink.send(receiver.peerId, "hello".encodeToByteArray())
 
         val replacedSender = harness.createNode("peer-sender", identityLabel = "rotated")
-        replacedSender.api.start()
+        replacedSender.meshLink.start()
         val trustFailure = async {
             withTimeout(1_000) {
-                receiver.api.diagnosticEvents.first { it.code == DiagnosticCode.TRUST_FAILURE }
+                receiver.meshLink.diagnosticEvents.first { it.code == DiagnosticCode.TRUST_FAILURE }
             }
         }
 
         // Act
-        replacedSender.api.send(receiver.peerId, "hello-again".encodeToByteArray())
+        replacedSender.meshLink.send(receiver.peerId, "hello-again".encodeToByteArray())
 
         // Assert
         assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)

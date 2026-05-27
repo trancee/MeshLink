@@ -14,25 +14,25 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineTest {
     @Test
-    fun `create wires the provided transport into the returned api lifecycle`() = runBlocking {
+    fun `create wires the provided transport into the returned MeshLink lifecycle`() = runBlocking {
         // Arrange
         val transport = RecordingMeshEngineBleTransport()
-        val api =
+        val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "mesh-engine-test" },
                 bleTransport = transport,
             )
 
         // Act
-        val startResult = api.start()
-        val stopResult = api.stop()
+        val startResult = meshLink.start()
+        val stopResult = meshLink.stop()
 
         // Assert
         assertEquals(ch.trancee.meshlink.api.StartResult.Started, startResult)
         assertEquals(ch.trancee.meshlink.api.StopResult.Stopped, stopResult)
         assertEquals(1, transport.startCalls)
         assertEquals(1, transport.stopCalls)
-        assertEquals(MeshLinkState.Stopped, api.state.value)
+        assertEquals(MeshLinkState.Stopped, meshLink.state.value)
     }
 }
 

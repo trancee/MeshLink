@@ -25,43 +25,43 @@ class CrossPlatformParityTest {
                 appId = "parity.meshlink.${Random.nextInt()}"
                 powerMode = PowerMode.Automatic
             }
-            val androidApi = createAndroidFactoryParityApi(config = config)
-            val iosApi = createIosFactoryParityApi(config = config)
+            val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
+            val iosMeshLink = createIosFactoryParityMeshLink(config = config)
             val androidDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { androidApi.diagnosticEvents.take(5).toList() }
+                    withTimeout(1_000) { androidMeshLink.diagnosticEvents.take(5).toList() }
                 }
             val iosDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { iosApi.diagnosticEvents.take(5).toList() }
+                    withTimeout(1_000) { iosMeshLink.diagnosticEvents.take(5).toList() }
                 }
 
             // Act
             val androidResults =
                 listOf(
-                    androidApi.start(),
-                    androidApi
+                    androidMeshLink.start(),
+                    androidMeshLink
                         .also {
                             it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
                         }
                         .state
                         .value,
-                    androidApi.pause(),
-                    androidApi.resume(),
-                    androidApi.stop(),
+                    androidMeshLink.pause(),
+                    androidMeshLink.resume(),
+                    androidMeshLink.stop(),
                 )
             val iosResults =
                 listOf(
-                    iosApi.start(),
-                    iosApi
+                    iosMeshLink.start(),
+                    iosMeshLink
                         .also {
                             it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
                         }
                         .state
                         .value,
-                    iosApi.pause(),
-                    iosApi.resume(),
-                    iosApi.stop(),
+                    iosMeshLink.pause(),
+                    iosMeshLink.resume(),
+                    iosMeshLink.stop(),
                 )
             val androidDiagnostics = androidDiagnosticsDeferred.await()
             val iosDiagnostics = iosDiagnosticsDeferred.await()

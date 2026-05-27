@@ -39,17 +39,17 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
             delay(250)
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(6_000) { recipient.api.messages.first() }
+                    withTimeout(6_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
-            val sendResult = sender.api.send(recipient.peerId, payload)
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
             val receivedMessage = receivedMessageDeferred.await()
 
             // Assert
@@ -69,17 +69,17 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(sender, recipient)
             harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
 
-            sender.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            recipient.meshLink.start()
             delay(500)
             val frameCountBeforeSend = harness.sentFrames(sender).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(6_000) { recipient.api.messages.first() }
+                    withTimeout(6_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
-            val sendResult = sender.api.send(recipient.peerId, payload)
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
             val receivedMessage = receivedMessageDeferred.await()
             val senderFrameDelta = harness.sentFrames(sender).size - frameCountBeforeSend
 
@@ -112,15 +112,15 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(firstRelay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.api.start()
-            firstRelay.api.start()
-            recipient.api.start()
-            alternateRelay.api.start()
+            sender.meshLink.start()
+            firstRelay.meshLink.start()
+            recipient.meshLink.start()
+            alternateRelay.meshLink.start()
             delay(250)
-            val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+            val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(4_000) { recipient.api.messages.first() }
+                    withTimeout(4_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
@@ -155,20 +155,20 @@ class LargeTransferIntegrationTest {
             val payload = ByteArray(2 * 1024) { index -> ((index * 5) % 251).toByte() }
 
             harness.linkPeers(sender, relay)
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
             delay(250)
             val startedAt = TimeSource.Monotonic.markNow()
 
             // Act
-            val sendResult = sender.api.send(recipient.peerId, payload)
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
 
             // Assert
             val notSent = assertIs<SendResult.NotSent>(sendResult)
             assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
             assertTrue(startedAt.elapsedNow() >= 500.milliseconds)
-            assertNull(withTimeoutOrNull(500) { recipient.api.messages.first() })
+            assertNull(withTimeoutOrNull(500) { recipient.meshLink.messages.first() })
         }
 
     @Test
@@ -188,31 +188,31 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(sender, relay)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
-            val originalSendDeferred = async { sender.api.send(recipient.peerId, payload) }
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            val originalSendDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             awaitDiagnostic(
                 diagnostics = sender.diagnosticSink::events,
                 code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
             )
-            sender.api.stop()
+            sender.meshLink.stop()
             val restartedSender =
                 harness.createNode(
                     peerIdValue = sender.peerId.value,
                     storage = sender.storage,
                     configOverride = senderConfig,
                 )
-            restartedSender.api.start()
+            restartedSender.meshLink.start()
             harness.linkPeers(relay, recipient)
 
             // Act
-            val unexpectedMessage = withTimeoutOrNull(500) { recipient.api.messages.first() }
+            val unexpectedMessage = withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
             val resubmittedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(10_000) { recipient.api.messages.first() }
+                    withTimeout(10_000) { recipient.meshLink.messages.first() }
                 }
-            val resubmittedSendResult = restartedSender.api.send(recipient.peerId, payload)
+            val resubmittedSendResult = restartedSender.meshLink.send(recipient.peerId, payload)
             val resubmittedMessage = resubmittedMessageDeferred.await()
             val originalSendResult = originalSendDeferred.await()
 
@@ -238,13 +238,13 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
             delay(250)
-            val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+            val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
-                withTimeout(6_000) { recipient.api.messages.first() }
+                withTimeout(6_000) { recipient.meshLink.messages.first() }
             }
 
             // Act
@@ -255,7 +255,8 @@ class LargeTransferIntegrationTest {
             harness.releaseHeldDeliveries(relay, recipient)
             val sendResult = sendResultDeferred.await()
             val receivedMessage = receivedMessageDeferred.await()
-            val unexpectedSecondMessage = withTimeoutOrNull(500) { recipient.api.messages.first() }
+            val unexpectedSecondMessage =
+                withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
 
             // Assert
             assertIs<SendResult.Sent>(sendResult)
@@ -276,15 +277,15 @@ class LargeTransferIntegrationTest {
         harness.linkPeers(relay, recipient)
         harness.setMaximumPayloadBytesPerDelivery(512)
 
-        sender.api.start()
-        relay.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        relay.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(10_000) { recipient.api.messages.first() }
+                withTimeout(10_000) { recipient.meshLink.messages.first() }
             }
-        val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+        val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
 
         // Act
         delay(250)
@@ -317,13 +318,13 @@ class LargeTransferIntegrationTest {
         harness.linkPeers(sender, recipient)
         harness.setMaximumPayloadBytesPerDelivery(512)
 
-        sender.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         harness.dropNextDeliveries(recipient, sender, count = 256)
 
         // Act
-        val sendResult = withTimeout(10_000) { sender.api.send(recipient.peerId, payload) }
+        val sendResult = withTimeout(10_000) { sender.meshLink.send(recipient.peerId, payload) }
         val clearedPeers = harness.clearedQueuedOutboundPeers(sender)
 
         // Assert
@@ -346,18 +347,18 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
             delay(250)
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(10_000) { recipient.api.messages.first() }
+                    withTimeout(10_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
-            val sendResult = sender.api.send(recipient.peerId, payload)
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
             val receivedMessage = receivedMessageDeferred.await()
             val recipientFrameDelta =
                 harness.sentFrames(recipient).size - recipientFrameCountBeforeSend
@@ -390,20 +391,20 @@ class LargeTransferIntegrationTest {
         harness.linkPeers(relay, recipient)
         harness.setMaximumPayloadBytesPerDelivery(512)
 
-        sender.api.start()
-        relay.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        relay.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         val frameCountBeforeSend = harness.sentFrames(sender).size
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, oversizedPayload)
+        val sendResult = sender.meshLink.send(recipient.peerId, oversizedPayload)
 
         // Assert
         val notSent = assertIs<SendResult.NotSent>(sendResult)
         assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
         assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
-        assertNull(withTimeoutOrNull(500) { recipient.api.messages.first() })
+        assertNull(withTimeoutOrNull(500) { recipient.meshLink.messages.first() })
     }
 
     private suspend fun awaitDiagnostic(

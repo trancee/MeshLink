@@ -27,13 +27,13 @@ class LiveReferenceMeshRuntimeTest {
     @Test
     fun sendDelegatesPeerIdPayloadAndPriorityToMeshLink() = runTest {
         // Arrange
-        val api = RecordingMeshLink()
+        val meshLink = RecordingMeshLink()
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
                 meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
-                meshLinkFactory = { _, _ -> api },
+                meshLinkFactory = { _, _ -> meshLink },
             )
         val stateStore = referenceStateStore()
         val sessionProjector = LiveReferenceSessionProjector(stateStore)
@@ -51,21 +51,21 @@ class LiveReferenceMeshRuntimeTest {
 
         // Assert
         assertEquals(SendResult.Sent, result.getOrThrow())
-        assertEquals("peer-123456", api.lastSendPeerId)
-        assertContentEquals("payload".encodeToByteArray(), api.lastSendPayload)
-        assertEquals(DeliveryPriority.HIGH, api.lastSendPriority)
+        assertEquals("peer-123456", meshLink.lastSendPeerId)
+        assertContentEquals("payload".encodeToByteArray(), meshLink.lastSendPayload)
+        assertEquals(DeliveryPriority.HIGH, meshLink.lastSendPriority)
     }
 
     @Test
     fun forgetPeerDelegatesTheRuntimePeerId() = runTest {
         // Arrange
-        val api = RecordingMeshLink()
+        val meshLink = RecordingMeshLink()
         val runtime =
             LiveReferenceMeshRuntime(
                 appId = "demo.meshlink.reference",
                 meshLinkBootstrap = null,
                 scope = CoroutineScope(SupervisorJob()),
-                meshLinkFactory = { _, _ -> api },
+                meshLinkFactory = { _, _ -> meshLink },
             )
         val stateStore = referenceStateStore()
         val sessionProjector = LiveReferenceSessionProjector(stateStore)
@@ -81,7 +81,7 @@ class LiveReferenceMeshRuntimeTest {
 
         // Assert
         assertEquals(ForgetPeerResult.Forgotten, result.getOrThrow())
-        assertEquals("peer-abcdef", api.lastForgottenPeerId)
+        assertEquals("peer-abcdef", meshLink.lastForgottenPeerId)
     }
 }
 

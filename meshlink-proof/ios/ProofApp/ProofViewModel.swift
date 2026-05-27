@@ -13,7 +13,7 @@ final class ProofViewModel: ObservableObject {
         logs.joined(separator: "\n")
     }
 
-    private let api: MeshLink.MeshLinkRuntime
+    private let runtime: MeshLink.MeshLinkRuntime
     private let logFileUrl: URL
     private let launchConfig: ProofLaunchConfig
     private lazy var gattBenchmarkClient: ProofGattBenchmarkClient = ProofGattBenchmarkClient(
@@ -54,7 +54,7 @@ final class ProofViewModel: ObservableObject {
             builder.appId = resolvedLaunchConfig.appId
             builder.powerMode = resolvedLaunchConfig.powerMode
         }
-        api = meshLink(config: config)
+        runtime = meshLink(config: config)
         if resolvedLaunchConfig.benchmarkTransport == .meshLink {
             startTransportLogCaptureIfNeeded()
             bindFlows()
@@ -101,7 +101,7 @@ final class ProofViewModel: ObservableObject {
                 return
             }
             do {
-                let result = try await self.api.start()
+                let result = try await self.runtime.start()
                 self.appendLog("mesh.start() -> \(result)")
                 if self.launchConfig.benchmarkColdStart {
                     self.appendLog(
@@ -136,7 +136,7 @@ final class ProofViewModel: ObservableObject {
                 return
             }
             do {
-                let result = try await self.api.stop()
+                let result = try await self.runtime.stop()
                 self.appendLog("mesh.stop() -> \(result)")
             } catch {
                 self.appendLog("mesh.stop() failed: \(error.localizedDescription)")
@@ -170,25 +170,25 @@ final class ProofViewModel: ObservableObject {
         guard flowTasks.isEmpty else {
             return
         }
-        let api = api
+        let currentRuntime = runtime
         flowTasks = [
             Task { @MainActor [weak self] in
-                for await state in api.state {
+                for await state in currentRuntime.state {
                     self?.stateText = String(describing: state)
                 }
             },
             Task { @MainActor [weak self] in
-                for await event in api.peerEvents {
+                for await event in currentRuntime.peerEvents {
                     self?.handlePeerEvent(event)
                 }
             },
             Task { @MainActor [weak self] in
-                for await diagnostic in api.diagnosticEvents {
+                for await diagnostic in currentRuntime.diagnosticEvents {
                     self?.handleDiagnosticEvent(diagnostic)
                 }
             },
             Task { @MainActor [weak self] in
-                for await message in api.messages {
+                for await message in currentRuntime.messages {
                     self?.handleInboundMessage(message)
                 }
             },
@@ -441,7 +441,7 @@ final class ProofViewModel: ObservableObject {
         else {
             return
         }
-        api.updateBattery(snapshot: BatterySnapshot(level: batteryLevel, isCharging: isCharging))
+        runtime.updateBattery(snapshot: BatterySnapshot(level: batteryLevel, isCharging: isCharging))
         appendLog(
             "BENCHMARK power batteryLevel=\(batteryLevel) isCharging=\(isCharging) powerMode=\(launchConfig.powerModeLabel)"
         )
@@ -481,7 +481,7 @@ final class ProofViewModel: ObservableObject {
         let peerSuffix = String(peerId.value.suffix(6))
 
         do {
-            let result = try await api.send(peerId: peerId, payload: payload, priority: priority)
+            let result = try await runtime.send(peerId: peerId, payload: payload, priority: priority)
             if let logPrefix {
                 appendLog("\(logPrefix)(\(peerSuffix)) -> \(result)")
             }

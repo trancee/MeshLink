@@ -40,17 +40,17 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
 
-        sender.api.start()
-        relay.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        relay.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.api.messages.first() }
+                withTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, payload)
+        val sendResult = sender.meshLink.send(recipient.peerId, payload)
         val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
@@ -70,17 +70,17 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
 
-        sender.api.start()
-        relay.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        relay.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.api.messages.first() }
+                withTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, payload)
+        val sendResult = sender.meshLink.send(recipient.peerId, payload)
         val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
@@ -133,17 +133,17 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, firstRelay)
         harness.linkPeers(firstRelay, recipient)
 
-        sender.api.start()
-        firstRelay.api.start()
-        recipient.api.start()
-        alternateRelay.api.start()
+        sender.meshLink.start()
+        firstRelay.meshLink.start()
+        recipient.meshLink.start()
+        alternateRelay.meshLink.start()
         delay(250)
 
         val firstMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.api.messages.first() }
+                withTimeout(1_000) { recipient.meshLink.messages.first() }
             }
-        sender.api.send(recipient.peerId, firstPayload)
+        sender.meshLink.send(recipient.peerId, firstPayload)
         firstMessageDeferred.await()
 
         harness.unlinkPeers(firstRelay, recipient)
@@ -152,11 +152,11 @@ class MeshRoutingIntegrationTest {
         delay(250)
         val secondMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.api.messages.first() }
+                withTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, secondPayload)
+        val sendResult = sender.meshLink.send(recipient.peerId, secondPayload)
         val receivedMessage = secondMessageDeferred.await()
 
         // Assert
@@ -176,13 +176,13 @@ class MeshRoutingIntegrationTest {
 
             harness.linkPeers(sender, relay)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
-            val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(2_000) { recipient.api.messages.first() }
+                    withTimeout(2_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
@@ -216,14 +216,14 @@ class MeshRoutingIntegrationTest {
 
             harness.linkPeers(sender, relay)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
             delay(250)
             val startedAt = TimeSource.Monotonic.markNow()
 
             // Act
-            val sendResult = sender.api.send(recipient.peerId, payload)
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
 
             // Assert
             val notSent = assertIs<SendResult.NotSent>(sendResult)
@@ -247,32 +247,32 @@ class MeshRoutingIntegrationTest {
 
             harness.linkPeers(sender, relay)
 
-            sender.api.start()
-            relay.api.start()
-            recipient.api.start()
-            val originalSendDeferred = async { sender.api.send(recipient.peerId, payload) }
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            val originalSendDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             awaitDiagnosticForPeer(
                 diagnostics = sender.diagnosticSink::events,
                 code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
                 peerIdValue = recipient.peerId.value,
             )
-            sender.api.stop()
+            sender.meshLink.stop()
             val restartedSender =
                 harness.createNode(
                     peerIdValue = sender.peerId.value,
                     storage = sender.storage,
                     configOverride = senderConfig,
                 )
-            restartedSender.api.start()
+            restartedSender.meshLink.start()
             harness.linkPeers(relay, recipient)
 
             // Act
-            val unexpectedMessage = withTimeoutOrNull(500) { recipient.api.messages.first() }
+            val unexpectedMessage = withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
             val resubmittedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(2_000) { recipient.api.messages.first() }
+                    withTimeout(2_000) { recipient.meshLink.messages.first() }
                 }
-            val resubmittedSendResult = restartedSender.api.send(recipient.peerId, payload)
+            val resubmittedSendResult = restartedSender.meshLink.send(recipient.peerId, payload)
             val resubmittedMessage = resubmittedMessageDeferred.await()
             val originalSendResult = originalSendDeferred.await()
 
@@ -302,13 +302,13 @@ class MeshRoutingIntegrationTest {
 
         harness.linkPeers(sender, recipient, mode = TransportMode.GATT)
 
-        sender.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, payload)
-        val receivedMessage = withTimeoutOrNull(250) { recipient.api.messages.first() }
+        val sendResult = sender.meshLink.send(recipient.peerId, payload)
+        val receivedMessage = withTimeoutOrNull(250) { recipient.meshLink.messages.first() }
 
         // Assert
         val notSent = assertIs<SendResult.NotSent>(sendResult)
@@ -341,8 +341,8 @@ class MeshRoutingIntegrationTest {
 
         harness.linkPeers(sender, recipient)
 
-        sender.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        recipient.meshLink.start()
         awaitDiagnosticForPeer(
             diagnostics = sender.diagnosticSink::events,
             code = DiagnosticCode.ROUTE_DISCOVERED,
@@ -351,10 +351,10 @@ class MeshRoutingIntegrationTest {
         )
         harness.unlinkPeers(sender, recipient)
         delay(100)
-        val sendResultDeferred = async { sender.api.send(recipient.peerId, payload) }
+        val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) { recipient.api.messages.first() }
+                withTimeout(2_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
@@ -416,8 +416,8 @@ class MeshRoutingIntegrationTest {
 
         harness.linkPeers(sender, recipient)
 
-        sender.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        recipient.meshLink.start()
         awaitDiagnosticForPeer(
             diagnostics = sender.diagnosticSink::events,
             code = DiagnosticCode.ROUTE_DISCOVERED,
@@ -428,7 +428,7 @@ class MeshRoutingIntegrationTest {
         delay(100)
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, payload)
+        val sendResult = sender.meshLink.send(recipient.peerId, payload)
 
         // Assert
         val notSent = assertIs<SendResult.NotSent>(sendResult)
@@ -467,21 +467,21 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
 
-        sender.api.start()
-        relay.api.start()
-        recipient.api.start()
+        sender.meshLink.start()
+        relay.meshLink.start()
+        recipient.meshLink.start()
         delay(250)
         val relayMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeoutOrNull(500) { relay.api.messages.first() }
+                withTimeoutOrNull(500) { relay.meshLink.messages.first() }
             }
         val recipientMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.api.messages.first() }
+                withTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(recipient.peerId, plaintext.encodeToByteArray())
+        val sendResult = sender.meshLink.send(recipient.peerId, plaintext.encodeToByteArray())
         val relayMessage = relayMessageDeferred.await()
         val recipientMessage: InboundMessage = recipientMessageDeferred.await()
         val relayFramesContainPlaintext =

@@ -27,21 +27,21 @@ class MemoryBudgetIntegrationTest {
         val reversePayload = ByteArray(192) { index -> ((index * 29) and 0xFF).toByte() }
 
         try {
-            nodes.forEach { node -> node.api.start() }
+            nodes.forEach { node -> node.meshLink.start() }
             delay(500)
             val forwardReceivedDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(5_000) { nodes.last().api.messages.first() }
+                    withTimeout(5_000) { nodes.last().meshLink.messages.first() }
                 }
             val reverseReceivedDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(5_000) { nodes.first().api.messages.first() }
+                    withTimeout(5_000) { nodes.first().meshLink.messages.first() }
                 }
 
             // Act
-            val forwardResult = nodes.first().api.send(nodes.last().peerId, forwardPayload)
+            val forwardResult = nodes.first().meshLink.send(nodes.last().peerId, forwardPayload)
             val forwardReceived = forwardReceivedDeferred.await()
-            val reverseResult = nodes.last().api.send(nodes.first().peerId, reversePayload)
+            val reverseResult = nodes.last().meshLink.send(nodes.first().peerId, reversePayload)
             val reverseReceived = reverseReceivedDeferred.await()
             delay(250)
             requestHeapStabilization()
@@ -67,7 +67,7 @@ class MemoryBudgetIntegrationTest {
                 )
             }
         } finally {
-            nodes.asReversed().forEach { node -> runCatching { node.api.stop() } }
+            nodes.asReversed().forEach { node -> runCatching { node.meshLink.stop() } }
         }
     }
 

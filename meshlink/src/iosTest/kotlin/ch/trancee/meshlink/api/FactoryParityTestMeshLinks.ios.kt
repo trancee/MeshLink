@@ -32,10 +32,10 @@ internal actual fun installFactoryTestBridges(): Unit {
     )
 }
 
-internal actual fun createAndroidFactoryParityApi(config: MeshLinkConfig): MeshLink {
+internal actual fun createAndroidFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
     return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
 }
 
-internal actual fun createIosFactoryParityApi(config: MeshLinkConfig): MeshLink {
+internal actual fun createIosFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
     return meshLink(config = config)
 }

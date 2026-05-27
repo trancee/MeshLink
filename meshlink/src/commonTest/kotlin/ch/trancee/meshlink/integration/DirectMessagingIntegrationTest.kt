@@ -31,17 +31,17 @@ class DirectMessagingIntegrationTest {
         val receiver = harness.createNode("peer-b")
         val payload = "hello mesh".encodeToByteArray()
 
-        sender.api.start()
-        receiver.api.start()
+        sender.meshLink.start()
+        receiver.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.api.messages.first() }
+                withTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
         val beforeSendAtEpochMillis = currentEpochMillis()
-        val sendResult = sender.api.send(receiver.peerId, payload)
+        val sendResult = sender.meshLink.send(receiver.peerId, payload)
         val receivedMessage = receivedMessageDeferred.await()
         val afterReceiveAtEpochMillis = currentEpochMillis()
 
@@ -52,7 +52,7 @@ class DirectMessagingIntegrationTest {
             receivedMessage.receivedAtEpochMillis in
                 beforeSendAtEpochMillis..afterReceiveAtEpochMillis
         )
-        assertEquals(MeshLinkState.Running, receiver.api.state.value)
+        assertEquals(MeshLinkState.Running, receiver.meshLink.state.value)
     }
 
     @Test
@@ -61,23 +61,23 @@ class DirectMessagingIntegrationTest {
         val harness = MeshTestHarness()
         val sender = harness.createNode("peer-a")
         val receiver = harness.createNode("peer-b")
-        sender.api.start()
-        receiver.api.start()
+        sender.meshLink.start()
+        receiver.meshLink.start()
         delay(250)
         val firstMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.api.messages.first() }
+                withTimeout(1_000) { receiver.meshLink.messages.first() }
             }
-        sender.api.send(receiver.peerId, "first".encodeToByteArray())
+        sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
         firstMessageDeferred.await()
-        receiver.api.stop()
+        receiver.meshLink.stop()
 
         // Act
         val restartedReceiver = harness.restartNode(receiver)
         val senderRediscoveredReceiverDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeout(2_000) {
-                    sender.api.peerEvents.first { event ->
+                    sender.meshLink.peerEvents.first { event ->
                         event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
                     }
                 }
@@ -85,19 +85,20 @@ class DirectMessagingIntegrationTest {
         val restartedReceiverFoundSenderDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeout(2_000) {
-                    restartedReceiver.api.peerEvents.first { event ->
+                    restartedReceiver.meshLink.peerEvents.first { event ->
                         event is PeerEvent.Found && event.peerId == sender.peerId
                     }
                 }
             }
-        restartedReceiver.api.start()
+        restartedReceiver.meshLink.start()
         senderRediscoveredReceiverDeferred.await()
         restartedReceiverFoundSenderDeferred.await()
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) { restartedReceiver.api.messages.first() }
+                withTimeout(2_000) { restartedReceiver.meshLink.messages.first() }
             }
-        val sendResult = sender.api.send(restartedReceiver.peerId, "second".encodeToByteArray())
+        val sendResult =
+            sender.meshLink.send(restartedReceiver.peerId, "second".encodeToByteArray())
         val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
@@ -113,40 +114,41 @@ class DirectMessagingIntegrationTest {
             val sender = harness.createNode("peer-a")
             val receiver = harness.createNode("peer-b")
 
-            sender.api.start()
-            receiver.api.start()
+            sender.meshLink.start()
+            receiver.meshLink.start()
             delay(250)
             val firstMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.api.messages.first() }
+                    withTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
-            sender.api.send(receiver.peerId, "first".encodeToByteArray())
+            sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
             firstMessageDeferred.await()
             val initialTrustEstablishedCount =
                 receiver.diagnosticSink.events().count {
                     it.code == DiagnosticCode.TRUST_ESTABLISHED
                 }
-            sender.api.stop()
+            sender.meshLink.stop()
             delay(50)
-            val forgetResult = receiver.api.forgetPeer(sender.peerId)
+            val forgetResult = receiver.meshLink.forgetPeer(sender.peerId)
             val restartedSender = harness.restartNode(sender)
             val restartedSenderFoundReceiverDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     withTimeout(1_000) {
-                        restartedSender.api.peerEvents.first { event ->
+                        restartedSender.meshLink.peerEvents.first { event ->
                             event is PeerEvent.Found && event.peerId == receiver.peerId
                         }
                     }
                 }
-            restartedSender.api.start()
+            restartedSender.meshLink.start()
             restartedSenderFoundReceiverDeferred.await()
             val secondMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.api.messages.first() }
+                    withTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
 
             // Act
-            val sendResult = restartedSender.api.send(receiver.peerId, "second".encodeToByteArray())
+            val sendResult =
+                restartedSender.meshLink.send(receiver.peerId, "second".encodeToByteArray())
             val secondMessage = secondMessageDeferred.await()
 
             // Assert
@@ -171,16 +173,16 @@ class DirectMessagingIntegrationTest {
             val plaintext = "secret message"
             val payload = plaintext.encodeToByteArray()
 
-            sender.api.start()
-            receiver.api.start()
+            sender.meshLink.start()
+            receiver.meshLink.start()
             delay(250)
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.api.messages.first() }
+                    withTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
 
             // Act
-            val sendResult = sender.api.send(receiver.peerId, payload)
+            val sendResult = sender.meshLink.send(receiver.peerId, payload)
             receivedMessageDeferred.await()
             val receiverSnapshot = receiver.storage.snapshot()
 
@@ -200,16 +202,16 @@ class DirectMessagingIntegrationTest {
         val receiver = harness.createNode("peer-b")
         val plaintext = "secret message"
 
-        sender.api.start()
-        receiver.api.start()
+        sender.meshLink.start()
+        receiver.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.api.messages.first() }
+                withTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(receiver.peerId, plaintext.encodeToByteArray())
+        val sendResult = sender.meshLink.send(receiver.peerId, plaintext.encodeToByteArray())
         val lastFrame = harness.lastDeliveredFrame()
 
         // Assert
@@ -229,16 +231,16 @@ class DirectMessagingIntegrationTest {
         val payload = ByteArray(65_536) { index -> (index % 251).toByte() }
         harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
 
-        sender.api.start()
-        receiver.api.start()
+        sender.meshLink.start()
+        receiver.meshLink.start()
         delay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.api.messages.first() }
+                withTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.api.send(receiver.peerId, payload)
+        val sendResult = sender.meshLink.send(receiver.peerId, payload)
         val receivedMessage = receivedMessageDeferred.await()
 
         // Assert

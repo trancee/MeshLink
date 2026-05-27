@@ -11,16 +11,16 @@ class MeshLinkCreateJvmTest {
     fun `meshLink without context supports the full lifecycle on jvm`() = runBlocking {
         // Arrange
         val config = meshLinkConfig { appId = "demo.meshlink.runtime.${Random.nextInt()}" }
-        val api = meshLink(config = config)
+        val runtime = meshLink(config = config)
 
         // Act
-        val results = listOf(api.start(), api.pause(), api.resume(), api.stop())
+        val results = listOf(runtime.start(), runtime.pause(), runtime.resume(), runtime.stop())
 
         // Assert
         assertEquals(
             expected = listOf("Started", "Paused", "Resumed", "Stopped"),
             actual = results.map { result -> result::class.simpleName },
         )
-        assertEquals(expected = MeshLinkState.Stopped, actual = api.state.value)
+        assertEquals(expected = MeshLinkState.Stopped, actual = runtime.state.value)
     }
 }
