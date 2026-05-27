@@ -4,7 +4,7 @@ Use this guide when you want to evaluate MeshLink through the reference app as
 one shared Android and iOS operator experience, not just as a transport proof
 harness.
 
-By the end of this guide you will:
+By the end of this guide you should be able to:
 
 - install the Android and iOS reference app builds
 - complete one guided first exchange
@@ -15,7 +15,6 @@ By the end of this guide you will:
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).
-
 If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
@@ -29,14 +28,26 @@ You need:
 - an Android device running API 29+
 - an iPhone running iOS 15+
 - Bluetooth enabled on both devices
-- an Apple development team available locally if you want to run on a physical iPhone
+- an Apple development team available locally if you want to run on a physical
+  iPhone
 
-If one device is not ready yet, you can still use the app's clearly labelled
+If one device is not ready yet, you can still use the app's clearly labeled
 solo exploration mode for a non-authoritative walkthrough.
 
 If discovery stalls because Android or iOS is still blocked on permissions or
 the first Bluetooth prompt, fix that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+
+## Quick evaluation path
+
+| Step | What to do | What to confirm |
+|---|---|---|
+| 1 | install the Android build | the app launches on the Android device |
+| 2 | build and launch the iOS app | the app launches on the simulator or iPhone |
+| 3 | open guided first exchange on both devices | the surface names and flow shape match |
+| 4 | complete one guided exchange | discovery, trust, and delivery evidence appear |
+| 5 | inspect advanced controls and timeline | operator-facing runtime details are visible |
+| 6 | end the session and export redacted data | retained history and redacted export both work |
 
 ## 1. Install the Android reference app
 
@@ -58,8 +69,8 @@ xcodebuild \
   build
 ```
 
-For a physical iPhone, pass your team at build time instead of storing it in repo
-files:
+For a physical iPhone, pass your team at build time instead of storing it in
+repo files:
 
 ```bash
 xcodebuild \
@@ -70,15 +81,15 @@ xcodebuild \
   build
 ```
 
-After the build succeeds, launch the `ReferenceApp` scheme from Xcode on the chosen
-simulator or iPhone.
+After the build succeeds, launch the `ReferenceApp` scheme from Xcode on the
+chosen simulator or iPhone.
 
-If iOS shows the first Bluetooth prompt on a physical device, allow it before you
-continue.
+If iOS shows the first Bluetooth prompt on a physical device, allow it before
+you continue.
 
 ## 3. Open the guided first-exchange flow on both devices
 
-On both platforms, start in the guided first-exchange surface.
+Start in the guided first-exchange surface on both platforms.
 
 The expected flow is the same on Android and iOS:
 
@@ -108,10 +119,10 @@ A successful evaluation pass should show:
 - a delivery or inbound-message event
 - a final guided outcome that clearly indicates success
 
-## 5. Inspect the advanced controls
+## 5. Inspect the advanced controls and technical timeline
 
 Open the advanced controls surface and confirm that it exposes the runtime
-details a host-app integrator would care about:
+information a host-app integrator would care about:
 
 - lifecycle controls
 - the visible power mode
@@ -120,13 +131,8 @@ details a host-app integrator would care about:
 - send controls with priority selection
 - trust reset behavior
 
-Use this surface to answer technical questions about why the last send succeeded or
-failed.
-
-## 6. Inspect the technical timeline
-
-Open the technical timeline and verify that it gives you one operator-facing
-place to inspect:
+Then open the technical timeline and verify that it gives you one
+operator-facing place to inspect:
 
 - lifecycle events
 - peer events
@@ -134,9 +140,9 @@ place to inspect:
 - inbound and outbound message evidence
 - retained-session state and export actions
 
-Use the filter controls to narrow the view when you want to isolate one kind of event.
+Use the filter controls when you want to isolate one kind of event.
 
-## 7. End one session and export one redacted artifact
+## 6. End one session and export one redacted artifact
 
 After the guided exchange succeeds:
 
@@ -147,9 +153,10 @@ After the guided exchange succeeds:
 
 The default export should keep payload previews redacted and should not
 silently switch to full-payload export. Retained sessions stay redacted, so
-full-payload export is only available from the supported live session before it ends.
+full-payload export is only available from the supported live session before it
+ends.
 
-## 8. Use the right validation path for the job
+## When to switch tools
 
 Use the reference app when you need:
 
@@ -170,10 +177,9 @@ For proof-specific workflows, use:
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../../benchmarks/README.md)
 
-## 9. Optional: retain one headless live-proof run
+## Optional: retain one headless live-proof run
 
-Once the manual walkthrough works, retain one repeatable physical proof run
-with this harness:
+Once the manual walkthrough works, retain one repeatable physical proof run:
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -183,7 +189,8 @@ python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
 ```
 
 The harness installs the Android debug build, rebuilds the iPhone app, runs the
-physical guided exchange, and writes retained evidence into the chosen run directory.
+physical guided exchange, and writes retained evidence into the chosen run
+directory.
 
 If you only need to verify the physical iPhone sender XCTest path, add:
 
@@ -192,19 +199,16 @@ If you only need to verify the physical iPhone sender XCTest path, add:
   --skip-android-completion-wait
 ```
 
-That variant still launches the passive Android app so the iPhone can discover a
-peer, but it stops after the sender UI test passes instead of waiting for an
+That variant still launches the passive Android app so the iPhone can discover
+a peer, but it stops after the sender UI test passes instead of waiting for an
 Android retained export.
 
 If you want the broader physical validation campaign instead of a single direct
 proof, continue with
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
-That guide adds:
-
-- the constrained relay proof (`A = iPhone 15`, `B = Samsung`, `C = OPPO`)
-- the optional XCTest permission-recovery path
-- per-run `analysis.json` and `analysis.md` artifacts so review does not depend
-  on raw log archaeology
+That guide adds the constrained relay proof, the optional XCTest
+permission-recovery path, and per-run `analysis.json` and `analysis.md`
+artifacts.
 
 ## Expected outcome
 
