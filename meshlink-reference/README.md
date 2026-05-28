@@ -28,6 +28,38 @@ The reference app is organized into clearly separated surfaces:
 - **Lab** — proof-only and benchmark-only behavior isolated from the supported
   product path
 
+## How the shared app is wired
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Android["Android host app"] --> Shell["ReferenceApp shared shell"]
+    IOS["iOS host project"] --> Shell
+    Shell --> Session["shared session-boundary and surface model"]
+    Shell --> Evidence["timeline, retained history, and exports"]
+    Session --> Mesh["MeshLink SDK"]
+    Session --> Automation["scripted-ui and live-proof automation"]
+    Evidence --> Store["app-local JSON history and artifact files"]
+
+    classDef host fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef shared fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    classDef data fill:#FFF3E6,stroke:#D9822B,color:#5F370E,stroke-width:1.5px;
+    classDef auto fill:#F6EEFF,stroke:#8B5CF6,color:#33204D,stroke-width:1.5px;
+    class Android,IOS host;
+    class Shell,Session,Mesh shared;
+    class Evidence,Store data;
+    class Automation auto;
+```
+
+The Android app module and the iOS host project both mount the same shared
+Compose shell. Session boundaries, retained history, export policy, and
+automation live in shared code. Platform code mainly supplies bootstrap,
+storage location, readiness blockers, and the native host entry points.
+
+For the deeper contributor view, use the
+[Repository layout reference](../docs/reference/repository-layout.md) and
+[About the repository architecture](../docs/explanation/about-the-repository-architecture.md).
+
 ## Where it fits in MeshLink
 
 Use the reference app for:
@@ -56,6 +88,8 @@ reference experience.
 | retain physical direct and relay evidence from real devices | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
 | unblock startup or discovery permissions before debugging deeper | [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md) |
 | run deterministic automation or local verification commands | [Contributor build, test, and verification reference](../docs/reference/contributor-reference.md) |
+| understand the shared shell, session model, and automation seams | [About the repository architecture](../docs/explanation/about-the-repository-architecture.md) |
+| look up exact module and host ownership | [Repository layout reference](../docs/reference/repository-layout.md) |
 | compare the reference app with the rest of the MeshLink docs set | [MeshLink documentation map](../docs/README.md) |
 | inspect retained benchmark evidence and proof baselines | [Benchmarks and retained evidence](../benchmarks/README.md) |
 

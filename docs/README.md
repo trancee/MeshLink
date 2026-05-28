@@ -12,6 +12,7 @@ single "read everything" path.
 | look up exact API or runtime facts | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | validate behavior on devices | [How-to guides](#how-to-guides) and [Reference](#reference) |
+| understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
 | review tooling posture or design proposals | [Tooling](#tooling) and [RFCs](#rfcs) |
 
 ## Quick reading paths
@@ -52,6 +53,14 @@ If you are not sure where to start, use one of these short paths.
 5. [The peer lifecycle model](explanation/peer-lifecycle.md)
 6. [About the L2CAP-first transport posture](explanation/why-l2cap-first.md)
 
+### Contributor architecture
+
+1. [Repository layout reference](reference/repository-layout.md)
+2. [About the repository architecture](explanation/about-the-repository-architecture.md)
+3. [Contributor build, test, and verification reference](reference/contributor-reference.md)
+4. [MeshLink SDK API reference](reference/meshlink-sdk-api.md)
+5. [MeshLink reference app overview](../meshlink-reference/README.md)
+
 ## Tutorials
 
 - [Your first MeshLink exchange](tutorials/your-first-meshlink-exchange.md) — build a minimal Android-side controller, discover a peer, and send a first message.
@@ -80,11 +89,16 @@ If you are not sure where to start, use one of these short paths.
 - [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring project terms.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
+- [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
 - [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.
 - [Release decision](../specs/001-ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
 
 ## Explanation
+
+### Repository and contributor architecture
+
+- [About the repository architecture](explanation/about-the-repository-architecture.md) — why the repository is split between the SDK, the reference app, the proof apps, and the retained evidence surfaces.
 
 ### Integration and lifecycle
 

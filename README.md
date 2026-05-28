@@ -45,6 +45,8 @@ post-migration AGP 9 module shape stays intact.
 
 - [How to contribute to MeshLink](CONTRIBUTING.md)
 - [Contributor build, test, and verification reference](docs/reference/contributor-reference.md)
+- [Repository layout reference](docs/reference/repository-layout.md)
+- [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
 
 ## Reference app, proof apps, and validation
 

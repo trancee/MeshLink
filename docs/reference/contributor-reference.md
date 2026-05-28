@@ -8,8 +8,9 @@ Use this page when you need exact commands, matrices, or policy details.
 
 ## Quick lookup
 
-| If your change affects... | Run... |
+| If your change affects... | Use... |
 |---|---|
+| module ownership or host location | [Repository layout reference](repository-layout.md) |
 | docs only | `./gradlew verifyDocs` |
 | shared-library logic | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
@@ -96,8 +97,10 @@ Use this page when you need exact commands, matrices, or policy details.
 
 ## Reference-app architecture landmarks
 
+Use [Repository layout reference](repository-layout.md) when you need the
+repo-level module map.
 Use these landmarks when a change touches `meshlink-reference` and you need to
-find the right module quickly.
+find the shared runtime split quickly.
 
 | Concern | Primary module | Notes |
 |---|---|---|
@@ -166,6 +169,8 @@ A public API change currently requires all of the following:
 - [How to contribute to MeshLink](../../CONTRIBUTING.md)
 - [MeshLink Constitution](../../constitution.md)
 - [MeshLink documentation map](../README.md)
+- [Repository layout reference](repository-layout.md)
+- [About the repository architecture](../explanation/about-the-repository-architecture.md)
 - [AGP 9 migration plan](../tooling/agp-9-migration-plan.md)
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
 - [Glossary and acronym reference](glossary.md)
