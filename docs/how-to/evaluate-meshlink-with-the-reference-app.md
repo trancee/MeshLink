@@ -7,8 +7,8 @@ harness.
 By the end of this guide you should be able to:
 
 - install the Android and iOS reference app builds
-- complete one guided first exchange
-- inspect the advanced controls and technical timeline
+- complete one **Guided first exchange**
+- inspect **Advanced controls** and the **Technical timeline**
 - retain one session and export one redacted artifact
 - decide whether to stay in the reference app or switch to the proof apps or
   live-proof harness
@@ -31,8 +31,8 @@ You need:
 - an Apple development team available locally if you want to run on a physical
   iPhone
 
-If one device is not ready yet, you can still use the app's clearly labeled
-solo exploration mode for a non-authoritative walkthrough.
+If one device is not ready yet, you can still use **Solo exploration** for a
+non-authoritative walkthrough.
 
 If discovery stalls because Android or iOS is still blocked on permissions or
 the first Bluetooth prompt, fix that first with
@@ -44,10 +44,10 @@ the first Bluetooth prompt, fix that first with
 |---|---|---|
 | 1 | install the Android build | the app launches on the Android device |
 | 2 | build and launch the iOS app | the app launches on the simulator or iPhone |
-| 3 | open guided first exchange on both devices | the surface names and flow shape match |
+| 3 | open **Guided first exchange** on both devices | the surface names and flow shape match |
 | 4 | complete one guided exchange | discovery, trust, and delivery evidence appear |
-| 5 | inspect advanced controls and timeline | operator-facing runtime details are visible |
-| 6 | end the session and export redacted data | retained history and redacted export both work |
+| 5 | inspect **Advanced controls** and the **Technical timeline** | operator-facing runtime details are visible |
+| 6 | end the session and export redacted data | **Recent history** and the redacted export both work |
 
 ## Surface path at a glance
 
@@ -82,12 +82,15 @@ flowchart LR
 
 Operational rules to keep straight while you evaluate:
 
-- guided and advanced are two supported surfaces inside the same supported live
-  session
-- solo and lab start their own separate session paths instead of inheriting the
-  current supported session
+- **Guided first exchange** and **Advanced controls** are two supported
+  surfaces inside the same supported live session
+- **Solo exploration** and **Lab** start their own separate session paths
+  instead of inheriting the current supported live session
 - full-payload export is only available from the supported live session before
   you end it; retained sessions stay redacted
+
+For exact surface and export terminology, use the
+[Glossary and acronym reference](../reference/glossary.md).
 
 ## 1. Install the Android reference app
 
@@ -127,9 +130,9 @@ chosen simulator or iPhone.
 If iOS shows the first Bluetooth prompt on a physical device, allow it before
 you continue.
 
-## 3. Open the guided first-exchange flow on both devices
+## 3. Open Guided first exchange on both devices
 
-Start in the guided first-exchange surface on both platforms.
+Start in **Guided first exchange** on both platforms.
 
 The expected flow is the same on Android and iOS:
 
@@ -142,9 +145,9 @@ The expected flow is the same on Android and iOS:
 If the flow names differ between platforms, stop and fix that before using the
 app as reference evidence.
 
-## 4. Complete one guided first exchange
+## 4. Complete one Guided first exchange
 
-Use the guided surface to:
+Use **Guided first exchange** to:
 
 1. start MeshLink on both devices
 2. wait for peer discovery
@@ -159,10 +162,10 @@ A successful evaluation pass should show:
 - a delivery or inbound-message event
 - a final guided outcome that clearly indicates success
 
-## 5. Inspect the advanced controls and technical timeline
+## 5. Inspect Advanced controls and the Technical timeline
 
-Open the advanced controls surface and confirm that it exposes the runtime
-information a host-app integrator would care about:
+Open **Advanced controls** and confirm that it exposes the runtime information
+a host-app integrator would care about:
 
 - lifecycle controls
 - the visible power mode
@@ -171,7 +174,7 @@ information a host-app integrator would care about:
 - send controls with priority selection
 - trust reset behavior
 
-Then open the technical timeline and verify that it gives you one
+Then open the **Technical timeline** and verify that it gives you one
 operator-facing place to inspect:
 
 - lifecycle events
@@ -186,8 +189,8 @@ Use the filter controls when you want to isolate one kind of event.
 
 After the guided exchange succeeds:
 
-1. open the technical timeline and choose **End session**
-2. open retained history
+1. open the **Technical timeline** and choose **End session**
+2. open **Recent history**
 3. verify the retained session appears separately from the live session
 4. open the export chooser and select the redacted export
 
@@ -254,8 +257,8 @@ artifacts.
 
 After following this guide, you should be able to:
 
-1. complete a guided first exchange
-2. explain the last trust or delivery outcome from the timeline
+1. complete a **Guided first exchange**
+2. explain the last trust or delivery outcome from the **Technical timeline**
 3. inspect retained session history separately from the live run
 4. export a redacted session artifact
 5. tell when the reference app is the right tool and when the proof apps or

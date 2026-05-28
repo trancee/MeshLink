@@ -7,7 +7,7 @@ not just as a proof harness.
 
 The reference app is designed for:
 
-- SDK evaluators who want a guided first exchange
+- SDK evaluators who want a **Guided first exchange**
 - integrators who want to inspect the live control surface
 - QA and support engineers who want diagnostics, retained session history, and
   exportable evidence
@@ -75,9 +75,9 @@ For the deeper contributor view, use the
 
 Use the reference app for:
 
-- guided SDK evaluation
-- operator-facing diagnostics and timeline review
-- retained session history and export walkthroughs
+- guided SDK evaluation through **Guided first exchange** and **Advanced controls**
+- operator-facing diagnostics and **Technical timeline** review
+- retained session history and export walkthroughs through **Recent history**
 - side-by-side Android and iOS product-like review
 
 Do **not** use it as:
@@ -90,6 +90,10 @@ Do **not** use it as:
 Use the proof apps and benchmark runner for transport-performance evidence.
 Use the reference app to understand and demonstrate the library as a coherent
 reference experience.
+
+For exact surface and export vocabulary such as **Supported live session**,
+**Retained session**, **Redacted export**, and **Full-payload export**, use the
+[Glossary and acronym reference](../docs/reference/glossary.md).
 
 ## Choose the right guide
 
@@ -107,16 +111,16 @@ reference experience.
 ## Before you debug the app
 
 - clear Android and iOS Bluetooth permissions first
-- treat solo exploration as a non-authoritative walkthrough, not physical proof
-- keep proof-only and benchmark-only work in the lab or proof surfaces instead
-  of treating it as supported product behavior
+- treat **Solo exploration** as a non-authoritative walkthrough, not physical proof
+- keep proof-only and benchmark-only work in **Lab** or the proof surfaces
+  instead of treating it as supported product behavior
 
 ## Expected outcome
 
 After using the reference app, a reviewer should be able to:
 
-1. complete a guided first exchange
+1. complete a **Guided first exchange**
 2. explain why the last send succeeded or failed
 3. inspect retained session history separately from the live run
 4. open the export chooser and export a redacted session artifact
-5. distinguish supported product behavior from lab-only behavior
+5. distinguish supported product behavior from **Lab**-only behavior

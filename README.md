@@ -20,8 +20,8 @@ and find the right supporting document when you need more detail.
 
 The documentation follows the Diataxis model. Start with the full
 [documentation map](docs/README.md), which also includes recommended reading
-orders for new integrators, production integrations, debugging, and technical
-evaluation.
+orders for new integrators, production integrations, debugging, technical
+evaluation, and a small architecture index for diagram-first reading.
 
 Quick entry points:
 
@@ -34,7 +34,9 @@ Quick entry points:
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](docs/reference/meshlink-runtime-behavior.md)
 - [Glossary and acronym reference](docs/reference/glossary.md)
+- [Repository layout reference](docs/reference/repository-layout.md)
 - [About how MeshLink works](docs/explanation/about-how-meshlink-works.md)
+- [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
 - [About integrating MeshLink well](docs/explanation/about-integrating-meshlink.md)
 
 Maintainers can run `./gradlew verifyDocs` to check markdown links and the

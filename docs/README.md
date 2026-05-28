@@ -10,6 +10,7 @@ single "read everything" path.
 | get one successful exchange running | [Tutorials](#tutorials) |
 | complete an integration task | [How-to guides](#how-to-guides) |
 | look up exact API or runtime facts | [Reference](#reference) |
+| check official SDK or reference-app terms | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | validate behavior on devices | [How-to guides](#how-to-guides) and [Reference](#reference) |
 | understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
@@ -61,6 +62,22 @@ If you are not sure where to start, use one of these short paths.
 4. [MeshLink SDK API reference](reference/meshlink-sdk-api.md)
 5. [MeshLink reference app overview](../meshlink-reference/README.md)
 
+## Architecture index
+
+Use this section when you want the strongest diagram-first docs without
+guessing which page owns which model.
+
+| Topic | Best starting doc | What the diagram or map gives you |
+|---|---|---|
+| repository and module ownership | [Repository layout reference](reference/repository-layout.md) | one module map covering `:meshlink`, `:meshlink-reference`, proof apps, benchmarks, and docs |
+| why the repository is split this way | [About the repository architecture](explanation/about-the-repository-architecture.md) | the rationale behind the SDK, reference app, proof apps, and retained-evidence split |
+| SDK runtime model | [About how MeshLink works](explanation/about-how-meshlink-works.md) | the runtime services, lifecycle boundaries, discovery path, send pipeline, and persistence boundary |
+| host-app integration shape | [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) | the default runtime bootstrap and ownership flow |
+| production-shaped host integration | [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) | the target steady-state integration model and stream ownership split |
+| reference-app shell and evidence model | [MeshLink reference app overview](../meshlink-reference/README.md) | the shared shell wiring, surfaces, and evidence responsibilities |
+| reference-app operator path | [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) | the supported surface path from first proof to retained redacted export |
+| contributor workflow | [How to contribute to MeshLink](../CONTRIBUTING.md) | the diagram-first contributor path from checkout to review-ready verification |
+
 ## Tutorials
 
 - [Your first MeshLink exchange](tutorials/your-first-meshlink-exchange.md) — build a minimal Android-side controller, discover a peer, and send a first message.
@@ -86,7 +103,7 @@ If you are not sure where to start, use one of these short paths.
 
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and Apple bridge APIs.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
-- [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring project terms.
+- [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring SDK, contributor, and reference-app terms.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
