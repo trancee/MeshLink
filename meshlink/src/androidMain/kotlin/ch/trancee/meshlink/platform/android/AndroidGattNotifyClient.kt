@@ -18,7 +18,7 @@ internal fun maximumGattWriteChunkBytes(currentMtu: Int): Int {
 }
 
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
-internal class AndroidGattNotifyClient(
+internal class GattNotifyClient(
     private val context: Any,
     @Suppress("UNUSED_PARAMETER") private val appId: String,
     private val peerHintId: PeerId,
@@ -26,20 +26,20 @@ internal class AndroidGattNotifyClient(
     private val log: (String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
     private val onDisconnected: (PeerId) -> Unit,
-    private val sessionFactory: AndroidGattNotifySessionFactory =
-        AndroidBluetoothGattNotifySessionFactory(context = context, device = device),
+    private val sessionFactory: GattNotifySessionFactory =
+        BluetoothGattNotifySessionFactory(context = context, device = device),
 ) {
-    @Volatile private var session: AndroidGattNotifySession? = null
+    @Volatile private var session: GattNotifySession? = null
     @Volatile
-    private var lifecycleState: AndroidGattNotifyLifecycleState =
+    private var lifecycleState: GattNotifyLifecycleState =
         startedAndroidGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
-    private val frameBuffer = AndroidL2capFrameBuffer()
+    private val frameBuffer = L2capFrameBuffer()
     private val writeMutex = Mutex()
     private val notificationLock = Any()
     private var pendingWrite: CompletableDeferred<Boolean>? = null
 
     private val sessionListener =
-        object : AndroidGattNotifySessionListener {
+        object : GattNotifySessionListener {
             override fun onConnectionStateChange(address: String, status: Int, newState: Int) {
                 val stateLabel =
                     when (newState) {
@@ -105,31 +105,31 @@ internal class AndroidGattNotifyClient(
                     return
                 }
                 when (session.resolveFallbackCharacteristics()) {
-                    AndroidGattNotifyCharacteristicResolution.MISSING_SERVICE -> {
+                    GattNotifyCharacteristicResolution.MISSING_SERVICE -> {
                         log(
                             "GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${FALLBACK_SERVICE_UUID}"
                         )
                         closeInternal(markClosedByOwner = false)
                     }
 
-                    AndroidGattNotifyCharacteristicResolution.MISSING_CHARACTERISTICS -> {
+                    GattNotifyCharacteristicResolution.MISSING_CHARACTERISTICS -> {
                         log(
                             "GATT notify side link ${peerHintId.value.takeLast(6)} missing notify/write characteristic"
                         )
                         closeInternal(markClosedByOwner = false)
                     }
 
-                    AndroidGattNotifyCharacteristicResolution.READY -> {
+                    GattNotifyCharacteristicResolution.READY -> {
                         when (session.enableNotifications()) {
-                            AndroidGattNotifyEnableNotificationsResult.REQUESTED -> Unit
-                            AndroidGattNotifyEnableNotificationsResult.MISSING_CCCD -> {
+                            GattNotifyEnableNotificationsResult.REQUESTED -> Unit
+                            GattNotifyEnableNotificationsResult.MISSING_CCCD -> {
                                 log(
                                     "GATT notify side link ${peerHintId.value.takeLast(6)} missing CCCD for notify characteristic"
                                 )
                                 closeInternal(markClosedByOwner = false)
                             }
 
-                            AndroidGattNotifyEnableNotificationsResult.REQUEST_FAILED -> {
+                            GattNotifyEnableNotificationsResult.REQUEST_FAILED -> {
                                 log(
                                     "GATT notify side link ${peerHintId.value.takeLast(6)} notify enable request failed"
                                 )
@@ -215,7 +215,7 @@ internal class AndroidGattNotifyClient(
             writeViaAndroidGattNotify(
                 payload = payload,
                 context =
-                    AndroidGattNotifyWriteContext(
+                    GattNotifyWriteContext(
                         peerLogSuffix = peerHintId.value.takeLast(6),
                         clientReady = lifecycleState.ready,
                         hasGatt = session != null,
@@ -223,7 +223,7 @@ internal class AndroidGattNotifyClient(
                         maxChunkBytes = maximumWriteChunkBytes(),
                     ),
                 dependencies =
-                    AndroidGattNotifyWriteDependencies(
+                    GattNotifyWriteDependencies(
                         encode = frameBuffer::encode,
                         writeChunk = { payloadBytes, encodedBytes, chunk ->
                             if (session == null) {
@@ -264,7 +264,7 @@ internal class AndroidGattNotifyClient(
     }
 
     private suspend fun writeEncodedChunk(
-        session: AndroidGattNotifySession,
+        session: GattNotifySession,
         payloadBytes: Int,
         encodedBytes: Int,
         chunk: ByteArray,
@@ -299,7 +299,7 @@ internal class AndroidGattNotifyClient(
         return maximumGattWriteChunkBytes(lifecycleState.currentMtu)
     }
 
-    private fun requestFastPhyIfSupported(session: AndroidGattNotifySession): Unit {
+    private fun requestFastPhyIfSupported(session: GattNotifySession): Unit {
         runCatching { session.requestFastPhyIfSupported() }
             .onFailure { error ->
                 log(

@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.api.apple.BleTransportBridge
+import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -9,26 +11,26 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class IosBleTransportBridgeTest {
+class BleTransportBridgeTest {
     @AfterTest
     fun tearDown(): Unit {
-        IosBleTransportBridgeRegistry.clear()
+        BleTransportBridgeRegistry.clear()
     }
 
     @Test
     fun requireCallbacksFailsWhenBridgeIsMissing(): Unit {
         // Arrange
-        IosBleTransportBridgeRegistry.clear()
+        BleTransportBridgeRegistry.clear()
 
         // Act
         val exception =
             assertFailsWith<MeshLinkException.PlatformFailure> {
-                IosBleTransportBridgeRegistry.requireCallbacks()
+                BleTransportBridgeRegistry.requireCallbacks()
             }
 
         // Assert
         assertTrue(
-            actual = exception.message.orEmpty().contains("IosBleTransportBridge.install"),
+            actual = exception.message.orEmpty().contains("BleTransportBridge.install"),
             message =
                 "Missing bridge failures should direct iOS callers to install native transport callbacks",
         )
@@ -43,7 +45,7 @@ class IosBleTransportBridgeTest {
         val expectedCharacteristic = Any()
         val expectedCentral = Any()
         var invocationCount = 0
-        IosBleTransportBridge.install(
+        BleTransportBridge.install(
             gattNotifySend = { peripheralManager, notifyCharacteristic, central, payload ->
                 invocationCount += 1
                 assertEquals(expectedPeripheral, peripheralManager)
@@ -55,7 +57,7 @@ class IosBleTransportBridgeTest {
         )
 
         // Act
-        val callbacks = IosBleTransportBridgeRegistry.requireCallbacks()
+        val callbacks = BleTransportBridgeRegistry.requireCallbacks()
         val actual =
             callbacks.gattNotifySend(
                 expectedPeripheral,
@@ -79,7 +81,7 @@ class IosBleTransportBridgeTest {
         val expectedCharacteristic = Any()
         val expectedCentral = Any()
         var invocationCount = 0
-        IosBleTransportBridge.installData(
+        BleTransportBridge.installData(
             gattNotifySendData = { peripheralManager, notifyCharacteristic, central, payloadData ->
                 invocationCount += 1
                 assertEquals(expectedPeripheral, peripheralManager)
@@ -91,7 +93,7 @@ class IosBleTransportBridgeTest {
         )
 
         // Act
-        val callbacks = IosBleTransportBridgeRegistry.requireCallbacks()
+        val callbacks = BleTransportBridgeRegistry.requireCallbacks()
         val actual =
             callbacks.gattNotifySendData?.invoke(
                 expectedPeripheral,

@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
-internal class AndroidGattNotifyCallbackRelay(
-    private val listener: AndroidGattNotifySessionListener
-) {
+internal class GattNotifyCallbackRelay(private val listener: GattNotifySessionListener) {
     fun onConnectionStateChange(address: String, status: Int, newState: Int): Unit {
         listener.onConnectionStateChange(address = address, status = status, newState = newState)
     }

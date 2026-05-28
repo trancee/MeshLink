@@ -2,7 +2,7 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.identity.toHexString
 
-internal data class IosL2capBufferWriteStats(
+internal data class L2capBufferWriteStats(
     val writeCalls: Int,
     val writeBatches: Int,
     val backpressureSpins: Int,
@@ -15,13 +15,13 @@ internal data class IosL2capBufferWriteStats(
     val totalElapsedMs: Long,
 )
 
-internal data class IosL2capCoalescedBufferSnapshot(
+internal data class L2capCoalescedBufferSnapshot(
     val buffer: ByteArray,
     val batchHeadHex: String,
     val batchTailHex: String,
 )
 
-internal data class IosL2capWriteProgress(
+internal data class L2capWriteProgress(
     var lastWriteProgressAtMs: Long,
     var writeCalls: Int = 0,
     var writeBatches: Int = 0,
@@ -35,20 +35,20 @@ internal data class IosL2capWriteProgress(
     var maxInterWriteGapMs: Long = 0L,
 )
 
-internal fun IosL2capWriteProgress.recordBatch(batchBytes: Int): Unit {
+internal fun L2capWriteProgress.recordBatch(batchBytes: Int): Unit {
     writeBatches += 1
     maxWriteBatchBytes = maxOf(maxWriteBatchBytes, batchBytes)
     minWriteBatchBytes = minOf(minWriteBatchBytes, batchBytes)
 }
 
-internal fun IosL2capWriteProgress.recordBackpressure(readyFalse: Boolean): Unit {
+internal fun L2capWriteProgress.recordBackpressure(readyFalse: Boolean): Unit {
     backpressureSpins += 1
     if (readyFalse) {
         readyFalseCount += 1
     }
 }
 
-internal fun IosL2capWriteProgress.recordWrite(writtenBytes: Int, attemptAtMs: Long): Unit {
+internal fun L2capWriteProgress.recordWrite(writtenBytes: Int, attemptAtMs: Long): Unit {
     maxWriteChunkBytes = maxOf(maxWriteChunkBytes, writtenBytes)
     minWriteChunkBytes = minOf(minWriteChunkBytes, writtenBytes)
     previousPositiveWriteAtMs?.let { previousAtMs ->
@@ -58,8 +58,8 @@ internal fun IosL2capWriteProgress.recordWrite(writtenBytes: Int, attemptAtMs: L
     lastWriteProgressAtMs = attemptAtMs
 }
 
-internal fun IosL2capWriteProgress.toStats(totalElapsedMs: Long): IosL2capBufferWriteStats {
-    return IosL2capBufferWriteStats(
+internal fun L2capWriteProgress.toStats(totalElapsedMs: Long): L2capBufferWriteStats {
+    return L2capBufferWriteStats(
         writeCalls = writeCalls,
         writeBatches = writeBatches,
         backpressureSpins = backpressureSpins,
@@ -75,14 +75,14 @@ internal fun IosL2capWriteProgress.toStats(totalElapsedMs: Long): IosL2capBuffer
 
 internal fun buildCoalescedBufferSnapshot(
     encodedFrames: List<ByteArray>
-): IosL2capCoalescedBufferSnapshot {
+): L2capCoalescedBufferSnapshot {
     val coalescedBuffer = ByteArray(encodedFrames.sumOf { frame -> frame.size })
     var copyOffset = 0
     encodedFrames.forEach { encodedFrame ->
         encodedFrame.copyInto(coalescedBuffer, destinationOffset = copyOffset)
         copyOffset += encodedFrame.size
     }
-    return IosL2capCoalescedBufferSnapshot(
+    return L2capCoalescedBufferSnapshot(
         buffer = coalescedBuffer,
         batchHeadHex =
             coalescedBuffer

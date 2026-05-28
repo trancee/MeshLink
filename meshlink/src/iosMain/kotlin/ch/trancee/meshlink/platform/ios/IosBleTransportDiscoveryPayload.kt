@@ -11,7 +11,7 @@ internal const val NO_ADVERTISED_L2CAP_PSM: UByte = 0u
 internal val ADVERTISED_PSM_RANGE: IntRange = ADVERTISED_PSM_MIN..ADVERTISED_PSM_MAX
 internal const val NO_GATT_CHARACTERISTIC_PERMISSIONS: ULong = 0u
 
-internal fun IosBleTransport.discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
+internal fun BleTransportAdapter.discoveryPayload(l2capPsm: UByte): BleDiscoveryPayload {
     return BleDiscoveryPayload(
         protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
         powerMode = currentPowerProfile.discoveryPowerMode,
@@ -22,6 +22,6 @@ internal fun IosBleTransport.discoveryPayload(l2capPsm: UByte): BleDiscoveryPayl
     )
 }
 
-internal fun IosBleTransport.advertisedPsm(psm: UShort): UByte {
+internal fun BleTransportAdapter.advertisedPsm(psm: UShort): UByte {
     return if (psm.toInt() in ADVERTISED_PSM_RANGE) psm.toUByte() else NO_ADVERTISED_L2CAP_PSM
 }

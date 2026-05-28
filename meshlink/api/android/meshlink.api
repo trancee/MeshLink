@@ -33,18 +33,18 @@ public final class ch/trancee/meshlink/api/InboundMessage {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class ch/trancee/meshlink/api/IosBleTransportBridge {
-	public static final field INSTANCE Lch/trancee/meshlink/api/IosBleTransportBridge;
+public final class ch/trancee/meshlink/api/apple/BleTransportBridge {
+	public static final field INSTANCE Lch/trancee/meshlink/api/apple/BleTransportBridge;
 	public final fun install (Lkotlin/jvm/functions/Function4;)V
 	public final fun installData (Lkotlin/jvm/functions/Function4;)V
 }
 
-public final class ch/trancee/meshlink/api/IosCryptoBridge {
-	public static final field INSTANCE Lch/trancee/meshlink/api/IosCryptoBridge;
+public final class ch/trancee/meshlink/api/apple/CryptoBridge {
+	public static final field INSTANCE Lch/trancee/meshlink/api/apple/CryptoBridge;
 	public final fun install (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
 }
 
-public final class ch/trancee/meshlink/api/IosCryptoRawKeyPair {
+public final class ch/trancee/meshlink/api/apple/CryptoRawKeyPair {
 	public fun <init> ([B[B)V
 	public final fun getPrivateKey ()[B
 	public final fun getPublicKey ()[B

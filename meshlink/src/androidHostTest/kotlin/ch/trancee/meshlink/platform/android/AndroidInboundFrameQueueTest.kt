@@ -12,13 +12,13 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
-class AndroidInboundFrameQueueTest {
+class InboundFrameQueueTest {
     @Test
     fun `enqueue delivers frames in order`() = runBlocking {
         // Arrange
         val peerId = PeerId("peer-1")
         val deliveredFrames = mutableListOf<TransportEvent.FrameReceived>()
-        val queue = AndroidInboundFrameQueue(scope = this) { event -> deliveredFrames += event }
+        val queue = InboundFrameQueue(scope = this) { event -> deliveredFrames += event }
 
         // Act
         val firstEnqueued = queue.enqueue(peerId = peerId, payload = "first".encodeToByteArray())
@@ -47,7 +47,7 @@ class AndroidInboundFrameQueueTest {
         val unblockConsumer = CompletableDeferred<Unit>()
         val deliveredFrames = mutableListOf<TransportEvent.FrameReceived>()
         val queue =
-            AndroidInboundFrameQueue(scope = this, capacity = 1) { event ->
+            InboundFrameQueue(scope = this, capacity = 1) { event ->
                 deliveredFrames += event
                 if (!firstDeliveryStarted.isCompleted) {
                     firstDeliveryStarted.complete(Unit)

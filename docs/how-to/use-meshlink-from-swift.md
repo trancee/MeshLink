@@ -62,28 +62,28 @@ responsibility:
 
 ```swift
 func installMeshLinkCrypto() {
-    let callbacks = IosCryptoCallbacks(
+    let callbacks = CryptoCallbacks(
         randomBytes: makeRandomBytes,
-        hashes: IosHashCallbacks(
+        hashes: HashCallbacks(
             sha256: sha256Bytes,
             hmacSha256: hmacSha256Bytes
         ),
-        keyGeneration: IosKeyGenerationCallbacks(
+        keyGeneration: KeyGenerationCallbacks(
             generateX25519KeyPair: generateX25519KeyPair,
             generateEd25519KeyPair: generateEd25519KeyPair
         ),
         x25519: x25519SharedSecret,
-        ed25519: IosEd25519Callbacks(
+        ed25519: Ed25519Callbacks(
             sign: ed25519Sign,
             verify: ed25519Verify
         ),
-        chacha20Poly1305: IosChaCha20Poly1305Callbacks(
+        chacha20Poly1305: ChaCha20Poly1305Callbacks(
             seal: chacha20Poly1305Seal,
             open: chacha20Poly1305Open
         )
     )
 
-    IosCryptoBridge.shared.install(callbacks: callbacks)
+    CryptoBridge.shared.install(callbacks: callbacks)
 }
 ```
 
@@ -93,10 +93,10 @@ Bridge rules to keep in mind:
 - Ed25519 signing returns the 64-byte raw signature format
 - ChaCha20-Poly1305 sealing returns `ciphertext || tag`
 
-The older flat `IosCryptoBridge.shared.install(...)` overload still exists, but
+The older flat `CryptoBridge.shared.install(...)` overload still exists, but
 the grouped form is easier to maintain.
 
-`IosBleTransportBridge` is optional. Install it only when you need the
+`BleTransportBridge` is optional. Install it only when you need the
 iPhone-hosted GATT-notify bearer. Prefer `installData(...)` when the host app
 can work directly with Swift `Data` or `NSData`, because it avoids an extra
 per-byte bridge copy back into Kotlin.
@@ -321,7 +321,7 @@ What you do **not** get by default:
   [How to add MeshLink to your app](add-meshlink-to-your-app.md) and confirm
   the framework build and linker configuration first.
 - **The runtime fails early or discovery never begins on iPhone** — make sure
-  `IosCryptoBridge` is installed before runtime creation and clear the first-run
+  `CryptoBridge` is installed before runtime creation and clear the first-run
   Bluetooth prompt before debugging anything deeper.
 - **Early peer, diagnostic, or message events are missing** — attach your
   `for await` tasks before you call `start()`.

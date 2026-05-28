@@ -15,12 +15,12 @@ import platform.Foundation.NSUserDomainMask
 import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createIosPlatformServices(): DefaultPlatformServices {
-    val documentsDirectory = resolveIosDocumentsDirectory()
+internal fun createPlatformServices(): DefaultPlatformServices {
+    val documentsDirectory = resolveDocumentsDirectory()
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = iosReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
                 nowProvider = { time(null) * 1000L }
@@ -30,7 +30,7 @@ internal fun createIosPlatformServices(): DefaultPlatformServices {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createIosAutomationPlatformServices(
+internal fun createAutomationPlatformServices(
     storageSubdirectory: String,
     blocked: Boolean,
 ): DefaultPlatformServices {
@@ -39,7 +39,7 @@ internal fun createIosAutomationPlatformServices(
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = iosReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
                 readinessBlockers =
@@ -74,7 +74,7 @@ internal fun createIosAutomationPlatformServices(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createIosLiveAutomationPlatformServices(
+internal fun createLiveAutomationPlatformServices(
     storageSubdirectory: String,
     appId: String,
     role: ReferenceAutomationRole,
@@ -84,7 +84,7 @@ internal fun createIosLiveAutomationPlatformServices(
     scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 ): DefaultPlatformServices {
     val baseDirectory = buildString {
-        append(resolveIosDocumentsDirectory())
+        append(resolveDocumentsDirectory())
         append("/live-automation")
         append('/')
         append(storageSubdirectory)
@@ -94,7 +94,7 @@ internal fun createIosLiveAutomationPlatformServices(
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = iosReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
                 nowProvider = clock
@@ -117,14 +117,14 @@ internal fun createIosLiveAutomationPlatformServices(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun resolveIosDocumentsDirectory(): String {
+private fun resolveDocumentsDirectory(): String {
     return NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
         .firstOrNull() as? String ?: error("Unable to resolve iOS documents directory")
 }
 
 private fun resolveAutomationDirectory(storageSubdirectory: String): String {
     return buildString {
-        append(resolveIosDocumentsDirectory())
+        append(resolveDocumentsDirectory())
         append("/ui-automation")
         append('/')
         append(storageSubdirectory)

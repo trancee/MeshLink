@@ -4,7 +4,7 @@ import android.content.Context
 import ch.trancee.meshlink.storage.SecureStorage
 import java.util.Base64
 
-internal class AndroidSecureStorage(context: Context, appId: String) : SecureStorage {
+internal class PreferencesSecureStorage(context: Context, appId: String) : SecureStorage {
     private val preferences = context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
 
     override suspend fun read(key: String): ByteArray? {

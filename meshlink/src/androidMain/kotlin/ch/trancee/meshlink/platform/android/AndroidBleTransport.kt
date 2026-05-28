@@ -41,13 +41,13 @@ internal fun resolveAndroidMaximumPayloadBytesPerDelivery(
             remotePlatformFamily = remotePlatformFamily,
         )
     ) {
-        AndroidGattNotifyClient.maximumPayloadBytesPerDelivery()
+        GattNotifyClient.maximumPayloadBytesPerDelivery()
     } else {
         l2capMaxTransmitPacketSize
     }
 }
 
-internal class AndroidBleTransport(
+internal class BleTransportAdapter(
     internal val context: Context,
     internal val appId: String,
     advertisementKeyHash: ByteArray,
@@ -55,13 +55,13 @@ internal class AndroidBleTransport(
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
-    internal val peerBindings = AndroidPeerBindings()
-    internal val peerRegistry = AndroidPeerRegistry(bindings = peerBindings)
-    internal val activeLinksByHint: MutableMap<String, AndroidL2capLink> = linkedMapOf()
+    internal val peerBindings = PeerBindings()
+    internal val peerRegistry = PeerRegistry(bindings = peerBindings)
+    internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
     internal val gattSideLinks =
-        AndroidGattSideLinkCoordinator(
+        GattSideLinkCoordinator(
             dependencies =
-                AndroidGattSideLinkCoordinatorDependencies(
+                GattSideLinkCoordinatorDependencies(
                     deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
                     hasActiveL2capLink = { hintPeerIdValue ->
                         synchronized(activeLinksByHint) {
@@ -90,7 +90,7 @@ internal class AndroidBleTransport(
     internal val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
     internal val pendingConnectLock = Any()
     internal val transportMutex = Mutex()
-    internal var inboundFrameQueue: AndroidInboundFrameQueue? = null
+    internal var inboundFrameQueue: InboundFrameQueue? = null
 
     internal var bluetoothAdapter: BluetoothAdapter? = null
     internal var advertiser: BluetoothLeAdvertiser? = null
@@ -99,7 +99,7 @@ internal class AndroidBleTransport(
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
     internal var discoverySuspended: Boolean = false
-    internal var currentPowerProfile: AndroidPowerProfile = AndroidPowerMonitor.defaultProfile()
+    internal var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
     internal var currentDiscoveryPayload: BleDiscoveryPayload =
         buildAndroidDiscoveryPayload(
             appId = appId,
@@ -223,26 +223,25 @@ internal class AndroidBleTransport(
     override suspend fun send(frame: OutboundFrame): TransportSendResult {
         return dispatchAndroidSend(
             frame = frame,
-            context = AndroidSendDispatchContext(transportStarted = started),
+            context = SendDispatchContext(transportStarted = started),
             dependencies =
-                AndroidSendDispatchDependencies(
+                SendDispatchDependencies(
                     sendToResolvedPeerOrNull = {
-                        val peer =
-                            resolvePeer(frame.peerId) ?: return@AndroidSendDispatchDependencies null
+                        val peer = resolvePeer(frame.peerId) ?: return@SendDispatchDependencies null
                         tryPreferredGattSend(peer, frame)
                             ?: sendViaAndroidL2capWhenReady(
                                 frame = frame,
                                 context =
-                                    AndroidL2capSendContext(
+                                    L2capSendContext(
                                         hintPeerId = peer.hintPeerId,
                                         transportMode = peer.transportMode,
                                         advertisedL2capPsm = peer.l2capPsm,
                                     ),
                                 dependencies =
-                                    AndroidL2capSendDependencies(
+                                    L2capSendDependencies(
                                         currentLink = {
                                             activeLinkFor(peer)?.let { link ->
-                                                object : AndroidL2capSendLink {
+                                                object : L2capSendLink {
                                                     override suspend fun send(
                                                         frame: OutboundFrame
                                                     ): TransportSendResult {
@@ -279,13 +278,13 @@ internal class AndroidBleTransport(
         return sendViaPreferredGattSideLinkOrNull(
             frame = frame,
             context =
-                AndroidPreferredGattSendContext(
+                PreferredGattSendContext(
                     hintPeerId = peer.hintPeerId,
                     localPlatformFamily = currentDiscoveryPayload.platformFamily,
                     remotePlatformFamily = peer.platformFamily,
                 ),
             dependencies =
-                AndroidPreferredGattSendDependencies(
+                PreferredGattSendDependencies(
                     ensureSideLink = {
                         gattSideLinks.ensureStarted(
                             peer = peer,
@@ -320,10 +319,8 @@ internal class AndroidBleTransport(
         return enqueued
     }
 
-    internal fun createInboundFrameQueue(): AndroidInboundFrameQueue {
-        return AndroidInboundFrameQueue(scope = coroutineScope) { event ->
-            mutableEvents.emit(event)
-        }
+    internal fun createInboundFrameQueue(): InboundFrameQueue {
+        return InboundFrameQueue(scope = coroutineScope) { event -> mutableEvents.emit(event) }
     }
 
     internal fun closeQuietly(closeable: Closeable?): Unit {
@@ -337,8 +334,8 @@ internal class AndroidBleTransport(
     internal fun logEmptyFrameObservation(
         peerId: PeerId,
         readBytes: Int,
-        appendResult: AndroidL2capFrameBuffer.AppendResult,
-        observation: AndroidL2capFrameBuffer.DecodedFrameObservation?,
+        appendResult: L2capFrameBuffer.AppendResult,
+        observation: L2capFrameBuffer.DecodedFrameObservation?,
     ): Unit {
         val peerSuffix = peerId.value.takeLast(6)
         val headerHex = observation?.headerHex ?: "unknown"

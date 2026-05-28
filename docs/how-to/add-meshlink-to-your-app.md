@@ -145,8 +145,8 @@ Linking the framework is not the whole iOS setup.
 Before you create a real MeshLink runtime on iOS, your app must install the
 required native crypto bridge:
 
-- `IosCryptoBridge` is required
-- `IosBleTransportBridge` is optional and only needed for the iPhone-hosted
+- `CryptoBridge` is required
+- `BleTransportBridge` is optional and only needed for the iPhone-hosted
   GATT-notify side bearer
 
 Use [How to use MeshLink from Swift](use-meshlink-from-swift.md) for the exact

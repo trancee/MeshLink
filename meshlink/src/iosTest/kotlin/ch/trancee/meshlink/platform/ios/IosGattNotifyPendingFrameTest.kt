@@ -5,11 +5,11 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class IosGattNotifyPendingFrameTest {
+class GattNotifyPendingFrameTest {
     @Test
     fun nextChunkOrNullReturnsChunksInOrderAndThenNull(): Unit {
         // Arrange
-        val frame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02, 0x03)))
+        val frame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02, 0x03)))
 
         // Act / Assert
         assertContentEquals(byteArrayOf(0x01), frame.nextChunkOrNull())
@@ -22,7 +22,7 @@ class IosGattNotifyPendingFrameTest {
     @Test
     fun remainingChunkCountTracksProgressAndNeverDropsBelowZero(): Unit {
         // Arrange
-        val frame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02)))
+        val frame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02)))
 
         // Act
         val before = frame.remainingChunkCount()
@@ -41,7 +41,7 @@ class IosGattNotifyPendingFrameTest {
     @Test
     fun completeIfPendingOnlyCompletesTheFrameOnce(): Unit = runBlocking {
         // Arrange
-        val frame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
+        val frame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
 
         // Act
         frame.completeIfPending(false)

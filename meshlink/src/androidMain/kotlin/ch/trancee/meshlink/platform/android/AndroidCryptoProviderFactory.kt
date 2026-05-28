@@ -5,9 +5,9 @@ import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
 
-internal object AndroidCryptoProviderFactory {
+internal object JcaCryptoProviderFactory {
     internal fun create(
-        capabilityReport: AndroidJcaCapabilityReport = AndroidJcaCapabilityProbe.detect()
+        capabilityReport: JcaCapabilityReport = JcaCapabilityProbe.detect()
     ): CryptoProvider {
         if (!capabilityReport.supportsMeshLinkRuntime) {
             throw MeshLinkException.CryptoFailure(
@@ -16,23 +16,22 @@ internal object AndroidCryptoProviderFactory {
             )
         }
 
-        val jcaProvider = AndroidCryptoProvider()
+        val jcaProvider = JcaCryptoProvider()
         return if (capabilityReport.supportsEd25519) {
             jcaProvider
         } else {
-            AndroidEd25519FallbackCryptoProvider(
+            Ed25519FallbackCryptoProvider(
                 jcaDelegate = jcaProvider,
-                ed25519Fallback =
-                    AndroidEd25519Fallback(randomBytesProvider = jcaProvider::randomBytes),
+                ed25519Fallback = Ed25519Fallback(randomBytesProvider = jcaProvider::randomBytes),
             )
         }
     }
 }
 
-internal class AndroidEd25519FallbackCryptoProvider
+internal class Ed25519FallbackCryptoProvider
 internal constructor(
-    private val jcaDelegate: AndroidCryptoProvider,
-    private val ed25519Fallback: AndroidEd25519Fallback,
+    private val jcaDelegate: JcaCryptoProvider,
+    private val ed25519Fallback: Ed25519Fallback,
 ) : CryptoProvider {
     override fun randomBytes(size: Int): ByteArray {
         return jcaDelegate.randomBytes(size)

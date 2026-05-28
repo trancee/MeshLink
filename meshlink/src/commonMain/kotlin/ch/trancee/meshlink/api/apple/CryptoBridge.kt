@@ -1,4 +1,6 @@
-package ch.trancee.meshlink.api
+package ch.trancee.meshlink.api.apple
+
+import ch.trancee.meshlink.api.MeshLinkException
 
 /**
  * Raw 32-byte key material returned by an iOS-native cryptography bridge.
@@ -6,7 +8,7 @@ package ch.trancee.meshlink.api
  * Both Curve25519 key agreement keys and Ed25519 signing keys use 32-byte private and public key
  * encodings in MeshLink's current iOS bridge contract.
  */
-public class IosCryptoRawKeyPair public constructor(privateKey: ByteArray, publicKey: ByteArray) {
+public class CryptoRawKeyPair public constructor(privateKey: ByteArray, publicKey: ByteArray) {
     private val privateKeyBytes: ByteArray
     private val publicKeyBytes: ByteArray
 
@@ -35,28 +37,28 @@ public class IosCryptoRawKeyPair public constructor(privateKey: ByteArray, publi
 }
 
 /** Groups the iOS-native hashing callbacks required by MeshLink. */
-public class IosHashCallbacks
+public class HashCallbacks
 public constructor(
     public val sha256: (ByteArray) -> ByteArray,
     public val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
 )
 
 /** Groups the iOS-native asymmetric key-generation callbacks required by MeshLink. */
-public class IosKeyGenerationCallbacks
+public class KeyGenerationCallbacks
 public constructor(
-    public val generateX25519KeyPair: () -> IosCryptoRawKeyPair,
-    public val generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+    public val generateX25519KeyPair: () -> CryptoRawKeyPair,
+    public val generateEd25519KeyPair: () -> CryptoRawKeyPair,
 )
 
 /** Groups the iOS-native Ed25519 signing and verification callbacks required by MeshLink. */
-public class IosEd25519Callbacks
+public class Ed25519Callbacks
 public constructor(
     public val sign: (ByteArray, ByteArray) -> ByteArray,
     public val verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
 )
 
 /** Groups the iOS-native ChaCha20-Poly1305 callbacks required by MeshLink. */
-public class IosChaCha20Poly1305Callbacks
+public class ChaCha20Poly1305Callbacks
 public constructor(
     public val seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
     public val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
@@ -69,20 +71,19 @@ public constructor(
  * can keep hashing, key generation, signing, and AEAD glue together instead of passing a long flat
  * parameter list at the call site.
  */
-public class IosCryptoCallbacks
+public class CryptoCallbacks
 public constructor(
     public val randomBytes: (Int) -> ByteArray,
-    public val hashes: IosHashCallbacks,
-    public val keyGeneration: IosKeyGenerationCallbacks,
+    public val hashes: HashCallbacks,
+    public val keyGeneration: KeyGenerationCallbacks,
     public val x25519: (ByteArray, ByteArray) -> ByteArray,
-    public val ed25519: IosEd25519Callbacks,
-    public val chacha20Poly1305: IosChaCha20Poly1305Callbacks,
+    public val ed25519: Ed25519Callbacks,
+    public val chacha20Poly1305: ChaCha20Poly1305Callbacks,
 ) {
     internal val sha256: (ByteArray) -> ByteArray = hashes.sha256
     internal val hmacSha256: (ByteArray, ByteArray) -> ByteArray = hashes.hmacSha256
-    internal val generateX25519KeyPair: () -> IosCryptoRawKeyPair =
-        keyGeneration.generateX25519KeyPair
-    internal val generateEd25519KeyPair: () -> IosCryptoRawKeyPair =
+    internal val generateX25519KeyPair: () -> CryptoRawKeyPair = keyGeneration.generateX25519KeyPair
+    internal val generateEd25519KeyPair: () -> CryptoRawKeyPair =
         keyGeneration.generateEd25519KeyPair
     internal val ed25519Sign: (ByteArray, ByteArray) -> ByteArray = ed25519.sign
     internal val ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean = ed25519.verify
@@ -104,10 +105,10 @@ public constructor(
  * - Ed25519 signatures use the 64-byte raw signature format
  * - ChaCha20-Poly1305 returns `ciphertext || tag`
  */
-public object IosCryptoBridge {
+public object CryptoBridge {
     /** Installs a structured iOS cryptography callback set. */
-    public fun install(callbacks: IosCryptoCallbacks): Unit {
-        IosCryptoBridgeRegistry.install(callbacks)
+    public fun install(callbacks: CryptoCallbacks): Unit {
+        CryptoBridgeRegistry.install(callbacks)
     }
 
     @Suppress("LongParameterList")
@@ -115,8 +116,8 @@ public object IosCryptoBridge {
         randomBytes: (Int) -> ByteArray,
         sha256: (ByteArray) -> ByteArray,
         hmacSha256: (ByteArray, ByteArray) -> ByteArray,
-        generateX25519KeyPair: () -> IosCryptoRawKeyPair,
-        generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+        generateX25519KeyPair: () -> CryptoRawKeyPair,
+        generateEd25519KeyPair: () -> CryptoRawKeyPair,
         x25519: (ByteArray, ByteArray) -> ByteArray,
         ed25519Sign: (ByteArray, ByteArray) -> ByteArray,
         ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
@@ -125,18 +126,18 @@ public object IosCryptoBridge {
     ): Unit {
         install(
             callbacks =
-                IosCryptoCallbacks(
+                CryptoCallbacks(
                     randomBytes = randomBytes,
-                    hashes = IosHashCallbacks(sha256 = sha256, hmacSha256 = hmacSha256),
+                    hashes = HashCallbacks(sha256 = sha256, hmacSha256 = hmacSha256),
                     keyGeneration =
-                        IosKeyGenerationCallbacks(
+                        KeyGenerationCallbacks(
                             generateX25519KeyPair = generateX25519KeyPair,
                             generateEd25519KeyPair = generateEd25519KeyPair,
                         ),
                     x25519 = x25519,
-                    ed25519 = IosEd25519Callbacks(sign = ed25519Sign, verify = ed25519Verify),
+                    ed25519 = Ed25519Callbacks(sign = ed25519Sign, verify = ed25519Verify),
                     chacha20Poly1305 =
-                        IosChaCha20Poly1305Callbacks(
+                        ChaCha20Poly1305Callbacks(
                             seal = chacha20Poly1305Seal,
                             open = chacha20Poly1305Open,
                         ),
@@ -145,10 +146,10 @@ public object IosCryptoBridge {
     }
 }
 
-internal object IosCryptoBridgeRegistry {
-    private var callbacks: IosCryptoCallbacks? = null
+internal object CryptoBridgeRegistry {
+    private var callbacks: CryptoCallbacks? = null
 
-    internal fun install(callbacks: IosCryptoCallbacks): Unit {
+    internal fun install(callbacks: CryptoCallbacks): Unit {
         this.callbacks = callbacks
     }
 
@@ -156,11 +157,11 @@ internal object IosCryptoBridgeRegistry {
         callbacks = null
     }
 
-    internal fun requireCallbacks(): IosCryptoCallbacks {
+    internal fun requireCallbacks(): CryptoCallbacks {
         return callbacks
             ?: throw MeshLinkException.PlatformFailure(
                 message =
-                    "iOS crypto bridge is not installed. Call IosCryptoBridge.install(...) during app startup."
+                    "iOS crypto bridge is not installed. Call CryptoBridge.install(...) during app startup."
             )
     }
 }

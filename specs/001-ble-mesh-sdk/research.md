@@ -130,7 +130,7 @@ identities survive switching between the JCA-backed and software paths.
 - Samsung `SM-G970U1`, Android 12 / API 31: `XDH` works, `X25519`
   `KeyPairGenerator` alias does not, `Ed25519` JCA is unavailable, and
   `ChaCha20-Poly1305` works. After installing the in-repo Ed25519 fallback,
-  `meshLink(config, bootstrap = androidMeshLinkBootstrap(context))` succeeds
+  `meshLink(config, bootstrap = meshLinkBootstrap(context))` succeeds
   on-device even though the JCA Ed25519
   probe still fails.
 - OPPO `CPH2689`, Android 16 / API 36: `Ed25519` and `ChaCha20-Poly1305`
@@ -138,7 +138,7 @@ identities survive switching between the JCA-backed and software paths.
   `initialize(AlgorithmParameterSpec)` with `InvalidAlgorithmParameterException`.
   This means `XDH` key generation must use `generateKeyPair()` directly instead
   of `NamedParameterSpec.X25519` initialization on Android. With that fix,
-  `meshLink(config, bootstrap = androidMeshLinkBootstrap(context))` also
+  `meshLink(config, bootstrap = meshLinkBootstrap(context))` also
   succeeds on-device.
 - Samsung `SM-G970U1` ↔ OPPO `CPH2689` real-device proof run: Android's new
   direct BLE transport now establishes a real L2CAP channel using the
@@ -148,7 +148,7 @@ identities survive switching between the JCA-backed and software paths.
   discovery caught up, so the transport now binds unknown inbound sockets to a
   temporary address-based peer handle instead of discarding them immediately.
 - iOS direct transport now has a compile-verified CoreBluetooth L2CAP path in
-  `IosBleTransport.kt`, including PSM publication, advertisement, central
+  `BleTransportAdapter.kt`, including PSM publication, advertisement, central
   connection/open-channel flow, incoming/outgoing channel registration, and
   framed stream IO. The repo now also contains a committed `meshlink-proof/ios`
   Xcode project generated from `project.yml`; simulator build succeeds, physical
@@ -1309,7 +1309,7 @@ Interpretation at that point:
 That specific bridge blocker was then resolved by adding a small optional
 public iOS-native transport bridge, analogous to the existing crypto bridge:
 
-- Swift installs `IosBleTransportBridge.install(...)` during iOS app startup
+- Swift installs `BleTransportBridge.install(...)` during iOS app startup
 - the callback receives opaque iOS-native handles for the active
   `CBPeripheralManager`, notify characteristic, subscribed `CBCentral`, and the
   raw payload bytes
@@ -1839,7 +1839,7 @@ Implemented remediations:
 - the same runner now also prefers local cached iOS signing assets and can infer
   `DEVELOPMENT_TEAM` from a matching cached provisioning profile before falling
   back to `xcodebuild -allowProvisioningUpdates`
-- `IosBleTransport` now promotes temporary inbound L2CAP links once later
+- `BleTransportAdapter` now promotes temporary inbound L2CAP links once later
   discovery or GATT-side resolution maps the live connection back onto the real
   discovered peer ID
 

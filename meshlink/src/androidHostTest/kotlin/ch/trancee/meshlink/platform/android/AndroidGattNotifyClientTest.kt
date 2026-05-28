@@ -9,7 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 
-class AndroidGattNotifyClientTest {
+class GattNotifyClientTest {
     @Test
     fun startOpensTheSessionOnceAndConnectedEventRequestsDiscoveryWhenMtuRequestFails(): Unit {
         // Arrange
@@ -40,7 +40,7 @@ class AndroidGattNotifyClientTest {
         // Arrange
         val session =
             FakeAndroidGattNotifySession(
-                characteristicResolution = AndroidGattNotifyCharacteristicResolution.MISSING_SERVICE
+                characteristicResolution = GattNotifyCharacteristicResolution.MISSING_SERVICE
             )
         val factory = FakeAndroidGattNotifySessionFactory(session)
         val client = createAndroidGattNotifyClient(factory = factory)
@@ -57,12 +57,12 @@ class AndroidGattNotifyClientTest {
     @Test
     fun writeDelegatesToTheSessionAfterNotificationsAreEnabled(): Unit = runBlocking {
         // Arrange
-        val expectedEncodedChunk = AndroidL2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
+        val expectedEncodedChunk = L2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
         val session =
             FakeAndroidGattNotifySession(
-                characteristicResolution = AndroidGattNotifyCharacteristicResolution.READY,
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
                 hasWriteCharacteristicFlag = true,
-                enableNotificationsResult = AndroidGattNotifyEnableNotificationsResult.REQUESTED,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
             )
         val factory = FakeAndroidGattNotifySessionFactory(session)
         session.writeChunkHandler = { chunk ->
@@ -91,10 +91,8 @@ class AndroidGattNotifyClientTest {
     }
 }
 
-private fun createAndroidGattNotifyClient(
-    factory: AndroidGattNotifySessionFactory
-): AndroidGattNotifyClient {
-    return AndroidGattNotifyClient(
+private fun createAndroidGattNotifyClient(factory: GattNotifySessionFactory): GattNotifyClient {
+    return GattNotifyClient(
         context = Any(),
         appId = "app",
         peerHintId = PeerId("peer-android"),
@@ -108,11 +106,11 @@ private fun createAndroidGattNotifyClient(
 
 private class FakeAndroidGattNotifySessionFactory(
     private val session: FakeAndroidGattNotifySession
-) : AndroidGattNotifySessionFactory {
-    lateinit var listener: AndroidGattNotifySessionListener
+) : GattNotifySessionFactory {
+    lateinit var listener: GattNotifySessionListener
     var openCalls: Int = 0
 
-    override fun open(listener: AndroidGattNotifySessionListener): AndroidGattNotifySession {
+    override fun open(listener: GattNotifySessionListener): GattNotifySession {
         this.listener = listener
         openCalls += 1
         return session
@@ -121,12 +119,12 @@ private class FakeAndroidGattNotifySessionFactory(
 
 private class FakeAndroidGattNotifySession(
     private val requestMtuResult: Boolean = true,
-    private val characteristicResolution: AndroidGattNotifyCharacteristicResolution =
-        AndroidGattNotifyCharacteristicResolution.READY,
-    private val enableNotificationsResult: AndroidGattNotifyEnableNotificationsResult =
-        AndroidGattNotifyEnableNotificationsResult.REQUESTED,
+    private val characteristicResolution: GattNotifyCharacteristicResolution =
+        GattNotifyCharacteristicResolution.READY,
+    private val enableNotificationsResult: GattNotifyEnableNotificationsResult =
+        GattNotifyEnableNotificationsResult.REQUESTED,
     private val hasWriteCharacteristicFlag: Boolean = false,
-) : AndroidGattNotifySession {
+) : GattNotifySession {
     override val address: String = "AA:BB:CC:DD"
 
     var highPriorityRequests: Int = 0
@@ -154,7 +152,7 @@ private class FakeAndroidGattNotifySession(
         discoverServicesCalls += 1
     }
 
-    override fun resolveFallbackCharacteristics(): AndroidGattNotifyCharacteristicResolution {
+    override fun resolveFallbackCharacteristics(): GattNotifyCharacteristicResolution {
         return characteristicResolution
     }
 
@@ -162,7 +160,7 @@ private class FakeAndroidGattNotifySession(
         return hasWriteCharacteristicFlag
     }
 
-    override fun enableNotifications(): AndroidGattNotifyEnableNotificationsResult {
+    override fun enableNotifications(): GattNotifyEnableNotificationsResult {
         return enableNotificationsResult
     }
 

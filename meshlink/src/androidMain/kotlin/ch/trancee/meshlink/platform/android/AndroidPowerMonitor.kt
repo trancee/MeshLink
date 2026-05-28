@@ -6,7 +6,7 @@ import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.transport.BlePowerMode
 
-internal class AndroidPowerProfile
+internal class PowerProfile
 internal constructor(
     internal val discoveryPowerMode: BlePowerMode,
     internal val advertiseMode: Int,
@@ -14,19 +14,19 @@ internal constructor(
     internal val scanMode: Int,
 )
 
-internal object AndroidPowerMonitor {
-    internal fun defaultProfile(): AndroidPowerProfile {
+internal object PowerMonitor {
+    internal fun defaultProfile(): PowerProfile {
         return profileForTier(PowerTier.BALANCED)
     }
 
-    internal fun profileFor(policy: PowerPolicy): AndroidPowerProfile {
+    internal fun profileFor(policy: PowerPolicy): PowerProfile {
         return profileForTier(policy.tier)
     }
 
-    private fun profileForTier(tier: PowerTier): AndroidPowerProfile {
+    private fun profileForTier(tier: PowerTier): PowerProfile {
         return when (tier) {
             PowerTier.PERFORMANCE ->
-                AndroidPowerProfile(
+                PowerProfile(
                     discoveryPowerMode = BlePowerMode.PERFORMANCE,
                     advertiseMode = AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY,
                     txPowerLevel = AdvertiseSettings.ADVERTISE_TX_POWER_HIGH,
@@ -34,7 +34,7 @@ internal object AndroidPowerMonitor {
                 )
 
             PowerTier.BALANCED ->
-                AndroidPowerProfile(
+                PowerProfile(
                     discoveryPowerMode = BlePowerMode.BALANCED,
                     advertiseMode = AdvertiseSettings.ADVERTISE_MODE_BALANCED,
                     txPowerLevel = AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM,
@@ -42,7 +42,7 @@ internal object AndroidPowerMonitor {
                 )
 
             PowerTier.POWER_SAVER ->
-                AndroidPowerProfile(
+                PowerProfile(
                     discoveryPowerMode = BlePowerMode.POWER_SAVER,
                     advertiseMode = AdvertiseSettings.ADVERTISE_MODE_LOW_POWER,
                     txPowerLevel = AdvertiseSettings.ADVERTISE_TX_POWER_LOW,

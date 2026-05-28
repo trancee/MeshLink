@@ -4,24 +4,24 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class AndroidJcaCapabilityProbeTest {
+class JcaCapabilityProbeTest {
     @Test
     fun `supportsMeshLinkRuntime requires both X25519 and ChaCha20 Poly1305 support`() {
         // Arrange
         val missingX25519 =
-            AndroidJcaCapabilityReport(
+            JcaCapabilityReport(
                 supportsX25519 = false,
                 supportsEd25519 = true,
                 supportsChaCha20Poly1305 = true,
             )
         val missingChaCha =
-            AndroidJcaCapabilityReport(
+            JcaCapabilityReport(
                 supportsX25519 = true,
                 supportsEd25519 = true,
                 supportsChaCha20Poly1305 = false,
             )
         val fullySupported =
-            AndroidJcaCapabilityReport(
+            JcaCapabilityReport(
                 supportsX25519 = true,
                 supportsEd25519 = false,
                 supportsChaCha20Poly1305 = true,
@@ -36,7 +36,7 @@ class AndroidJcaCapabilityProbeTest {
     @Test
     fun `detect produces a report whose aggregate runtime support matches its primitive flags`() {
         // Arrange / Act
-        val report = AndroidJcaCapabilityProbe.detect()
+        val report = JcaCapabilityProbe.detect()
 
         // Assert
         assertEquals(

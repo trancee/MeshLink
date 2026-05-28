@@ -6,13 +6,13 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
-class AndroidDiscoveryConfigSupportTest {
+class DiscoveryConfigSupportTest {
     @Test
     fun buildAndroidDiscoveryPayloadUsesTheLocalMeshIdentityAndAndroidPlatformFamily(): Unit {
         // Arrange
         val appId = "demo.meshlink.android.transport"
         val advertisementKeyHash = ByteArray(12) { index -> (index + 1).toByte() }
-        val currentPowerProfile = AndroidPowerMonitor.defaultProfile()
+        val currentPowerProfile = PowerMonitor.defaultProfile()
 
         // Act
         val payload =

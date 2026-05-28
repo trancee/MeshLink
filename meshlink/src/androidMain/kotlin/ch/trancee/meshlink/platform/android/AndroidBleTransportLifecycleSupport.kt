@@ -2,7 +2,7 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.power.PowerPolicy
 
-internal suspend fun AndroidBleTransport.startTransport(): Unit {
+internal suspend fun BleTransportAdapter.startTransport(): Unit {
     ensurePermissionsGranted()
     val bluetoothManager =
         try {
@@ -33,7 +33,7 @@ internal suspend fun AndroidBleTransport.startTransport(): Unit {
 
     val serverSocket =
         runCatching {
-                AndroidL2capSocketFactory.listenInsecure(adapter) { error ->
+                L2capSocketFactory.listenInsecure(adapter) { error ->
                     log(
                         "explicit insecure L2CAP server socket fallback: ${error.message.orEmpty()}"
                     )
@@ -61,24 +61,24 @@ internal suspend fun AndroidBleTransport.startTransport(): Unit {
     refreshDiscoveryState()
 }
 
-internal suspend fun AndroidBleTransport.pauseTransport(): Unit {
+internal suspend fun BleTransportAdapter.pauseTransport(): Unit {
     stopTransports(clearPeers = false)
     started = false
 }
 
-internal suspend fun AndroidBleTransport.resumeTransport(): Unit {
+internal suspend fun BleTransportAdapter.resumeTransport(): Unit {
     if (!started) {
         startTransport()
     }
 }
 
-internal suspend fun AndroidBleTransport.stopTransport(): Unit {
+internal suspend fun BleTransportAdapter.stopTransport(): Unit {
     stopTransports(clearPeers = true)
     started = false
 }
 
-internal suspend fun AndroidBleTransport.updatePowerPolicyState(policy: PowerPolicy): Unit {
-    currentPowerProfile = AndroidPowerMonitor.profileFor(policy)
+internal suspend fun BleTransportAdapter.updatePowerPolicyState(policy: PowerPolicy): Unit {
+    currentPowerProfile = PowerMonitor.profileFor(policy)
     currentDiscoveryPayload =
         buildAndroidDiscoveryPayload(
             appId = appId,
@@ -92,7 +92,7 @@ internal suspend fun AndroidBleTransport.updatePowerPolicyState(policy: PowerPol
     refreshDiscoveryState()
 }
 
-internal suspend fun AndroidBleTransport.setDiscoverySuspendedState(suspended: Boolean): Unit {
+internal suspend fun BleTransportAdapter.setDiscoverySuspendedState(suspended: Boolean): Unit {
     if (discoverySuspended == suspended) {
         return
     }

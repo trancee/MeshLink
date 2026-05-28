@@ -10,9 +10,9 @@ import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.wireValue
-import ch.trancee.meshlink.reference.platform.createAndroidAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createAndroidLiveAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createAndroidPlatformServices
+import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
+import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
+import ch.trancee.meshlink.reference.platform.createPlatformServices
 
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
@@ -22,7 +22,7 @@ public class MainActivity : ComponentActivity() {
         val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
         val platformServices =
             if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
-                createAndroidLiveAutomationPlatformServices(
+                createLiveAutomationPlatformServices(
                     context = applicationContext,
                     storageSubdirectory =
                         intent?.getStringExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY)
@@ -42,7 +42,7 @@ public class MainActivity : ComponentActivity() {
                             .toReferenceAutomationScenario(),
                 )
             } else if (automationEnabled) {
-                createAndroidAutomationPlatformServices(
+                createAutomationPlatformServices(
                     context = applicationContext,
                     storageSubdirectory =
                         intent?.getStringExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY)
@@ -50,7 +50,7 @@ public class MainActivity : ComponentActivity() {
                     blocked = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION_BLOCKED, false) == true,
                 )
             } else {
-                createAndroidPlatformServices(applicationContext)
+                createPlatformServices(applicationContext)
             }
         setContent { ReferenceApp(platformServices = platformServices) }
     }

@@ -11,11 +11,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 
-class AndroidPreferredGattSendSupportTest {
+class PreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattSideLinkOrNullSkipsHandshakeFrames(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -40,9 +40,7 @@ class AndroidPreferredGattSendSupportTest {
         runBlocking {
             // Arrange
             val fixture =
-                AndroidPreferredGattSendFixture(
-                    remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID
-                )
+                PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID)
             val frame =
                 OutboundFrame(
                     peerId = fixture.context.hintPeerId,
@@ -66,9 +64,7 @@ class AndroidPreferredGattSendSupportTest {
         runBlocking {
             // Arrange
             val fixture =
-                AndroidPreferredGattSendFixture(
-                    remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID
-                )
+                PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID)
             val frame =
                 OutboundFrame(
                     peerId = fixture.context.hintPeerId,
@@ -93,7 +89,7 @@ class AndroidPreferredGattSendSupportTest {
     fun sendViaPreferredGattSideLinkOrNullFallsBackWhenTheSideLinkIsUnavailable(): Unit =
         runBlocking {
             // Arrange
-            val fixture = AndroidPreferredGattSendFixture()
+            val fixture = PreferredGattSendFixture()
             val frame =
                 OutboundFrame(
                     peerId = fixture.context.hintPeerId,
@@ -112,7 +108,7 @@ class AndroidPreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattSideLinkOrNullFallsBackWhenTheSideLinkIsNotReady(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -136,7 +132,7 @@ class AndroidPreferredGattSendSupportTest {
     fun sendViaPreferredGattSideLinkOrNullRestartsTheSideLinkWhenWriteReturnsFalse(): Unit =
         runBlocking {
             // Arrange
-            val fixture = AndroidPreferredGattSendFixture()
+            val fixture = PreferredGattSendFixture()
             val frame =
                 OutboundFrame(
                     peerId = fixture.context.hintPeerId,
@@ -162,7 +158,7 @@ class AndroidPreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattSideLinkOrNullRestartsTheSideLinkWhenWriteThrows(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -188,11 +184,11 @@ class AndroidPreferredGattSendSupportTest {
     }
 }
 
-private class AndroidPreferredGattSendFixture(
+private class PreferredGattSendFixture(
     remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.IOS
 ) {
     val context =
-        AndroidPreferredGattSendContext(
+        PreferredGattSendContext(
             hintPeerId = PeerId("peer-android"),
             localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
             remotePlatformFamily = remotePlatformFamily,
@@ -208,7 +204,7 @@ private class AndroidPreferredGattSendFixture(
             frame = frame,
             context = context,
             dependencies =
-                AndroidPreferredGattSendDependencies(
+                PreferredGattSendDependencies(
                     ensureSideLink = { ensureSideLinkCalls += 1 },
                     currentClient = { client },
                     restartSideLink = { reason -> restartReasons += reason },
@@ -222,7 +218,7 @@ private class FakeAndroidPreferredGattSendClient(
     private val ready: Boolean,
     private val writeResult: Boolean,
     private val writeFailure: Throwable? = null,
-) : AndroidPreferredGattSendClient {
+) : PreferredGattSendClient {
     override fun isReady(): Boolean {
         return ready
     }

@@ -8,11 +8,11 @@ import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationNotDetermined
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 
-class IosPermissionContractTest {
+class PermissionContractTest {
     @Test
     fun `allowed authorization does not throw`() {
         // Arrange / Act
-        IosBlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationAllowedAlways)
+        BlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationAllowedAlways)
 
         // Assert
         // No exception means the permission contract is satisfied.
@@ -21,7 +21,7 @@ class IosPermissionContractTest {
     @Test
     fun `not determined authorization remains promptable`() {
         // Arrange / Act
-        IosBlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationNotDetermined)
+        BlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationNotDetermined)
 
         // Assert
         // No exception means iOS can still prompt for bluetooth access.
@@ -31,7 +31,7 @@ class IosPermissionContractTest {
     fun `denied authorization throws permission denied`() {
         // Arrange / Act / Assert
         assertFailsWith<PlatformPermissionDeniedException> {
-            IosBlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationDenied)
+            BlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationDenied)
         }
     }
 
@@ -39,7 +39,7 @@ class IosPermissionContractTest {
     fun `restricted authorization throws permission denied`() {
         // Arrange / Act / Assert
         assertFailsWith<PlatformPermissionDeniedException> {
-            IosBlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationRestricted)
+            BlePermissionContract.ensureBluetoothAuthorized(CBManagerAuthorizationRestricted)
         }
     }
 }

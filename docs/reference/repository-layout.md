@@ -118,11 +118,11 @@ flowchart LR
 | Concern | Public or host-facing entry point | Notes |
 |---|---|---|
 | Shared SDK factory | `meshLink(config)` | Default factory on platforms that do not need extra bootstrap input |
-| Android SDK factory | `meshLink(config, bootstrap)` + `androidMeshLinkBootstrap(context)` | Android requires typed bootstrap input before factory creation |
+| Android SDK factory | `meshLink(config, bootstrap)` + `meshLinkBootstrap(context)` | Android requires typed bootstrap input before factory creation |
 | Reference app Android host | `MainActivity` in `:meshlink-reference:android-app` | Chooses normal, scripted-ui, or live-proof automation startup |
 | Reference app iOS host | `createReferenceRootViewController()` / `createReferenceRootView()` | Wraps the shared Compose shell in UIKit containers |
-| Reference app Android platform services | `createAndroidPlatformServices(...)` | Supplies Android bootstrap, storage, readiness guidance, and automation variants |
-| Reference app iOS platform services | `createIosPlatformServices()` | Supplies iOS storage, readiness guidance, and automation variants |
+| Reference app Android platform services | `createPlatformServices(...)` | Supplies Android bootstrap, storage, readiness guidance, and automation variants |
+| Reference app iOS platform services | `createPlatformServices()` | Supplies iOS storage, readiness guidance, and automation variants |
 | Android proof app host | Android proof `MainActivity` and intent extras | Physical proof and benchmark surface |
 | iOS proof app host | `ProofApp` scheme and environment variables | Physical proof and benchmark surface |
 

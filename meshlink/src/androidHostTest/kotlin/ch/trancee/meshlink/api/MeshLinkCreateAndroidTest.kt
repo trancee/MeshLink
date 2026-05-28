@@ -11,7 +11,7 @@ class MeshLinkCreateAndroidTest {
         // Arrange
         val config = meshLinkConfig { appId = "demo.meshlink.android.runtime" }
         val expectedMessage =
-            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
+            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = meshLinkBootstrap(context))."
 
         // Act
         val error =
@@ -27,7 +27,7 @@ class MeshLinkCreateAndroidTest {
         val config = meshLinkConfig { appId = "demo.meshlink.android.runtime" }
         val invalidBootstrap = InvalidBootstrap()
         val expectedMessage =
-            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = androidMeshLinkBootstrap(context))."
+            "Android bootstrap is required. Call meshLink(config = ..., bootstrap = meshLinkBootstrap(context))."
 
         // Act
         val error =

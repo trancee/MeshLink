@@ -73,14 +73,14 @@ Android bootstrap helper.
 
 ```kotlin
 import android.content.Context
-import ch.trancee.meshlink.api.androidMeshLinkBootstrap
+import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.api.MeshLink
 
 fun createAndroidRuntime(context: Context): MeshLink {
     return meshLink(
         config = meshLinkConfiguration(),
-        bootstrap = androidMeshLinkBootstrap(context.applicationContext),
+        bootstrap = meshLinkBootstrap(context.applicationContext),
     )
 }
 ```
@@ -120,11 +120,11 @@ struct ChatApp: App {
 ```
 
 Your `installMeshLinkCrypto()` wrapper should call
-`IosCryptoBridge.shared.install(callbacks: ...)` with app-owned crypto
+`CryptoBridge.shared.install(callbacks: ...)` with app-owned crypto
 callbacks.
 
 If you need the iPhone-hosted GATT-notify bearer, install the optional
-`IosBleTransportBridge` during startup as well. Prefer `installData(...)` when
+`BleTransportBridge` during startup as well. Prefer `installData(...)` when
 that path can work directly with Swift `Data` or `NSData`, because it avoids an
 extra per-byte bridge copy back into Kotlin.
 

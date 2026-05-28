@@ -6,9 +6,9 @@ import androidx.compose.ui.window.ComposeUIViewController
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
-import ch.trancee.meshlink.reference.platform.createIosAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createIosLiveAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createIosPlatformServices
+import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
+import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
+import ch.trancee.meshlink.reference.platform.createPlatformServices
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.UIKit.UIView
 import platform.UIKit.UIViewController
@@ -16,14 +16,14 @@ import platform.UIKit.UIViewController
 /** iOS entry point that wraps the shared Compose app in a UIKit controller. */
 @OptIn(ExperimentalForeignApi::class)
 public fun createReferenceRootViewController(): UIViewController {
-    val platformServices = createIosPlatformServices()
+    val platformServices = createPlatformServices()
     return ComposeUIViewController { ReferenceApp(platformServices = platformServices) }
 }
 
 /** iOS entry point that wraps the shared Compose app in a UIKit view. */
 @OptIn(ExperimentalForeignApi::class, ExperimentalComposeUiApi::class)
 public fun createReferenceRootView(): UIView {
-    val platformServices = createIosPlatformServices()
+    val platformServices = createPlatformServices()
     return ComposeUIView { ReferenceApp(platformServices = platformServices) }
 }
 
@@ -34,7 +34,7 @@ public fun createReferenceAutomationRootViewController(
     blocked: Boolean,
 ): UIViewController {
     val platformServices =
-        createIosAutomationPlatformServices(
+        createAutomationPlatformServices(
             storageSubdirectory = storageSubdirectory,
             blocked = blocked,
         )
@@ -48,7 +48,7 @@ public fun createReferenceAutomationRootView(
     blocked: Boolean,
 ): UIView {
     val platformServices =
-        createIosAutomationPlatformServices(
+        createAutomationPlatformServices(
             storageSubdirectory = storageSubdirectory,
             blocked = blocked,
         )
@@ -67,7 +67,7 @@ public fun createReferenceLiveAutomationRootViewController(
     scenario: String,
 ): UIViewController {
     val platformServices =
-        createIosLiveAutomationPlatformServices(
+        createLiveAutomationPlatformServices(
             storageSubdirectory = storageSubdirectory,
             appId = appId,
             role = role.toReferenceAutomationRole(),
@@ -91,7 +91,7 @@ public fun createReferenceLiveAutomationRootView(
     scenario: String,
 ): UIView {
     val platformServices =
-        createIosLiveAutomationPlatformServices(
+        createLiveAutomationPlatformServices(
             storageSubdirectory = storageSubdirectory,
             appId = appId,
             role = role.toReferenceAutomationRole(),

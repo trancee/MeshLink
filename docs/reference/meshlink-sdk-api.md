@@ -58,13 +58,13 @@ fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
 
 // Android only
-fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap
+fun meshLinkBootstrap(context: Context): MeshLinkBootstrap
 ```
 
 | API | Use | Notes |
 |---|---|---|
 | `meshLink(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
-| `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `androidMeshLinkBootstrap(context)` and pass an application context. |
+| `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `meshLinkBootstrap(context)` and pass an application context. |
 | `MeshLinkBootstrap` | platform bootstrap carrier | Abstract public type used by platform-specific helpers. |
 
 Construction creates a runtime in `MeshLinkState.Uninitialized`. It does not
@@ -77,7 +77,7 @@ identity material so MeshLink can derive its stable peer identity.
 ```kotlin
 val runtime = meshLink(
     config = meshLinkConfig { appId = "com.example.chat" },
-    bootstrap = androidMeshLinkBootstrap(applicationContext),
+    bootstrap = meshLinkBootstrap(applicationContext),
 )
 ```
 
@@ -365,10 +365,10 @@ Rules:
 
 ## iOS bridge entry points
 
-### `IosCryptoRawKeyPair`
+### `CryptoRawKeyPair`
 
 ```kotlin
-class IosCryptoRawKeyPair(
+class CryptoRawKeyPair(
     privateKey: ByteArray,
     publicKey: ByteArray,
 ) {
@@ -386,33 +386,33 @@ Notes:
 ### Grouped callback types
 
 ```kotlin
-class IosHashCallbacks(
+class HashCallbacks(
     val sha256: (ByteArray) -> ByteArray,
     val hmacSha256: (ByteArray, ByteArray) -> ByteArray,
 )
 
-class IosKeyGenerationCallbacks(
-    val generateX25519KeyPair: () -> IosCryptoRawKeyPair,
-    val generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+class KeyGenerationCallbacks(
+    val generateX25519KeyPair: () -> CryptoRawKeyPair,
+    val generateEd25519KeyPair: () -> CryptoRawKeyPair,
 )
 
-class IosEd25519Callbacks(
+class Ed25519Callbacks(
     val sign: (ByteArray, ByteArray) -> ByteArray,
     val verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
 )
 
-class IosChaCha20Poly1305Callbacks(
+class ChaCha20Poly1305Callbacks(
     val seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
     val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
 )
 
-class IosCryptoCallbacks(
+class CryptoCallbacks(
     val randomBytes: (Int) -> ByteArray,
-    val hashes: IosHashCallbacks,
-    val keyGeneration: IosKeyGenerationCallbacks,
+    val hashes: HashCallbacks,
+    val keyGeneration: KeyGenerationCallbacks,
     val x25519: (ByteArray, ByteArray) -> ByteArray,
-    val ed25519: IosEd25519Callbacks,
-    val chacha20Poly1305: IosChaCha20Poly1305Callbacks,
+    val ed25519: Ed25519Callbacks,
+    val chacha20Poly1305: ChaCha20Poly1305Callbacks,
 )
 ```
 
@@ -420,18 +420,18 @@ Use these grouped callback types when you want the iOS bridge install call site
 to stay organized by responsibility rather than passing one long flat parameter
 list.
 
-### `IosCryptoBridge.install(...)`
+### `CryptoBridge.install(...)`
 
 ```kotlin
-object IosCryptoBridge {
-    fun install(callbacks: IosCryptoCallbacks)
+object CryptoBridge {
+    fun install(callbacks: CryptoCallbacks)
 
     fun install(
         randomBytes: (Int) -> ByteArray,
         sha256: (ByteArray) -> ByteArray,
         hmacSha256: (ByteArray, ByteArray) -> ByteArray,
-        generateX25519KeyPair: () -> IosCryptoRawKeyPair,
-        generateEd25519KeyPair: () -> IosCryptoRawKeyPair,
+        generateX25519KeyPair: () -> CryptoRawKeyPair,
+        generateEd25519KeyPair: () -> CryptoRawKeyPair,
         x25519: (ByteArray, ByteArray) -> ByteArray,
         ed25519Sign: (ByteArray, ByteArray) -> ByteArray,
         ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
@@ -450,10 +450,10 @@ Notes:
   app-owned bridge glue
 - ChaCha20-Poly1305 uses `ciphertext || tag`
 
-### `IosBleTransportBridge`
+### `BleTransportBridge`
 
 ```kotlin
-object IosBleTransportBridge {
+object BleTransportBridge {
     fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean)
     fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean)
 }

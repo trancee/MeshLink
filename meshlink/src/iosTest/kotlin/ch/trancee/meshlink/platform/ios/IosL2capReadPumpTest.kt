@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform.ios
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosL2capReadPumpTest {
+class L2capReadPumpTest {
     @Test
     fun selectReadPollIntervalMsUsesActivePollingAfterRecentReadProgress(): Unit {
         // Arrange

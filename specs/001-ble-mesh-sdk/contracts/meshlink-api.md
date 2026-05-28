@@ -13,14 +13,14 @@ shape must stay identical across platforms.
 fun meshLink(config: MeshLinkConfig): MeshLink
 fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
-fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap // Android only
+fun meshLinkBootstrap(context: Context): MeshLinkBootstrap // Android only
 ```
 
 **Contract notes**
 - `meshLink(config)` is the primary entry point for platforms that do not need
   extra bootstrap input.
 - `meshLink(config, bootstrap)` is the typed bootstrap overload.
-- Android obtains `bootstrap` from `androidMeshLinkBootstrap(context)`.
+- Android obtains `bootstrap` from `meshLinkBootstrap(context)`.
 - Platform-specific parameters belong in factory overloads, not in the shared
   DSL.
 - Android-specific handles, iOS/CoreBluetooth handles, and other platform
@@ -43,11 +43,11 @@ fun androidMeshLinkBootstrap(context: Context): MeshLinkBootstrap // Android onl
 ### iOS native bridge entry points
 
 ```kotlin
-object IosCryptoBridge {
+object CryptoBridge {
     fun install(...)
 }
 
-object IosBleTransportBridge {
+object BleTransportBridge {
     fun install(
         gattNotifySend: (peripheralManager: Any, notifyCharacteristic: Any, central: Any, payload: ByteArray) -> Boolean,
     )
@@ -55,8 +55,8 @@ object IosBleTransportBridge {
 ```
 
 **Contract notes**
-- `IosCryptoBridge` remains the required iOS-native cryptography install point.
-- `IosBleTransportBridge` is currently optional and exists to support future
+- `CryptoBridge` remains the required iOS-native cryptography install point.
+- `BleTransportBridge` is currently optional and exists to support future
   iPhone-hosted bearer experiments without exposing Core Bluetooth classes
   directly through the public Kotlin API.
 - The transport bridge callback receives opaque iOS-native handles. Callers may

@@ -2,8 +2,8 @@
 
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.TransportEvent
@@ -19,7 +19,7 @@ import platform.CoreBluetooth.CBCharacteristic
 
 private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 2
 
-internal fun IosBleTransport.handleGattNotifySubscribed(
+internal fun BleTransportAdapter.handleGattNotifySubscribed(
     central: CBCentral,
     characteristic: CBCharacteristic,
 ): Unit {
@@ -32,7 +32,7 @@ internal fun IosBleTransport.handleGattNotifySubscribed(
     ensureGattNotifyLink(central = central, replaceExisting = true)
 }
 
-internal fun IosBleTransport.handleGattNotifyUnsubscribed(
+internal fun BleTransportAdapter.handleGattNotifyUnsubscribed(
     central: CBCentral,
     characteristic: CBCharacteristic,
 ): Unit {
@@ -47,24 +47,24 @@ internal fun IosBleTransport.handleGattNotifyUnsubscribed(
     }
 }
 
-internal fun IosBleTransport.handleGattWriteRequests(requests: List<*>): Unit {
+internal fun BleTransportAdapter.handleGattWriteRequests(requests: List<*>): Unit {
     val typedRequests = requests.filterIsInstance<CBATTRequest>()
     typedRequests.firstOrNull()?.let { firstRequest ->
         processGattWriteRequests(typedRequests = typedRequests, firstRequest = firstRequest)
     }
 }
 
-internal fun IosBleTransport.pumpGattNotifyLinks(): Unit {
+internal fun BleTransportAdapter.pumpGattNotifyLinks(): Unit {
     activeGattNotifyLinksByHint.values.forEach { link -> link.pump() }
 }
 
-internal fun IosBleTransport.ensureGattNotifyLink(
+internal fun BleTransportAdapter.ensureGattNotifyLink(
     central: CBCentral,
     replaceExisting: Boolean,
-): IosGattNotifyLink? {
+): GattNotifyLink? {
     val identifier = central.identifier.UUIDString.lowercase()
     val hintPeerIdValue =
-        if (IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null) {
+        if (BleTransportBridgeRegistry.currentCallbacksOrNull() != null) {
             resolveGattNotifyHintPeerIdValue(identifier)
         } else {
             null
@@ -86,7 +86,7 @@ internal fun IosBleTransport.ensureGattNotifyLink(
     }
 }
 
-internal fun IosBleTransport.removeGattNotifyLink(
+internal fun BleTransportAdapter.removeGattNotifyLink(
     identifier: String,
     hintPeerIdValue: String,
 ): Unit {
@@ -98,7 +98,7 @@ internal fun IosBleTransport.removeGattNotifyLink(
     }
 }
 
-internal fun IosBleTransport.processGattWriteRequests(
+internal fun BleTransportAdapter.processGattWriteRequests(
     typedRequests: List<CBATTRequest>,
     firstRequest: CBATTRequest,
 ): Unit {
@@ -129,9 +129,9 @@ internal fun IosBleTransport.processGattWriteRequests(
     }
 }
 
-internal fun IosBleTransport.acceptsGattWriteRequest(
+internal fun BleTransportAdapter.acceptsGattWriteRequest(
     request: CBATTRequest,
-    link: IosGattNotifyLink,
+    link: GattNotifyLink,
     decodedFrames: MutableList<ByteArray>,
 ): Boolean {
     return request.characteristic.UUID.UUIDString.lowercase() ==
@@ -143,7 +143,7 @@ internal fun IosBleTransport.acceptsGattWriteRequest(
         } == true
 }
 
-internal fun IosBleTransport.emitDecodedGattFrames(
+internal fun BleTransportAdapter.emitDecodedGattFrames(
     peerId: PeerId,
     decodedFrames: List<ByteArray>,
 ): Unit {
@@ -154,12 +154,12 @@ internal fun IosBleTransport.emitDecodedGattFrames(
     }
 }
 
-internal fun IosBleTransport.reuseOrCreateGattNotifyLink(
+internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
     central: CBCentral,
     identifier: String,
     hintPeerIdValue: String,
     replaceExisting: Boolean,
-): IosGattNotifyLink {
+): GattNotifyLink {
     if (!replaceExisting) {
         activeGattNotifyLinksByHint[hintPeerIdValue]?.let { existingLink ->
             return existingLink
@@ -167,16 +167,16 @@ internal fun IosBleTransport.reuseOrCreateGattNotifyLink(
     }
     val hintPeerId = PeerId(hintPeerIdValue)
     activeGattNotifyLinksByHint.remove(hintPeerId.value)?.close()
-    var createdLink: IosGattNotifyLink? = null
-    return IosGattNotifyLink(
+    var createdLink: GattNotifyLink? = null
+    return GattNotifyLink(
             peer =
-                IosGattNotifyPeer(
+                GattNotifyPeer(
                     hintPeerId = hintPeerId,
                     centralIdentifier = identifier,
                     maximumUpdateValueLength = central.maximumUpdateValueLength.toInt(),
                 ),
             dependencies =
-                IosGattNotifyDependencies(
+                GattNotifyDependencies(
                     peripheralAdapterProvider = {
                         val manager = peripheralManager
                         val characteristic = gattNotifyServiceCharacteristic
@@ -216,7 +216,7 @@ internal fun IosBleTransport.reuseOrCreateGattNotifyLink(
         }
 }
 
-internal fun IosBleTransport.resolveGattNotifyHintPeerIdValue(identifier: String): String? {
+internal fun BleTransportAdapter.resolveGattNotifyHintPeerIdValue(identifier: String): String? {
     return peerBindings.hintForIdentifier(identifier)
         ?: peerRegistry
             .peers()
@@ -230,16 +230,16 @@ internal fun IosBleTransport.resolveGattNotifyHintPeerIdValue(identifier: String
             ?.value
 }
 
-internal fun IosBleTransport.hasActiveGattNotifyLink(hintPeer: String): Boolean {
+internal fun BleTransportAdapter.hasActiveGattNotifyLink(hintPeer: String): Boolean {
     return activeGattNotifyLinksByHint.containsKey(hintPeer)
 }
 
-internal fun IosBleTransport.activeGattNotifyLinkFor(peer: DiscoveredPeer): IosGattNotifyLink? {
+internal fun BleTransportAdapter.activeGattNotifyLinkFor(peer: DiscoveredPeer): GattNotifyLink? {
     val supportsMixedGattNotifyBearer =
         shouldUseMixedPlatformGattNotifyBearer(
             localPlatformFamily = currentDiscoveryPayload.platformFamily,
             remotePlatformFamily = peer.platformFamily,
-        ) && IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
+        ) && BleTransportBridgeRegistry.currentCallbacksOrNull() != null
     val activeHint =
         resolveActivePeerHint(
             ActivePeerHintResolutionRequest(

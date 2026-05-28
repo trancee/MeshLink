@@ -2,8 +2,8 @@
 
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
@@ -24,7 +24,7 @@ import platform.CoreBluetooth.CBPeripheralManager
 import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
 
-internal fun IosBleTransport.startScanIfReady(central: CBCentralManager): Unit {
+internal fun BleTransportAdapter.startScanIfReady(central: CBCentralManager): Unit {
     if (!started || discoverySuspended || central.state != CBManagerStatePoweredOn) {
         log(
             "startScanIfReady skipped started=$started suspended=$discoverySuspended state=${central.state}"
@@ -39,7 +39,7 @@ internal fun IosBleTransport.startScanIfReady(central: CBCentralManager): Unit {
     )
 }
 
-internal fun IosBleTransport.publishL2capChannelIfReady(peripheral: CBPeripheralManager): Unit {
+internal fun BleTransportAdapter.publishL2capChannelIfReady(peripheral: CBPeripheralManager): Unit {
     if (!started || peripheral.state != CBManagerStatePoweredOn) {
         log("publishL2capChannelIfReady skipped started=$started state=${peripheral.state}")
         return
@@ -48,11 +48,11 @@ internal fun IosBleTransport.publishL2capChannelIfReady(peripheral: CBPeripheral
     peripheral.publishL2CAPChannelWithEncryption(encryptionRequired = false)
 }
 
-internal fun IosBleTransport.installGattNotifyServiceIfReady(
+internal fun BleTransportAdapter.installGattNotifyServiceIfReady(
     peripheral: CBPeripheralManager
 ): Unit {
     val bluetoothReady = peripheral.state == CBManagerStatePoweredOn
-    val hasCryptoBridge = IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
+    val hasCryptoBridge = BleTransportBridgeRegistry.currentCallbacksOrNull() != null
     val canInstallGattNotifyService =
         started && bluetoothReady && !gattNotifyServiceInstalled && hasCryptoBridge
     if (!canInstallGattNotifyService) {
@@ -84,7 +84,7 @@ internal fun IosBleTransport.installGattNotifyServiceIfReady(
     log("installed GATT notify side-channel service")
 }
 
-internal fun IosBleTransport.handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {
+internal fun BleTransportAdapter.handlePublishedL2capChannel(psm: UShort, error: NSError?): Unit {
     if (error != null) {
         reportLog("publish L2CAP failed: ${error.localizedDescription}")
         currentDiscoveryPayload = discoveryPayload(l2capPsm = NO_ADVERTISED_L2CAP_PSM)
@@ -95,7 +95,7 @@ internal fun IosBleTransport.handlePublishedL2capChannel(psm: UShort, error: NSE
     startAdvertisingIfReady()
 }
 
-internal fun IosBleTransport.startAdvertisingIfReady(): Unit {
+internal fun BleTransportAdapter.startAdvertisingIfReady(): Unit {
     val peripheral = peripheralManager ?: return
     if (!started || discoverySuspended || peripheral.state != CBManagerStatePoweredOn) {
         log(
@@ -119,7 +119,7 @@ internal fun IosBleTransport.startAdvertisingIfReady(): Unit {
     )
 }
 
-internal fun IosBleTransport.handleDiscoveredPeripheral(
+internal fun BleTransportAdapter.handleDiscoveredPeripheral(
     peripheral: CBPeripheral,
     serviceUuids: List<CBUUID>,
 ): Unit {
@@ -153,7 +153,7 @@ internal fun IosBleTransport.handleDiscoveredPeripheral(
     }
 }
 
-internal fun IosBleTransport.decodeDiscoveryPayloadOrNull(
+internal fun BleTransportAdapter.decodeDiscoveryPayloadOrNull(
     peripheral: CBPeripheral,
     serviceUuids: List<CBUUID>,
 ): BleDiscoveryPayload? {
@@ -180,7 +180,7 @@ internal fun IosBleTransport.decodeDiscoveryPayloadOrNull(
     return if (supportsProtocolVersion) payload else null
 }
 
-internal fun IosBleTransport.upsertDiscoveredPeer(
+internal fun BleTransportAdapter.upsertDiscoveredPeer(
     hintPeerId: PeerId,
     identifier: String,
     peripheral: CBPeripheral,
@@ -204,7 +204,7 @@ internal fun IosBleTransport.upsertDiscoveredPeer(
     return discoveryUpdate.peer
 }
 
-internal fun IosBleTransport.handleL2capDiscovery(
+internal fun BleTransportAdapter.handleL2capDiscovery(
     identifier: String,
     hintPeerId: PeerId,
     payload: BleDiscoveryPayload,
@@ -227,7 +227,7 @@ internal fun IosBleTransport.handleL2capDiscovery(
     }
 }
 
-internal fun IosBleTransport.handleConnectedPeripheral(peripheral: CBPeripheral): Unit {
+internal fun BleTransportAdapter.handleConnectedPeripheral(peripheral: CBPeripheral): Unit {
     val identifier = peripheral.identifier.UUIDString.lowercase()
     val hint = peerBindings.hintForIdentifier(identifier) ?: return
     val peer = peerRegistry.peer(hint) ?: return
@@ -236,7 +236,7 @@ internal fun IosBleTransport.handleConnectedPeripheral(peripheral: CBPeripheral)
     peripheral.openL2CAPChannel(peer.l2capPsm.convert())
 }
 
-internal fun IosBleTransport.handleFailedConnection(
+internal fun BleTransportAdapter.handleFailedConnection(
     peripheral: CBPeripheral,
     error: NSError?,
 ): Unit {
@@ -249,7 +249,7 @@ internal fun IosBleTransport.handleFailedConnection(
     )
 }
 
-internal fun IosBleTransport.handleDisconnectedPeripheral(peripheral: CBPeripheral): Unit {
+internal fun BleTransportAdapter.handleDisconnectedPeripheral(peripheral: CBPeripheral): Unit {
     val identifier = peripheral.identifier.UUIDString.lowercase()
     val hint =
         peerBindings.hintForIdentifier(identifier)
@@ -259,7 +259,7 @@ internal fun IosBleTransport.handleDisconnectedPeripheral(peripheral: CBPeripher
     closeLink(hintPeer = hint, reason = "peripheral disconnected")
 }
 
-internal fun IosBleTransport.handleOpenedOutgoingChannel(
+internal fun BleTransportAdapter.handleOpenedOutgoingChannel(
     peripheral: CBPeripheral,
     channel: CBL2CAPChannel?,
     error: NSError?,
@@ -278,7 +278,7 @@ internal fun IosBleTransport.handleOpenedOutgoingChannel(
     registerConnectedChannel(PeerId(hint), identifier, channel)
 }
 
-internal fun IosBleTransport.handleOpenedIncomingChannel(
+internal fun BleTransportAdapter.handleOpenedIncomingChannel(
     channel: CBL2CAPChannel?,
     error: NSError?,
 ): Unit {

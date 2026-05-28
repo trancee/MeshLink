@@ -4,17 +4,17 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 
-internal class IosL2capSendContext internal constructor(internal val hintPeerId: PeerId)
+internal class L2capSendContext internal constructor(internal val hintPeerId: PeerId)
 
-internal interface IosL2capSendLink {
+internal interface L2capSendLink {
     val hintPeerId: PeerId
 
     suspend fun enqueue(payload: ByteArray): Boolean
 }
 
-internal class IosL2capSendDependencies
+internal class L2capSendDependencies
 internal constructor(
-    internal val currentLink: () -> IosL2capSendLink?,
+    internal val currentLink: () -> L2capSendLink?,
     internal val ensureConnectAttempt: () -> Unit,
     internal val shouldInitiateL2cap: () -> Boolean,
     internal val closeLink: (String, String) -> Unit,
@@ -23,8 +23,8 @@ internal constructor(
 
 internal suspend fun sendViaIosL2capWhenReady(
     frame: OutboundFrame,
-    context: IosL2capSendContext,
-    dependencies: IosL2capSendDependencies,
+    context: L2capSendContext,
+    dependencies: L2capSendDependencies,
 ): TransportSendResult {
     val link = dependencies.currentLink()
     return if (link == null) {

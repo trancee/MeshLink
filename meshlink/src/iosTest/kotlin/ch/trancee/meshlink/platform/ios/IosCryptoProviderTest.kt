@@ -1,9 +1,9 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosCryptoBridge
-import ch.trancee.meshlink.api.IosCryptoBridgeRegistry
-import ch.trancee.meshlink.api.IosCryptoRawKeyPair
 import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.api.apple.CryptoBridge
+import ch.trancee.meshlink.api.apple.CryptoBridgeRegistry
+import ch.trancee.meshlink.api.apple.CryptoRawKeyPair
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -11,17 +11,17 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class IosCryptoProviderTest {
+class CryptoProviderTest {
     @AfterTest
     fun tearDown(): Unit {
-        IosCryptoBridgeRegistry.clear()
+        CryptoBridgeRegistry.clear()
     }
 
     @Test
     fun randomBytesFailsWhenBridgeIsMissing(): Unit {
         // Arrange
-        IosCryptoBridgeRegistry.clear()
-        val provider = IosCryptoProvider()
+        CryptoBridgeRegistry.clear()
+        val provider = BridgeCryptoProvider()
 
         // Act
         val exception =
@@ -29,7 +29,7 @@ class IosCryptoProviderTest {
 
         // Assert
         assertTrue(
-            actual = exception.message.orEmpty().contains("IosCryptoBridge.install"),
+            actual = exception.message.orEmpty().contains("CryptoBridge.install"),
             message =
                 "Missing bridge failures should direct iOS callers to install native callbacks",
         )
@@ -38,7 +38,7 @@ class IosCryptoProviderTest {
     @Test
     fun randomBytesDelegatesToInstalledBridge(): Unit {
         // Arrange
-        val provider = IosCryptoProvider()
+        val provider = BridgeCryptoProvider()
         val expected = byteArrayOf(1, 2, 3, 4)
         installTestBridge(
             randomBytes = { size ->
@@ -65,12 +65,12 @@ class IosCryptoProviderTest {
     @Test
     fun x25519KeyPairDelegatesToInstalledBridge(): Unit {
         // Arrange
-        val provider = IosCryptoProvider()
+        val provider = BridgeCryptoProvider()
         val expectedPrivateKey = ByteArray(32) { 0x11.toByte() }
         val expectedPublicKey = ByteArray(32) { 0x22.toByte() }
         installTestBridge(
             generateX25519KeyPair = {
-                IosCryptoRawKeyPair(
+                CryptoRawKeyPair(
                     privateKey = expectedPrivateKey.copyOf(),
                     publicKey = expectedPublicKey.copyOf(),
                 )
@@ -97,11 +97,11 @@ class IosCryptoProviderTest {
         randomBytes: (Int) -> ByteArray = { size -> ByteArray(size) },
         sha256: (ByteArray) -> ByteArray = { input -> input },
         hmacSha256: (ByteArray, ByteArray) -> ByteArray = { _, data -> data },
-        generateX25519KeyPair: () -> IosCryptoRawKeyPair = {
-            IosCryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(32))
+        generateX25519KeyPair: () -> CryptoRawKeyPair = {
+            CryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(32))
         },
-        generateEd25519KeyPair: () -> IosCryptoRawKeyPair = {
-            IosCryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(32))
+        generateEd25519KeyPair: () -> CryptoRawKeyPair = {
+            CryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(32))
         },
         x25519: (ByteArray, ByteArray) -> ByteArray = { _, publicKey -> publicKey },
         ed25519Sign: (ByteArray, ByteArray) -> ByteArray = { _, message -> message },
@@ -115,7 +115,7 @@ class IosCryptoProviderTest {
                 ciphertext
             },
     ): Unit {
-        IosCryptoBridge.install(
+        CryptoBridge.install(
             randomBytes = randomBytes,
             sha256 = sha256,
             hmacSha256 = hmacSha256,

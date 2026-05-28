@@ -15,7 +15,7 @@ import java.util.WeakHashMap
  * `ByteArray` object identity to avoid repeatedly hashing and recomputing the public key for
  * long-lived local identities during signing.
  */
-internal class AndroidEd25519Fallback(private val randomBytesProvider: (Int) -> ByteArray) {
+internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArray) {
     private val expandedPrivateKeys = WeakHashMap<ByteArray, ExpandedPrivateKey>()
     private val sha512Digests =
         object : ThreadLocal<MessageDigest>() {

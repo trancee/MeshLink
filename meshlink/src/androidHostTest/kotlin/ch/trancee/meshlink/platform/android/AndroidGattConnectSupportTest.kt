@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class AndroidGattConnectSupportTest {
+class GattConnectSupportTest {
     @Test
     fun connectAndroidGattSessionUsesTheLegacyFactoryBelowApi23(): Unit {
         // Arrange

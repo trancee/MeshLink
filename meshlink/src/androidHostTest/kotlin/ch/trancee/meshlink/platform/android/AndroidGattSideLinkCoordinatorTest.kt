@@ -7,11 +7,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class AndroidGattSideLinkCoordinatorTest {
+class GattSideLinkCoordinatorTest {
     @Test
     fun ensureStartedSkipsPeersThatDoNotNeedTheMixedPlatformGattSideLink(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture()
+        val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.ANDROID)
 
         // Act
@@ -28,7 +28,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun ensureStartedCreatesAndStartsANewClientForMixedPlatformPeers(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture()
+        val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val client = FakeAndroidGattSideLinkClient(ready = false)
         fixture.enqueueClient(client)
@@ -48,7 +48,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun ensureStartedRestartsAnExistingClientWhenItIsNotReady(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture()
+        val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val client = FakeAndroidGattSideLinkClient(ready = false)
         fixture.enqueueClient(client)
@@ -71,7 +71,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun restartClosesTheExistingClientBeforeStartingAReplacement(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture()
+        val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val firstClient = FakeAndroidGattSideLinkClient(ready = true)
         val replacementClient = FakeAndroidGattSideLinkClient(ready = false)
@@ -98,7 +98,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun promoteHintMovesTheExistingClientToTheCanonicalPeerWhenNoReplacementExists(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture()
+        val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val client = FakeAndroidGattSideLinkClient(ready = true)
         fixture.enqueueClient(client)
@@ -122,7 +122,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun handleDisconnectedEmitsPeerLostWhenNoActiveL2capLinkRemains(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture(hasActiveL2capLink = false)
+        val fixture = GattSideLinkCoordinatorFixture(hasActiveL2capLink = false)
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val client = FakeAndroidGattSideLinkClient(ready = true)
         fixture.enqueueClient(client)
@@ -143,7 +143,7 @@ class AndroidGattSideLinkCoordinatorTest {
     @Test
     fun handleDisconnectedKeepsThePeerPresentWhenAnL2capLinkIsStillActive(): Unit {
         // Arrange
-        val fixture = AndroidGattSideLinkCoordinatorFixture(hasActiveL2capLink = true)
+        val fixture = GattSideLinkCoordinatorFixture(hasActiveL2capLink = true)
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.IOS)
         val client = FakeAndroidGattSideLinkClient(ready = true)
         fixture.enqueueClient(client)
@@ -162,7 +162,7 @@ class AndroidGattSideLinkCoordinatorTest {
     }
 }
 
-private class AndroidGattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean = false) {
+private class GattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean = false) {
     private val queuedClients: ArrayDeque<FakeAndroidGattSideLinkClient> = ArrayDeque()
 
     var createClientCalls: Int = 0
@@ -170,9 +170,9 @@ private class AndroidGattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean 
     val lostPeerIds: MutableList<String> = mutableListOf()
 
     val coordinator =
-        AndroidGattSideLinkCoordinator(
+        GattSideLinkCoordinator(
             dependencies =
-                AndroidGattSideLinkCoordinatorDependencies(
+                GattSideLinkCoordinatorDependencies(
                     deviceForPeer = { Any() },
                     hasActiveL2capLink = { hasActiveL2capLink },
                     setPresenceAnnounced = { hintPeerIdValue, announced ->
@@ -193,8 +193,7 @@ private class AndroidGattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean 
     }
 }
 
-private class FakeAndroidGattSideLinkClient(private var ready: Boolean) :
-    AndroidGattSideLinkClient {
+private class FakeAndroidGattSideLinkClient(private var ready: Boolean) : GattSideLinkClient {
     var startCalls: Int = 0
     var closeCalls: Int = 0
     var writeCalls: Int = 0

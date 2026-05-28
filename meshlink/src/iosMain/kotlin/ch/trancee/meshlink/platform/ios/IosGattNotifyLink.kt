@@ -8,32 +8,32 @@ private const val PREFERRED_NOTIFICATION_FRAME_BYTES: Int = 495
 private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
 private const val MIN_NOTIFICATION_CHUNK_BYTES: Int = 1
 
-internal class IosGattNotifyPeer
+internal class GattNotifyPeer
 internal constructor(
     internal val hintPeerId: PeerId,
     internal val centralIdentifier: String,
     internal val maximumUpdateValueLength: Int,
 )
 
-internal class IosGattNotifyDependencies
+internal class GattNotifyDependencies
 internal constructor(
-    internal val peripheralAdapterProvider: () -> IosGattNotifyPeripheralAdapter?,
+    internal val peripheralAdapterProvider: () -> GattNotifyPeripheralAdapter?,
     internal val runPump: suspend (() -> Boolean) -> Boolean,
     internal val logger: (String) -> Unit,
     internal val schedulePumpRetry: () -> Unit,
 )
 
 @Suppress("TooManyFunctions")
-internal class IosGattNotifyLink
-internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattNotifyDependencies) {
+internal class GattNotifyLink
+internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyDependencies) {
     internal val hintPeerId: PeerId = peer.hintPeerId
     internal val centralIdentifier: String = peer.centralIdentifier
     private val maximumUpdateValueLength: Int = peer.maximumUpdateValueLength
     private val logLabel: String = hintPeerId.value.takeLast(PEER_LOG_SUFFIX_LENGTH)
 
-    private val outgoingFrames = IosL2capFrameBuffer()
-    private val incomingFrames = IosL2capFrameBuffer()
-    private val pumpState = IosGattNotifyPumpState()
+    private val outgoingFrames = L2capFrameBuffer()
+    private val incomingFrames = L2capFrameBuffer()
+    private val pumpState = GattNotifyPumpState()
     private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false
 
@@ -86,20 +86,20 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         discardedFrames.forEach { frame -> frame.completeIfPending(false) }
     }
 
-    private fun encodePendingFrame(payload: ByteArray): IosGattNotifyPendingFrame {
+    private fun encodePendingFrame(payload: ByteArray): GattNotifyPendingFrame {
         val chunkBytes = maximumGattNotificationChunkBytes(maximumUpdateValueLength)
         val encodedChunks =
             outgoingFrames.encode(payload).asList().chunked(chunkBytes).map { chunk ->
                 chunk.toByteArray()
             }
-        return IosGattNotifyPendingFrame(chunks = encodedChunks)
+        return GattNotifyPendingFrame(chunks = encodedChunks)
     }
 
-    private fun enqueuePendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
+    private fun enqueuePendingFrame(pendingFrame: GattNotifyPendingFrame): Boolean {
         return stateLock.withLock { pumpState.enqueue(pendingFrame) }
     }
 
-    private suspend fun deliverPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
+    private suspend fun deliverPendingFrame(pendingFrame: GattNotifyPendingFrame): Boolean {
         requestLowLatencyIfNeeded()
         return if (pumpOnMain()) {
             pendingFrame.awaitCompletion()
@@ -108,13 +108,13 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         }
     }
 
-    private fun rejectPendingFrame(pendingFrame: IosGattNotifyPendingFrame): Boolean {
+    private fun rejectPendingFrame(pendingFrame: GattNotifyPendingFrame): Boolean {
         stateLock.withLock { pumpState.reject(pendingFrame) }
         pendingFrame.completeIfPending(false)
         return false
     }
 
-    private fun resolvePumpTarget(): IosGattNotifyPeripheralAdapter? {
+    private fun resolvePumpTarget(): GattNotifyPeripheralAdapter? {
         return dependencies.peripheralAdapterProvider()
     }
 
@@ -122,7 +122,7 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         return stateLock.withLock { pumpState.beginPump() }
     }
 
-    private fun drainPendingChunks(target: IosGattNotifyPeripheralAdapter): Boolean {
+    private fun drainPendingChunks(target: GattNotifyPeripheralAdapter): Boolean {
         while (true) {
             val nextChunk = nextPendingChunkOrNull() ?: return true
             val didSend = sendChunk(target, nextChunk)
@@ -147,11 +147,11 @@ internal constructor(peer: IosGattNotifyPeer, private val dependencies: IosGattN
         return stateLock.withLock { pumpState.nextPendingChunkOrNull() }
     }
 
-    private fun sendChunk(target: IosGattNotifyPeripheralAdapter, nextChunk: ByteArray): Boolean {
+    private fun sendChunk(target: GattNotifyPeripheralAdapter, nextChunk: ByteArray): Boolean {
         return target.updateValue(nextChunk)
     }
 
-    private fun recordPumpAttempt(didSend: Boolean): IosGattNotifyPumpOutcome {
+    private fun recordPumpAttempt(didSend: Boolean): GattNotifyPumpOutcome {
         return stateLock.withLock { pumpState.recordPumpAttempt(didSend) }
     }
 

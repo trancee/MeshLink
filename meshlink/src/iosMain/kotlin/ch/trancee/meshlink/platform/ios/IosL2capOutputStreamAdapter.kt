@@ -7,7 +7,7 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSOutputStream
 
-internal interface IosL2capOutputStreamAdapter {
+internal interface L2capOutputStreamAdapter {
     fun streamStatus(): ULong
 
     fun hasError(): Boolean
@@ -18,7 +18,7 @@ internal interface IosL2capOutputStreamAdapter {
 }
 
 internal class NsOutputStreamAdapter(private val outputStream: NSOutputStream) :
-    IosL2capOutputStreamAdapter {
+    L2capOutputStreamAdapter {
     override fun streamStatus(): ULong {
         return outputStream.streamStatus
     }

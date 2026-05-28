@@ -9,8 +9,8 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class AndroidEd25519FallbackTest {
-    private val fallback = AndroidEd25519Fallback(randomBytesProvider = { size -> ByteArray(size) })
+class Ed25519FallbackTest {
+    private val fallback = Ed25519Fallback(randomBytesProvider = { size -> ByteArray(size) })
 
     @Test
     fun `fallback matches RFC 8032 test vector 1`() {
@@ -78,9 +78,9 @@ class AndroidEd25519FallbackTest {
     fun `fallback provider is selected when JCA Ed25519 is missing`() {
         // Arrange
         val provider =
-            AndroidCryptoProviderFactory.create(
+            JcaCryptoProviderFactory.create(
                 capabilityReport =
-                    AndroidJcaCapabilityReport(
+                    JcaCapabilityReport(
                         supportsX25519 = true,
                         supportsEd25519 = false,
                         supportsChaCha20Poly1305 = true,
@@ -94,7 +94,7 @@ class AndroidEd25519FallbackTest {
         val isValid = provider.ed25519Verify(keyPair.publicKey, message, signature)
 
         // Assert
-        assertTrue(provider is AndroidEd25519FallbackCryptoProvider)
+        assertTrue(provider is Ed25519FallbackCryptoProvider)
         assertTrue(
             isValid,
             "Fallback-backed providers must expose fully working Ed25519 operations",

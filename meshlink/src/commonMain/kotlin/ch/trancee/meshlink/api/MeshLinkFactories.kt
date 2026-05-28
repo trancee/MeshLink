@@ -17,7 +17,7 @@ public fun meshLink(config: MeshLinkConfig): MeshLink {
 
 /**
  * Creates a MeshLink runtime with typed platform bootstrap input, such as an Android application
- * context wrapped by `androidMeshLinkBootstrap(...)`.
+ * context wrapped by `meshLinkBootstrap(...)`.
  *
  * On platforms that do not require extra bootstrap input, prefer [meshLink].
  *

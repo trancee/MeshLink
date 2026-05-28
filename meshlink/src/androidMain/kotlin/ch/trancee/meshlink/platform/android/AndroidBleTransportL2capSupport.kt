@@ -19,16 +19,16 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 
-internal fun AndroidBleTransport.hasPendingConnect(hintPeer: String): Boolean {
+internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
     return synchronized(pendingConnectLock) { pendingConnectJobsByHint.containsKey(hintPeer) }
 }
 
-internal fun AndroidBleTransport.clearPendingConnect(hintPeer: String): Unit {
+internal fun BleTransportAdapter.clearPendingConnect(hintPeer: String): Unit {
     synchronized(pendingConnectLock) { pendingConnectJobsByHint.remove(hintPeer) }
 }
 
 @SuppressLint("MissingPermission")
-internal fun AndroidBleTransport.connectIfNeeded(peer: DiscoveredPeer): Unit {
+internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
     if (peer.l2capPsm == 0) {
         log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
         return
@@ -42,10 +42,8 @@ internal fun AndroidBleTransport.connectIfNeeded(peer: DiscoveredPeer): Unit {
                         "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${device.address}"
                     )
                     val socket =
-                        AndroidL2capSocketFactory.createInsecure(
-                            device = device,
-                            psm = peer.l2capPsm,
-                        ) { error ->
+                        L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm) {
+                            error ->
                             log(
                                 "explicit insecure L2CAP client socket fallback for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                             )
@@ -84,7 +82,7 @@ internal fun AndroidBleTransport.connectIfNeeded(peer: DiscoveredPeer): Unit {
     connectJob.start()
 }
 
-internal fun AndroidBleTransport.promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
+internal fun BleTransportAdapter.promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
     val mappedTemporaryHint = peerBindings.temporaryHintForAddress(address) ?: return
     val temporaryHint =
         selectTemporaryPeerHintPromotion(
@@ -126,7 +124,7 @@ internal fun AndroidBleTransport.promoteTemporaryLink(address: String, hintPeerI
     }
 }
 
-internal fun AndroidBleTransport.launchAcceptLoop(serverSocket: BluetoothServerSocket): Unit {
+internal fun BleTransportAdapter.launchAcceptLoop(serverSocket: BluetoothServerSocket): Unit {
     acceptLoopJob = coroutineScope.launch {
         while (true) {
             val socket =
@@ -147,7 +145,7 @@ internal fun AndroidBleTransport.launchAcceptLoop(serverSocket: BluetoothServerS
     }
 }
 
-internal fun AndroidBleTransport.registerConnectedSocket(
+internal fun BleTransportAdapter.registerConnectedSocket(
     hintPeerId: PeerId,
     socket: BluetoothSocket,
 ): Unit {
@@ -158,11 +156,7 @@ internal fun AndroidBleTransport.registerConnectedSocket(
             return
         }
         val link =
-            AndroidL2capLink(
-                peerHintId = hintPeerId,
-                socket = socket,
-                incomingFrames = AndroidL2capFrameBuffer(),
-            )
+            L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer())
         activeLinksByHint[hintPeerId.value] = link
         peerBindings.retainDevice(socket.remoteDevice.address, socket.remoteDevice)
         peerBindings.bindHintToAddress(socket.remoteDevice.address, hintPeerId.value)
@@ -212,7 +206,7 @@ internal fun AndroidBleTransport.registerConnectedSocket(
     }
 }
 
-internal fun AndroidBleTransport.activeLinkFor(peer: DiscoveredPeer): AndroidL2capLink? {
+internal fun BleTransportAdapter.activeLinkFor(peer: DiscoveredPeer): L2capLink? {
     val activeHint =
         resolveActivePeerHint(
             ActivePeerHintResolutionRequest(
@@ -224,9 +218,9 @@ internal fun AndroidBleTransport.activeLinkFor(peer: DiscoveredPeer): AndroidL2c
     return activeLinksByHint[activeHint]
 }
 
-internal suspend fun AndroidBleTransport.sendViaConnectedLink(
+internal suspend fun BleTransportAdapter.sendViaConnectedLink(
     frame: OutboundFrame,
-    link: AndroidL2capLink,
+    link: L2capLink,
 ): TransportSendResult {
     return runCatching {
             transportMutex.withLock { link.write(frame.payload) }
@@ -242,7 +236,7 @@ internal suspend fun AndroidBleTransport.sendViaConnectedLink(
 }
 
 @SuppressLint("MissingPermission")
-internal fun AndroidBleTransport.stopTransports(clearPeers: Boolean): Unit {
+internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     scanner?.stopScan(scanCallback)
     advertiser?.stopAdvertising(advertiseCallback)
     acceptLoopJob?.cancel()
@@ -265,7 +259,7 @@ internal fun AndroidBleTransport.stopTransports(clearPeers: Boolean): Unit {
     }
 }
 
-internal fun AndroidBleTransport.closeLink(hintPeer: String, reason: String): Unit {
+internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit {
     val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, false)
     log(
@@ -284,10 +278,10 @@ internal fun AndroidBleTransport.closeLink(hintPeer: String, reason: String): Un
     mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
 }
 
-internal class AndroidL2capLink(
+internal class L2capLink(
     internal var peerHintId: PeerId,
     private val socket: BluetoothSocket,
-    internal val incomingFrames: AndroidL2capFrameBuffer,
+    internal val incomingFrames: L2capFrameBuffer,
 ) : Closeable {
     internal val remoteDevice: android.bluetooth.BluetoothDevice = socket.remoteDevice
     internal val inputStream: InputStream = socket.inputStream

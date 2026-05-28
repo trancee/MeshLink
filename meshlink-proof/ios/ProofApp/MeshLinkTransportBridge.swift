@@ -4,7 +4,7 @@ import MeshLink
 
 enum MeshLinkProofTransportBridge {
     static func install() {
-        IosBleTransportBridge.shared.installData(
+        BleTransportBridge.shared.installData(
             gattNotifySendData: { peripheralManagerHandle, notifyCharacteristicHandle, centralHandle, payloadDataHandle in
                 guard
                     let peripheralManager = peripheralManagerHandle as? CBPeripheralManager,

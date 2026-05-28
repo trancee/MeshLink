@@ -8,11 +8,11 @@ import ch.trancee.meshlink.transport.BlePowerMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosPowerMonitorTest {
+class PowerMonitorTest {
     @Test
     fun `defaultProfile returns the balanced platform profile`() {
         // Arrange / Act
-        val profile = IosPowerMonitor.defaultProfile()
+        val profile = PowerMonitor.defaultProfile()
 
         // Assert
         assertEquals(BlePowerMode.BALANCED, profile.discoveryPowerMode)
@@ -30,7 +30,7 @@ class IosPowerMonitorTest {
         val policy = controller.currentPolicy(nowMillis = 0L)
 
         // Act
-        val profile = IosPowerMonitor.profileFor(policy)
+        val profile = PowerMonitor.profileFor(policy)
 
         // Assert
         assertEquals(PowerTier.PERFORMANCE, policy.tier)
@@ -49,7 +49,7 @@ class IosPowerMonitorTest {
         val policy = controller.currentPolicy(nowMillis = 0L)
 
         // Act
-        val profile = IosPowerMonitor.profileFor(policy)
+        val profile = PowerMonitor.profileFor(policy)
 
         // Assert
         assertEquals(PowerTier.POWER_SAVER, policy.tier)

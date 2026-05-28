@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform.ios
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosGattNotifyChunkSizingTest {
+class GattNotifyChunkSizingTest {
     @Test
     fun maximumGattNotificationChunkBytesUsesTheCentralBudgetWhenItIsBelowThePreferredLimit():
         Unit {

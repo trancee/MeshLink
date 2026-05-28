@@ -6,12 +6,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class IosL2capOutputWriteStateTest {
+class L2capOutputWriteStateTest {
     @Test
     fun nextRequestOrNullTracksBatchBoundariesAndRemainingBatchBytes(): Unit {
         // Arrange
-        val state =
-            IosL2capOutputWriteState(totalBytes = 26, startedAtMs = 100L, maxBatchBytes = 16)
+        val state = L2capOutputWriteState(totalBytes = 26, startedAtMs = 100L, maxBatchBytes = 16)
 
         // Act
         val firstRequest = state.nextRequestOrNull()
@@ -46,8 +45,7 @@ class IosL2capOutputWriteStateTest {
     @Test
     fun recordReadyFalseDoesNotStallBeforeTheTimeout(): Unit {
         // Arrange
-        val state =
-            IosL2capOutputWriteState(totalBytes = 1, startedAtMs = 1_000L, maxBatchBytes = 16)
+        val state = L2capOutputWriteState(totalBytes = 1, startedAtMs = 1_000L, maxBatchBytes = 16)
         state.nextRequestOrNull()
 
         // Act
@@ -63,8 +61,7 @@ class IosL2capOutputWriteStateTest {
     @Test
     fun recordZeroWriteStallsAfterTheTimeout(): Unit {
         // Arrange
-        val state =
-            IosL2capOutputWriteState(totalBytes = 1, startedAtMs = 1_000L, maxBatchBytes = 16)
+        val state = L2capOutputWriteState(totalBytes = 1, startedAtMs = 1_000L, maxBatchBytes = 16)
         state.nextRequestOrNull()
 
         // Act

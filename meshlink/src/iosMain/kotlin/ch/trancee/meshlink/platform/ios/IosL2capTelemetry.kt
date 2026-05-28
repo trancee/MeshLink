@@ -2,38 +2,38 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.engine.DirectWireFrame
 
-internal class IosL2capFrameTelemetry
+internal class L2capFrameTelemetry
 internal constructor(
     internal val directType: String,
     internal val dataClass: String,
     internal val innerBytes: Int,
 )
 
-internal fun classifyL2capFrame(payload: ByteArray): IosL2capFrameTelemetry {
+internal fun classifyL2capFrame(payload: ByteArray): L2capFrameTelemetry {
     return runCatching { DirectWireFrame.decode(payload) }
         .getOrNull()
         ?.let { frame ->
             when (frame) {
                 is DirectWireFrame.HandshakeMessage1 ->
-                    IosL2capFrameTelemetry(
+                    L2capFrameTelemetry(
                         directType = "HANDSHAKE_MESSAGE_1",
                         dataClass = "handshake",
                         innerBytes = frame.payload.size,
                     )
                 is DirectWireFrame.HandshakeMessage2 ->
-                    IosL2capFrameTelemetry(
+                    L2capFrameTelemetry(
                         directType = "HANDSHAKE_MESSAGE_2",
                         dataClass = "handshake",
                         innerBytes = frame.payload.size,
                     )
                 is DirectWireFrame.HandshakeMessage3 ->
-                    IosL2capFrameTelemetry(
+                    L2capFrameTelemetry(
                         directType = "HANDSHAKE_MESSAGE_3",
                         dataClass = "handshake",
                         innerBytes = frame.payload.size,
                     )
                 is DirectWireFrame.Data ->
-                    IosL2capFrameTelemetry(
+                    L2capFrameTelemetry(
                         directType = "DATA",
                         dataClass =
                             if (frame.payload.size <= ACK_LIKELY_ENCRYPTED_BYTES) {
@@ -45,7 +45,7 @@ internal fun classifyL2capFrame(payload: ByteArray): IosL2capFrameTelemetry {
                     )
             }
         }
-        ?: IosL2capFrameTelemetry(
+        ?: L2capFrameTelemetry(
             directType = "UNKNOWN",
             dataClass = "unknown",
             innerBytes = payload.size,

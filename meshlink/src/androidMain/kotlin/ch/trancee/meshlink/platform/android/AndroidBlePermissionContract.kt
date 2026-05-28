@@ -4,7 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 
-internal object AndroidBlePermissionContract {
+internal object BlePermissionContract {
     @SuppressLint("InlinedApi")
     internal fun requiredPermissions(sdkInt: Int): List<String> {
         return if (sdkInt >= 31) {

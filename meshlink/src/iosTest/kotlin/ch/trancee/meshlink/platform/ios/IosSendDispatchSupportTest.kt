@@ -7,11 +7,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class IosSendDispatchSupportTest {
+class SendDispatchSupportTest {
     @Test
     fun dispatchIosSendReturnsTheResolvedPeerResultWhenAvailable(): Unit = runBlocking {
         // Arrange
-        val fixture = IosSendDispatchFixture(resolvedResult = TransportSendResult.Delivered)
+        val fixture = SendDispatchFixture(resolvedResult = TransportSendResult.Delivered)
         val frame = OutboundFrame(peerId = PeerId("peer-ios"), payload = byteArrayOf(1))
 
         // Act
@@ -26,7 +26,7 @@ class IosSendDispatchSupportTest {
     @Test
     fun dispatchIosSendDropsWhenThePeerIsMissing(): Unit = runBlocking {
         // Arrange
-        val fixture = IosSendDispatchFixture(resolvedResult = null)
+        val fixture = SendDispatchFixture(resolvedResult = null)
         val frame = OutboundFrame(peerId = PeerId("peer-ios"), payload = byteArrayOf(1))
 
         // Act
@@ -42,7 +42,7 @@ class IosSendDispatchSupportTest {
     }
 }
 
-private class IosSendDispatchFixture(private val resolvedResult: TransportSendResult?) {
+private class SendDispatchFixture(private val resolvedResult: TransportSendResult?) {
     var resolvedCalls: Int = 0
     var dropCalls: Int = 0
 
@@ -50,7 +50,7 @@ private class IosSendDispatchFixture(private val resolvedResult: TransportSendRe
         return dispatchIosSend(
             frame = frame,
             dependencies =
-                IosSendDispatchDependencies(
+                SendDispatchDependencies(
                     sendToResolvedPeerOrNull = {
                         resolvedCalls += 1
                         resolvedResult

@@ -12,7 +12,7 @@ import platform.Foundation.NSMutableData
 import platform.Foundation.create
 import platform.posix.memcpy
 
-internal interface IosGattNotifyPeripheralAdapter {
+internal interface GattNotifyPeripheralAdapter {
     fun requestLowConnectionLatency(): Unit
 
     fun updateValue(chunk: ByteArray): Boolean
@@ -22,7 +22,7 @@ internal class CoreBluetoothGattNotifyPeripheralAdapter(
     private val peripheralManager: CBPeripheralManager,
     private val notifyCharacteristic: CBMutableCharacteristic,
     private val central: CBCentral,
-) : IosGattNotifyPeripheralAdapter {
+) : GattNotifyPeripheralAdapter {
     override fun requestLowConnectionLatency(): Unit {
         peripheralManager.setDesiredConnectionLatency(
             latency = platform.CoreBluetooth.CBPeripheralManagerConnectionLatencyLow,

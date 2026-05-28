@@ -4,13 +4,13 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 
-internal interface AndroidGattSideLinkClient : AndroidPreferredGattSendClient {
+internal interface GattSideLinkClient : PreferredGattSendClient {
     fun start(): Unit
 
     fun close(): Unit
 }
 
-internal class AndroidGattSideLinkCoordinatorDependencies
+internal class GattSideLinkCoordinatorDependencies
 internal constructor(
     internal val deviceForPeer: (DiscoveredPeer) -> Any?,
     internal val hasActiveL2capLink: (String) -> Boolean,
@@ -23,14 +23,14 @@ internal constructor(
             device: Any,
             onFrameReceived: (PeerId, ByteArray) -> Boolean,
             onDisconnected: (PeerId) -> Unit,
-        ) -> AndroidGattSideLinkClient,
+        ) -> GattSideLinkClient,
     internal val log: (String) -> Unit,
 )
 
-internal class AndroidGattSideLinkCoordinator(
-    private val dependencies: AndroidGattSideLinkCoordinatorDependencies
+internal class GattSideLinkCoordinator(
+    private val dependencies: GattSideLinkCoordinatorDependencies
 ) {
-    private val clientsByHint: MutableMap<String, AndroidGattSideLinkClient> = linkedMapOf()
+    private val clientsByHint: MutableMap<String, GattSideLinkClient> = linkedMapOf()
 
     internal fun ensureStarted(
         peer: DiscoveredPeer,
@@ -78,7 +78,7 @@ internal class AndroidGattSideLinkCoordinator(
         ensureStarted(peer = peer, localPlatformFamily = localPlatformFamily)
     }
 
-    internal fun currentClient(hintPeerIdValue: String): AndroidPreferredGattSendClient? {
+    internal fun currentClient(hintPeerIdValue: String): PreferredGattSendClient? {
         return clientsByHint[hintPeerIdValue]
     }
 
@@ -100,7 +100,7 @@ internal class AndroidGattSideLinkCoordinator(
     }
 
     internal fun stopAll(): Unit {
-        clientsByHint.values.forEach(AndroidGattSideLinkClient::close)
+        clientsByHint.values.forEach(GattSideLinkClient::close)
         clientsByHint.clear()
     }
 
@@ -124,9 +124,9 @@ internal fun createAndroidGattSideLinkClient(
     log: (String) -> Unit,
     onFrameReceived: (PeerId, ByteArray) -> Boolean,
     onDisconnected: (PeerId) -> Unit,
-): AndroidGattSideLinkClient {
-    return AndroidGattSideLinkClientAdapter(
-        AndroidGattNotifyClient(
+): GattSideLinkClient {
+    return GattSideLinkClientAdapter(
+        GattNotifyClient(
             context = context,
             appId = appId,
             peerHintId = peerHintId,
@@ -138,8 +138,7 @@ internal fun createAndroidGattSideLinkClient(
     )
 }
 
-private class AndroidGattSideLinkClientAdapter(private val client: AndroidGattNotifyClient) :
-    AndroidGattSideLinkClient {
+private class GattSideLinkClientAdapter(private val client: GattNotifyClient) : GattSideLinkClient {
     override fun start(): Unit {
         client.start()
     }

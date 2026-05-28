@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-class AndroidPermissionContractTest {
+class PermissionContractTest {
     @Test
     fun `api 31 and above require nearby-device bluetooth permissions`() {
         // Arrange
@@ -18,7 +18,7 @@ class AndroidPermissionContractTest {
         // Act
         val error =
             assertFailsWith<PlatformPermissionDeniedException> {
-                AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
+                BlePermissionContract.ensureRequiredPermissionsGranted(
                     sdkInt = 31,
                     isGranted = grantedPermissions::contains,
                 )
@@ -36,7 +36,7 @@ class AndroidPermissionContractTest {
         // Arrange / Act
         val error =
             assertFailsWith<PlatformPermissionDeniedException> {
-                AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
+                BlePermissionContract.ensureRequiredPermissionsGranted(
                     sdkInt = 30,
                     isGranted = { false },
                 )
@@ -52,11 +52,10 @@ class AndroidPermissionContractTest {
     @Test
     fun `granted permissions pass without exception`() {
         // Arrange
-        val grantedPermissions =
-            AndroidBlePermissionContract.requiredPermissions(sdkInt = 31).toSet()
+        val grantedPermissions = BlePermissionContract.requiredPermissions(sdkInt = 31).toSet()
 
         // Act
-        AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
+        BlePermissionContract.ensureRequiredPermissionsGranted(
             sdkInt = 31,
             isGranted = grantedPermissions::contains,
         )

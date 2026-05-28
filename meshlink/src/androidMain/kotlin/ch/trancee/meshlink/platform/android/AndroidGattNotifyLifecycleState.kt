@@ -1,26 +1,24 @@
 package ch.trancee.meshlink.platform.android
 
-internal data class AndroidGattNotifyLifecycleState(
+internal data class GattNotifyLifecycleState(
     val ready: Boolean,
     val servicesDiscoveryStarted: Boolean,
     val closedByOwner: Boolean,
     val currentMtu: Int,
 )
 
-internal data class AndroidGattNotifyLifecyclePlan(
-    val state: AndroidGattNotifyLifecycleState,
+internal data class GattNotifyLifecyclePlan(
+    val state: GattNotifyLifecycleState,
     val shouldDiscoverServices: Boolean,
 )
 
-internal data class AndroidGattNotifyDescriptorPlan(
-    val state: AndroidGattNotifyLifecycleState,
+internal data class GattNotifyDescriptorPlan(
+    val state: GattNotifyLifecycleState,
     val ready: Boolean,
 )
 
-internal fun startedAndroidGattNotifyLifecycle(
-    defaultAttMtuBytes: Int
-): AndroidGattNotifyLifecycleState {
-    return AndroidGattNotifyLifecycleState(
+internal fun startedAndroidGattNotifyLifecycle(defaultAttMtuBytes: Int): GattNotifyLifecycleState {
+    return GattNotifyLifecycleState(
         ready = false,
         servicesDiscoveryStarted = false,
         closedByOwner = false,
@@ -29,11 +27,11 @@ internal fun startedAndroidGattNotifyLifecycle(
 }
 
 internal fun connectedAndroidGattNotifyLifecycle(
-    state: AndroidGattNotifyLifecycleState,
+    state: GattNotifyLifecycleState,
     requestedMtu: Boolean,
-): AndroidGattNotifyLifecyclePlan {
+): GattNotifyLifecyclePlan {
     val shouldDiscoverServices = !requestedMtu
-    return AndroidGattNotifyLifecyclePlan(
+    return GattNotifyLifecyclePlan(
         state =
             state.copy(
                 ready = false,
@@ -45,12 +43,12 @@ internal fun connectedAndroidGattNotifyLifecycle(
 }
 
 internal fun mtuChangedAndroidGattNotifyLifecycle(
-    state: AndroidGattNotifyLifecycleState,
+    state: GattNotifyLifecycleState,
     mtu: Int,
     mtuAccepted: Boolean,
-): AndroidGattNotifyLifecyclePlan {
+): GattNotifyLifecyclePlan {
     val shouldDiscoverServices = !state.servicesDiscoveryStarted
-    return AndroidGattNotifyLifecyclePlan(
+    return GattNotifyLifecyclePlan(
         state =
             state.copy(
                 currentMtu = if (mtuAccepted) mtu else state.currentMtu,
@@ -61,10 +59,10 @@ internal fun mtuChangedAndroidGattNotifyLifecycle(
 }
 
 internal fun descriptorWrittenAndroidGattNotifyLifecycle(
-    state: AndroidGattNotifyLifecycleState,
+    state: GattNotifyLifecycleState,
     success: Boolean,
-): AndroidGattNotifyDescriptorPlan {
-    return AndroidGattNotifyDescriptorPlan(
+): GattNotifyDescriptorPlan {
+    return GattNotifyDescriptorPlan(
         state = if (success) state.copy(ready = true) else state,
         ready = success,
     )
@@ -73,8 +71,8 @@ internal fun descriptorWrittenAndroidGattNotifyLifecycle(
 internal fun closedAndroidGattNotifyLifecycle(
     defaultAttMtuBytes: Int,
     markClosedByOwner: Boolean,
-): AndroidGattNotifyLifecycleState {
-    return AndroidGattNotifyLifecycleState(
+): GattNotifyLifecycleState {
+    return GattNotifyLifecycleState(
         ready = false,
         servicesDiscoveryStarted = false,
         closedByOwner = markClosedByOwner,

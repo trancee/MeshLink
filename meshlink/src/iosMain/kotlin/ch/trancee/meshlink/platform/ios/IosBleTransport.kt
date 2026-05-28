@@ -2,8 +2,8 @@
 
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleTransport
@@ -23,20 +23,20 @@ import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBPeripheralManager
 
-internal class IosBleTransport(internal val appId: String, advertisementKeyHash: ByteArray) :
+internal class BleTransportAdapter(internal val appId: String, advertisementKeyHash: ByteArray) :
     BleTransport {
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
     internal val transportDebugLoggingEnabled: Boolean = readEnvironmentFlag(TRANSPORT_DEBUG_ENV)
-    internal val peerBindings = IosPeerBindings()
-    internal val peerRegistry = IosPeerRegistry(peerBindings)
-    internal val activeLinksByHint: MutableMap<String, IosL2capLink> = linkedMapOf()
-    internal val activeGattNotifyLinksByHint: MutableMap<String, IosGattNotifyLink> = linkedMapOf()
+    internal val peerBindings = PeerBindings()
+    internal val peerRegistry = PeerRegistry(peerBindings)
+    internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
+    internal val activeGattNotifyLinksByHint: MutableMap<String, GattNotifyLink> = linkedMapOf()
     internal val pendingConnectionsByHint: MutableMap<String, String> = linkedMapOf()
 
-    internal var currentPowerProfile: IosPowerProfile = IosPowerMonitor.defaultProfile()
+    internal var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
     internal var currentDiscoveryPayload: BleDiscoveryPayload =
         discoveryPayload(l2capPsm = NO_ADVERTISED_L2CAP_PSM)
     internal var centralManager: CBCentralManager? = null
@@ -46,15 +46,15 @@ internal class IosBleTransport(internal val appId: String, advertisementKeyHash:
     internal var started: Boolean = false
     internal var discoverySuspended: Boolean = false
 
-    private val centralDelegate = IosCentralDelegate(this)
+    private val centralDelegate = CentralDelegate(this)
     internal val peripheralClientDelegate: CBPeripheralDelegateProtocol =
-        IosPeripheralClientDelegate(this)
-    private val peripheralManagerDelegate = IosPeripheralManagerDelegate(this)
+        PeripheralClientDelegate(this)
+    private val peripheralManagerDelegate = PeripheralManagerDelegate(this)
 
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
 
     override suspend fun start(): Unit {
-        IosBlePermissionContract.ensureBluetoothAuthorized(CBManager.authorization)
+        BlePermissionContract.ensureBluetoothAuthorized(CBManager.authorization)
         reportLog("start transport authorization=${CBManager.authorization}")
         started = true
         centralManager = CBCentralManager(delegate = centralDelegate, queue = null)
@@ -81,7 +81,7 @@ internal class IosBleTransport(internal val appId: String, advertisementKeyHash:
     }
 
     override suspend fun updatePowerPolicy(policy: PowerPolicy): Unit {
-        currentPowerProfile = IosPowerMonitor.profileFor(policy)
+        currentPowerProfile = PowerMonitor.profileFor(policy)
         currentDiscoveryPayload = discoveryPayload(currentDiscoveryPayload.l2capPsm)
         if (!started) {
             return
@@ -102,7 +102,7 @@ internal class IosBleTransport(internal val appId: String, advertisementKeyHash:
     }
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
-        val gattCallbacksInstalled = IosBleTransportBridgeRegistry.currentCallbacksOrNull() != null
+        val gattCallbacksInstalled = BleTransportBridgeRegistry.currentCallbacksOrNull() != null
         val peer = if (gattCallbacksInstalled) resolvePeer(peerId) else null
         val supportsGattNotifyBearer =
             peer != null &&
@@ -111,7 +111,7 @@ internal class IosBleTransport(internal val appId: String, advertisementKeyHash:
                     remotePlatformFamily = peer.platformFamily,
                 )
         return if (supportsGattNotifyBearer) {
-            IosGattNotifyLink.maximumPayloadBytesPerDelivery()
+            GattNotifyLink.maximumPayloadBytesPerDelivery()
         } else {
             null
         }

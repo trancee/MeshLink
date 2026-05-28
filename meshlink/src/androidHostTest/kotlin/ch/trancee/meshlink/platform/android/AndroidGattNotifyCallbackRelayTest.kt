@@ -5,12 +5,12 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class AndroidGattNotifyCallbackRelayTest {
+class GattNotifyCallbackRelayTest {
     @Test
     fun onConnectionStateChangeForwardsTheAddressStatusAndState(): Unit {
         // Arrange
         val listener = RecordingAndroidGattNotifySessionListener()
-        val relay = AndroidGattNotifyCallbackRelay(listener)
+        val relay = GattNotifyCallbackRelay(listener)
 
         // Act
         relay.onConnectionStateChange(address = "AA:BB", status = 7, newState = 2)
@@ -26,7 +26,7 @@ class AndroidGattNotifyCallbackRelayTest {
     fun onCharacteristicChangedCopiesThePayloadBeforeForwarding(): Unit {
         // Arrange
         val listener = RecordingAndroidGattNotifySessionListener()
-        val relay = AndroidGattNotifyCallbackRelay(listener)
+        val relay = GattNotifyCallbackRelay(listener)
         val value = byteArrayOf(0x01, 0x02)
 
         // Act
@@ -42,7 +42,7 @@ class AndroidGattNotifyCallbackRelayTest {
     fun onCharacteristicChangedIgnoresNullValues(): Unit {
         // Arrange
         val listener = RecordingAndroidGattNotifySessionListener()
-        val relay = AndroidGattNotifyCallbackRelay(listener)
+        val relay = GattNotifyCallbackRelay(listener)
 
         // Act
         relay.onCharacteristicChanged(characteristicUuid = "uuid", value = null)
@@ -53,7 +53,7 @@ class AndroidGattNotifyCallbackRelayTest {
     }
 }
 
-private class RecordingAndroidGattNotifySessionListener : AndroidGattNotifySessionListener {
+private class RecordingAndroidGattNotifySessionListener : GattNotifySessionListener {
     var connectionStateChange: ConnectionStateChange? = null
     var characteristicUuid: String? = null
     var characteristicValue: ByteArray? = null

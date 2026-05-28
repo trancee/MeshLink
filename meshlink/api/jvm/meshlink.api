@@ -40,58 +40,6 @@ public final class ch/trancee/meshlink/api/InboundMessage {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class ch/trancee/meshlink/api/IosBleTransportBridge {
-	public static final field INSTANCE Lch/trancee/meshlink/api/IosBleTransportBridge;
-	public final fun install (Lkotlin/jvm/functions/Function4;)V
-	public final fun installData (Lkotlin/jvm/functions/Function4;)V
-}
-
-public final class ch/trancee/meshlink/api/IosChaCha20Poly1305Callbacks {
-	public fun <init> (Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
-	public final fun getOpen ()Lkotlin/jvm/functions/Function4;
-	public final fun getSeal ()Lkotlin/jvm/functions/Function4;
-}
-
-public final class ch/trancee/meshlink/api/IosCryptoBridge {
-	public static final field INSTANCE Lch/trancee/meshlink/api/IosCryptoBridge;
-	public final fun install (Lch/trancee/meshlink/api/IosCryptoCallbacks;)V
-	public final fun install (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
-}
-
-public final class ch/trancee/meshlink/api/IosCryptoCallbacks {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lch/trancee/meshlink/api/IosHashCallbacks;Lch/trancee/meshlink/api/IosKeyGenerationCallbacks;Lkotlin/jvm/functions/Function2;Lch/trancee/meshlink/api/IosEd25519Callbacks;Lch/trancee/meshlink/api/IosChaCha20Poly1305Callbacks;)V
-	public final fun getChacha20Poly1305 ()Lch/trancee/meshlink/api/IosChaCha20Poly1305Callbacks;
-	public final fun getEd25519 ()Lch/trancee/meshlink/api/IosEd25519Callbacks;
-	public final fun getHashes ()Lch/trancee/meshlink/api/IosHashCallbacks;
-	public final fun getKeyGeneration ()Lch/trancee/meshlink/api/IosKeyGenerationCallbacks;
-	public final fun getRandomBytes ()Lkotlin/jvm/functions/Function1;
-	public final fun getX25519 ()Lkotlin/jvm/functions/Function2;
-}
-
-public final class ch/trancee/meshlink/api/IosCryptoRawKeyPair {
-	public fun <init> ([B[B)V
-	public final fun getPrivateKey ()[B
-	public final fun getPublicKey ()[B
-}
-
-public final class ch/trancee/meshlink/api/IosEd25519Callbacks {
-	public fun <init> (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;)V
-	public final fun getSign ()Lkotlin/jvm/functions/Function2;
-	public final fun getVerify ()Lkotlin/jvm/functions/Function3;
-}
-
-public final class ch/trancee/meshlink/api/IosHashCallbacks {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)V
-	public final fun getHmacSha256 ()Lkotlin/jvm/functions/Function2;
-	public final fun getSha256 ()Lkotlin/jvm/functions/Function1;
-}
-
-public final class ch/trancee/meshlink/api/IosKeyGenerationCallbacks {
-	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
-	public final fun getGenerateEd25519KeyPair ()Lkotlin/jvm/functions/Function0;
-	public final fun getGenerateX25519KeyPair ()Lkotlin/jvm/functions/Function0;
-}
-
 public abstract interface class ch/trancee/meshlink/api/MeshLink {
 	public abstract fun forgetPeer (Lch/trancee/meshlink/api/PeerId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getDiagnosticEvents ()Lkotlinx/coroutines/flow/Flow;
@@ -335,6 +283,58 @@ public final class ch/trancee/meshlink/api/StopResult$Stopped : ch/trancee/meshl
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/api/apple/BleTransportBridge {
+	public static final field INSTANCE Lch/trancee/meshlink/api/apple/BleTransportBridge;
+	public final fun install (Lkotlin/jvm/functions/Function4;)V
+	public final fun installData (Lkotlin/jvm/functions/Function4;)V
+}
+
+public final class ch/trancee/meshlink/api/apple/ChaCha20Poly1305Callbacks {
+	public fun <init> (Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
+	public final fun getOpen ()Lkotlin/jvm/functions/Function4;
+	public final fun getSeal ()Lkotlin/jvm/functions/Function4;
+}
+
+public final class ch/trancee/meshlink/api/apple/CryptoBridge {
+	public static final field INSTANCE Lch/trancee/meshlink/api/apple/CryptoBridge;
+	public final fun install (Lch/trancee/meshlink/api/apple/CryptoCallbacks;)V
+	public final fun install (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function4;)V
+}
+
+public final class ch/trancee/meshlink/api/apple/CryptoCallbacks {
+	public fun <init> (Lkotlin/jvm/functions/Function1;Lch/trancee/meshlink/api/apple/HashCallbacks;Lch/trancee/meshlink/api/apple/KeyGenerationCallbacks;Lkotlin/jvm/functions/Function2;Lch/trancee/meshlink/api/apple/Ed25519Callbacks;Lch/trancee/meshlink/api/apple/ChaCha20Poly1305Callbacks;)V
+	public final fun getChacha20Poly1305 ()Lch/trancee/meshlink/api/apple/ChaCha20Poly1305Callbacks;
+	public final fun getEd25519 ()Lch/trancee/meshlink/api/apple/Ed25519Callbacks;
+	public final fun getHashes ()Lch/trancee/meshlink/api/apple/HashCallbacks;
+	public final fun getKeyGeneration ()Lch/trancee/meshlink/api/apple/KeyGenerationCallbacks;
+	public final fun getRandomBytes ()Lkotlin/jvm/functions/Function1;
+	public final fun getX25519 ()Lkotlin/jvm/functions/Function2;
+}
+
+public final class ch/trancee/meshlink/api/apple/CryptoRawKeyPair {
+	public fun <init> ([B[B)V
+	public final fun getPrivateKey ()[B
+	public final fun getPublicKey ()[B
+}
+
+public final class ch/trancee/meshlink/api/apple/Ed25519Callbacks {
+	public fun <init> (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;)V
+	public final fun getSign ()Lkotlin/jvm/functions/Function2;
+	public final fun getVerify ()Lkotlin/jvm/functions/Function3;
+}
+
+public final class ch/trancee/meshlink/api/apple/HashCallbacks {
+	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)V
+	public final fun getHmacSha256 ()Lkotlin/jvm/functions/Function2;
+	public final fun getSha256 ()Lkotlin/jvm/functions/Function1;
+}
+
+public final class ch/trancee/meshlink/api/apple/KeyGenerationCallbacks {
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	public final fun getGenerateEd25519KeyPair ()Lkotlin/jvm/functions/Function0;
+	public final fun getGenerateX25519KeyPair ()Lkotlin/jvm/functions/Function0;
 }
 
 public final class ch/trancee/meshlink/config/MeshLinkConfig {

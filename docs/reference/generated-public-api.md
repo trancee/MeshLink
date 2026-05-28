@@ -15,14 +15,6 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.ForgetPeerResult.Forgotten` | object | — |
 | `ch.trancee.meshlink.api.ForgetPeerResult.NotFound` | object | — |
 | `ch.trancee.meshlink.api.InboundMessage` | class | `originPeerId`, `payload`, `priority`, `receivedAtEpochMillis` |
-| `ch.trancee.meshlink.api.IosBleTransportBridge` | object | `install()`, `installData()` |
-| `ch.trancee.meshlink.api.IosChaCha20Poly1305Callbacks` | class | `open`, `seal` |
-| `ch.trancee.meshlink.api.IosCryptoBridge` | object | `install()` |
-| `ch.trancee.meshlink.api.IosCryptoCallbacks` | class | `chacha20Poly1305`, `ed25519`, `hashes`, `keyGeneration`, `randomBytes`, `x25519` |
-| `ch.trancee.meshlink.api.IosCryptoRawKeyPair` | class | `privateKey`, `publicKey` |
-| `ch.trancee.meshlink.api.IosEd25519Callbacks` | class | `sign`, `verify` |
-| `ch.trancee.meshlink.api.IosHashCallbacks` | class | `hmacSha256`, `sha256` |
-| `ch.trancee.meshlink.api.IosKeyGenerationCallbacks` | class | `generateEd25519KeyPair`, `generateX25519KeyPair` |
 | `ch.trancee.meshlink.api.MeshLink` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()`, `updateBattery()` |
 | `ch.trancee.meshlink.api.MeshLinkBootstrap` | abstract class | — |
 | `ch.trancee.meshlink.api.MeshLinkException` | abstract class | `init` |
@@ -64,6 +56,19 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.StopResult.AlreadyStopped` | object | — |
 | `ch.trancee.meshlink.api.StopResult.Stopped` | object | — |
 | `top-level declarations` | top-level | `meshLink()` |
+
+## Package `ch.trancee.meshlink.api.apple`
+
+| Type | Kind | Public surface |
+|---|---|---|
+| `ch.trancee.meshlink.api.apple.BleTransportBridge` | object | `install()`, `installData()` |
+| `ch.trancee.meshlink.api.apple.ChaCha20Poly1305Callbacks` | class | `open`, `seal` |
+| `ch.trancee.meshlink.api.apple.CryptoBridge` | object | `install()` |
+| `ch.trancee.meshlink.api.apple.CryptoCallbacks` | class | `chacha20Poly1305`, `ed25519`, `hashes`, `keyGeneration`, `randomBytes`, `x25519` |
+| `ch.trancee.meshlink.api.apple.CryptoRawKeyPair` | class | `privateKey`, `publicKey` |
+| `ch.trancee.meshlink.api.apple.Ed25519Callbacks` | class | `sign`, `verify` |
+| `ch.trancee.meshlink.api.apple.HashCallbacks` | class | `hmacSha256`, `sha256` |
+| `ch.trancee.meshlink.api.apple.KeyGenerationCallbacks` | class | `generateEd25519KeyPair`, `generateX25519KeyPair` |
 
 ## Package `ch.trancee.meshlink.config`
 

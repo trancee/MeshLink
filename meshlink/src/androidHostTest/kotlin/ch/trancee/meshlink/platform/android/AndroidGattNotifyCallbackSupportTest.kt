@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class AndroidGattNotifyCallbackSupportTest {
+class GattNotifyCallbackSupportTest {
     @Test
     fun selectAndroidGattNotifyCallbackUsesTheLegacyFactoryBelowApi33(): Unit {
         // Arrange

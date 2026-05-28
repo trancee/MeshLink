@@ -3,9 +3,7 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.identity.toHexString
 
-internal class AndroidL2capFrameBuffer(
-    private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES
-) {
+internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES) {
     private var buffer: ByteArray = ByteArray(INITIAL_CAPACITY_BYTES)
     private var size: Int = 0
     private var readOffset: Int = 0

@@ -6,13 +6,13 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
-class IosBleTransportDiscoveryPayloadTest {
+class BleTransportDiscoveryPayloadTest {
     @Test
     fun discoveryPayloadUsesTheLocalMeshIdentityAndIosPlatformFamily(): Unit {
         // Arrange
         val advertisementKeyHash = ByteArray(12) { index -> (index + 1).toByte() }
         val transport =
-            IosBleTransport(
+            BleTransportAdapter(
                 appId = "demo.meshlink.ios.transport",
                 advertisementKeyHash = advertisementKeyHash,
             )
@@ -60,8 +60,8 @@ class IosBleTransportDiscoveryPayloadTest {
     }
 }
 
-private fun testTransport(): IosBleTransport {
-    return IosBleTransport(
+private fun testTransport(): BleTransportAdapter {
+    return BleTransportAdapter(
         appId = "demo.meshlink.ios.transport",
         advertisementKeyHash = ByteArray(12) { index -> (index + 101).toByte() },
     )

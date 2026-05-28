@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
-class IosL2capWriteBatchSupportTest {
+class L2capWriteBatchSupportTest {
     @Test
     fun buildCoalescedBufferSnapshotConcatenatesFramesAndCapturesHeadAndTailHex(): Unit {
         // Arrange
@@ -31,7 +31,7 @@ class IosL2capWriteBatchSupportTest {
     @Test
     fun writeProgressTracksBatchChunkAndGapExtremes(): Unit {
         // Arrange
-        val progress = IosL2capWriteProgress(lastWriteProgressAtMs = 100L)
+        val progress = L2capWriteProgress(lastWriteProgressAtMs = 100L)
 
         // Act
         progress.recordBatch(batchBytes = 512)
@@ -57,7 +57,7 @@ class IosL2capWriteBatchSupportTest {
     @Test
     fun writeProgressNormalizesUnsetMinimumsToZero(): Unit {
         // Arrange
-        val progress = IosL2capWriteProgress(lastWriteProgressAtMs = 100L)
+        val progress = L2capWriteProgress(lastWriteProgressAtMs = 100L)
 
         // Act
         val stats = progress.toStats(totalElapsedMs = 0L)

@@ -14,17 +14,17 @@ private const val ENV_VALUE_YES: String = "yes"
 internal const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
 internal const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
 
-internal fun IosBleTransport.log(message: String): Unit {
+internal fun BleTransportAdapter.log(message: String): Unit {
     if (transportDebugLoggingEnabled) {
         emitTransportLog(message)
     }
 }
 
-internal fun IosBleTransport.reportLog(message: String): Unit {
+internal fun BleTransportAdapter.reportLog(message: String): Unit {
     emitTransportLog(message)
 }
 
-internal fun IosBleTransport.emitTransportLog(message: String): Unit {
+internal fun BleTransportAdapter.emitTransportLog(message: String): Unit {
     println("MeshLinkTransport $message")
 }
 

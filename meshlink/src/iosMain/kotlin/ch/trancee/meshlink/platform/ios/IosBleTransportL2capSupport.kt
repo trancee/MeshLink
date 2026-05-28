@@ -24,7 +24,7 @@ import platform.Foundation.NSProcessInfo
 
 private const val MILLIS_PER_SECOND: Double = 1000.0
 
-internal fun IosBleTransport.promoteTemporaryL2capLinkIfPossible(
+internal fun BleTransportAdapter.promoteTemporaryL2capLinkIfPossible(
     identifier: String,
     resolvedHintPeerIdValue: String,
 ): Unit {
@@ -49,7 +49,7 @@ internal fun IosBleTransport.promoteTemporaryL2capLinkIfPossible(
     )
 }
 
-internal fun IosBleTransport.registerConnectedChannel(
+internal fun BleTransportAdapter.registerConnectedChannel(
     hintPeerId: PeerId,
     peripheralIdentifier: String,
     channel: CBL2CAPChannel,
@@ -69,20 +69,20 @@ internal fun IosBleTransport.registerConnectedChannel(
     startConnectedChannelReadLoop(link)
 }
 
-internal fun IosBleTransport.createConnectedChannelLink(
+internal fun BleTransportAdapter.createConnectedChannelLink(
     hintPeerId: PeerId,
     peripheralIdentifier: String,
     channel: CBL2CAPChannel,
     connectedCentral: CBCentral?,
-): IosL2capLink {
-    var createdLink: IosL2capLink? = null
-    return IosL2capLink(
+): L2capLink {
+    var createdLink: L2capLink? = null
+    return L2capLink(
             hintPeerId = hintPeerId,
             peripheralIdentifier = peripheralIdentifier,
             channel = channel,
             dependencies =
-                IosL2capLinkDependencies(
-                    incomingFrames = IosL2capFrameBuffer(),
+                L2capLinkDependencies(
+                    incomingFrames = L2capFrameBuffer(),
                     telemetryEnabled = telemetryEnabled,
                     telemetryLogger = ::emitTransportLog,
                     promoteActiveWriteLatency = {
@@ -99,7 +99,7 @@ internal fun IosBleTransport.createConnectedChannelLink(
         .also { link -> createdLink = link }
 }
 
-internal fun IosBleTransport.startConnectedChannelWriteLoop(link: IosL2capLink): Unit {
+internal fun BleTransportAdapter.startConnectedChannelWriteLoop(link: L2capLink): Unit {
     link.writeLoopJob = coroutineScope.launch {
         try {
             link.runWriteLoop()
@@ -115,7 +115,7 @@ internal fun IosBleTransport.startConnectedChannelWriteLoop(link: IosL2capLink):
     }
 }
 
-internal fun IosBleTransport.startConnectedChannelReadLoop(link: IosL2capLink): Unit {
+internal fun BleTransportAdapter.startConnectedChannelReadLoop(link: L2capLink): Unit {
     link.readLoopJob = coroutineScope.launch {
         try {
             link.runReadLoop { payload ->
@@ -135,7 +135,7 @@ internal fun IosBleTransport.startConnectedChannelReadLoop(link: IosL2capLink): 
     }
 }
 
-internal fun IosBleTransport.connectIfNeeded(peer: DiscoveredPeer): Unit {
+internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
     if (peer.l2capPsm == NO_L2CAP_PSM) {
         log("connectIfNeeded(${peer.hintPeerId.logSuffix()}) skipped: no PSM")
         return
@@ -153,7 +153,7 @@ internal fun IosBleTransport.connectIfNeeded(peer: DiscoveredPeer): Unit {
     }
 }
 
-internal fun IosBleTransport.shouldInitiateL2cap(
+internal fun BleTransportAdapter.shouldInitiateL2cap(
     remoteKeyHash: ByteArray,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
@@ -165,7 +165,7 @@ internal fun IosBleTransport.shouldInitiateL2cap(
     )
 }
 
-internal fun IosBleTransport.maybeLogRediscoveryWithoutLink(
+internal fun BleTransportAdapter.maybeLogRediscoveryWithoutLink(
     peer: DiscoveredPeer,
     transportMode: TransportMode,
     identifier: String,
@@ -192,7 +192,7 @@ internal fun IosBleTransport.maybeLogRediscoveryWithoutLink(
     peer.rediscoveryLoggedWithoutLink = decision.rediscoveryLoggedWithoutLink
 }
 
-internal fun IosBleTransport.activeLinkFor(peer: DiscoveredPeer): IosL2capLink? {
+internal fun BleTransportAdapter.activeLinkFor(peer: DiscoveredPeer): L2capLink? {
     val activeHint =
         resolveActivePeerHint(
             ActivePeerHintResolutionRequest(
@@ -205,7 +205,7 @@ internal fun IosBleTransport.activeLinkFor(peer: DiscoveredPeer): IosL2capLink? 
     return activeLinksByHint[activeHint]
 }
 
-internal fun IosBleTransport.closeLink(hintPeer: String, reason: String): Unit {
+internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit {
     val link = activeLinksByHint.remove(hintPeer) ?: return
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, logged = false)
     reportLog(
@@ -226,7 +226,7 @@ internal fun IosBleTransport.closeLink(hintPeer: String, reason: String): Unit {
     mutableEvents.tryEmit(TransportEvent.PeerLost(PeerId(hintPeer)))
 }
 
-internal fun IosBleTransport.requestLowConnectionLatency(
+internal fun BleTransportAdapter.requestLowConnectionLatency(
     hintPeerId: PeerId,
     central: CBCentral,
 ): Unit {
@@ -240,37 +240,37 @@ internal fun IosBleTransport.requestLowConnectionLatency(
     )
 }
 
-internal class IosL2capLinkDependencies(
-    val incomingFrames: IosL2capFrameBuffer,
+internal class L2capLinkDependencies(
+    val incomingFrames: L2capFrameBuffer,
     val telemetryEnabled: Boolean,
     val telemetryLogger: (String) -> Unit,
     val promoteActiveWriteLatency: () -> Unit,
     val nowMillis: () -> Long,
 )
 
-internal class IosL2capLink(
+internal class L2capLink(
     var hintPeerId: PeerId,
     val peripheralIdentifier: String,
     channel: CBL2CAPChannel,
-    dependencies: IosL2capLinkDependencies,
+    dependencies: L2capLinkDependencies,
 ) {
-    private val incomingFrames: IosL2capFrameBuffer = dependencies.incomingFrames
+    private val incomingFrames: L2capFrameBuffer = dependencies.incomingFrames
     private val telemetryEnabled: Boolean = dependencies.telemetryEnabled
     private val telemetryLogger: (String) -> Unit = dependencies.telemetryLogger
     private val nowMillis: () -> Long = dependencies.nowMillis
     private val inputStream = checkNotNull(channel.inputStream).apply { open() }
     private val outputStream = checkNotNull(channel.outputStream).apply { open() }
     private val readPump =
-        IosL2capReadPump(
+        L2capReadPump(
             inputStream = inputStream,
             frameBuffer = incomingFrames,
             dependencies =
-                IosL2capReadPumpDependencies(
+                L2capReadPumpDependencies(
                     hintPeerIdProvider = { hintPeerId },
                     telemetryEnabled = telemetryEnabled,
                     telemetryLogger = telemetryLogger,
                     timing =
-                        IosL2capReadTiming(
+                        L2capReadTiming(
                             nowMillis = nowMillis,
                             activePollIntervalMs = ACTIVE_STREAM_POLL_INTERVAL_MS,
                             idlePollIntervalMs = IDLE_STREAM_POLL_INTERVAL_MS,
@@ -278,17 +278,17 @@ internal class IosL2capLink(
                 ),
         )
     private val writePump =
-        IosL2capWritePump(
+        L2capWritePump(
             outputStream = outputStream,
             frameCodec = incomingFrames,
             dependencies =
-                IosL2capWritePumpDependencies(
+                L2capWritePumpDependencies(
                     hintPeerIdProvider = { hintPeerId },
                     telemetryEnabled = telemetryEnabled,
                     telemetryLogger = telemetryLogger,
                     promoteActiveWriteLatency = dependencies.promoteActiveWriteLatency,
                     timing =
-                        IosL2capWriteTiming(
+                        L2capWriteTiming(
                             nowMillis = nowMillis,
                             activePollIntervalMs = ACTIVE_STREAM_POLL_INTERVAL_MS,
                         ),

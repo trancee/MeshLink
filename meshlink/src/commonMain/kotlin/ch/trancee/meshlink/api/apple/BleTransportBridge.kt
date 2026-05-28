@@ -1,4 +1,6 @@
-package ch.trancee.meshlink.api
+package ch.trancee.meshlink.api.apple
+
+import ch.trancee.meshlink.api.MeshLinkException
 
 /**
  * Registers iOS-native CoreBluetooth callbacks for future MeshLink transport experiments.
@@ -12,11 +14,9 @@ package ch.trancee.meshlink.api
  * `CBMutableCharacteristic` used for notifications, the subscribed `CBCentral`, and the raw frame
  * bytes to send. It must return whether Core Bluetooth accepted the notification immediately.
  */
-public object IosBleTransportBridge {
+public object BleTransportBridge {
     public fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean): Unit {
-        IosBleTransportBridgeRegistry.install(
-            IosBleTransportCallbacks(gattNotifySend = gattNotifySend)
-        )
+        BleTransportBridgeRegistry.install(BleTransportCallbacks(gattNotifySend = gattNotifySend))
     }
 
     /**
@@ -27,8 +27,8 @@ public object IosBleTransportBridge {
      * directly to `CBPeripheralManager.updateValue(...)` to avoid per-byte bridge iteration.
      */
     public fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean): Unit {
-        IosBleTransportBridgeRegistry.install(
-            IosBleTransportCallbacks(
+        BleTransportBridgeRegistry.install(
+            BleTransportCallbacks(
                 gattNotifySend = { _, _, _, _ -> false },
                 gattNotifySendData = gattNotifySendData,
             )
@@ -36,16 +36,16 @@ public object IosBleTransportBridge {
     }
 }
 
-internal class IosBleTransportCallbacks
+internal class BleTransportCallbacks
 internal constructor(
     internal val gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean,
     internal val gattNotifySendData: ((Any, Any, Any, Any) -> Boolean)? = null,
 )
 
-internal object IosBleTransportBridgeRegistry {
-    private var callbacks: IosBleTransportCallbacks? = null
+internal object BleTransportBridgeRegistry {
+    private var callbacks: BleTransportCallbacks? = null
 
-    internal fun install(callbacks: IosBleTransportCallbacks): Unit {
+    internal fun install(callbacks: BleTransportCallbacks): Unit {
         this.callbacks = callbacks
     }
 
@@ -53,16 +53,16 @@ internal object IosBleTransportBridgeRegistry {
         callbacks = null
     }
 
-    internal fun currentCallbacksOrNull(): IosBleTransportCallbacks? {
+    internal fun currentCallbacksOrNull(): BleTransportCallbacks? {
         return callbacks
     }
 
-    internal fun requireCallbacks(): IosBleTransportCallbacks {
+    internal fun requireCallbacks(): BleTransportCallbacks {
         return callbacks
             ?: throw MeshLinkException.PlatformFailure(
                 message =
                     "iOS BLE transport bridge is not installed. " +
-                        "Call IosBleTransportBridge.install(...) during app startup."
+                        "Call BleTransportBridge.install(...) during app startup."
             )
     }
 }

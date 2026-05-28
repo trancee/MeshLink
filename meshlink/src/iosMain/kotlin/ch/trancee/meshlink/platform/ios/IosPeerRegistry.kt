@@ -52,7 +52,7 @@ internal constructor(val hintPeerId: PeerId, state: DiscoveredPeerState) {
 internal class PeerDiscoveryUpdate
 internal constructor(internal val peer: DiscoveredPeer, internal val events: List<TransportEvent>)
 
-internal class IosPeerBindings {
+internal class PeerBindings {
     private val peerHintByIdentifier: MutableMap<String, String> = linkedMapOf()
     private val temporaryHintByIdentifier: MutableMap<String, String> = linkedMapOf()
     private val peripheralsByIdentifier: MutableMap<String, CBPeripheral> = linkedMapOf()
@@ -99,7 +99,7 @@ internal class IosPeerBindings {
     }
 }
 
-internal class IosPeerRegistry(private val bindings: IosPeerBindings) {
+internal class PeerRegistry(private val bindings: PeerBindings) {
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
 
     internal fun upsertDiscovery(

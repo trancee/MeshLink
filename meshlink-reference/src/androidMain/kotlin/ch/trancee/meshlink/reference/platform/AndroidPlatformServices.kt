@@ -2,7 +2,7 @@ package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
 import android.util.Log
-import ch.trancee.meshlink.api.androidMeshLinkBootstrap
+import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
@@ -12,23 +12,23 @@ import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import okio.FileSystem
 
-public fun createAndroidPlatformServices(context: Context): PlatformServices {
+public fun createPlatformServices(context: Context): PlatformServices {
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = androidReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
-                readinessBlockers = androidReadinessBlockers(context)
+                readinessBlockers = readinessBlockers(context)
                 nowProvider = { System.currentTimeMillis() }
-                meshLinkBootstrap = androidMeshLinkBootstrap(context)
+                meshLinkBootstrap = meshLinkBootstrap(context)
                 documentStore =
                     OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM)
             },
     )
 }
 
-public fun createAndroidAutomationPlatformServices(
+public fun createAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     blocked: Boolean,
@@ -38,7 +38,7 @@ public fun createAndroidAutomationPlatformServices(
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = androidReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
                 readinessBlockers =
@@ -72,7 +72,7 @@ public fun createAndroidAutomationPlatformServices(
     )
 }
 
-public fun createAndroidLiveAutomationPlatformServices(
+public fun createLiveAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     appId: String,
@@ -89,13 +89,13 @@ public fun createAndroidLiveAutomationPlatformServices(
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
-        readinessGuidance = androidReadinessGuidance(),
+        readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
-                readinessBlockers = androidReadinessBlockers(context)
+                readinessBlockers = readinessBlockers(context)
                 nowProvider = clock
                 this.appId = automationAppId
-                meshLinkBootstrap = androidMeshLinkBootstrap(context)
+                meshLinkBootstrap = meshLinkBootstrap(context)
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 automationConfig =
                     ReferenceAutomationConfig(

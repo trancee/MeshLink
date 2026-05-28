@@ -1,5 +1,13 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.api.apple.ChaCha20Poly1305Callbacks
+import ch.trancee.meshlink.api.apple.CryptoBridge
+import ch.trancee.meshlink.api.apple.CryptoBridgeRegistry
+import ch.trancee.meshlink.api.apple.CryptoCallbacks
+import ch.trancee.meshlink.api.apple.CryptoRawKeyPair
+import ch.trancee.meshlink.api.apple.Ed25519Callbacks
+import ch.trancee.meshlink.api.apple.HashCallbacks
+import ch.trancee.meshlink.api.apple.KeyGenerationCallbacks
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -7,11 +15,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class IosCryptoBridgeTest {
+class CryptoBridgeTest {
     @AfterTest
     fun tearDown() {
         // Arrange / Act
-        IosCryptoBridgeRegistry.clear()
+        CryptoBridgeRegistry.clear()
 
         // Assert
         Unit
@@ -22,7 +30,7 @@ class IosCryptoBridgeTest {
         // Arrange / Act
         val failure =
             assertFailsWith<IllegalArgumentException> {
-                IosCryptoRawKeyPair(privateKey = ByteArray(31), publicKey = ByteArray(32))
+                CryptoRawKeyPair(privateKey = ByteArray(31), publicKey = ByteArray(32))
             }
 
         // Assert
@@ -34,7 +42,7 @@ class IosCryptoBridgeTest {
         // Arrange / Act
         val failure =
             assertFailsWith<IllegalArgumentException> {
-                IosCryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(31))
+                CryptoRawKeyPair(privateKey = ByteArray(32), publicKey = ByteArray(31))
             }
 
         // Assert
@@ -47,7 +55,7 @@ class IosCryptoBridgeTest {
         val originalPrivateKey = ByteArray(32) { 0x11 }
         val originalPublicKey = ByteArray(32) { 0x22 }
         val keyPair =
-            IosCryptoRawKeyPair(privateKey = originalPrivateKey, publicKey = originalPublicKey)
+            CryptoRawKeyPair(privateKey = originalPrivateKey, publicKey = originalPublicKey)
 
         // Act
         originalPrivateKey[0] = 0x7F
@@ -67,16 +75,16 @@ class IosCryptoBridgeTest {
     @Test
     fun `registry requireCallbacks fails when the bridge is not installed`() {
         // Arrange
-        IosCryptoBridgeRegistry.clear()
+        CryptoBridgeRegistry.clear()
 
         // Act
         val failure =
             assertFailsWith<MeshLinkException.PlatformFailure> {
-                IosCryptoBridgeRegistry.requireCallbacks()
+                CryptoBridgeRegistry.requireCallbacks()
             }
 
         // Assert
-        assertTrue(failure.message.orEmpty().contains("IosCryptoBridge.install"))
+        assertTrue(failure.message.orEmpty().contains("CryptoBridge.install"))
     }
 
     @Test
@@ -86,12 +94,12 @@ class IosCryptoBridgeTest {
         val sha256Result = byteArrayOf(5, 6, 7, 8)
         val hmacResult = byteArrayOf(9, 10, 11, 12)
         val x25519KeyPair =
-            IosCryptoRawKeyPair(
+            CryptoRawKeyPair(
                 privateKey = ByteArray(32) { 0x11 },
                 publicKey = ByteArray(32) { 0x22 },
             )
         val ed25519KeyPair =
-            IosCryptoRawKeyPair(
+            CryptoRawKeyPair(
                 privateKey = ByteArray(32) { 0x33 },
                 publicKey = ByteArray(32) { 0x44.toByte() },
             )
@@ -99,7 +107,7 @@ class IosCryptoBridgeTest {
         val signatureResult = ByteArray(64) { index -> index.toByte() }
         val sealResult = byteArrayOf(17, 18, 19, 20)
         val openResult = byteArrayOf(21, 22, 23, 24)
-        IosCryptoBridge.install(
+        CryptoBridge.install(
             randomBytes = { randomBytesResult.copyOf() },
             sha256 = { sha256Result.copyOf() },
             hmacSha256 = { _, _ -> hmacResult.copyOf() },
@@ -113,7 +121,7 @@ class IosCryptoBridgeTest {
         )
 
         // Act
-        val callbacks = IosCryptoBridgeRegistry.requireCallbacks()
+        val callbacks = CryptoBridgeRegistry.requireCallbacks()
 
         // Assert
         assertContentEquals(randomBytesResult, callbacks.randomBytes(4))
@@ -151,12 +159,12 @@ class IosCryptoBridgeTest {
         val sha256Result = byteArrayOf(35, 36, 37, 38)
         val hmacResult = byteArrayOf(39, 40, 41, 42)
         val x25519KeyPair =
-            IosCryptoRawKeyPair(
+            CryptoRawKeyPair(
                 privateKey = ByteArray(32) { 0x55 },
                 publicKey = ByteArray(32) { 0x66 },
             )
         val ed25519KeyPair =
-            IosCryptoRawKeyPair(
+            CryptoRawKeyPair(
                 privateKey = ByteArray(32) { 0x77 },
                 publicKey = ByteArray(32) { 0x88.toByte() },
             )
@@ -165,34 +173,34 @@ class IosCryptoBridgeTest {
         val sealResult = byteArrayOf(47, 48, 49, 50)
         val openResult = byteArrayOf(51, 52, 53, 54)
         val callbacks =
-            IosCryptoCallbacks(
+            CryptoCallbacks(
                 randomBytes = { randomBytesResult.copyOf() },
                 hashes =
-                    IosHashCallbacks(
+                    HashCallbacks(
                         sha256 = { sha256Result.copyOf() },
                         hmacSha256 = { _, _ -> hmacResult.copyOf() },
                     ),
                 keyGeneration =
-                    IosKeyGenerationCallbacks(
+                    KeyGenerationCallbacks(
                         generateX25519KeyPair = { x25519KeyPair },
                         generateEd25519KeyPair = { ed25519KeyPair },
                     ),
                 x25519 = { _, _ -> x25519Result.copyOf() },
                 ed25519 =
-                    IosEd25519Callbacks(
+                    Ed25519Callbacks(
                         sign = { _, _ -> signatureResult.copyOf() },
                         verify = { _, _, _ -> true },
                     ),
                 chacha20Poly1305 =
-                    IosChaCha20Poly1305Callbacks(
+                    ChaCha20Poly1305Callbacks(
                         seal = { _, _, _, _ -> sealResult.copyOf() },
                         open = { _, _, _, _ -> openResult.copyOf() },
                     ),
             )
-        IosCryptoBridge.install(callbacks = callbacks)
+        CryptoBridge.install(callbacks = callbacks)
 
         // Act
-        val installedCallbacks = IosCryptoBridgeRegistry.requireCallbacks()
+        val installedCallbacks = CryptoBridgeRegistry.requireCallbacks()
 
         // Assert
         assertContentEquals(randomBytesResult, installedCallbacks.randomBytes(4))
@@ -241,27 +249,27 @@ class IosCryptoBridgeTest {
     @Test
     fun `clear removes previously installed callbacks`() {
         // Arrange
-        IosCryptoBridge.install(
+        CryptoBridge.install(
             randomBytes = { ByteArray(it) },
             sha256 = { it },
             hmacSha256 = { _, data -> data },
-            generateX25519KeyPair = { IosCryptoRawKeyPair(ByteArray(32), ByteArray(32)) },
-            generateEd25519KeyPair = { IosCryptoRawKeyPair(ByteArray(32), ByteArray(32)) },
+            generateX25519KeyPair = { CryptoRawKeyPair(ByteArray(32), ByteArray(32)) },
+            generateEd25519KeyPair = { CryptoRawKeyPair(ByteArray(32), ByteArray(32)) },
             x25519 = { _, publicKey -> publicKey },
             ed25519Sign = { _, message -> message },
             ed25519Verify = { _, _, _ -> true },
             chacha20Poly1305Seal = { _, _, _, plaintext -> plaintext },
             chacha20Poly1305Open = { _, _, _, ciphertext -> ciphertext },
         )
-        IosCryptoBridgeRegistry.clear()
+        CryptoBridgeRegistry.clear()
 
         // Act
         val failure =
             assertFailsWith<MeshLinkException.PlatformFailure> {
-                IosCryptoBridgeRegistry.requireCallbacks()
+                CryptoBridgeRegistry.requireCallbacks()
             }
 
         // Assert
-        assertTrue(failure.message.orEmpty().contains("IosCryptoBridge.install"))
+        assertTrue(failure.message.orEmpty().contains("CryptoBridge.install"))
     }
 }

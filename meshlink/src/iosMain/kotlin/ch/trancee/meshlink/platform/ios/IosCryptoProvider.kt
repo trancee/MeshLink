@@ -1,25 +1,25 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosCryptoBridgeRegistry
+import ch.trancee.meshlink.api.apple.CryptoBridgeRegistry
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
 
-internal class IosCryptoProvider : CryptoProvider {
+internal class BridgeCryptoProvider : CryptoProvider {
     override fun randomBytes(size: Int): ByteArray {
-        return requiredIosCryptoCallbacks().randomBytes(size).copyOf()
+        return requiredCryptoCallbacks().randomBytes(size).copyOf()
     }
 
     override fun sha256(input: ByteArray): ByteArray {
-        return requiredIosCryptoCallbacks().sha256(input.copyOf()).copyOf()
+        return requiredCryptoCallbacks().sha256(input.copyOf()).copyOf()
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        return requiredIosCryptoCallbacks().hmacSha256(key.copyOf(), data.copyOf()).copyOf()
+        return requiredCryptoCallbacks().hmacSha256(key.copyOf(), data.copyOf()).copyOf()
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
-        val keyPair = requiredIosCryptoCallbacks().generateX25519KeyPair()
+        val keyPair = requiredCryptoCallbacks().generateX25519KeyPair()
         return X25519KeyPair(
             privateKey = keyPair.copyPrivateKey(),
             publicKey = keyPair.copyPublicKey(),
@@ -27,7 +27,7 @@ internal class IosCryptoProvider : CryptoProvider {
     }
 
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
-        val keyPair = requiredIosCryptoCallbacks().generateEd25519KeyPair()
+        val keyPair = requiredCryptoCallbacks().generateEd25519KeyPair()
         return Ed25519KeyPair(
             privateKey = keyPair.copyPrivateKey(),
             publicKey = keyPair.copyPublicKey(),
@@ -35,13 +35,11 @@ internal class IosCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        return requiredIosCryptoCallbacks().x25519(privateKey.copyOf(), publicKey.copyOf()).copyOf()
+        return requiredCryptoCallbacks().x25519(privateKey.copyOf(), publicKey.copyOf()).copyOf()
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
-        return requiredIosCryptoCallbacks()
-            .ed25519Sign(privateKey.copyOf(), message.copyOf())
-            .copyOf()
+        return requiredCryptoCallbacks().ed25519Sign(privateKey.copyOf(), message.copyOf()).copyOf()
     }
 
     override fun ed25519Verify(
@@ -49,7 +47,7 @@ internal class IosCryptoProvider : CryptoProvider {
         message: ByteArray,
         signature: ByteArray,
     ): Boolean {
-        return requiredIosCryptoCallbacks()
+        return requiredCryptoCallbacks()
             .ed25519Verify(publicKey.copyOf(), message.copyOf(), signature.copyOf())
     }
 
@@ -59,7 +57,7 @@ internal class IosCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        return requiredIosCryptoCallbacks()
+        return requiredCryptoCallbacks()
             .chacha20Poly1305Seal(key.copyOf(), nonce.copyOf(), aad.copyOf(), plaintext.copyOf())
             .copyOf()
     }
@@ -70,10 +68,10 @@ internal class IosCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        return requiredIosCryptoCallbacks()
+        return requiredCryptoCallbacks()
             .chacha20Poly1305Open(key.copyOf(), nonce.copyOf(), aad.copyOf(), ciphertext.copyOf())
             .copyOf()
     }
 }
 
-private fun requiredIosCryptoCallbacks() = IosCryptoBridgeRegistry.requireCallbacks()
+private fun requiredCryptoCallbacks() = CryptoBridgeRegistry.requireCallbacks()

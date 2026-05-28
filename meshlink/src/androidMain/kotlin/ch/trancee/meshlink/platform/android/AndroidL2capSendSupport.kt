@@ -5,20 +5,20 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 
-internal class AndroidL2capSendContext
+internal class L2capSendContext
 internal constructor(
     internal val hintPeerId: PeerId,
     internal val transportMode: TransportMode,
     internal val advertisedL2capPsm: Int,
 )
 
-internal interface AndroidL2capSendLink {
+internal interface L2capSendLink {
     suspend fun send(frame: OutboundFrame): TransportSendResult
 }
 
-internal class AndroidL2capSendDependencies
+internal class L2capSendDependencies
 internal constructor(
-    internal val currentLink: () -> AndroidL2capSendLink?,
+    internal val currentLink: () -> L2capSendLink?,
     internal val shouldInitiateL2cap: () -> Boolean,
     internal val triggerConnectIfNeeded: () -> Unit,
     internal val log: (String) -> Unit,
@@ -26,8 +26,8 @@ internal constructor(
 
 internal suspend fun sendViaAndroidL2capWhenReady(
     frame: OutboundFrame,
-    context: AndroidL2capSendContext,
-    dependencies: AndroidL2capSendDependencies,
+    context: L2capSendContext,
+    dependencies: L2capSendDependencies,
 ): TransportSendResult {
     val directLink = dependencies.currentLink()
     if (context.transportMode != TransportMode.L2CAP) {

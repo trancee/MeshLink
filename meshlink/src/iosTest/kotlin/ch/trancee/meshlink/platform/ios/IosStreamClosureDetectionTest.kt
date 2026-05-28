@@ -7,7 +7,7 @@ import platform.Foundation.NSStreamStatusAtEnd
 import platform.Foundation.NSStreamStatusClosed
 import platform.Foundation.NSStreamStatusError
 
-class IosStreamClosureDetectionTest {
+class StreamClosureDetectionTest {
     @Test
     fun reportsClosedWhenStreamStatusIsAtEnd(): Unit {
         // Act

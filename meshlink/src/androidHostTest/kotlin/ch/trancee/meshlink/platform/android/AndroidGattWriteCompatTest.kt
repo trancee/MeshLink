@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class AndroidGattWriteCompatTest {
+class GattWriteCompatTest {
     @Test
     fun writeAndroidGattDescriptorUsesLegacyWriteBelowApi33(): Unit {
         // Arrange

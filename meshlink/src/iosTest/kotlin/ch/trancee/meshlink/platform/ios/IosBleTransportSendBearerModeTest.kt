@@ -9,7 +9,7 @@ import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosBleTransportSendBearerModeTest {
+class BleTransportSendBearerModeTest {
     @Test
     fun resolveSendDataBearerModeUsesGattFallbackForMixedPlatformDataFrames(): Unit {
         // Arrange
@@ -85,8 +85,8 @@ class IosBleTransportSendBearerModeTest {
     }
 }
 
-private fun testTransport(): IosBleTransport {
-    return IosBleTransport(
+private fun testTransport(): BleTransportAdapter {
+    return BleTransportAdapter(
         appId = "demo.meshlink.ios.transport",
         advertisementKeyHash = ByteArray(12) { index -> (index + 101).toByte() },
     )

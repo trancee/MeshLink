@@ -2,7 +2,7 @@ package ch.trancee.meshlink.platform.ios
 
 import kotlinx.coroutines.CompletableDeferred
 
-internal class IosGattNotifyPendingFrame internal constructor(chunks: List<ByteArray>) {
+internal class GattNotifyPendingFrame internal constructor(chunks: List<ByteArray>) {
     private val completion: CompletableDeferred<Boolean> = CompletableDeferred()
     private val chunks: List<ByteArray> = chunks.map { chunk -> chunk.copyOf() }
     private var nextChunkIndex: Int = 0

@@ -8,7 +8,7 @@ import android.bluetooth.BluetoothSocket
 import android.os.Build
 
 @SuppressLint("MissingPermission", "PrivateApi")
-internal object AndroidL2capSocketFactory {
+internal object L2capSocketFactory {
     internal fun listenInsecure(
         adapter: BluetoothAdapter,
         sdkInt: Int = Build.VERSION.SDK_INT,

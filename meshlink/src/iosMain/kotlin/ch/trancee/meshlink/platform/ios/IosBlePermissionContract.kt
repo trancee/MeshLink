@@ -7,7 +7,7 @@ import platform.CoreBluetooth.CBManagerAuthorization
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 
-internal object IosBlePermissionContract {
+internal object BlePermissionContract {
     internal fun ensureBluetoothAuthorized(authorization: CBManagerAuthorization): Unit {
         when (authorization) {
             CBManagerAuthorizationDenied,

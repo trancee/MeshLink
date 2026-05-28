@@ -9,11 +9,11 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 
-class IosGattNotifyLinkTest {
+class GattNotifyLinkTest {
     @Test
     fun enqueueReturnsFalseWhenNoPeripheralAdapterIsAvailable(): Unit = runBlocking {
         // Arrange
-        val fixture = IosGattNotifyLinkFixture(peripheralAdapter = null)
+        val fixture = GattNotifyLinkFixture(peripheralAdapter = null)
 
         // Act
         val delivered = fixture.link.enqueue(byteArrayOf(0x01, 0x02))
@@ -28,7 +28,7 @@ class IosGattNotifyLinkTest {
         // Arrange
         val peripheralAdapter =
             FakeIosGattNotifyPeripheralAdapter(updateResults = listOf(true, true))
-        val fixture = IosGattNotifyLinkFixture(peripheralAdapter = peripheralAdapter)
+        val fixture = GattNotifyLinkFixture(peripheralAdapter = peripheralAdapter)
 
         // Act
         val firstDelivered = fixture.link.enqueue(byteArrayOf(0x01, 0x02))
@@ -47,7 +47,7 @@ class IosGattNotifyLinkTest {
         // Arrange
         val peripheralAdapter =
             FakeIosGattNotifyPeripheralAdapter(updateResults = listOf(false, true))
-        val fixture = IosGattNotifyLinkFixture(peripheralAdapter = peripheralAdapter)
+        val fixture = GattNotifyLinkFixture(peripheralAdapter = peripheralAdapter)
 
         // Act
         val delivery = async { fixture.link.enqueue(byteArrayOf(0x01, 0x02)) }
@@ -65,19 +65,19 @@ class IosGattNotifyLinkTest {
     }
 }
 
-private class IosGattNotifyLinkFixture(peripheralAdapter: FakeIosGattNotifyPeripheralAdapter?) {
+private class GattNotifyLinkFixture(peripheralAdapter: FakeIosGattNotifyPeripheralAdapter?) {
     var schedulePumpRetryCalls: Int = 0
 
-    val link: IosGattNotifyLink =
-        IosGattNotifyLink(
+    val link: GattNotifyLink =
+        GattNotifyLink(
             peer =
-                IosGattNotifyPeer(
+                GattNotifyPeer(
                     hintPeerId = PeerId("peer-ios"),
                     centralIdentifier = "central-1",
                     maximumUpdateValueLength = 182,
                 ),
             dependencies =
-                IosGattNotifyDependencies(
+                GattNotifyDependencies(
                     peripheralAdapterProvider = { peripheralAdapter },
                     runPump = { block -> block() },
                     logger = {},
@@ -87,7 +87,7 @@ private class IosGattNotifyLinkFixture(peripheralAdapter: FakeIosGattNotifyPerip
 }
 
 private class FakeIosGattNotifyPeripheralAdapter(updateResults: List<Boolean>) :
-    IosGattNotifyPeripheralAdapter {
+    GattNotifyPeripheralAdapter {
     private val queuedResults: ArrayDeque<Boolean> = ArrayDeque(updateResults)
     var lowLatencyRequests: Int = 0
     var updateCalls: Int = 0

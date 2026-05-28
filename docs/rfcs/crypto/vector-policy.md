@@ -49,7 +49,7 @@ If `wycheproof/policy.json` changes, update this table in the same change.
 |---|---|---|
 | Corpus integrity | Every tracked tcId is classified explicitly and stale tcIds fail the build. | `CryptoPolicyCorpusTest` plus `wycheproof/policy.json` |
 | JVM provider conformance | The JVM provider matches RFC vectors and explicit policy buckets. | `JvmCryptoPolicyConformanceTest` |
-| Android provider conformance | `AndroidCryptoProvider` honors the same vectors and policy buckets on host execution. | `AndroidCryptoPolicyConformanceTest` |
+| Android provider conformance | `JcaCryptoProvider` honors the same vectors and policy buckets on host execution. | `AndroidCryptoPolicyConformanceTest` |
 | Runtime fail-closed behavior | MeshLink rejects malformed crypto before HKDF or transport use. | `CryptoProviderRuntimeContractTest` and `MeshRuntimeAndroidCryptoTest` |
 | iOS bridge boundary | The iOS bridge contract remains compile/link only for `iosArm64`. | Current Gradle/CI verification bundle |
 

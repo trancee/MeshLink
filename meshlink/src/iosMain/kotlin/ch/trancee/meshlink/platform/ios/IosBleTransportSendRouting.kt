@@ -8,11 +8,13 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 
-internal suspend fun IosBleTransport.sendWhenStarted(frame: OutboundFrame): TransportSendResult {
+internal suspend fun BleTransportAdapter.sendWhenStarted(
+    frame: OutboundFrame
+): TransportSendResult {
     return dispatchIosSend(
         frame = frame,
         dependencies =
-            IosSendDispatchDependencies(
+            SendDispatchDependencies(
                 sendToResolvedPeerOrNull = {
                     resolvePeer(frame.peerId)?.let { peer -> sendToPeer(frame, peer) }
                 },
@@ -27,7 +29,7 @@ internal suspend fun IosBleTransport.sendWhenStarted(frame: OutboundFrame): Tran
     )
 }
 
-internal suspend fun IosBleTransport.sendToPeer(
+internal suspend fun BleTransportAdapter.sendToPeer(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
 ): TransportSendResult {
@@ -49,7 +51,7 @@ internal suspend fun IosBleTransport.sendToPeer(
     }
 }
 
-internal fun IosBleTransport.resolveSendDataBearerMode(
+internal fun BleTransportAdapter.resolveSendDataBearerMode(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
     directFrame: DirectWireFrame?,
@@ -65,7 +67,7 @@ internal fun IosBleTransport.resolveSendDataBearerMode(
     }
 }
 
-internal suspend fun IosBleTransport.sendViaGattNotifyLinkOrNull(
+internal suspend fun BleTransportAdapter.sendViaGattNotifyLinkOrNull(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
     directFrame: DirectWireFrame?,
@@ -73,18 +75,18 @@ internal suspend fun IosBleTransport.sendViaGattNotifyLinkOrNull(
     return sendViaPreferredGattNotifyLinkOrNull(
         frame = frame,
         context =
-            IosPreferredGattSendContext(
+            PreferredGattSendContext(
                 hintPeerId = peer.hintPeerId,
                 localPlatformFamily = currentDiscoveryPayload.platformFamily,
                 remotePlatformFamily = peer.platformFamily,
             ),
         dependencies =
-            IosPreferredGattSendDependencies(
+            PreferredGattSendDependencies(
                 currentLink = {
                     activeGattNotifyLinkFor(peer)
                         ?.takeIf { directFrame is DirectWireFrame.Data }
                         ?.let { link ->
-                            object : IosPreferredGattSendLink {
+                            object : PreferredGattSendLink {
                                 override suspend fun enqueue(payload: ByteArray): Boolean {
                                     return link.enqueue(payload)
                                 }
@@ -96,18 +98,18 @@ internal suspend fun IosBleTransport.sendViaGattNotifyLinkOrNull(
     )
 }
 
-internal suspend fun IosBleTransport.sendViaL2capWhenReady(
+internal suspend fun BleTransportAdapter.sendViaL2capWhenReady(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
 ): TransportSendResult {
     return sendViaIosL2capWhenReady(
         frame = frame,
-        context = IosL2capSendContext(hintPeerId = frame.peerId),
+        context = L2capSendContext(hintPeerId = frame.peerId),
         dependencies =
-            IosL2capSendDependencies(
+            L2capSendDependencies(
                 currentLink = {
                     activeLinkFor(peer)?.let { link ->
-                        object : IosL2capSendLink {
+                        object : L2capSendLink {
                             override val hintPeerId: PeerId = link.hintPeerId
 
                             override suspend fun enqueue(payload: ByteArray): Boolean {
@@ -124,7 +126,7 @@ internal suspend fun IosBleTransport.sendViaL2capWhenReady(
     )
 }
 
-internal fun IosBleTransport.dropSend(
+internal fun BleTransportAdapter.dropSend(
     frame: OutboundFrame,
     message: String,
     detail: String,
@@ -133,6 +135,6 @@ internal fun IosBleTransport.dropSend(
     return TransportSendResult.Dropped(message)
 }
 
-internal fun IosBleTransport.resolvePeer(peerId: PeerId): DiscoveredPeer? {
+internal fun BleTransportAdapter.resolvePeer(peerId: PeerId): DiscoveredPeer? {
     return peerRegistry.resolve(peerId)
 }

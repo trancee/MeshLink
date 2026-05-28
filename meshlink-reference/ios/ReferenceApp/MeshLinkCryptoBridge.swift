@@ -5,7 +5,7 @@ import Security
 
 enum MeshLinkReferenceCryptoBridge {
     static func install() {
-        IosCryptoBridge.shared.install(
+        CryptoBridge.shared.install(
             randomBytes: { size in
                 randomData(count: Int(truncating: size)).toKotlinByteArray()
             },
@@ -21,14 +21,14 @@ enum MeshLinkReferenceCryptoBridge {
             },
             generateX25519KeyPair: {
                 let privateKey = Curve25519.KeyAgreement.PrivateKey()
-                return IosCryptoRawKeyPair(
+                return CryptoRawKeyPair(
                     privateKey: privateKey.rawRepresentation.toKotlinByteArray(),
                     publicKey: privateKey.publicKey.rawRepresentation.toKotlinByteArray()
                 )
             },
             generateEd25519KeyPair: {
                 let privateKey = Curve25519.Signing.PrivateKey()
-                return IosCryptoRawKeyPair(
+                return CryptoRawKeyPair(
                     privateKey: privateKey.rawRepresentation.toKotlinByteArray(),
                     publicKey: privateKey.publicKey.rawRepresentation.toKotlinByteArray()
                 )

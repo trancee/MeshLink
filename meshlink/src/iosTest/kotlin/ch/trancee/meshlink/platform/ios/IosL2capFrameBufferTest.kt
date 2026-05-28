@@ -6,11 +6,11 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-class IosL2capFrameBufferTest {
+class L2capFrameBufferTest {
     @Test
     fun appendReassemblesSplitFrame(): Unit {
         // Arrange
-        val buffer = IosL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val frame = "hello ios mesh".encodeToByteArray()
         val encoded = buffer.encode(frame)
 
@@ -27,7 +27,7 @@ class IosL2capFrameBufferTest {
     @Test
     fun appendYieldsMultipleFramesFromOneChunk(): Unit {
         // Arrange
-        val buffer = IosL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val firstFrame = "first".encodeToByteArray()
         val secondFrame = "second".encodeToByteArray()
         val encoded = buffer.encode(firstFrame) + buffer.encode(secondFrame)
@@ -44,7 +44,7 @@ class IosL2capFrameBufferTest {
     @Test
     fun appendRejectsOversizedDeclaredFrames(): Unit {
         // Arrange
-        val buffer = IosL2capFrameBuffer(maxFrameSizeBytes = 8)
+        val buffer = L2capFrameBuffer(maxFrameSizeBytes = 8)
         val oversizedHeader = byteArrayOf(9, 0, 0, 0)
 
         // Act

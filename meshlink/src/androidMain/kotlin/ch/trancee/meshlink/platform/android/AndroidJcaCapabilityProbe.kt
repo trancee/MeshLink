@@ -8,7 +8,7 @@ import javax.crypto.KeyAgreement
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-internal class AndroidJcaCapabilityReport
+internal class JcaCapabilityReport
 internal constructor(
     internal val supportsX25519: Boolean,
     internal val supportsEd25519: Boolean,
@@ -18,9 +18,9 @@ internal constructor(
         get() = supportsX25519 && supportsChaCha20Poly1305
 }
 
-internal object AndroidJcaCapabilityProbe {
-    internal fun detect(): AndroidJcaCapabilityReport {
-        return AndroidJcaCapabilityReport(
+internal object JcaCapabilityProbe {
+    internal fun detect(): JcaCapabilityReport {
+        return JcaCapabilityReport(
             supportsX25519 = canRun(::probeX25519),
             supportsEd25519 = canRun(::probeEd25519),
             supportsChaCha20Poly1305 = canRun(::probeChaCha20Poly1305),

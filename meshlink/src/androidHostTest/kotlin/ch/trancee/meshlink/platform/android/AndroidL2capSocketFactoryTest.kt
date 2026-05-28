@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class AndroidL2capSocketFactoryTest {
+class L2capSocketFactoryTest {
     @Test
     fun `selectInsecureFactory uses legacy factory below api 36`() {
         // Arrange
@@ -13,7 +13,7 @@ class AndroidL2capSocketFactoryTest {
 
         // Act
         val selected =
-            AndroidL2capSocketFactory.selectInsecureFactory(
+            L2capSocketFactory.selectInsecureFactory(
                 sdkInt = 35,
                 explicitFactory = {
                     explicitInvoked = true
@@ -39,7 +39,7 @@ class AndroidL2capSocketFactoryTest {
 
         // Act
         val selected =
-            AndroidL2capSocketFactory.selectInsecureFactory(
+            L2capSocketFactory.selectInsecureFactory(
                 sdkInt = 36,
                 explicitFactory = {
                     explicitInvoked = true
@@ -68,7 +68,7 @@ class AndroidL2capSocketFactoryTest {
 
         // Act
         val selected =
-            AndroidL2capSocketFactory.selectInsecureFactory(
+            L2capSocketFactory.selectInsecureFactory(
                 sdkInt = 36,
                 explicitFactory = { error("boom") },
                 legacyFactory = {

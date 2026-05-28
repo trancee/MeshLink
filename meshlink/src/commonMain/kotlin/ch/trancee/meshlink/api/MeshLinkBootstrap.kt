@@ -8,4 +8,4 @@ package ch.trancee.meshlink.api
  */
 public abstract class MeshLinkBootstrap internal constructor()
 
-internal object AndroidFactoryTestMeshLinkBootstrap : MeshLinkBootstrap()
+internal object FactoryTestBootstrap : MeshLinkBootstrap()

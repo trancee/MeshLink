@@ -15,7 +15,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-internal class AndroidCryptoProvider : CryptoProvider {
+internal class JcaCryptoProvider : CryptoProvider {
     override fun randomBytes(size: Int): ByteArray {
         return ByteArray(size).also { java.security.SecureRandom().nextBytes(it) }
     }

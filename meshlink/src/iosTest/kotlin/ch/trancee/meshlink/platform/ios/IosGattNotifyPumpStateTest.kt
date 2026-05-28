@@ -8,11 +8,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-class IosGattNotifyPumpStateTest {
+class GattNotifyPumpStateTest {
     @Test
     fun beginPumpRejectsClosedOrConcurrentPumps(): Unit {
         // Arrange
-        val state = IosGattNotifyPumpState()
+        val state = GattNotifyPumpState()
         val firstBegin = state.beginPump()
         val secondBegin = state.beginPump()
         state.close()
@@ -29,9 +29,9 @@ class IosGattNotifyPumpStateTest {
     @Test
     fun discardQueuedFramesPreservesTheHeadFrameWhileAPumpIsInProgress(): Unit {
         // Arrange
-        val state = IosGattNotifyPumpState()
-        val headFrame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
-        val tailFrame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x02)))
+        val state = GattNotifyPumpState()
+        val headFrame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
+        val tailFrame = GattNotifyPendingFrame(listOf(byteArrayOf(0x02)))
         state.enqueue(headFrame)
         state.enqueue(tailFrame)
         state.beginPump()
@@ -49,8 +49,8 @@ class IosGattNotifyPumpStateTest {
     @Test
     fun recordPumpAttemptCompletesTheHeadFrameAfterItsFinalChunk(): Unit {
         // Arrange
-        val state = IosGattNotifyPumpState()
-        val frame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02, 0x03)))
+        val state = GattNotifyPumpState()
+        val frame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01), byteArrayOf(0x02, 0x03)))
         state.enqueue(frame)
         state.beginPump()
 
@@ -68,8 +68,8 @@ class IosGattNotifyPumpStateTest {
     @Test
     fun recordPumpAttemptSchedulesOnlyOneRetryPerPumpRun(): Unit {
         // Arrange
-        val state = IosGattNotifyPumpState()
-        state.enqueue(IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01))))
+        val state = GattNotifyPumpState()
+        state.enqueue(GattNotifyPendingFrame(listOf(byteArrayOf(0x01))))
         state.beginPump()
 
         // Act
@@ -86,13 +86,13 @@ class IosGattNotifyPumpStateTest {
     @Test
     fun closeDrainsPendingFramesAndRejectsFurtherWork(): Unit {
         // Arrange
-        val state = IosGattNotifyPumpState()
-        val frame = IosGattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
+        val state = GattNotifyPumpState()
+        val frame = GattNotifyPendingFrame(listOf(byteArrayOf(0x01)))
         state.enqueue(frame)
 
         // Act
         val discardedFrames = state.close()
-        val enqueueAfterClose = state.enqueue(IosGattNotifyPendingFrame(listOf(byteArrayOf(0x02))))
+        val enqueueAfterClose = state.enqueue(GattNotifyPendingFrame(listOf(byteArrayOf(0x02))))
         val nextChunk = state.nextPendingChunkOrNull()
 
         // Assert

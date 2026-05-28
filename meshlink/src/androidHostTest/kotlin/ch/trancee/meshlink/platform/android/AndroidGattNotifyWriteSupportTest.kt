@@ -7,11 +7,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 
-class AndroidGattNotifyWriteSupportTest {
+class GattNotifyWriteSupportTest {
     @Test
     fun writeViaAndroidGattNotifyReturnsFalseWhenTheClientIsNotReady(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidGattNotifyWriteFixture(clientReady = false)
+        val fixture = GattNotifyWriteFixture(clientReady = false)
 
         // Act
         val written = fixture.write(payload = byteArrayOf(0x01, 0x02))
@@ -25,7 +25,7 @@ class AndroidGattNotifyWriteSupportTest {
     @Test
     fun writeViaAndroidGattNotifyReturnsFalseWhenGattStateIsMissing(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidGattNotifyWriteFixture(hasGatt = false)
+        val fixture = GattNotifyWriteFixture(hasGatt = false)
 
         // Act
         val written = fixture.write(payload = byteArrayOf(0x01, 0x02))
@@ -40,7 +40,7 @@ class AndroidGattNotifyWriteSupportTest {
     fun writeViaAndroidGattNotifySplitsEncodedPayloadAcrossChunks(): Unit = runBlocking {
         // Arrange
         val encoded = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09)
-        val fixture = AndroidGattNotifyWriteFixture(maxChunkBytes = 4, encoded = encoded)
+        val fixture = GattNotifyWriteFixture(maxChunkBytes = 4, encoded = encoded)
 
         // Act
         val written = fixture.write(payload = byteArrayOf(0x55, 0x66))
@@ -61,7 +61,7 @@ class AndroidGattNotifyWriteSupportTest {
         // Arrange
         val encoded = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05)
         val fixture =
-            AndroidGattNotifyWriteFixture(
+            GattNotifyWriteFixture(
                 maxChunkBytes = 2,
                 encoded = encoded,
                 chunkResults = listOf(true, false, true),
@@ -78,7 +78,7 @@ class AndroidGattNotifyWriteSupportTest {
     }
 }
 
-private class AndroidGattNotifyWriteFixture(
+private class GattNotifyWriteFixture(
     private val clientReady: Boolean = true,
     private val hasGatt: Boolean = true,
     private val hasWriteCharacteristic: Boolean = true,
@@ -93,7 +93,7 @@ private class AndroidGattNotifyWriteFixture(
         return writeViaAndroidGattNotify(
             payload = payload,
             context =
-                AndroidGattNotifyWriteContext(
+                GattNotifyWriteContext(
                     peerLogSuffix = "abc123",
                     clientReady = clientReady,
                     hasGatt = hasGatt,
@@ -101,7 +101,7 @@ private class AndroidGattNotifyWriteFixture(
                     maxChunkBytes = maxChunkBytes,
                 ),
             dependencies =
-                AndroidGattNotifyWriteDependencies(
+                GattNotifyWriteDependencies(
                     encode = {
                         encodeCalls += 1
                         encoded

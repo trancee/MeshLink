@@ -8,7 +8,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.shouldInitiateDiscoveryDrivenL2capConnection
 
-internal class AndroidDiscoveryScanResult
+internal class DiscoveryScanResult
 internal constructor(
     internal val payload: BleDiscoveryPayload,
     internal val hintPeerId: PeerId,
@@ -21,7 +21,7 @@ internal fun parseAndroidDiscoveryScanResultOrNull(
     localMeshHash: UShort,
     localKeyHash: ByteArray,
     log: (String) -> Unit,
-): AndroidDiscoveryScanResult? {
+): DiscoveryScanResult? {
     val payloadUuid =
         serviceUuids?.firstOrNull { uuid -> !BleDiscoveryContract.isAdvertisementServiceUuid(uuid) }
             ?: return null
@@ -41,7 +41,7 @@ internal fun parseAndroidDiscoveryScanResultOrNull(
     }
     val transportMode =
         if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
-    return AndroidDiscoveryScanResult(
+    return DiscoveryScanResult(
         payload = payload,
         hintPeerId = PeerId(payload.keyHash.toHexString()),
         transportMode = transportMode,

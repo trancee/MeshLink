@@ -49,10 +49,10 @@ internal constructor(val hintPeerId: PeerId, state: DiscoveredPeerState) {
     var presenceAnnounced: Boolean = state.flags.presenceAnnounced
 }
 
-internal class AndroidPeerDiscoveryUpdate
+internal class PeerDiscoveryUpdate
 internal constructor(internal val peer: DiscoveredPeer, internal val events: List<TransportEvent>)
 
-internal class AndroidPeerBindings {
+internal class PeerBindings {
     private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val devicesByAddress: MutableMap<String, BluetoothDevice> = linkedMapOf()
@@ -96,13 +96,13 @@ internal class AndroidPeerBindings {
     }
 }
 
-internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
+internal class PeerRegistry(private val bindings: PeerBindings) {
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
 
     internal fun upsertDiscovery(
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
-    ): AndroidPeerDiscoveryUpdate {
+    ): PeerDiscoveryUpdate {
         val existingPeer = discoveredPeers[hintPeerId.value]
         return if (existingPeer == null) {
             createDiscoveredPeer(hintPeerId = hintPeerId, discovery = discovery)
@@ -118,7 +118,7 @@ internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
     private fun createDiscoveredPeer(
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
-    ): AndroidPeerDiscoveryUpdate {
+    ): PeerDiscoveryUpdate {
         val peer =
             DiscoveredPeer(
                 hintPeerId = hintPeerId,
@@ -134,7 +134,7 @@ internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
             )
         discoveredPeers[hintPeerId.value] = peer
         bindings.bindHintToAddress(discovery.address, hintPeerId.value)
-        return AndroidPeerDiscoveryUpdate(
+        return PeerDiscoveryUpdate(
             peer = peer,
             events =
                 listOf(
@@ -150,7 +150,7 @@ internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
         existingPeer: DiscoveredPeer,
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
-    ): AndroidPeerDiscoveryUpdate {
+    ): PeerDiscoveryUpdate {
         existingPeer.deviceAddress = discovery.address
         existingPeer.l2capPsm = discovery.l2capPsm
         existingPeer.platformFamily = discovery.platformFamily
@@ -173,7 +173,7 @@ internal class AndroidPeerRegistry(private val bindings: AndroidPeerBindings) {
                     transportMode = discovery.transportMode,
                 )
         }
-        return AndroidPeerDiscoveryUpdate(peer = existingPeer, events = events)
+        return PeerDiscoveryUpdate(peer = existingPeer, events = events)
     }
 
     internal fun peer(hintPeerIdValue: String): DiscoveredPeer? {

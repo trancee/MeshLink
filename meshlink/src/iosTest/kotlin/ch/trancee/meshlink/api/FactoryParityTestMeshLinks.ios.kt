@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.api
 
+import ch.trancee.meshlink.api.apple.CryptoBridge
+import ch.trancee.meshlink.api.apple.CryptoRawKeyPair
 import ch.trancee.meshlink.config.MeshLinkConfig
 
 internal actual fun installFactoryTestBridges(): Unit {
@@ -10,17 +12,17 @@ internal actual fun installFactoryTestBridges(): Unit {
             .also { counter += 1 }
     }
 
-    IosCryptoBridge.install(
+    CryptoBridge.install(
         randomBytes = { size -> nextBytes(size) },
         sha256 = { input -> ByteArray(32) { index -> input.getOrElse(index) { index.toByte() } } },
         hmacSha256 = { _, data ->
             ByteArray(32) { index -> data.getOrElse(index) { index.toByte() } }
         },
         generateX25519KeyPair = {
-            IosCryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
+            CryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
         },
         generateEd25519KeyPair = {
-            IosCryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
+            CryptoRawKeyPair(privateKey = nextBytes(32), publicKey = nextBytes(32))
         },
         x25519 = { _, publicKey -> publicKey.copyOf() },
         ed25519Sign = { _, message ->
@@ -33,7 +35,7 @@ internal actual fun installFactoryTestBridges(): Unit {
 }
 
 internal actual fun createAndroidFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
-    return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
+    return meshLink(config = config, bootstrap = FactoryTestBootstrap)
 }
 
 internal actual fun createIosFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {

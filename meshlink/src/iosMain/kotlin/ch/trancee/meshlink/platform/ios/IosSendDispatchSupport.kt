@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform.ios
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 
-internal class IosSendDispatchDependencies
+internal class SendDispatchDependencies
 internal constructor(
     internal val sendToResolvedPeerOrNull: suspend () -> TransportSendResult?,
     internal val dropWhenPeerIsMissing: () -> TransportSendResult,
@@ -11,7 +11,7 @@ internal constructor(
 
 internal suspend fun dispatchIosSend(
     frame: OutboundFrame,
-    dependencies: IosSendDispatchDependencies,
+    dependencies: SendDispatchDependencies,
 ): TransportSendResult {
     return dependencies.sendToResolvedPeerOrNull() ?: dependencies.dropWhenPeerIsMissing()
 }

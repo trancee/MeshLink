@@ -90,8 +90,8 @@ reviewable.
 
 - [X] T014 [P] [US1] Implement `LocalIdentity`, `TrustRecord`, advertisement key-hash derivation support, and the TOFU trust store in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/identity/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/trust/`
 - [X] T015 [P] [US1] Implement the Noise XX hop-handshake manager, Noise K end-to-end payload sealing/opening, and trust-failure diagnostic emission in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/` and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`
-- [X] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidMeshLinkFactory.kt`
-- [X] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosMeshLinkFactory.kt`
+- [X] T016 [P] [US1] Implement Android direct BLE transport, secure storage, and the Android factory in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/BleTransportAdapter.kt`, `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/PreferencesSecureStorage.kt`, and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidMeshLinkFactory.kt`
+- [X] T017 [P] [US1] Implement iOS direct BLE transport, secure storage, and the iOS factory in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`, `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/DefaultsSecureStorage.kt`, and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosMeshLinkFactory.kt`
 - [X] T018 [US1] Integrate direct send/receive lifecycle flows with hop-to-hop and end-to-end security layering in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLink.kt`, and `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/`, then implement and document the proof flow in `meshlink-proof/android/` and `meshlink-proof/ios/`
 
 **Checkpoint**: User Story 1 should deliver first-contact trust, direct offline messaging, restart recovery, trust-failure visibility, two-layer security, and direct-message parity evidence without servers or accounts.
@@ -143,8 +143,8 @@ semantics.
 ### Implementation for User Story 3
 
 - [X] T031 [P] [US3] Implement shared `PowerPolicy`, hysteresis, bootstrap, and regulatory clamp logic in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/power/`
-- [X] T032 [P] [US3] Implement Android battery and transport tuning hooks in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidPowerMonitor.kt` and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`
-- [X] T033 [P] [US3] Implement iOS battery and transport tuning hooks in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosPowerMonitor.kt` and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
+- [X] T032 [P] [US3] Implement Android battery and transport tuning hooks in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/PowerMonitor.kt` and `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/BleTransportAdapter.kt`
+- [X] T033 [P] [US3] Implement iOS battery and transport tuning hooks in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/PowerMonitor.kt` and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`
 - [X] T034 [US3] Normalize diagnostics, the 26-code diagnostic catalog, `MeshLinkException` KDoc, `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`, and parity docs in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/`, `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/diagnostics/`, `meshlink-proof/android/README.md`, `meshlink-proof/ios/README.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
 
 **Checkpoint**: User Story 3 should deliver shared power behavior and the same developer-visible lifecycle and diagnostic semantics on Android and iOS.
@@ -172,9 +172,9 @@ semantics.
 
 **Purpose**: Resolve the remaining iPhone 15 64 KiB single-hop throughput shortfall with instrumented experiments and fresh physical evidence.
 
-- [X] T045 [P] Add iOS large-transfer telemetry for chunk pacing, stream readiness, ACK cadence, and backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-proof/ios/ProofBenchmarks/BenchmarkTestSupport.swift`
+- [X] T045 [P] Add iOS large-transfer telemetry for chunk pacing, stream readiness, ACK cadence, and backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt` and `meshlink-proof/ios/ProofBenchmarks/BenchmarkTestSupport.swift`
 - [X] T046 [P] Add regression coverage for transfer pacing and settlement heuristics in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/LargeTransferIntegrationTest.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transfer/TransferSessionTest.kt`
-- [X] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt` and `meshlink-proof/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
+- [X] T047 Implement one bounded iOS throughput remediation path for L2CAP stream draining and write batching in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt` and `meshlink-proof/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`
 - [X] T048 Validate the iPhone 15 64 KiB proof benchmark on reference hardware and record pass/fail evidence in `benchmarks/README.md`, `specs/001-ble-mesh-sdk/research.md`, and `specs/001-ble-mesh-sdk/quickstart.md`
 - [X] T049 If `specs/001-ble-mesh-sdk/spec.md` SC-004 remains unmet, record the explicit release-decision framing and residual risk in `specs/001-ble-mesh-sdk/spec.md` and `specs/001-ble-mesh-sdk/plan.md`
 
@@ -196,7 +196,7 @@ semantics.
 **Purpose**: Reduce iOS L2CAP hot-path overhead and keep the CoreBluetooth CoC transmit pipeline saturated with bounded backpressure instead of synchronous frame-by-frame writes.
 
 - [X] T054 [P] Add a bounded pending-frame window helper and automated coverage in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/PendingFrameWindow.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/PendingFrameWindowTest.kt`
-- [X] T055 Implement iOS transport log-throttling plus a queued CoC writer with bounded frame/byte backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`
+- [X] T055 Implement iOS transport log-throttling plus a queued CoC writer with bounded frame/byte backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`
 - [X] T056 Validate the iOS CoC remediation with fresh Kotlin/Xcode verification output using `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.transport.PendingFrameWindowTest' :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64 :meshlink:ktfmtCheck --console=plain` and `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
 
 ---
@@ -309,9 +309,9 @@ delivery history.
   `MeshLinkException.PermissionDenied` behavior in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/api/MeshLinkContractTest.kt`,
   adding Android/iOS platform-specific permission-denial tests in
-  `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/AndroidPermissionContractTest.kt`
+  `meshlink/src/androidUnitTest/kotlin/ch/trancee/meshlink/platform/android/PermissionContractTest.kt`
   and
-  `meshlink/src/iosTest/kotlin/ch/trancee/meshlink/platform/ios/IosPermissionContractTest.kt`,
+  `meshlink/src/iosTest/kotlin/ch/trancee/meshlink/platform/ios/PermissionContractTest.kt`,
   and documenting blocked-run evidence expectations in
   `specs/001-ble-mesh-sdk/quickstart.md` and
   `specs/001-ble-mesh-sdk/research.md`.
@@ -336,14 +336,14 @@ stability evidence without weakening the separate iOS throughput blocker.
   path in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/TransferSession.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleTransport.kt`,
-  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
-  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`.
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/BleTransportAdapter.kt`,
+  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`.
 - [X] T083 Implement one bounded remediation path for recipient-confirmed 64 KiB
   proof completion on the MeshLink path in
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transfer/TransferSession.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleTransport.kt`,
-  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  and `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`,
   including full-chunk completion delivery and queued-frame flush handling on
   the iOS sender path.
 - [X] T084 [P] Re-run a 5-run iPhone 15 -> OPPO 64 KiB recipient-confirmed
@@ -437,7 +437,7 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
   latency design change, verify it on fresh Samsung reference-peer reruns, and
   retain both the improved best-case evidence (`38.28 KB/s`, refreshed at
   `34.33 KB/s`) and the rejected low-latency + inline combination in
-  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`,
   `benchmarks/README.md`,
   `specs/001-ble-mesh-sdk/research.md`,
   `specs/001-ble-mesh-sdk/release-decision.md`,
@@ -450,8 +450,8 @@ via the explicit waiver / known-limitation path recorded in the canonical docs.
   verify the final clean-build recipient-confirmed Samsung and OPPO reruns, and
   retain the resulting `39.48 KB/s` Samsung and `52.03 KB/s` OPPO evidence in
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContract.kt`,
-  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
-  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/BleTransportAdapter.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`,
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/BleDiscoveryContractTest.kt`,
   `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`,
   `benchmarks/README.md`,
@@ -513,8 +513,8 @@ real MeshLink transport candidate for a future non-waived release.
   evaluate an iOS-hosted GATT-notify bearer for large transfers without
   weakening the current waived release guardrails.
 - [X] T102 Implement the product-path GATT-notify bearer candidate in
-  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
-  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidBleTransport.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`,
+  `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/BleTransportAdapter.kt`,
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
   and the relevant transport tests so mixed Android/iOS peers can negotiate and
   use the new bearer while preserving the existing L2CAP path.
@@ -556,9 +556,9 @@ and headless proof false negatives are resolved.
 
 - [X] T107 Implement the final product-path throughput remediations in
   `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngine.kt`,
-  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosGattNotifyLink.kt`,
-  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/IosBleTransport.kt`,
-  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/IosBleTransportBridge.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/GattNotifyLink.kt`,
+  `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`,
+  `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/apple/BleTransportBridge.kt`,
   `meshlink-proof/ios/ProofApp/MeshLinkTransportBridge.swift`, and the
   relevant test files so large inline mixed-bearer sends suspend discovery,
   the iOS GATT-notify path minimizes bridge overhead, and the headless proof

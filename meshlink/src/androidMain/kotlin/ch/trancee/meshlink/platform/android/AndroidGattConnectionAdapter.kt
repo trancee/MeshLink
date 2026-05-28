@@ -9,7 +9,7 @@ import android.bluetooth.BluetoothGattService
 import android.os.Build
 import java.util.UUID
 
-internal interface AndroidGattConnectionAdapter {
+internal interface GattConnectionAdapter {
     val address: String
 
     fun requestHighConnectionPriority(): Unit
@@ -20,17 +20,17 @@ internal interface AndroidGattConnectionAdapter {
 
     fun discoverServices(): Unit
 
-    fun findService(uuid: String): AndroidGattServiceAdapter?
+    fun findService(uuid: String): GattServiceAdapter?
 
     fun setCharacteristicNotification(
-        characteristic: AndroidGattCharacteristicAdapter,
+        characteristic: GattCharacteristicAdapter,
         enabled: Boolean,
     ): Unit
 
-    fun writeDescriptor(descriptor: AndroidGattDescriptorAdapter, value: ByteArray): Boolean
+    fun writeDescriptor(descriptor: GattDescriptorAdapter, value: ByteArray): Boolean
 
     fun writeCharacteristic(
-        characteristic: AndroidGattCharacteristicAdapter,
+        characteristic: GattCharacteristicAdapter,
         value: ByteArray,
         writeType: Int,
     ): Boolean
@@ -38,25 +38,25 @@ internal interface AndroidGattConnectionAdapter {
     fun close(): Unit
 }
 
-internal interface AndroidGattServiceAdapter {
-    fun findCharacteristic(uuid: String): AndroidGattCharacteristicAdapter?
+internal interface GattServiceAdapter {
+    fun findCharacteristic(uuid: String): GattCharacteristicAdapter?
 }
 
-internal interface AndroidGattCharacteristicAdapter {
+internal interface GattCharacteristicAdapter {
     val uuid: String
 
-    fun findDescriptor(uuid: String): AndroidGattDescriptorAdapter?
+    fun findDescriptor(uuid: String): GattDescriptorAdapter?
 }
 
-internal interface AndroidGattDescriptorAdapter {
+internal interface GattDescriptorAdapter {
     val uuid: String
 }
 
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
-internal class AndroidPlatformGattConnectionAdapter(
+internal class PlatformGattConnectionAdapter(
     private val gatt: BluetoothGatt,
     private val sdkInt: Int = Build.VERSION.SDK_INT,
-) : AndroidGattConnectionAdapter {
+) : GattConnectionAdapter {
     override val address: String
         get() = gatt.device.address
 
@@ -80,24 +80,20 @@ internal class AndroidPlatformGattConnectionAdapter(
         gatt.discoverServices()
     }
 
-    override fun findService(uuid: String): AndroidGattServiceAdapter? {
-        return gatt.getService(UUID.fromString(uuid))?.let(::AndroidPlatformGattServiceAdapter)
+    override fun findService(uuid: String): GattServiceAdapter? {
+        return gatt.getService(UUID.fromString(uuid))?.let(::PlatformGattServiceAdapter)
     }
 
     override fun setCharacteristicNotification(
-        characteristic: AndroidGattCharacteristicAdapter,
+        characteristic: GattCharacteristicAdapter,
         enabled: Boolean,
     ): Unit {
-        val platformCharacteristic =
-            (characteristic as AndroidPlatformGattCharacteristicAdapter).delegate
+        val platformCharacteristic = (characteristic as PlatformGattCharacteristicAdapter).delegate
         gatt.setCharacteristicNotification(platformCharacteristic, enabled)
     }
 
-    override fun writeDescriptor(
-        descriptor: AndroidGattDescriptorAdapter,
-        value: ByteArray,
-    ): Boolean {
-        val platformDescriptor = (descriptor as AndroidPlatformGattDescriptorAdapter).delegate
+    override fun writeDescriptor(descriptor: GattDescriptorAdapter, value: ByteArray): Boolean {
+        val platformDescriptor = (descriptor as PlatformGattDescriptorAdapter).delegate
         return writeAndroidGattDescriptor(
             sdkInt = sdkInt,
             api33Write = { gatt.writeDescriptor(platformDescriptor, value.copyOf()) },
@@ -106,12 +102,11 @@ internal class AndroidPlatformGattConnectionAdapter(
     }
 
     override fun writeCharacteristic(
-        characteristic: AndroidGattCharacteristicAdapter,
+        characteristic: GattCharacteristicAdapter,
         value: ByteArray,
         writeType: Int,
     ): Boolean {
-        val platformCharacteristic =
-            (characteristic as AndroidPlatformGattCharacteristicAdapter).delegate
+        val platformCharacteristic = (characteristic as PlatformGattCharacteristicAdapter).delegate
         return writeAndroidGattCharacteristic(
             sdkInt = sdkInt,
             api33Write = {
@@ -128,29 +123,26 @@ internal class AndroidPlatformGattConnectionAdapter(
     }
 }
 
-internal class AndroidPlatformGattServiceAdapter(val delegate: BluetoothGattService) :
-    AndroidGattServiceAdapter {
-    override fun findCharacteristic(uuid: String): AndroidGattCharacteristicAdapter? {
+internal class PlatformGattServiceAdapter(val delegate: BluetoothGattService) : GattServiceAdapter {
+    override fun findCharacteristic(uuid: String): GattCharacteristicAdapter? {
         return delegate
             .getCharacteristic(UUID.fromString(uuid))
-            ?.let(::AndroidPlatformGattCharacteristicAdapter)
+            ?.let(::PlatformGattCharacteristicAdapter)
     }
 }
 
-internal class AndroidPlatformGattCharacteristicAdapter(val delegate: BluetoothGattCharacteristic) :
-    AndroidGattCharacteristicAdapter {
+internal class PlatformGattCharacteristicAdapter(val delegate: BluetoothGattCharacteristic) :
+    GattCharacteristicAdapter {
     override val uuid: String
         get() = delegate.uuid.toString()
 
-    override fun findDescriptor(uuid: String): AndroidGattDescriptorAdapter? {
-        return delegate
-            .getDescriptor(UUID.fromString(uuid))
-            ?.let(::AndroidPlatformGattDescriptorAdapter)
+    override fun findDescriptor(uuid: String): GattDescriptorAdapter? {
+        return delegate.getDescriptor(UUID.fromString(uuid))?.let(::PlatformGattDescriptorAdapter)
     }
 }
 
-internal class AndroidPlatformGattDescriptorAdapter(val delegate: BluetoothGattDescriptor) :
-    AndroidGattDescriptorAdapter {
+internal class PlatformGattDescriptorAdapter(val delegate: BluetoothGattDescriptor) :
+    GattDescriptorAdapter {
     override val uuid: String
         get() = delegate.uuid.toString()
 }

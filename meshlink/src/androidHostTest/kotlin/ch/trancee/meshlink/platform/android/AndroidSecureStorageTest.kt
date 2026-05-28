@@ -7,12 +7,12 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class AndroidSecureStorageTest {
+class SecureStorageTest {
     @Test
     fun `write stores a defensive copy and read returns the original bytes`() = runBlocking {
         // Arrange
         val context = FakeContext()
-        val storage = AndroidSecureStorage(context = context, appId = "demo.meshlink")
+        val storage = PreferencesSecureStorage(context = context, appId = "demo.meshlink")
         val key = "identity-key"
         val sourceValue = byteArrayOf(1, 2, 3, 4)
 
@@ -31,7 +31,7 @@ class AndroidSecureStorageTest {
     @Test
     fun `delete removes stored values`() = runBlocking {
         // Arrange
-        val storage = AndroidSecureStorage(context = FakeContext(), appId = "demo.meshlink")
+        val storage = PreferencesSecureStorage(context = FakeContext(), appId = "demo.meshlink")
         val key = "identity-key"
         storage.write(key, byteArrayOf(1, 2, 3, 4))
 

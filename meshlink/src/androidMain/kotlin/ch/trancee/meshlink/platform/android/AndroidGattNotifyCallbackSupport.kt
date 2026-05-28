@@ -8,12 +8,12 @@ import android.os.Build
 
 internal fun createAndroidGattNotifyCallback(
     sdkInt: Int,
-    relay: AndroidGattNotifyCallbackRelay,
+    relay: GattNotifyCallbackRelay,
 ): BluetoothGattCallback {
     return selectAndroidGattNotifyCallback(
         sdkInt = sdkInt,
-        modernFactory = { AndroidModernGattNotifyCallback(relay) },
-        legacyFactory = { AndroidLegacyGattNotifyCallback(relay) },
+        modernFactory = { ModernGattNotifyCallback(relay) },
+        legacyFactory = { LegacyGattNotifyCallback(relay) },
     )
 }
 
@@ -29,9 +29,8 @@ internal fun <T> selectAndroidGattNotifyCallback(
     }
 }
 
-private abstract class AndroidBaseGattNotifyCallback(
-    private val relay: AndroidGattNotifyCallbackRelay
-) : BluetoothGattCallback() {
+private abstract class BaseGattNotifyCallback(private val relay: GattNotifyCallbackRelay) :
+    BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         relay.onConnectionStateChange(
             address = gatt.device.address,
@@ -76,8 +75,8 @@ private abstract class AndroidBaseGattNotifyCallback(
     }
 }
 
-private class AndroidModernGattNotifyCallback(relay: AndroidGattNotifyCallbackRelay) :
-    AndroidBaseGattNotifyCallback(relay) {
+private class ModernGattNotifyCallback(relay: GattNotifyCallbackRelay) :
+    BaseGattNotifyCallback(relay) {
     override fun onCharacteristicChanged(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic,
@@ -87,8 +86,8 @@ private class AndroidModernGattNotifyCallback(relay: AndroidGattNotifyCallbackRe
     }
 }
 
-private class AndroidLegacyGattNotifyCallback(relay: AndroidGattNotifyCallbackRelay) :
-    AndroidBaseGattNotifyCallback(relay) {
+private class LegacyGattNotifyCallback(relay: GattNotifyCallbackRelay) :
+    BaseGattNotifyCallback(relay) {
     @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
     override fun onCharacteristicChanged(
         gatt: BluetoothGatt,

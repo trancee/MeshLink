@@ -2,9 +2,7 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.MeshLinkException
 
-internal class IosL2capFrameBuffer(
-    private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES
-) {
+internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES) {
     private var buffer: ByteArray = ByteArray(INITIAL_CAPACITY_BYTES)
     private var size: Int = 0
     private var readOffset: Int = 0

@@ -9,12 +9,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
-class AndroidPeerRegistryTest {
+class PeerRegistryTest {
     @Test
     fun upsertDiscoveryCreatesPeerAndEmitsPeerDiscovered(): Unit {
         // Arrange
-        val bindings = AndroidPeerBindings()
-        val registry = AndroidPeerRegistry(bindings = bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings = bindings)
         val keyHash = keyHash(seed = 1)
         val hintPeerId = PeerId(keyHash.toHexString())
         val discovery =
@@ -42,8 +42,8 @@ class AndroidPeerRegistryTest {
     @Test
     fun upsertDiscoveryEmitsTransportModeChangedWhenTransportChanges(): Unit {
         // Arrange
-        val bindings = AndroidPeerBindings()
-        val registry = AndroidPeerRegistry(bindings = bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings = bindings)
         val keyHash = keyHash(seed = 2)
         val hintPeerId = PeerId(keyHash.toHexString())
         registry.upsertDiscovery(
@@ -84,8 +84,8 @@ class AndroidPeerRegistryTest {
     @Test
     fun upsertDiscoveryReannouncesPeerWhenPresenceWasCleared(): Unit {
         // Arrange
-        val bindings = AndroidPeerBindings()
-        val registry = AndroidPeerRegistry(bindings = bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings = bindings)
         val keyHash = keyHash(seed = 3)
         val hintPeerId = PeerId(keyHash.toHexString())
         val discovery =
@@ -113,8 +113,8 @@ class AndroidPeerRegistryTest {
     @Test
     fun resolveFindsPeerWhenCanonicalPeerIdStartsWithTheKeyHash(): Unit {
         // Arrange
-        val bindings = AndroidPeerBindings()
-        val registry = AndroidPeerRegistry(bindings = bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings = bindings)
         val keyHash = keyHash(seed = 4)
         val hintPeerId = PeerId(keyHash.toHexString())
         registry.upsertDiscovery(
@@ -142,7 +142,7 @@ class AndroidPeerRegistryTest {
     @Test
     fun temporaryPeerIdIsStablePerAddress(): Unit {
         // Arrange
-        val bindings = AndroidPeerBindings()
+        val bindings = PeerBindings()
 
         // Act
         val firstPeerId = bindings.temporaryPeerId(DEVICE_ADDRESS_A)

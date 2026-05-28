@@ -4,7 +4,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class AndroidBleTransportMaximumPayloadTest {
+class BleTransportMaximumPayloadTest {
     @Test
     fun resolveAndroidMaximumPayloadBytesPerDeliveryReturnsGattLimitForMixedPlatformPeers(): Unit {
         // Arrange
@@ -19,7 +19,7 @@ class AndroidBleTransportMaximumPayloadTest {
             )
 
         // Assert
-        assertEquals(AndroidGattNotifyClient.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
+        assertEquals(GattNotifyClient.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
     }
 
     @Test

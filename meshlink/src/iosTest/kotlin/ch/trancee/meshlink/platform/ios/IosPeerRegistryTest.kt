@@ -11,12 +11,12 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-class IosPeerRegistryTest {
+class PeerRegistryTest {
     @Test
     fun upsertDiscoveryAnnouncesNewPeerAndBindsIdentifier(): Unit {
         // Arrange
-        val bindings = IosPeerBindings()
-        val registry = IosPeerRegistry(bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings)
         val hintPeerId = PeerId("peer-123")
         val identifier = "peripheral-123"
         val keyHash = byteArrayOf(0x01, 0x23, 0x45)
@@ -50,8 +50,8 @@ class IosPeerRegistryTest {
     @Test
     fun upsertDiscoveryEmitsTransportModeChangedForExistingPeer(): Unit {
         // Arrange
-        val bindings = IosPeerBindings()
-        val registry = IosPeerRegistry(bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings)
         val hintPeerId = PeerId("peer-456")
         registry.upsertDiscovery(
             hintPeerId = hintPeerId,
@@ -92,8 +92,8 @@ class IosPeerRegistryTest {
     @Test
     fun upsertDiscoveryReannouncesPeerAfterPresenceWasCleared(): Unit {
         // Arrange
-        val bindings = IosPeerBindings()
-        val registry = IosPeerRegistry(bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings)
         val hintPeerId = PeerId("peer-789")
         registry.upsertDiscovery(
             hintPeerId = hintPeerId,
@@ -134,8 +134,8 @@ class IosPeerRegistryTest {
     @Test
     fun resolveFallsBackToKeyHashPrefixMatch(): Unit {
         // Arrange
-        val bindings = IosPeerBindings()
-        val registry = IosPeerRegistry(bindings)
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings)
         val keyHash = byteArrayOf(0x0A, 0x0B, 0x0C)
         registry.upsertDiscovery(
             hintPeerId = PeerId("canonical-peer"),
@@ -161,7 +161,7 @@ class IosPeerRegistryTest {
     @Test
     fun temporaryPeerIdIsStablePerIdentifier(): Unit {
         // Arrange
-        val bindings = IosPeerBindings()
+        val bindings = PeerBindings()
         val identifier = "123e4567-e89b-12d3-a456-426614174000"
 
         // Act

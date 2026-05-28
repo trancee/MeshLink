@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform.android
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class AndroidGattNotifyChunkSizingTest {
+class GattNotifyChunkSizingTest {
     @Test
     fun maximumGattWriteChunkBytesSubtractsAttOverheadFromTheDefaultMtu(): Unit {
         // Arrange

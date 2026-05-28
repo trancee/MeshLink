@@ -4,7 +4,7 @@ import ch.trancee.meshlink.engine.DirectWireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosL2capWritePumpTelemetryTest {
+class L2capWritePumpTelemetryTest {
     @Test
     fun classifyL2capFrameLabelsHandshakePayloadsAsHandshake(): Unit {
         // Arrange

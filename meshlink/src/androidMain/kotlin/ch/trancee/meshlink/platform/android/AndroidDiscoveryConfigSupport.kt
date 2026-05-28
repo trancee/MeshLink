@@ -12,7 +12,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 internal fun buildAndroidDiscoveryPayload(
     appId: String,
     localKeyHash: ByteArray,
-    currentPowerProfile: AndroidPowerProfile,
+    currentPowerProfile: PowerProfile,
     l2capPsm: UByte,
 ): BleDiscoveryPayload {
     return BleDiscoveryPayload(
@@ -35,9 +35,7 @@ internal fun buildAndroidAdvertiseData(payload: BleDiscoveryPayload): AdvertiseD
         .build()
 }
 
-internal fun buildAndroidAdvertiseSettings(
-    currentPowerProfile: AndroidPowerProfile
-): AdvertiseSettings {
+internal fun buildAndroidAdvertiseSettings(currentPowerProfile: PowerProfile): AdvertiseSettings {
     return AdvertiseSettings.Builder()
         .setAdvertiseMode(currentPowerProfile.advertiseMode)
         .setConnectable(true)
@@ -55,6 +53,6 @@ internal fun buildAndroidScanFilters(): List<ScanFilter> {
     )
 }
 
-internal fun buildAndroidScanSettings(currentPowerProfile: AndroidPowerProfile): ScanSettings {
+internal fun buildAndroidScanSettings(currentPowerProfile: PowerProfile): ScanSettings {
     return ScanSettings.Builder().setScanMode(currentPowerProfile.scanMode).build()
 }

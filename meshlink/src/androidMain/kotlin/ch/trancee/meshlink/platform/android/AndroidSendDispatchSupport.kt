@@ -3,10 +3,9 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 
-internal class AndroidSendDispatchContext
-internal constructor(internal val transportStarted: Boolean)
+internal class SendDispatchContext internal constructor(internal val transportStarted: Boolean)
 
-internal class AndroidSendDispatchDependencies
+internal class SendDispatchDependencies
 internal constructor(
     internal val sendToResolvedPeerOrNull: suspend () -> TransportSendResult?,
     internal val sendToTemporaryLinkOrNull: suspend () -> TransportSendResult?,
@@ -15,8 +14,8 @@ internal constructor(
 
 internal suspend fun dispatchAndroidSend(
     frame: OutboundFrame,
-    context: AndroidSendDispatchContext,
-    dependencies: AndroidSendDispatchDependencies,
+    context: SendDispatchContext,
+    dependencies: SendDispatchDependencies,
 ): TransportSendResult {
     if (!context.transportStarted) {
         dependencies.log("send(${frame.peerId.value.takeLast(6)}) dropped: transport not started")

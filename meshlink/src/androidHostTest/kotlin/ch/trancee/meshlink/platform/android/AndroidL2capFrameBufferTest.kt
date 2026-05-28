@@ -6,11 +6,11 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-class AndroidL2capFrameBufferTest {
+class L2capFrameBufferTest {
     @Test
     fun `append reassembles a split frame`() {
         // Arrange
-        val buffer = AndroidL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val frame = "hello mesh".encodeToByteArray()
         val encoded = buffer.encode(frame)
 
@@ -27,7 +27,7 @@ class AndroidL2capFrameBufferTest {
     @Test
     fun `append yields multiple frames from one chunk`() {
         // Arrange
-        val buffer = AndroidL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val firstFrame = "first".encodeToByteArray()
         val secondFrame = "second".encodeToByteArray()
         val encoded = buffer.encode(firstFrame) + buffer.encode(secondFrame)
@@ -44,7 +44,7 @@ class AndroidL2capFrameBufferTest {
     @Test
     fun `append keeps trailing partial frame for later`() {
         // Arrange
-        val buffer = AndroidL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val firstFrame = "alpha".encodeToByteArray()
         val secondFrame = "beta".encodeToByteArray()
         val encodedFirst = buffer.encode(firstFrame)
@@ -64,7 +64,7 @@ class AndroidL2capFrameBufferTest {
     @Test
     fun `append rejects oversized declared frames`() {
         // Arrange
-        val buffer = AndroidL2capFrameBuffer(maxFrameSizeBytes = 8)
+        val buffer = L2capFrameBuffer(maxFrameSizeBytes = 8)
         val oversizedHeader = byteArrayOf(9, 0, 0, 0)
 
         // Act
@@ -78,8 +78,8 @@ class AndroidL2capFrameBufferTest {
     @Test
     fun `append fast path matches appendDetailed for split multi-frame input`() {
         // Arrange
-        val fastBuffer = AndroidL2capFrameBuffer()
-        val detailedBuffer = AndroidL2capFrameBuffer()
+        val fastBuffer = L2capFrameBuffer()
+        val detailedBuffer = L2capFrameBuffer()
         val firstFrame = "first".encodeToByteArray()
         val secondFrame = "second".encodeToByteArray()
         val encoded = fastBuffer.encode(firstFrame) + fastBuffer.encode(secondFrame)
@@ -108,7 +108,7 @@ class AndroidL2capFrameBufferTest {
     @Test
     fun `appendDetailed captures zero length frame context`() {
         // Arrange
-        val buffer = AndroidL2capFrameBuffer()
+        val buffer = L2capFrameBuffer()
         val zeroLengthHeader = byteArrayOf(0, 0, 0, 0)
 
         // Act

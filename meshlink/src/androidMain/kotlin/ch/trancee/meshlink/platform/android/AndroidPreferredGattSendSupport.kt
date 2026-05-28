@@ -8,31 +8,31 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 
-internal class AndroidPreferredGattSendContext
+internal class PreferredGattSendContext
 internal constructor(
     internal val hintPeerId: PeerId,
     internal val localPlatformFamily: BleDiscoveryPlatformFamily,
     internal val remotePlatformFamily: BleDiscoveryPlatformFamily,
 )
 
-internal interface AndroidPreferredGattSendClient {
+internal interface PreferredGattSendClient {
     fun isReady(): Boolean
 
     suspend fun write(payload: ByteArray): Boolean
 }
 
-internal class AndroidPreferredGattSendDependencies
+internal class PreferredGattSendDependencies
 internal constructor(
     internal val ensureSideLink: () -> Unit,
-    internal val currentClient: () -> AndroidPreferredGattSendClient?,
+    internal val currentClient: () -> PreferredGattSendClient?,
     internal val restartSideLink: (String) -> Unit,
     internal val log: (String) -> Unit,
 )
 
 internal suspend fun sendViaPreferredGattSideLinkOrNull(
     frame: OutboundFrame,
-    context: AndroidPreferredGattSendContext,
-    dependencies: AndroidPreferredGattSendDependencies,
+    context: PreferredGattSendContext,
+    dependencies: PreferredGattSendDependencies,
 ): TransportSendResult? {
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
     if (directFrame !is DirectWireFrame.Data) {

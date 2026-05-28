@@ -8,11 +8,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class AndroidL2capSendSupportTest {
+class L2capSendSupportTest {
     @Test
     fun sendViaAndroidL2capWhenReadyDropsGattOnlyPeers(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidL2capSendFixture(transportMode = TransportMode.GATT)
+        val fixture = L2capSendFixture(transportMode = TransportMode.GATT)
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
         // Act
@@ -30,7 +30,7 @@ class AndroidL2capSendSupportTest {
     fun sendViaAndroidL2capWhenReadyWaitsForInboundLinksWhenNoPsmIsAdvertised(): Unit =
         runBlocking {
             // Arrange
-            val fixture = AndroidL2capSendFixture(advertisedL2capPsm = 0)
+            val fixture = L2capSendFixture(advertisedL2capPsm = 0)
             val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
             // Act
@@ -48,7 +48,7 @@ class AndroidL2capSendSupportTest {
     fun sendViaAndroidL2capWhenReadyTriggersConnectWhenTheLocalPeerShouldInitiate(): Unit =
         runBlocking {
             // Arrange
-            val fixture = AndroidL2capSendFixture(shouldInitiateL2cap = true)
+            val fixture = L2capSendFixture(shouldInitiateL2cap = true)
             val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
             // Act
@@ -66,7 +66,7 @@ class AndroidL2capSendSupportTest {
     fun sendViaAndroidL2capWhenReadyDoesNotTriggerConnectWhenWaitingForInboundLink(): Unit =
         runBlocking {
             // Arrange
-            val fixture = AndroidL2capSendFixture(shouldInitiateL2cap = false)
+            val fixture = L2capSendFixture(shouldInitiateL2cap = false)
             val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
             // Act
@@ -83,7 +83,7 @@ class AndroidL2capSendSupportTest {
     @Test
     fun sendViaAndroidL2capWhenReadyDelegatesToTheActiveLink(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidL2capSendFixture()
+        val fixture = L2capSendFixture()
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
         val link = FakeAndroidL2capSendLink(TransportSendResult.Delivered)
 
@@ -96,13 +96,13 @@ class AndroidL2capSendSupportTest {
     }
 }
 
-private class AndroidL2capSendFixture(
+private class L2capSendFixture(
     transportMode: TransportMode = TransportMode.L2CAP,
     advertisedL2capPsm: Int = 192,
     private val shouldInitiateL2cap: Boolean = true,
 ) {
     val context =
-        AndroidL2capSendContext(
+        L2capSendContext(
             hintPeerId = PeerId("peer-android"),
             transportMode = transportMode,
             advertisedL2capPsm = advertisedL2capPsm,
@@ -114,7 +114,7 @@ private class AndroidL2capSendFixture(
             frame = frame,
             context = context,
             dependencies =
-                AndroidL2capSendDependencies(
+                L2capSendDependencies(
                     currentLink = { link },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
                     triggerConnectIfNeeded = { connectCalls += 1 },
@@ -124,8 +124,7 @@ private class AndroidL2capSendFixture(
     }
 }
 
-private class FakeAndroidL2capSendLink(private val result: TransportSendResult) :
-    AndroidL2capSendLink {
+private class FakeAndroidL2capSendLink(private val result: TransportSendResult) : L2capSendLink {
     var sendCalls: Int = 0
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult {

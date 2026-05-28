@@ -7,11 +7,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class AndroidSendDispatchSupportTest {
+class SendDispatchSupportTest {
     @Test
     fun dispatchAndroidSendDropsImmediatelyWhenTransportIsStopped(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidSendDispatchFixture(transportStarted = false)
+        val fixture = SendDispatchFixture(transportStarted = false)
         val frame = OutboundFrame(peerId = PeerId("peer-android"), payload = byteArrayOf(1))
 
         // Act
@@ -30,7 +30,7 @@ class AndroidSendDispatchSupportTest {
     fun dispatchAndroidSendPrefersResolvedPeerResults(): Unit = runBlocking {
         // Arrange
         val fixture =
-            AndroidSendDispatchFixture(
+            SendDispatchFixture(
                 resolvedResult = TransportSendResult.Delivered,
                 temporaryResult = TransportSendResult.Dropped("temporary"),
             )
@@ -49,7 +49,7 @@ class AndroidSendDispatchSupportTest {
     fun dispatchAndroidSendFallsBackToTemporaryLinkWhenNoResolvedPeerExists(): Unit = runBlocking {
         // Arrange
         val fixture =
-            AndroidSendDispatchFixture(
+            SendDispatchFixture(
                 resolvedResult = null,
                 temporaryResult = TransportSendResult.Delivered,
             )
@@ -67,7 +67,7 @@ class AndroidSendDispatchSupportTest {
     @Test
     fun dispatchAndroidSendDropsWhenNeitherResolvedNorTemporaryPathsExist(): Unit = runBlocking {
         // Arrange
-        val fixture = AndroidSendDispatchFixture(resolvedResult = null, temporaryResult = null)
+        val fixture = SendDispatchFixture(resolvedResult = null, temporaryResult = null)
         val frame = OutboundFrame(peerId = PeerId("peer-android"), payload = byteArrayOf(1))
 
         // Act
@@ -83,7 +83,7 @@ class AndroidSendDispatchSupportTest {
     }
 }
 
-private class AndroidSendDispatchFixture(
+private class SendDispatchFixture(
     private val transportStarted: Boolean = true,
     private val resolvedResult: TransportSendResult? = null,
     private val temporaryResult: TransportSendResult? = null,
@@ -94,9 +94,9 @@ private class AndroidSendDispatchFixture(
     suspend fun run(frame: OutboundFrame): TransportSendResult {
         return dispatchAndroidSend(
             frame = frame,
-            context = AndroidSendDispatchContext(transportStarted = transportStarted),
+            context = SendDispatchContext(transportStarted = transportStarted),
             dependencies =
-                AndroidSendDispatchDependencies(
+                SendDispatchDependencies(
                     sendToResolvedPeerOrNull = {
                         resolvedCalls += 1
                         resolvedResult

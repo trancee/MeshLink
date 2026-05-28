@@ -4,7 +4,7 @@ import android.Manifest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class AndroidReadinessExplainerTest {
+class ReadinessExplainerTest {
     @Test
     fun requiredPermissionsIncludeBluetoothAdvertiseOnAndroid12AndNewer() {
         // Arrange
@@ -18,7 +18,7 @@ class AndroidReadinessExplainerTest {
             )
 
         // Act
-        val actual = androidRequiredPermissions(sdkInt)
+        val actual = requiredPermissions(sdkInt)
 
         // Assert
         assertEquals(expected, actual)
@@ -31,7 +31,7 @@ class AndroidReadinessExplainerTest {
         val expected = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
         // Act
-        val actual = androidRequiredPermissions(sdkInt)
+        val actual = requiredPermissions(sdkInt)
 
         // Assert
         assertEquals(expected, actual)
@@ -54,7 +54,7 @@ class AndroidReadinessExplainerTest {
             )
 
         // Act
-        val actual = androidReadinessBlockers(missingPermissions)
+        val actual = readinessBlockers(missingPermissions)
 
         // Assert
         assertEquals(expected, actual)

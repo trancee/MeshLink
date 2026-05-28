@@ -10,7 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class AndroidScanResultSupportTest {
+class ScanResultSupportTest {
     @Test
     fun parseAndroidDiscoveryScanResultOrNullReturnsNullWhenNoPayloadUuidExists(): Unit {
         // Arrange

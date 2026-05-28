@@ -5,14 +5,14 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class IosSecureStorageTest {
+class SecureStorageTest {
     @Test
     fun `write read and delete round-trip stored values`() = runBlocking {
         // Arrange
         val appId = "ios-secure-storage-test-roundtrip"
         val key = "meshlink-key"
         val value = byteArrayOf(1, 2, 3, 4)
-        val storage = IosSecureStorage(appId)
+        val storage = DefaultsSecureStorage(appId)
         storage.delete(key)
 
         // Act
@@ -31,7 +31,7 @@ class IosSecureStorageTest {
         // Arrange
         val appId = "ios-secure-storage-test-empty"
         val key = "meshlink-empty"
-        val storage = IosSecureStorage(appId)
+        val storage = DefaultsSecureStorage(appId)
         storage.delete(key)
 
         // Act

@@ -6,7 +6,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import platform.Foundation.NSStreamStatusClosed
 
-class IosL2capOutputWriterTest {
+class L2capOutputWriterTest {
     @Test
     fun writeRetriesReadyFalseUntilSpaceBecomesAvailable(): Unit = runBlocking {
         // Arrange
@@ -16,7 +16,7 @@ class IosL2capOutputWriterTest {
                 writeResults = listOf(4L, 2L),
             )
         val timing = advancingWriteTiming(startAtMs = 100L, stepMs = 10L, activePollIntervalMs = 0L)
-        val writer = IosL2capOutputWriter(outputStream = adapter, timing = timing)
+        val writer = L2capOutputWriter(outputStream = adapter, timing = timing)
         val buffer = byteArrayOf(1, 2, 3, 4, 5, 6)
 
         // Act
@@ -47,7 +47,7 @@ class IosL2capOutputWriterTest {
                 writeResults = listOf(0L, 3L),
             )
         val timing = advancingWriteTiming(startAtMs = 100L, stepMs = 10L, activePollIntervalMs = 0L)
-        val writer = IosL2capOutputWriter(outputStream = adapter, timing = timing)
+        val writer = L2capOutputWriter(outputStream = adapter, timing = timing)
         val buffer = byteArrayOf(1, 2, 3)
 
         // Act
@@ -73,7 +73,7 @@ class IosL2capOutputWriterTest {
         // Arrange
         val adapter = FakeIosL2capOutputStreamAdapter(currentStreamStatus = NSStreamStatusClosed)
         val timing = advancingWriteTiming(startAtMs = 100L, stepMs = 10L, activePollIntervalMs = 0L)
-        val writer = IosL2capOutputWriter(outputStream = adapter, timing = timing)
+        val writer = L2capOutputWriter(outputStream = adapter, timing = timing)
 
         // Act
         val error = assertFailsWith<IllegalStateException> { writer.write(byteArrayOf(1)) }
@@ -88,7 +88,7 @@ class IosL2capOutputWriterTest {
         val adapter = FakeIosL2capOutputStreamAdapter(hasSpaceResults = List(4) { false })
         val timing =
             advancingWriteTiming(startAtMs = 0L, stepMs = 6_000L, activePollIntervalMs = 0L)
-        val writer = IosL2capOutputWriter(outputStream = adapter, timing = timing)
+        val writer = L2capOutputWriter(outputStream = adapter, timing = timing)
 
         // Act
         val error = assertFailsWith<IllegalStateException> { writer.write(byteArrayOf(1)) }
@@ -103,7 +103,7 @@ private class FakeIosL2capOutputStreamAdapter(
     private val errorPresent: Boolean = false,
     hasSpaceResults: List<Boolean> = listOf(true),
     writeResults: List<Long> = listOf(1L),
-) : IosL2capOutputStreamAdapter {
+) : L2capOutputStreamAdapter {
     private val hasSpaceQueue: ArrayDeque<Boolean> = ArrayDeque(hasSpaceResults)
     private val writeQueue: ArrayDeque<Long> = ArrayDeque(writeResults)
     val writeCalls: MutableList<WriteCall> = mutableListOf()
@@ -132,9 +132,9 @@ private fun advancingWriteTiming(
     startAtMs: Long,
     stepMs: Long,
     activePollIntervalMs: Long,
-): IosL2capWriteTiming {
+): L2capWriteTiming {
     var nowMs = startAtMs
-    return IosL2capWriteTiming(
+    return L2capWriteTiming(
         nowMillis = {
             val current = nowMs
             nowMs += stepMs

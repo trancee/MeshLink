@@ -20,7 +20,7 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
-import ch.trancee.meshlink.api.androidMeshLinkBootstrap
+import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
@@ -323,7 +323,7 @@ private object MeshLinkProofRuntime {
                                     deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
                                 }
                             },
-                            bootstrap = androidMeshLinkBootstrap(appContext!!),
+                            bootstrap = meshLinkBootstrap(appContext!!),
                         )
                     } else {
                         null

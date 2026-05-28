@@ -8,7 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 
-internal class AndroidInboundFrameQueue
+internal class InboundFrameQueue
 internal constructor(
     private val scope: CoroutineScope,
     private val capacity: Int = DEFAULT_CAPACITY,

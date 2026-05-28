@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
-internal class AndroidGattNotifyWriteContext
+internal class GattNotifyWriteContext
 internal constructor(
     internal val peerLogSuffix: String,
     internal val clientReady: Boolean,
@@ -9,7 +9,7 @@ internal constructor(
     internal val maxChunkBytes: Int,
 )
 
-internal class AndroidGattNotifyWriteDependencies
+internal class GattNotifyWriteDependencies
 internal constructor(
     internal val encode: (ByteArray) -> ByteArray,
     internal val writeChunk:
@@ -19,8 +19,8 @@ internal constructor(
 
 internal suspend fun writeViaAndroidGattNotify(
     payload: ByteArray,
-    context: AndroidGattNotifyWriteContext,
-    dependencies: AndroidGattNotifyWriteDependencies,
+    context: GattNotifyWriteContext,
+    dependencies: GattNotifyWriteDependencies,
 ): Boolean {
     if (!context.clientReady) {
         dependencies.log(

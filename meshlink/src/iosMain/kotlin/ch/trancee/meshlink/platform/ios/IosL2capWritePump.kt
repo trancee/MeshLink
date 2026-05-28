@@ -11,23 +11,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.Foundation.NSOutputStream
 
-internal class IosL2capWriteTiming
+internal class L2capWriteTiming
 internal constructor(internal val nowMillis: () -> Long, internal val activePollIntervalMs: Long)
 
-internal class IosL2capWritePumpDependencies
+internal class L2capWritePumpDependencies
 internal constructor(
     internal val hintPeerIdProvider: () -> PeerId,
     internal val telemetryEnabled: Boolean,
     internal val telemetryLogger: (String) -> Unit,
     internal val promoteActiveWriteLatency: () -> Unit,
-    internal val timing: IosL2capWriteTiming,
+    internal val timing: L2capWriteTiming,
 )
 
-internal class IosL2capWritePump
+internal class L2capWritePump
 internal constructor(
     private val outputStream: NSOutputStream,
-    private val frameCodec: IosL2capFrameBuffer,
-    private val dependencies: IosL2capWritePumpDependencies,
+    private val frameCodec: L2capFrameBuffer,
+    private val dependencies: L2capWritePumpDependencies,
 ) {
     private val enqueueMutex = Mutex()
     private val pendingFrameWindow =
@@ -37,7 +37,7 @@ internal constructor(
         )
     private val outboundFrames = Channel<QueuedFrame>(capacity = Channel.UNLIMITED)
     private val outputWriter =
-        IosL2capOutputWriter(NsOutputStreamAdapter(outputStream), dependencies.timing)
+        L2capOutputWriter(NsOutputStreamAdapter(outputStream), dependencies.timing)
     private var writeSequence: Long = 0L
     private var cumulativeEncodedBytesWritten: Long = 0L
     private var activeWriteLatencyPromoted: Boolean = false
@@ -177,14 +177,14 @@ internal constructor(
     }
 }
 
-internal class IosL2capOutputWriter(
-    private val outputStream: IosL2capOutputStreamAdapter,
-    private val timing: IosL2capWriteTiming,
+internal class L2capOutputWriter(
+    private val outputStream: L2capOutputStreamAdapter,
+    private val timing: L2capWriteTiming,
 ) {
-    suspend fun write(coalescedBuffer: ByteArray): IosL2capBufferWriteStats {
+    suspend fun write(coalescedBuffer: ByteArray): L2capBufferWriteStats {
         val startedAtMs = timing.nowMillis()
         val state =
-            IosL2capOutputWriteState(
+            L2capOutputWriteState(
                 totalBytes = coalescedBuffer.size,
                 startedAtMs = startedAtMs,
                 maxBatchBytes = WRITE_BATCH_BYTES,
@@ -192,7 +192,7 @@ internal class IosL2capOutputWriter(
         while (true) {
             val request = state.nextRequestOrNull() ?: break
             when (val attempt = attemptWriteChunk(request, coalescedBuffer)) {
-                IosL2capWriteAttempt.ReadyFalse -> {
+                L2capWriteAttempt.ReadyFalse -> {
                     check(
                         state.recordReadyFalse(
                             nowMs = timing.nowMillis(),
@@ -204,7 +204,7 @@ internal class IosL2capOutputWriter(
                     delay(timing.activePollIntervalMs)
                 }
 
-                IosL2capWriteAttempt.ZeroWrite -> {
+                L2capWriteAttempt.ZeroWrite -> {
                     state.recordWriteCall()
                     check(
                         state.recordZeroWrite(
@@ -217,7 +217,7 @@ internal class IosL2capOutputWriter(
                     delay(timing.activePollIntervalMs)
                 }
 
-                is IosL2capWriteAttempt.Progress -> {
+                is L2capWriteAttempt.Progress -> {
                     state.recordWriteCall()
                     state.recordProgress(
                         writtenBytes = attempt.writtenBytes,
@@ -230,9 +230,9 @@ internal class IosL2capOutputWriter(
     }
 
     private fun attemptWriteChunk(
-        request: IosL2capWriteRequest,
+        request: L2capWriteRequest,
         coalescedBuffer: ByteArray,
-    ): IosL2capWriteAttempt {
+    ): L2capWriteAttempt {
         check(
             !isStreamClosed(
                 streamStatus = outputStream.streamStatus(),
@@ -242,15 +242,15 @@ internal class IosL2capOutputWriter(
             "iOS L2CAP output stream closed"
         }
         if (!outputStream.hasSpaceAvailable()) {
-            return IosL2capWriteAttempt.ReadyFalse
+            return L2capWriteAttempt.ReadyFalse
         }
         val attemptAtMs = timing.nowMillis()
         val written = outputStream.write(coalescedBuffer, request.offset, request.requestedBytes)
         check(written >= 0) { "iOS L2CAP output stream closed" }
         return if (written == 0L) {
-            IosL2capWriteAttempt.ZeroWrite
+            L2capWriteAttempt.ZeroWrite
         } else {
-            IosL2capWriteAttempt.Progress(written.toInt(), attemptAtMs)
+            L2capWriteAttempt.Progress(written.toInt(), attemptAtMs)
         }
     }
 }
@@ -259,7 +259,7 @@ private data class QueuedFrame(
     val sequence: Long,
     val payloadSize: Int,
     val encoded: ByteArray,
-    val classification: IosL2capFrameTelemetry,
+    val classification: L2capFrameTelemetry,
     val enqueuedAtMs: Long,
 )
 
@@ -283,12 +283,12 @@ private data class BatchWriteStats(
     val batchTailHex: String,
 )
 
-private sealed interface IosL2capWriteAttempt {
-    data class Progress(val writtenBytes: Int, val attemptAtMs: Long) : IosL2capWriteAttempt
+private sealed interface L2capWriteAttempt {
+    data class Progress(val writtenBytes: Int, val attemptAtMs: Long) : L2capWriteAttempt
 
-    data object ReadyFalse : IosL2capWriteAttempt
+    data object ReadyFalse : L2capWriteAttempt
 
-    data object ZeroWrite : IosL2capWriteAttempt
+    data object ZeroWrite : L2capWriteAttempt
 }
 
 private fun emitBatchTelemetry(

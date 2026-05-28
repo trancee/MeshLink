@@ -1,8 +1,8 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.api.IosBleTransportBridge
-import ch.trancee.meshlink.api.IosBleTransportBridgeRegistry
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.api.apple.BleTransportBridge
+import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.AfterTest
@@ -10,10 +10,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class IosBleTransportMaximumPayloadTest {
+class BleTransportMaximumPayloadTest {
     @AfterTest
     fun tearDown(): Unit {
-        IosBleTransportBridgeRegistry.clear()
+        BleTransportBridgeRegistry.clear()
     }
 
     @Test
@@ -45,7 +45,7 @@ class IosBleTransportMaximumPayloadTest {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-android")
-        IosBleTransportBridge.install { _, _, _, _ -> true }
+        BleTransportBridge.install { _, _, _, _ -> true }
         transport.peerRegistry.upsertDiscovery(
             hintPeerId = peerId,
             discovery =
@@ -62,7 +62,7 @@ class IosBleTransportMaximumPayloadTest {
         val maximumPayloadBytes = transport.maximumPayloadBytesPerDelivery(peerId)
 
         // Assert
-        assertEquals(IosGattNotifyLink.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
+        assertEquals(GattNotifyLink.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
     }
 
     @Test
@@ -70,7 +70,7 @@ class IosBleTransportMaximumPayloadTest {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-ios")
-        IosBleTransportBridge.install { _, _, _, _ -> true }
+        BleTransportBridge.install { _, _, _, _ -> true }
         transport.peerRegistry.upsertDiscovery(
             hintPeerId = peerId,
             discovery =
@@ -91,8 +91,8 @@ class IosBleTransportMaximumPayloadTest {
     }
 }
 
-private fun testTransport(): IosBleTransport {
-    return IosBleTransport(
+private fun testTransport(): BleTransportAdapter {
+    return BleTransportAdapter(
         appId = "demo.meshlink.ios.transport",
         advertisementKeyHash = ByteArray(12) { index -> (index + 101).toByte() },
     )

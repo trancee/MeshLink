@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class IosBleTransportInitiationPolicyTest {
+class BleTransportInitiationPolicyTest {
     @Test
     fun localKeyHashInitiatesWhenItSortsBeforeRemoteKeyHash(): Unit {
         // Arrange

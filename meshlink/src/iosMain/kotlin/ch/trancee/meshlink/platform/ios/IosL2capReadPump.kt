@@ -10,19 +10,19 @@ import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.delay
 import platform.Foundation.NSInputStream
 
-internal class IosL2capReadTiming
+internal class L2capReadTiming
 internal constructor(
     internal val nowMillis: () -> Long,
     internal val activePollIntervalMs: Long,
     internal val idlePollIntervalMs: Long,
 )
 
-internal class IosL2capReadPumpDependencies
+internal class L2capReadPumpDependencies
 internal constructor(
     internal val hintPeerIdProvider: () -> PeerId,
     internal val telemetryEnabled: Boolean,
     internal val telemetryLogger: (String) -> Unit,
-    internal val timing: IosL2capReadTiming,
+    internal val timing: L2capReadTiming,
 )
 
 internal fun selectReadPollIntervalMs(
@@ -33,11 +33,11 @@ internal fun selectReadPollIntervalMs(
     return if (readBytes > 0) activePollIntervalMs else idlePollIntervalMs
 }
 
-internal class IosL2capReadPump
+internal class L2capReadPump
 internal constructor(
     private val inputStream: NSInputStream,
-    private val frameBuffer: IosL2capFrameBuffer,
-    private val dependencies: IosL2capReadPumpDependencies,
+    private val frameBuffer: L2capFrameBuffer,
+    private val dependencies: L2capReadPumpDependencies,
 ) {
     private val readBuffer = ByteArray(STREAM_BUFFER_BYTES)
     private var readSequence: Long = 0L

@@ -5,7 +5,7 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 internal actual fun installFactoryTestBridges(): Unit = Unit
 
 internal actual fun createAndroidFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {
-    return meshLink(config = config, bootstrap = AndroidFactoryTestMeshLinkBootstrap)
+    return meshLink(config = config, bootstrap = FactoryTestBootstrap)
 }
 
 internal actual fun createIosFactoryParityMeshLink(config: MeshLinkConfig): MeshLink {

@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class AndroidGattNotifyLifecycleStateTest {
+class GattNotifyLifecycleStateTest {
     @Test
     fun startedAndroidGattNotifyLifecycleResetsTheDefaultState(): Unit {
         // Act

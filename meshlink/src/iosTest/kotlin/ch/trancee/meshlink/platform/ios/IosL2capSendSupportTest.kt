@@ -7,11 +7,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-class IosL2capSendSupportTest {
+class L2capSendSupportTest {
     @Test
     fun sendViaIosL2capWhenReadyRequestsConnectWhenNoLinkExists(): Unit = runBlocking {
         // Arrange
-        val fixture = IosL2capSendFixture(shouldInitiateL2cap = true)
+        val fixture = L2capSendFixture(shouldInitiateL2cap = true)
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
         // Act
@@ -30,7 +30,7 @@ class IosL2capSendSupportTest {
     fun sendViaIosL2capWhenReadyDoesNotRequestConnectWhenWaitingForInboundLink(): Unit =
         runBlocking {
             // Arrange
-            val fixture = IosL2capSendFixture(shouldInitiateL2cap = false)
+            val fixture = L2capSendFixture(shouldInitiateL2cap = false)
             val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
 
             // Act
@@ -48,7 +48,7 @@ class IosL2capSendSupportTest {
     @Test
     fun sendViaIosL2capWhenReadyReturnsDeliveredWhenTheLinkAcceptsTheFrame(): Unit = runBlocking {
         // Arrange
-        val fixture = IosL2capSendFixture()
+        val fixture = L2capSendFixture()
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1, 2))
         val link = FakeIosL2capSendLink(hintPeerId = PeerId("link-peer"), enqueueResult = true)
 
@@ -64,7 +64,7 @@ class IosL2capSendSupportTest {
     @Test
     fun sendViaIosL2capWhenReadyClosesTheLinkWhenTheQueueRejectsTheFrame(): Unit = runBlocking {
         // Arrange
-        val fixture = IosL2capSendFixture()
+        val fixture = L2capSendFixture()
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1, 2))
         val link = FakeIosL2capSendLink(hintPeerId = PeerId("link-peer"), enqueueResult = false)
 
@@ -82,7 +82,7 @@ class IosL2capSendSupportTest {
     @Test
     fun sendViaIosL2capWhenReadyClosesTheLinkWhenEnqueueThrows(): Unit = runBlocking {
         // Arrange
-        val fixture = IosL2capSendFixture()
+        val fixture = L2capSendFixture()
         val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1, 2))
         val link =
             FakeIosL2capSendLink(
@@ -99,8 +99,8 @@ class IosL2capSendSupportTest {
     }
 }
 
-private class IosL2capSendFixture(private val shouldInitiateL2cap: Boolean = true) {
-    val context = IosL2capSendContext(hintPeerId = PeerId("peer-ios"))
+private class L2capSendFixture(private val shouldInitiateL2cap: Boolean = true) {
+    val context = L2capSendContext(hintPeerId = PeerId("peer-ios"))
     var connectCalls: Int = 0
     val closedLinks: MutableList<String> = mutableListOf()
 
@@ -109,7 +109,7 @@ private class IosL2capSendFixture(private val shouldInitiateL2cap: Boolean = tru
             frame = frame,
             context = context,
             dependencies =
-                IosL2capSendDependencies(
+                L2capSendDependencies(
                     currentLink = { link },
                     ensureConnectAttempt = { connectCalls += 1 },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
@@ -124,7 +124,7 @@ private class FakeIosL2capSendLink(
     override val hintPeerId: PeerId,
     private val enqueueResult: Boolean = true,
     private val enqueueFailure: Throwable? = null,
-) : IosL2capSendLink {
+) : L2capSendLink {
     var enqueueCalls: Int = 0
 
     override suspend fun enqueue(payload: ByteArray): Boolean {

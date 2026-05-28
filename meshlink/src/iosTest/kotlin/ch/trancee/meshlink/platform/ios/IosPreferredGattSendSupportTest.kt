@@ -11,11 +11,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 
-class IosPreferredGattSendSupportTest {
+class PreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattNotifyLinkOrNullSkipsHandshakeFrames(): Unit = runBlocking {
         // Arrange
-        val fixture = IosPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -36,7 +36,7 @@ class IosPreferredGattSendSupportTest {
         Unit = runBlocking {
         // Arrange
         val fixture =
-            IosPreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
+            PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -57,7 +57,7 @@ class IosPreferredGattSendSupportTest {
         Unit = runBlocking {
         // Arrange
         val fixture =
-            IosPreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
+            PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -78,7 +78,7 @@ class IosPreferredGattSendSupportTest {
     fun sendViaPreferredGattNotifyLinkOrNullFallsBackWhenTheSideLinkIsUnavailable(): Unit =
         runBlocking {
             // Arrange
-            val fixture = IosPreferredGattSendFixture()
+            val fixture = PreferredGattSendFixture()
             val frame =
                 OutboundFrame(
                     peerId = fixture.context.hintPeerId,
@@ -96,7 +96,7 @@ class IosPreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattNotifyLinkOrNullFallsBackWhenEnqueueReturnsFalse(): Unit = runBlocking {
         // Arrange
-        val fixture = IosPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -115,7 +115,7 @@ class IosPreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattNotifyLinkOrNullFallsBackWhenEnqueueThrows(): Unit = runBlocking {
         // Arrange
-        val fixture = IosPreferredGattSendFixture()
+        val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
@@ -135,11 +135,11 @@ class IosPreferredGattSendSupportTest {
     }
 }
 
-private class IosPreferredGattSendFixture(
+private class PreferredGattSendFixture(
     remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.ANDROID
 ) {
     val context =
-        IosPreferredGattSendContext(
+        PreferredGattSendContext(
             hintPeerId = PeerId("peer-ios"),
             localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
             remotePlatformFamily = remotePlatformFamily,
@@ -154,7 +154,7 @@ private class IosPreferredGattSendFixture(
             frame = frame,
             context = context,
             dependencies =
-                IosPreferredGattSendDependencies(
+                PreferredGattSendDependencies(
                     currentLink = {
                         currentLinkCalls += 1
                         link
@@ -168,7 +168,7 @@ private class IosPreferredGattSendFixture(
 private class FakeIosPreferredGattSendLink(
     private val enqueueResult: Boolean = true,
     private val enqueueFailure: Throwable? = null,
-) : IosPreferredGattSendLink {
+) : PreferredGattSendLink {
     override suspend fun enqueue(payload: ByteArray): Boolean {
         enqueueFailure?.let { throw it }
         return enqueueResult

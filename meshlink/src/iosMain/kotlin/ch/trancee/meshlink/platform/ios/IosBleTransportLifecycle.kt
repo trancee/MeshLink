@@ -5,7 +5,7 @@ package ch.trancee.meshlink.platform.ios
 import kotlinx.cinterop.convert
 import kotlinx.coroutines.cancelChildren
 
-internal fun IosBleTransport.stopTransport(clearPeers: Boolean): Unit {
+internal fun BleTransportAdapter.stopTransport(clearPeers: Boolean): Unit {
     reportLog(
         "stopTransport clearPeers=$clearPeers activeLinks=${activeLinksByHint.size} activeGatt=${activeGattNotifyLinksByHint.size} pending=${pendingConnectionsByHint.size}"
     )
@@ -32,7 +32,7 @@ internal fun IosBleTransport.stopTransport(clearPeers: Boolean): Unit {
     }
 }
 
-internal fun IosBleTransport.refreshDiscoveryState(): Unit {
+internal fun BleTransportAdapter.refreshDiscoveryState(): Unit {
     reportLog(
         "refreshDiscoveryState started=$started suspended=$discoverySuspended centralState=${centralManager?.state} peripheralState=${peripheralManager?.state}"
     )

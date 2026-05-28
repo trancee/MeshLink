@@ -11,7 +11,7 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 
-internal fun AndroidBleTransport.handleScanResult(result: ScanResult): Unit {
+internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
     val discovery =
         parseAndroidDiscoveryScanResultOrNull(
             serviceUuids =
@@ -75,7 +75,7 @@ internal fun AndroidBleTransport.handleScanResult(result: ScanResult): Unit {
     }
 }
 
-internal fun AndroidBleTransport.shouldInitiateL2cap(
+internal fun BleTransportAdapter.shouldInitiateL2cap(
     remoteKeyHash: ByteArray,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
@@ -87,7 +87,7 @@ internal fun AndroidBleTransport.shouldInitiateL2cap(
     )
 }
 
-internal fun AndroidBleTransport.maybeLogRediscoveryWithoutLink(
+internal fun BleTransportAdapter.maybeLogRediscoveryWithoutLink(
     peer: DiscoveredPeer,
     transportMode: TransportMode,
     address: String,
@@ -116,12 +116,12 @@ internal fun AndroidBleTransport.maybeLogRediscoveryWithoutLink(
     )
 }
 
-internal fun AndroidBleTransport.resolvePeer(peerId: PeerId): DiscoveredPeer? {
+internal fun BleTransportAdapter.resolvePeer(peerId: PeerId): DiscoveredPeer? {
     return peerRegistry.resolve(peerId)
 }
 
 @SuppressLint("MissingPermission")
-internal fun AndroidBleTransport.refreshDiscoveryState(): Unit {
+internal fun BleTransportAdapter.refreshDiscoveryState(): Unit {
     try {
         log(
             "refreshDiscoveryState started=$started suspended=$discoverySuspended scanner=${scanner != null} advertiser=${advertiser != null} psm=${currentDiscoveryPayload.l2capPsm}"
@@ -151,8 +151,8 @@ internal fun AndroidBleTransport.refreshDiscoveryState(): Unit {
     }
 }
 
-internal fun AndroidBleTransport.ensurePermissionsGranted(): Unit {
-    AndroidBlePermissionContract.ensureRequiredPermissionsGranted(
+internal fun BleTransportAdapter.ensurePermissionsGranted(): Unit {
+    BlePermissionContract.ensureRequiredPermissionsGranted(
         sdkInt = Build.VERSION.SDK_INT,
         isGranted = { permission ->
             context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
@@ -160,7 +160,7 @@ internal fun AndroidBleTransport.ensurePermissionsGranted(): Unit {
     )
 }
 
-internal fun AndroidBleTransport.androidPermissionDenied(cause: SecurityException): Throwable {
+internal fun BleTransportAdapter.androidPermissionDenied(cause: SecurityException): Throwable {
     return ch.trancee.meshlink.platform.PlatformPermissionDeniedException(
         message = "Android BLE permissions denied",
         cause = cause,

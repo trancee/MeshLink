@@ -5,8 +5,8 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class AndroidCryptoProviderTest {
-    private val provider = AndroidCryptoProvider()
+class CryptoProviderTest {
+    private val provider = JcaCryptoProvider()
 
     @Test
     fun `x25519 shared secret is symmetric and generated keys stay raw 32 byte values`() {

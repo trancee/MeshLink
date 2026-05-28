@@ -1,18 +1,18 @@
 package ch.trancee.meshlink.platform.ios
 
-internal data class IosL2capWriteRequest(val offset: Int, val requestedBytes: Int)
+internal data class L2capWriteRequest(val offset: Int, val requestedBytes: Int)
 
-internal class IosL2capOutputWriteState
+internal class L2capOutputWriteState
 internal constructor(
     private val totalBytes: Int,
     startedAtMs: Long,
     private val maxBatchBytes: Int,
 ) {
-    private val progress = IosL2capWriteProgress(lastWriteProgressAtMs = startedAtMs)
+    private val progress = L2capWriteProgress(lastWriteProgressAtMs = startedAtMs)
     private var nextOffset: Int = 0
     private var batchEndExclusive: Int = 0
 
-    internal fun nextRequestOrNull(): IosL2capWriteRequest? {
+    internal fun nextRequestOrNull(): L2capWriteRequest? {
         if (nextOffset >= totalBytes) {
             return null
         }
@@ -21,7 +21,7 @@ internal constructor(
             batchEndExclusive = nextOffset + batchBytes
             progress.recordBatch(batchBytes)
         }
-        return IosL2capWriteRequest(
+        return L2capWriteRequest(
             offset = nextOffset,
             requestedBytes = batchEndExclusive - nextOffset,
         )
@@ -58,7 +58,7 @@ internal constructor(
         nextOffset += writtenBytes
     }
 
-    internal fun toStats(totalElapsedMs: Long): IosL2capBufferWriteStats {
+    internal fun toStats(totalElapsedMs: Long): L2capBufferWriteStats {
         return progress.toStats(totalElapsedMs = totalElapsedMs)
     }
 }

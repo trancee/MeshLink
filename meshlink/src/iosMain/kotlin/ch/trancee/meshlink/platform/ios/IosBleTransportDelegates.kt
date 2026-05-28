@@ -18,7 +18,7 @@ import platform.Foundation.NSError
 import platform.Foundation.NSNumber
 import platform.darwin.NSObject
 
-internal class IosCentralDelegate(private val owner: IosBleTransport) :
+internal class CentralDelegate(private val owner: BleTransportAdapter) :
     NSObject(), CBCentralManagerDelegateProtocol {
     override fun centralManagerDidUpdateState(central: CBCentralManager) {
         owner.reportLog("centralManagerDidUpdateState state=${central.state}")
@@ -62,7 +62,7 @@ internal class IosCentralDelegate(private val owner: IosBleTransport) :
     }
 }
 
-internal class IosPeripheralClientDelegate(private val owner: IosBleTransport) :
+internal class PeripheralClientDelegate(private val owner: BleTransportAdapter) :
     NSObject(), CBPeripheralDelegateProtocol {
     override fun peripheral(
         peripheral: CBPeripheral,
@@ -73,7 +73,7 @@ internal class IosPeripheralClientDelegate(private val owner: IosBleTransport) :
     }
 }
 
-internal class IosPeripheralManagerDelegate(private val owner: IosBleTransport) :
+internal class PeripheralManagerDelegate(private val owner: BleTransportAdapter) :
     NSObject(), CBPeripheralManagerDelegateProtocol {
     override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
         owner.reportLog("peripheralManagerDidUpdateState state=${peripheral.state}")
