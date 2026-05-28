@@ -28,6 +28,17 @@ The reference app is organized into clearly separated surfaces:
 - **Lab** — proof-only and benchmark-only behavior isolated from the supported
   product path
 
+## Which surface to open first
+
+| If you want to... | Open... |
+|---|---|
+| get one supported first proof on two devices | **Guided first exchange** |
+| inspect runtime state and send controls in more detail | **Advanced controls** |
+| review live evidence, end the session, or export | **Technical timeline** |
+| reopen a retained session after the live run ends | **Recent history** |
+| walk the app on one device without claiming physical proof | **Solo exploration** |
+| keep proof-only or benchmark-only behavior out of the supported path | **Lab** |
+
 ## How the shared app is wired
 
 ```mermaid

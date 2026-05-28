@@ -18,6 +18,23 @@ If your Xcode target does not yet link the generated framework, start with
 For the exact Kotlin-side public contract, use the
 [MeshLink SDK API reference](../reference/meshlink-sdk-api.md).
 
+## Swift integration path at a glance
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Bridges["Install iOS bridges"] --> Config["Build MeshLinkConfig"]
+    Config --> Runtime["Create one MeshLink runtime"]
+    Runtime --> Flows["Bind AsyncSequence collectors"]
+    Flows --> Start["Start the runtime"]
+    Start --> Send["Send bytes and handle sealed results"]
+
+    classDef step fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef action fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    class Bridges,Config,Runtime step;
+    class Flows,Start,Send action;
+```
+
 ## 1. Install the required iOS bridges at app startup
 
 Before creating a MeshLink runtime, install the required crypto bridge.

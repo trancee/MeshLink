@@ -49,6 +49,46 @@ the first Bluetooth prompt, fix that first with
 | 5 | inspect advanced controls and timeline | operator-facing runtime details are visible |
 | 6 | end the session and export redacted data | retained history and redacted export both work |
 
+## Surface path at a glance
+
+| Primary section | Surface | Use it when you want to... |
+|---|---|---|
+| Exchange | Guided first exchange | complete the supported first proof on two devices |
+| Exchange | Solo exploration | walk the app on one device without claiming live proof |
+| Controls | Advanced controls | inspect runtime state and send with more deliberate control |
+| Evidence | Technical timeline | inspect live evidence, end the session, and start exports |
+| Evidence | Recent history | reopen retained sessions after the live run ends |
+| Lab | Lab | keep proof-only and benchmark-only behavior separate from the supported path |
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Guided["Guided first exchange"] --> Advanced["Advanced controls"]
+    Guided --> Timeline["Technical timeline"]
+    Advanced --> Timeline
+    Timeline --> Ended["End supported session"]
+    Ended --> History["Recent history"]
+    History --> Export["Redacted export"]
+    Guided -. one-device walkthrough .-> Solo["Solo exploration"]
+    Guided -. non-normative experiments .-> Lab["Lab"]
+
+    classDef supported fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef evidence fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    classDef alternate fill:#FFF3E6,stroke:#D9822B,color:#5F370E,stroke-width:1.5px;
+    class Guided,Advanced supported;
+    class Timeline,Ended,History,Export evidence;
+    class Solo,Lab alternate;
+```
+
+Operational rules to keep straight while you evaluate:
+
+- guided and advanced are two supported surfaces inside the same supported live
+  session
+- solo and lab start their own separate session paths instead of inheriting the
+  current supported session
+- full-payload export is only available from the supported live session before
+  you end it; retained sessions stay redacted
+
 ## 1. Install the Android reference app
 
 ```bash

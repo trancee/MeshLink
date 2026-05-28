@@ -14,6 +14,31 @@ If you still need the basic bootstrap steps, use
 If you want the reasoning behind these recommendations, read
 [About integrating MeshLink well](../explanation/about-integrating-meshlink.md).
 
+## Target integration shape
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart TD
+    Owner["One app-owned runtime owner"] --> Runtime["MeshLink runtime"]
+    Runtime --> State["state\napp lifecycle state"]
+    Runtime --> Peers["peerEvents\npeer list and availability"]
+    Runtime --> Diagnostics["diagnosticEvents\nlogs and support tooling"]
+    Runtime --> Messages["messages\ninbound product payloads"]
+    Owner --> Trust["explicit trust-reset flow"]
+    Owner --> Power["deliberate power-policy choice"]
+
+    classDef owner fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef runtime fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    classDef sinks fill:#FFF3E6,stroke:#D9822B,color:#5F370E,stroke-width:1.5px;
+    class Owner owner;
+    class Runtime,Trust,Power runtime;
+    class State,Peers,Diagnostics,Messages sinks;
+```
+
+Aim for this steady-state shape before you worry about extra product features.
+If you have one owner, one runtime, four clearly separated stream consumers,
+and explicit trust and power decisions, most later debugging stays tractable.
+
 ## 1. Put MeshLink behind one long-lived owner
 
 Create one app-owned MeshLink runtime for the mesh domain you are operating in.

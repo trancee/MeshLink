@@ -9,6 +9,36 @@ Use it when you need to:
 - link the generated MeshLink framework into an iOS Xcode app
 - confirm which installation paths are supported today
 
+## Quick path picker
+
+| If your host app... | Use this path |
+|---|---|
+| already shares the MeshLink Gradle build | depend on `project(":meshlink")` directly |
+| lives in a separate Gradle repo | use a composite build with dependency substitution |
+| is a native iOS Xcode app | call `:meshlink:embedAndSignAppleFrameworkForXcode` from an Xcode pre-build script |
+
+## Installation flow at a glance
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Start["Start with the host app"] --> Choice{"Host shape"}
+    Choice -->|Shared Gradle build| AndroidDirect["Depend on :meshlink directly"]
+    Choice -->|Separate Gradle repo| AndroidComposite["Use includeBuild + dependency substitution"]
+    Choice -->|Native iOS Xcode app| IOS["Build and link the generated MeshLink framework"]
+    AndroidDirect --> Verify["Confirm imports compile"]
+    AndroidComposite --> Verify
+    IOS --> Verify
+    Verify --> Next["Continue with runtime integration"]
+
+    classDef host fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef path fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    classDef next fill:#FFF3E6,stroke:#D9822B,color:#5F370E,stroke-width:1.5px;
+    class Start,Choice host;
+    class AndroidDirect,AndroidComposite,IOS,Verify path;
+    class Next next;
+```
+
 ## 1. Know the current distribution shape
 
 MeshLink is currently source-distributed.

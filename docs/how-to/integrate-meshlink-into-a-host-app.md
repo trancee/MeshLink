@@ -19,6 +19,28 @@ integration, use
 For a first hands-on lesson, use
 [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
 
+## Integration path at a glance
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Config["Build one shared MeshLinkConfig"] --> Create["Create one app-owned runtime"]
+    Create --> Bind["Bind long-lived collectors"]
+    Bind --> Ready["Clear platform readiness"]
+    Ready --> Start["Start the runtime"]
+    Start --> Use["Send, receive, inspect diagnostics"]
+    Use --> Stop["Stop deliberately when the owner ends"]
+
+    classDef step fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef action fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    class Config,Create,Bind step;
+    class Ready,Start,Use,Stop action;
+```
+
+Use this order as the default integration shape. The most common failure mode is
+creating the runtime too late, binding collectors too narrowly, or treating
+`send()` as if it can stand in for a long-lived runtime owner.
+
 ## 1. Choose one `appId` per mesh domain
 
 Create one `MeshLinkConfig` for all peers that should interoperate in the same

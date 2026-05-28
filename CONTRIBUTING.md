@@ -12,6 +12,34 @@ which supporting documents to use when you need more detail.
 If you are integrating MeshLink into a host app rather than changing MeshLink
 itself, start with the [documentation map](docs/README.md).
 
+## Quick path picker
+
+| If you are changing... | Start here | Verify with |
+|---|---|---|
+| docs only | this guide + the [documentation map](docs/README.md) | `./gradlew verifyDocs` |
+| shared SDK behavior in `:meshlink` | this guide + the [repository layout reference](docs/reference/repository-layout.md) | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
+| the reference app | this guide + the [MeshLink reference app overview](meshlink-reference/README.md) | `./scripts/run-reference-local-check.sh` |
+| Gradle, AGP, or module shape | this guide + the [repository architecture explanation](docs/explanation/about-the-repository-architecture.md) | `./scripts/run-agp9-verification.sh` |
+| proof apps or retained benchmark surfaces | this guide + the proof-app or benchmark docs | the matching proof or benchmark flow from the contributor reference |
+
+## Workflow at a glance
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "primaryColor": "#E8F1FF", "primaryBorderColor": "#3A7BD5", "primaryTextColor": "#102A43", "lineColor": "#6B7C93", "secondaryColor": "#EEF7EE", "tertiaryColor": "#FFF3E6", "clusterBkg": "#F8FAFC", "clusterBorder": "#B8C4D6", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+flowchart LR
+    Checkout["Fresh checkout"] --> Warm["./gradlew help"]
+    Warm --> Hooks["Install Git hooks"]
+    Hooks --> Build["Build the relevant module"]
+    Build --> Loop["Run the narrow local edit loop"]
+    Loop --> Verify["Run the pre-review bundle"]
+    Verify --> PR["Open the PR with evidence"]
+
+    classDef step fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
+    classDef review fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
+    class Checkout,Warm,Hooks,Build,Loop step;
+    class Verify,PR review;
+```
+
 ## 1. Prepare your workstation
 
 For the full contributor workflow, use a macOS machine with:
@@ -26,6 +54,8 @@ after project-spec changes.
 
 For the exact workstation matrix, task list, and repository rules, use the
 [Contributor build, test, and verification reference](docs/reference/contributor-reference.md).
+If you need a module map before you start editing, use the
+[Repository layout reference](docs/reference/repository-layout.md).
 
 ## 2. Warm the checkout
 
@@ -179,9 +209,11 @@ Use this guide for the contributor workflow.
 Use these documents when you need more detail:
 
 - [Contributor build, test, and verification reference](docs/reference/contributor-reference.md)
+- [Repository layout reference](docs/reference/repository-layout.md)
+- [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
 - [MeshLink Constitution](constitution.md)
 - [MeshLink documentation map](docs/README.md)
 - [Benchmark and validation baselines](benchmarks/README.md)
-- [How to use the MeshLink reference app](meshlink-reference/README.md)
+- [MeshLink reference app overview](meshlink-reference/README.md)
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
