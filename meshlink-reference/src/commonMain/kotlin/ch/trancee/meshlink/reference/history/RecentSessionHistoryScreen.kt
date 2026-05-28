@@ -38,7 +38,7 @@ internal fun RecentSessionHistoryScreen(
             item { emptyHistoryCard() }
         }
 
-        items(uiState.retainedSessions) { session ->
+        items(items = uiState.retainedSessions, key = { session -> session.sessionId }) { session ->
             retainedSessionCard(store = store, session = session)
         }
     }

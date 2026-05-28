@@ -21,9 +21,14 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
     }
 
     internal fun append(chunk: ByteArray): List<ByteArray> {
-        ensureCapacity(size + chunk.size)
-        chunk.copyInto(buffer, destinationOffset = size)
-        size += chunk.size
+        return append(source = chunk, length = chunk.size)
+    }
+
+    internal fun append(source: ByteArray, length: Int): List<ByteArray> {
+        val chunkLength = length.coerceIn(0, source.size)
+        ensureCapacity(size + chunkLength)
+        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
+        size += chunkLength
 
         val frames = mutableListOf<ByteArray>()
         while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
@@ -47,12 +52,17 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
     }
 
     internal fun appendDetailed(chunk: ByteArray): AppendResult {
+        return appendDetailed(source = chunk, length = chunk.size)
+    }
+
+    internal fun appendDetailed(source: ByteArray, length: Int): AppendResult {
+        val chunkLength = length.coerceIn(0, source.size)
         val bufferedBytesBeforeAppend = pendingBytes()
-        val appendedChunkPrefixHex = chunk.hexSnippetFromStart()
-        val appendedChunkSuffixHex = chunk.hexSnippetFromEnd()
-        ensureCapacity(size + chunk.size)
-        chunk.copyInto(buffer, destinationOffset = size)
-        size += chunk.size
+        val appendedChunkPrefixHex = source.hexSnippetFromStart(chunkLength)
+        val appendedChunkSuffixHex = source.hexSnippetFromEnd(chunkLength)
+        ensureCapacity(size + chunkLength)
+        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
+        size += chunkLength
 
         val frames = mutableListOf<ByteArray>()
         val observations = mutableListOf<DecodedFrameObservation>()
@@ -84,7 +94,7 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
                     remainingBufferedBytesAfterFrame = size - frameEnd,
                     headerStartsInPreviouslyBufferedBytes = readOffset < bufferedBytesBeforeAppend,
                     frameEndsBeyondPreviouslyBufferedBytes = frameEnd > bufferedBytesBeforeAppend,
-                    appendedChunkBytes = chunk.size,
+                    appendedChunkBytes = chunkLength,
                     appendedChunkPrefixHex = appendedChunkPrefixHex,
                     appendedChunkSuffixHex = appendedChunkSuffixHex,
                 )
@@ -96,7 +106,7 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
             frames = frames,
             observations = observations,
             bufferedBytesBeforeAppend = bufferedBytesBeforeAppend,
-            appendedChunkBytes = chunk.size,
+            appendedChunkBytes = chunkLength,
             appendedChunkPrefixHex = appendedChunkPrefixHex,
             appendedChunkSuffixHex = appendedChunkSuffixHex,
             pendingBytesAfterAppend = pendingBytes(),
@@ -155,13 +165,13 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
             ((source[offset + 3].toInt() and 0xFF) shl 24)
     }
 
-    private fun ByteArray.hexSnippetFromStart(): String {
-        return copyOf(minOf(size, HEX_SNIPPET_BYTES)).toHexString()
+    private fun ByteArray.hexSnippetFromStart(length: Int): String {
+        return copyOf(minOf(length, HEX_SNIPPET_BYTES)).toHexString()
     }
 
-    private fun ByteArray.hexSnippetFromEnd(): String {
-        val startIndex = maxOf(0, size - HEX_SNIPPET_BYTES)
-        return copyOfRange(startIndex, size).toHexString()
+    private fun ByteArray.hexSnippetFromEnd(length: Int): String {
+        val startIndex = maxOf(0, length - HEX_SNIPPET_BYTES)
+        return copyOfRange(startIndex, length).toHexString()
     }
 
     internal data class AppendResult(

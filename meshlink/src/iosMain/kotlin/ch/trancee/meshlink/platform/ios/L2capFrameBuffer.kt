@@ -1,6 +1,12 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.MeshLinkException
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
+import platform.Foundation.NSData
+import platform.posix.memcpy
 
 internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES) {
     private var buffer: ByteArray = ByteArray(INITIAL_CAPACITY_BYTES)
@@ -20,10 +26,29 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
     }
 
     internal fun append(chunk: ByteArray): List<ByteArray> {
-        ensureCapacity(size + chunk.size)
-        chunk.copyInto(buffer, destinationOffset = size)
-        size += chunk.size
+        return append(source = chunk, length = chunk.size)
+    }
 
+    internal fun append(source: ByteArray, length: Int): List<ByteArray> {
+        val chunkLength = length.coerceIn(0, source.size)
+        ensureCapacity(size + chunkLength)
+        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
+        size += chunkLength
+        return drainFrames()
+    }
+
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+    internal fun append(chunk: NSData): List<ByteArray> {
+        val chunkLength = chunk.length.toInt()
+        ensureCapacity(size + chunkLength)
+        if (chunkLength > 0) {
+            buffer.usePinned { pinned -> memcpy(pinned.addressOf(size), chunk.bytes, chunk.length) }
+        }
+        size += chunkLength
+        return drainFrames()
+    }
+
+    private fun drainFrames(): List<ByteArray> {
         val frames = mutableListOf<ByteArray>()
         while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
             val frameSize = readIntLittleEndian(buffer, readOffset)

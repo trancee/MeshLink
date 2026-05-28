@@ -21,6 +21,7 @@ internal constructor(
     internal val telemetryLogger: (String) -> Unit,
     internal val promoteActiveWriteLatency: () -> Unit,
     internal val timing: L2capWriteTiming,
+    internal val awaitWritable: suspend (Long) -> Boolean,
 )
 
 internal class L2capWritePump
@@ -37,7 +38,11 @@ internal constructor(
         )
     private val outboundFrames = Channel<QueuedFrame>(capacity = Channel.UNLIMITED)
     private val outputWriter =
-        L2capOutputWriter(NsOutputStreamAdapter(outputStream), dependencies.timing)
+        L2capOutputWriter(
+            outputStream = NsOutputStreamAdapter(outputStream),
+            timing = dependencies.timing,
+            awaitWritable = dependencies.awaitWritable,
+        )
     private var writeSequence: Long = 0L
     private var cumulativeEncodedBytesWritten: Long = 0L
     private var activeWriteLatencyPromoted: Boolean = false
@@ -180,6 +185,13 @@ internal constructor(
 internal class L2capOutputWriter(
     private val outputStream: L2capOutputStreamAdapter,
     private val timing: L2capWriteTiming,
+    private val awaitWritable: suspend (Long) -> Boolean = { timeoutMs ->
+        val waitMillis = minOf(timeoutMs, timing.activePollIntervalMs.coerceAtLeast(0L))
+        if (waitMillis > 0L) {
+            delay(waitMillis)
+        }
+        true
+    },
 ) {
     suspend fun write(coalescedBuffer: ByteArray): L2capBufferWriteStats {
         val startedAtMs = timing.nowMillis()
@@ -193,6 +205,7 @@ internal class L2capOutputWriter(
             val request = state.nextRequestOrNull() ?: break
             when (val attempt = attemptWriteChunk(request, coalescedBuffer)) {
                 L2capWriteAttempt.ReadyFalse -> {
+                    awaitWritable(WRITE_STALL_TIMEOUT_MS)
                     check(
                         state.recordReadyFalse(
                             nowMs = timing.nowMillis(),
@@ -201,11 +214,11 @@ internal class L2capOutputWriter(
                     ) {
                         "iOS L2CAP output stream stalled"
                     }
-                    delay(timing.activePollIntervalMs)
                 }
 
                 L2capWriteAttempt.ZeroWrite -> {
                     state.recordWriteCall()
+                    awaitWritable(WRITE_STALL_TIMEOUT_MS)
                     check(
                         state.recordZeroWrite(
                             nowMs = timing.nowMillis(),
@@ -214,7 +227,6 @@ internal class L2capOutputWriter(
                     ) {
                         "iOS L2CAP output stream stalled"
                     }
-                    delay(timing.activePollIntervalMs)
                 }
 
                 is L2capWriteAttempt.Progress -> {

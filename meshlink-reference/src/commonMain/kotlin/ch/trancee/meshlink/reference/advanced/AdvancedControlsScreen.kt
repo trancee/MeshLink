@@ -54,7 +54,7 @@ private fun AdvancedControlsContent(
         }
         item { AdvancedConfigurationSection(uiState = uiState) }
         item { AdvancedPeerSectionHeader() }
-        items(uiState.peerRows) { peer ->
+        items(items = uiState.peerRows, key = { peer -> peer.peerId }) { peer ->
             PeerDetailCard(
                 peer = peer,
                 selected = uiState.selectedPeerId == peer.peerId,

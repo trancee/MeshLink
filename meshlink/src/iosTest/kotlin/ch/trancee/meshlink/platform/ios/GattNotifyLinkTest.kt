@@ -78,7 +78,7 @@ private class GattNotifyLinkFixture(peripheralAdapter: FakeGattNotifyPeripheralA
                 GattNotifyDependencies(
                     peripheralAdapterProvider = { peripheralAdapter },
                     runPump = { block -> block() },
-                    logger = {},
+                    logger = { _ -> },
                     schedulePumpRetry = { schedulePumpRetryCalls += 1 },
                 ),
         )

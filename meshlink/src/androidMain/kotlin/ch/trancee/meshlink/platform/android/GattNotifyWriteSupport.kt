@@ -39,7 +39,19 @@ internal suspend fun writeViaGattNotify(
 
     val encoded = dependencies.encode(payload)
     val chunkBytes = context.maxChunkBytes.coerceAtLeast(1)
-    return encoded.asList().chunked(chunkBytes).all { chunk ->
-        dependencies.writeChunk(payload.size, encoded.size, chunk.toByteArray())
+    var chunkStart = 0
+    while (chunkStart < encoded.size) {
+        val chunkEnd = minOf(chunkStart + chunkBytes, encoded.size)
+        val didWrite =
+            dependencies.writeChunk(
+                payload.size,
+                encoded.size,
+                encoded.copyOfRange(chunkStart, chunkEnd),
+            )
+        if (!didWrite) {
+            return false
+        }
+        chunkStart = chunkEnd
     }
+    return true
 }

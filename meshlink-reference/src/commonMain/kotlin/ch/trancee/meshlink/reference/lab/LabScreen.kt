@@ -48,7 +48,7 @@ internal fun LabScreen(
                 }
             }
         }
-        items(scenarios) { scenario ->
+        items(items = scenarios, key = { scenario -> scenario.scenarioId }) { scenario ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),

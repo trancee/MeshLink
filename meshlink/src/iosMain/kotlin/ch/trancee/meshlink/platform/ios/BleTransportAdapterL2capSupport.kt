@@ -260,6 +260,8 @@ internal class L2capLink(
     private val nowMillis: () -> Long = dependencies.nowMillis
     private val inputStream = checkNotNull(channel.inputStream).apply { open() }
     private val outputStream = checkNotNull(channel.outputStream).apply { open() }
+    private val inputReadiness = StreamReadinessBinding.forInputStream(inputStream)
+    private val outputReadiness = StreamReadinessBinding.forOutputStream(outputStream)
     private val readPump =
         L2capReadPump(
             inputStream = inputStream,
@@ -275,6 +277,7 @@ internal class L2capLink(
                             activePollIntervalMs = ACTIVE_STREAM_POLL_INTERVAL_MS,
                             idlePollIntervalMs = IDLE_STREAM_POLL_INTERVAL_MS,
                         ),
+                    awaitReadable = { inputReadiness.await() },
                 ),
         )
     private val writePump =
@@ -292,6 +295,7 @@ internal class L2capLink(
                             nowMillis = nowMillis,
                             activePollIntervalMs = ACTIVE_STREAM_POLL_INTERVAL_MS,
                         ),
+                    awaitWritable = { timeoutMs -> outputReadiness.await(timeoutMs) },
                 ),
         )
     var readLoopJob: Job? = null
@@ -311,6 +315,8 @@ internal class L2capLink(
 
     fun close(): Unit {
         writePump.close()
+        inputReadiness.close()
+        outputReadiness.close()
         inputStream.close()
         outputStream.close()
     }

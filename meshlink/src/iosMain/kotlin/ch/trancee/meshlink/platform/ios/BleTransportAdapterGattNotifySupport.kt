@@ -9,15 +9,12 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import platform.CoreBluetooth.CBATTErrorSuccess
 import platform.CoreBluetooth.CBATTErrorUnlikelyError
 import platform.CoreBluetooth.CBATTRequest
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBCharacteristic
-
-private const val GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS: Long = 2
 
 internal fun BleTransportAdapter.handleGattNotifySubscribed(
     central: CBCentral,
@@ -138,7 +135,7 @@ internal fun BleTransportAdapter.acceptsGattWriteRequest(
         BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
         request.offset.toInt() == 0 &&
         request.value?.let { value ->
-            decodedFrames += link.appendIncomingWrite(value.toByteArray())
+            decodedFrames += link.appendIncomingWrite(value)
             true
         } == true
 }
@@ -195,15 +192,8 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
                             block()
                         }
                     },
-                    logger = ::log,
-                    schedulePumpRetry = {
-                        coroutineScope.launch {
-                            delay(GATT_NOTIFY_PUMP_RETRY_POLL_INTERVAL_MS)
-                            createdLink
-                                ?.takeIf { activeGattNotifyLinksByHint[hintPeerId.value] === it }
-                                ?.pumpOnMain()
-                        }
-                    },
+                    logger = { message -> log(message) },
+                    schedulePumpRetry = {},
                 ),
         )
         .also { link ->

@@ -4,6 +4,7 @@ import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.security.Signature
 import java.security.interfaces.EdECPrivateKey
 import java.security.interfaces.EdECPublicKey
@@ -22,46 +23,62 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 internal class JvmCryptoProvider : CryptoProvider {
+    private val secureRandom: SecureRandom = SecureRandom()
+    private val sha256Digests = threadLocal { MessageDigest.getInstance("SHA-256") }
+    private val hmacSha256Macs = threadLocal { Mac.getInstance("HmacSHA256") }
+    private val x25519KeyPairGenerators = threadLocal {
+        KeyPairGenerator.getInstance("X25519").apply { initialize(NamedParameterSpec.X25519) }
+    }
+    private val ed25519KeyPairGenerators = threadLocal { KeyPairGenerator.getInstance("Ed25519") }
+    private val x25519KeyAgreements = threadLocal { KeyAgreement.getInstance("X25519") }
+    private val x25519KeyFactories = threadLocal { KeyFactory.getInstance("X25519") }
+    private val ed25519KeyFactories = threadLocal { KeyFactory.getInstance("Ed25519") }
+    private val ed25519Signatures = threadLocal { Signature.getInstance("Ed25519") }
+    private val ed25519Verifiers = threadLocal { Signature.getInstance("Ed25519") }
+    private val chacha20Poly1305EncryptCiphers = threadLocal {
+        Cipher.getInstance("ChaCha20-Poly1305")
+    }
+    private val chacha20Poly1305DecryptCiphers = threadLocal {
+        Cipher.getInstance("ChaCha20-Poly1305")
+    }
+
     override fun randomBytes(size: Int): ByteArray {
-        return ByteArray(size).also { java.security.SecureRandom().nextBytes(it) }
+        return ByteArray(size).also(secureRandom::nextBytes)
     }
 
     override fun sha256(input: ByteArray): ByteArray {
-        return MessageDigest.getInstance("SHA-256").digest(input)
+        return sha256Digests.value().digest(input)
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256")
+        val mac = hmacSha256Macs.value()
         mac.init(SecretKeySpec(key, "HmacSHA256"))
         return mac.doFinal(data)
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
-        val generator = KeyPairGenerator.getInstance("X25519")
-        generator.initialize(NamedParameterSpec.X25519)
-        val keyPair = generator.generateKeyPair()
+        val keyPair = x25519KeyPairGenerators.value().generateKeyPair()
         val privateKey = (keyPair.private as XECPrivateKey).scalar.orElseThrow()
         val publicKey = bigIntegerToLittleEndian((keyPair.public as XECPublicKey).u, 32)
         return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
-        val generator = KeyPairGenerator.getInstance("Ed25519")
-        val keyPair = generator.generateKeyPair()
+        val keyPair = ed25519KeyPairGenerators.value().generateKeyPair()
         val privateKey = (keyPair.private as EdECPrivateKey).bytes.orElseThrow()
         val publicKey = encodeEd25519PublicKey(keyPair.public as EdECPublicKey)
         return Ed25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        val keyAgreement = KeyAgreement.getInstance("X25519")
+        val keyAgreement = x25519KeyAgreements.value()
         keyAgreement.init(x25519PrivateKey(privateKey))
         keyAgreement.doPhase(x25519PublicKey(publicKey), true)
         return keyAgreement.generateSecret()
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
-        val signature = Signature.getInstance("Ed25519")
+        val signature = ed25519Signatures.value()
         signature.initSign(ed25519PrivateKey(privateKey))
         signature.update(message)
         return signature.sign()
@@ -72,7 +89,7 @@ internal class JvmCryptoProvider : CryptoProvider {
         message: ByteArray,
         signature: ByteArray,
     ): Boolean {
-        val verifier = Signature.getInstance("Ed25519")
+        val verifier = ed25519Verifiers.value()
         verifier.initVerify(ed25519PublicKey(publicKey))
         verifier.update(message)
         return verifier.verify(signature)
@@ -84,7 +101,7 @@ internal class JvmCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        val cipher = Cipher.getInstance("ChaCha20-Poly1305")
+        val cipher = chacha20Poly1305EncryptCiphers.value()
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
         cipher.updateAAD(aad)
         return cipher.doFinal(plaintext)
@@ -96,28 +113,32 @@ internal class JvmCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        val cipher = Cipher.getInstance("ChaCha20-Poly1305")
+        val cipher = chacha20Poly1305DecryptCiphers.value()
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
         cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext)
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519")
+        x25519KeyFactories
+            .value()
             .generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
 
     private fun x25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("X25519")
+        x25519KeyFactories
+            .value()
             .generatePublic(
                 XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes))
             )
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519")
+        ed25519KeyFactories
+            .value()
             .generatePrivate(EdECPrivateKeySpec(NamedParameterSpec.ED25519, bytes))
 
     private fun ed25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519")
+        ed25519KeyFactories
+            .value()
             .generatePublic(
                 EdECPublicKeySpec(NamedParameterSpec.ED25519, decodeEd25519Point(bytes))
             )
@@ -151,5 +172,17 @@ internal class JvmCryptoProvider : CryptoProvider {
         val padded = ByteArray(size)
         bigEndian.copyInto(padded, destinationOffset = size - bigEndian.size)
         return padded.reversedArray()
+    }
+
+    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
+        return object : ThreadLocal<T>() {
+            override fun initialValue(): T {
+                return create()
+            }
+        }
+    }
+
+    private fun <T> ThreadLocal<T>.value(): T {
+        return checkNotNull(get())
     }
 }

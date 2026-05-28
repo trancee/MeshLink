@@ -8,6 +8,7 @@ import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
@@ -55,6 +56,9 @@ internal class BleTransportAdapter(
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
+    internal val transportDebugLoggingEnabled: Boolean =
+        Log.isLoggable(LOG_TAG, Log.DEBUG) ||
+            ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
     internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
@@ -351,8 +355,14 @@ internal class BleTransportAdapter(
         )
     }
 
+    internal fun log(message: () -> String): Unit {
+        if (transportDebugLoggingEnabled) {
+            Log.d(LOG_TAG, message())
+        }
+    }
+
     internal fun log(message: String): Unit {
-        Log.d(LOG_TAG, message)
+        log { message }
     }
 
     private companion object {

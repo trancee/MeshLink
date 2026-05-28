@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
+import platform.Foundation.NSData
 import platform.Foundation.NSLock
 
 private const val PEER_LOG_SUFFIX_LENGTH: Int = 6
@@ -19,7 +20,7 @@ internal class GattNotifyDependencies
 internal constructor(
     internal val peripheralAdapterProvider: () -> GattNotifyPeripheralAdapter?,
     internal val runPump: suspend (() -> Boolean) -> Boolean,
-    internal val logger: (String) -> Unit,
+    internal val logger: (() -> String) -> Unit,
     internal val schedulePumpRetry: () -> Unit,
 )
 
@@ -46,7 +47,7 @@ internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyD
         }
     }
 
-    internal fun appendIncomingWrite(chunk: ByteArray): List<ByteArray> {
+    internal fun appendIncomingWrite(chunk: NSData): List<ByteArray> {
         return stateLock.withLock {
             if (pumpState.isClosed()) {
                 emptyList()
@@ -88,10 +89,14 @@ internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyD
 
     private fun encodePendingFrame(payload: ByteArray): GattNotifyPendingFrame {
         val chunkBytes = maximumGattNotificationChunkBytes(maximumUpdateValueLength)
-        val encodedChunks =
-            outgoingFrames.encode(payload).asList().chunked(chunkBytes).map { chunk ->
-                chunk.toByteArray()
-            }
+        val encodedFrame = outgoingFrames.encode(payload)
+        val encodedChunks = ArrayList<ByteArray>((encodedFrame.size + chunkBytes - 1) / chunkBytes)
+        var chunkStart = 0
+        while (chunkStart < encodedFrame.size) {
+            val chunkEnd = minOf(chunkStart + chunkBytes, encodedFrame.size)
+            encodedChunks += encodedFrame.copyOfRange(chunkStart, chunkEnd)
+            chunkStart = chunkEnd
+        }
         return GattNotifyPendingFrame(chunks = encodedChunks)
     }
 
@@ -156,15 +161,15 @@ internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyD
     }
 
     private fun logPumpAttempt(chunkBytes: Int, didSend: Boolean, pendingChunkCount: Int): Unit {
-        dependencies.logger(
+        dependencies.logger {
             "GATT notify pump $logLabel chunkBytes=$chunkBytes didSend=$didSend pending=$pendingChunkCount"
-        )
+        }
     }
 
     private fun logRetryPumpScheduled(pendingChunkCount: Int): Unit {
-        dependencies.logger(
+        dependencies.logger {
             "GATT notify pump $logLabel scheduling retry pending=$pendingChunkCount"
-        )
+        }
     }
 
     private fun requestLowLatencyIfNeeded(): Unit {
@@ -173,9 +178,9 @@ internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyD
         }
         dependencies.peripheralAdapterProvider()?.requestLowConnectionLatency()
         lowLatencyRequested = true
-        dependencies.logger(
+        dependencies.logger {
             "requested low connection latency for $logLabel central=$centralIdentifier via GATT notify"
-        )
+        }
     }
 
     internal companion object {

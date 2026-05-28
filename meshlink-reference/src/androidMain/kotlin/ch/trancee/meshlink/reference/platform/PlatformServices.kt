@@ -1,3 +1,5 @@
+@file:JvmName("PlatformServicesAndroidBindings")
+
 package ch.trancee.meshlink.reference.platform
 
 import android.content.Context

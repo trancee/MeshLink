@@ -7,7 +7,6 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
-import kotlinx.coroutines.delay
 import platform.Foundation.NSInputStream
 
 internal class L2capReadTiming
@@ -23,6 +22,7 @@ internal constructor(
     internal val telemetryEnabled: Boolean,
     internal val telemetryLogger: (String) -> Unit,
     internal val timing: L2capReadTiming,
+    internal val awaitReadable: suspend () -> Boolean,
 )
 
 internal fun selectReadPollIntervalMs(
@@ -51,13 +51,7 @@ internal constructor(
                 if (drainedFrames.streamClosed) {
                     keepReading = false
                 } else {
-                    delay(
-                        selectReadPollIntervalMs(
-                            readBytes = drainedFrames.readBytes,
-                            activePollIntervalMs = dependencies.timing.activePollIntervalMs,
-                            idlePollIntervalMs = dependencies.timing.idlePollIntervalMs,
-                        )
-                    )
+                    keepReading = dependencies.awaitReadable()
                 }
             } else {
                 drainedFrames.frames.forEach { payload -> onFrameReceived(payload) }
@@ -93,7 +87,7 @@ internal constructor(
                     val readCount = bytesRead.toInt()
                     readBytes += readCount
                     readCalls += 1
-                    decodedFrames += frameBuffer.append(readBuffer.copyOf(readCount))
+                    decodedFrames += frameBuffer.append(source = readBuffer, length = readCount)
                     shouldContinueReading =
                         readCount == readBuffer.size && inputStream.hasBytesAvailable()
                 }

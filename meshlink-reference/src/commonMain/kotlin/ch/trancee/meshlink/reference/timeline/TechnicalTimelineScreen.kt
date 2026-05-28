@@ -94,7 +94,9 @@ private fun TechnicalTimelineContent(
         if (uiState.visibleEntries.isEmpty()) {
             item { EmptyTimelineSection() }
         }
-        items(uiState.visibleEntries) { entry -> TimelineEntryCard(entry = entry) }
+        items(items = uiState.visibleEntries, key = { entry -> entry.entryId }) { entry ->
+            TimelineEntryCard(entry = entry)
+        }
     }
 }
 

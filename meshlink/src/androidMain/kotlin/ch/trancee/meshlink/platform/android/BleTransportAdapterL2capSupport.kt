@@ -16,6 +16,7 @@ import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 
@@ -167,22 +168,34 @@ internal fun BleTransportAdapter.registerConnectedSocket(
         link.readLoopJob = coroutineScope.launch {
             val readBuffer =
                 ByteArray(link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES))
+            var consecutiveZeroByteReads = 0
             try {
                 while (true) {
                     val read = link.inputStream.read(readBuffer)
                     if (read < 0) {
-                        log(
+                        log {
                             "L2CAP EOF from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
-                        )
+                        }
                         break
                     }
                     if (read == 0) {
-                        log(
-                            "L2CAP zero-byte read from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
-                        )
+                        consecutiveZeroByteReads += 1
+                        val peerSuffix = link.peerHintId.value.takeLast(6)
+                        if (consecutiveZeroByteReads >= MAX_CONSECUTIVE_ZERO_BYTE_READS) {
+                            log {
+                                "L2CAP zero-byte read threshold reached for $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
+                            }
+                            break
+                        }
+                        log {
+                            "L2CAP zero-byte read from $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize} consecutive=$consecutiveZeroByteReads"
+                        }
+                        delay(ZERO_BYTE_READ_BACKOFF_MS)
                         continue
                     }
-                    val appendResult = link.incomingFrames.appendDetailed(readBuffer.copyOf(read))
+                    consecutiveZeroByteReads = 0
+                    val appendResult =
+                        link.incomingFrames.appendDetailed(source = readBuffer, length = read)
                     appendResult.frames.forEachIndexed { frameIndex, payload ->
                         val currentPeerId = link.peerHintId
                         if (payload.isEmpty()) {
@@ -277,6 +290,9 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
     val peerId = PeerId(hintPeer)
     mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
 }
+
+private const val ZERO_BYTE_READ_BACKOFF_MS: Long = 5L
+private const val MAX_CONSECUTIVE_ZERO_BYTE_READS: Int = 3
 
 internal class L2capLink(
     internal var peerHintId: PeerId,

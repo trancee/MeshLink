@@ -7,6 +7,7 @@ import ch.trancee.meshlink.crypto.X25519KeyPair
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
@@ -16,22 +17,39 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 internal class JcaCryptoProvider : CryptoProvider {
+    private val secureRandom: SecureRandom = SecureRandom()
+    private val sha256Digests = threadLocal { MessageDigest.getInstance("SHA-256") }
+    private val hmacSha256Macs = threadLocal { Mac.getInstance("HmacSHA256") }
+    private val xdhKeyPairGenerators = threadLocal(::xdhKeyPairGenerator)
+    private val xdhKeyAgreements = threadLocal(::xdhKeyAgreement)
+    private val xdhKeyFactories = threadLocal(::xdhKeyFactory)
+    private val ed25519KeyPairGenerators = threadLocal { KeyPairGenerator.getInstance("Ed25519") }
+    private val ed25519KeyFactories = threadLocal { KeyFactory.getInstance("Ed25519") }
+    private val ed25519Signatures = threadLocal { Signature.getInstance("Ed25519") }
+    private val ed25519Verifiers = threadLocal { Signature.getInstance("Ed25519") }
+    private val chacha20Poly1305EncryptCiphers = threadLocal {
+        Cipher.getInstance("ChaCha20-Poly1305")
+    }
+    private val chacha20Poly1305DecryptCiphers = threadLocal {
+        Cipher.getInstance("ChaCha20-Poly1305")
+    }
+
     override fun randomBytes(size: Int): ByteArray {
-        return ByteArray(size).also { java.security.SecureRandom().nextBytes(it) }
+        return ByteArray(size).also(secureRandom::nextBytes)
     }
 
     override fun sha256(input: ByteArray): ByteArray {
-        return MessageDigest.getInstance("SHA-256").digest(input)
+        return sha256Digests.value().digest(input)
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256")
+        val mac = hmacSha256Macs.value()
         mac.init(SecretKeySpec(key, "HmacSHA256"))
         return mac.doFinal(data)
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
-        val keyPair = xdhKeyPairGenerator().generateKeyPair()
+        val keyPair = xdhKeyPairGenerators.value().generateKeyPair()
         return X25519KeyPair(
             privateKey =
                 decodePkcs8Raw(keyPair.private.encoded, X25519_PKCS8_PREAMBLE, "X25519 private"),
@@ -40,7 +58,7 @@ internal class JcaCryptoProvider : CryptoProvider {
     }
 
     override fun generateEd25519KeyPair(): Ed25519KeyPair {
-        val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+        val keyPair = ed25519KeyPairGenerators.value().generateKeyPair()
         return Ed25519KeyPair(
             privateKey =
                 decodePkcs8Raw(keyPair.private.encoded, ED25519_PKCS8_PREAMBLE, "Ed25519 private"),
@@ -50,14 +68,14 @@ internal class JcaCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        val keyAgreement = xdhKeyAgreement()
+        val keyAgreement = xdhKeyAgreements.value()
         keyAgreement.init(x25519PrivateKey(privateKey))
         keyAgreement.doPhase(x25519PublicKey(publicKey), true)
         return keyAgreement.generateSecret()
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
-        val signature = Signature.getInstance("Ed25519")
+        val signature = ed25519Signatures.value()
         signature.initSign(ed25519PrivateKey(privateKey))
         signature.update(message)
         return signature.sign()
@@ -68,7 +86,7 @@ internal class JcaCryptoProvider : CryptoProvider {
         message: ByteArray,
         signature: ByteArray,
     ): Boolean {
-        val verifier = Signature.getInstance("Ed25519")
+        val verifier = ed25519Verifiers.value()
         verifier.initVerify(ed25519PublicKey(publicKey))
         verifier.update(message)
         return verifier.verify(signature)
@@ -80,7 +98,7 @@ internal class JcaCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        val cipher = Cipher.getInstance("ChaCha20-Poly1305")
+        val cipher = chacha20Poly1305EncryptCiphers.value()
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
         cipher.updateAAD(aad)
         return cipher.doFinal(plaintext)
@@ -92,24 +110,26 @@ internal class JcaCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        val cipher = Cipher.getInstance("ChaCha20-Poly1305")
+        val cipher = chacha20Poly1305DecryptCiphers.value()
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
         cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext)
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
-        xdhKeyFactory().generatePrivate(PKCS8EncodedKeySpec(X25519_PKCS8_PREAMBLE + bytes))
+        xdhKeyFactories.value().generatePrivate(PKCS8EncodedKeySpec(X25519_PKCS8_PREAMBLE + bytes))
 
     private fun x25519PublicKey(bytes: ByteArray) =
-        xdhKeyFactory().generatePublic(X509EncodedKeySpec(X25519_X509_PREAMBLE + bytes))
+        xdhKeyFactories.value().generatePublic(X509EncodedKeySpec(X25519_X509_PREAMBLE + bytes))
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519")
+        ed25519KeyFactories
+            .value()
             .generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREAMBLE + bytes))
 
     private fun ed25519PublicKey(bytes: ByteArray) =
-        KeyFactory.getInstance("Ed25519")
+        ed25519KeyFactories
+            .value()
             .generatePublic(X509EncodedKeySpec(ED25519_X509_PREAMBLE + bytes))
 
     private fun decodePkcs8Raw(encoded: ByteArray, preamble: ByteArray, label: String): ByteArray {
@@ -132,6 +152,18 @@ internal class JcaCryptoProvider : CryptoProvider {
 
     private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
         return size >= prefix.size && prefix.indices.all { index -> this[index] == prefix[index] }
+    }
+
+    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
+        return object : ThreadLocal<T>() {
+            override fun initialValue(): T {
+                return create()
+            }
+        }
+    }
+
+    private fun <T> ThreadLocal<T>.value(): T {
+        return checkNotNull(get())
     }
 
     private companion object {
