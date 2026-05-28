@@ -77,7 +77,7 @@ Once permissions are fixed, go back to the task you were trying to complete:
 - tutorial flow — rerun the start step and wait for `Peer found`
 - host-app integration — restart the runtime and verify peer discovery or send
   flow
-- reference app quickstart — restart the guided first exchange
+- reference app quickstart — restart **Guided first exchange**
 - live-proof harness — rerun the command after the permission prompt is cleared
 - proof apps — relaunch the apps and retry the exchange or benchmark
 

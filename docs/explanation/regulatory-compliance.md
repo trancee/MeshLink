@@ -86,3 +86,10 @@ matrix that the host app has to reason about.
 If a future jurisdiction needs additional application-layer constraints beyond
 what the platform already enforces, that should become a new
 `RegulatoryRegion` with explicit shared clamping rules.
+
+## Related docs
+
+- [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [Power management](power-management.md)
+- [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)

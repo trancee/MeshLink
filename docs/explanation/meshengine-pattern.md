@@ -109,3 +109,10 @@ A good default path is:
 
 That keeps new capability local instead of teaching the public shell about one
 more internal detail.
+
+## Related docs
+
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [About the repository architecture](about-the-repository-architecture.md)
+- [Repository layout reference](../reference/repository-layout.md)

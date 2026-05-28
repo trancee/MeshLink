@@ -182,8 +182,8 @@ flowchart TD
     Live --> LiveRuntime["LiveReferenceMeshRuntime"]
     LiveRuntime --> Mesh["MeshLink SDK"]
 
-    Sessions --> Solo["solo snapshot"]
-    Sessions --> Lab["lab snapshot"]
+    Sessions --> Solo["Solo exploration snapshot"]
+    Sessions --> Lab["Lab snapshot"]
 
     classDef shell fill:#E8F1FF,stroke:#3A7BD5,color:#102A43,stroke-width:1.5px;
     classDef session fill:#EEF7EE,stroke:#4D9F70,color:#14361F,stroke-width:1.5px;
@@ -214,12 +214,13 @@ one of these things:
 
 - a normal supported-surface switch inside the same session
 - a boundary confirmation that closes a supported session
-- the start of an alternative solo or lab session
+- the start of an alternative **Solo exploration** or **Lab** session
 - a follow-up supported session after an ended or alternative session
 
 This matters because the app has stricter semantics than a normal tabbed UI.
-Moving between guided, advanced, solo, lab, timeline, and retained history is
-not just a visual routing event. It can change what counts as authoritative
+Moving between **Guided first exchange**, **Advanced controls**,
+**Solo exploration**, **Lab**, **Technical timeline**, and **Recent history**
+is not just a visual routing event. It can change what counts as authoritative
 proof, whether automatic retention is allowed, and whether full-payload export
 is still available.
 
@@ -239,8 +240,8 @@ how the reference app turns one runtime session into retained evidence.
 
 - a supported live controller backed by the real MeshLink SDK
 - an ended supported-session snapshot
-- a solo snapshot
-- a lab snapshot
+- a **Solo exploration** snapshot
+- a **Lab** snapshot
 
 `SupportedControllerRuntime` hides the details of starting, closing, and
 rebinding the active supported controller. That keeps the rest of the shell from

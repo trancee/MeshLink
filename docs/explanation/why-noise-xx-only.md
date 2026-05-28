@@ -44,3 +44,10 @@ The full pattern name is `Noise_XX_25519_ChaChaPoly_SHA256`. SHA-256 was chosen 
 ## When to revisit
 
 If a future use case requires sub-100ms reconnection (e.g., real-time audio relay), Noise IK could be reconsidered. The `CryptoProvider` interface and `HandshakeState` abstraction support it without breaking changes — but the state machine complexity cost remains.
+
+## Related docs
+
+- [The trust model](trust-model.md)
+- [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [Why 100% coverage for a crypto protocol](why-full-coverage.md)

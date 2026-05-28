@@ -81,3 +81,10 @@ Cut-through relay adds complexity:
 
 MeshLink accepts that complexity because the latency improvement is material for
 large multi-hop transfers over BLE.
+
+## Related docs
+
+- [Understanding Babel routing](understanding-babel-routing.md)
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [About the L2CAP-first transport posture](why-l2cap-first.md)

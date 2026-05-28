@@ -93,3 +93,9 @@ simpler:
 
 If you want the peer-presence side of this story, read
 [The peer lifecycle model](peer-lifecycle.md).
+
+## Related docs
+
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [Cut-through relay](cut-through-relay.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)

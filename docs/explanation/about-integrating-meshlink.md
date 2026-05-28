@@ -163,9 +163,11 @@ A production-shaped MeshLink integration usually has all of the following:
 - a deliberate power-policy choice
 - platform-specific bootstrap code kept at the edges
 
-## Use the right doc for the next question
+## Related docs
 
-- **I need setup steps** → [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
-- **I need a production checklist** → [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
-- **I need exact API facts** → [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
-- **I need the deeper runtime model** → [About how MeshLink works](about-how-meshlink-works.md)
+- [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
+- [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [The trust model](trust-model.md)
+- [Power management](power-management.md)

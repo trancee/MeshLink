@@ -78,3 +78,10 @@ The return is also real:
 - stronger confidence in protocol changes
 - faster detection of untested behavior during refactors
 - fewer places for "reachable but never exercised" bugs to hide
+
+## Related docs
+
+- [Contributor build, test, and verification reference](../reference/contributor-reference.md)
+- [About the repository architecture](about-the-repository-architecture.md)
+- [Benchmark and validation baselines](../../benchmarks/README.md)
+- [MeshLink Constitution](../../constitution.md)

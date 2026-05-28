@@ -148,3 +148,10 @@ The current design does not try to be infinitely configurable. It optimizes for:
 - enough adaptivity for real battery pressure
 - clear operator visibility
 - shared Android and iOS semantics
+
+## Related docs
+
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
+- [About integrating MeshLink well](about-integrating-meshlink.md)
+- [Regulatory compliance and region clamping](regulatory-compliance.md)

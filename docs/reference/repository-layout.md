@@ -100,7 +100,7 @@ flowchart LR
 
 | Source set or host area | Main contents |
 |---|---|
-| `commonMain` | Compose shell, navigation, guided flow, advanced controls, timeline, retained history, export model, automation driver, live controller wrapper, and scripted controller wrapper |
+| `commonMain` | Compose shell, navigation, Guided first exchange, Advanced controls, Technical timeline, Recent history, export model, automation driver, live controller wrapper, and scripted controller wrapper |
 | `androidMain` | Android platform-services factories, Android readiness guidance, and Android-specific host glue for the shared shell |
 | `iosMain` | iOS platform-services factories and UIKit entry points for the shared shell |
 | `commonTest` | Shared session-model, store, and UI-state tests |

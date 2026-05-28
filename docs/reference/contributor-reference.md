@@ -106,7 +106,7 @@ find the shared runtime split quickly.
 |---|---|---|
 | Route selection and shell wiring | `ReferenceNavHost` | Owns active surface state and route callbacks; does not own session-boundary semantics. |
 | Session-boundary execution | `SessionBoundaryCoordinator` | Owns supported and alternative session boundary sequencing, export-before-boundary completion, and follow-up supported-session starts. |
-| Session boundaries and session-state publication | `ReferenceSessionController` | Owns supported live vs ended vs solo vs lab session state and publishes the currently active session snapshot. |
+| Session boundaries and session-state publication | `ReferenceSessionController` | Owns supported live vs ended vs Solo exploration vs Lab session state and publishes the currently active session snapshot. |
 | Supported runtime lifecycle and binding | `SupportedControllerRuntime` | Owns supported controller creation, restart, closure, and snapshot binding. |
 | Evidence-surface state | `TechnicalTimelineStore` | Owns live and retained evidence state, visible timeline entries, retained-session loading, and export or retention state. |
 | Live SDK-backed controller behavior | `LiveReferenceMeshLinkController` + `LiveReferenceMeshRuntime` | The controller stays app-facing; the runtime owns MeshLink API creation, binding, and command delegation. |

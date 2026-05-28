@@ -16,9 +16,9 @@ their own:
 - the live-only full-export boundary
 - teardown signals such as route retraction and route expiry
 
-If you only need deterministic surface coverage for guided, advanced, timeline,
-lab, or blocked-start UI flows, use the scripted Android and iOS workflow tests
-instead.
+If you only need deterministic surface coverage for **Guided first exchange**,
+**Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI
+flows, use the scripted Android and iOS workflow tests instead.
 
 ## Quick scenario picker
 

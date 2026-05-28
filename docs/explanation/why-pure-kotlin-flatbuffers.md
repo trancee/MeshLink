@@ -72,3 +72,9 @@ control matter more than generator convenience in the current repository shape.
 If a well-supported KMP FlatBuffers runtime becomes available and fits the
 project's dependency rules, this decision can be revisited without changing the
 wire format itself.
+
+## Related docs
+
+- [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
+- [About the repository architecture](about-the-repository-architecture.md)
+- [Why 100% coverage for a crypto protocol](why-full-coverage.md)

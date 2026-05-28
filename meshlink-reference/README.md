@@ -47,7 +47,7 @@ flowchart LR
     Android["Android host app"] --> Shell["ReferenceApp shared shell"]
     IOS["iOS host project"] --> Shell
     Shell --> Session["shared session-boundary and surface model"]
-    Shell --> Evidence["timeline, retained history, and exports"]
+    Shell --> Evidence["Technical timeline, Recent history, and exports"]
     Session --> Mesh["MeshLink SDK"]
     Session --> Automation["scripted-ui and live-proof automation"]
     Evidence --> Store["app-local JSON history and artifact files"]
@@ -63,7 +63,7 @@ flowchart LR
 ```
 
 The Android app module and the iOS host project both mount the same shared
-Compose shell. Session boundaries, retained history, export policy, and
+Compose shell. Session boundaries, **Recent history**, export policy, and
 automation live in shared code. Platform code mainly supplies bootstrap,
 storage location, readiness blockers, and the native host entry points.
 

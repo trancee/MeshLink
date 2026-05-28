@@ -21,11 +21,11 @@ optimizations are worth keeping or pursuing.
 The scripted Android and iOS workflow tests already cover a lot of the
 reference-app surface:
 
-- guided flow labels and navigation
-- advanced controls
-- timeline filtering and export UI
+- **Guided first exchange** labels and navigation
+- **Advanced controls**
+- **Technical timeline** filtering and export UI
 - blocked-start guidance
-- solo-mode behavior
+- **Solo exploration** behavior
 
 Physical runs prove a different class of behavior:
 
@@ -232,8 +232,16 @@ Instead:
 
 - keep physical scenarios focused on transport, routing, trust, and retained
   artifact behavior
-- keep scripted automation responsible for solo mode, blocked-start guidance,
-  advanced surface layout, and lab/UI-only behavior
+- keep scripted automation responsible for **Solo exploration**,
+  blocked-start guidance, **Advanced controls** layout, and **Lab** or
+  UI-only behavior
+
+## Related docs
+
+- [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- [How to run the reference-app physical integration scenarios](../how-to/run-reference-app-physical-integration-scenarios.md)
+- [MeshLink reference app overview](../../meshlink-reference/README.md)
+- [Contributor build, test, and verification reference](../reference/contributor-reference.md)
 
 That split is not a compromise. It is what makes the validation story honest
 and maintainable.

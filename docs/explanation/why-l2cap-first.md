@@ -89,3 +89,10 @@ If you need the practical setup steps, use
 [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md).
 If you need the measured physical status, use the retained
 [benchmark and validation baselines](../../benchmarks/README.md).
+
+## Related docs
+
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [Cut-through relay](cut-through-relay.md)
+- [Physical reference-app integration findings](reference-app-physical-integration-findings.md)
+- [Benchmark and validation baselines](../../benchmarks/README.md)

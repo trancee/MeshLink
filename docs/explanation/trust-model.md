@@ -112,3 +112,10 @@ reason codes, not full peer identifiers or plaintext payload content.
 - automatic first-contact MITM resistance
 - certificate management or remote revocation infrastructure
 - silent trust migration when keys change
+
+## Related docs
+
+- [How to integrate MeshLink into a host app](../how-to/integrate-meshlink-into-a-host-app.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [About integrating MeshLink well](about-integrating-meshlink.md)
+- [The peer lifecycle model](peer-lifecycle.md)

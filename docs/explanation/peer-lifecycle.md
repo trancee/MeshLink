@@ -158,3 +158,10 @@ meshLink.peerEvents.collect { event ->
 The app does not need to manage grace periods itself. MeshLink handles the
 transport churn internally and surfaces cleaner `Found`, `StateChanged`, and
 `Lost` transitions.
+
+## Related docs
+
+- [About how MeshLink works](about-how-meshlink-works.md)
+- [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
+- [The trust model](trust-model.md)
+- [About integrating MeshLink well](about-integrating-meshlink.md)
