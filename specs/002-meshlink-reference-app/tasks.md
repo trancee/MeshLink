@@ -74,7 +74,7 @@ reviewable.
 - [X] T016 [P] [US1] Implement readiness and blocker state models in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessState.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessChecker.kt`
 - [X] T017 [P] [US1] Implement guided first-exchange orchestration in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt`
 - [X] T018 [P] [US1] Implement guided and solo surface composables in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreen.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/solo/SoloExplorationScreen.kt`
-- [X] T019 [P] [US1] Implement platform-specific readiness explainers in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt` and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosReadinessExplainer.kt`
+- [X] T019 [P] [US1] Implement platform-specific readiness explainers in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/ReadinessExplainer.kt` and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/ReadinessExplainer.kt`
 - [X] T020 [US1] Connect live peer discovery, default send, and timeline proof capture in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeViewModel.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt`
 - [X] T021 [US1] Wire the `main-guided` and `solo-exploration` surfaces into `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`
 
@@ -142,15 +142,15 @@ reviewable.
 ### Validation for User Story 4 (REQUIRED) ⚠️
 
 - [X] T041 [P] [US4] Add shared workflow catalog and diagnostic-category parity tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt`
-- [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt`
+- [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
 - [X] T043 [US4] Validate named workflow, label, blocker, and diagnostic-category parity against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 4
 
 - [X] T044 [P] [US4] Normalize shared workflow labels and operator copy in `meshlink-reference/src/commonMain/composeResources/values/strings.xml`
 - [X] T045 [P] [US4] Commit the iOS host project and host-side tests in `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj` and `meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift`
-- [X] T046 [P] [US4] Align Android platform services and blocker messaging in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt`
-- [X] T047 [P] [US4] Align iOS platform services and blocker messaging in `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosPlatformServices.kt`
+- [X] T046 [P] [US4] Align Android platform services and blocker messaging in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
+- [X] T047 [P] [US4] Align iOS platform services and blocker messaging in `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
 - [X] T048 [US4] Wire identical surface IDs and entry routes across `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`
 
 **Checkpoint**: User Story 4 is complete when Android and iOS present the same named reference experience, with platform differences limited to clearly explained setup constraints.
@@ -220,7 +220,7 @@ Task: "Add reference-ui contract and Compose UI tests for guided and solo surfac
 # Implementation tasks
 Task: "Implement readiness and blocker state models in meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessState.kt and meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/ReadinessChecker.kt"
 Task: "Implement guided and solo surface composables in meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/guided/GuidedFirstExchangeScreen.kt and meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/solo/SoloExplorationScreen.kt"
-Task: "Implement platform-specific readiness explainers in meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt and meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosReadinessExplainer.kt"
+Task: "Implement platform-specific readiness explainers in meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/ReadinessExplainer.kt and meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/ReadinessExplainer.kt"
 ```
 
 ---
@@ -261,12 +261,12 @@ Task: "Implement timeline, recent-history, and export UI surfaces in meshlink-re
 ```bash
 # Validation tasks
 Task: "Add shared workflow catalog and diagnostic-category parity tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt"
-Task: "Add Android and iOS parity smoke tests in meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt and meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppIosSmokeTest.kt"
+Task: "Add Android and iOS parity smoke tests in meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt and meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt"
 
 # Implementation tasks
 Task: "Commit the iOS host project and host-side tests in meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj and meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift"
-Task: "Align Android platform services and blocker messaging in meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt"
-Task: "Align iOS platform services and blocker messaging in meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/IosPlatformServices.kt"
+Task: "Align Android platform services and blocker messaging in meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt"
+Task: "Align iOS platform services and blocker messaging in meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt"
 ```
 
 ---

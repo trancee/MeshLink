@@ -172,8 +172,8 @@ without breaking configuration immediately:
 | `meshlink-reference/android-app/src/main/AndroidManifest.xml` | add via move | Rehome the current launcher manifest unchanged except for any package/namespace-sensitive cleanup required by the new app module namespace choice. |
 | `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt` | add via move | Move the current `MainActivity` unchanged. Keep its package and automation intent helpers stable so tests and scripts do not need rewriting in C01. |
 | `meshlink-reference/android-app/src/main/res/values/strings.xml` | add via move | Move the app-name resource unchanged. |
-| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt` | add via move | Move unchanged. |
-| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt` | add via move | Move unchanged. |
+| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` | add via move | Move unchanged. |
+| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt` | add via move | Move unchanged. |
 
 #### Move files out of the shared KMP module
 
@@ -185,18 +185,17 @@ Use `git mv` so the history stays readable:
   → `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
 - `meshlink-reference/src/androidMain/res/values/strings.xml`
   → `meshlink-reference/android-app/src/main/res/values/strings.xml`
-- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt`
-  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidSmokeTest.kt`
-- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt`
-  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppAndroidWorkflowTest.kt`
+- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
+  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
+- `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt`
+  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt`
 
 #### Keep these files in place
 
 These remain in `:meshlink-reference` and should not move in C01:
 
-- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidPlatformServices.kt`
-- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReadinessExplainer.kt`
-- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/AndroidReferenceDocumentStore.kt`
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
+- `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/ReadinessExplainer.kt`
 - everything under `meshlink-reference/src/commonMain/`
 - everything under `meshlink-reference/src/commonTest/`
 - everything under `meshlink-reference/src/iosMain/` and `meshlink-reference/src/iosTest/`
