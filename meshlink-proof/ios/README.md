@@ -104,6 +104,11 @@ Use Xcode scheme environment variables for manual runs. For retained physical
 benchmark work, prefer the headless runner so those values are applied
 consistently.
 
+If you are using this app as the receiving peer for
+[Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
+set `MESHLINK_APP_ID` to the tutorial host app's `appId` and keep
+`MESHLINK_BENCHMARK_TRANSPORT` unset or `meshlink`.
+
 ### Choose the transport mode deliberately
 
 The iPhone proof app can start in three transport modes.
@@ -118,6 +123,11 @@ Use them for different claims.
 If you are validating supported user-visible behavior, stay in `meshlink` mode
 or move to the reference app. Use `gatt` and `gatt-notify` only when you are
 explicitly doing retained transport investigation or benchmark-oriented work.
+
+For the SDK tutorial, that means:
+
+- `MESHLINK_APP_ID=com.example.meshlink.tutorial`
+- `MESHLINK_BENCHMARK_TRANSPORT=meshlink` or unset
 
 ### Contributor note
 

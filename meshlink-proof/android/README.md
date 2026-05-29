@@ -53,6 +53,11 @@ The default launch uses:
 - `powerMode = automatic`
 - `benchmarkTransport = meshlink`
 
+If you are using this app as the receiving peer for
+[Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
+keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
+matches the tutorial host app.
+
 ## 3. Override launch settings when you need a specific proof shape
 
 The Android proof app reads these intent extras on launch:
@@ -75,6 +80,14 @@ adb shell am start \
   -n ch.trancee.meshlink.proof.android/.MainActivity \
   --es meshlink.appId demo.meshlink.android \
   --es meshlink.powerMode performance
+```
+
+Example: start the Android proof app as the receiving peer for the SDK tutorial.
+
+```bash
+adb shell am start \
+  -n ch.trancee.meshlink.proof.android/.MainActivity \
+  --es meshlink.appId com.example.meshlink.tutorial
 ```
 
 Example: start the proof-only GATT-notify setup without automatic MeshLink

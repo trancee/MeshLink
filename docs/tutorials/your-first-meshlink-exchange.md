@@ -7,6 +7,8 @@ This lesson stays intentionally narrow:
 
 - it uses Android for the shortest path to a visible result
 - it uses a proof app on a second device as the receiving peer
+- it keeps that receiving peer in normal `meshlink` mode rather than the
+  proof-only `gatt` or `gatt-notify` prototype modes
 
 If you still need to add the library to your build, follow
 [How to add MeshLink to your app](../how-to/add-meshlink-to-your-app.md).
@@ -18,9 +20,26 @@ If you need the broader Android and iOS bootstrap guidance afterward, follow
 You need:
 
 - an Android app that can depend on MeshLink
-- a second device running one of the MeshLink proof apps
+- a second device you can use as the receiving proof peer
 - the Android host app already has the permissions described in
   [How to unblock MeshLink permissions on Android and iOS](../how-to/unblock-meshlink-permissions.md)
+
+### Pick the receiving proof peer once
+
+For this tutorial, keep the second device simple.
+
+| If your second device is... | Use... | Why |
+|---|---|---|
+| another Android device | [the Android proof app](../../meshlink-proof/android/README.md) in normal `meshlink` mode | shortest path and easiest manual setup |
+| an iPhone | [the iOS proof app](../../meshlink-proof/ios/README.md) in normal `meshlink` mode | cross-platform first exchange without switching to product-like evaluation |
+| a device where you want the full supported operator walkthrough instead | [the reference app guide](../how-to/evaluate-meshlink-with-the-reference-app.md) | different goal from this SDK tutorial |
+
+For this lesson, keep these rules fixed:
+
+- match the receiving proof peer `appId` to `com.example.meshlink.tutorial`
+- keep the proof transport in `meshlink` mode
+- do **not** use `gatt` or `gatt-notify` here; those are proof-only prototype
+  modes for transport investigation, not for the first-success tutorial
 
 You will create one small controller class and log the full flow.
 
@@ -169,8 +188,19 @@ start() -> Started
 
 ## 4. Wait for a peer and send the first message
 
-Launch a MeshLink proof app on the second device with the same `appId` and wait
-for discovery.
+Launch the chosen proof peer on the second device with the same `appId` and
+keep it in normal `meshlink` mode while you wait for discovery.
+
+Use these tutorial-specific settings:
+
+- tutorial host app `appId` → `com.example.meshlink.tutorial`
+- Android proof peer → set `meshlink.appId=com.example.meshlink.tutorial`
+  and leave `meshlink.benchmarkTransport=meshlink`
+- iPhone proof peer → set `MESHLINK_APP_ID=com.example.meshlink.tutorial`
+  and leave `MESHLINK_BENCHMARK_TRANSPORT` unset or `meshlink`
+
+If you still need the concrete proof-peer launch steps, use the linked proof-app
+guide for that device and then come back here once the peer is waiting.
 
 Expected discovery output:
 
