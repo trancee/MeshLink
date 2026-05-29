@@ -525,11 +525,9 @@ class MeshRoutingIntegrationTest {
         assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
     }
 
-    private suspend fun testDelay(milliseconds: Int): Unit =
-        delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)
+    private suspend fun testDelay(milliseconds: Int): Unit = delay(milliseconds.toLong())
 
-    private suspend fun testDelay(milliseconds: Long): Unit =
-        delay(milliseconds * TEST_TIMING_SLACK_MULTIPLIER)
+    private suspend fun testDelay(milliseconds: Long): Unit = delay(milliseconds)
 
     private suspend fun <T> testWithTimeout(milliseconds: Int, block: suspend () -> T): T =
         withTimeout(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
