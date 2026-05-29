@@ -14,6 +14,8 @@ It is an explanation page. Use the other docs when the job is different:
   [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - reference-app evaluation flow —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- proof-surface chooser and validation-boundary explanation —
+  [About proof validation surfaces](about-proof-validation-surfaces.md)
 
 ## The repository separates one product SDK from several evidence surfaces
 
@@ -372,3 +374,4 @@ being confused with one another.
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - [MeshLink reference app overview](../../meshlink-reference/README.md)
+- [About proof validation surfaces](about-proof-validation-surfaces.md)

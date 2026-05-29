@@ -216,6 +216,7 @@ Switch to the proof apps or the live-proof harness when you need:
 
 For proof-specific workflows, use:
 
+- [About proof validation surfaces](../explanation/about-proof-validation-surfaces.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../../benchmarks/README.md)

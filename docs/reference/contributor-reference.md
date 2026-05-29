@@ -197,6 +197,7 @@ A public API change currently requires all of the following:
 - [MeshLink documentation map](../README.md)
 - [Repository layout reference](repository-layout.md)
 - [About the repository architecture](../explanation/about-the-repository-architecture.md)
+- [About proof validation surfaces](../explanation/about-proof-validation-surfaces.md)
 - [AGP 9 migration plan](../tooling/agp-9-migration-plan.md)
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
 - [Glossary and acronym reference](glossary.md)

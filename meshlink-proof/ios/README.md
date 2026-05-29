@@ -9,6 +9,14 @@ Use it when you need:
 - a physical iPhone proof peer
 - retained iPhone/Android benchmark evidence
 
+## Choose the right validation surface first
+
+| If you need to... | Use... |
+|---|---|
+| evaluate the supported product-like Android and iOS experience | [the reference app guide](../../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
+| run an iPhone physical proof peer or transport fixture | this guide |
+| inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
+
 ## Prerequisites
 
 You need:
@@ -96,6 +104,21 @@ Use Xcode scheme environment variables for manual runs. For retained physical
 benchmark work, prefer the headless runner so those values are applied
 consistently.
 
+### Choose the transport mode deliberately
+
+The iPhone proof app can start in three transport modes.
+Use them for different claims.
+
+| Value | Meaning | Use it when you need to... | Important boundary |
+|---|---|---|---|
+| `meshlink` | normal MeshLink runtime | run the tutorial peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
+| `gatt` | iPhone-side GATT prototype | run the retained GATT benchmark-oriented prototype flow | requires `MESHLINK_BENCHMARK_PAYLOAD_BYTES`; passive `MESHLINK_DISABLE_AUTO_SEND=true` mode is not implemented |
+| `gatt-notify` | iPhone-side GATT-notify prototype | run the retained notify-side benchmark-oriented prototype flow | requires `MESHLINK_BENCHMARK_PAYLOAD_BYTES`; passive `MESHLINK_DISABLE_AUTO_SEND=true` mode is not implemented |
+
+If you are validating supported user-visible behavior, stay in `meshlink` mode
+or move to the reference app. Use `gatt` and `gatt-notify` only when you are
+explicitly doing retained transport investigation or benchmark-oriented work.
+
 ### Contributor note
 
 The iOS proof host still presents one SwiftUI-facing view model, but launch
@@ -148,6 +171,7 @@ Use this guide to build and run the iOS proof app.
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
+- [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
 - [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)

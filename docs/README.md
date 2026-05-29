@@ -12,7 +12,8 @@ single "read everything" path.
 | look up exact API or runtime facts | [Reference](#reference) |
 | check official SDK or reference-app terms | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
-| validate behavior on devices | [How-to guides](#how-to-guides) and [Reference](#reference) |
+| validate behavior on devices | [How-to guides](#how-to-guides), [Reference](#reference), and [Explanation](#explanation) |
+| understand when to use the reference app, proof apps, or retained benchmarks | [Explanation](#explanation) |
 | understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
 | review tooling posture or design proposals | [Tooling](#tooling) and [RFCs](#rfcs) |
 
@@ -45,6 +46,13 @@ If you are not sure where to start, use one of these short paths.
 4. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
 5. [Benchmark and validation baselines](../benchmarks/README.md)
 
+### Proof fixtures and retained benchmarks
+
+1. [About proof validation surfaces](explanation/about-proof-validation-surfaces.md)
+2. [How to run the Android proof app](../meshlink-proof/android/README.md)
+3. [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
+4. [Benchmark and validation baselines](../benchmarks/README.md)
+
 ### Debugging live behavior
 
 1. [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md)
@@ -71,6 +79,7 @@ guessing which page owns which model.
 |---|---|---|
 | repository and module ownership | [Repository layout reference](reference/repository-layout.md) | one module map covering `:meshlink`, `:meshlink-reference`, proof apps, benchmarks, and docs |
 | why the repository is split this way | [About the repository architecture](explanation/about-the-repository-architecture.md) | the rationale behind the SDK, reference app, proof apps, and retained-evidence split |
+| when to choose the reference app, proof apps, or retained benchmarks | [About proof validation surfaces](explanation/about-proof-validation-surfaces.md) | the boundary between product-like evaluation, proof fixtures, and retained performance evidence |
 | SDK runtime model | [About how MeshLink works](explanation/about-how-meshlink-works.md) | the runtime services, lifecycle boundaries, discovery path, send pipeline, and persistence boundary |
 | host-app integration shape | [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) | the default runtime bootstrap and ownership flow |
 | production-shaped host integration | [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) | the target steady-state integration model and stream ownership split |
@@ -116,6 +125,7 @@ guessing which page owns which model.
 ### Repository and contributor architecture
 
 - [About the repository architecture](explanation/about-the-repository-architecture.md) — why the repository is split between the SDK, the reference app, the proof apps, and the retained evidence surfaces.
+- [About proof validation surfaces](explanation/about-proof-validation-surfaces.md) — when to choose the reference app, the proof apps, or retained benchmarks.
 
 ### Integration and lifecycle
 
