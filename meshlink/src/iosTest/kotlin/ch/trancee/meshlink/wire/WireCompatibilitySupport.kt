@@ -1,5 +1,3 @@
 package ch.trancee.meshlink.wire
 
-internal actual object WireCompatibilitySupport {
-    actual fun resourceTextOrNull(fileName: String): String? = null
-}
+internal actual fun wireCompatibilityResourceTextOrNull(fileName: String): String? = null

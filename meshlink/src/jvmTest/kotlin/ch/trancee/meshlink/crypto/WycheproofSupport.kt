@@ -1,14 +1,13 @@
 package ch.trancee.meshlink.crypto
 
-internal actual object WycheproofSupport {
-    actual fun providerOrNull(): CryptoProvider? = JvmCryptoProvider()
+private object WycheproofSupportLoaderAnchor
 
-    actual fun resourceLinesOrNull(fileName: String): List<String>? {
-        return WycheproofSupport::class
-            .java
-            .classLoader
-            .getResourceAsStream("wycheproof/$fileName")
-            ?.bufferedReader()
-            ?.use { reader -> reader.readLines() }
+internal actual fun wycheproofProviderOrNull(): CryptoProvider? = JvmCryptoProvider()
+
+internal actual fun wycheproofResourceLinesOrNull(fileName: String): List<String>? {
+    val classLoader = WycheproofSupportLoaderAnchor::class.java.classLoader ?: return null
+    return classLoader.getResourceAsStream("wycheproof/$fileName")?.bufferedReader()?.use { reader
+        ->
+        reader.readLines()
     }
 }

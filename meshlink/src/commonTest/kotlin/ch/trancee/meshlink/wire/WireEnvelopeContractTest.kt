@@ -217,14 +217,12 @@ class WireEnvelopeContractTest {
 
     private fun loadWireCompatibilityFixtures(): List<WireCompatibilityFixture>? {
         val indexText =
-            WireCompatibilitySupport.resourceTextOrNull(WIRE_COMPAT_INDEX_RESOURCE) ?: return null
+            wireCompatibilityResourceTextOrNull(WIRE_COMPAT_INDEX_RESOURCE) ?: return null
         val fileNames =
             indexText.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
         return fileNames.map { fileName ->
             val hex =
-                WireCompatibilitySupport.resourceTextOrNull(
-                        "$WIRE_COMPAT_RESOURCE_PREFIX/$fileName"
-                    )
+                wireCompatibilityResourceTextOrNull("$WIRE_COMPAT_RESOURCE_PREFIX/$fileName")
                     ?.trim() ?: error("Missing wire compatibility fixture $fileName")
             wireCompatibilityFixture(fileName = fileName, encodedBytes = hex.hexToByteArray())
         }

@@ -182,9 +182,9 @@ class WycheproofRegressionTest {
     }
 
     private fun loadSupport(fileName: String): WycheproofTestSupport? {
-        val provider = WycheproofSupport.providerOrNull() ?: return null
+        val provider = wycheproofProviderOrNull() ?: return null
         val lines =
-            WycheproofSupport.resourceLinesOrNull(fileName)?.filter { line ->
+            wycheproofResourceLinesOrNull(fileName)?.filter { line ->
                 line.isNotBlank() && !line.trimStart().startsWith("#")
             } ?: return null
         return WycheproofTestSupport(provider = provider, lines = lines)
@@ -311,11 +311,9 @@ class WycheproofRegressionTest {
     }
 }
 
-internal expect object WycheproofSupport {
-    fun providerOrNull(): CryptoProvider?
+internal expect fun wycheproofProviderOrNull(): CryptoProvider?
 
-    fun resourceLinesOrNull(fileName: String): List<String>?
-}
+internal expect fun wycheproofResourceLinesOrNull(fileName: String): List<String>?
 
 private class WycheproofTestSupport
 internal constructor(internal val provider: CryptoProvider, internal val lines: List<String>)
