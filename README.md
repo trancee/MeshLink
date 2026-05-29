@@ -10,6 +10,25 @@ This repository contains:
 - retained benchmark and release-decision evidence
 - tutorials, how-to guides, reference docs, and explanation docs
 
+## Release status
+
+MeshLink has not cut a public stable release yet.
+
+Today, the repository is still source-distributed from a local checkout. The
+intended first public release shape is a published `:meshlink` artifact for
+Gradle consumers while iOS continues to use the generated Apple framework path.
+Swift Package Manager and CocoaPods are not part of that first-release target.
+
+For the current distribution shape and remaining release blockers, use the
+[release status reference](docs/reference/release-status.md).
+
+Release-facing entry points:
+
+- [Release status reference](docs/reference/release-status.md)
+- [Changelog](CHANGELOG.md)
+- [Security policy](SECURITY.md)
+- [Release runbook](RELEASING.md)
+
 ## Developer documentation
 
 **Audience:** engineers integrating MeshLink into a host application.
@@ -34,6 +53,7 @@ Quick entry points:
 - [MeshLink SDK API reference](docs/reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](docs/reference/meshlink-runtime-behavior.md)
 - [Glossary and acronym reference](docs/reference/glossary.md)
+- [Release status reference](docs/reference/release-status.md)
 - [Repository layout reference](docs/reference/repository-layout.md)
 - [About how MeshLink works](docs/explanation/about-how-meshlink-works.md)
 - [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
@@ -47,6 +67,7 @@ post-migration AGP 9 module shape stays intact.
 
 - [How to contribute to MeshLink](CONTRIBUTING.md)
 - [Contributor build, test, and verification reference](docs/reference/contributor-reference.md)
+- [Release runbook](RELEASING.md)
 - [Repository layout reference](docs/reference/repository-layout.md)
 - [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
 

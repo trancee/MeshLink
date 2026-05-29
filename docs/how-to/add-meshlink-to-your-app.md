@@ -3,6 +3,9 @@
 This guide shows you how to add the current MeshLink SDK to an Android or iOS
 host app from a local checkout of this repository.
 
+If you need the repository's current release posture or the intended first
+public release shape, use the [MeshLink release status reference](../reference/release-status.md).
+
 Use it when you need to:
 
 - add MeshLink to an Android Gradle app
@@ -41,7 +44,11 @@ flowchart LR
 
 ## 1. Know the current distribution shape
 
-MeshLink is currently source-distributed.
+MeshLink is currently source-distributed from this repository checkout.
+
+Use the [MeshLink release status reference](../reference/release-status.md) if
+you need the intended first public release shape or the remaining release
+blockers.
 
 This repository does **not** yet publish:
 

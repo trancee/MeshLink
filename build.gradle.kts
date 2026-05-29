@@ -86,9 +86,11 @@ plugins {
     alias(libs.plugins.kover)
 }
 
+val versionName: String = providers.gradleProperty("VERSION_NAME").orElse("0.1.0-SNAPSHOT").get()
+
 allprojects {
     group = "ch.trancee.meshlink"
-    version = "0.1.0-SNAPSHOT"
+    version = versionName
 }
 
 apiValidation {

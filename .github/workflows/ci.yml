@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  meshlink-sdk:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.x'
+
+      - name: Install yamllint
+        run: python3 -m pip install --upgrade pip yamllint
+
+      - name: Validate workflow YAML
+        run: yamllint -c .yamllint.yml .github/workflows/ci.yml
+
+      - name: Verify MeshLink SDK
+        run: |
+          ./gradlew \
+            :meshlink:allTests \
+            :meshlink:detekt \
+            :meshlink:apiCheck \
+            :meshlink:koverVerify \
+            verifyDocs \
+            checkAgp9Invariants \
+            --console=plain
+
+      - name: Upload verification reports
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: meshlink-reports
+          if-no-files-found: ignore
+          path: |
+            build/reports/**
+            meshlink/build/reports/**
+            **/test-results/**

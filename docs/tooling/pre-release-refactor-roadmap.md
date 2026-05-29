@@ -10,12 +10,12 @@ cleanup sequence.
 
 ## Release posture
 
-MeshLink has **not been released yet**.
+When this roadmap was written, MeshLink had **not been released yet**.
 
-The roadmap therefore optimized for **a better first release**, not for preserving
-pre-release compatibility.
+The roadmap therefore optimized for **a better first release**, not for
+preserving pre-release compatibility.
 
-That means the refactor stream may introduce **intentional breaking changes** when
+That meant the refactor stream could introduce **intentional breaking changes** when
 those changes:
 
 - deepen a shallow module

@@ -12,6 +12,10 @@ which supporting documents to use when you need more detail.
 If you are integrating MeshLink into a host app rather than changing MeshLink
 itself, start with the [documentation map](docs/README.md).
 
+If you are preparing a release rather than a normal feature or maintenance
+change, start with the [release runbook](RELEASING.md) and then return here for
+the contributor verification bundle.
+
 ## Quick path picker
 
 | If you are changing... | Start here | Verify with |
@@ -217,6 +221,9 @@ Use these documents when you need more detail:
 - [MeshLink Constitution](constitution.md)
 - [MeshLink documentation map](docs/README.md)
 - [Benchmark and validation baselines](benchmarks/README.md)
+- [Release runbook](RELEASING.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 - [MeshLink reference app overview](meshlink-reference/README.md)
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)

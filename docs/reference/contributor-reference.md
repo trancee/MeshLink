@@ -12,6 +12,7 @@ Use this page when you need exact commands, matrices, or policy details.
 |---|---|
 | module ownership or host location | [Repository layout reference](repository-layout.md) |
 | docs only | `./gradlew verifyDocs` |
+| release preparation | `RELEASING.md` plus the relevant verification bundle for the surfaces you changed |
 | shared-library logic | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
@@ -203,6 +204,9 @@ A public API change currently requires all of the following:
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
 - [Glossary and acronym reference](glossary.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
+- [Release runbook](../../RELEASING.md)
+- [Security policy](../../SECURITY.md)
+- [Changelog](../../CHANGELOG.md)
 - [MeshLink reference app overview](../../meshlink-reference/README.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)

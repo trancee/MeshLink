@@ -14,6 +14,7 @@ single "read everything" path.
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | validate behavior on devices | [How-to guides](#how-to-guides), [Reference](#reference), and [Explanation](#explanation) |
 | understand when to use the reference app, proof apps, or retained benchmarks | [Explanation](#explanation) |
+| check the current MeshLink release posture | [Reference](#reference) |
 | understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
 | review tooling posture or design proposals | [Tooling](#tooling) and [RFCs](#rfcs) |
 
@@ -96,7 +97,7 @@ guessing which page owns which model.
 
 ### Integration and operation
 
-- [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md) — add the current source-distributed SDK to Android or iOS.
+- [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md) — add MeshLink from the current supported distribution path.
 - [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md) — bootstrap the runtime, manage lifecycle, collect streams, send payloads, and handle trust resets.
 - [How to structure a robust MeshLink integration](how-to/structure-a-robust-meshlink-integration.md) — move from a working demo to an app-owned integration with clear lifecycle, diagnostics, and trust behavior.
 - [How to unblock MeshLink permissions on Android and iOS](how-to/unblock-meshlink-permissions.md) — clear platform blockers before you debug discovery or delivery.
@@ -114,6 +115,7 @@ guessing which page owns which model.
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and Apple bridge APIs.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
 - [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring SDK, contributor, and reference-app terms.
+- [Release status reference](reference/release-status.md) — the current distribution shape, intended first public release shape, and remaining release blockers.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
