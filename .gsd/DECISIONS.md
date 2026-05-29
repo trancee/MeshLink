@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-05-29 — Pre-release refactor posture
+
+Chosen shape: permit intentional breaking changes during the pre-release refactor
+roadmap when those changes deepen modules, improve locality, or simplify
+unreleased public surfaces. Treat wire format, crypto posture, routing
+semantics, and physical-proof workflows as explicit high-risk slices that still
+require dedicated verification and documentation updates.
+
+Reason:
+- the repository has not shipped a release yet
+- preserving shallow pre-release seams now would harden accidental design
+- early breaking changes are cheaper than post-release compatibility baggage
+- strong verification and docs sync still matter even when compatibility is relaxed
+
 ## 2026-05-25 — Session transition seam
 
 Chosen shape: an internal `SessionTransitionService` with use-case-shaped operations,
