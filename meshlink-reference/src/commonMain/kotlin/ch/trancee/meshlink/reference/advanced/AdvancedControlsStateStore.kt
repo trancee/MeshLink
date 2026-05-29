@@ -5,13 +5,15 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 internal class AdvancedControlsStateStore(
     private val platformName: String,
     initialSnapshot: ReferenceControllerSnapshot,
 ) {
     private val defaultComposerText: String = "hello mesh from $platformName advanced"
-    private var latestSnapshot: ReferenceControllerSnapshot = initialSnapshot
+    private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot> =
+        MutableStateFlow(initialSnapshot)
     private val uiStateFlow: MutableStateFlow<AdvancedControlsUiState> =
         MutableStateFlow(
             buildAdvancedControlsUiState(
@@ -28,51 +30,48 @@ internal class AdvancedControlsStateStore(
     val lifecycleActions: StateFlow<LifecycleActionState> = lifecycleStateFlow.asStateFlow()
 
     fun applySnapshot(snapshot: ReferenceControllerSnapshot): Unit {
-        latestSnapshot = snapshot
-        val current = uiStateFlow.value
-        rebuildUiState(
-            selectedPeerId = current.selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId,
-            composerText = current.composerText,
-            selectedPriority = current.selectedPriority,
-        )
+        snapshotFlow.value = snapshot
+        uiStateFlow.update { current ->
+            buildAdvancedControlsUiState(
+                snapshot = snapshot,
+                selectedPeerId = current.selectedPeerId ?: snapshot.peers.firstOrNull()?.peerId,
+                composerText = current.composerText,
+                selectedPriority = current.selectedPriority,
+            )
+        }
         lifecycleStateFlow.value = LifecycleActionState.from(snapshot.session.meshStateLabel)
     }
 
     fun selectPeer(peerId: String): Unit {
-        rebuildUiState(
-            selectedPeerId = peerId,
-            composerText = uiStateFlow.value.composerText,
-            selectedPriority = uiStateFlow.value.selectedPriority,
-        )
+        uiStateFlow.update { current ->
+            buildAdvancedControlsUiState(
+                snapshot = snapshotFlow.value,
+                selectedPeerId = peerId,
+                composerText = current.composerText,
+                selectedPriority = current.selectedPriority,
+            )
+        }
     }
 
     fun updateComposerText(text: String): Unit {
-        rebuildUiState(
-            selectedPeerId = uiStateFlow.value.selectedPeerId,
-            composerText = text,
-            selectedPriority = uiStateFlow.value.selectedPriority,
-        )
+        uiStateFlow.update { current ->
+            buildAdvancedControlsUiState(
+                snapshot = snapshotFlow.value,
+                selectedPeerId = current.selectedPeerId,
+                composerText = text,
+                selectedPriority = current.selectedPriority,
+            )
+        }
     }
 
     fun updatePriority(priority: DeliveryPriority): Unit {
-        rebuildUiState(
-            selectedPeerId = uiStateFlow.value.selectedPeerId,
-            composerText = uiStateFlow.value.composerText,
-            selectedPriority = priority,
-        )
-    }
-
-    private fun rebuildUiState(
-        selectedPeerId: String?,
-        composerText: String,
-        selectedPriority: DeliveryPriority,
-    ): Unit {
-        uiStateFlow.value =
+        uiStateFlow.update { current ->
             buildAdvancedControlsUiState(
-                snapshot = latestSnapshot,
-                selectedPeerId = selectedPeerId,
-                composerText = composerText,
-                selectedPriority = selectedPriority,
+                snapshot = snapshotFlow.value,
+                selectedPeerId = current.selectedPeerId,
+                composerText = current.composerText,
+                selectedPriority = priority,
             )
+        }
     }
 }

@@ -44,7 +44,7 @@ flowchart LR
 
 For the full contributor workflow, use a macOS machine with:
 
-- JDK 17
+- JDK 21 or newer
 - Android SDK for API 36 builds
 - Xcode
 - Python 3

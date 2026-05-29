@@ -28,7 +28,7 @@ Use this page when you need exact commands, matrices, or policy details.
 
 | Need | Requirement | Notes |
 |---|---|---|
-| Gradle build and tests | JDK 17 | Required for the repository build. |
+| Gradle build and tests | JDK 21 or newer | Required for the repository build. |
 | Android compilation and unit tests | Android SDK for API 36 builds | Required for Android targets. |
 | iOS compilation and tests | Xcode | Required for iOS build and test targets. |
 | Documentation verification | Python 3 | Required by the documentation verification scripts. |

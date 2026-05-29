@@ -17,13 +17,13 @@ plugins {
 }
 
 kotlin {
-    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
 
     android {
         namespace = "ch.trancee.meshlink.reference"
         compileSdk = 36
         minSdk = 29
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
         androidResources { enable = true }
         withHostTest {}
     }
@@ -83,7 +83,7 @@ detekt {
 }
 
 tasks.withType<Detekt>().configureEach {
-    jvmTarget = "17"
+    jvmTarget = "21"
     exclude("**/build/**")
     exclude { element ->
         element.file.invariantSeparatorsPath.contains(

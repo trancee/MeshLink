@@ -10,7 +10,7 @@ plugins {
 }
 
 kotlin {
-    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
 
     sourceSets {
         jvmMain.dependencies {
@@ -46,6 +46,6 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
+tasks.withType<Detekt>().configureEach { jvmTarget = "21" }
 
 ktfmt { kotlinLangStyle() }

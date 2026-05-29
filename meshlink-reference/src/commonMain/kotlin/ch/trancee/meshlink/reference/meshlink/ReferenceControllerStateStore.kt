@@ -7,6 +7,9 @@ import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+private data object UnchangedSessionField
 
 internal class ReferenceControllerStateStore(
     initialSnapshot: ReferenceControllerSnapshot,
@@ -22,17 +25,32 @@ internal class ReferenceControllerStateStore(
         get() = snapshotFlow.value
 
     internal fun updateSession(
-        meshStateLabel: String = currentSnapshot.session.meshStateLabel,
-        lastOutcomeSummary: String? = currentSnapshot.session.lastOutcomeSummary,
-        selectedPeerId: String? = currentSnapshot.session.selectedPeerId,
+        meshStateLabel: Any? = UnchangedSessionField,
+        lastOutcomeSummary: Any? = UnchangedSessionField,
+        selectedPeerId: Any? = UnchangedSessionField,
     ): Unit {
         updateSnapshot { snapshot ->
             snapshot.copy(
                 session =
                     snapshot.session.copy(
-                        meshStateLabel = meshStateLabel,
-                        lastOutcomeSummary = lastOutcomeSummary,
-                        selectedPeerId = selectedPeerId,
+                        meshStateLabel =
+                            if (meshStateLabel === UnchangedSessionField) {
+                                snapshot.session.meshStateLabel
+                            } else {
+                                meshStateLabel as String
+                            },
+                        lastOutcomeSummary =
+                            if (lastOutcomeSummary === UnchangedSessionField) {
+                                snapshot.session.lastOutcomeSummary
+                            } else {
+                                lastOutcomeSummary as String?
+                            },
+                        selectedPeerId =
+                            if (selectedPeerId === UnchangedSessionField) {
+                                snapshot.session.selectedPeerId
+                            } else {
+                                selectedPeerId as String?
+                            },
                     )
             )
         }
@@ -47,20 +65,21 @@ internal class ReferenceControllerStateStore(
     }
 
     internal fun appendEvent(event: ReferenceTimelineEvent): Unit {
-        val current = currentSnapshot
-        val entry =
-            event.toTimelineEntry(
-                sessionId = sessionId,
-                entryIndex = current.timeline.size + 1,
-                occurredAtEpochMillis = nowProvider(),
-            )
-        updateSnapshot { snapshot -> snapshot.copy(timeline = snapshot.timeline + entry) }
+        updateSnapshot { snapshot ->
+            val entry =
+                event.toTimelineEntry(
+                    sessionId = sessionId,
+                    entryIndex = snapshot.timeline.size + 1,
+                    occurredAtEpochMillis = nowProvider(),
+                )
+            snapshot.copy(timeline = snapshot.timeline + entry)
+        }
     }
 
     private fun updateSnapshot(
         transform: (ReferenceControllerSnapshot) -> ReferenceControllerSnapshot
     ): Unit {
-        snapshotFlow.value = transform(snapshotFlow.value)
+        snapshotFlow.update(transform)
     }
 }
 
