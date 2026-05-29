@@ -4,11 +4,8 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
-import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.TransportEvent
-import ch.trancee.meshlink.transport.resolveActivePeerHint
-import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import kotlinx.coroutines.launch
 import platform.CoreBluetooth.CBATTErrorSuccess
 import platform.CoreBluetooth.CBATTErrorUnlikelyError
@@ -52,7 +49,7 @@ internal fun BleTransportAdapter.handleGattWriteRequests(requests: List<*>): Uni
 }
 
 internal fun BleTransportAdapter.pumpGattNotifyLinks(): Unit {
-    activeGattNotifyLinksByHint.values.forEach { link -> link.pump() }
+    gattNotifyRegistry.pumpAll()
 }
 
 internal fun BleTransportAdapter.ensureGattNotifyLink(
@@ -87,7 +84,7 @@ internal fun BleTransportAdapter.removeGattNotifyLink(
     identifier: String,
     hintPeerIdValue: String,
 ): Unit {
-    activeGattNotifyLinksByHint.remove(hintPeerIdValue)?.close()
+    gattNotifyRegistry.removeLink(hintPeerIdValue)?.close()
     reportLog("removed GATT notify side link for ${hintPeerIdValue.logSuffix()} id=$identifier")
     if (!activeLinksByHint.containsKey(hintPeerIdValue)) {
         peerRegistry.setPresenceAnnounced(hintPeerIdValue, announced = false)
@@ -158,13 +155,12 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
     replaceExisting: Boolean,
 ): GattNotifyLink {
     if (!replaceExisting) {
-        activeGattNotifyLinksByHint[hintPeerIdValue]?.let { existingLink ->
+        gattNotifyRegistry.currentLink(hintPeerIdValue)?.let { existingLink ->
             return existingLink
         }
     }
     val hintPeerId = PeerId(hintPeerIdValue)
-    activeGattNotifyLinksByHint.remove(hintPeerId.value)?.close()
-    var createdLink: GattNotifyLink? = null
+    gattNotifyRegistry.removeLink(hintPeerId.value)?.close()
     return GattNotifyLink(
             peer =
                 GattNotifyPeer(
@@ -197,8 +193,7 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
                 ),
         )
         .also { link ->
-            createdLink = link
-            activeGattNotifyLinksByHint[hintPeerId.value] = link
+            gattNotifyRegistry.replaceLink(hintPeerId.value, link)
             reportLog(
                 "registered GATT notify side link for ${hintPeerId.logSuffix()} id=$identifier " +
                     "maxUpdateValueLength=${central.maximumUpdateValueLength}"
@@ -207,41 +202,29 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
 }
 
 internal fun BleTransportAdapter.resolveGattNotifyHintPeerIdValue(identifier: String): String? {
-    return peerBindings.hintForIdentifier(identifier)
-        ?: peerRegistry
-            .peers()
-            .firstOrNull { peer ->
-                shouldUseMixedPlatformGattNotifyBearer(
-                    localPlatformFamily = currentDiscoveryPayload.platformFamily,
-                    remotePlatformFamily = peer.platformFamily,
-                )
-            }
-            ?.hintPeerId
-            ?.value
+    return selectGattNotifyHintPeerIdValue(
+        GattNotifyHintSelectionRequest(
+            boundHintPeerIdValue = peerBindings.hintForIdentifier(identifier),
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+            discoveredPeers = peerRegistry.peers(),
+        )
+    )
 }
 
 internal fun BleTransportAdapter.hasActiveGattNotifyLink(hintPeer: String): Boolean {
-    return activeGattNotifyLinksByHint.containsKey(hintPeer)
+    return gattNotifyRegistry.hasLink(hintPeer)
 }
 
 internal fun BleTransportAdapter.activeGattNotifyLinkFor(peer: DiscoveredPeer): GattNotifyLink? {
-    val supportsMixedGattNotifyBearer =
-        shouldUseMixedPlatformGattNotifyBearer(
-            localPlatformFamily = currentDiscoveryPayload.platformFamily,
-            remotePlatformFamily = peer.platformFamily,
-        ) && BleTransportBridgeRegistry.currentCallbacksOrNull() != null
-    val activeHint =
-        resolveActivePeerHint(
-            ActivePeerHintResolutionRequest(
-                hintPeerIdValue = peer.hintPeerId.value,
-                temporaryHintPeerIdValue =
-                    peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier),
-                activeHintIds = activeGattNotifyLinksByHint.keys,
-            )
-        )
-    return if (supportsMixedGattNotifyBearer && activeHint != null) {
-        activeGattNotifyLinksByHint[activeHint]
-    } else {
-        null
-    }
+    return gattNotifyRegistry.resolveActiveLink(
+        peer = peer,
+        temporaryHintPeerIdValue =
+            peerBindings.temporaryHintForIdentifier(peer.peripheralIdentifier),
+        supportsGattNotifyBearer =
+            supportsIosGattNotifyBearer(
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = peer.platformFamily,
+                hasBridge = BleTransportBridgeRegistry.currentCallbacksOrNull() != null,
+            ),
+    )
 }

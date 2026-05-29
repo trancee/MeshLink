@@ -160,7 +160,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it improves locality for the hardest Android transport bugs.
   - Verify: `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify`
 
-- [ ] **R11: Split iOS transport pump and fallback policy seams** `risk:high` `depends:[R05]` `breaking:allowed`
+- [x] **R11: Split iOS transport pump and fallback policy seams** `risk:high` `depends:[R05]` `breaking:allowed`
   > After this: iOS packet-pump mechanics and mixed-platform bearer policy are independently understandable and testable.
   - Scope: separate write-pump mechanics, GATT-notify fallback policy, and discovery-driven connection rules.
   - Primary modules: iOS L2CAP write pump, iOS transport support helpers, iOS peer registry.

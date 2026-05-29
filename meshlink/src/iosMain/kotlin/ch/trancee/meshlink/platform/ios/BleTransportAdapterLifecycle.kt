@@ -7,7 +7,7 @@ import kotlinx.coroutines.cancelChildren
 
 internal fun BleTransportAdapter.stopTransport(clearPeers: Boolean): Unit {
     reportLog(
-        "stopTransport clearPeers=$clearPeers activeLinks=${activeLinksByHint.size} activeGatt=${activeGattNotifyLinksByHint.size} pending=${pendingConnectionsByHint.size}"
+        "stopTransport clearPeers=$clearPeers activeLinks=${activeLinksByHint.size} activeGatt=${gattNotifyRegistry.size} pending=${pendingConnectionsByHint.size}"
     )
     discoverySuspended = false
     centralManager?.stopScan()
@@ -20,8 +20,7 @@ internal fun BleTransportAdapter.stopTransport(clearPeers: Boolean): Unit {
     gattNotifyServiceInstalled = false
     gattNotifyServiceCharacteristic = null
     pendingConnectionsByHint.clear()
-    activeGattNotifyLinksByHint.values.forEach { link -> link.close() }
-    activeGattNotifyLinksByHint.clear()
+    gattNotifyRegistry.stopAll()
     activeLinksByHint.keys.toList().forEach { hint ->
         closeLink(hintPeer = hint, reason = "transport stopped")
     }
