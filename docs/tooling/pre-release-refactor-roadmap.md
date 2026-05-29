@@ -123,7 +123,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it raises understanding quickly and reduces future refactor risk in high-signal code.
   - Verify: `./gradlew :meshlink:jvmTest :meshlink:detekt :meshlink:koverVerify`
 
-- [ ] **R06: Extract route advertisement planning from route selection** `risk:medium` `depends:[R05]` `breaking:allowed`
+- [x] **R06: Extract route advertisement planning from route selection** `risk:medium` `depends:[R05]` `breaking:allowed`
   > After this: route selection remains one concern and advertisement planning becomes another, making routing mutations easier to test and optimize.
   - Scope: separate route advertisement building, digest reuse, and fan-out planning from core route selection.
   - Primary modules: `RouteCoordinator` and its routing tests.
