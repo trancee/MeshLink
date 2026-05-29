@@ -54,9 +54,9 @@ The repository now has:
 
 The first public release still needs:
 
-- the final public-distribution license beyond the conservative pre-release rights notice in `LICENSE`
 - artifact publishing and signing configuration for `:meshlink`
 - consumer smoke validation against the released distribution path
+- a maintainer-reviewed first release PR before the initial `release-please` release is merged
 
 ## Related docs
 

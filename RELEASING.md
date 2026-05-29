@@ -129,8 +129,8 @@ follow-on workflows.
 
 Before cutting `0.1.0`, confirm all of the following:
 
-- the project license is final and replaces or confirms the conservative
-  pre-release rights notice in `LICENSE`
+- the project license in `LICENSE` still matches the intended public
+  distribution posture
 - `CHANGELOG.md` describes the release in reader-facing terms
 - `README.md` and the install docs match the current distribution shape
 - `SECURITY.md` and this runbook are still accurate
@@ -139,9 +139,25 @@ Before cutting `0.1.0`, confirm all of the following:
 - Maven Central publishing, signing, and consumer smoke validation are ready if
   the release will publish an artifact
 
-If you do not want the first release PR to sweep in the full historical commit
-range, set `bootstrap-sha` in `release-please-config.json` on `main` before the
-first live release-please run.
+The repository pins `bootstrap-sha` in `release-please-config.json` to the last
+pre-release-readiness commit on `main` so the first live release PR does not
+sweep the full historical pre-automation commit range. The first public release
+PR still needs maintainer curation before merge.
+
+## Release PR verification with `GITHUB_TOKEN`
+
+Because the repository currently uses the default `GITHUB_TOKEN` for
+`release-please`, release-please-created PRs do not automatically trigger the
+normal PR workflow.
+
+Before merging a release PR, maintainers should do one of the following:
+
+- run the verification bundle locally from the release PR branch, or
+- run the `ci` workflow manually with `workflow_dispatch` against the release
+  PR branch
+
+This is an operational constraint of GitHub Actions event propagation, not a
+special requirement from `release-please` itself.
 
 ## Verification bundle
 

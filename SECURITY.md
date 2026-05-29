@@ -5,9 +5,11 @@
 Please do not open a public GitHub issue for a suspected security problem.
 
 Use GitHub's private vulnerability reporting for this repository when it is
-available. If that private reporting path is not available to you, contact the
-project maintainers through a private channel before disclosing details
-publicly.
+available.
+
+If that private reporting path is not available to you, do not disclose the
+issue publicly. Instead, open a GitHub issue that contains no vulnerability
+details and requests a private reporting route from the maintainers.
 
 Include as much of the following as you can:
 
