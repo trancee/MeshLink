@@ -169,7 +169,7 @@ Do not mark a slice complete on code inspection alone.
 
 ### Phase 4 — Proof harness maintainability
 
-- [ ] **R12: Decompose the Android proof host and runtime** `risk:medium` `depends:[]` `breaking:allowed`
+- [x] **R12: Decompose the Android proof host and runtime** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: the Android proof activity is a host surface, not a 1,000-line runtime, permission, benchmark, and logging bundle.
   - Scope: split launch parsing, runtime ownership, benchmark payload helpers, receipt handling, and UI host responsibilities.
   - Primary modules: Android proof activity and the proof runtime helpers it currently contains.
