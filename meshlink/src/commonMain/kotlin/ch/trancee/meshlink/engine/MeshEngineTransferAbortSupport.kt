@@ -17,7 +17,7 @@ internal data class MeshEngineTransferAbortCallbacks(
 )
 
 internal class MeshEngineTransferAbortSupport(
-    private val state: MeshEngineTransferState,
+    private val transferRegistry: MeshEngineTransferRegistry,
     private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val callbacks: MeshEngineTransferAbortCallbacks,
     private val emitDiagnostic:
@@ -30,12 +30,30 @@ internal class MeshEngineTransferAbortSupport(
             Map<String, String>,
         ) -> Unit,
 ) {
+    constructor(
+        state: MeshEngineTransferState,
+        outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
+        callbacks: MeshEngineTransferAbortCallbacks,
+        emitDiagnostic:
+            (
+                DiagnosticCode,
+                DiagnosticSeverity,
+                String,
+                String?,
+                DiagnosticReason?,
+                Map<String, String>,
+            ) -> Unit,
+    ) : this(
+        transferRegistry = state.transferRegistry,
+        outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
+        callbacks = callbacks,
+        emitDiagnostic = emitDiagnostic,
+    )
+
     suspend fun abortLocalTransfers(reasonCode: TransferAbortReasonCode): Unit {
         val outboundSessions = outboundTransferLifecycleSupport.takeAllSessions()
-        val inboundSessions = state.inboundTransfers.values.toList()
-        val relaySessions = state.relayTransfers.values.toList()
-        state.inboundTransfers.clear()
-        state.relayTransfers.clear()
+        val inboundSessions = transferRegistry.takeAllInboundSessions()
+        val relaySessions = transferRegistry.takeAllRelaySessions()
 
         outboundSessions.forEach { session ->
             val abortFrame = abortFrameFor(session.transferId, reasonCode)
@@ -138,7 +156,7 @@ internal class MeshEngineTransferAbortSupport(
 }
 
 internal fun buildMeshEngineRuntimeTransferAbortSupport(
-    state: MeshEngineTransferState,
+    transferRegistry: MeshEngineTransferRegistry,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     sendTransferTowardsDestination:
@@ -156,7 +174,7 @@ internal fun buildMeshEngineRuntimeTransferAbortSupport(
         ) -> Unit,
 ): MeshEngineTransferAbortSupport {
     return MeshEngineTransferAbortSupport(
-        state = state,
+        transferRegistry = transferRegistry,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
         callbacks =
             MeshEngineTransferAbortCallbacks(

@@ -8,9 +8,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
-import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.OutboundTransferSession
-import ch.trancee.meshlink.transfer.RelayTransferSession
 import kotlin.time.TimeSource
 
 internal data class MeshEngineRuntimeFoundationAssembly(
@@ -24,12 +21,19 @@ internal data class MeshEngineRuntimeSharedState(
     val deliveryRetryScheduler: DeliveryRetryScheduler,
     val powerPolicyController: PowerPolicyController,
     val sessionRegistry: MeshEngineSessionRegistry,
-    val outboundTransfers: MutableMap<String, OutboundTransferSession>,
-    val inboundTransfers: MutableMap<String, InboundTransferSession>,
-    val relayTransfers: MutableMap<String, RelayTransferSession>,
+    val transferRegistry: MeshEngineTransferRegistry,
     val sequenceGenerator: MeshEngineSequenceGenerator,
     val runtimePolicies: MeshEngineRuntimePolicies,
-)
+) {
+    val outboundTransfers: Map<String, ch.trancee.meshlink.transfer.OutboundTransferSession>
+        get() = transferRegistry.outboundTransfersSnapshot()
+
+    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
+        get() = transferRegistry.inboundTransfersSnapshot()
+
+    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
+        get() = transferRegistry.relayTransfersSnapshot()
+}
 
 internal data class MeshEngineRuntimeRoutingAndTrustPhase(
     val routingSupport: MeshEngineRoutingSupport,
@@ -71,9 +75,7 @@ private fun buildMeshEngineRuntimeSharedState(
                 region = environment.config.regulatoryRegion,
             ),
         sessionRegistry = MeshEngineSessionRegistry(),
-        outboundTransfers = linkedMapOf(),
-        inboundTransfers = linkedMapOf(),
-        relayTransfers = linkedMapOf(),
+        transferRegistry = MeshEngineTransferRegistry(),
         sequenceGenerator = MeshEngineSequenceGenerator(environment.localIdentity),
         runtimePolicies =
             buildMeshEngineRuntimePolicies(

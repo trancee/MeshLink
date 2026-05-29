@@ -60,8 +60,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
         buildMeshEngineRuntimeTransferSupport(
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
             isLocalPeerId = session.isLocalPeerId,
-            inboundTransfers = sharedState.inboundTransfers,
-            relayTransfers = sharedState.relayTransfers,
+            transferRegistry = sharedState.transferRegistry,
             outboundTransferLifecycleSupport =
                 outboundDeliveryPhase.outboundTransferLifecycleSupport,
             sendEncryptedWireFrame = session.sendEncryptedWireFrame,
@@ -167,7 +166,7 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
         )
     val outboundTransferLifecycleSupport =
         buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
-            outboundTransfers = sharedState.outboundTransfers,
+            transferRegistry = sharedState.transferRegistry,
             prepareOutboundTransferSession =
                 outboundTransferPreparationSupport::prepareOutboundTransferSession,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,

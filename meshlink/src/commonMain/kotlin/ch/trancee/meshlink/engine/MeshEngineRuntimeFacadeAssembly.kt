@@ -73,8 +73,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
     val lifecycleSupport =
         buildMeshEngineRuntimeLifecycleSupport(
             runtimeSurface = environment.compatibilitySurface,
-            inboundTransfers = sharedState.inboundTransfers,
-            relayTransfers = sharedState.relayTransfers,
+            transferRegistry = sharedState.transferRegistry,
             ensureTransportCollector = transportCollector::ensureStarted,
             stopTransportCollector = transportCollector::stop,
             startTransport = environment.platformBridge::start,

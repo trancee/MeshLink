@@ -137,7 +137,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it deepens the coordinator pattern instead of letting assembly files become policy grab-bags.
   - Verify: `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify`
 
-- [ ] **R08: Concentrate session and transfer registry mutations** `risk:high` `depends:[R07]` `breaking:allowed`
+- [x] **R08: Concentrate session and transfer registry mutations** `risk:high` `depends:[R07]` `breaking:allowed`
   > After this: session and transfer lifecycle mutations live behind one tighter seam instead of being spread across many support modules.
   - Scope: reduce cross-file mutation sprawl for session ownership, transfer lifecycle, and registry bookkeeping.
   - Primary modules: session registry, session support, transfer support, inbound-transfer support, relay-transfer support.
