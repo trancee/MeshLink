@@ -8,6 +8,7 @@ settings:
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_ASSET_PATHS: '""'
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
     FRAMEWORK_SEARCH_PATHS: '$(inherited) "$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
     GENERATE_INFOPLIST_FILE: NO
     INFOPLIST_FILE: Support/Info.plist

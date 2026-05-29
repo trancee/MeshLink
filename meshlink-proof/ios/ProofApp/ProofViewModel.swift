@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import MeshLink
 import SwiftUI
@@ -39,9 +38,7 @@ final class ProofViewModel: ObservableObject {
     private var peerBytesByValue: [String: [UInt8]] = [:]
     private var pendingBenchmarkReceipts: [String: PendingBenchmarkReceipt] = [:]
     private var benchmarkTokenCounter: UInt64 = 0
-    private var capturedStdoutBuffer: String = ""
-    private var stdoutPipe: Pipe?
-    private var stdoutOriginalDescriptor: Int32 = -1
+    private let transportLogCapture = ProofTransportLogCapture()
 
     init() {
         launchConfig = ProofLaunchConfig.fromEnvironment(ProcessInfo.processInfo.environment)
@@ -56,7 +53,12 @@ final class ProofViewModel: ObservableObject {
         }
         runtime = meshLink(config: config)
         if resolvedLaunchConfig.benchmarkTransport == .meshLink {
-            startTransportLogCaptureIfNeeded()
+            transportLogCapture.startIfNeeded(
+                launchConfig: resolvedLaunchConfig,
+                appendLog: { [weak self] message in
+                    self?.appendLog(message)
+                }
+            )
             bindFlows()
         }
         appendLog(
@@ -66,32 +68,17 @@ final class ProofViewModel: ObservableObject {
     }
 
     func start() {
-        if launchConfig.benchmarkTransport == .gattPrototype {
-            guard let benchmarkPayloadBytes = launchConfig.benchmarkPayloadBytes else {
-                stateText = "Error(GATT benchmark)"
-                appendLog("gatt.benchmark.start() failed: MESHLINK_BENCHMARK_PAYLOAD_BYTES is required for GATT benchmark mode")
-                return
+        if ProofBenchmarkModeController.startIfNeeded(
+            launchConfig: launchConfig,
+            gattBenchmarkClient: gattBenchmarkClient,
+            gattNotifyBenchmarkServer: gattNotifyBenchmarkServer,
+            setState: { [weak self] state in
+                self?.stateText = state
+            },
+            appendLog: { [weak self] message in
+                self?.appendLog(message)
             }
-            if launchConfig.disableAutoSend {
-                stateText = "Error(GATT benchmark)"
-                appendLog("gatt.benchmark.start() failed: passive iOS GATT benchmark mode is not implemented")
-                return
-            }
-            gattBenchmarkClient.start(payloadBytes: benchmarkPayloadBytes)
-            return
-        }
-        if launchConfig.benchmarkTransport == .gattNotifyPrototype {
-            guard let benchmarkPayloadBytes = launchConfig.benchmarkPayloadBytes else {
-                stateText = "Error(GATT notify benchmark)"
-                appendLog("gatt.notify.start() failed: MESHLINK_BENCHMARK_PAYLOAD_BYTES is required for GATT notify benchmark mode")
-                return
-            }
-            if launchConfig.disableAutoSend {
-                stateText = "Error(GATT notify benchmark)"
-                appendLog("gatt.notify.start() failed: passive iOS GATT notify benchmark mode is not implemented")
-                return
-            }
-            gattNotifyBenchmarkServer.start(payloadBytes: benchmarkPayloadBytes)
+        ) {
             return
         }
 
@@ -121,14 +108,14 @@ final class ProofViewModel: ObservableObject {
     }
 
     func stop() {
-        if launchConfig.benchmarkTransport == .gattPrototype {
-            gattBenchmarkClient.stop()
-            appendLog("gatt.benchmark.stop() -> Stopped")
-            return
-        }
-        if launchConfig.benchmarkTransport == .gattNotifyPrototype {
-            gattNotifyBenchmarkServer.stop()
-            appendLog("gatt.notify.stop() -> Stopped")
+        if ProofBenchmarkModeController.stopIfNeeded(
+            launchConfig: launchConfig,
+            gattBenchmarkClient: gattBenchmarkClient,
+            gattNotifyBenchmarkServer: gattNotifyBenchmarkServer,
+            appendLog: { [weak self] message in
+                self?.appendLog(message)
+            }
+        ) {
             return
         }
         Task { @MainActor [weak self] in
@@ -157,7 +144,7 @@ final class ProofViewModel: ObservableObject {
             _ = await sendPayload(
                 to: peer,
                 payload: "hello mesh from iPhone".toKotlinByteArray(),
-                priority: MeshLink.__DeliveryPriority.normal,
+                priority: DeliveryPriority.normal,
                 logPrefix: "mesh.send"
             )
         }
@@ -288,7 +275,7 @@ final class ProofViewModel: ObservableObject {
                 let result = await sendPayload(
                     to: receiptPeerId,
                     payload: receiptPayload.encode().toKotlinByteArray(),
-                    priority: MeshLink.__DeliveryPriority.high
+                    priority: DeliveryPriority.high
                 )
                 appendBenchmarkCorrelation(
                     role: "passive.receipt.result",
@@ -349,7 +336,7 @@ final class ProofViewModel: ObservableObject {
                 _ = await sendPayload(
                     to: peerId,
                     payload: "benchmark warmup".toKotlinByteArray(),
-                    priority: MeshLink.__DeliveryPriority.normal,
+                    priority: DeliveryPriority.normal,
                     benchmarkWarmup: true
                 )
                 try? await Task.sleep(nanoseconds: benchmarkWarmupSettlementDelayNanos)
@@ -384,7 +371,7 @@ final class ProofViewModel: ObservableObject {
                         )
                     }
                 }
-                let result = await sendPayload(to: peerId, payload: payload, priority: MeshLink.__DeliveryPriority.normal)
+                let result = await sendPayload(to: peerId, payload: payload, priority: DeliveryPriority.normal)
                 if let result {
                     appendLog(
                         "auto-send attempt \(attempt + 1) -> \(result) for \(peerId.value.suffix(6))"
@@ -519,52 +506,6 @@ final class ProofViewModel: ObservableObject {
         return String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), kibPerSecond)
     }
 
-    private func startTransportLogCaptureIfNeeded() {
-        guard launchConfig.benchmarkTransport == .meshLink,
-              launchConfig.transportTelemetryEnabled,
-              stdoutOriginalDescriptor == -1 else {
-            return
-        }
-        let pipe = Pipe()
-        fflush(stdout)
-        stdoutOriginalDescriptor = dup(STDOUT_FILENO)
-        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
-        stdoutPipe = pipe
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else {
-                return
-            }
-            let output = String(decoding: data, as: UTF8.self)
-            Task { @MainActor in
-                self?.ingestTransportLogOutput(output)
-            }
-        }
-    }
-
-    private func stopTransportLogCapture() {
-        guard stdoutOriginalDescriptor != -1 else {
-            return
-        }
-        fflush(stdout)
-        dup2(stdoutOriginalDescriptor, STDOUT_FILENO)
-        close(stdoutOriginalDescriptor)
-        stdoutOriginalDescriptor = -1
-        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
-        stdoutPipe = nil
-    }
-
-    private func ingestTransportLogOutput(_ output: String) {
-        capturedStdoutBuffer.append(output)
-        while let newlineRange = capturedStdoutBuffer.range(of: "\n") {
-            let line = String(capturedStdoutBuffer[..<newlineRange.lowerBound])
-            capturedStdoutBuffer.removeSubrange(capturedStdoutBuffer.startIndex...newlineRange.lowerBound)
-            if line.contains("MeshLinkTransport") {
-                appendLog(line)
-            }
-        }
-    }
-
     private func appendLog(_ message: String) {
         logs.append(message)
         if logs.count > 256 {
@@ -659,161 +600,7 @@ final class ProofViewModel: ObservableObject {
     }
 }
 
-private final class PendingBenchmarkReceipt {
-    private var continuation: CheckedContinuation<BenchmarkReceiptEnvelope?, Never>?
-    private var resolved = false
-
-    init(continuation: CheckedContinuation<BenchmarkReceiptEnvelope?, Never>) {
-        self.continuation = continuation
-    }
-
-    func resolve(_ receipt: BenchmarkReceiptEnvelope?) {
-        guard !resolved, let continuation else {
-            return
-        }
-        resolved = true
-        self.continuation = nil
-        continuation.resume(returning: receipt)
-    }
-}
-
-private struct BenchmarkPayloadEnvelope {
-    static let magic = Array("MLBM1000".utf8)
-    static let headerBytes = 16
-
-    let totalBytes: Int
-    let tokenHex: String
-
-    init(totalBytes: Int, tokenHex: String) {
-        precondition(totalBytes >= Self.headerBytes, "Benchmark payload must be at least \(Self.headerBytes) bytes")
-        precondition(tokenHex.count == 16, "Benchmark token must be 16 hex characters")
-        self.totalBytes = totalBytes
-        self.tokenHex = tokenHex
-    }
-
-    func encode() -> Data {
-        var bytes = [UInt8](unsafeUninitializedCapacity: totalBytes) { buffer, count in
-            for index in 0..<totalBytes {
-                buffer[index] = UInt8((index * 31) & 0xFF)
-            }
-            count = totalBytes
-        }
-        Self.magic.enumerated().forEach { index, byte in
-            bytes[index] = byte
-        }
-        tokenHex.toBytes().enumerated().forEach { index, byte in
-            bytes[Self.magic.count + index] = byte
-        }
-        return Data(bytes)
-    }
-
-    static func decode(_ data: Data) -> BenchmarkPayloadEnvelope? {
-        guard data.count >= Self.headerBytes else {
-            return nil
-        }
-        let bytes = [UInt8](data)
-        guard Array(bytes.prefix(Self.magic.count)) == Self.magic else {
-            return nil
-        }
-        let tokenBytes = bytes[Self.magic.count..<Self.headerBytes]
-        let tokenHex = tokenBytes.map { String(format: "%02x", $0) }.joined()
-        return BenchmarkPayloadEnvelope(totalBytes: data.count, tokenHex: tokenHex)
-    }
-}
-
-private struct BenchmarkReceiptEnvelope {
-    static let prefix = "MLBM1_ACK:"
-
-    let tokenHex: String
-    let totalBytes: Int
-
-    func encode() -> Data {
-        Data("\(Self.prefix)\(tokenHex):\(totalBytes)".utf8)
-    }
-
-    static func decode(_ data: Data) -> BenchmarkReceiptEnvelope? {
-        guard let text = String(data: data, encoding: .utf8), text.hasPrefix(Self.prefix) else {
-            return nil
-        }
-        let payload = text.dropFirst(Self.prefix.count)
-        let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
-        guard parts.count == 2, let totalBytes = Int(parts[1]) else {
-            return nil
-        }
-        return BenchmarkReceiptEnvelope(tokenHex: parts[0], totalBytes: totalBytes)
-    }
-}
-
-private struct ProofLaunchConfig {
-    let appId: String
-    let powerMode: PowerMode
-    let powerModeLabel: String
-    let benchmarkPayloadBytes: Int?
-    let benchmarkBatteryLevel: Float?
-    let benchmarkIsCharging: Bool?
-    let benchmarkColdStart: Bool
-    let disableAutoSend: Bool
-    let transportTelemetryEnabled: Bool
-    let benchmarkTransport: ProofBenchmarkTransport
-
-    static func fromEnvironment(_ environment: [String: String]) -> ProofLaunchConfig {
-        ProofLaunchConfig(
-            appId: environment["MESHLINK_APP_ID"]?.nonEmpty ?? "demo.meshlink",
-            powerMode: parsePowerMode(environment["MESHLINK_POWER_MODE"]),
-            powerModeLabel: parsePowerModeLabel(environment["MESHLINK_POWER_MODE"]),
-            benchmarkPayloadBytes: environment["MESHLINK_BENCHMARK_PAYLOAD_BYTES"].flatMap(Int.init),
-            benchmarkBatteryLevel: environment["MESHLINK_BENCHMARK_BATTERY_LEVEL"].flatMap(Float.init),
-            benchmarkIsCharging: parseBoolean(environment["MESHLINK_BENCHMARK_IS_CHARGING"]),
-            benchmarkColdStart: parseBoolean(environment["MESHLINK_BENCHMARK_COLD_START"]) ?? false,
-            disableAutoSend: parseBoolean(environment["MESHLINK_DISABLE_AUTO_SEND"]) ?? false,
-            transportTelemetryEnabled: parseBoolean(environment["MESHLINK_TRANSPORT_TELEMETRY"]) ?? false,
-            benchmarkTransport: ProofBenchmarkTransport.parse(environment["MESHLINK_BENCHMARK_TRANSPORT"])
-        )
-    }
-
-    private static func parsePowerMode(_ rawValue: String?) -> PowerMode {
-        switch rawValue?.lowercased() {
-        case "performance":
-            return PowerMode.Performance.shared
-        case "balanced":
-            return PowerMode.Balanced.shared
-        case "powersaver":
-            return PowerMode.PowerSaver.shared
-        default:
-            return PowerMode.Automatic.shared
-        }
-    }
-
-    private static func parsePowerModeLabel(_ rawValue: String?) -> String {
-        switch rawValue?.lowercased() {
-        case "performance":
-            return "Performance"
-        case "balanced":
-            return "Balanced"
-        case "powersaver":
-            return "PowerSaver"
-        default:
-            return "Automatic"
-        }
-    }
-
-    private static func parseBoolean(_ rawValue: String?) -> Bool? {
-        switch rawValue?.lowercased() {
-        case "1", "true", "yes":
-            return true
-        case "0", "false", "no":
-            return false
-        default:
-            return nil
-        }
-    }
-}
-
 private extension String {
-    var nonEmpty: String? {
-        isEmpty ? nil : self
-    }
-
     func toKotlinByteArray() -> KotlinByteArray {
         Data(utf8).toKotlinByteArray()
     }

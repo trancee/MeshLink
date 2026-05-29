@@ -176,7 +176,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it is self-contained and yields immediate maintainability gains without touching the normative reference-app surface.
   - Verify: `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug`
 
-- [ ] **R13: Decompose the iOS proof view model by mode** `risk:medium` `depends:[]` `breaking:allowed`
+- [x] **R13: Decompose the iOS proof view model by mode** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: MeshLink mode, GATT benchmark modes, transport-log capture, and benchmark receipt flow stop competing inside one large view model.
   - Scope: split the current proof view model by runtime mode and responsibility.
   - Primary modules: iOS proof view model and its benchmark-mode helpers.
