@@ -250,8 +250,7 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
 
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
-    scanner?.stopScan(scanCallback)
-    advertiser?.stopAdvertising(advertiseCallback)
+    discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null
     synchronized(pendingConnectLock) {

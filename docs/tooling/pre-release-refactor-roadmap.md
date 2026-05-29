@@ -146,7 +146,7 @@ Do not mark a slice complete on code inspection alone.
 
 ### Phase 3 — Platform transport seam cleanup
 
-- [ ] **R09: Split Android transport discovery lifecycle from the adapter** `risk:high` `depends:[R05]` `breaking:allowed`
+- [x] **R09: Split Android transport discovery lifecycle from the adapter** `risk:high` `depends:[R05]` `breaking:allowed`
   > After this: the Android BLE transport adapter coordinates transport concerns instead of directly owning every advertise, scan, and discovery-resume detail.
   - Scope: isolate discovery and advertising lifecycle behavior behind a narrower seam.
   - Primary modules: Android BLE transport adapter, scan support, discovery helpers, advertising helpers.

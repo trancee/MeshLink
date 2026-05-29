@@ -123,25 +123,7 @@ internal fun BleTransportAdapter.resolvePeer(peerId: PeerId): DiscoveredPeer? {
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.refreshDiscoveryState(): Unit {
     try {
-        log(
-            "refreshDiscoveryState started=$started suspended=$discoverySuspended scanner=${scanner != null} advertiser=${advertiser != null} psm=${currentDiscoveryPayload.l2capPsm}"
-        )
-        scanner?.stopScan(scanCallback)
-        advertiser?.stopAdvertising(advertiseCallback)
-        if (!started || discoverySuspended) {
-            log(
-                "refreshDiscoveryState skipped after stop started=$started suspended=$discoverySuspended"
-            )
-            return
-        }
-        ensurePermissionsGranted()
-        scanner?.startScan(buildScanFilters(), buildScanSettings(currentPowerProfile), scanCallback)
-        log("scan started")
-        advertiser?.startAdvertising(
-            buildAdvertiseSettings(currentPowerProfile),
-            buildAdvertiseData(currentDiscoveryPayload),
-            advertiseCallback,
-        )
+        discoveryLifecycle.refresh(started = started, hardware = discoveryHardware())
     } catch (exception: SecurityException) {
         throw androidPermissionDenied(exception)
     }

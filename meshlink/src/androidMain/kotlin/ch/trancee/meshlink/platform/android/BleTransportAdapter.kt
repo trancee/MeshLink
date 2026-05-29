@@ -1,12 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
@@ -102,41 +98,22 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
-    internal var discoverySuspended: Boolean = false
-    internal var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
-    internal var currentDiscoveryPayload: BleDiscoveryPayload =
-        buildDiscoveryPayload(
+    internal val discoveryLifecycle =
+        BleTransportDiscoveryLifecycle(
             appId = appId,
             localKeyHash = localKeyHash,
-            currentPowerProfile = currentPowerProfile,
-            l2capPsm = 0u,
+            handleScanResult = ::handleScanResult,
+            ensurePermissionsGranted = ::ensurePermissionsGranted,
+            log = ::log,
         )
 
+    internal val currentDiscoveryPayload: BleDiscoveryPayload
+        get() = discoveryLifecycle.currentDiscoveryPayload
+
+    internal val currentPowerProfile: PowerProfile
+        get() = discoveryLifecycle.currentPowerProfile
+
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
-
-    internal val advertiseCallback =
-        object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-                log(
-                    "advertising started mode=${settingsInEffect.mode} tx=${settingsInEffect.txPowerLevel} connectable=${settingsInEffect.isConnectable}"
-                )
-            }
-
-            override fun onStartFailure(errorCode: Int) {
-                log("advertising failed errorCode=$errorCode")
-            }
-        }
-
-    internal val scanCallback =
-        object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                handleScanResult(result)
-            }
-
-            override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                results.forEach(::handleScanResult)
-            }
-        }
 
     override suspend fun start(): Unit {
         startTransport()
