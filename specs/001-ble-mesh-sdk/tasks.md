@@ -159,7 +159,7 @@ semantics.
 - [X] T036 Run format, static analysis, coverage, and API compatibility gates against `settings.gradle.kts`, `meshlink/build.gradle.kts`, and `benchmarks/build.gradle.kts`, and update the BCV API dump files under `meshlink/api/android/` and `meshlink/api/jvm/` as needed
 - [X] T037 [P] Add remaining Wycheproof vectors and regression coverage in `meshlink/src/commonTest/resources/wycheproof/` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/crypto/WycheproofRegressionTest.kt`
 - [X] T038 [P] Implement JVM benchmark suites in `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/CryptoBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/RoutingBenchmark.kt`, `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/WireCodecBenchmark.kt`, and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/ConvergenceBenchmark.kt`
-- [X] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
+- [X] T039 [P] Add Android automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`, and `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`
 - [X] T040 [P] Add iOS automated proof-app benchmarks for throughput, latency, LOW-power scan duty, and cold start in `meshlink-proof/ios/ProofBenchmarks/TransportPerformanceBenchmark.swift`, `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and `meshlink-proof/ios/ProofBenchmarks/ColdStartBenchmark.swift`
 - [X] T041 [P] Add 8-peer steady-state memory-budget validation and allocation measurement in `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/integration/MemoryBudgetIntegrationTest.kt` and `benchmarks/src/jvmMain/kotlin/ch/trancee/meshlink/benchmarks/MemoryBudgetBenchmark.kt`
 - [X] T042 [P] Record JVM, Android, iOS, convergence, cold-start, power, and memory baselines in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
@@ -234,7 +234,7 @@ semantics.
 
 **Purpose**: Isolate why passive-peer proof receipts still expire `UNREACHABLE` on the return path even when the sender-to-passive leg appears healthy enough to trigger receipt logic.
 
-- [X] T065 Add token-correlated proof-receipt diagnostics in `meshlink-proof/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt` and `meshlink-proof/ios/ProofApp/ProofViewModel.swift` so sender/passive logs capture token, peer, current state, known peers, and recent peer/diagnostic context at receipt send / receipt timeout boundaries
+- [X] T065 Add token-correlated proof-receipt diagnostics in `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt` and `meshlink-proof/ios/ProofApp/ProofViewModel.swift` so sender/passive logs capture token, peer, current state, known peers, and recent peer/diagnostic context at receipt send / receipt timeout boundaries
 - [X] T066 Re-run one minimal recipient-confirmed physical repro (iPhone 15 -> Samsung, 256-byte MeshLink path) with the new token-correlated diagnostics and retain the resulting sender/passive evidence in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
 - [X] T067 Investigate and implement one bounded return-path stability remediation for passive-peer proof receipts on the MeshLink path
 - [X] T068 Re-run the recipient-confirmed Samsung/OPPO matrix after the bounded remediation and retain the resulting evidence in the durable docs
@@ -281,7 +281,7 @@ release-readiness claim.
 - [X] T076 [P] Add Android/iOS proof-benchmark coverage for `SC-006` by
   measuring the 1-hop, 256-byte LOW-power delivery target after peer discovery
   and connection establishment, retaining the scored runs from
-  `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
+  `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`
   and `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   recording the resulting evidence in `specs/001-ble-mesh-sdk/research.md`.
 - [X] T077 Mirror the `SC-001` timed measurement method in
@@ -381,7 +381,7 @@ connection-interval floor without rewriting completed delivery history.
   benchmarks to assert LOW-tier maintained connection intervals of `>= 500 ms`,
   alongside the existing scan-duty and 256-byte latency checks, in
   `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/power/PowerPolicyTest.kt`,
-  `meshlink-proof/android/app/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
+  `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt`,
   `meshlink-proof/ios/ProofBenchmarks/PowerProfileBenchmark.swift`, and
   `specs/001-ble-mesh-sdk/research.md`.
 - [X] T090 Sync `specs/001-ble-mesh-sdk/spec.md`,
@@ -489,7 +489,7 @@ shows that a new branch can plausibly close iOS `SC-004`.
   platform API path while still retaining recipient-confirmed semantics. The
   first chosen branch is an iOS peripheral GATT notification host plus Android
   central GATT benchmark client in `meshlink-proof/ios/ProofApp` and
-  `meshlink-proof/android/app/src/main/kotlin/ch/trancee/meshlink/proof/android`.
+  `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android`.
 - [X] T100 Run fresh physical Samsung and OPPO reference-peer reruns for that
   new proof branch, retain raw sender / recipient evidence in
   `benchmarks/README.md`,

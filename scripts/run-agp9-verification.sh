@@ -10,5 +10,5 @@ cd "$repo_root"
   :meshlink-reference:localCheck \
   :benchmarks:check \
   verifyJvmSmokeBenchmarks \
-  :meshlink-proof:android:meshlink-proof-android-app:check \
+  :meshlink-proof:android:check \
   verifyDocs

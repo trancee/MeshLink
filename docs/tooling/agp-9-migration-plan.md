@@ -14,8 +14,8 @@ The AGP 9 migration did more than bump versions. It changed module shape:
 |---|---|
 | `:meshlink` | KMP library using `com.android.kotlin.multiplatform.library` |
 | `:meshlink-reference` | Shared KMP UI/state/framework-export module |
-| `:meshlink-reference:android-app` | Android application entry point |
-| `:meshlink-proof:android:meshlink-proof-android-app` | Pure Android app using AGP built-in Kotlin |
+| `:meshlink-reference:android` | Android application entry point |
+| `:meshlink-proof:android` | Pure Android app using AGP built-in Kotlin |
 
 ## Current verified toolchain
 
@@ -31,7 +31,7 @@ invariants intact:
 
 - `:meshlink` and `:meshlink-reference` stay on the AGP 9 KMP Android library
   plugin
-- `:meshlink-reference:android-app` stays the Android application entry point
+- `:meshlink-reference:android` stays the Android application entry point
 - `:meshlink-reference` remains the iOS framework-export anchor
 - `:meshlink-reference:localCheck`, `:meshlink-reference:installDebug`, and
   `:meshlink-reference:connectedDebugAndroidTest` stay available as the stable

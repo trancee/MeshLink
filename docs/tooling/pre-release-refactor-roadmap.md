@@ -85,7 +85,7 @@ Do not mark a slice complete on code inspection alone.
 | iOS-specific `:meshlink` transport or platform glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` |
 | Performance-sensitive `:meshlink` paths | the matching bundle above plus `./gradlew verifyJvmSmokeBenchmarks` |
 | Docs only | `./gradlew verifyDocs` |
-| Android proof app host refactor | `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug` |
+| Android proof app host refactor | `./gradlew :meshlink-proof:android:assembleDebug` |
 | iOS proof app host refactor | `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build` |
 
 ## Roadmap overview
@@ -180,7 +180,7 @@ Do not mark a slice complete on code inspection alone.
   - Scope: split launch parsing, runtime ownership, benchmark payload helpers, receipt handling, and UI host responsibilities.
   - Primary modules: Android proof activity and the proof runtime helpers it currently contains.
   - Why this slice: it is self-contained and yields immediate maintainability gains without touching the normative reference-app surface.
-  - Verify: `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug`
+  - Verify: `./gradlew :meshlink-proof:android:assembleDebug`
 
 - [x] **R13: Decompose the iOS proof view model by mode** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: MeshLink mode, GATT benchmark modes, transport-log capture, and benchmark receipt flow stop competing inside one large view model.

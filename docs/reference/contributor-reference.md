@@ -16,7 +16,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | reference-app shared UI, Android glue, or shared state | `./scripts/run-reference-local-check.sh` |
-| Android proof-app host or benchmark-only harness logic | `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug` |
+| Android proof-app host or benchmark-only harness logic | `./gradlew :meshlink-proof:android:assembleDebug` |
 | iOS proof-app host or benchmark-only harness logic | `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build` |
 | reference-app release artifact or framework export | `./gradlew :meshlink-reference:build` |
 | build tooling or module shape | `./scripts/run-agp9-verification.sh` or `./gradlew checkAgp9Invariants` plus the relevant narrower module checks |

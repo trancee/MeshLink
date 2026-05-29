@@ -19,10 +19,9 @@ rootProject.name = "meshlink"
 include(":meshlink")
 include(":benchmarks")
 include(":meshlink-reference")
-include(":meshlink-reference:android-app")
-include(":meshlink-proof:android:app")
+include(":meshlink-reference:android")
+include(":meshlink-proof:android")
 
 project(":meshlink-reference").projectDir = file("meshlink-reference")
-project(":meshlink-reference:android-app").projectDir = file("meshlink-reference/android-app")
-project(":meshlink-proof:android:app").projectDir = file("meshlink-proof/android/app")
-project(":meshlink-proof:android:app").name = "meshlink-proof-android-app"
+project(":meshlink-reference:android").projectDir = file("meshlink-reference/android")
+project(":meshlink-proof:android").projectDir = file("meshlink-proof/android")

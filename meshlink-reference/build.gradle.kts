@@ -113,22 +113,22 @@ val localCheck by tasks.registering {
     dependsOn("check", "linkDebugFrameworkIosArm64", "linkDebugFrameworkIosSimulatorArm64")
 }
 
-tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android-app:ktfmtFormat") }
+tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android:ktfmtFormat") }
 
-tasks.named("check") { dependsOn(":meshlink-reference:android-app:check") }
+tasks.named("check") { dependsOn(":meshlink-reference:android:check") }
 
-tasks.named("build") { dependsOn(":meshlink-reference:android-app:build") }
+tasks.named("build") { dependsOn(":meshlink-reference:android:build") }
 
 val installDebug by tasks.registering {
     group = "install"
-    description = "Installs the Android debug reference app from the nested Android app module."
-    dependsOn(":meshlink-reference:android-app:installDebug")
+    description = "Installs the Android debug reference app from the nested Android host module."
+    dependsOn(":meshlink-reference:android:installDebug")
 }
 
 val connectedDebugAndroidTest by tasks.registering {
     group = "verification"
-    description = "Runs Android connected debug tests for the nested reference Android app module."
-    dependsOn(":meshlink-reference:android-app:connectedDebugAndroidTest")
+    description = "Runs Android connected debug tests for the nested reference Android host module."
+    dependsOn(":meshlink-reference:android:connectedDebugAndroidTest")
 }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)

@@ -17,7 +17,7 @@ The repository now uses the tools in these scopes:
 They are intentionally **not** applied to:
 
 - `:benchmarks`
-- `:meshlink-proof:android:meshlink-proof-android-app`
+- `:meshlink-proof:android`
 
 A root convenience task now generates the useful Dokka outputs together:
 
@@ -64,7 +64,7 @@ reference docs would mostly add noise.
 
 ### Why not the proof app
 
-`:meshlink-proof:android:meshlink-proof-android-app` is an Android application
+`:meshlink-proof:android` is an Android application
 module used for retained proof workflows, not a reusable library module. Dokka
 would not add meaningful value there.
 

@@ -261,10 +261,10 @@ scored evidence instead of raw harness failures:
 
 Fresh retained evidence from this repository state:
 
-- Android install command: `./gradlew :meshlink-proof:android:meshlink-proof-android-app:installDebug --console=plain`
+- Android install command: `./gradlew :meshlink-proof:android:installDebug --console=plain`
   - result: `BUILD SUCCESSFUL`
 - Android scored benchmark command:
-  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-proof:android:meshlink-proof-android-app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
+  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-proof:android:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
   - result: `BUILD SUCCESSFUL`
   - sender Samsung line:
     `BENCHMARK transport bytes=256 elapsedMs=411 throughputKBps=0.61 result=Sent`
@@ -365,7 +365,7 @@ Fresh retained verification from this repository state:
     - fixed `PowerMode.PowerSaver` also resolves `connectionIntervalMillis=500`
     - API diagnostics expose `connectionIntervalMillis` in `POWER_MODE_CHANGED`
 - Android proof benchmark compile gate:
-  `./gradlew :meshlink-proof:android:meshlink-proof-android-app:compileDebugAndroidTestKotlin --console=plain`
+  `./gradlew :meshlink-proof:android:compileDebugAndroidTestKotlin --console=plain`
   - result: `BUILD SUCCESSFUL`
   - benchmark assertion now requires `connectionIntervalMillis=500` on the
     LOW-power diagnostic line

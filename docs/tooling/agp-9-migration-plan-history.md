@@ -25,11 +25,15 @@ Current module shape on `main`:
 
 - `:meshlink` → KMP library using `com.android.kotlin.multiplatform.library`
 - `:meshlink-reference` → shared KMP UI/state/framework-export module
-- `:meshlink-reference:android-app` → Android entry-point module
-- `:meshlink-proof:android:meshlink-proof-android-app` → pure Android app using AGP built-in Kotlin
+- `:meshlink-reference:android` → Android entry-point module
+- `:meshlink-proof:android` → pure Android app using AGP built-in Kotlin
 
 The remaining sections are kept as a historical execution record showing the
 migration order, rationale, and file-level split plan from the pre-AGP-9 state.
+For readability, later repository cleanups have been folded in here so the file
+uses the current `android/` module names and paths instead of the temporary
+`android-app` / `meshlink-proof-android-app` labels used during the original
+migration.
 
 ## Quick maintenance summary
 
@@ -43,7 +47,7 @@ replaces them:
 | Invariant | Current expectation |
 |---|---|
 | shared KMP Android library modules | `:meshlink` and `:meshlink-reference` stay on the AGP 9 KMP Android library plugin |
-| Android application entry point | `:meshlink-reference:android-app` stays the reference app's Android application module |
+| Android application entry point | `:meshlink-reference:android` stays the reference app's Android application module |
 | iOS framework-export anchor | `:meshlink-reference` remains the Xcode-facing framework-export module |
 | contributor compatibility tasks | `:meshlink-reference:localCheck`, `:meshlink-reference:installDebug`, and `:meshlink-reference:connectedDebugAndroidTest` stay available unless scripts and docs migrate together |
 
@@ -62,7 +66,7 @@ MeshLink hit both affected shapes:
 |---|---|---|
 | `:meshlink` | KMP + Android library | migrate to the AGP 9 KMP Android library plugin |
 | `:meshlink-reference` | KMP + Android application | split the Android app entry point out of the shared KMP module |
-| `:meshlink-proof:android:meshlink-proof-android-app` | pure Android app + `org.jetbrains.kotlin.android` | move to AGP 9 built-in Kotlin |
+| `:meshlink-proof:android` | pure Android app + `org.jetbrains.kotlin.android` | move to AGP 9 built-in Kotlin |
 
 That is why this migration changed module shape, not just tool versions.
 
@@ -72,7 +76,7 @@ The minimum-risk plan for this repository was:
 
 1. keep `:meshlink-reference` as the shared KMP module so iOS framework export
    and Xcode integration stayed anchored to the same module name
-2. add `:meshlink-reference:android-app` for the Android launcher, manifest,
+2. add `:meshlink-reference:android` for the Android launcher, manifest,
    and instrumentation surface
 3. migrate `:meshlink` to the AGP 9 KMP Android library plugin
 4. migrate the proof app off `org.jetbrains.kotlin.android` in the same branch
@@ -91,17 +95,17 @@ changing MeshLink runtime, public API, wire format, or dependency policy.
 |---|---|
 | `:meshlink` | shared KMP library using the AGP 9 KMP Android library plugin |
 | `:meshlink-reference` | shared KMP UI/state/framework-export module for Android and iOS |
-| `:meshlink-reference:android-app` | Android app entry point for the reference app |
-| `:meshlink-proof:android:meshlink-proof-android-app` | pure Android app using AGP 9 built-in Kotlin |
+| `:meshlink-reference:android` | Android app entry point for the reference app |
+| `:meshlink-proof:android` | pure Android app using AGP 9 built-in Kotlin |
 
 Key consequence: the iOS host project continued to build the
 `MeshLinkReference` framework from `:meshlink-reference`, while Android app
 install and connected-device tasks moved to
-`:meshlink-reference:android-app`.
+`:meshlink-reference:android`.
 
 ### Reference-app split boundary
 
-| Moves into `:meshlink-reference:android-app` | Stays in `:meshlink-reference` |
+| Moves into `:meshlink-reference:android` | Stays in `:meshlink-reference` |
 |---|---|
 | launcher `MainActivity` | shared Compose UI, navigation, controller, retention, export, and timeline logic |
 | Android manifest with `<application>` and launcher activity | Compose Multiplatform resources |
@@ -119,7 +123,7 @@ The migration was meant to stay green in commit order, not just at the end.
 
 | Commit | Goal | Result after the commit |
 |---|---|---|
-| `C01` | split the reference Android app from the shared KMP module while staying on AGP 8 | `:meshlink-reference` becomes a shared KMP + Android library module, `:meshlink-reference:android-app` owns the Android launcher and instrumentation surface, and iOS still builds from `:meshlink-reference` |
+| `C01` | split the reference Android app from the shared KMP module while staying on AGP 8 | `:meshlink-reference` becomes a shared KMP + Android library module, `:meshlink-reference:android` owns the Android launcher and instrumentation surface, and iOS still builds from `:meshlink-reference` |
 | `C02` | upgrade the toolchain and migrate the remaining Android plugin usage in one coordinated AGP 9 commit | Gradle 9 + AGP 9 are in place, `:meshlink` and `:meshlink-reference` use the AGP 9 KMP Android library plugin, and the proof app no longer applies `org.jetbrains.kotlin.android` |
 | `C03` | remove AGP 8 workarounds and normalize scripts, hooks, and docs around the final task graph | the lint override, reference-app command surface, and contributor docs all match the AGP 9 module layout |
 | `C04` | run the final full-repo verification bundle on the AGP 9 branch | the branch has fresh end-to-end build evidence instead of only phase-local checks |
@@ -151,9 +155,9 @@ without breaking configuration immediately:
 
 | File | Action | Exact patch intent |
 |---|---|---|
-| `settings.gradle.kts` | edit | Add `include(":meshlink-reference:android-app")` and `project(":meshlink-reference:android-app").projectDir = file("meshlink-reference/android-app")`. Do not rename the shared module. |
+| `settings.gradle.kts` | edit | Add `include(":meshlink-reference:android")` and `project(":meshlink-reference:android").projectDir = file("meshlink-reference/android")`. Do not rename the shared module. |
 | `meshlink-reference/build.gradle.kts` | edit | Switch `alias(libs.plugins.android.application)` to `alias(libs.plugins.android.library)`. Remove `applicationId`, `targetSdk`, `versionCode`, `versionName`, `testInstrumentationRunner`, and `installation`. Remove `androidMain` dependency on `libs.androidx.activity.compose`. Remove `androidInstrumentedTest` dependencies because those tests move to the new app module. Keep `namespace`, `compileSdk`, `minSdk`, `buildFeatures { compose = true }`, shared/iOS configuration, and current iOS framework export unchanged. |
-| `meshlink-reference/build.gradle.kts` | edit | Add task-compatibility glue so existing command surfaces keep working in commit 1: make `ktfmtFormat` depend on `:meshlink-reference:android-app:ktfmtFormat`; make `check` depend on `:meshlink-reference:android-app:check`; make `build` depend on `:meshlink-reference:android-app:assemble`; keep `localCheck` but add the new app-module verification dependency; add alias tasks `installDebug` and `connectedDebugAndroidTest` that delegate to the new app module. |
+| `meshlink-reference/build.gradle.kts` | edit | Add task-compatibility glue so existing command surfaces keep working in commit 1: make `ktfmtFormat` depend on `:meshlink-reference:android:ktfmtFormat`; make `check` depend on `:meshlink-reference:android:check`; make `build` depend on `:meshlink-reference:android:assemble`; keep `localCheck` but add the new app-module verification dependency; add alias tasks `installDebug` and `connectedDebugAndroidTest` that delegate to the new app module. |
 | `build.gradle.kts` | no change by default | Leave root Kover aggregation untouched in C01 unless verification proves the new app module must join the aggregate immediately. The goal of C01 is the module split, not coverage-policy expansion. |
 | `.githooks/pre-commit` | no change | Do not edit hooks in C01. The shared-module compatibility tasks above are what keep the current hook behavior truthful. |
 | `.githooks/pre-push` | no change | Same rationale as pre-commit: preserve the existing `:meshlink-reference:localCheck` surface in the shared module for now. |
@@ -168,27 +172,27 @@ without breaking configuration immediately:
 
 | File | Action | Exact patch intent |
 |---|---|---|
-| `meshlink-reference/android-app/build.gradle.kts` | add | Create a pure Android application module on the current AGP 8 toolchain. Apply `android.application`, `kotlin.android`, `kotlin.compose`, `detekt`, and `ktfmt`. Set a **distinct namespace** such as `ch.trancee.meshlink.reference.androidapp` while keeping `applicationId = "ch.trancee.meshlink.reference"`. Keep `compileSdk = 36`, `minSdk = 29`, `targetSdk = 35`, `versionCode = 1`, `versionName = "0.1.0"`, `testInstrumentationRunner`, Java 17, `installation { installOptions += "-g" }`, and `buildFeatures { compose = true }`. Add `implementation(project(":meshlink-reference"))`, `implementation(libs.androidx.activity.compose)`, and the existing Android instrumentation-test dependencies. |
-| `meshlink-reference/android-app/src/main/AndroidManifest.xml` | add via move | Rehome the current launcher manifest unchanged except for any package/namespace-sensitive cleanup required by the new app module namespace choice. |
-| `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt` | add via move | Move the current `MainActivity` unchanged. Keep its package and automation intent helpers stable so tests and scripts do not need rewriting in C01. |
-| `meshlink-reference/android-app/src/main/res/values/strings.xml` | add via move | Move the app-name resource unchanged. |
-| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` | add via move | Move unchanged. |
-| `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt` | add via move | Move unchanged. |
+| `meshlink-reference/android/build.gradle.kts` | add | Create a pure Android application module on the current AGP 8 toolchain. Apply `android.application`, `kotlin.android`, `kotlin.compose`, `detekt`, and `ktfmt`. Set a **distinct namespace** such as `ch.trancee.meshlink.reference.androidapp` while keeping `applicationId = "ch.trancee.meshlink.reference"`. Keep `compileSdk = 36`, `minSdk = 29`, `targetSdk = 35`, `versionCode = 1`, `versionName = "0.1.0"`, `testInstrumentationRunner`, Java 17, `installation { installOptions += "-g" }`, and `buildFeatures { compose = true }`. Add `implementation(project(":meshlink-reference"))`, `implementation(libs.androidx.activity.compose)`, and the existing Android instrumentation-test dependencies. |
+| `meshlink-reference/android/src/main/AndroidManifest.xml` | add via move | Rehome the current launcher manifest unchanged except for any package/namespace-sensitive cleanup required by the new app module namespace choice. |
+| `meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt` | add via move | Move the current `MainActivity` unchanged. Keep its package and automation intent helpers stable so tests and scripts do not need rewriting in C01. |
+| `meshlink-reference/android/src/main/res/values/strings.xml` | add via move | Move the app-name resource unchanged. |
+| `meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` | add via move | Move unchanged. |
+| `meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt` | add via move | Move unchanged. |
 
 #### Move files out of the shared KMP module
 
 Use `git mv` so the history stays readable:
 
 - `meshlink-reference/src/androidMain/AndroidManifest.xml`
-  → `meshlink-reference/android-app/src/main/AndroidManifest.xml`
+  → `meshlink-reference/android/src/main/AndroidManifest.xml`
 - `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
-  → `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
+  → `meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`
 - `meshlink-reference/src/androidMain/res/values/strings.xml`
-  → `meshlink-reference/android-app/src/main/res/values/strings.xml`
+  → `meshlink-reference/android/src/main/res/values/strings.xml`
 - `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
-  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
+  → `meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
 - `meshlink-reference/src/androidInstrumentedTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt`
-  → `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt`
+  → `meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppWorkflowTest.kt`
 
 #### Keep these files in place
 
@@ -207,7 +211,7 @@ Do **not** do these in the first commit:
 
 - change AGP, Gradle, or Kotlin versions
 - remove `org.jetbrains.kotlin.android` from the proof app
-- rewrite contributor docs to reference `:meshlink-reference:android-app` directly
+- rewrite contributor docs to reference `:meshlink-reference:android` directly
 - change the iOS Xcode project or `embedAndSignAppleFrameworkForXcode`
 - add AGP 9-specific DSL or plugin aliases
 
@@ -217,7 +221,7 @@ Run these commands after the last edit in the commit:
 
 ```bash
 ./scripts/run-reference-local-check.sh
-./gradlew --console=plain :meshlink-reference:android-app:check verifyDocs
+./gradlew --console=plain :meshlink-reference:android:check verifyDocs
 ```
 
 Expected result for this first commit:
@@ -225,7 +229,7 @@ Expected result for this first commit:
 - the branch is still on `Gradle 8.11.1` and `AGP 8.9.2`
 - `:meshlink-reference` is no longer an Android application module
 - Android install/test entry points now come from
-  `:meshlink-reference:android-app`
+  `:meshlink-reference:android`
 - iOS framework export still comes from `:meshlink-reference`
 
 ## Phase plan
@@ -305,13 +309,13 @@ This is the mandatory AGP 9 step for the reference app.
 
 - Convert `:meshlink-reference` from KMP + Android application into a shared KMP
   library module using the AGP 9 KMP Android library plugin.
-- Add a new module named `:meshlink-reference:android-app` for the Android app
+- Add a new module named `:meshlink-reference:android` for the Android app
   entry point.
 - Move the launcher activity, Android manifest, Android app-name resource, and
-  Android instrumented tests into `:meshlink-reference:android-app`.
+  Android instrumented tests into `:meshlink-reference:android`.
 - Keep Android platform services and Android platform adapters in the shared
   KMP module so the shared UI can still build Android-specific behavior.
-- Make `:meshlink-reference:android-app` depend on `:meshlink-reference` and
+- Make `:meshlink-reference:android` depend on `:meshlink-reference` and
   `androidx.activity:activity-compose`.
 - Configure the new Android app module for Compose and AGP 9 built-in Kotlin.
 - Keep the iOS host project calling
@@ -327,7 +331,7 @@ Examples worth preserving if practical:
 - `:meshlink-reference:localCheck` delegating to the new Android app module
   plus the shared iOS/framework checks
 - `:meshlink-reference:installDebug` delegating to
-  `:meshlink-reference:android-app:installDebug`
+  `:meshlink-reference:android:installDebug`
 - `:meshlink-reference:connectedDebugAndroidTest` delegating to the new app
   module task
 
@@ -341,7 +345,7 @@ command churn.
 - iOS framework export remains anchored to `:meshlink-reference`.
 - Shared UI/state code still builds for both Android and iOS.
 
-### Phase 4 — Migrate `:meshlink-proof:android:meshlink-proof-android-app`
+### Phase 4 — Migrate `:meshlink-proof:android`
 
 The proof app is not structurally blocked by KMP, but it still needs the AGP 9
 built-in Kotlin cleanup.
@@ -445,16 +449,16 @@ Run phase verification after each module move, not only at the end.
 ### After Phase 3
 
 - shared framework verification for iOS from `:meshlink-reference`
-- Android app verification from `:meshlink-reference:android-app`
+- Android app verification from `:meshlink-reference:android`
 - if alias tasks are kept, verify the alias entry points too
 
 ### After Phase 4
 
-- `./gradlew --console=plain :meshlink-proof:android:meshlink-proof-android-app:check`
+- `./gradlew --console=plain :meshlink-proof:android:check`
 
 ### Final branch verification
 
-- `./gradlew --console=plain :meshlink:build :benchmarks:check :meshlink-proof:android:meshlink-proof-android-app:check verifyDocs`
+- `./gradlew --console=plain :meshlink:build :benchmarks:check :meshlink-proof:android:check verifyDocs`
 - the reference-app Android verification bundle using either the preserved alias
   script or the new app-module task surface
 - iOS host verification through the existing Xcode project if the branch
@@ -467,7 +471,7 @@ The AGP 9 migration is complete when all of the following are true:
 - no KMP module still applies `com.android.application` or `com.android.library`
 - no pure Android module still applies `org.jetbrains.kotlin.android`
 - `:meshlink-reference` is a shared KMP module and the Android launcher lives in
-  `:meshlink-reference:android-app`
+  `:meshlink-reference:android`
 - the iOS host project still builds its shared framework successfully
 - contributor scripts and docs no longer point at obsolete Android application
   tasks

@@ -40,9 +40,9 @@ flowchart LR
     end
 
     subgraph Hosts["App hosts and validation surfaces"]
-        RefAndroid[":meshlink-reference:android-app<br/>Android host app"]
+        RefAndroid[":meshlink-reference:android<br/>Android host app"]
         RefIos["meshlink-reference/ios<br/>native iOS host project"]
-        ProofAndroid[":meshlink-proof-android-app<br/>Android proof app"]
+        ProofAndroid[":meshlink-proof:android<br/>Android proof app"]
         ProofIos["meshlink-proof/ios<br/>native iOS proof project"]
     end
 
@@ -75,11 +75,11 @@ flowchart LR
 |---|---|---|---|
 | `:meshlink` | Kotlin Multiplatform library | none | Shared SDK code: public API, runtime engine, routing, trust, transfer, wire codecs, and platform abstractions |
 | `:meshlink-reference` | Kotlin Multiplatform library | `:meshlink` | Shared reference-app shell, screens, session model, export logic, and automation support |
-| `:meshlink-reference:android-app` | Android application module | `:meshlink-reference` | Android host application for the shared reference-app shell |
+| `:meshlink-reference:android` | Android application module | `:meshlink-reference` | Android host application for the shared reference-app shell |
 | `meshlink-reference/ios` | Native Xcode project | exported `MeshLinkReference` framework from `:meshlink-reference` | iOS host application, signing, simulator, device, and UI-test workflows |
-| `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
-| `:meshlink-proof-android-app` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
+| `:meshlink-proof:android` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
 | `meshlink-proof/ios` | Native Xcode project | exported `MeshLink` framework from `:meshlink` | iOS proof and benchmark surface for physical validation |
+| `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
 
 ## Shared source sets
 
@@ -107,12 +107,12 @@ flowchart LR
 | `androidHostTest` | Android-specific shared-module tests |
 | `iosTest` | iOS-specific shared-module tests |
 | `androidInstrumentedTest` | Shared-module Android instrumented tests |
-| `android-app/src/main` | Android activity host and automation intent entry points |
-| `android-app/src/androidTest` | Android host-app device tests |
+| `android/src/main` | Android activity host and automation intent entry points |
+| `android/src/androidTest` | Android host-app device tests |
 | `ios/ReferenceApp` | Native iOS app wrapper around the shared Compose content |
 | `ios/ReferenceAppTests` | iOS unit-test target |
 | `ios/ReferenceAppUITests` | iOS UI-test target for the default self-validating workflow suite |
-| `ios/ReferenceAppPhysicalUITests` | dedicated iOS physical live-proof UI-test target kept out of the default scheme |
+| `ios/ReferenceAppPhysicalUITests` | Dedicated iOS physical live-proof UI-test target kept out of the default scheme |
 
 ## Platform entry points
 
@@ -120,7 +120,7 @@ flowchart LR
 |---|---|---|
 | Shared SDK factory | `meshLink(config)` | Default factory on platforms that do not need extra bootstrap input |
 | Android SDK factory | `meshLink(config, bootstrap)` + `meshLinkBootstrap(context)` | Android requires typed bootstrap input before factory creation |
-| Reference app Android host | `MainActivity` in `:meshlink-reference:android-app` | Chooses normal, scripted-ui, or live-proof automation startup |
+| Reference app Android host | `MainActivity` in `:meshlink-reference:android` | Chooses normal, scripted-ui, or live-proof automation startup |
 | Reference app iOS host | `createReferenceRootViewController()` / `createReferenceRootView()` | Wraps the shared Compose shell in UIKit containers |
 | Reference app Android platform services | `createPlatformServices(...)` | Supplies Android bootstrap, storage, readiness guidance, and automation variants |
 | Reference app iOS platform services | `createPlatformServices()` | Supplies iOS storage, readiness guidance, and automation variants |

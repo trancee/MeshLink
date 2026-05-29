@@ -96,8 +96,7 @@ apiValidation {
         listOf(
             "benchmarks",
             "meshlink-reference",
-            "android-app",
-            "meshlink-proof-android-app",
+            "android",
         )
     )
     apiDumpDirectory = "api"

@@ -32,13 +32,28 @@ def main() -> int:
     try:
         require_contains(
             "settings.gradle.kts",
-            'include(":meshlink-reference:android-app")',
+            'include(":meshlink-reference:android")',
             "settings must keep the nested reference Android app module included",
         )
         require_contains(
             "settings.gradle.kts",
-            'project(":meshlink-reference:android-app").projectDir = file("meshlink-reference/android-app")',
+            'project(":meshlink-reference:android").projectDir = file("meshlink-reference/android")',
             "settings must keep the nested reference Android app module directory mapping",
+        )
+        require_contains(
+            "settings.gradle.kts",
+            'include(":meshlink-proof:android")',
+            "settings must keep the nested proof Android app module included",
+        )
+        require_contains(
+            "settings.gradle.kts",
+            'project(":meshlink-proof:android").projectDir = file("meshlink-proof/android")',
+            "settings must keep the nested proof Android app module directory mapping",
+        )
+        require_not_contains(
+            "settings.gradle.kts",
+            'meshlink-proof-android-app',
+            "settings must not reintroduce the old proof Android app module rename",
         )
 
         require_contains(
@@ -106,7 +121,7 @@ def main() -> int:
         )
         require_contains(
             "meshlink-reference/build.gradle.kts",
-            'tasks.named("check") { dependsOn(":meshlink-reference:android-app:check") }',
+            'tasks.named("check") { dependsOn(":meshlink-reference:android:check") }',
             ":meshlink-reference must keep the shared-module check alias wired to the nested Android app module",
         )
         require_contains(
@@ -141,28 +156,28 @@ def main() -> int:
         )
 
         require_contains(
-            "meshlink-reference/android-app/build.gradle.kts",
+            "meshlink-reference/android/build.gradle.kts",
             "alias(libs.plugins.android.application)",
-            ":meshlink-reference:android-app must remain the Android application entry point",
+            ":meshlink-reference:android must remain the Android application entry point",
         )
         require_contains(
-            "meshlink-reference/android-app/build.gradle.kts",
+            "meshlink-reference/android/build.gradle.kts",
             'implementation(project(":meshlink-reference"))',
-            ":meshlink-reference:android-app must depend on the shared reference module",
+            ":meshlink-reference:android must depend on the shared reference module",
         )
         require_not_contains(
-            "meshlink-reference/android-app/build.gradle.kts",
+            "meshlink-reference/android/build.gradle.kts",
             "org.jetbrains.kotlin.android",
-            ":meshlink-reference:android-app must use AGP built-in Kotlin",
+            ":meshlink-reference:android must use AGP built-in Kotlin",
         )
 
         require_contains(
-            "meshlink-proof/android/app/build.gradle.kts",
+            "meshlink-proof/android/build.gradle.kts",
             "alias(libs.plugins.android.application)",
             "the proof app must remain a pure Android application module",
         )
         require_not_contains(
-            "meshlink-proof/android/app/build.gradle.kts",
+            "meshlink-proof/android/build.gradle.kts",
             "org.jetbrains.kotlin.android",
             "the proof app must not reintroduce the pure-Android Kotlin plugin",
         )
