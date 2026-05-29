@@ -86,10 +86,10 @@ Do not mark a slice complete on code inspection alone.
 
 ### Phase 1 — Reference-app architecture deepening
 
-- [ ] **R01: Land the session transition seam** `risk:medium` `depends:[]` `breaking:allowed`
+- [x] **R01: Land the session transition seam** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: supported, ended, solo, and lab session transitions run through one explicit transition module instead of being split across navigation and evidence code.
-  - Scope: introduce the planned `SessionTransitionService` and the pure surface-choice decision table.
-  - Primary modules: `SessionBoundaryCoordinator`, `SurfaceSelectionPolicy`, `ReferenceSessionController`, technical-timeline transition callers.
+  - Scope: introduce the planned `SessionTransitionService` and the pure `chooseSessionSurfaceChoice(...)` decision table.
+  - Primary modules: `SessionTransitionService`, `chooseSessionSurfaceChoice(...)`, `ReferenceSessionController`, technical-timeline transition callers.
   - Why this first: it removes duplicated transition logic and gives later reference-app slices a clearer seam.
   - Verify: `./scripts/run-reference-local-check.sh`
 

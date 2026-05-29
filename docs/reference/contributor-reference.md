@@ -105,7 +105,7 @@ find the shared runtime split quickly.
 | Concern | Primary module | Notes |
 |---|---|---|
 | Route selection and shell wiring | `ReferenceNavHost` | Owns active surface state and route callbacks; does not own session-boundary semantics. |
-| Session-boundary execution | `SessionBoundaryCoordinator` | Owns supported and alternative session boundary sequencing, export-before-boundary completion, and follow-up supported-session starts. |
+| Session-boundary execution | `SessionTransitionService` | Owns supported and alternative session boundary sequencing, export-before-boundary completion, and follow-up supported-session starts. |
 | Session boundaries and session-state publication | `ReferenceSessionController` | Owns supported live vs ended vs Solo exploration vs Lab session state and publishes the currently active session snapshot. |
 | Supported runtime lifecycle and binding | `SupportedControllerRuntime` | Owns supported controller creation, restart, closure, and snapshot binding. |
 | Evidence-surface state | `TechnicalTimelineStore` | Owns live and retained evidence state, visible timeline entries, retained-session loading, and export or retention state. |
@@ -116,7 +116,7 @@ find the shared runtime split quickly.
 Quick rule of thumb:
 
 - if the change is about **which surface the operator sees**, start in navigation
-- if it is about **when one session ends and another begins**, start in `SessionBoundaryCoordinator`, `SurfaceSelectionPolicy`, and `ReferenceSessionController`
+- if it is about **when one session ends and another begins**, start in `SessionTransitionService`, `chooseSessionSurfaceChoice(...)`, and `ReferenceSessionController`
 - if it is about **what evidence the operator can inspect or export**, start in `TechnicalTimelineStore`
 - if it is about **how the live or scripted controller talks to MeshLink or scripted state**, start in the matching runtime or controller pair
 

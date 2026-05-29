@@ -4,29 +4,37 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 
-internal sealed interface SurfaceSelectionAction {
-    data class Select(val surface: ReferenceSurface) : SurfaceSelectionAction
+/**
+ * Pure route-choice helper for the shared shell.
+ *
+ * Navigation owns the visible route. This helper only decides whether a surface change stays inside
+ * the current session, needs boundary confirmation, or must start a new alternative session
+ * immediately.
+ */
+internal sealed interface SessionSurfaceChoice {
+    data class SelectSurface(val surface: ReferenceSurface) : SessionSurfaceChoice
 
-    data class RequireBoundary(val request: SessionBoundaryRequest) : SurfaceSelectionAction
+    data class RequireBoundaryConfirmation(val request: SessionBoundaryRequest) :
+        SessionSurfaceChoice
 
-    data class StartAlternativeSession(val surface: ReferenceSurface) : SurfaceSelectionAction
+    data class StartAlternativeSession(val surface: ReferenceSurface) : SessionSurfaceChoice
 }
 
-internal fun determineSurfaceSelectionAction(
+internal fun chooseSessionSurfaceChoice(
     currentKind: ReferenceSessionKind,
     activeRoute: ReferenceSurface,
     targetSurface: ReferenceSurface,
-): SurfaceSelectionAction {
+): SessionSurfaceChoice {
     return when {
         currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
             targetSurface == ReferenceSurface.SOLO_EXPLORATION ->
-            SurfaceSelectionAction.RequireBoundary(
+            SessionSurfaceChoice.RequireBoundaryConfirmation(
                 SessionBoundaryRequest.LeaveSupportedSession(targetSurface)
             )
 
         currentKind == ReferenceSessionKind.SUPPORTED_LIVE &&
             targetSurface == ReferenceSurface.LAB ->
-            SurfaceSelectionAction.RequireBoundary(
+            SessionSurfaceChoice.RequireBoundaryConfirmation(
                 SessionBoundaryRequest.LeaveSupportedSession(targetSurface)
             )
 
@@ -37,35 +45,35 @@ internal fun determineSurfaceSelectionAction(
                 ReferenceSurface.SOLO_EXPLORATION,
                 ReferenceSurface.LAB -> {
                     if (targetSurface != activeRoute) {
-                        SurfaceSelectionAction.RequireBoundary(
+                        SessionSurfaceChoice.RequireBoundaryConfirmation(
                             SessionBoundaryRequest.LeaveAlternativeSession(targetSurface)
                         )
                     } else {
-                        SurfaceSelectionAction.Select(targetSurface)
+                        SessionSurfaceChoice.SelectSurface(targetSurface)
                     }
                 }
 
-                else -> SurfaceSelectionAction.Select(targetSurface)
+                else -> SessionSurfaceChoice.SelectSurface(targetSurface)
             }
 
         currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
             targetSurface == ReferenceSurface.SOLO_EXPLORATION ->
-            SurfaceSelectionAction.StartAlternativeSession(targetSurface)
+            SessionSurfaceChoice.StartAlternativeSession(targetSurface)
 
         currentKind == ReferenceSessionKind.SUPPORTED_ENDED &&
             targetSurface == ReferenceSurface.LAB ->
-            SurfaceSelectionAction.StartAlternativeSession(targetSurface)
+            SessionSurfaceChoice.StartAlternativeSession(targetSurface)
 
-        else -> SurfaceSelectionAction.Select(targetSurface)
+        else -> SessionSurfaceChoice.SelectSurface(targetSurface)
     }
 }
 
-internal fun determineSurfaceSelectionAction(
+internal fun chooseSessionSurfaceChoice(
     currentSnapshot: ReferenceControllerSnapshot,
     activeRoute: ReferenceSurface,
     targetSurface: ReferenceSurface,
-): SurfaceSelectionAction {
-    return determineSurfaceSelectionAction(
+): SessionSurfaceChoice {
+    return chooseSessionSurfaceChoice(
         currentKind = currentSnapshot.referenceSessionKind(),
         activeRoute = activeRoute,
         targetSurface = targetSurface,

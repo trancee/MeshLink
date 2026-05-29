@@ -10,8 +10,15 @@ import ch.trancee.meshlink.reference.timeline.retainIfEligible
 import ch.trancee.meshlink.reference.timeline.syncLiveSnapshot
 import ch.trancee.meshlink.reference.timeline.writeExport
 
-internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTimelineStore) {
-    fun canCompleteBoundary(request: SessionBoundaryRequest): Boolean {
+/**
+ * Single transition execution module for reference-app session changes.
+ *
+ * Navigation still owns the visible route through `applySurfaceSelection`, and
+ * `ReferenceSessionController` still owns session boundaries. This service owns only the ordering
+ * of exports, retention, session replacement, and follow-up supported-session starts.
+ */
+internal class SessionTransitionService(private val timelineStore: TechnicalTimelineStore) {
+    fun canExecuteBoundary(request: SessionBoundaryRequest): Boolean {
         val current = timelineStore.uiState.value
         return when (request) {
             is SessionBoundaryRequest.LeaveSupportedSession ->
@@ -65,7 +72,34 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
         timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
     }
 
-    suspend fun transitionSupportedSession(
+    suspend fun completeBoundary(
+        request: SessionBoundaryRequest,
+        continuation: BoundaryContinuation,
+        applySurfaceSelection: (ReferenceSurface) -> Unit,
+    ): Unit {
+        if (!canExecuteBoundary(request)) {
+            return
+        }
+        when (request) {
+            is SessionBoundaryRequest.LeaveSupportedSession -> {
+                applySurfaceSelection(request.targetSurface)
+                transitionSupportedSession(
+                    targetSurface = request.targetSurface,
+                    preBoundaryExportPolicy = supportedBoundaryExportPolicy(continuation),
+                )
+            }
+
+            is SessionBoundaryRequest.LeaveAlternativeSession -> {
+                applySurfaceSelection(request.targetSurface)
+                transitionAlternativeSession(
+                    targetSurface = request.targetSurface,
+                    continuation = continuation,
+                )
+            }
+        }
+    }
+
+    private suspend fun transitionSupportedSession(
         targetSurface: ReferenceSurface,
         preBoundaryExportPolicy: ExportPayloadPolicy? = null,
     ): Unit {
@@ -88,7 +122,7 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
         timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
     }
 
-    suspend fun transitionAlternativeSession(
+    private suspend fun transitionAlternativeSession(
         targetSurface: ReferenceSurface,
         continuation: BoundaryContinuation,
     ): Unit {
@@ -119,33 +153,6 @@ internal class SessionBoundaryCoordinator(private val timelineStore: TechnicalTi
             else -> startSupportedSession(ReferenceSurface.MAIN_GUIDED.route)
         }
         timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
-    }
-
-    suspend fun completeBoundary(
-        request: SessionBoundaryRequest,
-        continuation: BoundaryContinuation,
-        applySurfaceSelection: (ReferenceSurface) -> Unit,
-    ): Unit {
-        if (!canCompleteBoundary(request)) {
-            return
-        }
-        when (request) {
-            is SessionBoundaryRequest.LeaveSupportedSession -> {
-                applySurfaceSelection(request.targetSurface)
-                transitionSupportedSession(
-                    targetSurface = request.targetSurface,
-                    preBoundaryExportPolicy = supportedBoundaryExportPolicy(continuation),
-                )
-            }
-
-            is SessionBoundaryRequest.LeaveAlternativeSession -> {
-                applySurfaceSelection(request.targetSurface)
-                transitionAlternativeSession(
-                    targetSurface = request.targetSurface,
-                    continuation = continuation,
-                )
-            }
-        }
     }
 
     private suspend fun startAlternativeSnapshot(

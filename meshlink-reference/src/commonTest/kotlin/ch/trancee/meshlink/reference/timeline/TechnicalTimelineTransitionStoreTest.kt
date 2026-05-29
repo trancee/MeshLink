@@ -1,7 +1,9 @@
 package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.navigation.BoundaryContinuation
 import ch.trancee.meshlink.reference.navigation.ReferenceSurface
+import ch.trancee.meshlink.reference.navigation.SessionBoundaryRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,13 +16,16 @@ class TechnicalTimelineTransitionStoreTest {
     @Test
     fun transitionToSoloSessionStartsSoloSnapshotWithoutRetention() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.transitionSupportedSession(
-                targetSurface = ReferenceSurface.SOLO_EXPLORATION
+            harness.sessionTransitionService.completeBoundary(
+                request =
+                    SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
+                continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,
+                applySurfaceSelection = {},
             )
             advanceUntilIdle()
 
@@ -39,20 +44,23 @@ class TechnicalTimelineTransitionStoreTest {
     @Test
     fun transitionAlternativeSessionCanReturnToSupportedLiveSession() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
         advanceUntilIdle()
-        harness.boundaryCoordinator.transitionSupportedSession(
-            targetSurface = ReferenceSurface.SOLO_EXPLORATION
+        harness.sessionTransitionService.completeBoundary(
+            request =
+                SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
+            continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,
+            applySurfaceSelection = {},
         )
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.transitionAlternativeSession(
-                targetSurface = ReferenceSurface.MAIN_GUIDED,
-                continuation =
-                    ch.trancee.meshlink.reference.navigation.BoundaryContinuation
-                        .CONTINUE_WITHOUT_EXPORT,
+            harness.sessionTransitionService.completeBoundary(
+                request =
+                    SessionBoundaryRequest.LeaveAlternativeSession(ReferenceSurface.MAIN_GUIDED),
+                continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,
+                applySurfaceSelection = {},
             )
             advanceUntilIdle()
 

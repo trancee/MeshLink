@@ -15,12 +15,12 @@ class TechnicalTimelineRetentionStoreTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-                .createBoundaryCoordinatorHarness(scope = this)
+                .createSessionTransitionHarness(scope = this)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.endSupportedSession()
+            harness.sessionTransitionService.endSupportedSession()
             advanceUntilIdle()
 
             // Assert
@@ -42,9 +42,9 @@ class TechnicalTimelineRetentionStoreTest {
         val retainedEntry = timelineStoreEntry(entryId = "retained-1", title = "Retained")
         val liveEntry = timelineStoreEntry(entryId = "live-1", title = "Live")
         val timelineHarness = TimelineStoreHarness(initialTimeline = listOf(retainedEntry))
-        val harness = timelineHarness.createBoundaryCoordinatorHarness(scope = this)
+        val harness = timelineHarness.createSessionTransitionHarness(scope = this)
         advanceUntilIdle()
-        harness.boundaryCoordinator.endSupportedSession()
+        harness.sessionTransitionService.endSupportedSession()
         advanceUntilIdle()
         harness.timelineStore.openRetainedSession(sessionId = "timeline-session")
         advanceUntilIdle()

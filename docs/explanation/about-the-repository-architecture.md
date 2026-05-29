@@ -168,7 +168,7 @@ flowchart TD
     App["ReferenceApp"] --> Nav["ReferenceNavHost"]
     Nav --> Guided["guided view model"]
     Nav --> Advanced["advanced view model"]
-    Nav --> Boundary["SessionBoundaryCoordinator"]
+    Nav --> Boundary["SessionTransitionService"]
     Nav --> Timeline["TechnicalTimelineStore"]
 
     Boundary --> Sessions["ReferenceSessionController"]
@@ -209,7 +209,7 @@ change independently.
 ### Session boundaries are not delegated to navigation alone
 
 `ReferenceNavHost` decides which surface is visible, but
-`SessionBoundaryCoordinator` decides whether moving to a different surface means
+`SessionTransitionService` decides whether moving to a different surface means
 one of these things:
 
 - a normal supported-surface switch inside the same session

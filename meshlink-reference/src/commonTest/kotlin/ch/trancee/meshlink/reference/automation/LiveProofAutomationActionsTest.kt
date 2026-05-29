@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.navigation.SessionTransitionService
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
@@ -15,11 +16,10 @@ import kotlinx.coroutines.test.runTest
 class LiveProofAutomationActionsTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun requestEndCurrentSessionEndsTheSupportedSessionThroughTheBoundaryCoordinator() = runTest {
+    fun requestEndCurrentSessionEndsTheSupportedSessionThroughTheTransitionService() = runTest {
         // Arrange
         val timelineStore = TimelineStoreHarness().createStore(scope = this)
-        val sessionBoundaryCoordinator =
-            ch.trancee.meshlink.reference.navigation.SessionBoundaryCoordinator(timelineStore)
+        val sessionTransitionService = SessionTransitionService(timelineStore)
         val platformServices =
             object : PlatformServices {
                 override val platformName: String = "Test"
@@ -40,7 +40,7 @@ class LiveProofAutomationActionsTest {
             TimelineStoreLiveProofAutomationActions(
                 platformServices = platformServices,
                 timelineStore = timelineStore,
-                sessionBoundaryCoordinator = sessionBoundaryCoordinator,
+                sessionTransitionService = sessionTransitionService,
             )
         advanceUntilIdle()
 
