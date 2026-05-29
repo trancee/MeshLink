@@ -101,6 +101,7 @@ internal fun buildMeshEngineRuntimeSendSupport(
     currentLifecycleState: () -> MeshLinkState,
     captureHardRunToken: () -> MeshEngineHardRunToken,
     hasTransport: () -> Boolean,
+    inlineMessagePayloadBytes: Int,
     shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
     sendPayload:
         suspend (
@@ -125,7 +126,7 @@ internal fun buildMeshEngineRuntimeSendSupport(
         config =
             MeshEngineSendConfig(
                 maxSupportedPayloadBytes = MAX_SUPPORTED_PAYLOAD_BYTES,
-                inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+                inlineMessagePayloadBytes = inlineMessagePayloadBytes,
             ),
         callbacks =
             MeshEngineSendCallbacks(

@@ -130,7 +130,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it improves locality in one of the most complex shared-runtime seams.
   - Verify: `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify`
 
-- [ ] **R07: Separate engine assembly from runtime policy modules** `risk:medium` `depends:[R05]` `breaking:allowed`
+- [x] **R07: Separate engine assembly from runtime policy modules** `risk:medium` `depends:[R05]` `breaking:allowed`
   > After this: assembly reads as composition, while retry, TTL, and runtime policy decisions live in smaller modules with clearer interfaces.
   - Scope: pull policy-shaped decisions out of assembly wiring without widening the public runtime interface.
   - Primary modules: `MeshEngineRuntime`, foundation assembly, session assembly, transfer assembly.

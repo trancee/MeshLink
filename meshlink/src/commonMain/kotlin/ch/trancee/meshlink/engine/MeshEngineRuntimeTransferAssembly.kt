@@ -205,7 +205,8 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
         )
     val inlineOutboundDeliveryAdapter =
         buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
-            inlineMessagePayloadBytes = INLINE_MESSAGE_PAYLOAD_BYTES,
+            inlineMessagePayloadBytes =
+                sharedState.runtimePolicies.delivery.inlineMessagePayloadBytes,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
             ensureHopSession = session.ensureHopSession,
@@ -213,7 +214,7 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
             emitHopSessionFailed = session.emitHopSessionFailed,
             inlineMessagePreparationSupport = inlineMessagePreparationSupport,
             discoverySuspensionSupport = inlineDiscoverySuspensionSupport,
-            ttlMillisFor = sharedState.ttlMillisFor,
+            ttlMillisFor = sharedState.runtimePolicies.delivery::ttlMillis,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,
             emitDiagnostic = support.emitDiagnostic,
         )
@@ -231,7 +232,7 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
         )
     val outboundDeliverySupport =
         buildMeshEngineRuntimeOutboundDeliverySupport(
-            deliveryRetryDeadline = environment.config.deliveryRetryDeadline,
+            deliveryRetryDeadline = sharedState.runtimePolicies.delivery.retryDeadline,
             deliveryRetrySupport = deliveryRetrySupport,
             inlineOutboundDeliveryAdapter = inlineOutboundDeliveryAdapter,
             largeTransferOutboundDeliveryAdapter = largeTransferOutboundDeliveryAdapter,

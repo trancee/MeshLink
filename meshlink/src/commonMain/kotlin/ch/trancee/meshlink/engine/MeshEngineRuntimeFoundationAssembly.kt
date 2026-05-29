@@ -11,7 +11,6 @@ import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
 internal data class MeshEngineRuntimeFoundationAssembly(
@@ -29,8 +28,7 @@ internal data class MeshEngineRuntimeSharedState(
     val inboundTransfers: MutableMap<String, InboundTransferSession>,
     val relayTransfers: MutableMap<String, RelayTransferSession>,
     val sequenceGenerator: MeshEngineSequenceGenerator,
-    val powerPolicyNowMillis: () -> Long,
-    val ttlMillisFor: (DeliveryPriority) -> Int,
+    val runtimePolicies: MeshEngineRuntimePolicies,
 )
 
 internal data class MeshEngineRuntimeRoutingAndTrustPhase(
@@ -77,14 +75,11 @@ private fun buildMeshEngineRuntimeSharedState(
         inboundTransfers = linkedMapOf(),
         relayTransfers = linkedMapOf(),
         sequenceGenerator = MeshEngineSequenceGenerator(environment.localIdentity),
-        powerPolicyNowMillis = { engineClock.elapsedNow().inWholeMilliseconds },
-        ttlMillisFor = { priority ->
-            when (priority) {
-                DeliveryPriority.HIGH -> HIGH_PRIORITY_TTL_MILLIS
-                DeliveryPriority.NORMAL -> NORMAL_PRIORITY_TTL_MILLIS
-                DeliveryPriority.LOW -> LOW_PRIORITY_TTL_MILLIS
-            }
-        },
+        runtimePolicies =
+            buildMeshEngineRuntimePolicies(
+                config = environment.config,
+                powerPolicyNowMillis = { engineClock.elapsedNow().inWholeMilliseconds },
+            ),
     )
 }
 
@@ -112,7 +107,7 @@ private fun buildMeshEngineRuntimeRoutingAndTrustPhase(
         )
     val scheduleRetryDiagnostic =
         buildMeshEngineRuntimeScheduleRetryDiagnostic(
-            environment = environment,
+            deliveryPolicy = sharedState.runtimePolicies.delivery,
             support = support,
             routingSupport = routingSupport,
         )
@@ -124,7 +119,7 @@ private fun buildMeshEngineRuntimeRoutingAndTrustPhase(
 }
 
 internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
-    environment: MeshEngineRuntimeAssemblyEnvironment,
+    deliveryPolicy: MeshEngineRuntimeDeliveryPolicy,
     support: MeshEngineRuntimeAssemblySupport,
     routingSupport: MeshEngineRoutingSupport,
 ): (PeerId, DeliveryPriority) -> Unit {
@@ -137,19 +132,8 @@ internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
             DiagnosticReason.DELIVERY_FAILURE,
             routingSupport.peerRouteMetadata(
                 peerId,
-                metadata =
-                    mapOf(
-                        "priority" to priority.name,
-                        "retryDeadlineMs" to
-                            environment.config.deliveryRetryDeadline.inWholeMilliseconds.toString(),
-                        "retryBackoffBaseMs" to INITIAL_BACKOFF.inWholeMilliseconds.toString(),
-                    ),
+                metadata = deliveryPolicy.retryDiagnosticMetadata(priority),
             ),
         )
     }
 }
-
-private const val HIGH_PRIORITY_TTL_MILLIS: Int = 45 * 60 * 1_000
-private const val NORMAL_PRIORITY_TTL_MILLIS: Int = 15 * 60 * 1_000
-private const val LOW_PRIORITY_TTL_MILLIS: Int = 5 * 60 * 1_000
-private val INITIAL_BACKOFF = 250.milliseconds
