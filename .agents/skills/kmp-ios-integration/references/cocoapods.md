@@ -205,7 +205,7 @@ cocoapods {
 ### CocoaPods path not found
 ```properties
 # local.properties
-kotlin.apple.cocoapods.bin=/Users/Jane.Doe/.rbenv/shims/pod
+kotlin.apple.cocoapods.bin=/Users/<user>/.rbenv/shims/pod
 ```
 Or: `echo -e "kotlin.apple.cocoapods.bin=$(which pod)" >> local.properties`
 

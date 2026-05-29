@@ -25,6 +25,7 @@ For contributor commands and verification bundles, use the
 | the Android or iOS reference-app host | [Modules and app hosts](#modules-and-app-hosts) |
 | the proof apps | [Modules and app hosts](#modules-and-app-hosts) |
 | the benchmark harness | [Verification and automation scripts](#verification-and-automation-scripts) |
+| contributor workflow scaffolding | [Contributor workflow scaffolding](#contributor-workflow-scaffolding) |
 | the docs and spec areas | [Documentation and specification areas](#documentation-and-specification-areas) |
 | the public SDK and reference-app entry points | [Platform entry points](#platform-entry-points) |
 
@@ -143,6 +144,16 @@ flowchart LR
 | `meshlink-reference/scripts/run_headless_reference_physical_matrix.py` | Runs the broader physical reference-app matrix |
 | `meshlink-reference/scripts/analyze_reference_physical_run.py` | Summarizes a retained physical reference-app run |
 | `benchmarks/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
+
+## Contributor workflow scaffolding
+
+| Area | Purpose |
+|---|---|
+| `AGENTS.md` | Agent-facing project instructions used by the repository's contributor automation workflows |
+| `.agents` | Shared skill and reference corpus for agent-assisted maintenance; not used by the SDK or app runtime |
+| `.specify` | Spec-driven workflow templates, shell helpers, extension config, and integration manifests used during planning and implementation work |
+| `.pi` | Tracked Pi prompt integration files used by the repository's contributor workflow |
+| ignored local workflow state | `.gsd/`, `.bg-shell/`, `.tmp-yamllint/`, `.specify/feature.json`, `.specify/extensions/.registry`, and `.specify/presets/.registry` are local workflow state and should stay untracked |
 
 ## Documentation and specification areas
 

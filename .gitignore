@@ -39,4 +39,5 @@ __pycache__/
 .tmp-yamllint/
 .specify/feature.json
 .specify/extensions/.registry
+.specify/presets/.registry
 .pi/prompts/speckit.git.*.md
