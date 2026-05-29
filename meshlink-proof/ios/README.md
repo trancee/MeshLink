@@ -7,14 +7,14 @@ Use it when you need:
 
 - the iOS side of the first-exchange tutorial
 - a physical iPhone proof peer
-- retained iPhone/Android benchmark evidence
+- retained iPhone/Android benchmark evidence with the iPhone app acting as a proof fixture
 
 ## Choose the right validation surface first
 
 | If you need to... | Use... |
 |---|---|
 | evaluate the supported product-like Android and iOS experience | [the reference app guide](../../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
-| run an iPhone physical proof peer or transport fixture | this guide |
+| run an iPhone physical proof peer or proof fixture | this guide |
 | inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
 
 ## Prerequisites
@@ -104,7 +104,7 @@ Use Xcode scheme environment variables for manual runs. For retained physical
 benchmark work, prefer the headless runner so those values are applied
 consistently.
 
-If you are using this app as the receiving peer for
+If you are using this app as the receiving proof peer for
 [Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
 set `MESHLINK_APP_ID` to the tutorial host app's `appId` and keep
 `MESHLINK_BENCHMARK_TRANSPORT` unset or `meshlink`.
@@ -116,7 +116,7 @@ Use them for different claims.
 
 | Value | Meaning | Use it when you need to... | Important boundary |
 |---|---|---|---|
-| `meshlink` | normal MeshLink runtime | run the tutorial peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
+| `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
 | `gatt` | iPhone-side GATT prototype | run the retained GATT benchmark-oriented prototype flow | requires `MESHLINK_BENCHMARK_PAYLOAD_BYTES`; passive `MESHLINK_DISABLE_AUTO_SEND=true` mode is not implemented |
 | `gatt-notify` | iPhone-side GATT-notify prototype | run the retained notify-side benchmark-oriented prototype flow | requires `MESHLINK_BENCHMARK_PAYLOAD_BYTES`; passive `MESHLINK_DISABLE_AUTO_SEND=true` mode is not implemented |
 

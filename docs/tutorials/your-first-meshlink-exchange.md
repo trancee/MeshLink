@@ -6,8 +6,8 @@ controller, discover a nearby proof peer, and send one message successfully.
 This lesson stays intentionally narrow:
 
 - it uses Android for the shortest path to a visible result
-- it uses a proof app on a second device as the receiving peer
-- it keeps that receiving peer in normal `meshlink` mode rather than the
+- it uses a proof app on a second device as the receiving proof peer
+- it keeps that receiving proof peer in normal `meshlink` mode rather than the
   proof-only `gatt` or `gatt-notify` prototype modes
 
 If you still need to add the library to your build, follow

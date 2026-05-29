@@ -8,14 +8,14 @@ Use it when you need:
 
 - a second device for the MeshLink tutorial flow
 - an Android proof peer for manual validation
-- an Android-side benchmark host or passive proof fixture
+- an Android proof fixture for passive transport or benchmark work
 
 ## Choose the right validation surface first
 
 | If you need to... | Use... |
 |---|---|
 | evaluate the supported product-like Android and iOS experience | [the reference app guide](../../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
-| run an Android physical proof peer or transport fixture | this guide |
+| run an Android physical proof peer or proof fixture | this guide |
 | inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
 
 ## Prerequisites
@@ -53,7 +53,7 @@ The default launch uses:
 - `powerMode = automatic`
 - `benchmarkTransport = meshlink`
 
-If you are using this app as the receiving peer for
+If you are using this app as the receiving proof peer for
 [Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
 keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
 matches the tutorial host app.
@@ -82,7 +82,7 @@ adb shell am start \
   --es meshlink.powerMode performance
 ```
 
-Example: start the Android proof app as the receiving peer for the SDK tutorial.
+Example: start the Android proof app as the receiving proof peer for the SDK tutorial.
 
 ```bash
 adb shell am start \
@@ -108,7 +108,7 @@ Use them for different claims.
 
 | Value | Meaning | Use it when you need to... | Important boundary |
 |---|---|---|---|
-| `meshlink` | normal MeshLink runtime | run the tutorial peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
+| `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
 | `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role for retained investigation work | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
 | `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
 

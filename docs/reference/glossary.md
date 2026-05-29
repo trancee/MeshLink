@@ -27,6 +27,9 @@ including official reference-app surface and export vocabulary.
 | `Guided first exchange` | the supported first-proof reference-app surface |
 | `Lab` | the explicitly non-normative reference-app surface for proof-only and benchmark-only behavior |
 | `L2CAP` | Logical Link Control and Adaptation Protocol, the channel-oriented BLE bearer MeshLink prefers as its direct transport posture |
+| `Proof app` | the Android or iOS host app used for physical proof and benchmark work outside the reference-app product-like walkthrough |
+| `Proof fixture` | a proof app used as a retained transport-validation or benchmark surface rather than as the supported product-like evaluation surface |
+| `Proof peer` | a device running a proof app and participating in an exchange or benchmark run |
 | `Recent history` | the reference-app surface that lists retained sessions |
 | `Redacted export` | the default reference-app export that omits full payload content |
 | `Retained session` | a previously captured reference-app session reopened from Recent history |
@@ -135,6 +138,35 @@ for its transport posture.
 
 **Notes:** Often discussed alongside route establishment, large transfers, and
 mixed-platform bearer tradeoffs.
+
+### `Proof app`
+
+**Category:** validation-surface term
+
+**Description:** The Android or iOS host app used for physical proof and
+benchmark work outside the reference-app product-like walkthrough.
+
+**Notes:** A `Proof app` can act as a `Proof peer` in a run or as a `Proof
+fixture` when the emphasis is on retained transport-validation behavior.
+
+### `Proof fixture`
+
+**Category:** validation-surface term
+
+**Description:** A proof app used as a retained transport-validation or
+benchmark surface rather than as the supported product-like evaluation surface.
+
+**Notes:** MeshLink docs use `Proof fixture` when the role of the host matters
+more than the peer-to-peer interaction itself.
+
+### `Proof peer`
+
+**Category:** validation-surface term
+
+**Description:** A device running a proof app and participating in an exchange
+or benchmark run.
+
+**Notes:** When the receiver role matters, the docs say `receiving proof peer`.
 
 ### `Recent history`
 

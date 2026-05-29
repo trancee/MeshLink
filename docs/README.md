@@ -25,7 +25,7 @@ If you are not sure where to start, use one of these short paths.
 
 1. [How to add MeshLink to your app](how-to/add-meshlink-to-your-app.md)
 2. [Your first MeshLink exchange](tutorials/your-first-meshlink-exchange.md)
-3. [How to run the Android proof app](../meshlink-proof/android/README.md) or [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) for the second-device peer
+3. [How to run the Android proof app](../meshlink-proof/android/README.md) or [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) for the second-device proof peer
 4. [How to integrate MeshLink into a host app](how-to/integrate-meshlink-into-a-host-app.md)
 5. [About how MeshLink works](explanation/about-how-meshlink-works.md)
 6. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)

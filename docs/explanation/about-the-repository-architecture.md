@@ -324,10 +324,10 @@ to replace native iOS project structure entirely.
 
 ### The proof apps remain separate on purpose
 
-The proof apps are not just smaller copies of the reference app. They are
-transport-validation fixtures. That makes it useful for them to carry proof-only
-or benchmark-oriented behavior without redefining the reference app's supported
-product-like surfaces.
+The proof apps are not just smaller copies of the reference app. They are proof
+fixtures: dedicated transport-validation surfaces. That makes it useful for
+them to carry proof-only or benchmark-oriented behavior without redefining the
+reference app's supported product-like surfaces.
 
 Keeping them separate preserves a clean boundary between:
 
