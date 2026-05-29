@@ -122,7 +122,7 @@ class TransferSessionTest {
             val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
             val idleWindow = 20.milliseconds
-            val lateAcknowledgementDelay = 120.milliseconds
+            val lateAcknowledgementDelay = 500.milliseconds
             val acknowledgementProducer = launch {
                 delay(lateAcknowledgementDelay)
                 session.markAcknowledged(

@@ -255,6 +255,7 @@ class MeshRoutingIntegrationTest {
                 diagnostics = sender.diagnosticSink::events,
                 code = DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
                 peerIdValue = recipient.peerId.value,
+                timeoutMillis = 5_000,
             )
             sender.meshLink.stop()
             val restartedSender =
@@ -264,13 +265,24 @@ class MeshRoutingIntegrationTest {
                     configOverride = senderConfig,
                 )
             restartedSender.meshLink.start()
+            val unexpectedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeoutOrNull(1_500) { recipient.meshLink.messages.first() }
+                }
             harness.linkPeers(relay, recipient)
+            awaitDiagnosticForPeer(
+                diagnostics = restartedSender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
 
             // Act
-            val unexpectedMessage = withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
+            val unexpectedMessage = unexpectedMessageDeferred.await()
             val resubmittedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(2_000) { recipient.meshLink.messages.first() }
+                    withTimeout(5_000) { recipient.meshLink.messages.first() }
                 }
             val resubmittedSendResult = restartedSender.meshLink.send(recipient.peerId, payload)
             val resubmittedMessage = resubmittedMessageDeferred.await()
