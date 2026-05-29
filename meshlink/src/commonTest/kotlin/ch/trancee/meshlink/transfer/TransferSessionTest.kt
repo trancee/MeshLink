@@ -121,8 +121,10 @@ class TransferSessionTest {
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
+            val idleWindow = 20.milliseconds
+            val lateAcknowledgementDelay = 120.milliseconds
             val acknowledgementProducer = launch {
-                delay(40)
+                delay(lateAcknowledgementDelay)
                 session.markAcknowledged(
                     WireFrame.TransferAck(
                         transferId = session.transferId,
@@ -136,7 +138,7 @@ class TransferSessionTest {
             val settlement =
                 session.awaitAcknowledgementSettlement(
                     maximumWait = 200.milliseconds,
-                    idleWindow = 20.milliseconds,
+                    idleWindow = idleWindow,
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
                 )
