@@ -80,18 +80,20 @@ internal fun trackExportPath(
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): String? {
-    if (currentExportPath == null || currentExportPath == progress.lastObservedExportPath) {
+    if (currentExportPath == null) {
         return when (targetPolicy) {
             ExportPayloadPolicy.REDACTED_PREVIEW -> progress.redactedExportPath
             ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN -> progress.fullExportPath
         }
     }
-    progress.lastObservedExportPath = currentExportPath
     when (targetPolicy) {
         ExportPayloadPolicy.REDACTED_PREVIEW -> {
-            if (currentExportPath == progress.fullExportPath) {
+            if (
+                progress.redactedExportPath != null || currentExportPath == progress.fullExportPath
+            ) {
                 return progress.redactedExportPath
             }
+            progress.lastObservedExportPath = currentExportPath
             progress.redactedExportPath = currentExportPath
             actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION export.completed role=passive policy=redacted-preview path=$currentExportPath"
@@ -99,9 +101,12 @@ internal fun trackExportPath(
             return progress.redactedExportPath
         }
         ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN -> {
-            if (currentExportPath == progress.redactedExportPath) {
+            if (
+                progress.fullExportPath != null || currentExportPath == progress.redactedExportPath
+            ) {
                 return progress.fullExportPath
             }
+            progress.lastObservedExportPath = currentExportPath
             progress.fullExportPath = currentExportPath
             actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION export.completed role=passive policy=full-payload path=$currentExportPath"

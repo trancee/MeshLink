@@ -17,6 +17,8 @@ plugins {
 }
 
 kotlin {
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+
     android {
         namespace = "ch.trancee.meshlink.reference"
         compileSdk = 36
@@ -57,6 +59,11 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.compose.ui.test)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(compose.desktop.currentOs)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.kotlin.test)
@@ -133,5 +140,5 @@ powerAssert {
             "kotlin.test.assertFalse",
             "kotlin.test.assertTrue",
         )
-    includedSourceSets = listOf("commonTest", "androidHostTest", "iosTest")
+    includedSourceSets = listOf("commonTest", "jvmTest", "androidHostTest", "iosTest")
 }

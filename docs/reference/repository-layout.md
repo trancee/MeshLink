@@ -111,7 +111,8 @@ flowchart LR
 | `android-app/src/androidTest` | Android host-app device tests |
 | `ios/ReferenceApp` | Native iOS app wrapper around the shared Compose content |
 | `ios/ReferenceAppTests` | iOS unit-test target |
-| `ios/ReferenceAppUITests` | iOS UI-test target |
+| `ios/ReferenceAppUITests` | iOS UI-test target for the default self-validating workflow suite |
+| `ios/ReferenceAppPhysicalUITests` | dedicated iOS physical live-proof UI-test target kept out of the default scheme |
 
 ## Platform entry points
 
