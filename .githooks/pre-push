@@ -232,10 +232,10 @@ if [[ "$need_benchmarks" -eq 1 ]]; then
   check_tasks+=(":benchmarks:build")
 fi
 if [[ "$need_benchmark_smoke" -eq 1 ]]; then
-  check_tasks+=(":benchmarks:jvmSmokeBenchmark")
+  check_tasks+=("verifyJvmSmokeBenchmarks")
 fi
 if [[ "$need_proof_android" -eq 1 ]]; then
-  check_tasks+=(":meshlink-proof:android:meshlink-proof-android-app:build")
+  check_tasks+=(":meshlink-proof:android:build")
 fi
 if [[ "$need_docs" -eq 1 ]]; then
   check_tasks+=("verifyDocs")

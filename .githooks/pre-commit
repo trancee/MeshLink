@@ -146,10 +146,10 @@ if [[ "$need_reference" -eq 1 ]]; then
   check_tasks+=(":meshlink-reference:check")
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
-  check_tasks+=(":benchmarks:check")
+  check_tasks+=(":benchmarks:check" "verifyJvmSmokeBenchmarks")
 fi
 if [[ "$need_proof_android" -eq 1 ]]; then
-  check_tasks+=(":meshlink-proof:android:meshlink-proof-android-app:check")
+  check_tasks+=(":meshlink-proof:android:check")
 fi
 if [[ "$need_docs" -eq 1 ]]; then
   check_tasks+=("verifyDocs")

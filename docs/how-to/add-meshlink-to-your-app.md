@@ -60,7 +60,7 @@ The supported installation paths today are:
 |---|---|
 | Android app | Android API 29+ |
 | iOS app | iOS 15+ |
-| Gradle build | JDK 17 |
+| Gradle build | JDK 21 or newer |
 | iPhone device runs | Xcode with local signing access |
 
 If you only need runtime bootstrap after the library is already wired in, skip

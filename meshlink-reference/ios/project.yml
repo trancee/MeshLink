@@ -13,7 +13,7 @@ settings:
     FRAMEWORK_SEARCH_PATHS: '$(inherited) "$(SRCROOT)/../build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
     GENERATE_INFOPLIST_FILE: NO
     LD_RUNPATH_SEARCH_PATHS: '$(inherited) @executable_path/Frameworks'
-    OTHER_LDFLAGS: '$(inherited) -framework ReferenceAppShared'
+    OTHER_LDFLAGS: '$(inherited) -framework MeshLinkReference'
     PRODUCT_NAME: "$(TARGET_NAME)"
 targets:
   ReferenceApp:
@@ -68,3 +68,35 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.reference.ios.uitests
+
+  ReferenceAppPhysicalUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ReferenceAppPhysicalUITests
+      - path: ReferenceAppUITests/ReferenceAppUITestSupport.swift
+    dependencies:
+      - target: ReferenceApp
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.meshlink.reference.ios.physicaluitests
+
+schemes:
+  ReferenceApp:
+    build:
+      targets:
+        ReferenceApp: all
+    test:
+      targets:
+        - name: ReferenceAppTests
+        - name: ReferenceAppUITests
+  ReferenceAppPhysicalProof:
+    build:
+      targets:
+        ReferenceApp: all
+    test:
+      targets:
+        - name: ReferenceAppPhysicalUITests

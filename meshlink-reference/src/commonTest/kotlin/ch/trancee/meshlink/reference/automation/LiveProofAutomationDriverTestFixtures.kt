@@ -46,7 +46,11 @@ internal class RecordingLiveProofAutomationActions(
 ) : LiveProofAutomationActions {
     val logs: MutableList<String> = mutableListOf()
     var meshStartRequests: Int = 0
+    var meshPauseRequests: Int = 0
+    var meshResumeRequests: Int = 0
     var endSessionRequests: Int = 0
+    val sendRequests: MutableList<SendPayloadRequest> = mutableListOf()
+    val forgetPeerRequests: MutableList<String> = mutableListOf()
     val exportRequests: MutableList<ExportPayloadPolicy> = mutableListOf()
 
     override fun emitAutomationLog(message: String) {
@@ -57,17 +61,26 @@ internal class RecordingLiveProofAutomationActions(
         meshStartRequests += 1
     }
 
-    override fun requestMeshPause() = Unit
+    override fun requestMeshPause() {
+        meshPauseRequests += 1
+    }
 
-    override fun requestMeshResume() = Unit
+    override fun requestMeshResume() {
+        meshResumeRequests += 1
+    }
 
     override fun requestSendPayload(
         peerId: String,
         payloadText: String,
         priority: DeliveryPriority,
-    ) = Unit
+    ) {
+        sendRequests +=
+            SendPayloadRequest(peerId = peerId, payloadText = payloadText, priority = priority)
+    }
 
-    override fun requestForgetPeer(peerId: String) = Unit
+    override fun requestForgetPeer(peerId: String) {
+        forgetPeerRequests += peerId
+    }
 
     override fun requestEndCurrentSession() {
         endSessionRequests += 1
@@ -77,3 +90,9 @@ internal class RecordingLiveProofAutomationActions(
         exportRequests += policy
     }
 }
+
+internal data class SendPayloadRequest(
+    val peerId: String,
+    val payloadText: String,
+    val priority: DeliveryPriority,
+)

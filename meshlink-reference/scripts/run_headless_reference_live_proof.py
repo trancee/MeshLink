@@ -392,7 +392,7 @@ def run_ios_live_proof_test(
         "-project",
         "meshlink-reference/ios/ReferenceApp.xcodeproj",
         "-scheme",
-        "ReferenceApp",
+        "ReferenceAppPhysicalProof",
         "-destination",
         f"id={ios_device}",
         f"DEVELOPMENT_TEAM={development_team}",
@@ -420,11 +420,11 @@ def run_ios_live_proof_test(
         xctestrun = plistlib.load(source_file)
     test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
     ui_test_target = next(
-        (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppUITests"),
+        (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppPhysicalUITests"),
         None,
     )
     if ui_test_target is None:
-        raise SystemExit("Could not find ReferenceAppUITests in generated .xctestrun file")
+        raise SystemExit("Could not find ReferenceAppPhysicalUITests in generated .xctestrun file")
     ios_transport_environment = build_ios_transport_environment(
         transport_debug=ios_transport_debug,
         transport_telemetry=ios_transport_telemetry,
@@ -457,7 +457,7 @@ def run_ios_live_proof_test(
         str(xctestrun_path),
         "-destination",
         f"id={ios_device}",
-        "-only-testing:ReferenceAppUITests/ReferenceAppPhysicalLiveProofUITests/testLiveProofSender",
+        "-only-testing:ReferenceAppPhysicalUITests/ReferenceAppPhysicalLiveProofUITests/testLiveProofSender",
     ]
     IOS_XCUITEST_LIVE_PROOF_CONFIG.write_text(
         json.dumps(

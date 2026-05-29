@@ -24,14 +24,14 @@ android {
     buildFeatures { compose = true }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     installation { installOptions += "-g" }
 }
 
-kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
 
 dependencies {
     implementation(project(":meshlink-reference"))
@@ -49,6 +49,6 @@ detekt {
     parallel = true
 }
 
-tasks.withType<Detekt>().configureEach { jvmTarget = "17" }
+tasks.withType<Detekt>().configureEach { jvmTarget = "21" }
 
 ktfmt { kotlinLangStyle() }

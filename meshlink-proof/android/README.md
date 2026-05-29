@@ -30,7 +30,7 @@ You need:
 ## 1. Install a debug build
 
 ```bash
-./gradlew :meshlink-proof:android:meshlink-proof-android-app:installDebug
+./gradlew :meshlink-proof:android:installDebug
 ```
 
 The debug install task passes `-g`, so the package is installed with runtime
@@ -139,7 +139,7 @@ The Android proof app also ships instrumented benchmark coverage under
 Run the attached-device suite with:
 
 ```bash
-./gradlew :meshlink-proof:android:meshlink-proof-android-app:connectedDebugAndroidTest
+./gradlew :meshlink-proof:android:connectedDebugAndroidTest
 ```
 
 Use physical devices for meaningful transport and power evidence.

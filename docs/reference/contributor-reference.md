@@ -16,19 +16,19 @@ Use this page when you need exact commands, matrices, or policy details.
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | reference-app shared UI, Android glue, or shared state | `./scripts/run-reference-local-check.sh` |
-| Android proof-app host or benchmark-only harness logic | `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug` |
+| Android proof-app host or benchmark-only harness logic | `./gradlew :meshlink-proof:android:assembleDebug` |
 | iOS proof-app host or benchmark-only harness logic | `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build` |
 | reference-app release artifact or framework export | `./gradlew :meshlink-reference:build` |
 | build tooling or module shape | `./scripts/run-agp9-verification.sh` or `./gradlew checkAgp9Invariants` plus the relevant narrower module checks |
 | public API | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:apiCheck :meshlink:koverVerify verifyDocs`, plus API dump and appendix refresh |
-| performance-sensitive paths | the relevant checks above plus `./gradlew :benchmarks:jvmSmokeBenchmark`; use `:benchmarks:jvmBenchmark` when retained evidence is required |
+| performance-sensitive paths | the relevant checks above plus `./gradlew verifyJvmSmokeBenchmarks`; use `:benchmarks:jvmBenchmark` when retained evidence is required |
 | Android or iOS physical transport or proof behavior | the relevant checks above plus the matching proof-app or reference-app validation flow |
 
 ## Workstation requirements
 
 | Need | Requirement | Notes |
 |---|---|---|
-| Gradle build and tests | JDK 17 | Required for the repository build. |
+| Gradle build and tests | JDK 21 or newer | Required for the repository build. |
 | Android compilation and unit tests | Android SDK for API 36 builds | Required for Android targets. |
 | iOS compilation and tests | Xcode | Required for iOS build and test targets. |
 | Documentation verification | Python 3 | Required by the documentation verification scripts. |
@@ -65,7 +65,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | Purpose | Command | Notes |
 |---|---|---|
 | Run fast reference-app verification | `./scripts/run-reference-local-check.sh` | Runs `:meshlink-reference:localCheck` on the current AGP 9 toolchain. |
-| Run the AGP 9 build-surface verification bundle | `./scripts/run-agp9-verification.sh` | Runs the invariant check plus the cross-module verification bundle for Gradle, AGP, Kotlin, or module-shape changes. |
+| Run the AGP 9 build-surface verification bundle | `./scripts/run-agp9-verification.sh` | Runs the invariant check plus the cross-module verification bundle for Gradle, AGP, Kotlin, or module-shape changes, including the verified JVM smoke benchmark guard. |
 | Build the reference app | `./gradlew :meshlink-reference:build` | Slower because it links release frameworks for all iOS targets. |
 | Check API compatibility | `./gradlew :meshlink:apiCheck` | Verifies the tracked public API surface. |
 | Refresh the checked-in API dump | `./gradlew :meshlink:apiDump` | Required for intentional public API changes. |
@@ -80,7 +80,8 @@ Use this page when you need exact commands, matrices, or policy details.
 | Generate all useful Dokka HTML | `./gradlew dokkaGenerateAllHtml` | Generates contributor-useful Dokka output for `:meshlink` and `:meshlink-reference` without using deprecated per-project `dokkaHtml` tasks. |
 | Generate Dokka HTML for the SDK | `./gradlew :meshlink:dokkaGenerateHtml` | Writes supplemental Kotlin API reference output to `meshlink/build/dokka/html/`. |
 | Generate Dokka HTML for the shared reference app module | `./gradlew :meshlink-reference:dokkaGenerateHtml` | Writes contributor-facing shared-module output to `meshlink-reference/build/dokka/html/`. |
-| Run JVM smoke benchmarks | `./gradlew :benchmarks:jvmSmokeBenchmark` | Fast development-time performance check. |
+| Run verified JVM smoke benchmarks | `./gradlew verifyJvmSmokeBenchmarks` | Runs the JVM smoke suite and fails if any declared benchmark result is missing from the latest report. |
+| Run raw JVM smoke benchmarks | `./gradlew :benchmarks:jvmSmokeBenchmark` | Writes the latest smoke benchmark report when you only need fresh measurements. |
 | Run retained JVM benchmarks | `./gradlew :benchmarks:jvmBenchmark` | Use when retained benchmark evidence is required. |
 
 ## Test surfaces
@@ -186,9 +187,9 @@ A public API change currently requires all of the following:
 
 | Hook | Behavior |
 |---|---|
-| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. Android or Gradle build-surface changes also run `checkAgp9Invariants`. |
+| `.githooks/pre-commit` | Runs ktfmt formatting for the touched Gradle modules, aborts if formatting changed a staged file, runs `yamllint` for staged YAML files, then runs the relevant Gradle verification tasks for the staged paths. Benchmark changes now also run the verified JVM smoke benchmark guard. Android or Gradle build-surface changes also run `checkAgp9Invariants`. |
 | `.githooks/commit-msg` | Rejects commit messages that do not follow the repository Conventional Commit policy. |
-| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs benchmark smoke checks for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. Android or Gradle build-surface changes also run `checkAgp9Invariants`. Reference-app paths use the fast local-check bundle instead of the slower full release build. |
+| `.githooks/pre-push` | Inspects the paths and commit subjects in the outgoing push, blocks direct pushes to `main`, validates shell hooks, runs `yamllint` for pushed YAML files, runs the verified JVM smoke benchmark guard for benchmark-sensitive MeshLink paths, and runs the heavier Gradle verification bundle for the affected modules before the push is allowed. Android or Gradle build-surface changes also run `checkAgp9Invariants`. Reference-app paths use the fast local-check bundle instead of the slower full release build. |
 
 ## Related docs
 

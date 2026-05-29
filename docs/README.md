@@ -156,7 +156,7 @@ guessing which page owns which model.
 
 - [AGP 9 migration plan for MeshLink build modules](tooling/agp-9-migration-plan.md) — the current maintenance summary for the post-migration build shape.
 - [AGP 9 migration history for MeshLink build modules](tooling/agp-9-migration-plan-history.md) — the historical execution record.
-- [Pre-release refactor roadmap for MeshLink](tooling/pre-release-refactor-roadmap.md) — staged maintainability, efficiency, and documentation work sized for focused AI-agent rounds before the first release.
+- [Pre-release refactor roadmap for MeshLink](tooling/pre-release-refactor-roadmap.md) — retained execution record of the staged maintainability, efficiency, and documentation work that landed before the first release.
 - [Dokka and SKIE posture for MeshLink](tooling/dokka-and-skie-options.md) — current documentation and Apple interop tooling posture.
 
 ## RFCs

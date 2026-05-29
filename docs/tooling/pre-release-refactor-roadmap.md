@@ -1,12 +1,18 @@
 # Pre-release refactor roadmap for MeshLink
 
-Status: Proposed
+Status: Implemented on `main`
+
+This roadmap has landed on `main` and now acts as the retained execution record
+for the pre-release seam-deepening work. Use the contributor reference and
+repository-architecture docs for the current workflow; use this page when you
+need the original staging order, verification bundle, or rationale behind the
+cleanup sequence.
 
 ## Release posture
 
 MeshLink has **not been released yet**.
 
-This roadmap therefore optimizes for **a better first release**, not for preserving
+The roadmap therefore optimized for **a better first release**, not for preserving
 pre-release compatibility.
 
 That means the refactor stream may introduce **intentional breaking changes** when
@@ -23,10 +29,10 @@ High-risk surfaces such as wire format, crypto posture, routing behavior, and
 physical-proof workflows should change only in slices that name that risk
 explicitly and run the fuller verification bundle.
 
-## What this roadmap is for
+## What this record is for
 
-Use this roadmap when you want to improve the repository before the first public
-release by making the code:
+Use this record when you want to understand or revisit the pre-release cleanup
+that made the repository more maintainable before the first public release:
 
 - faster where the extra efficiency is real and measurable
 - easier to understand through smaller, deeper modules
@@ -77,9 +83,9 @@ Do not mark a slice complete on code inspection alone.
 | `:meshlink` shared runtime or common code | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify` |
 | Android-specific `:meshlink` transport or platform glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` |
 | iOS-specific `:meshlink` transport or platform glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` |
-| Performance-sensitive `:meshlink` paths | the matching bundle above plus `./gradlew :benchmarks:jvmSmokeBenchmark` |
+| Performance-sensitive `:meshlink` paths | the matching bundle above plus `./gradlew verifyJvmSmokeBenchmarks` |
 | Docs only | `./gradlew verifyDocs` |
-| Android proof app host refactor | `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug` |
+| Android proof app host refactor | `./gradlew :meshlink-proof:android:assembleDebug` |
 | iOS proof app host refactor | `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build` |
 
 ## Roadmap overview
@@ -142,7 +148,7 @@ Do not mark a slice complete on code inspection alone.
   - Scope: reduce cross-file mutation sprawl for session ownership, transfer lifecycle, and registry bookkeeping.
   - Primary modules: session registry, session support, transfer support, inbound-transfer support, relay-transfer support.
   - Why this slice: it is a high-leverage structural cleanup, but it should happen only after the lower-risk assembly work settles.
-  - Verify: `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify :benchmarks:jvmSmokeBenchmark`
+  - Verify: `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:koverVerify verifyJvmSmokeBenchmarks`
 
 ### Phase 3 — Platform transport seam cleanup
 
@@ -174,7 +180,7 @@ Do not mark a slice complete on code inspection alone.
   - Scope: split launch parsing, runtime ownership, benchmark payload helpers, receipt handling, and UI host responsibilities.
   - Primary modules: Android proof activity and the proof runtime helpers it currently contains.
   - Why this slice: it is self-contained and yields immediate maintainability gains without touching the normative reference-app surface.
-  - Verify: `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug`
+  - Verify: `./gradlew :meshlink-proof:android:assembleDebug`
 
 - [x] **R13: Decompose the iOS proof view model by mode** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: MeshLink mode, GATT benchmark modes, transport-log capture, and benchmark receipt flow stop competing inside one large view model.

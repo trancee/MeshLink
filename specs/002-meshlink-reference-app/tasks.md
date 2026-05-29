@@ -22,7 +22,7 @@ reviewable.
 ## Path Conventions
 
 - Shared KMP module: `meshlink-reference/src/commonMain/`, `meshlink-reference/src/commonTest/`, `meshlink-reference/src/androidMain/`, `meshlink-reference/src/iosMain/`, `meshlink-reference/src/iosTest/`
-- Nested Android app module: `meshlink-reference/android-app/src/main/`, `meshlink-reference/android-app/src/androidTest/`
+- Nested Android host module: `meshlink-reference/android/src/main/`, `meshlink-reference/android/src/androidTest/`
 - iOS host project: `meshlink-reference/ios/`
 - Existing SDK and benchmark modules: `meshlink/`, `benchmarks/`
 - Feature artifacts: `specs/002-meshlink-reference-app/`
@@ -35,7 +35,7 @@ reviewable.
 - [X] T002 Register the `:meshlink-reference` module and its project directory in `settings.gradle.kts`
 - [X] T003 Add root plugin and Kover aggregation wiring for `:meshlink-reference` in `build.gradle.kts`
 - [X] T004 Create the Kotlin Multiplatform app build script in `meshlink-reference/build.gradle.kts`
-- [X] T005 [P] Create Android app scaffold files in `meshlink-reference/android-app/src/main/AndroidManifest.xml` and `meshlink-reference/android-app/src/main/res/values/strings.xml`
+- [X] T005 [P] Create Android app scaffold files in `meshlink-reference/android/src/main/AndroidManifest.xml` and `meshlink-reference/android/src/main/res/values/strings.xml`
 - [X] T006 [P] Create the iOS host project spec and support files in `meshlink-reference/ios/project.yml` and `meshlink-reference/ios/ReferenceApp/Support/Info.plist`
 
 ---
@@ -51,7 +51,7 @@ reviewable.
 - [X] T009 [P] Create JSON serialization and repository interfaces in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/ReferenceJson.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/SessionHistoryRepository.kt`, and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/SessionArtifactSerializer.kt`
 - [X] T010 [P] Create the shared MeshLink coordinator and platform service contracts in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/ReferenceMeshLinkController.kt` and `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
 - [X] T011 [P] Create the editorial design system and shared resource catalog in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/design/ReferenceTheme.kt` and `meshlink-reference/src/commonMain/composeResources/values/strings.xml`
-- [X] T012 Create the shared app shell and platform bootstraps in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`, and `meshlink-reference/ios/ReferenceApp/ReferenceApp.swift`
+- [X] T012 Create the shared app shell and platform bootstraps in `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/app/ReferenceApp.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`, and `meshlink-reference/ios/ReferenceApp/ReferenceApp.swift`
 
 **Checkpoint**: Foundation ready — guided, advanced, timeline, and parity slices can now proceed.
 
@@ -142,7 +142,7 @@ reviewable.
 ### Validation for User Story 4 (REQUIRED) ⚠️
 
 - [X] T041 [P] [US4] Add shared workflow catalog and diagnostic-category parity tests in `meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt`
-- [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
+- [X] T042 [P] [US4] Add Android and iOS parity smoke tests in `meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt` and `meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt`
 - [X] T043 [US4] Validate named workflow, label, blocker, and diagnostic-category parity against `specs/002-meshlink-reference-app/quickstart.md` and `specs/002-meshlink-reference-app/contracts/reference-ui.md`
 
 ### Implementation for User Story 4
@@ -151,7 +151,7 @@ reviewable.
 - [X] T045 [P] [US4] Commit the iOS host project and host-side tests in `meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj` and `meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift`
 - [X] T046 [P] [US4] Align Android platform services and blocker messaging in `meshlink-reference/src/androidMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
 - [X] T047 [P] [US4] Align iOS platform services and blocker messaging in `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/platform/PlatformServices.kt`
-- [X] T048 [US4] Wire identical surface IDs and entry routes across `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/android-app/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`
+- [X] T048 [US4] Wire identical surface IDs and entry routes across `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/ReferenceNavHost.kt`, `meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`, and `meshlink-reference/src/iosMain/kotlin/ch/trancee/meshlink/reference/ReferenceViewController.kt`
 
 **Checkpoint**: User Story 4 is complete when Android and iOS present the same named reference experience, with platform differences limited to clearly explained setup constraints.
 
@@ -261,7 +261,7 @@ Task: "Implement timeline, recent-history, and export UI surfaces in meshlink-re
 ```bash
 # Validation tasks
 Task: "Add shared workflow catalog and diagnostic-category parity tests in meshlink-reference/src/commonTest/kotlin/ch/trancee/meshlink/reference/parity/WorkflowCatalogParityTest.kt"
-Task: "Add Android and iOS parity smoke tests in meshlink-reference/android-app/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt and meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt"
+Task: "Add Android and iOS parity smoke tests in meshlink-reference/android/src/androidTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt and meshlink-reference/src/iosTest/kotlin/ch/trancee/meshlink/reference/ReferenceAppSmokeTest.kt"
 
 # Implementation tasks
 Task: "Commit the iOS host project and host-side tests in meshlink-reference/ios/ReferenceApp.xcodeproj/project.pbxproj and meshlink-reference/ios/ReferenceAppTests/ReferenceAppParityTests.swift"

@@ -17,18 +17,20 @@ plugins {
 }
 
 kotlin {
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
+
     android {
         namespace = "ch.trancee.meshlink.reference"
         compileSdk = 36
         minSdk = 29
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
         androidResources { enable = true }
         withHostTest {}
     }
 
     listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "ReferenceAppShared"
+            baseName = "MeshLinkReference"
             isStatic = true
             binaryOption("bundleId", "ch.trancee.meshlink.reference")
             export(project(":meshlink"))
@@ -58,6 +60,11 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.compose.ui.test)
         }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(compose.desktop.currentOs)
+        }
         getByName("androidHostTest").dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
@@ -76,7 +83,7 @@ detekt {
 }
 
 tasks.withType<Detekt>().configureEach {
-    jvmTarget = "17"
+    jvmTarget = "21"
     exclude("**/build/**")
     exclude { element ->
         element.file.invariantSeparatorsPath.contains(
@@ -106,22 +113,22 @@ val localCheck by tasks.registering {
     dependsOn("check", "linkDebugFrameworkIosArm64", "linkDebugFrameworkIosSimulatorArm64")
 }
 
-tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android-app:ktfmtFormat") }
+tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android:ktfmtFormat") }
 
-tasks.named("check") { dependsOn(":meshlink-reference:android-app:check") }
+tasks.named("check") { dependsOn(":meshlink-reference:android:check") }
 
-tasks.named("build") { dependsOn(":meshlink-reference:android-app:build") }
+tasks.named("build") { dependsOn(":meshlink-reference:android:build") }
 
 val installDebug by tasks.registering {
     group = "install"
-    description = "Installs the Android debug reference app from the nested Android app module."
-    dependsOn(":meshlink-reference:android-app:installDebug")
+    description = "Installs the Android debug reference app from the nested Android host module."
+    dependsOn(":meshlink-reference:android:installDebug")
 }
 
 val connectedDebugAndroidTest by tasks.registering {
     group = "verification"
-    description = "Runs Android connected debug tests for the nested reference Android app module."
-    dependsOn(":meshlink-reference:android-app:connectedDebugAndroidTest")
+    description = "Runs Android connected debug tests for the nested reference Android host module."
+    dependsOn(":meshlink-reference:android:connectedDebugAndroidTest")
 }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
@@ -133,5 +140,5 @@ powerAssert {
             "kotlin.test.assertFalse",
             "kotlin.test.assertTrue",
         )
-    includedSourceSets = listOf("commonTest", "androidHostTest", "iosTest")
+    includedSourceSets = listOf("commonTest", "jvmTest", "androidHostTest", "iosTest")
 }

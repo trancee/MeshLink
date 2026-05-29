@@ -17,7 +17,7 @@ The repository now uses the tools in these scopes:
 They are intentionally **not** applied to:
 
 - `:benchmarks`
-- `:meshlink-proof:android:meshlink-proof-android-app`
+- `:meshlink-proof:android`
 
 A root convenience task now generates the useful Dokka outputs together:
 
@@ -43,7 +43,7 @@ Dokka is clearly useful here as supplemental generated Kotlin reference output.
 `:meshlink-reference` is not a public SDK, but it is still a shared Kotlin
 module that:
 
-- produces the `ReferenceAppShared` iOS framework
+- produces the `MeshLinkReference` iOS framework
 - exposes shared bridge types and entry points consumed by the native iOS host
 - contains contributor-facing shared app contracts such as platform-services
   bridges, automation configuration, and root view-controller entry points
@@ -64,7 +64,7 @@ reference docs would mostly add noise.
 
 ### Why not the proof app
 
-`:meshlink-proof:android:meshlink-proof-android-app` is an Android application
+`:meshlink-proof:android` is an Android application
 module used for retained proof workflows, not a reusable library module. Dokka
 would not add meaningful value there.
 
@@ -99,7 +99,7 @@ SKIE is used to improve the Swift surface of the generated framework-producing
 Kotlin modules that have native Swift consumers:
 
 - the **MeshLink SDK framework** from `:meshlink`
-- the **ReferenceAppShared** framework from `:meshlink-reference`
+- the **MeshLinkReference** framework from `:meshlink-reference`
 
 Current stable benefits we rely on:
 

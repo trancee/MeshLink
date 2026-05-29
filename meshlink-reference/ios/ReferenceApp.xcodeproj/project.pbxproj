@@ -9,16 +9,24 @@
 /* Begin PBXBuildFile section */
 		07F0C1C846E1ED9B0E0089C5 /* ReferenceAppUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6E0F604BFBD20FA1913C97 /* ReferenceAppUITestSupport.swift */; };
 		1FFFD5668B725A2E7037BC2B /* ReferenceAppWorkflowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B113A88D2D4E595D50E85C /* ReferenceAppWorkflowUITests.swift */; };
-		2436ACB20A2DA189EA490A84 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */; };
 		49DC6384CCD821DCC83B2909 /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661D9F7A3D82FECDC57B518A /* MeshLinkCryptoBridge.swift */; };
 		61FC124E4895A92657A086DA /* ReferenceAppPlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */; };
 		6478A3D2E4830DE1E0E9CDC0 /* ReferenceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */; };
 		73582F9968058BF15787538F /* ReferenceAppParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */; };
 		9210583AE894E50B571DFEC3 /* MeshLinkTransportBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0099B4E6BF51E2B4E4555F /* MeshLinkTransportBridge.swift */; };
+		DD048002C1148BCA7A6E9A0A /* ReferenceAppUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6E0F604BFBD20FA1913C97 /* ReferenceAppUITestSupport.swift */; };
+		EB97344833A30EDFAB1825B2 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9DA00B7946051EE7F9A417 /* ReferenceAppPhysicalLiveProofUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		A9D1C7B8842552DA38152356 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 081AD8F8298839A23CC474D0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 252E009AF54813E8F8EEEF5D;
+			remoteInfo = ReferenceApp;
+		};
+		DACCE7E2543F4D201DE7BD20 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 081AD8F8298839A23CC474D0 /* Project object */;
 			proxyType = 1;
@@ -36,11 +44,12 @@
 
 /* Begin PBXFileReference section */
 		01935F212101BD3BFFDBA6E0 /* ReferenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceApp.swift; sourceTree = "<group>"; };
-		0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPhysicalLiveProofUITests.swift; sourceTree = "<group>"; };
 		0DF1C49DBE2F0982D313B71E /* ReferenceAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F0099B4E6BF51E2B4E4555F /* MeshLinkTransportBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkTransportBridge.swift; sourceTree = "<group>"; };
 		324A79A3CC4BF8DE1CFD05FC /* ReferenceAppPlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPlaceholderTests.swift; sourceTree = "<group>"; };
+		506644EF4566002DF991D08C /* ReferenceAppPhysicalUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppPhysicalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		520EFE099DDF72C6E68E9D18 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5B9DA00B7946051EE7F9A417 /* ReferenceAppPhysicalLiveProofUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppPhysicalLiveProofUITests.swift; sourceTree = "<group>"; };
 		661D9F7A3D82FECDC57B518A /* MeshLinkCryptoBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkCryptoBridge.swift; sourceTree = "<group>"; };
 		79FC582F78CA92B1DE49D235 /* ReferenceAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReferenceAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AFA1C012385F455D6804BA63 /* ReferenceAppParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceAppParityTests.swift; sourceTree = "<group>"; };
@@ -63,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				CEC69B8D061F68EC23F54E8F /* ReferenceApp.app */,
+				506644EF4566002DF991D08C /* ReferenceAppPhysicalUITests.xctest */,
 				79FC582F78CA92B1DE49D235 /* ReferenceAppTests.xctest */,
 				0DF1C49DBE2F0982D313B71E /* ReferenceAppUITests.xctest */,
 			);
@@ -73,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				D69BBE6F67464877B0A8AC5C /* ReferenceApp */,
+				ACACADB80646DB4DB1594538 /* ReferenceAppPhysicalUITests */,
 				2EC15BC146E57F70417BBB50 /* ReferenceAppTests */,
 				66CE1827996081EF56D80CD9 /* ReferenceAppUITests */,
 				577C36D6DB4E504960C5031C /* Products */,
@@ -82,11 +93,18 @@
 		66CE1827996081EF56D80CD9 /* ReferenceAppUITests */ = {
 			isa = PBXGroup;
 			children = (
-				0584BADD09581A84C1CF94E4 /* ReferenceAppPhysicalLiveProofUITests.swift */,
 				DE6E0F604BFBD20FA1913C97 /* ReferenceAppUITestSupport.swift */,
 				B8B113A88D2D4E595D50E85C /* ReferenceAppWorkflowUITests.swift */,
 			);
 			path = ReferenceAppUITests;
+			sourceTree = "<group>";
+		};
+		ACACADB80646DB4DB1594538 /* ReferenceAppPhysicalUITests */ = {
+			isa = PBXGroup;
+			children = (
+				5B9DA00B7946051EE7F9A417 /* ReferenceAppPhysicalLiveProofUITests.swift */,
+			);
+			path = ReferenceAppPhysicalUITests;
 			sourceTree = "<group>";
 		};
 		C6099E42EF3EA11B97F5D483 /* Support */ = {
@@ -128,6 +146,24 @@
 			productName = ReferenceApp;
 			productReference = CEC69B8D061F68EC23F54E8F /* ReferenceApp.app */;
 			productType = "com.apple.product-type.application";
+		};
+		8441C2E16F97B4C5F184DA71 /* ReferenceAppPhysicalUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B04868C4E27A0CF9F09D00A0 /* Build configuration list for PBXNativeTarget "ReferenceAppPhysicalUITests" */;
+			buildPhases = (
+				13010D3E866005AA26A68B1D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				71A9DCCDB8962FCFFC822DF0 /* PBXTargetDependency */,
+			);
+			name = ReferenceAppPhysicalUITests;
+			packageProductDependencies = (
+			);
+			productName = ReferenceAppPhysicalUITests;
+			productReference = 506644EF4566002DF991D08C /* ReferenceAppPhysicalUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		9387D06C613F1D30349C5E6A /* ReferenceAppTests */ = {
 			isa = PBXNativeTarget;
@@ -177,6 +213,10 @@
 					252E009AF54813E8F8EEEF5D = {
 						ProvisioningStyle = Automatic;
 					};
+					8441C2E16F97B4C5F184DA71 = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = 252E009AF54813E8F8EEEF5D;
+					};
 					9387D06C613F1D30349C5E6A = {
 						ProvisioningStyle = Automatic;
 					};
@@ -201,6 +241,7 @@
 			projectRoot = "";
 			targets = (
 				252E009AF54813E8F8EEEF5D /* ReferenceApp */,
+				8441C2E16F97B4C5F184DA71 /* ReferenceAppPhysicalUITests */,
 				9387D06C613F1D30349C5E6A /* ReferenceAppTests */,
 				B1B3CCE88217946E20558061 /* ReferenceAppUITests */,
 			);
@@ -230,6 +271,15 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		13010D3E866005AA26A68B1D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EB97344833A30EDFAB1825B2 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */,
+				DD048002C1148BCA7A6E9A0A /* ReferenceAppUITestSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1EB49B5349C31303F41178E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -253,7 +303,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2436ACB20A2DA189EA490A84 /* ReferenceAppPhysicalLiveProofUITests.swift in Sources */,
 				07F0C1C846E1ED9B0E0089C5 /* ReferenceAppUITestSupport.swift in Sources */,
 				1FFFD5668B725A2E7037BC2B /* ReferenceAppWorkflowUITests.swift in Sources */,
 			);
@@ -262,6 +311,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		71A9DCCDB8962FCFFC822DF0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 252E009AF54813E8F8EEEF5D /* ReferenceApp */;
+			targetProxy = DACCE7E2543F4D201DE7BD20 /* PBXContainerItemProxy */;
+		};
 		AB36530F7F4E53C8DFF07CFD /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 252E009AF54813E8F8EEEF5D /* ReferenceApp */;
@@ -356,7 +410,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "$(inherited) -framework ReferenceAppShared";
+				OTHER_LDFLAGS = "$(inherited) -framework MeshLinkReference";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -402,6 +456,25 @@
 				TEST_TARGET_NAME = ReferenceApp;
 			};
 			name = Debug;
+		};
+		5C6C56CFB8D0D0BB6BA46856 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ch.trancee.meshlink.reference.ios.physicaluitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ReferenceApp;
+			};
+			name = Release;
 		};
 		8C8C4122436235F29286E443 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -515,7 +588,7 @@
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				OTHER_LDFLAGS = "$(inherited) -framework ReferenceAppShared";
+				OTHER_LDFLAGS = "$(inherited) -framework MeshLinkReference";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -523,6 +596,25 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
+		};
+		ED0711D6BCA1DE1097997D7D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ch.trancee.meshlink.reference.ios.physicaluitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ReferenceApp;
+			};
+			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
@@ -541,6 +633,15 @@
 			buildConfigurations = (
 				32BE6A21EB24AC151E114AAE /* Debug */,
 				DE10ED49C0883CC4E0702467 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B04868C4E27A0CF9F09D00A0 /* Build configuration list for PBXNativeTarget "ReferenceAppPhysicalUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ED0711D6BCA1DE1097997D7D /* Debug */,
+				5C6C56CFB8D0D0BB6BA46856 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
