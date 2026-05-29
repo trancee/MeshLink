@@ -40,6 +40,10 @@ xcodebuild \
   build
 ```
 
+On Apple Silicon, the committed project excludes the legacy `x86_64` simulator
+slice and builds the `arm64` simulator target only. That matches the current
+MeshLink framework export shape used by the proof app.
+
 ## 3. Build for a physical iPhone
 
 Pass your development team at build time rather than storing it in the repo:
@@ -91,6 +95,14 @@ The iOS proof app reads environment variables on startup.
 Use Xcode scheme environment variables for manual runs. For retained physical
 benchmark work, prefer the headless runner so those values are applied
 consistently.
+
+### Contributor note
+
+The iOS proof host still presents one SwiftUI-facing view model, but launch
+parsing, benchmark-only mode switching, transport-log capture, and benchmark
+payload or receipt framing now live behind narrower proof-harness helpers.
+That keeps proof-only behavior local without turning one view model into the
+single home for every concern.
 
 ## 6. Prefer the headless runner for retained physical benchmarks
 

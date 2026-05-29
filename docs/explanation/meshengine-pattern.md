@@ -54,6 +54,18 @@ It does **not** embed routing, transfer, trust, or handshake policy directly.
 That makes one place responsible for composition instead of scattering
 cross-subsystem knowledge through the public shell.
 
+The recent runtime refactors keep that wiring layer honest in two ways:
+
+- runtime policy decisions such as retry deadlines, TTL selection, and inline
+  payload thresholds now sit behind dedicated policy modules instead of hiding
+  inside assembly code
+- transfer-session mutation bookkeeping now sits behind dedicated registries so
+  support helpers do not all reach into the same shared maps
+
+That is the practical version of the pattern: assembly should read as
+composition, while policy and lifecycle mutation stay local to the modules that
+own them.
+
 ## Why not expose subsystems directly?
 
 That alternative looks simpler at first, but it makes three things worse.

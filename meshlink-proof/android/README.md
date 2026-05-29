@@ -108,6 +108,13 @@ These modes are retained for investigation and benchmark work only. They are
 not application-level transport choices and they are not the canonical product
 integration path.
 
+### Contributor note
+
+The Android proof host now keeps the activity thin on purpose.
+Launch parsing, permission rules, benchmark framing, and runtime ownership live
+behind narrower proof-harness helpers so proof-only behavior does not accrete in
+one giant activity file.
+
 ## 6. Run Android-side instrumented proof benchmarks
 
 The Android proof app also ships instrumented benchmark coverage under

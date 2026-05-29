@@ -185,7 +185,7 @@ Do not mark a slice complete on code inspection alone.
 
 ### Phase 5 — Documentation and contributor guidance sync
 
-- [ ] **R14: Refresh architecture and contributor docs after the seam changes** `risk:low` `depends:[R02,R03,R04,R06,R07,R08,R09,R10,R11,R12,R13]` `breaking:allowed`
+- [x] **R14: Refresh architecture and contributor docs after the seam changes** `risk:low` `depends:[R02,R03,R04,R06,R07,R08,R09,R10,R11,R12,R13]` `breaking:allowed`
   > After this: contributors can still find the right module, seam, and verification bundle without carrying conversation-only context.
   - Scope: update architecture, repository-layout, contributor, reference-app, and proof-app guidance to match the landed seams.
   - Primary docs: repository architecture explanation, MeshEngine explanation, contributor reference, repository layout reference, reference-app overview, proof-app guides.
