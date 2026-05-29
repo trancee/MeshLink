@@ -4,13 +4,9 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.OutboundFrame
-import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.transport.resolveActivePeerHint
-import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
@@ -21,11 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 
 internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
-    return synchronized(pendingConnectLock) { pendingConnectJobsByHint.containsKey(hintPeer) }
+    return linkRegistry.hasPendingConnect(hintPeer)
 }
 
 internal fun BleTransportAdapter.clearPendingConnect(hintPeer: String): Unit {
-    synchronized(pendingConnectLock) { pendingConnectJobsByHint.remove(hintPeer) }
+    linkRegistry.clearPendingConnect(hintPeer)
 }
 
 @SuppressLint("MissingPermission")
@@ -59,22 +55,11 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
                         "L2CAP connect failed for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
                     )
                     peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
-                    closeQuietly(activeLinksByHint.remove(peer.hintPeerId.value))
+                    closeQuietly(linkRegistry.removeActiveLink(peer.hintPeerId.value))
                 }
             clearPendingConnect(peer.hintPeerId.value)
         }
-    val reserved =
-        synchronized(pendingConnectLock) {
-            if (
-                activeLinksByHint.containsKey(peer.hintPeerId.value) ||
-                    pendingConnectJobsByHint.containsKey(peer.hintPeerId.value)
-            ) {
-                false
-            } else {
-                pendingConnectJobsByHint[peer.hintPeerId.value] = connectJob
-                true
-            }
-        }
+    val reserved = linkRegistry.reservePendingConnect(peer.hintPeerId.value, connectJob)
     if (!reserved) {
         connectJob.cancel()
         return
@@ -85,43 +70,28 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
 
 internal fun BleTransportAdapter.promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
     val mappedTemporaryHint = peerBindings.temporaryHintForAddress(address) ?: return
-    val temporaryHint =
-        selectTemporaryPeerHintPromotion(
-            TemporaryPeerHintPromotionRequest(
-                temporaryHintPeerIdValue = mappedTemporaryHint,
-                resolvedHintPeerIdValue = hintPeerId.value,
-                activeHintIds = activeLinksByHint.keys,
-                temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
+    when (
+        linkRegistry.promoteTemporaryLink(
+            address = address,
+            resolvedHintPeerIdValue = hintPeerId.value,
+            temporaryPeerPrefix = TEMPORARY_PEER_PREFIX,
+            updateHint = { link, promotedHintPeerId -> link.peerHintId = promotedHintPeerId },
+            closeLink = ::closeQuietly,
+        )
+    ) {
+        TemporaryLinkPromotionOutcome.PROMOTED -> {
+            log(
+                "promoted temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
             )
-        )
-    val promoted =
-        synchronized(activeLinksByHint) {
-            when {
-                temporaryHint != null -> {
-                    val link = activeLinksByHint.remove(temporaryHint) ?: return@synchronized false
-                    link.peerHintId = hintPeerId
-                    activeLinksByHint[hintPeerId.value] = link
-                    true
-                }
-
-                activeLinksByHint.containsKey(mappedTemporaryHint) &&
-                    activeLinksByHint.containsKey(hintPeerId.value) -> {
-                    log(
-                        "closing temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"
-                    )
-                    closeQuietly(activeLinksByHint.remove(mappedTemporaryHint))
-                    false
-                }
-
-                else -> false
-            }
         }
-    peerBindings.removeTemporaryHint(address)
-    peerBindings.bindHintToAddress(address, hintPeerId.value)
-    if (promoted) {
-        log(
-            "promoted temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"
-        )
+
+        TemporaryLinkPromotionOutcome.CLOSED_DUPLICATE -> {
+            log(
+                "closing temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"
+            )
+        }
+
+        TemporaryLinkPromotionOutcome.NONE -> Unit
     }
 }
 
@@ -150,85 +120,74 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     hintPeerId: PeerId,
     socket: BluetoothSocket,
 ): Unit {
-    synchronized(activeLinksByHint) {
-        if (activeLinksByHint.containsKey(hintPeerId.value)) {
-            log("ignoring duplicate L2CAP socket for ${hintPeerId.value.takeLast(6)}")
-            closeQuietly(socket)
-            return
-        }
-        val link =
-            L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer())
-        activeLinksByHint[hintPeerId.value] = link
-        peerBindings.retainDevice(socket.remoteDevice.address, socket.remoteDevice)
-        peerBindings.bindHintToAddress(socket.remoteDevice.address, hintPeerId.value)
-        peerRegistry.setRediscoveryLoggedWithoutLink(hintPeerId.value, false)
-        log(
-            "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
-        )
-        link.readLoopJob = coroutineScope.launch {
-            val readBuffer =
-                ByteArray(link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES))
-            var consecutiveZeroByteReads = 0
-            try {
-                while (true) {
-                    val read = link.inputStream.read(readBuffer)
-                    if (read < 0) {
+    val link =
+        L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer())
+    if (!linkRegistry.registerActiveLink(hintPeerId.value, link)) {
+        log("ignoring duplicate L2CAP socket for ${hintPeerId.value.takeLast(6)}")
+        closeQuietly(socket)
+        return
+    }
+    peerBindings.retainDevice(socket.remoteDevice.address, socket.remoteDevice)
+    peerBindings.bindHintToAddress(socket.remoteDevice.address, hintPeerId.value)
+    peerRegistry.setRediscoveryLoggedWithoutLink(hintPeerId.value, false)
+    log(
+        "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
+    )
+    link.readLoopJob = coroutineScope.launch {
+        val readBuffer =
+            ByteArray(link.maxReceivePacketSize.coerceAtLeast(DEFAULT_SOCKET_READ_BUFFER_BYTES))
+        var consecutiveZeroByteReads = 0
+        try {
+            while (true) {
+                val read = link.inputStream.read(readBuffer)
+                if (read < 0) {
+                    log {
+                        "L2CAP EOF from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
+                    }
+                    break
+                }
+                if (read == 0) {
+                    consecutiveZeroByteReads += 1
+                    val peerSuffix = link.peerHintId.value.takeLast(6)
+                    if (consecutiveZeroByteReads >= MAX_CONSECUTIVE_ZERO_BYTE_READS) {
                         log {
-                            "L2CAP EOF from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
+                            "L2CAP zero-byte read threshold reached for $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
                         }
                         break
                     }
-                    if (read == 0) {
-                        consecutiveZeroByteReads += 1
-                        val peerSuffix = link.peerHintId.value.takeLast(6)
-                        if (consecutiveZeroByteReads >= MAX_CONSECUTIVE_ZERO_BYTE_READS) {
-                            log {
-                                "L2CAP zero-byte read threshold reached for $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"
-                            }
-                            break
-                        }
-                        log {
-                            "L2CAP zero-byte read from $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize} consecutive=$consecutiveZeroByteReads"
-                        }
-                        delay(ZERO_BYTE_READ_BACKOFF_MS)
-                        continue
+                    log {
+                        "L2CAP zero-byte read from $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize} consecutive=$consecutiveZeroByteReads"
                     }
-                    consecutiveZeroByteReads = 0
-                    val appendResult =
-                        link.incomingFrames.appendDetailed(source = readBuffer, length = read)
-                    appendResult.frames.forEachIndexed { frameIndex, payload ->
-                        val currentPeerId = link.peerHintId
-                        if (payload.isEmpty()) {
-                            logEmptyFrameObservation(
-                                peerId = currentPeerId,
-                                readBytes = read,
-                                appendResult = appendResult,
-                                observation = appendResult.observations.getOrNull(frameIndex),
-                            )
-                            return@forEachIndexed
-                        }
-                        mutableEvents.emit(
-                            TransportEvent.FrameReceived(peerId = currentPeerId, payload = payload)
-                        )
-                    }
+                    delay(ZERO_BYTE_READ_BACKOFF_MS)
+                    continue
                 }
-            } finally {
-                closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
+                consecutiveZeroByteReads = 0
+                val appendResult =
+                    link.incomingFrames.appendDetailed(source = readBuffer, length = read)
+                appendResult.frames.forEachIndexed { frameIndex, payload ->
+                    val currentPeerId = link.peerHintId
+                    if (payload.isEmpty()) {
+                        logEmptyFrameObservation(
+                            peerId = currentPeerId,
+                            readBytes = read,
+                            appendResult = appendResult,
+                            observation = appendResult.observations.getOrNull(frameIndex),
+                        )
+                        return@forEachIndexed
+                    }
+                    mutableEvents.emit(
+                        TransportEvent.FrameReceived(peerId = currentPeerId, payload = payload)
+                    )
+                }
             }
+        } finally {
+            closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
         }
     }
 }
 
 internal fun BleTransportAdapter.activeLinkFor(peer: DiscoveredPeer): L2capLink? {
-    val activeHint =
-        resolveActivePeerHint(
-            ActivePeerHintResolutionRequest(
-                hintPeerIdValue = peer.hintPeerId.value,
-                temporaryHintPeerIdValue = peerBindings.temporaryHintForAddress(peer.deviceAddress),
-                activeHintIds = activeLinksByHint.keys,
-            )
-        ) ?: return null
-    return activeLinksByHint[activeHint]
+    return linkRegistry.resolveActiveLink(peer)
 }
 
 internal suspend fun BleTransportAdapter.sendViaConnectedLink(
@@ -253,13 +212,10 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null
-    synchronized(pendingConnectLock) {
-        pendingConnectJobsByHint.values.forEach(Job::cancel)
-        pendingConnectJobsByHint.clear()
-    }
+    linkRegistry.cancelPendingConnects()
     closeQuietly(l2capServerSocket)
     l2capServerSocket = null
-    val hintIds = activeLinksByHint.keys.toList()
+    val hintIds = linkRegistry.activeHintIdsSnapshot()
     hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
     gattSideLinks.stopAll()
     inboundFrameQueue?.close()
@@ -272,7 +228,7 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
 }
 
 internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit {
-    val link = synchronized(activeLinksByHint) { activeLinksByHint.remove(hintPeer) } ?: return
+    val link = linkRegistry.removeActiveLink(hintPeer) ?: return
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, false)
     log(
         "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${peerRegistry.peer(hintPeer) != null} pendingConnect=${hasPendingConnect(hintPeer)}"

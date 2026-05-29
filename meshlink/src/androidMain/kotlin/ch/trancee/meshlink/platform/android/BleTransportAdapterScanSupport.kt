@@ -99,7 +99,7 @@ internal fun BleTransportAdapter.maybeLogRediscoveryWithoutLink(
                 transportMode = transportMode,
                 hintPeerIdValue = peer.hintPeerId.value,
                 temporaryHintPeerIdValue = peerBindings.temporaryHintForAddress(address),
-                activeHintIds = activeLinksByHint.keys,
+                activeHintIds = linkRegistry.activeHintIds(),
                 hasActiveSideLink = gattSideLinks.hasReadyLink(peer.hintPeerId.value),
                 hasPendingConnect = hasPendingConnect,
                 rediscoveryLoggedWithoutLink = peer.rediscoveryLoggedWithoutLink,

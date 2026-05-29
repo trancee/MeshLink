@@ -153,7 +153,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it removes one of the largest transport-level shallow modules.
   - Verify: `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify`
 
-- [ ] **R10: Split Android link and peer-session ownership from the adapter** `risk:high` `depends:[R09]` `breaking:allowed`
+- [x] **R10: Split Android link and peer-session ownership from the adapter** `risk:high` `depends:[R09]` `breaking:allowed`
   > After this: temporary-peer promotion, active-link ownership, and pending-connect bookkeeping stop living in the same broad adapter implementation.
   - Scope: isolate link ownership, peer rebinding, and pending-connection state.
   - Primary modules: Android BLE transport adapter, GATT side-link coordinator, peer registry, notify-session helpers.

@@ -57,17 +57,13 @@ internal class BleTransportAdapter(
             ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
-    internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
+    internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
     internal val gattSideLinks =
         GattSideLinkCoordinator(
             dependencies =
                 GattSideLinkCoordinatorDependencies(
                     deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
-                    hasActiveL2capLink = { hintPeerIdValue ->
-                        synchronized(activeLinksByHint) {
-                            activeLinksByHint.containsKey(hintPeerIdValue)
-                        }
-                    },
+                    hasActiveL2capLink = linkRegistry::hasActiveLink,
                     setPresenceAnnounced = peerRegistry::setPresenceAnnounced,
                     onFrameReceived = ::enqueueInboundFrame,
                     onPeerLost = { peerId ->
@@ -87,8 +83,6 @@ internal class BleTransportAdapter(
                     log = ::log,
                 )
         )
-    internal val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
-    internal val pendingConnectLock = Any()
     internal val transportMutex = Mutex()
     internal var inboundFrameQueue: InboundFrameQueue? = null
 
@@ -150,17 +144,12 @@ internal class BleTransportAdapter(
             return
         }
         val activeLink =
-            synchronized(activeLinksByHint) {
-                val link =
-                    activeLinksByHint.remove(temporaryPeerId.value) ?: return@synchronized null
-                if (activeLinksByHint.containsKey(canonicalPeerId.value)) {
-                    closeQuietly(link)
-                    return@synchronized null
-                }
-                link.peerHintId = canonicalPeerId
-                activeLinksByHint[canonicalPeerId.value] = link
-                link
-            } ?: return
+            linkRegistry.rebindActiveLink(
+                fromHintPeerIdValue = temporaryPeerId.value,
+                toHintPeerIdValue = canonicalPeerId.value,
+                updateHint = { link, promotedHintPeerId -> link.peerHintId = promotedHintPeerId },
+                closeLink = ::closeQuietly,
+            ) ?: return
         val remoteDevice = activeLink.remoteDevice
         val existingPeer = peerRegistry.peer(canonicalPeerId.value)
         val keyHash = canonicalPeerId.value.toBytes() ?: existingPeer?.keyHash
@@ -243,7 +232,7 @@ internal class BleTransportAdapter(
                             )
                     },
                     sendToTemporaryLinkOrNull = {
-                        activeLinksByHint[frame.peerId.value]?.let { temporaryLink ->
+                        linkRegistry.activeLink(frame.peerId.value)?.let { temporaryLink ->
                             sendViaConnectedLink(frame = frame, link = temporaryLink)
                         }
                     },
