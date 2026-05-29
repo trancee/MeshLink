@@ -264,7 +264,7 @@ Fresh retained evidence from this repository state:
 - Android install command: `./gradlew :meshlink-proof:android:installDebug --console=plain`
   - result: `BUILD SUCCESSFUL`
 - Android scored benchmark command:
-  `ANDROID_SERIAL=R38M10P930F ./gradlew :meshlink-proof:android:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
+  `ANDROID_SERIAL=<android-serial> ./gradlew :meshlink-proof:android:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=ch.trancee.meshlink.proof.android.PowerProfileBenchmark#lowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds -Pandroid.testInstrumentationRunnerArguments.meshlinkBenchmarkEnablePeerTests=true --console=plain`
   - result: `BUILD SUCCESSFUL`
   - sender Samsung line:
     `BENCHMARK transport bytes=256 elapsedMs=411 throughputKBps=0.61 result=Sent`
@@ -272,16 +272,16 @@ Fresh retained evidence from this repository state:
     - `BENCHMARK receipt peer remapped origin=f48c9d direct=ea85e3`
     - `BENCHMARK receipt send(ea85e3) -> Sent token=00015a7ea2cfe2e1 attempt=1`
 - iOS simulator compile gate:
-  `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
+  `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=<ios-simulator-id>' -only-testing:ProofBenchmarks/PowerProfileBenchmark/testLowBatteryPowerSaverModeDelivers256ByteMessageWithinFiveSeconds test`
   - result: `TEST SUCCEEDED`
   - benchmark case result: `Test skipped`
   - note: this remains a compile gate only because the simulator has no nearby BLE proof peer
 - iOS physical build/install/launch path using the paired iPhone 15 plus a
   transient local development team from the already-signed local build artifact:
   - device build: `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<redacted> build`
-  - install: `xcrun devicectl device install app --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 ~/Library/Developer/Xcode/DerivedData/ProofApp-bkjaxkflegnxwlflhhedzuolagbp/Build/Products/Debug-iphoneos/ProofApp.app`
+  - install: `xcrun devicectl device install app --device <ios-device-id> ~/Library/Developer/Xcode/DerivedData/ProofApp-*/Build/Products/Debug-iphoneos/ProofApp.app`
   - headless sender launch:
-    `xcrun devicectl device process launch --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467 --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256","MESHLINK_BENCHMARK_BATTERY_LEVEL":"0.5","MESHLINK_BENCHMARK_IS_CHARGING":"false"}' ch.trancee.meshlink.proof.ios`
+    `xcrun devicectl device process launch --device <ios-device-id> --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256","MESHLINK_BENCHMARK_BATTERY_LEVEL":"0.5","MESHLINK_BENCHMARK_IS_CHARGING":"false"}' ch.trancee.meshlink.proof.ios`
   - sender iPhone 15 line:
     `BENCHMARK transport bytes=256 elapsedMs=21331 throughputKBps=0.01 result=ReceiptTimeout`
   - passive OPPO lines:
@@ -1324,7 +1324,7 @@ Fresh verification after the bridge landed:
   passed
 - `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build`
   passed
-- `xcodebuild ... -destination 'id=00008120-00011DEE0105A01E' ... build`
+- `xcodebuild ... -destination 'id=<ios-device-id>' ... build`
   passed
 - the follow-up product-path reruns no longer retained the earlier
   `TypeCastException`

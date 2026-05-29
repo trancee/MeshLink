@@ -197,7 +197,7 @@ semantics.
 
 - [X] T054 [P] Add a bounded pending-frame window helper and automated coverage in `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/transport/PendingFrameWindow.kt` and `meshlink/src/commonTest/kotlin/ch/trancee/meshlink/transport/PendingFrameWindowTest.kt`
 - [X] T055 Implement iOS transport log-throttling plus a queued CoC writer with bounded frame/byte backpressure in `meshlink/src/iosMain/kotlin/ch/trancee/meshlink/platform/ios/BleTransportAdapter.kt`
-- [X] T056 Validate the iOS CoC remediation with fresh Kotlin/Xcode verification output using `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.transport.PendingFrameWindowTest' :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64 :meshlink:ktfmtCheck --console=plain` and `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=6C7DD73A-EC9C-46F9-B0B9-DD136F748621' test`
+- [X] T056 Validate the iOS CoC remediation with fresh Kotlin/Xcode verification output using `./gradlew :meshlink:jvmTest --tests 'ch.trancee.meshlink.transport.PendingFrameWindowTest' :meshlink:compileKotlinIosSimulatorArm64 :meshlink:compileKotlinIosArm64 :meshlink:ktfmtCheck --console=plain` and `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'id=<ios-simulator-id>' test`
 
 ---
 

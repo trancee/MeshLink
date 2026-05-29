@@ -32,6 +32,11 @@ Thumbs.db
 __pycache__/
 *.pyc
 
-# Pi
+# Local agent / workflow state
 .context/
-.pi/
+.bg-shell/
+.gsd/
+.tmp-yamllint/
+.specify/feature.json
+.specify/extensions/.registry
+.pi/prompts/speckit.git.*.md
