@@ -44,7 +44,7 @@ After Gradle, Android plugin, or module-shape changes, run:
 
 - `./gradlew checkAgp9Invariants` for the invariant guard
 - `./scripts/run-agp9-verification.sh` for the fuller retained verification
-  bundle
+  bundle, including the verified JVM smoke benchmark guard
 
 ## Why this document is short now
 

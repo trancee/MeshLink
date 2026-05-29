@@ -132,7 +132,8 @@ flowchart LR
 |---|---|
 | `./gradlew verifyDocs` | Verifies markdown links and the rendered public-API appendix |
 | `./scripts/run-reference-local-check.sh` | Runs the fast local reference-app verification bundle |
-| `./scripts/run-agp9-verification.sh` | Runs AGP 9 invariant and cross-module build-shape verification |
+| `./scripts/run-agp9-verification.sh` | Runs AGP 9 invariant, cross-module build-shape verification, and the verified JVM smoke benchmark guard |
+| `./gradlew verifyJvmSmokeBenchmarks` | Runs the JVM smoke benchmark suite and fails if any declared result is missing from the latest report |
 | `scripts/check_agp9_invariants.py` | Checks the post-migration AGP 9 repository shape |
 | `scripts/check_markdown_links.py` | Checks repository markdown relative links |
 | `scripts/check_generated_public_api_reference.py` | Verifies the rendered public-API appendix stays in sync with the API dump |

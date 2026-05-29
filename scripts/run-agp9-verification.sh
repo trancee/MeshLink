@@ -9,5 +9,6 @@ cd "$repo_root"
   :meshlink:build \
   :meshlink-reference:localCheck \
   :benchmarks:check \
+  verifyJvmSmokeBenchmarks \
   :meshlink-proof:android:meshlink-proof-android-app:check \
   verifyDocs

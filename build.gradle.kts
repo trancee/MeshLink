@@ -2,6 +2,7 @@ import kotlinx.kover.gradle.plugin.dsl.AggregationType
 import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 import org.gradle.api.Action
 import org.gradle.api.Project
+import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.wrapper.Wrapper
 
 private fun isAgpDependencyResolutionWarningListener(listener: Any): Boolean {
@@ -151,6 +152,36 @@ val checkAgp9Invariants by
             "Fails if the post-migration AGP 9 module shape, plugin wiring, or compatibility tasks drift."
         workingDir = rootDir
         commandLine("python3", "scripts/check_agp9_invariants.py")
+    }
+
+val cleanJvmSmokeBenchmarkReports by
+    tasks.registering(Delete::class) {
+        group = "verification"
+        description = "Deletes stale JVM smoke benchmark reports before the next verified smoke run."
+        delete(layout.projectDirectory.dir("benchmarks/build/reports/benchmarks/smoke"))
+    }
+
+project(":benchmarks").tasks.configureEach {
+    if (name == "jvmSmokeBenchmark") {
+        dependsOn(cleanJvmSmokeBenchmarkReports)
+    }
+}
+
+val checkJvmSmokeBenchmarkReport by
+    tasks.registering(Exec::class) {
+        group = "verification"
+        description =
+            "Fails if the latest JVM smoke benchmark report is missing any declared benchmark results."
+        workingDir = rootDir
+        dependsOn(":benchmarks:jvmSmokeBenchmark")
+        commandLine("python3", "scripts/check_jvm_smoke_benchmark_report.py")
+    }
+
+val verifyJvmSmokeBenchmarks by
+    tasks.registering {
+        group = "verification"
+        description = "Runs the JVM smoke benchmark suite and verifies that every declared benchmark completed."
+        dependsOn(checkJvmSmokeBenchmarkReport)
     }
 
 val verifyDocs by

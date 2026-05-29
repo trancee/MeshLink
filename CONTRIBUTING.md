@@ -77,12 +77,13 @@ Then install the repository Git hook suite:
 The suite includes:
 
 - `pre-commit` — formats touched Kotlin modules, runs `yamllint` for staged
-  YAML files, and runs the relevant Gradle verification for the staged paths
+  YAML files, and runs the relevant Gradle verification for the staged paths,
+  including the verified JVM smoke benchmark guard when benchmark code changes
 - `commit-msg` — enforces Conventional Commits
 - `pre-push` — scans outgoing commit subjects for Conventional Commit
   compliance, blocks direct pushes to `main`, and runs the heavier
-  verification bundle for the affected paths, including benchmark smoke runs
-  for benchmark-sensitive MeshLink changes
+  verification bundle for the affected paths, including verified JVM smoke
+  benchmark runs for benchmark-sensitive MeshLink changes
 
 If formatting changes a staged file, the commit stops so you can review and
 re-stage the result.
@@ -134,7 +135,9 @@ That wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9
 toolchain.
 
 If you touch Gradle, Android plugin wiring, or post-migration module shape, run
-the AGP 9 build-surface bundle:
+the AGP 9 build-surface bundle. It now includes the verified JVM smoke
+benchmark guard so benchmark regressions do not hide behind a successful Gradle
+exit code:
 
 ```bash
 ./scripts/run-agp9-verification.sh
@@ -172,8 +175,8 @@ For a `meshlink-reference` review bundle, run:
 ```
 
 If your change touches performance-sensitive code or physical transport
-behavior, add the benchmark or proof validation described in the contributor
-reference and benchmark guides.
+behavior, add `./gradlew verifyJvmSmokeBenchmarks` or the proof validation
+described in the contributor reference and benchmark guides.
 
 If your change touches Gradle, Android plugin wiring, or module layout, include
 `./scripts/run-agp9-verification.sh` in the verification bundle as well.
