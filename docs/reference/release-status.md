@@ -45,6 +45,7 @@ The planned first public release shape is:
 The repository now has:
 
 - a maintained CI workflow for the core MeshLink SDK verification bundle
+- a `release-please` workflow and manifest configuration for cumulative release PRs, tags, and next-snapshot bumps
 - a changelog for release-facing notes
 - a security policy for private vulnerability reporting
 - a maintainer release runbook
