@@ -78,10 +78,10 @@ Then install the repository Git hook suite:
 ./scripts/install-git-hooks.sh
 ```
 
-The repository also keeps contributor workflow tooling under `AGENTS.md`,
-`.agents/`, `.specify/`, and `.pi/`. Generated local workflow state such as
-`.gsd/`, `.bg-shell/`, `.tmp-yamllint/`, `.specify/feature.json`, and the
-ignored `.registry` files should stay local and should not be committed.
+The repository keeps contributor workflow guidance in `AGENTS.md` and the
+shared agent skill/reference corpus in `.agents/`. Generated local workflow
+state such as `.gsd/`, `.bg-shell/`, `.tmp-yamllint/`, `.specify/`, and `.pi/`
+should stay local and should not be committed.
 
 The suite includes:
 

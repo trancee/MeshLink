@@ -151,9 +151,7 @@ flowchart LR
 |---|---|
 | `AGENTS.md` | Agent-facing project instructions used by the repository's contributor automation workflows |
 | `.agents` | Shared skill and reference corpus for agent-assisted maintenance; not used by the SDK or app runtime |
-| `.specify` | Spec-driven workflow templates, shell helpers, extension config, and integration manifests used during planning and implementation work |
-| `.pi` | Tracked Pi prompt integration files used by the repository's contributor workflow |
-| ignored local workflow state | `.gsd/`, `.bg-shell/`, `.tmp-yamllint/`, `.specify/feature.json`, `.specify/extensions/.registry`, and `.specify/presets/.registry` are local workflow state and should stay untracked |
+| ignored local workflow state | `.gsd/`, `.bg-shell/`, `.tmp-yamllint/`, `.specify/`, and `.pi/` are local workflow state and should stay untracked |
 
 ## Documentation and specification areas
 

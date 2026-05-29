@@ -6,7 +6,7 @@
 This plan records the build shape, technical constraints, and verification
 posture for the MeshLink SDK work.
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Note**: This plan was generated from the repository's internal planning template and now serves as a retained implementation record.
 
 ## Summary
 
@@ -96,7 +96,7 @@ and must stay covered by the retained benchmark evidence.
       or explicitly records that no specialized skill applies.
 - [x] Commit discipline is planned: file-modifying governed work will be
       checkpointed with Conventional Commits between workflow steps, and the
-      optional `speckit.git.commit` hook may satisfy that checkpoint when used.
+      optional repository git hook may satisfy that checkpoint when used.
 - [x] High-risk MeshLink changes are called out: public API, crypto-provider,
       wire-format, runtime-dependency, minimum-platform, and cross-platform
       event/error/state changes are treated as explicit review surfaces whenever

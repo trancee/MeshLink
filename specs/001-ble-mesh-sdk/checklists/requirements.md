@@ -34,7 +34,7 @@ planning.
 
 ## Notes
 
-- No clarification markers remain; the spec is ready for `/speckit.plan`.
+- No clarification markers remain; the spec is ready for planning.
 - The spec assumes the host app owns trust approval UX and that v1 focuses on
   addressed peer-to-peer messaging.
 - Performance-sensitive scope has already been mapped to the root

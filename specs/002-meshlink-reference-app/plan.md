@@ -6,7 +6,7 @@
 This plan records the build shape, design constraints, and verification posture
 for the reference app work.
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Note**: This plan was generated from the repository's internal planning template and now serves as a retained implementation record.
 
 ## Summary
 
@@ -74,7 +74,7 @@ reference surface.
       that MUST be consulted before implementation or best-practice-heavy work.
 - [x] Commit discipline is planned: file-modifying governed work will be
       checkpointed with Conventional Commits between workflow steps, and the
-      optional Speckit git hook can satisfy that requirement when used.
+      optional repository git hook can satisfy that requirement when used.
 - [x] High-risk MeshLink changes are called out: this feature is planned to
       avoid `:meshlink` public API, crypto-provider, wire-format, and runtime
       dependency changes; if implementation later requires any of them, that
@@ -89,7 +89,7 @@ structure, iOS integration, local retention, export format, and workflow
 separation. The current design keeps normative MeshLink behavior in the main
 and advanced surfaces, isolates proof-only and benchmark-only behavior in a lab
 surface, and preserves the existing SDK as the source of truth. No unresolved
-clarifications remain for `/speckit.tasks`.
+clarifications remain for task breakdown.
 
 ## Project Structure
 

@@ -37,7 +37,5 @@ __pycache__/
 .bg-shell/
 .gsd/
 .tmp-yamllint/
-.specify/feature.json
-.specify/extensions/.registry
-.specify/presets/.registry
-.pi/prompts/speckit.git.*.md
+.specify/
+.pi/
