@@ -95,7 +95,7 @@ changing MeshLink runtime, public API, wire format, or dependency policy.
 | `:meshlink-proof:android:meshlink-proof-android-app` | pure Android app using AGP 9 built-in Kotlin |
 
 Key consequence: the iOS host project continued to build the
-`ReferenceAppShared` framework from `:meshlink-reference`, while Android app
+`MeshLinkReference` framework from `:meshlink-reference`, while Android app
 install and connected-device tasks moved to
 `:meshlink-reference:android-app`.
 

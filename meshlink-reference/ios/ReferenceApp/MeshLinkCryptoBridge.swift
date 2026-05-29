@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import ReferenceAppShared
+import MeshLinkReference
 import Security
 
 enum MeshLinkReferenceCryptoBridge {

@@ -76,7 +76,7 @@ flowchart LR
 | `:meshlink` | Kotlin Multiplatform library | none | Shared SDK code: public API, runtime engine, routing, trust, transfer, wire codecs, and platform abstractions |
 | `:meshlink-reference` | Kotlin Multiplatform library | `:meshlink` | Shared reference-app shell, screens, session model, export logic, and automation support |
 | `:meshlink-reference:android-app` | Android application module | `:meshlink-reference` | Android host application for the shared reference-app shell |
-| `meshlink-reference/ios` | Native Xcode project | exported `ReferenceAppShared` framework from `:meshlink-reference` | iOS host application, signing, simulator, device, and UI-test workflows |
+| `meshlink-reference/ios` | Native Xcode project | exported `MeshLinkReference` framework from `:meshlink-reference` | iOS host application, signing, simulator, device, and UI-test workflows |
 | `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
 | `:meshlink-proof-android-app` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
 | `meshlink-proof/ios` | Native Xcode project | exported `MeshLink` framework from `:meshlink` | iOS proof and benchmark surface for physical validation |

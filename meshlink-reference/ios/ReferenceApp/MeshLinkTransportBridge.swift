@@ -1,6 +1,6 @@
 import CoreBluetooth
 import Foundation
-import ReferenceAppShared
+import MeshLinkReference
 
 enum MeshLinkReferenceTransportBridge {
     static func install() {

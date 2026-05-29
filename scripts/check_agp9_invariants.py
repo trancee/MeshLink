@@ -101,7 +101,7 @@ def main() -> int:
         )
         require_contains(
             "meshlink-reference/build.gradle.kts",
-            'baseName = "ReferenceAppShared"',
+            'baseName = "MeshLinkReference"',
             ":meshlink-reference must keep the shared iOS framework export anchored in the shared module",
         )
         require_contains(
