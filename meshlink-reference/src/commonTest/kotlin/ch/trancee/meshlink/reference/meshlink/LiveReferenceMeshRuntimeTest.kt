@@ -8,6 +8,7 @@ import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PauseResult
 import ch.trancee.meshlink.api.PeerEvent
+import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
@@ -25,7 +26,7 @@ import kotlinx.coroutines.test.runTest
 
 class LiveReferenceMeshRuntimeTest {
     @Test
-    fun sendDelegatesPeerIdPayloadAndPriorityToMeshLink() = runTest {
+    fun executeDelegatesPeerIdPayloadAndPriorityToMeshLink() = runTest {
         // Arrange
         val meshLink = RecordingMeshLink()
         val runtime =
@@ -40,14 +41,13 @@ class LiveReferenceMeshRuntimeTest {
 
         // Act
         val result =
-            runtime.send(
-                peerId = "peer-123456",
-                payloadText = "payload",
-                priority = DeliveryPriority.HIGH,
-                stateStore = stateStore,
-                nowProvider = { 2_000L },
-                sessionProjector = sessionProjector,
-            )
+            runtime.execute(stateStore, nowProvider = { 2_000L }, sessionProjector) {
+                send(
+                    peerId = PeerId("peer-123456"),
+                    payload = "payload".encodeToByteArray(),
+                    priority = DeliveryPriority.HIGH,
+                )
+            }
 
         // Assert
         assertEquals(SendResult.Sent, result.getOrThrow())
@@ -57,7 +57,7 @@ class LiveReferenceMeshRuntimeTest {
     }
 
     @Test
-    fun forgetPeerDelegatesTheRuntimePeerId() = runTest {
+    fun executeDelegatesTheRuntimePeerIdForForgetPeer() = runTest {
         // Arrange
         val meshLink = RecordingMeshLink()
         val runtime =
@@ -72,12 +72,9 @@ class LiveReferenceMeshRuntimeTest {
 
         // Act
         val result =
-            runtime.forgetPeer(
-                peerId = "peer-abcdef",
-                stateStore = stateStore,
-                nowProvider = { 2_000L },
-                sessionProjector = sessionProjector,
-            )
+            runtime.execute(stateStore, nowProvider = { 2_000L }, sessionProjector) {
+                forgetPeer(PeerId("peer-abcdef"))
+            }
 
         // Assert
         assertEquals(ForgetPeerResult.Forgotten, result.getOrThrow())

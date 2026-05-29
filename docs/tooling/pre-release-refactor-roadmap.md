@@ -100,7 +100,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this next: it improves locality for timeline bugs and makes the evidence surface easier to reason about.
   - Verify: `./scripts/run-reference-local-check.sh`
 
-- [ ] **R03: Unify live controller command execution** `risk:low` `depends:[]` `breaking:allowed`
+- [x] **R03: Unify live controller command execution** `risk:low` `depends:[]` `breaking:allowed`
   > After this: start, pause, resume, stop, send, and forget-peer follow one command-execution shape instead of repeating binding and result-handling patterns.
   - Scope: centralize live runtime command execution, projection, and error handling.
   - Primary modules: `LiveReferenceMeshLinkController`, `LiveReferenceMeshRuntime`, live session projector helpers.
