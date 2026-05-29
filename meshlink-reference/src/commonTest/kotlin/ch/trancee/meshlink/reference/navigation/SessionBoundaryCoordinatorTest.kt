@@ -188,6 +188,32 @@ class SessionTransitionServiceTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun pendingBoundaryBecomesStaleWhenTheSupportedSessionEnds() = runTest {
+        // Arrange
+        val harness =
+            TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
+                .createSessionTransitionHarness(scope = this)
+        val request =
+            SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION)
+        advanceUntilIdle()
+
+        try {
+            // Act
+            val canExecuteBeforeEnd = harness.sessionTransitionService.canExecuteBoundary(request)
+            harness.sessionTransitionService.endSupportedSession()
+            advanceUntilIdle()
+            val canExecuteAfterEnd = harness.sessionTransitionService.canExecuteBoundary(request)
+
+            // Assert
+            assertEquals(true, canExecuteBeforeEnd)
+            assertEquals(false, canExecuteAfterEnd)
+        } finally {
+            coroutineContext.cancelChildren()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun confirmBoundaryDoesNotRouteWhenTheSupportedSessionAlreadyEnded() = runTest {
         // Arrange
         val harness =

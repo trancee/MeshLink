@@ -107,7 +107,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this slice: it is small, low risk, and removes repetitive logic before larger refactors touch the same area.
   - Verify: `./scripts/run-reference-local-check.sh`
 
-- [ ] **R04: Simplify retained-history and export document flow** `risk:low` `depends:[R02]` `breaking:allowed`
+- [x] **R04: Simplify retained-history and export document flow** `risk:low` `depends:[R02]` `breaking:allowed`
   > After this: history and export persistence use a smaller, clearer document path with less redundant read-modify-write logic.
   - Scope: reduce document churn and duplicate serialization flow without changing export policy semantics.
   - Primary modules: `JsonSessionHistoryRepository`, `JsonSessionArtifactSerializer`, document-store abstractions.

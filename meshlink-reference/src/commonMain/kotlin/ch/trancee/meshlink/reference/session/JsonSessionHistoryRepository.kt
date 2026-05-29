@@ -6,54 +6,40 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 
 /** JSON-backed retained-session repository using a single bounded history document. */
 internal class JsonSessionHistoryRepository(
-    private val documentStore: ReferenceDocumentStore,
-    private val historyPath: String = DEFAULT_HISTORY_PATH,
+    documentStore: ReferenceDocumentStore,
+    historyPath: String = DEFAULT_HISTORY_PATH,
 ) : SessionHistoryRepository {
+    private val historyDocumentStore: StoredHistoryDocumentStore =
+        StoredHistoryDocumentStore(documentStore = documentStore, historyPath = historyPath)
+
     override suspend fun loadHistory(): RecentSessionHistory {
-        return loadDocument().history
+        return historyDocumentStore.read().history
     }
 
     override suspend fun retainSession(session: ReferenceSession): RecentSessionHistory {
-        val updatedDocument = loadDocument().retainSession(session)
-        saveDocument(updatedDocument)
-        return updatedDocument.history
+        return historyDocumentStore.update { document -> document.retainSession(session) }.history
     }
 
     override suspend fun deleteSession(sessionId: String): RecentSessionHistory {
-        val updatedDocument = loadDocument().deleteSession(sessionId)
-        saveDocument(updatedDocument)
-        return updatedDocument.history
+        return historyDocumentStore.update { document -> document.deleteSession(sessionId) }.history
     }
 
     override suspend fun clearAll(): RecentSessionHistory {
         val emptyDocument = StoredHistoryDocument()
-        saveDocument(emptyDocument)
+        historyDocumentStore.replace(emptyDocument)
         return emptyDocument.history
     }
 
     override suspend fun loadRetainedSessions(): List<ReferenceSession> {
-        return loadDocument().sessions
+        return historyDocumentStore.read().sessions
     }
 
     override suspend fun loadRetainedSnapshot(sessionId: String): ReferenceControllerSnapshot? {
-        return loadDocument().retainedSnapshot(sessionId)
+        return historyDocumentStore.read().retainedSnapshot(sessionId)
     }
 
     public suspend fun retainSnapshot(snapshot: ReferenceControllerSnapshot): RecentSessionHistory {
-        val updatedDocument = loadDocument().retainSnapshot(snapshot)
-        saveDocument(updatedDocument)
-        return updatedDocument.history
-    }
-
-    private suspend fun loadDocument(): StoredHistoryDocument {
-        val raw = documentStore.readText(historyPath) ?: return StoredHistoryDocument()
-        return ReferenceJson.codec.decodeFromString(StoredHistoryDocument.serializer(), raw)
-    }
-
-    private suspend fun saveDocument(document: StoredHistoryDocument): Unit {
-        val serialized =
-            ReferenceJson.codec.encodeToString(StoredHistoryDocument.serializer(), document)
-        documentStore.writeText(historyPath, serialized)
+        return historyDocumentStore.update { document -> document.retainSnapshot(snapshot) }.history
     }
 
     public companion object {
