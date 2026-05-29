@@ -44,13 +44,7 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             }
             .getOrNull()
     l2capServerSocket = serverSocket
-    currentDiscoveryPayload =
-        buildDiscoveryPayload(
-            appId = appId,
-            localKeyHash = localKeyHash,
-            currentPowerProfile = currentPowerProfile,
-            l2capPsm = (serverSocket?.psm ?: 0).toUByte(),
-        )
+    discoveryLifecycle.updateL2capPsm((serverSocket?.psm ?: 0).toUByte())
     log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
     serverSocket?.let(::launchAcceptLoop)
 
@@ -78,28 +72,36 @@ internal suspend fun BleTransportAdapter.stopTransport(): Unit {
 }
 
 internal suspend fun BleTransportAdapter.updatePowerPolicyState(policy: PowerPolicy): Unit {
-    currentPowerProfile = PowerMonitor.profileFor(policy)
-    currentDiscoveryPayload =
-        buildDiscoveryPayload(
-            appId = appId,
-            localKeyHash = localKeyHash,
-            currentPowerProfile = currentPowerProfile,
-            l2capPsm = currentDiscoveryPayload.l2capPsm,
-        )
-    if (!started) {
-        return
-    }
-    refreshDiscoveryState()
+    discoveryLifecycle.updatePowerPolicy(
+        policy = policy,
+        started = started,
+        hardware = discoveryHardware(),
+    )
 }
 
 internal suspend fun BleTransportAdapter.setDiscoverySuspendedState(suspended: Boolean): Unit {
-    if (discoverySuspended == suspended) {
-        return
-    }
-    discoverySuspended = suspended
-    if (!started) {
-        return
-    }
-    log("discovery suspended=$suspended")
-    refreshDiscoveryState()
+    discoveryLifecycle.setSuspended(
+        suspended = suspended,
+        started = started,
+        hardware = discoveryHardware(),
+    )
+}
+
+internal fun BleTransportAdapter.discoveryHardware(): BleTransportDiscoveryHardware {
+    return BleTransportDiscoveryHardware(
+        hasScanner = scanner != null,
+        hasAdvertiser = advertiser != null,
+        stopScan = { callback -> scanner?.stopScan(callback) },
+        startScan = { powerProfile, callback ->
+            scanner?.startScan(buildScanFilters(), buildScanSettings(powerProfile), callback)
+        },
+        stopAdvertising = { callback -> advertiser?.stopAdvertising(callback) },
+        startAdvertising = { powerProfile, payload, callback ->
+            advertiser?.startAdvertising(
+                buildAdvertiseSettings(powerProfile),
+                buildAdvertiseData(payload),
+                callback,
+            )
+        },
+    )
 }

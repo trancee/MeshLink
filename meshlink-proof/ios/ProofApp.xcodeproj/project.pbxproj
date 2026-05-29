@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1729F30208615F3C1D06D855 /* ProofGattNotifyBenchmarkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */; };
 		1A034B04B101B24A8FF9E89B /* ProofGattBenchmarkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83D24A11C1D13B53B355B15 /* ProofGattBenchmarkProtocol.swift */; };
+		1D3F42D45F21C11385FE27BF /* ProofLaunchConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C2812928D385FE500985FF /* ProofLaunchConfig.swift */; };
 		23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */; };
 		395F70816C081CC331C99357 /* ProofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B450AC2ED51A141367368720 /* ProofApp.swift */; };
 		42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */; };
@@ -17,6 +18,9 @@
 		4E9C31D59C4BE0FA15D42694 /* ProofGattNotifyBenchmarkServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */; };
 		72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */; };
 		73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */; };
+		843A6123E85C38FA99C2AFAB /* ProofBenchmarkEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FBE0222244C6DE578732F69 /* ProofBenchmarkEnvelope.swift */; };
+		998E603290FAE7527BAD75CE /* ProofTransportLogCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9016DBBE7257AEE9237D95 /* ProofTransportLogCapture.swift */; };
+		9A00E320549C91ED05F1E6B4 /* ProofBenchmarkModeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0400842DA4533E1EB36BEE50 /* ProofBenchmarkModeController.swift */; };
 		A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */; };
 		AA6B55057745166A794D74B4 /* MeshLinkTransportBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */; };
 		AF4827988ED61DB8962902A0 /* ProofBenchmarkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */; };
@@ -36,8 +40,11 @@
 
 /* Begin PBXFileReference section */
 		033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerProfileBenchmark.swift; sourceTree = "<group>"; };
+		0400842DA4533E1EB36BEE50 /* ProofBenchmarkModeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofBenchmarkModeController.swift; sourceTree = "<group>"; };
 		1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattNotifyBenchmarkProtocol.swift; sourceTree = "<group>"; };
 		198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipientConfirmedBenchmarkDiagnostic.swift; sourceTree = "<group>"; };
+		1A9016DBBE7257AEE9237D95 /* ProofTransportLogCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofTransportLogCapture.swift; sourceTree = "<group>"; };
+		1FBE0222244C6DE578732F69 /* ProofBenchmarkEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofBenchmarkEnvelope.swift; sourceTree = "<group>"; };
 		3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattNotifyBenchmarkServer.swift; sourceTree = "<group>"; };
 		38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPerformanceBenchmark.swift; sourceTree = "<group>"; };
 		41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProofBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -48,6 +55,7 @@
 		6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdStartBenchmark.swift; sourceTree = "<group>"; };
 		81F2E52ACDF038035D9F5DFC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattBenchmarkClient.swift; sourceTree = "<group>"; };
+		B2C2812928D385FE500985FF /* ProofLaunchConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofLaunchConfig.swift; sourceTree = "<group>"; };
 		B450AC2ED51A141367368720 /* ProofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApp.swift; sourceTree = "<group>"; };
 		D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkTestSupport.swift; sourceTree = "<group>"; };
 		DBAAE7CF0C372ED368DA9E48 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -63,11 +71,15 @@
 				F3E69802EF0E01D926EA6A44 /* MeshLinkCryptoBridge.swift */,
 				512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */,
 				B450AC2ED51A141367368720 /* ProofApp.swift */,
+				1FBE0222244C6DE578732F69 /* ProofBenchmarkEnvelope.swift */,
+				0400842DA4533E1EB36BEE50 /* ProofBenchmarkModeController.swift */,
 				4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */,
 				838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */,
 				E83D24A11C1D13B53B355B15 /* ProofGattBenchmarkProtocol.swift */,
 				1024F8CF1B459406DA87C513 /* ProofGattNotifyBenchmarkProtocol.swift */,
 				3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */,
+				B2C2812928D385FE500985FF /* ProofLaunchConfig.swift */,
+				1A9016DBBE7257AEE9237D95 /* ProofTransportLogCapture.swift */,
 				449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */,
 			);
 			path = ProofApp;
@@ -224,11 +236,15 @@
 				73745979D47B3AAA29F4E34F /* MeshLinkCryptoBridge.swift in Sources */,
 				AA6B55057745166A794D74B4 /* MeshLinkTransportBridge.swift in Sources */,
 				395F70816C081CC331C99357 /* ProofApp.swift in Sources */,
+				843A6123E85C38FA99C2AFAB /* ProofBenchmarkEnvelope.swift in Sources */,
+				9A00E320549C91ED05F1E6B4 /* ProofBenchmarkModeController.swift in Sources */,
 				AF4827988ED61DB8962902A0 /* ProofBenchmarkTransport.swift in Sources */,
 				42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */,
 				1A034B04B101B24A8FF9E89B /* ProofGattBenchmarkProtocol.swift in Sources */,
 				1729F30208615F3C1D06D855 /* ProofGattNotifyBenchmarkProtocol.swift in Sources */,
 				4E9C31D59C4BE0FA15D42694 /* ProofGattNotifyBenchmarkServer.swift in Sources */,
+				1D3F42D45F21C11385FE27BF /* ProofLaunchConfig.swift in Sources */,
+				998E603290FAE7527BAD75CE /* ProofTransportLogCapture.swift in Sources */,
 				23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -321,6 +337,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) \"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -420,6 +437,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) \"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;

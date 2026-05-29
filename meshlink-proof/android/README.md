@@ -8,7 +8,15 @@ Use it when you need:
 
 - a second device for the MeshLink tutorial flow
 - an Android proof peer for manual validation
-- an Android-side benchmark host or passive proof fixture
+- an Android proof fixture for passive transport or benchmark work
+
+## Choose the right validation surface first
+
+| If you need to... | Use... |
+|---|---|
+| evaluate the supported product-like Android and iOS experience | [the reference app guide](../../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
+| run an Android physical proof peer or proof fixture | this guide |
+| inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
 
 ## Prerequisites
 
@@ -45,6 +53,11 @@ The default launch uses:
 - `powerMode = automatic`
 - `benchmarkTransport = meshlink`
 
+If you are using this app as the receiving proof peer for
+[Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
+keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
+matches the tutorial host app.
+
 ## 3. Override launch settings when you need a specific proof shape
 
 The Android proof app reads these intent extras on launch:
@@ -69,8 +82,16 @@ adb shell am start \
   --es meshlink.powerMode performance
 ```
 
-Example: start the passive proof-only GATT-notify fixture without automatic
-MeshLink sends.
+Example: start the Android proof app as the receiving proof peer for the SDK tutorial.
+
+```bash
+adb shell am start \
+  -n ch.trancee.meshlink.proof.android/.MainActivity \
+  --es meshlink.appId com.example.meshlink.tutorial
+```
+
+Example: start the proof-only GATT-notify setup without automatic MeshLink
+sends.
 
 ```bash
 adb shell am start \
@@ -80,9 +101,18 @@ adb shell am start \
   --ez meshlink.disableAutoSend true
 ```
 
-## 4. Use the proof app in normal MeshLink mode
+## 4. Choose the transport mode deliberately
 
-In the normal `meshlink` transport mode, the proof app gives you:
+The Android proof app can start in three transport modes.
+Use them for different claims.
+
+| Value | Meaning | Use it when you need to... | Important boundary |
+|---|---|---|---|
+| `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
+| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role for retained investigation work | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
+| `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
+
+In normal `meshlink` mode, the proof app gives you:
 
 - Start / Stop controls
 - peer visibility
@@ -90,25 +120,18 @@ In the normal `meshlink` transport mode, the proof app gives you:
 - inbound-message logging
 - a Send Hello action
 
-That is the right mode for:
+If you are validating supported user-visible behavior, stay in `meshlink` mode
+or move to the reference app. Use `gatt` and `gatt-notify` only when you are
+explicitly doing retained transport investigation or benchmark-oriented work.
 
-- the first-exchange tutorial
-- manual host-app validation
-- current product-path proof work
+### Contributor note
 
-## 5. Use the proof-only benchmark transports deliberately
+The Android proof host now keeps the activity thin on purpose.
+Launch parsing, permission rules, benchmark framing, and runtime ownership live
+behind narrower proof-harness helpers so proof-only behavior does not accrete in
+one giant activity file.
 
-The Android proof app also exposes two non-normative proof transports:
-
-- `gatt` — the older passive Android GATT server prototype
-- `gatt-notify` — the passive Android GATT client used for iPhone-hosted
-  notify-side experiments
-
-These modes are retained for investigation and benchmark work only. They are
-not application-level transport choices and they are not the canonical product
-integration path.
-
-## 6. Run Android-side instrumented proof benchmarks
+## 5. Run Android-side instrumented proof benchmarks
 
 The Android proof app also ships instrumented benchmark coverage under
 `androidTest`.
@@ -121,13 +144,14 @@ Run the attached-device suite with:
 
 Use physical devices for meaningful transport and power evidence.
 
-## 7. Keep evidence and release posture in the right docs
+## 6. Keep evidence and release posture in the right docs
 
 Use this guide to run the Android proof app.
 
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
+- [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
 - [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)

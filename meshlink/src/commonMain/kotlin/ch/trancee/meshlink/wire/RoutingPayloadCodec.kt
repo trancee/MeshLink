@@ -2,6 +2,13 @@ package ch.trancee.meshlink.wire
 
 import ch.trancee.meshlink.api.PeerId
 
+/**
+ * Shared FlatBuffer-table codec for Babel-inspired routing envelopes.
+ *
+ * Each envelope type keeps its own field indexes, but they all use the same compact table machinery
+ * so route updates, retractions, requests, and digests stay aligned with the same low-level
+ * encoding rules.
+ */
 internal object RoutingPayloadCodec {
     fun decode(type: WireEnvelopeType, table: FlatBufferTable): WireFrame {
         return when (type) {
@@ -98,6 +105,8 @@ internal object RoutingPayloadCodec {
     }
 
     private fun decodeRouteUpdate(table: FlatBufferTable): WireFrame.RouteUpdate {
+        // Route updates carry both route metrics and destination public keys so
+        // a selected path still has the data needed for trust and relay logic.
         return WireFrame.RouteUpdate(
             destinationPeerId =
                 PeerId(

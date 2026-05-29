@@ -6,7 +6,6 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.transfer.InboundChunkAcceptance
-import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.toTransferStartDescriptor
 import ch.trancee.meshlink.wire.WireFrame
 
@@ -28,26 +27,32 @@ internal data class MeshEngineInboundTransferSupportCallbacks(
 )
 
 internal class MeshEngineInboundTransferSupport(
-    private val inboundTransfers: MutableMap<String, InboundTransferSession>,
+    private val transferRegistry: MeshEngineTransferRegistry,
     private val callbacks: MeshEngineInboundTransferSupportCallbacks,
 ) {
+    constructor(
+        inboundTransfers: MutableMap<String, ch.trancee.meshlink.transfer.InboundTransferSession>,
+        callbacks: MeshEngineInboundTransferSupportCallbacks,
+    ) : this(MeshEngineTransferRegistry(inboundTransfers = inboundTransfers), callbacks)
+
     suspend fun handleTransferStart(
         peerId: PeerId,
         frame: WireFrame.TransferStart,
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
-        val existingSession = inboundTransfers[frame.transferId]
+        val existingSession = transferRegistry.inboundSession(frame.transferId)
         val inboundSession =
             if (existingSession != null) {
                 existingSession.upstreamPeerId = peerId
                 existingSession
             } else {
-                InboundTransferSession(
+                ch.trancee.meshlink.transfer
+                    .InboundTransferSession(
                         startDescriptor = frame.toTransferStartDescriptor(),
                         upstreamPeerId = peerId,
                         hardRunToken = hardRunToken,
                     )
-                    .also { session -> inboundTransfers[frame.transferId] = session }
+                    .also { session -> transferRegistry.storeInboundSession(session) }
             }
         val preparedAck = inboundSession.prepareAck()
         emitInboundTransferProgress(
@@ -79,7 +84,7 @@ internal class MeshEngineInboundTransferSupport(
     }
 
     suspend fun handleTransferChunk(peerId: PeerId, frame: WireFrame.TransferChunk): Boolean {
-        val session = inboundTransfers[frame.transferId] ?: return false
+        val session = transferRegistry.inboundSession(frame.transferId) ?: return false
         val acceptance = session.acceptChunk(frame)
         emitInboundTransferProgress(
             stage = inboundTransferChunkStage(acceptance),
@@ -103,7 +108,7 @@ internal class MeshEngineInboundTransferSupport(
     }
 
     suspend fun handleTransferComplete(peerId: PeerId, frame: WireFrame.TransferComplete): Boolean {
-        val inboundSession = inboundTransfers.remove(frame.transferId) ?: return false
+        val inboundSession = transferRegistry.removeInboundSession(frame.transferId) ?: return false
         emitInboundTransferProgress(
             stage = "transfer.receive.complete",
             peerId = peerId,
@@ -127,13 +132,13 @@ internal class MeshEngineInboundTransferSupport(
     }
 
     fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
-        return inboundTransfers.remove(frame.transferId) != null
+        return transferRegistry.removeInboundSession(frame.transferId) != null
     }
 
     private suspend fun acknowledgeInboundTransferChunkIfNeeded(
         peerId: PeerId,
         frame: WireFrame.TransferChunk,
-        session: InboundTransferSession,
+        session: ch.trancee.meshlink.transfer.InboundTransferSession,
         acceptance: InboundChunkAcceptance,
     ): Unit {
         if (!acceptance.shouldAcknowledge) {
@@ -163,13 +168,13 @@ internal class MeshEngineInboundTransferSupport(
     private suspend fun completeInboundTransferChunkIfNeeded(
         peerId: PeerId,
         frame: WireFrame.TransferChunk,
-        session: InboundTransferSession,
+        session: ch.trancee.meshlink.transfer.InboundTransferSession,
         acceptance: InboundChunkAcceptance,
     ): Unit {
         if (!acceptance.complete) {
             return
         }
-        inboundTransfers.remove(frame.transferId)
+        transferRegistry.removeInboundSession(frame.transferId)
         emitInboundTransferProgress(
             stage = "transfer.receive.complete",
             peerId = peerId,
@@ -193,7 +198,7 @@ internal class MeshEngineInboundTransferSupport(
     private fun emitInboundTransferProgress(
         stage: String,
         peerId: PeerId,
-        session: InboundTransferSession,
+        session: ch.trancee.meshlink.transfer.InboundTransferSession,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
         callbacks.emitDiagnostic(
@@ -208,7 +213,7 @@ internal class MeshEngineInboundTransferSupport(
 }
 
 internal fun buildMeshEngineRuntimeInboundTransferSupport(
-    inboundTransfers: MutableMap<String, InboundTransferSession>,
+    transferRegistry: MeshEngineTransferRegistry,
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
@@ -224,7 +229,7 @@ internal fun buildMeshEngineRuntimeInboundTransferSupport(
         ) -> Unit,
 ): MeshEngineInboundTransferSupport {
     return MeshEngineInboundTransferSupport(
-        inboundTransfers = inboundTransfers,
+        transferRegistry = transferRegistry,
         callbacks =
             MeshEngineInboundTransferSupportCallbacks(
                 sendEncryptedWireFrame = sendEncryptedWireFrame,

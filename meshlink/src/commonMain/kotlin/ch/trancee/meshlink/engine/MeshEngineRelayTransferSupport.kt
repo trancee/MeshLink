@@ -12,15 +12,20 @@ internal data class MeshEngineRelayTransferCallbacks(
 )
 
 internal class MeshEngineRelayTransferSupport(
-    private val relayTransfers: MutableMap<String, RelayTransferSession>,
+    private val transferRegistry: MeshEngineTransferRegistry,
     private val callbacks: MeshEngineRelayTransferCallbacks,
 ) {
+    constructor(
+        relayTransfers: MutableMap<String, RelayTransferSession>,
+        callbacks: MeshEngineRelayTransferCallbacks,
+    ) : this(MeshEngineTransferRegistry(relayTransfers = relayTransfers), callbacks)
+
     suspend fun handleTransferStart(
         peerId: PeerId,
         frame: WireFrame.TransferStart,
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
-        val relaySession = relayTransfers[frame.transferId]
+        val relaySession = transferRegistry.relaySession(frame.transferId)
         val activeRelaySession =
             if (relaySession != null) {
                 relaySession.upstreamPeerId = peerId
@@ -34,7 +39,7 @@ internal class MeshEngineRelayTransferSupport(
                         upstreamPeerId = peerId,
                         hardRunToken = hardRunToken,
                     )
-                    .also { session -> relayTransfers[frame.transferId] = session }
+                    .also { session -> transferRegistry.storeRelaySession(session) }
             }
         callbacks.sendTransferTowardsDestination(
             frame.destinationPeerId,
@@ -45,7 +50,7 @@ internal class MeshEngineRelayTransferSupport(
     }
 
     suspend fun handleTransferChunk(frame: WireFrame.TransferChunk): Boolean {
-        val relaySession = relayTransfers[frame.transferId] ?: return false
+        val relaySession = transferRegistry.relaySession(frame.transferId) ?: return false
         callbacks.sendTransferTowardsDestination(
             relaySession.destinationPeerId,
             frame,
@@ -56,7 +61,7 @@ internal class MeshEngineRelayTransferSupport(
     }
 
     suspend fun handleTransferAck(frame: WireFrame.TransferAck): Boolean {
-        val relaySession = relayTransfers[frame.transferId] ?: return false
+        val relaySession = transferRegistry.relaySession(frame.transferId) ?: return false
         callbacks.sendEncryptedWireFrame(
             relaySession.upstreamPeerId,
             frame,
@@ -67,7 +72,7 @@ internal class MeshEngineRelayTransferSupport(
     }
 
     suspend fun handleTransferComplete(frame: WireFrame.TransferComplete): Boolean {
-        val relaySession = relayTransfers.remove(frame.transferId) ?: return false
+        val relaySession = transferRegistry.removeRelaySession(frame.transferId) ?: return false
         callbacks.sendTransferTowardsDestination(
             relaySession.destinationPeerId,
             frame,
@@ -78,7 +83,7 @@ internal class MeshEngineRelayTransferSupport(
     }
 
     suspend fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
-        val relaySession = relayTransfers.remove(frame.transferId) ?: return false
+        val relaySession = transferRegistry.removeRelaySession(frame.transferId) ?: return false
         callbacks.sendTransferTowardsDestination(
             relaySession.destinationPeerId,
             frame,
@@ -90,13 +95,13 @@ internal class MeshEngineRelayTransferSupport(
 }
 
 internal fun buildMeshEngineRuntimeRelayTransferSupport(
-    relayTransfers: MutableMap<String, RelayTransferSession>,
+    transferRegistry: MeshEngineTransferRegistry,
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 ): MeshEngineRelayTransferSupport {
     return MeshEngineRelayTransferSupport(
-        relayTransfers = relayTransfers,
+        transferRegistry = transferRegistry,
         callbacks =
             MeshEngineRelayTransferCallbacks(
                 sendEncryptedWireFrame = sendEncryptedWireFrame,

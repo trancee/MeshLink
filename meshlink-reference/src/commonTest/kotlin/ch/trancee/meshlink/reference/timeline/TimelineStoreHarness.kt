@@ -10,7 +10,7 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
-import ch.trancee.meshlink.reference.navigation.SessionBoundaryCoordinator
+import ch.trancee.meshlink.reference.navigation.SessionTransitionService
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
@@ -54,7 +54,7 @@ internal class TimelineStoreHarness(
         }
     }
 
-    private val sessionController: ReferenceSessionController =
+    val sessionController: ReferenceSessionController =
         ReferenceSessionController(
             platformName = "Test",
             nowProvider = { nowMillis },
@@ -88,18 +88,22 @@ internal class TimelineStoreHarness(
             platformServices = platformServices,
             historyRepository = JsonSessionHistoryRepository(documentStore = documentStore),
             artifactSerializer = JsonSessionArtifactSerializer(documentStore = documentStore),
-            sessionController = sessionController,
             scope = scope,
         )
     }
 
-    fun createBoundaryCoordinatorHarness(
+    fun createSessionTransitionHarness(
         scope: kotlinx.coroutines.CoroutineScope
-    ): SessionBoundaryCoordinatorHarness {
+    ): SessionTransitionServiceHarness {
         val timelineStore = createStore(scope)
-        return SessionBoundaryCoordinatorHarness(
+        return SessionTransitionServiceHarness(
             timelineStore = timelineStore,
-            boundaryCoordinator = SessionBoundaryCoordinator(timelineStore),
+            sessionTransitionService =
+                SessionTransitionService(
+                    timelineStore = timelineStore,
+                    sessionController = sessionController,
+                    currentTimeMillis = { nowMillis },
+                ),
         )
     }
 
@@ -108,9 +112,9 @@ internal class TimelineStoreHarness(
     }
 }
 
-internal data class SessionBoundaryCoordinatorHarness(
+internal data class SessionTransitionServiceHarness(
     val timelineStore: TechnicalTimelineStore,
-    val boundaryCoordinator: SessionBoundaryCoordinator,
+    val sessionTransitionService: SessionTransitionService,
 )
 
 internal fun timelineStoreSnapshot(timeline: List<TimelineEntry>): ReferenceControllerSnapshot {

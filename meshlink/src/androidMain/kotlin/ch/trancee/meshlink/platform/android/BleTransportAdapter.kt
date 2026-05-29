@@ -1,12 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
@@ -61,17 +57,13 @@ internal class BleTransportAdapter(
             ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
-    internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
+    internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
     internal val gattSideLinks =
         GattSideLinkCoordinator(
             dependencies =
                 GattSideLinkCoordinatorDependencies(
                     deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
-                    hasActiveL2capLink = { hintPeerIdValue ->
-                        synchronized(activeLinksByHint) {
-                            activeLinksByHint.containsKey(hintPeerIdValue)
-                        }
-                    },
+                    hasActiveL2capLink = linkRegistry::hasActiveLink,
                     setPresenceAnnounced = peerRegistry::setPresenceAnnounced,
                     onFrameReceived = ::enqueueInboundFrame,
                     onPeerLost = { peerId ->
@@ -91,8 +83,6 @@ internal class BleTransportAdapter(
                     log = ::log,
                 )
         )
-    internal val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
-    internal val pendingConnectLock = Any()
     internal val transportMutex = Mutex()
     internal var inboundFrameQueue: InboundFrameQueue? = null
 
@@ -102,41 +92,22 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
-    internal var discoverySuspended: Boolean = false
-    internal var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
-    internal var currentDiscoveryPayload: BleDiscoveryPayload =
-        buildDiscoveryPayload(
+    internal val discoveryLifecycle =
+        BleTransportDiscoveryLifecycle(
             appId = appId,
             localKeyHash = localKeyHash,
-            currentPowerProfile = currentPowerProfile,
-            l2capPsm = 0u,
+            handleScanResult = ::handleScanResult,
+            ensurePermissionsGranted = ::ensurePermissionsGranted,
+            log = ::log,
         )
 
+    internal val currentDiscoveryPayload: BleDiscoveryPayload
+        get() = discoveryLifecycle.currentDiscoveryPayload
+
+    internal val currentPowerProfile: PowerProfile
+        get() = discoveryLifecycle.currentPowerProfile
+
     override val events: Flow<TransportEvent> = mutableEvents.asSharedFlow()
-
-    internal val advertiseCallback =
-        object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-                log(
-                    "advertising started mode=${settingsInEffect.mode} tx=${settingsInEffect.txPowerLevel} connectable=${settingsInEffect.isConnectable}"
-                )
-            }
-
-            override fun onStartFailure(errorCode: Int) {
-                log("advertising failed errorCode=$errorCode")
-            }
-        }
-
-    internal val scanCallback =
-        object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                handleScanResult(result)
-            }
-
-            override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                results.forEach(::handleScanResult)
-            }
-        }
 
     override suspend fun start(): Unit {
         startTransport()
@@ -173,17 +144,12 @@ internal class BleTransportAdapter(
             return
         }
         val activeLink =
-            synchronized(activeLinksByHint) {
-                val link =
-                    activeLinksByHint.remove(temporaryPeerId.value) ?: return@synchronized null
-                if (activeLinksByHint.containsKey(canonicalPeerId.value)) {
-                    closeQuietly(link)
-                    return@synchronized null
-                }
-                link.peerHintId = canonicalPeerId
-                activeLinksByHint[canonicalPeerId.value] = link
-                link
-            } ?: return
+            linkRegistry.rebindActiveLink(
+                fromHintPeerIdValue = temporaryPeerId.value,
+                toHintPeerIdValue = canonicalPeerId.value,
+                updateHint = { link, promotedHintPeerId -> link.peerHintId = promotedHintPeerId },
+                closeLink = ::closeQuietly,
+            ) ?: return
         val remoteDevice = activeLink.remoteDevice
         val existingPeer = peerRegistry.peer(canonicalPeerId.value)
         val keyHash = canonicalPeerId.value.toBytes() ?: existingPeer?.keyHash
@@ -266,7 +232,7 @@ internal class BleTransportAdapter(
                             )
                     },
                     sendToTemporaryLinkOrNull = {
-                        activeLinksByHint[frame.peerId.value]?.let { temporaryLink ->
+                        linkRegistry.activeLink(frame.peerId.value)?.let { temporaryLink ->
                             sendViaConnectedLink(frame = frame, link = temporaryLink)
                         }
                     },

@@ -61,7 +61,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
     val powerPolicySupport =
         buildMeshEngineRuntimePowerPolicySupport(
             powerPolicyController = sharedState.powerPolicyController,
-            powerPolicyNowMillis = sharedState.powerPolicyNowMillis,
+            powerPolicyNowMillis = sharedState.runtimePolicies.powerPolicyNowMillis,
             updateTransportPowerPolicy = environment.platformBridge::updatePowerPolicy,
             launchTransportPowerPolicyUpdate = { policy ->
                 environment.coroutineScope.launch {
@@ -73,8 +73,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
     val lifecycleSupport =
         buildMeshEngineRuntimeLifecycleSupport(
             runtimeSurface = environment.compatibilitySurface,
-            inboundTransfers = sharedState.inboundTransfers,
-            relayTransfers = sharedState.relayTransfers,
+            transferRegistry = sharedState.transferRegistry,
             ensureTransportCollector = transportCollector::ensureStarted,
             stopTransportCollector = transportCollector::stop,
             startTransport = environment.platformBridge::start,
@@ -98,6 +97,8 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             currentLifecycleState = environment.compatibilitySurface::currentState,
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
             hasTransport = { environment.platformBridge.hasTransport },
+            inlineMessagePayloadBytes =
+                sharedState.runtimePolicies.delivery.inlineMessagePayloadBytes,
             shouldAttemptLargeInlineSend = session.shouldAttemptLargeInlineSend,
             sendPayload = transferAndInbound.sendPayload,
             scheduleRetryDiagnostic = routingAndTrust.scheduleRetryDiagnostic,

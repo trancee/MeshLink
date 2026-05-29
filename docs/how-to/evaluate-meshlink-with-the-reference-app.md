@@ -15,11 +15,20 @@ By the end of this guide you should be able to:
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).
+If you want the minimal SDK tutorial shape instead of the product-like
+reference-app walkthrough, use
+[Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
 If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
 
 ## Before you start
+
+This guide assumes **both devices run the reference app**.
+Do not substitute one side with a proof app here.
+If you need a host-app tutorial plus a proof peer, use
+[Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md)
+instead.
 
 You need:
 
@@ -216,6 +225,7 @@ Switch to the proof apps or the live-proof harness when you need:
 
 For proof-specific workflows, use:
 
+- [About proof validation surfaces](../explanation/about-proof-validation-surfaces.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](../../benchmarks/README.md)

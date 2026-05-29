@@ -14,13 +14,13 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
-class SessionBoundaryCoordinatorTest {
+class SessionTransitionServiceTest {
     @Test
     fun followUpSupportedEntrySurfacePreservesAdvancedSurfaceOfOrigin() = runTest {
         // Arrange
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurface.ADVANCED_CONTROLS.route)
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
 
         try {
             // Act
@@ -43,7 +43,7 @@ class SessionBoundaryCoordinatorTest {
                 authorityMode = ReferenceAuthorityMode.SOLO,
                 surfaceOfOrigin = ReferenceSurface.SOLO_EXPLORATION.route,
             )
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
 
         try {
             // Act
@@ -62,7 +62,7 @@ class SessionBoundaryCoordinatorTest {
     @Test
     fun startFollowUpSupportedSessionNavigatesBeforeStartingTheNewSession() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
         val snapshot =
             navigationSnapshot(surfaceOfOrigin = ReferenceSurface.ADVANCED_CONTROLS.route)
         val events = mutableListOf<String>()
@@ -70,7 +70,7 @@ class SessionBoundaryCoordinatorTest {
 
         try {
             // Act
-            harness.boundaryCoordinator.startFollowUpSupportedSession(
+            harness.sessionTransitionService.startFollowUpSupportedSession(
                 currentSnapshot = snapshot,
                 applySurfaceSelection = { surface ->
                     val surfaceOfOrigin =
@@ -99,13 +99,13 @@ class SessionBoundaryCoordinatorTest {
     @Test
     fun confirmBoundaryTransitionsSupportedLiveSessionToSoloAndWritesFullExport() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
         val routes = mutableListOf<String>()
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.completeBoundary(
+            harness.sessionTransitionService.completeBoundary(
                 request =
                     SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
                 continuation = BoundaryContinuation.EXPORT_AND_CONTINUE,
@@ -132,12 +132,12 @@ class SessionBoundaryCoordinatorTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-                .createBoundaryCoordinatorHarness(scope = this)
+                .createSessionTransitionHarness(scope = this)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.endSupportedSession(
+            harness.sessionTransitionService.endSupportedSession(
                 preEndExportPolicy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN
             )
             advanceUntilIdle()
@@ -155,13 +155,13 @@ class SessionBoundaryCoordinatorTest {
     @Test
     fun startAlternativeSessionUpdatesTheSessionBeforeRoutingToLab() = runTest {
         // Arrange
-        val harness = TimelineStoreHarness().createBoundaryCoordinatorHarness(scope = this)
+        val harness = TimelineStoreHarness().createSessionTransitionHarness(scope = this)
         val events = mutableListOf<String>()
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.startAlternativeSession(
+            harness.sessionTransitionService.startAlternativeSession(
                 surface = ReferenceSurface.LAB,
                 applySurfaceSelection = { surface ->
                     val surfaceOfOrigin =
@@ -188,19 +188,45 @@ class SessionBoundaryCoordinatorTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun confirmBoundaryDoesNotRouteWhenTheSupportedSessionAlreadyEnded() = runTest {
+    fun pendingBoundaryBecomesStaleWhenTheSupportedSessionEnds() = runTest {
         // Arrange
         val harness =
             TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
-                .createBoundaryCoordinatorHarness(scope = this)
-        val routes = mutableListOf<String>()
-        advanceUntilIdle()
-        harness.boundaryCoordinator.endSupportedSession()
+                .createSessionTransitionHarness(scope = this)
+        val request =
+            SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION)
         advanceUntilIdle()
 
         try {
             // Act
-            harness.boundaryCoordinator.completeBoundary(
+            val canExecuteBeforeEnd = harness.sessionTransitionService.canExecuteBoundary(request)
+            harness.sessionTransitionService.endSupportedSession()
+            advanceUntilIdle()
+            val canExecuteAfterEnd = harness.sessionTransitionService.canExecuteBoundary(request)
+
+            // Assert
+            assertEquals(true, canExecuteBeforeEnd)
+            assertEquals(false, canExecuteAfterEnd)
+        } finally {
+            coroutineContext.cancelChildren()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun confirmBoundaryDoesNotRouteWhenTheSupportedSessionAlreadyEnded() = runTest {
+        // Arrange
+        val harness =
+            TimelineStoreHarness(initialTimeline = listOf(timelineStoreEntry("live-1", "Live")))
+                .createSessionTransitionHarness(scope = this)
+        val routes = mutableListOf<String>()
+        advanceUntilIdle()
+        harness.sessionTransitionService.endSupportedSession()
+        advanceUntilIdle()
+
+        try {
+            // Act
+            harness.sessionTransitionService.completeBoundary(
                 request =
                     SessionBoundaryRequest.LeaveSupportedSession(ReferenceSurface.SOLO_EXPLORATION),
                 continuation = BoundaryContinuation.CONTINUE_WITHOUT_EXPORT,

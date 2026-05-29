@@ -16,6 +16,8 @@ Use this page when you need exact commands, matrices, or policy details.
 | Android-specific library glue | `./gradlew :meshlink:testDebugUnitTest :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | iOS-specific library glue | `./gradlew :meshlink:iosSimulatorArm64Test :meshlink:detekt :meshlink:koverVerify` plus `:meshlink:allTests` when shared behavior or parity is affected |
 | reference-app shared UI, Android glue, or shared state | `./scripts/run-reference-local-check.sh` |
+| Android proof-app host or benchmark-only harness logic | `./gradlew :meshlink-proof:android:meshlink-proof-android-app:assembleDebug` |
+| iOS proof-app host or benchmark-only harness logic | `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS Simulator' build` |
 | reference-app release artifact or framework export | `./gradlew :meshlink-reference:build` |
 | build tooling or module shape | `./scripts/run-agp9-verification.sh` or `./gradlew checkAgp9Invariants` plus the relevant narrower module checks |
 | public API | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:apiCheck :meshlink:koverVerify verifyDocs`, plus API dump and appendix refresh |
@@ -105,7 +107,7 @@ find the shared runtime split quickly.
 | Concern | Primary module | Notes |
 |---|---|---|
 | Route selection and shell wiring | `ReferenceNavHost` | Owns active surface state and route callbacks; does not own session-boundary semantics. |
-| Session-boundary execution | `SessionBoundaryCoordinator` | Owns supported and alternative session boundary sequencing, export-before-boundary completion, and follow-up supported-session starts. |
+| Session-boundary execution | `SessionTransitionService` | Owns supported and alternative session boundary sequencing, export-before-boundary completion, and follow-up supported-session starts. |
 | Session boundaries and session-state publication | `ReferenceSessionController` | Owns supported live vs ended vs Solo exploration vs Lab session state and publishes the currently active session snapshot. |
 | Supported runtime lifecycle and binding | `SupportedControllerRuntime` | Owns supported controller creation, restart, closure, and snapshot binding. |
 | Evidence-surface state | `TechnicalTimelineStore` | Owns live and retained evidence state, visible timeline entries, retained-session loading, and export or retention state. |
@@ -116,9 +118,33 @@ find the shared runtime split quickly.
 Quick rule of thumb:
 
 - if the change is about **which surface the operator sees**, start in navigation
-- if it is about **when one session ends and another begins**, start in `SessionBoundaryCoordinator`, `SurfaceSelectionPolicy`, and `ReferenceSessionController`
+- if it is about **when one session ends and another begins**, start in `SessionTransitionService`, `chooseSessionSurfaceChoice(...)`, and `ReferenceSessionController`
 - if it is about **what evidence the operator can inspect or export**, start in `TechnicalTimelineStore`
 - if it is about **how the live or scripted controller talks to MeshLink or scripted state**, start in the matching runtime or controller pair
+
+## Proof-harness architecture landmarks
+
+Use these landmarks when a change touches the retained proof surfaces and you
+need to find the right seam quickly.
+
+| Concern | Primary module | Notes |
+|---|---|---|
+| Android proof host surface | Android proof `MainActivity` | Owns the minimal host UI, permission request loop, and start or stop button wiring. |
+| Android proof launch parsing | `ProofLaunchConfig` | Owns intent-extra decoding for mesh domain, power mode, benchmark payload size, and proof transport selection. |
+| Android proof runtime ownership | `MeshLinkProofRuntime` | Owns MeshLink lifecycle, peer and diagnostic collection, benchmark receipts, auto-send policy, and persisted proof logs. |
+| Android proof benchmark framing | `BenchmarkPayloadEnvelope` + `BenchmarkReceipt` | Own the retained MeshLink benchmark payload and receipt shape used by the Android proof harness. |
+| Android proof permission contract | `ProofPermissionContract` | Owns the Bluetooth permission list and permission-result interpretation for the proof host. |
+| iOS proof launch parsing | `ProofLaunchConfig` | Owns environment-variable decoding for mesh domain, power mode, benchmark payload size, telemetry, and proof transport selection. |
+| iOS proof benchmark-only mode switching | `ProofBenchmarkModeController` | Owns the GATT prototype and GATT-notify prototype start or stop validation so the view model stays focused on host-facing state. |
+| iOS proof transport-log capture | `ProofTransportLogCapture` | Owns stdout capture for transport telemetry and forwards only MeshLink transport lines back into the proof log. |
+| iOS proof benchmark framing | `BenchmarkPayloadEnvelope` + `BenchmarkReceiptEnvelope` | Own the retained MeshLink benchmark payload and receipt shape used by the iPhone proof harness. |
+
+Quick rule of thumb:
+
+- if the change is about **launch extras or environment variables**, start in `ProofLaunchConfig`
+- if it is about **Android proof runtime behavior after the host is already on screen**, start in `MeshLinkProofRuntime`
+- if it is about **which non-normative benchmark mode the iPhone host starts**, start in `ProofBenchmarkModeController`
+- if it is about **proof-only benchmark payload or receipt framing**, start in the benchmark envelope types for that host
 
 ## Repository rules and PR evidence
 
@@ -171,6 +197,7 @@ A public API change currently requires all of the following:
 - [MeshLink documentation map](../README.md)
 - [Repository layout reference](repository-layout.md)
 - [About the repository architecture](../explanation/about-the-repository-architecture.md)
+- [About proof validation surfaces](../explanation/about-proof-validation-surfaces.md)
 - [AGP 9 migration plan](../tooling/agp-9-migration-plan.md)
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
 - [Glossary and acronym reference](glossary.md)

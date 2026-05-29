@@ -14,6 +14,8 @@ It is an explanation page. Use the other docs when the job is different:
   [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - reference-app evaluation flow —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- proof-surface chooser and validation-boundary explanation —
+  [About proof validation surfaces](about-proof-validation-surfaces.md)
 
 ## The repository separates one product SDK from several evidence surfaces
 
@@ -168,7 +170,7 @@ flowchart TD
     App["ReferenceApp"] --> Nav["ReferenceNavHost"]
     Nav --> Guided["guided view model"]
     Nav --> Advanced["advanced view model"]
-    Nav --> Boundary["SessionBoundaryCoordinator"]
+    Nav --> Boundary["SessionTransitionService"]
     Nav --> Timeline["TechnicalTimelineStore"]
 
     Boundary --> Sessions["ReferenceSessionController"]
@@ -209,7 +211,7 @@ change independently.
 ### Session boundaries are not delegated to navigation alone
 
 `ReferenceNavHost` decides which surface is visible, but
-`SessionBoundaryCoordinator` decides whether moving to a different surface means
+`SessionTransitionService` decides whether moving to a different surface means
 one of these things:
 
 - a normal supported-surface switch inside the same session
@@ -322,15 +324,22 @@ to replace native iOS project structure entirely.
 
 ### The proof apps remain separate on purpose
 
-The proof apps are not just smaller copies of the reference app. They are
-transport-validation fixtures. That makes it useful for them to carry proof-only
-or benchmark-oriented behavior without redefining the reference app's supported
-product-like surfaces.
+The proof apps are not just smaller copies of the reference app. They are proof
+fixtures: dedicated transport-validation surfaces. That makes it useful for
+them to carry proof-only or benchmark-oriented behavior without redefining the
+reference app's supported product-like surfaces.
 
 Keeping them separate preserves a clean boundary between:
 
 - evaluating the SDK as a coherent operator-facing experience
 - proving transport behavior on physical devices
+
+Inside those proof hosts, the code now follows the same architectural instinct.
+The Android proof activity stays a thin host surface while launch parsing,
+permission rules, benchmark framing, and runtime ownership sit behind narrower
+helpers. The iPhone proof host still presents one view model to SwiftUI, but
+benchmark-only mode switching, launch parsing, and transport-log capture no
+longer compete inside one undifferentiated file.
 
 ### Benchmarks stay out of the product surface
 
@@ -365,3 +374,4 @@ being confused with one another.
 - [MeshLink SDK API reference](../reference/meshlink-sdk-api.md)
 - [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - [MeshLink reference app overview](../../meshlink-reference/README.md)
+- [About proof validation surfaces](about-proof-validation-surfaces.md)

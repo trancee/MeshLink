@@ -5,15 +5,26 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
-internal data class MeshEngineTransferState(
-    val inboundTransfers: MutableMap<String, InboundTransferSession>,
-    val relayTransfers: MutableMap<String, RelayTransferSession>,
-)
+internal data class MeshEngineTransferState(val transferRegistry: MeshEngineTransferRegistry) {
+    constructor(
+        inboundTransfers: MutableMap<String, ch.trancee.meshlink.transfer.InboundTransferSession>,
+        relayTransfers: MutableMap<String, ch.trancee.meshlink.transfer.RelayTransferSession>,
+    ) : this(
+        MeshEngineTransferRegistry(
+            inboundTransfers = inboundTransfers,
+            relayTransfers = relayTransfers,
+        )
+    )
+
+    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
+        get() = transferRegistry.inboundTransfersSnapshot()
+
+    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
+        get() = transferRegistry.relayTransfersSnapshot()
+}
 
 internal data class MeshEngineTransferCallbacks(
     val captureHardRunToken: () -> MeshEngineHardRunToken,
@@ -104,8 +115,7 @@ internal class MeshEngineTransferSupport(
 internal fun buildMeshEngineRuntimeTransferSupport(
     captureHardRunToken: () -> MeshEngineHardRunToken,
     isLocalPeerId: (PeerId) -> Boolean,
-    inboundTransfers: MutableMap<String, InboundTransferSession>,
-    relayTransfers: MutableMap<String, RelayTransferSession>,
+    transferRegistry: MeshEngineTransferRegistry,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     sendTransferTowardsDestination:
@@ -124,14 +134,10 @@ internal fun buildMeshEngineRuntimeTransferSupport(
             Map<String, String>,
         ) -> Unit,
 ): MeshEngineTransferSupport {
-    val state =
-        MeshEngineTransferState(
-            inboundTransfers = inboundTransfers,
-            relayTransfers = relayTransfers,
-        )
+    val state = MeshEngineTransferState(transferRegistry = transferRegistry)
     val inboundSupport =
         buildMeshEngineRuntimeInboundTransferSupport(
-            inboundTransfers = state.inboundTransfers,
+            transferRegistry = state.transferRegistry,
             sendEncryptedWireFrame = sendEncryptedWireFrame,
             deliverInnerEnvelope = deliverInnerEnvelope,
             routeMetadata = routeMetadata,
@@ -139,13 +145,13 @@ internal fun buildMeshEngineRuntimeTransferSupport(
         )
     val relaySupport =
         buildMeshEngineRuntimeRelayTransferSupport(
-            relayTransfers = state.relayTransfers,
+            transferRegistry = state.transferRegistry,
             sendEncryptedWireFrame = sendEncryptedWireFrame,
             sendTransferTowardsDestination = sendTransferTowardsDestination,
         )
     val abortSupport =
         buildMeshEngineRuntimeTransferAbortSupport(
-            state = state,
+            transferRegistry = state.transferRegistry,
             outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
             sendEncryptedWireFrame = sendEncryptedWireFrame,
             sendTransferTowardsDestination = sendTransferTowardsDestination,

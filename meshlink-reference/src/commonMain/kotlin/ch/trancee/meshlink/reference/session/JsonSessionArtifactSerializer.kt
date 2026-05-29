@@ -14,15 +14,12 @@ internal class JsonSessionArtifactSerializer(private val documentStore: Referenc
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
     ): String {
-        return ReferenceJson.codec.encodeToString(
-            ExportDocument.serializer(),
-            buildExportDocument(
-                artifact = artifact,
-                session = session,
-                peers = peers,
-                timeline = timeline,
-                includeFullPayload = false,
-            ),
+        return serializeArtifactDocument(
+            artifact = artifact,
+            session = session,
+            peers = peers,
+            timeline = timeline,
+            includeFullPayload = false,
         )
     }
 
@@ -32,6 +29,27 @@ internal class JsonSessionArtifactSerializer(private val documentStore: Referenc
         peers: List<PeerSnapshot>,
         timeline: List<TimelineEntry>,
     ): String {
+        return serializeArtifactDocument(
+            artifact = artifact,
+            session = session,
+            peers = peers,
+            timeline = timeline,
+            includeFullPayload = true,
+        )
+    }
+
+    override suspend fun writeArtifact(artifact: SessionArtifact, serialized: String): String {
+        documentStore.writeText(artifact.storagePath, serialized)
+        return artifact.storagePath
+    }
+
+    private fun serializeArtifactDocument(
+        artifact: SessionArtifact,
+        session: ReferenceSession,
+        peers: List<PeerSnapshot>,
+        timeline: List<TimelineEntry>,
+        includeFullPayload: Boolean,
+    ): String {
         return ReferenceJson.codec.encodeToString(
             ExportDocument.serializer(),
             buildExportDocument(
@@ -39,13 +57,8 @@ internal class JsonSessionArtifactSerializer(private val documentStore: Referenc
                 session = session,
                 peers = peers,
                 timeline = timeline,
-                includeFullPayload = true,
+                includeFullPayload = includeFullPayload,
             ),
         )
-    }
-
-    override suspend fun writeArtifact(artifact: SessionArtifact, serialized: String): String {
-        documentStore.writeText(artifact.storagePath, serialized)
-        return artifact.storagePath
     }
 }

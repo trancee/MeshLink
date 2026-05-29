@@ -123,8 +123,8 @@ flowchart LR
 | Reference app iOS host | `createReferenceRootViewController()` / `createReferenceRootView()` | Wraps the shared Compose shell in UIKit containers |
 | Reference app Android platform services | `createPlatformServices(...)` | Supplies Android bootstrap, storage, readiness guidance, and automation variants |
 | Reference app iOS platform services | `createPlatformServices()` | Supplies iOS storage, readiness guidance, and automation variants |
-| Android proof app host | Android proof `MainActivity` and intent extras | Physical proof and benchmark surface |
-| iOS proof app host | `ProofApp` scheme and environment variables | Physical proof and benchmark surface |
+| Android proof app host | Android proof `MainActivity` + `MeshLinkProofRuntime` | The activity stays a host surface; launch parsing, permission rules, benchmark framing, and runtime ownership live behind narrower proof-harness helpers. |
+| iOS proof app host | `ProofApp` scheme + `ProofViewModel` | The view model stays host-facing while launch parsing, benchmark-only mode switching, and transport-log capture live behind narrower proof-harness helpers. |
 
 ## Verification and automation scripts
 

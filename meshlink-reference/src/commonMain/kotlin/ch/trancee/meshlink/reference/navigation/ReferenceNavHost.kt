@@ -34,23 +34,23 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
     fun selectSurface(surface: ReferenceSurface): Unit {
         when (
             val choice =
-                determineSurfaceSelectionAction(
+                chooseSessionSurfaceChoice(
                     activeRoute = activeRoute,
                     currentSnapshot = snapshot,
                     targetSurface = surface,
                 )
         ) {
-            is SurfaceSelectionAction.Select -> {
+            is SessionSurfaceChoice.SelectSurface -> {
                 applySurfaceSelection(choice.surface)
             }
 
-            is SurfaceSelectionAction.RequireBoundary -> {
+            is SessionSurfaceChoice.RequireBoundaryConfirmation -> {
                 pendingBoundary = choice.request
             }
 
-            is SurfaceSelectionAction.StartAlternativeSession -> {
+            is SessionSurfaceChoice.StartAlternativeSession -> {
                 coroutineScope.launch {
-                    dependencies.sessionBoundaryCoordinator.startAlternativeSession(
+                    dependencies.sessionTransitionService.startAlternativeSession(
                         surface = choice.surface,
                         applySurfaceSelection = ::applySurfaceSelection,
                     )
@@ -68,7 +68,7 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
     LaunchedEffect(pendingBoundary) {
         val request = pendingBoundary ?: return@LaunchedEffect
         dependencies.timelineStore.uiState.collect {
-            if (!dependencies.sessionBoundaryCoordinator.canCompleteBoundary(request)) {
+            if (!dependencies.sessionTransitionService.canExecuteBoundary(request)) {
                 pendingBoundary = null
             }
         }
@@ -76,7 +76,7 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
 
     fun startFollowUpSupportedSessionFromEvidenceSurface(): Unit {
         coroutineScope.launch {
-            dependencies.sessionBoundaryCoordinator.startFollowUpSupportedSession(
+            dependencies.sessionTransitionService.startFollowUpSupportedSession(
                 currentSnapshot = snapshot,
                 applySurfaceSelection = ::applySurfaceSelection,
             )
@@ -87,7 +87,7 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
         preEndExportPolicy: ExportPayloadPolicy? = null
     ): Unit {
         coroutineScope.launch {
-            dependencies.sessionBoundaryCoordinator.endSupportedSession(preEndExportPolicy)
+            dependencies.sessionTransitionService.endSupportedSession(preEndExportPolicy)
         }
     }
 
@@ -122,7 +122,7 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
         onDismissBoundary = { pendingBoundary = null },
         onCompleteBoundary = { request, continuation ->
             coroutineScope.launch {
-                dependencies.sessionBoundaryCoordinator.completeBoundary(
+                dependencies.sessionTransitionService.completeBoundary(
                     request = request,
                     continuation = continuation,
                     applySurfaceSelection = ::applySurfaceSelection,

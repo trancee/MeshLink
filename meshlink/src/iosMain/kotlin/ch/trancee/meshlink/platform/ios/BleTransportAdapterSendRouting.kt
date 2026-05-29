@@ -6,7 +6,6 @@ import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 
 internal suspend fun BleTransportAdapter.sendWhenStarted(
     frame: OutboundFrame
@@ -56,15 +55,12 @@ internal fun BleTransportAdapter.resolveSendDataBearerMode(
     peer: DiscoveredPeer,
     directFrame: DirectWireFrame?,
 ): GattDataBearerMode {
-    return if (directFrame is DirectWireFrame.Data) {
-        resolveGattDataBearerMode(
-            localPlatformFamily = currentDiscoveryPayload.platformFamily,
-            remotePlatformFamily = peer.platformFamily,
-            preferredMode = frame.preferredMode,
-        )
-    } else {
-        GattDataBearerMode.L2CAP_ONLY
-    }
+    return resolveIosGattDataBearerMode(
+        directFrame = directFrame,
+        localPlatformFamily = currentDiscoveryPayload.platformFamily,
+        remotePlatformFamily = peer.platformFamily,
+        preferredMode = frame.preferredMode,
+    )
 }
 
 internal suspend fun BleTransportAdapter.sendViaGattNotifyLinkOrNull(

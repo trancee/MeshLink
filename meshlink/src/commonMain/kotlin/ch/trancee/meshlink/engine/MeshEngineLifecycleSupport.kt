@@ -8,15 +8,31 @@ import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.transfer.InboundTransferSession
-import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 
 internal data class MeshEngineLifecycleState(
     val runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
-    val inboundTransfers: MutableMap<String, InboundTransferSession>,
-    val relayTransfers: MutableMap<String, RelayTransferSession>,
-)
+    val transferRegistry: MeshEngineTransferRegistry,
+) {
+    constructor(
+        runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
+        inboundTransfers: MutableMap<String, ch.trancee.meshlink.transfer.InboundTransferSession>,
+        relayTransfers: MutableMap<String, ch.trancee.meshlink.transfer.RelayTransferSession>,
+    ) : this(
+        runtimeSurface = runtimeSurface,
+        transferRegistry =
+            MeshEngineTransferRegistry(
+                inboundTransfers = inboundTransfers,
+                relayTransfers = relayTransfers,
+            ),
+    )
+
+    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
+        get() = transferRegistry.inboundTransfersSnapshot()
+
+    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
+        get() = transferRegistry.relayTransfersSnapshot()
+}
 
 internal data class MeshEngineLifecycleCallbacks(
     val ensureTransportCollector: () -> Unit,
@@ -107,8 +123,8 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Stopped -> StopResult.AlreadyStopped
             MeshLinkState.Uninitialized -> {
                 callbacks.clearOutboundTransfers()
-                state.inboundTransfers.clear()
-                state.relayTransfers.clear()
+                state.transferRegistry.clearInboundSessions()
+                state.transferRegistry.clearRelaySessions()
                 state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
                 diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STOPPED, "lifecycle.stop")
                 StopResult.Stopped
@@ -124,8 +140,8 @@ internal class MeshEngineLifecycleSupport(
                     mapOf("runtimeBoundary" to "stop"),
                 )
                 callbacks.clearOutboundTransfers()
-                state.inboundTransfers.clear()
-                state.relayTransfers.clear()
+                state.transferRegistry.clearInboundSessions()
+                state.transferRegistry.clearRelaySessions()
                 state.runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
                 diagnostics.emitLifecycleEvent(DiagnosticCode.MESH_STOPPED, "lifecycle.stop")
                 StopResult.Stopped
@@ -136,8 +152,7 @@ internal class MeshEngineLifecycleSupport(
 
 internal fun buildMeshEngineRuntimeLifecycleSupport(
     runtimeSurface: MeshEngineCompatibilityRuntimeSurface,
-    inboundTransfers: MutableMap<String, InboundTransferSession>,
-    relayTransfers: MutableMap<String, RelayTransferSession>,
+    transferRegistry: MeshEngineTransferRegistry,
     ensureTransportCollector: () -> Unit,
     stopTransportCollector: suspend () -> Unit,
     startTransport: suspend () -> Unit,
@@ -161,8 +176,7 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
     val lifecycleState =
         MeshEngineLifecycleState(
             runtimeSurface = runtimeSurface,
-            inboundTransfers = inboundTransfers,
-            relayTransfers = relayTransfers,
+            transferRegistry = transferRegistry,
         )
     return MeshEngineLifecycleSupport(
         state = lifecycleState,

@@ -106,6 +106,7 @@ For exact surface and export vocabulary such as **Supported live session**,
 | understand the shared shell, session model, and automation seams | [About the repository architecture](../docs/explanation/about-the-repository-architecture.md) |
 | look up exact module and host ownership | [Repository layout reference](../docs/reference/repository-layout.md) |
 | compare the reference app with the rest of the MeshLink docs set | [MeshLink documentation map](../docs/README.md) |
+| decide whether to stay in the reference app or switch to proof fixtures or retained benchmarks | [About proof validation surfaces](../docs/explanation/about-proof-validation-surfaces.md) |
 | inspect retained benchmark evidence and proof baselines | [Benchmarks and retained evidence](../benchmarks/README.md) |
 
 ## Before you debug the app

@@ -1,15 +1,21 @@
 package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.ReferenceSession
+import ch.trancee.meshlink.reference.model.SessionArtifact
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
+import ch.trancee.meshlink.reference.model.referenceConnectionLabel
+import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
+import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
+import ch.trancee.meshlink.reference.model.referenceScenarioTitle
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
-import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 import kotlinx.coroutines.CoroutineScope
@@ -22,68 +28,54 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Evidence-state module for the technical timeline and recent-history surfaces.
+ *
+ * The store owns which evidence snapshot is visible, which retained sessions are listed, how
+ * filters affect visible entries, and which export path was created most recently. Session creation
+ * and replacement live elsewhere.
+ */
 internal class TechnicalTimelineStore(
-    internal val platformServices: PlatformServices,
-    internal val historyRepository: JsonSessionHistoryRepository,
-    internal val artifactSerializer: JsonSessionArtifactSerializer,
-    internal val sessionController: ReferenceSessionController,
+    private val platformServices: PlatformServices,
+    private val historyRepository: JsonSessionHistoryRepository,
+    private val artifactSerializer: JsonSessionArtifactSerializer,
     internal val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
-    internal val stateFlow: MutableStateFlow<TechnicalTimelineUiState> =
+    private val stateFlow: MutableStateFlow<TechnicalTimelineUiState> =
         MutableStateFlow(
             TechnicalTimelineUiState(
                 liveSnapshot = platformServices.meshLinkController.snapshot.value
             )
         )
 
-    public val uiState: StateFlow<TechnicalTimelineUiState> = stateFlow.asStateFlow()
+    val uiState: StateFlow<TechnicalTimelineUiState> = stateFlow.asStateFlow()
 
     init {
-        scope.launch {
-            val retainedSessions = historyRepository.loadRetainedSessions()
-            updateState { current ->
-                current.copy(
-                    retainedSessions =
-                        mergeRetainedSessions(
-                            current = current.retainedSessions,
-                            loaded = retainedSessions,
-                        )
-                )
-            }
-        }
-        scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
-                updateState { current ->
-                    current.copy(
-                        liveSnapshot = snapshot,
-                        visibleEntries = visibleEntriesForUpdatedLiveSnapshot(current, snapshot),
-                    )
-                }
-            }
-        }
+        loadRetainedSessionList()
+        observeLiveSnapshot()
     }
 
-    public fun setSearchText(text: String): Unit {
+    fun setSearchText(text: String): Unit {
         applyFilters(uiState.value.filters.copy(searchText = text))
     }
 
-    public fun setPeerFilter(peerSuffix: String?): Unit {
+    fun setPeerFilter(peerSuffix: String?): Unit {
         applyFilters(uiState.value.filters.copy(peerSuffix = peerSuffix))
     }
 
-    public fun setFamilyFilter(family: TimelineFamily?): Unit {
+    fun setFamilyFilter(family: TimelineFamily?): Unit {
         applyFilters(uiState.value.filters.copy(family = family))
     }
 
-    public fun setSeverityFilter(severity: TimelineSeverity?): Unit {
+    fun setSeverityFilter(severity: TimelineSeverity?): Unit {
         applyFilters(uiState.value.filters.copy(severity = severity))
     }
 
-    public fun clearFilters(): Unit {
+    fun clearFilters(): Unit {
         applyFilters(TimelineFilters())
     }
 
-    public fun openRetainedSession(sessionId: String): Unit {
+    fun openRetainedSession(sessionId: String): Unit {
         scope.launch {
             val retained = historyRepository.loadRetainedSnapshot(sessionId) ?: return@launch
             updateState { current ->
@@ -95,7 +87,7 @@ internal class TechnicalTimelineStore(
         }
     }
 
-    public fun openLiveSession(): Unit {
+    fun openLiveSession(): Unit {
         updateState { current ->
             current.copy(
                 retainedSnapshot = null,
@@ -104,7 +96,7 @@ internal class TechnicalTimelineStore(
         }
     }
 
-    public fun deleteRetainedSession(sessionId: String): Unit {
+    fun deleteRetainedSession(sessionId: String): Unit {
         scope.launch {
             historyRepository.deleteSession(sessionId)
             val retainedSessions = historyRepository.loadRetainedSessions()
@@ -125,7 +117,7 @@ internal class TechnicalTimelineStore(
         }
     }
 
-    public fun clearRetainedSessions(): Unit {
+    fun clearRetainedSessions(): Unit {
         scope.launch {
             historyRepository.clearAll()
             updateState { current ->
@@ -138,19 +130,149 @@ internal class TechnicalTimelineStore(
         }
     }
 
-    public fun exportVisibleSession(policy: ExportPayloadPolicy): Unit {
+    fun exportVisibleSession(policy: ExportPayloadPolicy): Unit {
         scope.launch {
             val currentSnapshot = uiState.value.currentSnapshot
             val storagePath =
-                writeExport(currentSnapshot, normalizeExportPolicy(currentSnapshot, policy))
+                exportSnapshot(currentSnapshot, normalizeExportPolicy(currentSnapshot, policy))
             updateState { current -> current.copy(lastExportPath = storagePath) }
         }
+    }
+
+    internal fun publishLiveSnapshot(liveSnapshot: ReferenceControllerSnapshot): Unit {
+        updateState { current ->
+            current.copy(
+                liveSnapshot = liveSnapshot,
+                retainedSnapshot = null,
+                visibleEntries = current.filters.apply(liveSnapshot.timeline),
+            )
+        }
+    }
+
+    internal suspend fun refreshRetainedSessionList(lastExportPath: String?): Unit {
+        val retainedSessions = historyRepository.loadRetainedSessions()
+        updateState { current ->
+            current.copy(
+                retainedSessions = retainedSessions,
+                lastExportPath = lastExportPath ?: current.lastExportPath,
+                visibleEntries = current.filters.apply(current.currentSnapshot.timeline),
+            )
+        }
+    }
+
+    internal suspend fun retainEndedSnapshotIfEligible(
+        endedSnapshot: ReferenceControllerSnapshot
+    ): Unit {
+        if (!endedSnapshot.isEligibleForAutomaticRetention(platformServices.readinessBlockers)) {
+            return
+        }
+        historyRepository.retainSnapshot(endedSnapshot.redactedRetainedSnapshot())
+    }
+
+    internal suspend fun exportSnapshot(
+        snapshot: ReferenceControllerSnapshot,
+        policy: ExportPayloadPolicy,
+    ): String {
+        val createdAtEpochMillis = platformServices.currentTimeMillis()
+        val artifactPolicy =
+            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+                ArtifactPayloadPolicy.FULL_OPT_IN
+            } else {
+                ArtifactPayloadPolicy.REDACTED_PREVIEW
+            }
+        val artifactSuffix =
+            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+                "full"
+            } else {
+                "redacted"
+            }
+        val artifact =
+            SessionArtifact(
+                artifactId =
+                    "artifact-${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix",
+                sourceSessionId = snapshot.session.sessionId,
+                createdAtEpochMillis = createdAtEpochMillis,
+                payloadPolicy = artifactPolicy,
+                includesFullPayload =
+                    policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
+                        snapshot.timeline.any { entry -> entry.fullPayload != null },
+                scenarioSummary =
+                    mapOf(
+                        "scenarioId" to snapshot.session.scenarioId,
+                        "title" to referenceScenarioTitle(snapshot.session.scenarioId),
+                        "surface" to
+                            (snapshot.session.configurationSnapshot["surface"] ?: "main-guided"),
+                        "authorityMode" to referenceAuthorityLabel(snapshot.session.authorityMode),
+                    ),
+                peerSummaries =
+                    snapshot.peers.map { peer ->
+                        buildMap {
+                            put("peerSuffix", peer.peerSuffix)
+                            put("trustState", referencePeerTrustLabel(peer.trustState))
+                            put("connectionState", referenceConnectionLabel(peer.connectionState))
+                            peer.lastDeliveryOutcome?.let { outcome ->
+                                put(
+                                    "lastDeliveryOutcome",
+                                    referenceOutcomeLabel(outcome) ?: outcome,
+                                )
+                            }
+                        }
+                    },
+                timelineEntries = snapshot.timeline,
+                storagePath =
+                    "reference/exports/${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix.json",
+            )
+        val serialized =
+            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+                artifactSerializer.serializeWithFullPayload(
+                    artifact,
+                    snapshot.session,
+                    snapshot.peers,
+                    snapshot.timeline,
+                )
+            } else {
+                artifactSerializer.serializeRedacted(
+                    artifact,
+                    snapshot.session,
+                    snapshot.peers,
+                    snapshot.timeline,
+                )
+            }
+        return artifactSerializer.writeArtifact(artifact, serialized)
     }
 
     internal fun updateState(
         transform: (TechnicalTimelineUiState) -> TechnicalTimelineUiState
     ): Unit {
         stateFlow.update(transform)
+    }
+
+    private fun loadRetainedSessionList(): Unit {
+        scope.launch {
+            val retainedSessions = historyRepository.loadRetainedSessions()
+            updateState { current ->
+                current.copy(
+                    retainedSessions =
+                        mergeRetainedSessions(
+                            current = current.retainedSessions,
+                            loaded = retainedSessions,
+                        )
+                )
+            }
+        }
+    }
+
+    private fun observeLiveSnapshot(): Unit {
+        scope.launch {
+            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
+                updateState { current ->
+                    current.copy(
+                        liveSnapshot = snapshot,
+                        visibleEntries = visibleEntriesForUpdatedLiveSnapshot(current, snapshot),
+                    )
+                }
+            }
+        }
     }
 
     private fun applyFilters(filters: TimelineFilters): Unit {
@@ -164,36 +286,36 @@ internal class TechnicalTimelineStore(
 }
 
 internal data class TechnicalTimelineUiState(
-    public val liveSnapshot: ReferenceControllerSnapshot,
-    public val retainedSnapshot: ReferenceControllerSnapshot? = null,
-    public val retainedSessions: List<ReferenceSession> = emptyList(),
-    public val filters: TimelineFilters = TimelineFilters(),
-    public val visibleEntries: List<TimelineEntry> = liveSnapshot.timeline,
-    public val lastExportPath: String? = null,
+    val liveSnapshot: ReferenceControllerSnapshot,
+    val retainedSnapshot: ReferenceControllerSnapshot? = null,
+    val retainedSessions: List<ReferenceSession> = emptyList(),
+    val filters: TimelineFilters = TimelineFilters(),
+    val visibleEntries: List<TimelineEntry> = liveSnapshot.timeline,
+    val lastExportPath: String? = null,
 ) {
-    public val currentSessionKind: ReferenceSessionKind
+    val currentSessionKind: ReferenceSessionKind
         get() = currentSnapshot.referenceSessionKind()
 
-    public val isCurrentSessionEnded: Boolean
+    val isCurrentSessionEnded: Boolean
         get() = !viewingRetained && currentSessionKind == ReferenceSessionKind.SUPPORTED_ENDED
 
-    public val isSupportedLiveSession: Boolean
+    val isSupportedLiveSession: Boolean
         get() = currentSessionKind == ReferenceSessionKind.SUPPORTED_LIVE
 
-    public val isAlternativeSession: Boolean
+    val isAlternativeSession: Boolean
         get() =
             currentSessionKind == ReferenceSessionKind.SOLO ||
                 currentSessionKind == ReferenceSessionKind.LAB
 
-    public val canExportFullPayload: Boolean
+    val canExportFullPayload: Boolean
         get() = isSupportedLiveSession && !viewingRetained
 
-    public val shouldShowStartNewSession: Boolean
+    val shouldShowStartNewSession: Boolean
         get() = isCurrentSessionEnded || isAlternativeSession
 
-    public val currentSnapshot: ReferenceControllerSnapshot
+    val currentSnapshot: ReferenceControllerSnapshot
         get() = retainedSnapshot ?: liveSnapshot
 
-    public val viewingRetained: Boolean
+    val viewingRetained: Boolean
         get() = retainedSnapshot != null
 }

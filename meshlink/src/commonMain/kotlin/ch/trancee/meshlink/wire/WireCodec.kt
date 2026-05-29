@@ -3,6 +3,7 @@ package ch.trancee.meshlink.wire
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 
+/** Envelope-level frame model for the unreleased MeshLink wire format. */
 internal sealed class WireFrame {
     internal class Hello
     internal constructor(public val peerId: PeerId, public val helloIntervalMillis: Int) :
@@ -118,6 +119,12 @@ internal sealed class WireFrame {
     internal constructor(public val transferId: String, public val reasonCode: Int) : WireFrame()
 }
 
+/**
+ * Maps typed wire frames to versioned envelopes and back.
+ *
+ * The codec keeps routing, message, and transfer payload layouts behind one seam so callers only
+ * reason about `WireFrame` and the current envelope version.
+ */
 internal object WireCodec {
     internal const val CURRENT_WIRE_VERSION: UByte = 1u
 
@@ -137,6 +144,8 @@ internal object WireCodec {
     }
 
     internal fun decodePayload(type: WireEnvelopeType, payload: ByteArray): WireFrame {
+        // Routing envelopes intentionally share one table codec because their
+        // field layouts evolve together and stay versioned by envelope type.
         val table = FlatBufferTable.fromRoot(payload)
         return when (type) {
             WireEnvelopeType.MESSAGE -> MessagePayloadCodec.decode(table)

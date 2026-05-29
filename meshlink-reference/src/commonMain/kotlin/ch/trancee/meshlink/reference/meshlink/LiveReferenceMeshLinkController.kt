@@ -45,67 +45,31 @@ internal class LiveReferenceMeshLinkController(
     private val sendRecorder: LiveReferenceSendRecorder = LiveReferenceSendRecorder(stateStore)
     private val sessionProjector: LiveReferenceSessionProjector =
         LiveReferenceSessionProjector(stateStore = stateStore, runtimeLogger = runtimeLogger)
+    private val commandExecutor: LiveReferenceMeshCommandExecutor =
+        LiveReferenceMeshCommandExecutor(
+            runtime = runtime,
+            stateStore = stateStore,
+            nowProvider = nowProvider,
+            sessionProjector = sessionProjector,
+            sendRecorder = sendRecorder,
+        )
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
 
     override suspend fun start(): Unit {
-        val outcome =
-            runtime.start(
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        sessionProjector.recordMeshCall(
-            result = outcome,
-            successTitle = "Mesh started",
-            successDetail = { result -> "mesh.start() -> $result" },
-            errorTitle = "Mesh start failed",
-        )
+        commandExecutor.start()
     }
 
     override suspend fun pause(): Unit {
-        val outcome =
-            runtime.pause(
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        sessionProjector.recordMeshCall(
-            result = outcome,
-            successTitle = "Mesh paused",
-            successDetail = { result -> "mesh.pause() -> $result" },
-            errorTitle = "Mesh pause failed",
-        )
+        commandExecutor.pause()
     }
 
     override suspend fun resume(): Unit {
-        val outcome =
-            runtime.resume(
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        sessionProjector.recordMeshCall(
-            result = outcome,
-            successTitle = "Mesh resumed",
-            successDetail = { result -> "mesh.resume() -> $result" },
-            errorTitle = "Mesh resume failed",
-        )
+        commandExecutor.resume()
     }
 
     override suspend fun stop(): Unit {
-        val outcome =
-            runtime.stop(
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        sessionProjector.recordMeshCall(
-            result = outcome,
-            successTitle = "Mesh stopped",
-            successDetail = { result -> "mesh.stop() -> $result" },
-            errorTitle = "Mesh stop failed",
-        )
+        commandExecutor.stop()
     }
 
     override suspend fun sendPayload(
@@ -113,44 +77,11 @@ internal class LiveReferenceMeshLinkController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
-        val outcome =
-            runtime.send(
-                peerId = peerId,
-                payloadText = payloadText,
-                priority = priority,
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        outcome
-            .onSuccess { result ->
-                sendRecorder.recordOutcome(
-                    peerId = peerId,
-                    payloadText = payloadText,
-                    priority = priority,
-                    result = result,
-                )
-            }
-            .onFailure { error ->
-                sendRecorder.recordFailure(
-                    peerId = peerId,
-                    payloadText = payloadText,
-                    error = error,
-                )
-            }
+        commandExecutor.sendPayload(peerId = peerId, payloadText = payloadText, priority = priority)
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
-        val outcome =
-            runtime.forgetPeer(
-                peerId = peerId,
-                stateStore = stateStore,
-                nowProvider = nowProvider,
-                sessionProjector = sessionProjector,
-            )
-        outcome
-            .onSuccess { result -> sessionProjector.recordPeerTrustReset(peerId, result) }
-            .onFailure { error -> sessionProjector.recordPeerTrustResetFailure(peerId, error) }
+        commandExecutor.forgetPeer(peerId)
     }
 
     override suspend fun close(): Unit {

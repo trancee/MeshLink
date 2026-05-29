@@ -10,26 +10,6 @@ import ch.trancee.meshlink.reference.model.withoutSensitivePayload
 import ch.trancee.meshlink.reference.session.ReferenceSessionKind
 import ch.trancee.meshlink.reference.session.referenceSessionKind
 
-internal suspend fun TechnicalTimelineStore.refreshRetainedSessions(lastExportPath: String?): Unit {
-    val retainedSessions = historyRepository.loadRetainedSessions()
-    updateState { current ->
-        current.copy(
-            retainedSessions = retainedSessions,
-            lastExportPath = lastExportPath ?: current.lastExportPath,
-            visibleEntries = current.filters.apply(current.currentSnapshot.timeline),
-        )
-    }
-}
-
-internal suspend fun TechnicalTimelineStore.retainIfEligible(
-    endedSnapshot: ReferenceControllerSnapshot
-): Unit {
-    if (!endedSnapshot.isEligibleForAutomaticRetention(platformServices.readinessBlockers)) {
-        return
-    }
-    historyRepository.retainSnapshot(endedSnapshot.redactedRetainedSnapshot())
-}
-
 internal fun endedBoundarySnapshot(
     snapshot: ReferenceControllerSnapshot,
     endedAtEpochMillis: Long,
