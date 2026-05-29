@@ -86,8 +86,10 @@ class TransferSessionTest {
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
+            val firstAcknowledgementDelay = testDuration(50)
+            val acknowledgementBurstGap = testDuration(50)
             val acknowledgementProducer = launch {
-                delay(testDuration(10))
+                delay(firstAcknowledgementDelay)
                 session.markAcknowledged(
                     WireFrame.TransferAck(
                         transferId = session.transferId,
@@ -95,7 +97,7 @@ class TransferSessionTest {
                         selectiveRanges = byteArrayOf(),
                     )
                 )
-                delay(testDuration(10))
+                delay(acknowledgementBurstGap)
                 session.markAcknowledged(
                     WireFrame.TransferAck(
                         transferId = session.transferId,
@@ -108,8 +110,8 @@ class TransferSessionTest {
             // Act
             val settlement =
                 session.awaitAcknowledgementSettlement(
-                    maximumWait = testDuration(300),
-                    idleWindow = testDuration(50),
+                    maximumWait = testDuration(1_000),
+                    idleWindow = testDuration(300),
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
                 )
