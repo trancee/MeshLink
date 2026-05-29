@@ -17,6 +17,10 @@ private const val VTABLE_START_OFFSET_BYTES: Int = INT_SIZE_BYTES
 private const val STRING_TERMINATOR_SIZE_BYTES: Int = BYTE_SIZE_BYTES
 private const val STRING_TERMINATOR_BYTE: Byte = 0
 
+// This is a deliberately small FlatBuffers subset: one root table with scalars,
+// strings, and byte vectors. The wire codecs rely on fixed little-endian layout
+// rather than generated schemas so the format stays pure Kotlin across targets.
+
 private fun align(value: Int, alignment: Int): Int {
     val mask = alignment - ALIGNMENT_MASK_DELTA
     return (value + mask) and mask.inv()
@@ -93,6 +97,13 @@ private sealed class FlatBufferField(
         FlatBufferField(index = index, size = INT_SIZE_BYTES, alignment = INT_ALIGNMENT)
 }
 
+/**
+ * Builds the small table subset used by MeshLink wire payloads.
+ *
+ * `finish()` writes `[root offset][vtable][object body][tail objects]`, which is enough for the
+ * current routing, message, and transfer payload codecs without carrying the full general-purpose
+ * FlatBuffers runtime.
+ */
 internal class FlatBufferTableBuilder internal constructor(private val fieldCount: Int) {
     private val fields: MutableMap<Int, FlatBufferField> = linkedMapOf()
 
@@ -146,6 +157,8 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
     }
 
     internal fun finish(): ByteArray {
+        // Scalars stay inline in the object body. Strings and byte vectors live
+        // in the tail and are referenced by relative offsets from the field slot.
         val presentFields = fields.values.sortedBy { field -> field.index }
         val maxAlignment =
             presentFields
@@ -234,6 +247,7 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
     }
 }
 
+/** Reader for the same constrained table subset emitted by [FlatBufferTableBuilder]. */
 internal class FlatBufferTable
 private constructor(private val bytes: ByteArray, private val tableStart: Int) {
     private val vtableStart: Int

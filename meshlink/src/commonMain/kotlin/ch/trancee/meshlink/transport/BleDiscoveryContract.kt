@@ -19,6 +19,12 @@ internal enum class BleDiscoveryPlatformFamily(internal val encodedBits: Int) {
     }
 }
 
+/**
+ * Compact 16-byte discovery payload embedded directly into a UUID string.
+ *
+ * Layout: `[header][meshHash LE][l2capPsm][keyHash[12]]`. The header packs protocol version, power
+ * mode, and platform family so the advertisement stays within one UUID-sized payload.
+ */
 internal class BleDiscoveryPayload
 internal constructor(
     internal val protocolVersion: Int,
@@ -44,11 +50,7 @@ internal constructor(
 
     internal fun encode(): ByteArray {
         val bytes = ByteArray(PAYLOAD_SIZE_BYTES)
-        bytes[HEADER_BYTE_INDEX] =
-            (((protocolVersion and PROTOCOL_VERSION_MASK) shl PROTOCOL_VERSION_SHIFT) or
-                    ((powerMode.ordinal and POWER_MODE_MASK) shl POWER_MODE_SHIFT) or
-                    (platformFamily.encodedBits and PLATFORM_FAMILY_MASK))
-                .toByte()
+        bytes[HEADER_BYTE_INDEX] = encodeHeaderByte()
         bytes[MESH_HASH_LOW_BYTE_INDEX] = (meshHash.toInt() and BYTE_MASK).toByte()
         bytes[MESH_HASH_HIGH_BYTE_INDEX] =
             ((meshHash.toInt() shr BITS_PER_BYTE) and BYTE_MASK).toByte()
@@ -73,10 +75,7 @@ internal constructor(
             val protocolVersion = (header shr PROTOCOL_VERSION_SHIFT) and PROTOCOL_VERSION_MASK
             val powerModeOrdinal = (header shr POWER_MODE_SHIFT) and POWER_MODE_MASK
             val platformFamilyBits = header and PLATFORM_FAMILY_MASK
-            val meshHash =
-                (((bytes[MESH_HASH_HIGH_BYTE_INDEX].toInt() and BYTE_MASK) shl BITS_PER_BYTE) or
-                        (bytes[MESH_HASH_LOW_BYTE_INDEX].toInt() and BYTE_MASK))
-                    .toUShort()
+            val meshHash = decodeMeshHash(bytes)
             val l2capPsm = bytes[L2CAP_PSM_BYTE_INDEX].toUByte()
             val keyHash = bytes.copyOfRange(KEY_HASH_OFFSET_BYTES, PAYLOAD_SIZE_BYTES)
             return BleDiscoveryPayload(
@@ -92,9 +91,28 @@ internal constructor(
         internal fun fromUuidString(uuid: String): BleDiscoveryPayload {
             return decode(BleDiscoveryContract.bytesFromUuidString(uuid))
         }
+
+        private fun decodeMeshHash(bytes: ByteArray): UShort {
+            return (((bytes[MESH_HASH_HIGH_BYTE_INDEX].toInt() and BYTE_MASK) shl BITS_PER_BYTE) or
+                    (bytes[MESH_HASH_LOW_BYTE_INDEX].toInt() and BYTE_MASK))
+                .toUShort()
+        }
+    }
+
+    private fun encodeHeaderByte(): Byte {
+        return (((protocolVersion and PROTOCOL_VERSION_MASK) shl PROTOCOL_VERSION_SHIFT) or
+                ((powerMode.ordinal and POWER_MODE_MASK) shl POWER_MODE_SHIFT) or
+                (platformFamily.encodedBits and PLATFORM_FAMILY_MASK))
+            .toByte()
     }
 }
 
+/**
+ * Discovery constants and helpers shared by Android and iOS transport seams.
+ *
+ * The transport exposes the discovery payload as a UUID string because both platforms already treat
+ * service UUIDs as the most portable advertisement seam.
+ */
 internal object BleDiscoveryContract {
     internal const val CURRENT_PROTOCOL_VERSION: Int = 1
     private const val HEX_DIGITS = "0123456789abcdef"
@@ -145,6 +163,8 @@ internal object BleDiscoveryContract {
 
     internal fun uuidStringFromBytes(bytes: ByteArray): String {
         require(bytes.size == UUID_BYTE_SIZE) { "UUID payload must be $UUID_BYTE_SIZE bytes" }
+        // Preserve byte order exactly; the encoded UUID text is only a transport
+        // wrapper around the discovery payload, not a semantic UUID structure.
         val hex =
             bytes.joinToString(separator = "") { byte ->
                 val value = byte.toInt() and BYTE_MASK
@@ -188,6 +208,12 @@ internal object BleDiscoveryContract {
     }
 }
 
+/**
+ * Deterministic tie-breaker for discovery-driven L2CAP connection ownership.
+ *
+ * Mixed Android/iOS pairs force Android to initiate. Same-platform pairs fall back to an unsigned
+ * lexical comparison of the advertisement key hash.
+ */
 internal fun shouldLocalPeerInitiateL2capConnection(
     localKeyHash: ByteArray,
     localPlatformFamily: BleDiscoveryPlatformFamily,

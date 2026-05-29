@@ -116,7 +116,7 @@ Do not mark a slice complete on code inspection alone.
 
 ### Phase 2 — SDK core depth and efficiency
 
-- [ ] **R05: Document and simplify discovery and wire invariants** `risk:medium` `depends:[]` `breaking:allowed`
+- [x] **R05: Document and simplify discovery and wire invariants** `risk:medium` `depends:[]` `breaking:allowed`
   > After this: discovery payload layout, UUID encoding, and wire-shape assumptions are understandable without reverse-engineering the implementation.
   - Scope: add KDoc and concise invariant comments; extract only the helpers that clearly reduce mental load.
   - Primary modules: BLE discovery contract, wire codecs, payload codecs, FlatBuffer table helpers.
