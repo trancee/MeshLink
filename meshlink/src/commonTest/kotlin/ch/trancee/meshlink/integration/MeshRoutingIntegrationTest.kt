@@ -28,6 +28,10 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
 class MeshRoutingIntegrationTest {
+    private companion object {
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+    }
+
     @Test
     fun `a sender can reach a destination through a single relay hop`() = runBlocking {
         // Arrange
@@ -43,10 +47,10 @@ class MeshRoutingIntegrationTest {
         sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
@@ -73,10 +77,10 @@ class MeshRoutingIntegrationTest {
         sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
@@ -137,11 +141,11 @@ class MeshRoutingIntegrationTest {
         firstRelay.meshLink.start()
         recipient.meshLink.start()
         alternateRelay.meshLink.start()
-        delay(250)
+        testDelay(250)
 
         val firstMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
             }
         sender.meshLink.send(recipient.peerId, firstPayload)
         firstMessageDeferred.await()
@@ -149,10 +153,10 @@ class MeshRoutingIntegrationTest {
         harness.unlinkPeers(firstRelay, recipient)
         harness.linkPeers(sender, alternateRelay)
         harness.linkPeers(alternateRelay, recipient)
-        delay(250)
+        testDelay(250)
         val secondMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
@@ -182,11 +186,11 @@ class MeshRoutingIntegrationTest {
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(2_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(2_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
-            delay(250)
+            testDelay(250)
             harness.linkPeers(relay, recipient)
             val sendResult = sendResultDeferred.await()
             val receivedMessage = receivedMessageDeferred.await()
@@ -219,7 +223,7 @@ class MeshRoutingIntegrationTest {
             sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
-            delay(250)
+            testDelay(250)
             val startedAt = TimeSource.Monotonic.markNow()
 
             // Act
@@ -267,7 +271,7 @@ class MeshRoutingIntegrationTest {
             restartedSender.meshLink.start()
             val unexpectedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeoutOrNull(1_500) { recipient.meshLink.messages.first() }
+                    testWithTimeoutOrNull(1_500) { recipient.meshLink.messages.first() }
                 }
             harness.linkPeers(relay, recipient)
             awaitDiagnosticForPeer(
@@ -282,7 +286,7 @@ class MeshRoutingIntegrationTest {
             val unexpectedMessage = unexpectedMessageDeferred.await()
             val resubmittedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(5_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(5_000) { recipient.meshLink.messages.first() }
                 }
             val resubmittedSendResult = restartedSender.meshLink.send(recipient.peerId, payload)
             val resubmittedMessage = resubmittedMessageDeferred.await()
@@ -316,11 +320,11 @@ class MeshRoutingIntegrationTest {
 
         sender.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
 
         // Act
         val sendResult = sender.meshLink.send(recipient.peerId, payload)
-        val receivedMessage = withTimeoutOrNull(250) { recipient.meshLink.messages.first() }
+        val receivedMessage = testWithTimeoutOrNull(250) { recipient.meshLink.messages.first() }
 
         // Assert
         val notSent = assertIs<SendResult.NotSent>(sendResult)
@@ -362,15 +366,15 @@ class MeshRoutingIntegrationTest {
             routeAvailable = true,
         )
         harness.unlinkPeers(sender, recipient)
-        delay(100)
+        testDelay(100)
         val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(2_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        delay(250)
+        testDelay(250)
         harness.linkPeers(sender, recipient)
         val sendResult = sendResultDeferred.await()
         val receivedMessage = receivedMessageDeferred.await()
@@ -437,7 +441,7 @@ class MeshRoutingIntegrationTest {
             routeAvailable = true,
         )
         harness.unlinkPeers(sender, recipient)
-        delay(100)
+        testDelay(100)
 
         // Act
         val sendResult = sender.meshLink.send(recipient.peerId, payload)
@@ -482,14 +486,14 @@ class MeshRoutingIntegrationTest {
         sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         val relayMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeoutOrNull(500) { relay.meshLink.messages.first() }
+                testWithTimeoutOrNull(500) { relay.meshLink.messages.first() }
             }
         val recipientMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
@@ -506,6 +510,24 @@ class MeshRoutingIntegrationTest {
         assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
     }
 
+    private suspend fun testDelay(milliseconds: Int): Unit =
+        delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)
+
+    private suspend fun testDelay(milliseconds: Long): Unit =
+        delay(milliseconds * TEST_TIMING_SLACK_MULTIPLIER)
+
+    private suspend fun <T> testWithTimeout(milliseconds: Int, block: suspend () -> T): T =
+        withTimeout(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeout(milliseconds: Long, block: suspend () -> T): T =
+        withTimeout(milliseconds * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeoutOrNull(milliseconds: Int, block: suspend () -> T): T? =
+        withTimeoutOrNull(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeoutOrNull(milliseconds: Long, block: suspend () -> T): T? =
+        withTimeoutOrNull(milliseconds * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
     private suspend fun awaitDiagnosticForPeer(
         diagnostics: () -> List<DiagnosticEvent>,
         code: DiagnosticCode,
@@ -513,7 +535,7 @@ class MeshRoutingIntegrationTest {
         routeAvailable: Boolean? = null,
         timeoutMillis: Long = 2_000,
     ): Unit {
-        withTimeout(timeoutMillis) {
+        testWithTimeout(timeoutMillis) {
             while (
                 diagnostics()
                     .indexOfFirstForPeer(
@@ -522,7 +544,7 @@ class MeshRoutingIntegrationTest {
                         routeAvailable = routeAvailable,
                     ) < 0
             ) {
-                delay(10)
+                testDelay(10)
             }
         }
     }

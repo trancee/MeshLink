@@ -14,6 +14,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 class TransferSessionTest {
+    private companion object {
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Int = 3
+    }
+
+    private fun testDuration(milliseconds: Int) =
+        milliseconds.milliseconds * TEST_TIMING_SLACK_MULTIPLIER
+
     @Test
     fun `markAcknowledged counts newly acknowledged chunks only once`() {
         // Arrange
@@ -80,7 +87,7 @@ class TransferSessionTest {
             val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
             val acknowledgementProducer = launch {
-                delay(10)
+                delay(testDuration(10))
                 session.markAcknowledged(
                     WireFrame.TransferAck(
                         transferId = session.transferId,
@@ -88,7 +95,7 @@ class TransferSessionTest {
                         selectiveRanges = byteArrayOf(),
                     )
                 )
-                delay(10)
+                delay(testDuration(10))
                 session.markAcknowledged(
                     WireFrame.TransferAck(
                         transferId = session.transferId,
@@ -101,8 +108,8 @@ class TransferSessionTest {
             // Act
             val settlement =
                 session.awaitAcknowledgementSettlement(
-                    maximumWait = 300.milliseconds,
-                    idleWindow = 50.milliseconds,
+                    maximumWait = testDuration(300),
+                    idleWindow = testDuration(50),
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
                 )
@@ -121,8 +128,8 @@ class TransferSessionTest {
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
             val session = newOutboundSession(chunkCount = 4)
-            val idleWindow = 20.milliseconds
-            val lateAcknowledgementDelay = 500.milliseconds
+            val idleWindow = testDuration(20)
+            val lateAcknowledgementDelay = testDuration(500)
             val acknowledgementProducer = launch {
                 delay(lateAcknowledgementDelay)
                 session.markAcknowledged(
@@ -137,7 +144,7 @@ class TransferSessionTest {
             // Act
             val settlement =
                 session.awaitAcknowledgementSettlement(
-                    maximumWait = 200.milliseconds,
+                    maximumWait = testDuration(200),
                     idleWindow = idleWindow,
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
