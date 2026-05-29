@@ -63,11 +63,16 @@ internal fun rememberReferenceNavHostDependencies(
                 platformServices = sessionPlatformServices,
                 historyRepository = historyRepository,
                 artifactSerializer = artifactSerializer,
-                sessionController = sessionController,
             )
         }
     val sessionTransitionService =
-        remember(platformServices.platformName) { SessionTransitionService(timelineStore) }
+        remember(platformServices.platformName) {
+            SessionTransitionService(
+                timelineStore = timelineStore,
+                sessionController = sessionController,
+                currentTimeMillis = sessionPlatformServices::currentTimeMillis,
+            )
+        }
     val liveProofAutomationDriver =
         remember(platformServices.platformName) {
             LiveProofAutomationDriver(

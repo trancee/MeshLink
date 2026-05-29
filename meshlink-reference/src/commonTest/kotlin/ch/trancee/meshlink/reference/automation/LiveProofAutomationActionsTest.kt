@@ -18,8 +18,14 @@ class LiveProofAutomationActionsTest {
     @Test
     fun requestEndCurrentSessionEndsTheSupportedSessionThroughTheTransitionService() = runTest {
         // Arrange
-        val timelineStore = TimelineStoreHarness().createStore(scope = this)
-        val sessionTransitionService = SessionTransitionService(timelineStore)
+        val harness = TimelineStoreHarness()
+        val timelineStore = harness.createStore(scope = this)
+        val sessionTransitionService =
+            SessionTransitionService(
+                timelineStore = timelineStore,
+                sessionController = harness.sessionController,
+                currentTimeMillis = { 1_000L },
+            )
         val platformServices =
             object : PlatformServices {
                 override val platformName: String = "Test"
@@ -30,7 +36,7 @@ class LiveProofAutomationActionsTest {
                 override val automationConfig: ReferenceAutomationConfig? = null
                 override val documentStore: ReferenceDocumentStore =
                     InMemoryReferenceDocumentStore()
-                override val meshLinkController = timelineStore.sessionController
+                override val meshLinkController = harness.sessionController
 
                 override fun currentTimeMillis(): Long = 1_000L
 

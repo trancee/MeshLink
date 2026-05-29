@@ -2,13 +2,10 @@ package ch.trancee.meshlink.reference.navigation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
+import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import ch.trancee.meshlink.reference.timeline.endedBoundarySnapshot
 import ch.trancee.meshlink.reference.timeline.normalizeExportPolicy
-import ch.trancee.meshlink.reference.timeline.refreshRetainedSessions
-import ch.trancee.meshlink.reference.timeline.retainIfEligible
-import ch.trancee.meshlink.reference.timeline.syncLiveSnapshot
-import ch.trancee.meshlink.reference.timeline.writeExport
 
 /**
  * Single transition execution module for reference-app session changes.
@@ -17,7 +14,11 @@ import ch.trancee.meshlink.reference.timeline.writeExport
  * `ReferenceSessionController` still owns session boundaries. This service owns only the ordering
  * of exports, retention, session replacement, and follow-up supported-session starts.
  */
-internal class SessionTransitionService(private val timelineStore: TechnicalTimelineStore) {
+internal class SessionTransitionService(
+    private val timelineStore: TechnicalTimelineStore,
+    private val sessionController: ReferenceSessionController,
+    private val currentTimeMillis: () -> Long,
+) {
     fun canExecuteBoundary(request: SessionBoundaryRequest): Boolean {
         val current = timelineStore.uiState.value
         return when (request) {
@@ -37,7 +38,7 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         applySurfaceSelection: (ReferenceSurface) -> Unit,
     ): Unit {
         val snapshot = startAlternativeSnapshot(surface) ?: return
-        timelineStore.syncLiveSnapshot(snapshot)
+        timelineStore.publishLiveSnapshot(snapshot)
         applySurfaceSelection(surface)
     }
 
@@ -53,8 +54,8 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
     suspend fun startSupportedSession(
         surfaceOfOrigin: String = ReferenceSurface.MAIN_GUIDED.route
     ): Unit {
-        val snapshot = timelineStore.sessionController.startNewSupportedSession(surfaceOfOrigin)
-        timelineStore.syncLiveSnapshot(snapshot)
+        val snapshot = sessionController.startNewSupportedSession(surfaceOfOrigin)
+        timelineStore.publishLiveSnapshot(snapshot)
     }
 
     suspend fun endSupportedSession(preEndExportPolicy: ExportPayloadPolicy? = null): Unit {
@@ -66,10 +67,10 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         val snapshotBeforeEnd = current.liveSnapshot
         val exportPath =
             writeOptionalExport(snapshotBeforeEnd, preEndExportPolicy, current.lastExportPath)
-        val endedSnapshot = timelineStore.sessionController.endSupportedSession()
-        timelineStore.syncLiveSnapshot(endedSnapshot)
-        timelineStore.retainIfEligible(endedSnapshot)
-        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
+        val endedSnapshot = sessionController.endSupportedSession()
+        timelineStore.publishLiveSnapshot(endedSnapshot)
+        timelineStore.retainEndedSnapshotIfEligible(endedSnapshot)
+        timelineStore.refreshRetainedSessionList(lastExportPath = exportPath)
     }
 
     suspend fun completeBoundary(
@@ -111,15 +112,12 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         val supportedSnapshot = current.liveSnapshot
         val exportPath =
             writeOptionalExport(supportedSnapshot, preBoundaryExportPolicy, current.lastExportPath)
-        timelineStore.retainIfEligible(
-            endedBoundarySnapshot(
-                supportedSnapshot,
-                timelineStore.platformServices.currentTimeMillis(),
-            )
+        timelineStore.retainEndedSnapshotIfEligible(
+            endedBoundarySnapshot(supportedSnapshot, currentTimeMillis())
         )
         val snapshot = startAlternativeSnapshot(targetSurface) ?: return
-        timelineStore.syncLiveSnapshot(snapshot)
-        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
+        timelineStore.publishLiveSnapshot(snapshot)
+        timelineStore.refreshRetainedSessionList(lastExportPath = exportPath)
     }
 
     private suspend fun transitionAlternativeSession(
@@ -133,7 +131,7 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
 
         val exportPath =
             if (continuation == BoundaryContinuation.EXPORT_AND_CONTINUE) {
-                timelineStore.writeExport(
+                timelineStore.exportSnapshot(
                     current.liveSnapshot,
                     ExportPayloadPolicy.REDACTED_PREVIEW,
                 )
@@ -144,7 +142,7 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
             ReferenceSurface.SOLO_EXPLORATION,
             ReferenceSurface.LAB -> {
                 val snapshot = startAlternativeSnapshot(targetSurface) ?: return
-                timelineStore.syncLiveSnapshot(snapshot)
+                timelineStore.publishLiveSnapshot(snapshot)
             }
 
             ReferenceSurface.ADVANCED_CONTROLS ->
@@ -152,15 +150,15 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
 
             else -> startSupportedSession(ReferenceSurface.MAIN_GUIDED.route)
         }
-        timelineStore.refreshRetainedSessions(lastExportPath = exportPath)
+        timelineStore.refreshRetainedSessionList(lastExportPath = exportPath)
     }
 
     private suspend fun startAlternativeSnapshot(
         surface: ReferenceSurface
     ): ReferenceControllerSnapshot? {
         return when (surface) {
-            ReferenceSurface.SOLO_EXPLORATION -> timelineStore.sessionController.startSoloSession()
-            ReferenceSurface.LAB -> timelineStore.sessionController.startLabSession()
+            ReferenceSurface.SOLO_EXPLORATION -> sessionController.startSoloSession()
+            ReferenceSurface.LAB -> sessionController.startLabSession()
             else -> null
         }
     }
@@ -171,7 +169,7 @@ internal class SessionTransitionService(private val timelineStore: TechnicalTime
         fallbackPath: String?,
     ): String? {
         return policy?.let { requestedPolicy ->
-            timelineStore.writeExport(snapshot, normalizeExportPolicy(snapshot, requestedPolicy))
+            timelineStore.exportSnapshot(snapshot, normalizeExportPolicy(snapshot, requestedPolicy))
         } ?: fallbackPath
     }
 }

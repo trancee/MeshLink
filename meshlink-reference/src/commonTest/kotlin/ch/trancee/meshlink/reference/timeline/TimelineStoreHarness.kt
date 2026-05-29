@@ -54,7 +54,7 @@ internal class TimelineStoreHarness(
         }
     }
 
-    private val sessionController: ReferenceSessionController =
+    val sessionController: ReferenceSessionController =
         ReferenceSessionController(
             platformName = "Test",
             nowProvider = { nowMillis },
@@ -88,7 +88,6 @@ internal class TimelineStoreHarness(
             platformServices = platformServices,
             historyRepository = JsonSessionHistoryRepository(documentStore = documentStore),
             artifactSerializer = JsonSessionArtifactSerializer(documentStore = documentStore),
-            sessionController = sessionController,
             scope = scope,
         )
     }
@@ -99,7 +98,12 @@ internal class TimelineStoreHarness(
         val timelineStore = createStore(scope)
         return SessionTransitionServiceHarness(
             timelineStore = timelineStore,
-            sessionTransitionService = SessionTransitionService(timelineStore),
+            sessionTransitionService =
+                SessionTransitionService(
+                    timelineStore = timelineStore,
+                    sessionController = sessionController,
+                    currentTimeMillis = { nowMillis },
+                ),
         )
     }
 

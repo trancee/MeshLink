@@ -93,7 +93,7 @@ Do not mark a slice complete on code inspection alone.
   - Why this first: it removes duplicated transition logic and gives later reference-app slices a clearer seam.
   - Verify: `./scripts/run-reference-local-check.sh`
 
-- [ ] **R02: Finish turning the technical timeline into an evidence-state module** `risk:medium` `depends:[R01]` `breaking:allowed`
+- [x] **R02: Finish turning the technical timeline into an evidence-state module** `risk:medium` `depends:[R01]` `breaking:allowed`
   > After this: the technical timeline owns evidence projection, export visibility, and retention visibility, not broad session-transition orchestration.
   - Scope: keep `TechnicalTimelineStore` focused on evidence state and move remaining orchestration behind the transition seam or narrower helpers.
   - Primary modules: `TechnicalTimelineStore`, export helpers, retention helpers, live-snapshot sync helpers.
