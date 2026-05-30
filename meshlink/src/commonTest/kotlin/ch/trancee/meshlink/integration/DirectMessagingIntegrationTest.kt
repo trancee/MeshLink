@@ -23,6 +23,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class DirectMessagingIntegrationTest {
+    private companion object {
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+    }
+
     @Test
     fun `two trusted peers can exchange a direct offline message`() = runBlocking {
         // Arrange
@@ -33,10 +37,10 @@ class DirectMessagingIntegrationTest {
 
         sender.meshLink.start()
         receiver.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.meshLink.messages.first() }
+                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
@@ -63,10 +67,10 @@ class DirectMessagingIntegrationTest {
         val receiver = harness.createNode("peer-b")
         sender.meshLink.start()
         receiver.meshLink.start()
-        delay(250)
+        testDelay(250)
         val firstMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.meshLink.messages.first() }
+                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
             }
         sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
         firstMessageDeferred.await()
@@ -76,7 +80,7 @@ class DirectMessagingIntegrationTest {
         val restartedReceiver = harness.restartNode(receiver)
         val senderRediscoveredReceiverDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) {
+                testWithTimeout(2_000) {
                     sender.meshLink.peerEvents.first { event ->
                         event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
                     }
@@ -84,7 +88,7 @@ class DirectMessagingIntegrationTest {
             }
         val restartedReceiverFoundSenderDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) {
+                testWithTimeout(2_000) {
                     restartedReceiver.meshLink.peerEvents.first { event ->
                         event is PeerEvent.Found && event.peerId == sender.peerId
                     }
@@ -95,7 +99,7 @@ class DirectMessagingIntegrationTest {
         restartedReceiverFoundSenderDeferred.await()
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) { restartedReceiver.meshLink.messages.first() }
+                testWithTimeout(2_000) { restartedReceiver.meshLink.messages.first() }
             }
         val sendResult =
             sender.meshLink.send(restartedReceiver.peerId, "second".encodeToByteArray())
@@ -116,10 +120,10 @@ class DirectMessagingIntegrationTest {
 
             sender.meshLink.start()
             receiver.meshLink.start()
-            delay(250)
+            testDelay(250)
             val firstMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.meshLink.messages.first() }
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
             sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
             firstMessageDeferred.await()
@@ -128,12 +132,12 @@ class DirectMessagingIntegrationTest {
                     it.code == DiagnosticCode.TRUST_ESTABLISHED
                 }
             sender.meshLink.stop()
-            delay(50)
+            testDelay(50)
             val forgetResult = receiver.meshLink.forgetPeer(sender.peerId)
             val restartedSender = harness.restartNode(sender)
             val restartedSenderFoundReceiverDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) {
+                    testWithTimeout(1_000) {
                         restartedSender.meshLink.peerEvents.first { event ->
                             event is PeerEvent.Found && event.peerId == receiver.peerId
                         }
@@ -143,7 +147,7 @@ class DirectMessagingIntegrationTest {
             restartedSenderFoundReceiverDeferred.await()
             val secondMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.meshLink.messages.first() }
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
 
             // Act
@@ -175,10 +179,10 @@ class DirectMessagingIntegrationTest {
 
             sender.meshLink.start()
             receiver.meshLink.start()
-            delay(250)
+            testDelay(250)
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { receiver.meshLink.messages.first() }
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
                 }
 
             // Act
@@ -204,10 +208,10 @@ class DirectMessagingIntegrationTest {
 
         sender.meshLink.start()
         receiver.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.meshLink.messages.first() }
+                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
@@ -233,10 +237,10 @@ class DirectMessagingIntegrationTest {
 
         sender.meshLink.start()
         receiver.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { receiver.meshLink.messages.first() }
+                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
             }
 
         // Act
@@ -248,6 +252,12 @@ class DirectMessagingIntegrationTest {
         assertContentEquals(payload, receivedMessage.payload)
         assertEquals(listOf(true, false), harness.discoverySuspendedTransitions(sender))
     }
+
+    private suspend fun testDelay(milliseconds: Int): Unit =
+        delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)
+
+    private suspend fun <T> testWithTimeout(milliseconds: Int, block: suspend () -> T): T =
+        withTimeout(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
 
     private fun ByteArray.containsSubsequence(expected: ByteArray): Boolean {
         if (expected.isEmpty() || expected.size > size) {

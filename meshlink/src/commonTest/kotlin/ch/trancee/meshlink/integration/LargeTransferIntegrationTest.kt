@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.integration
 
+import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
@@ -207,8 +208,22 @@ class LargeTransferIntegrationTest {
                     storage = sender.storage,
                     configOverride = senderConfig,
                 )
+            val restartedSenderFoundRelayDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) {
+                        restartedSender.meshLink.peerEvents.first { event ->
+                            event is PeerEvent.Found && event.peerId == relay.peerId
+                        }
+                    }
+                }
             restartedSender.meshLink.start()
             harness.linkPeers(relay, recipient)
+            restartedSenderFoundRelayDeferred.await()
+            awaitDiagnostic(
+                diagnostics = restartedSender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                timeoutMillis = 5_000,
+            )
 
             // Act
             val unexpectedMessage =
