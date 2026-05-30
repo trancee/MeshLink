@@ -6,6 +6,7 @@ import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.test.MeshTestHarness
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -48,6 +49,13 @@ class LargeTransferIntegrationTest {
             relay.meshLink.start()
             recipient.meshLink.start()
             testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     testWithTimeout(6_000) { recipient.meshLink.messages.first() }
@@ -122,6 +130,13 @@ class LargeTransferIntegrationTest {
             recipient.meshLink.start()
             alternateRelay.meshLink.start()
             testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
@@ -266,6 +281,13 @@ class LargeTransferIntegrationTest {
             relay.meshLink.start()
             recipient.meshLink.start()
             testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
                 testWithTimeout(10_000) { recipient.meshLink.messages.first() }
@@ -314,6 +336,13 @@ class LargeTransferIntegrationTest {
         relay.meshLink.start()
         recipient.meshLink.start()
         testDelay(250)
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = true,
+            timeoutMillis = 5_000,
+        )
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
                 testWithTimeout(10_000) { recipient.meshLink.messages.first() }
@@ -388,6 +417,13 @@ class LargeTransferIntegrationTest {
             relay.meshLink.start()
             recipient.meshLink.start()
             testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
@@ -463,7 +499,7 @@ class LargeTransferIntegrationTest {
         withTimeoutOrNull(milliseconds * TEST_TIMING_SLACK_MULTIPLIER) { block() }
 
     private suspend fun awaitDiagnostic(
-        diagnostics: () -> List<ch.trancee.meshlink.diagnostics.DiagnosticEvent>,
+        diagnostics: () -> List<DiagnosticEvent>,
         code: DiagnosticCode,
         timeoutMillis: Long = 2_000,
     ): Unit {
@@ -471,6 +507,40 @@ class LargeTransferIntegrationTest {
             while (diagnostics().none { event -> event.code == code }) {
                 testDelay(10)
             }
+        }
+    }
+
+    private suspend fun awaitDiagnosticForPeer(
+        diagnostics: () -> List<DiagnosticEvent>,
+        code: DiagnosticCode,
+        peerIdValue: String,
+        routeAvailable: Boolean? = null,
+        timeoutMillis: Long = 2_000,
+    ): Unit {
+        testWithTimeout(timeoutMillis) {
+            while (
+                diagnostics()
+                    .indexOfFirstForPeer(
+                        code = code,
+                        peerIdValue = peerIdValue,
+                        routeAvailable = routeAvailable,
+                    ) < 0
+            ) {
+                testDelay(10)
+            }
+        }
+    }
+
+    private fun List<DiagnosticEvent>.indexOfFirstForPeer(
+        code: DiagnosticCode,
+        peerIdValue: String,
+        routeAvailable: Boolean? = null,
+    ): Int {
+        return indexOfFirst { event ->
+            event.code == code &&
+                event.metadata["peerId"] == peerIdValue &&
+                (routeAvailable == null ||
+                    event.metadata["routeAvailable"] == routeAvailable.toString())
         }
     }
 }
