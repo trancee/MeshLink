@@ -41,6 +41,8 @@ jobs:
 
       - name: Verify MeshLink SDK
         run: |
+          # The hosted macOS runner currently exposes only 3 CPUs; keep verification
+          # single-worker so iOS compilation does not starve timing-sensitive test tasks.
           ./gradlew \
             :meshlink:allTests \
             :meshlink:detekt \
@@ -48,6 +50,7 @@ jobs:
             :meshlink:koverVerify \
             verifyDocs \
             checkAgp9Invariants \
+            --max-workers=1 \
             --console=plain
 
       - name: Upload verification reports
