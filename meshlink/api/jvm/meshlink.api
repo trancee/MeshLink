@@ -337,6 +337,192 @@ public final class ch/trancee/meshlink/api/apple/KeyGenerationCallbacks {
 	public final fun getGenerateX25519KeyPair ()Lkotlin/jvm/functions/Function0;
 }
 
+public final class ch/trancee/meshlink/benchmarking/BenchmarkAdvertisement {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame;)V
+	public final fun getFrame ()Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame;
+	public final fun getTargetPeerId ()Lch/trancee/meshlink/api/PeerId;
+}
+
+public abstract interface class ch/trancee/meshlink/benchmarking/BenchmarkBleTransport {
+	public abstract fun getEvents ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun pause (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun resume (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun send (Lch/trancee/meshlink/benchmarking/BenchmarkOutboundFrame;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkCryptoProvider {
+	public fun <init> ()V
+	public final fun chacha20Poly1305Open ([B[B[B[B)[B
+	public final fun chacha20Poly1305Seal ([B[B[B[B)[B
+	public final fun generateX25519KeyPair ()Lch/trancee/meshlink/benchmarking/BenchmarkX25519KeyPair;
+	public final fun randomBytes (I)[B
+	public final fun x25519 ([B[B)[B
+}
+
+public abstract interface class ch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink {
+	public abstract fun emit (Lch/trancee/meshlink/diagnostics/DiagnosticEvent;)V
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkOutboundFrame {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/benchmarking/BenchmarkTransportMode;)V
+	public synthetic fun <init> (Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/benchmarking/BenchmarkTransportMode;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getPayload ()[B
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getPreferredMode ()Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkRouteCoordinator {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;)V
+	public final fun hasRoute (Lch/trancee/meshlink/api/PeerId;)Z
+	public final fun nextHopFor (Lch/trancee/meshlink/api/PeerId;)Lch/trancee/meshlink/api/PeerId;
+	public final fun onPeerConnected (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkTrustRecord;)Ljava/util/List;
+	public final fun onPeerDisconnected (Lch/trancee/meshlink/api/PeerId;)Ljava/util/List;
+	public final fun onRouteDigest (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteDigest;)V
+	public final fun onRouteRetraction (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteRetraction;)Ljava/util/List;
+	public final fun onRouteUpdate (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdate;)Ljava/util/List;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkSupportKt {
+	public static final fun createBenchmarkMeshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;)Lch/trancee/meshlink/api/MeshLink;
+	public static synthetic fun createBenchmarkMeshLink$default (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLink;
+}
+
+public abstract class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent$FrameReceived : ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;[B)V
+	public final fun getPayload ()[B
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent$PeerDiscovered : ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;)V
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getTransportMode ()Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent$PeerLost : ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;)V
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent$TransportModeChanged : ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;)V
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getTransportMode ()Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportMode : java/lang/Enum {
+	public static final field GATT Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+	public static final field L2CAP Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+	public static fun values ()[Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
+}
+
+public abstract class ch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult {
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult$Delivered : ch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult {
+	public static final field INSTANCE Lch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult$Delivered;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult$Dropped : ch/trancee/meshlink/benchmarking/BenchmarkTransportSendResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReason ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTrustPublicKeys {
+	public fun <init> ([B[B)V
+	public final fun getEd25519PublicKey ()[B
+	public final fun getX25519PublicKey ()[B
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkTrustRecord {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;[BJJLch/trancee/meshlink/benchmarking/BenchmarkTrustPublicKeys;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;[BJJLch/trancee/meshlink/benchmarking/BenchmarkTrustPublicKeys;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getFirstSeenAtEpochMillis ()J
+	public final fun getIdentityFingerprint ()Ljava/lang/String;
+	public final fun getIdentityFingerprintBytes ()[B
+	public final fun getLastVerifiedAtEpochMillis ()J
+	public final fun getPeerIdValue ()Ljava/lang/String;
+	public final fun getPublicKeys ()Lch/trancee/meshlink/benchmarking/BenchmarkTrustPublicKeys;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireCodec {
+	public static final field INSTANCE Lch/trancee/meshlink/benchmarking/BenchmarkWireCodec;
+	public final fun decode ([B)Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame;
+	public final fun encode (Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame;)[B
+}
+
+public abstract class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$Message : ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+	public fun <init> (Ljava/lang/String;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/api/DeliveryPriority;I[B)V
+	public final fun getDestinationPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getEncryptedPayload ()[B
+	public final fun getMessageId ()Ljava/lang/String;
+	public final fun getOriginPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getPriority ()Lch/trancee/meshlink/api/DeliveryPriority;
+	public final fun getTtlMillis ()I
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteDigest : ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;[B)V
+	public final fun getDigest ()[B
+	public final fun getPeerId ()Lch/trancee/meshlink/api/PeerId;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteRetraction : ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;J)V
+	public final fun getDestinationPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getSeqNo ()J
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdate : ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+	public fun <init> (Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdateMetrics;Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdatePublicKeys;)V
+	public final fun getDestinationPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getMetrics ()Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdateMetrics;
+	public final fun getNextHopPeerId ()Lch/trancee/meshlink/api/PeerId;
+	public final fun getPublicKeys ()Lch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdatePublicKeys;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdateMetrics {
+	public fun <init> (IJI)V
+	public final fun getFeasibilityMetric ()I
+	public final fun getMetric ()I
+	public final fun getSeqNo ()J
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$RouteUpdatePublicKeys {
+	public fun <init> ([B[B)V
+	public final fun getDestinationEd25519PublicKey ()[B
+	public final fun getDestinationX25519PublicKey ()[B
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkWireFrame$TransferChunk : ch/trancee/meshlink/benchmarking/BenchmarkWireFrame {
+	public fun <init> (Ljava/lang/String;I[B)V
+	public final fun getChunkIndex ()I
+	public final fun getPayload ()[B
+	public final fun getTransferId ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkX25519KeyPair {
+	public fun <init> ([B[B)V
+	public final fun getPrivateKey ()[B
+	public final fun getPublicKey ()[B
+}
+
+public abstract interface annotation class ch/trancee/meshlink/benchmarking/UnstableMeshLinkBenchmarkApi : java/lang/annotation/Annotation {
+}
+
 public final class ch/trancee/meshlink/config/MeshLinkConfig {
 	public synthetic fun <init> (Ljava/lang/String;Lch/trancee/meshlink/config/RegulatoryRegion;Lch/trancee/meshlink/config/PowerMode;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAppId ()Ljava/lang/String;

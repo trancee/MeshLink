@@ -1,12 +1,12 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+@file:OptIn(ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi::class)
 
 package ch.trancee.meshlink.benchmarks
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.routing.RouteCoordinator
-import ch.trancee.meshlink.trust.TrustPublicKeys
-import ch.trancee.meshlink.trust.TrustRecord
-import ch.trancee.meshlink.wire.WireFrame
+import ch.trancee.meshlink.benchmarking.BenchmarkRouteCoordinator as RouteCoordinator
+import ch.trancee.meshlink.benchmarking.BenchmarkTrustPublicKeys as TrustPublicKeys
+import ch.trancee.meshlink.benchmarking.BenchmarkTrustRecord as TrustRecord
+import ch.trancee.meshlink.benchmarking.BenchmarkWireFrame as WireFrame
 import java.util.concurrent.TimeUnit
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.BenchmarkMode

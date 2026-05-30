@@ -1,8 +1,8 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+@file:OptIn(ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi::class)
 
 package ch.trancee.meshlink.benchmarks
 
-import ch.trancee.meshlink.crypto.JvmCryptoProvider
+import ch.trancee.meshlink.benchmarking.BenchmarkCryptoProvider as JvmCryptoProvider
 import java.util.concurrent.TimeUnit
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.BenchmarkMode
