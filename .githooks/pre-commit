@@ -10,7 +10,7 @@ pre_format_hashes=()
 while IFS= read -r -d '' file; do
   staged_files+=("$file")
   if [[ -f "$file" ]]; then
-    pre_format_hashes+=("$(shasum -a 256 -- "$file" | awk '{print $1}')")
+    pre_format_hashes+=("$(sha256sum -- "$file" | awk '{print $1}')")
   else
     pre_format_hashes+=("")
   fi
@@ -119,7 +119,7 @@ if [[ ${#format_tasks[@]} -gt 0 ]]; then
     file="${staged_files[$index]}"
     pre_hash="${pre_format_hashes[$index]}"
     if [[ -f "$file" ]]; then
-      post_hash="$(shasum -a 256 -- "$file" | awk '{print $1}')"
+      post_hash="$(sha256sum -- "$file" | awk '{print $1}')"
     else
       post_hash=""
     fi
