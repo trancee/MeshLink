@@ -321,7 +321,11 @@ class LargeTransferIntegrationTest {
         val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
 
         // Act
-        testDelay(250)
+        testWithTimeout(5_000) {
+            while (harness.sentFrames(recipient).size < 3) {
+                testDelay(10)
+            }
+        }
         harness.dropNextDeliveries(relay, sender, count = 2)
         harness.dropNextDeliveries(recipient, relay, count = 2)
         val receivedMessage = receivedMessageDeferred.await()
