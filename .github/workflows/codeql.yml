@@ -1,0 +1,165 @@
+name: codeql
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - '**/*.java'
+      - '**/*.kt'
+      - '**/*.kts'
+      - '**/*.py'
+      - '**/*.swift'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '**/project.yml'
+      - '**/*.xcodeproj/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - '**/*.java'
+      - '**/*.kt'
+      - '**/*.kts'
+      - '**/*.py'
+      - '**/*.swift'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '**/project.yml'
+      - '**/*.xcodeproj/**'
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      include_swift:
+        description: 'Also run the slower Swift scan'
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+  pull-requests: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-fast:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            timeout_minutes: 10
+            build_mode: none
+          - language: python
+            timeout_minutes: 10
+            build_mode: none
+          - language: java-kotlin
+            timeout_minutes: 20
+            build_mode: manual
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build_mode }}
+
+      - name: Build Java/Kotlin database
+        if: matrix.language == 'java-kotlin'
+        shell: bash
+        run: |
+          # The Java/Kotlin extractor only needs JVM and Android compilation commands.
+          # Avoid clean/full assemble so PR scans do not rebuild iOS/native artifacts.
+          ./gradlew \
+            :meshlink:jvmJar \
+            :meshlink:androidJar \
+            :benchmarks:jvmJar \
+            :meshlink-reference:jvmJar \
+            :meshlink-reference:bundleAndroidMainAar \
+            :meshlink-reference:android:compileDebugKotlin \
+            :meshlink-proof:android:compileDebugKotlin \
+            --no-daemon \
+            --console=plain
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  analyze-swift:
+    name: Analyze (swift)
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.include_swift)
+      }}
+    runs-on: macos-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+
+      - name: Build Swift database
+        shell: bash
+        env:
+          CONFIGURATION: Debug
+          SDK_NAME: iphoneos
+        run: |
+          # Build the Kotlin framework once up front and tell Xcode to skip the always-run
+          # Gradle script phase. This keeps the slow Swift scan off PRs while still scanning
+          # the tracked iOS app sources on main and the weekly schedule.
+          ./gradlew \
+            :meshlink:embedAndSignAppleFrameworkForXcode \
+            --no-daemon \
+            --console=plain
+
+          xcodebuild build \
+            -project meshlink-proof/ios/ProofApp.xcodeproj \
+            -target ProofApp \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED=YES
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:swift"
