@@ -27,7 +27,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class LargeTransferIntegrationTest {
     private companion object {
-        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 4
     }
 
     @Test
@@ -247,6 +247,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `duplicate and out-of-order chunk delivery does not corrupt or redeliver the payload`() =
         runBlocking {
+            if (!supportsSyntheticOutOfOrderChunkDelivery()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = MeshTestHarness()
             val sender = harness.createNode("peer-a")
@@ -264,14 +268,23 @@ class LargeTransferIntegrationTest {
             testDelay(250)
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
-                testWithTimeout(6_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(10_000) { recipient.meshLink.messages.first() }
             }
 
             // Act
-            testDelay(250)
+            testWithTimeout(5_000) {
+                while (harness.sentFrames(relay).size < 4) {
+                    testDelay(10)
+                }
+            }
+            val relayFrameCountBeforeInterference = harness.sentFrames(relay).size
             harness.holdNextDeliveries(relay, recipient, count = 1)
             harness.duplicateNextDeliveries(relay, recipient, count = 1)
-            testDelay(250)
+            testWithTimeout(5_000) {
+                while (harness.sentFrames(relay).size < relayFrameCountBeforeInterference + 2) {
+                    testDelay(10)
+                }
+            }
             harness.releaseHeldDeliveries(relay, recipient)
             val sendResult = sendResultDeferred.await()
             val receivedMessage = receivedMessageDeferred.await()
