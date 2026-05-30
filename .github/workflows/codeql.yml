@@ -50,16 +50,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze:
+  analyze-fast:
     name: Analyze (${{ matrix.language }})
-    if: >-
-      ${{
-        matrix.language != 'swift' ||
-        github.event_name == 'push' ||
-        github.event_name == 'schedule' ||
-        (github.event_name == 'workflow_dispatch' && inputs.include_swift)
-      }}
-    runs-on: ${{ matrix.runs_on }}
+    runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
 
     strategy:
@@ -67,20 +60,13 @@ jobs:
       matrix:
         include:
           - language: actions
-            runs_on: ubuntu-latest
             timeout_minutes: 10
             build_mode: none
           - language: python
-            runs_on: ubuntu-latest
             timeout_minutes: 10
             build_mode: none
           - language: java-kotlin
-            runs_on: ubuntu-latest
             timeout_minutes: 20
-            build_mode: manual
-          - language: swift
-            runs_on: macos-latest
-            timeout_minutes: 35
             build_mode: manual
 
     steps:
@@ -88,7 +74,7 @@ jobs:
         uses: actions/checkout@v6.0.2
 
       - name: Set up Java
-        if: matrix.language == 'java-kotlin' || matrix.language == 'swift'
+        if: matrix.language == 'java-kotlin'
         uses: actions/setup-java@v5.2.0
         with:
           distribution: temurin
@@ -118,8 +104,40 @@ jobs:
             --no-daemon \
             --console=plain
 
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  analyze-swift:
+    name: Analyze (swift)
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.include_swift)
+      }}
+    runs-on: macos-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+
       - name: Build Swift database
-        if: matrix.language == 'swift'
         shell: bash
         env:
           CONFIGURATION: Debug
@@ -144,4 +162,4 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:swift"
