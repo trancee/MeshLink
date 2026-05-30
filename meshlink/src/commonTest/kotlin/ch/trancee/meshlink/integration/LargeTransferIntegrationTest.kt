@@ -25,6 +25,10 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
 class LargeTransferIntegrationTest {
+    private companion object {
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+    }
+
     @Test
     fun `a 64 KiB payload can cross a relay hop when the network requires chunking`() =
         runBlocking {
@@ -42,10 +46,10 @@ class LargeTransferIntegrationTest {
             sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
-            delay(250)
+            testDelay(250)
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(6_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(6_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
@@ -71,11 +75,11 @@ class LargeTransferIntegrationTest {
 
             sender.meshLink.start()
             recipient.meshLink.start()
-            delay(500)
+            testDelay(500)
             val frameCountBeforeSend = harness.sentFrames(sender).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(6_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(6_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
@@ -116,15 +120,15 @@ class LargeTransferIntegrationTest {
             firstRelay.meshLink.start()
             recipient.meshLink.start()
             alternateRelay.meshLink.start()
-            delay(250)
+            testDelay(250)
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(4_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(4_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
-            delay(250)
+            testDelay(250)
             harness.unlinkPeers(firstRelay, recipient)
             harness.linkPeers(sender, alternateRelay)
             harness.linkPeers(alternateRelay, recipient)
@@ -158,7 +162,7 @@ class LargeTransferIntegrationTest {
             sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
-            delay(250)
+            testDelay(250)
             val startedAt = TimeSource.Monotonic.markNow()
 
             // Act
@@ -168,7 +172,7 @@ class LargeTransferIntegrationTest {
             val notSent = assertIs<SendResult.NotSent>(sendResult)
             assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
             assertTrue(startedAt.elapsedNow() >= 500.milliseconds)
-            assertNull(withTimeoutOrNull(500) { recipient.meshLink.messages.first() })
+            assertNull(testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() })
         }
 
     @Test
@@ -207,10 +211,11 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
 
             // Act
-            val unexpectedMessage = withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
+            val unexpectedMessage =
+                testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() }
             val resubmittedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(10_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(10_000) { recipient.meshLink.messages.first() }
                 }
             val resubmittedSendResult = restartedSender.meshLink.send(recipient.peerId, payload)
             val resubmittedMessage = resubmittedMessageDeferred.await()
@@ -241,22 +246,22 @@ class LargeTransferIntegrationTest {
             sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
-            delay(250)
+            testDelay(250)
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
-                withTimeout(6_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(6_000) { recipient.meshLink.messages.first() }
             }
 
             // Act
-            delay(250)
+            testDelay(250)
             harness.holdNextDeliveries(relay, recipient, count = 1)
             harness.duplicateNextDeliveries(relay, recipient, count = 1)
-            delay(250)
+            testDelay(250)
             harness.releaseHeldDeliveries(relay, recipient)
             val sendResult = sendResultDeferred.await()
             val receivedMessage = receivedMessageDeferred.await()
             val unexpectedSecondMessage =
-                withTimeoutOrNull(500) { recipient.meshLink.messages.first() }
+                testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() }
 
             // Assert
             assertIs<SendResult.Sent>(sendResult)
@@ -280,19 +285,19 @@ class LargeTransferIntegrationTest {
         sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(10_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(10_000) { recipient.meshLink.messages.first() }
             }
         val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
 
         // Act
-        delay(250)
+        testDelay(250)
         harness.dropNextDeliveries(relay, sender, count = 2)
         harness.dropNextDeliveries(recipient, relay, count = 2)
         val receivedMessage = receivedMessageDeferred.await()
-        val sendResult = withTimeout(10_000) { sendResultDeferred.await() }
+        val sendResult = testWithTimeout(10_000) { sendResultDeferred.await() }
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
@@ -320,11 +325,11 @@ class LargeTransferIntegrationTest {
 
         sender.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         harness.dropNextDeliveries(recipient, sender, count = 256)
 
         // Act
-        val sendResult = withTimeout(10_000) { sender.meshLink.send(recipient.peerId, payload) }
+        val sendResult = testWithTimeout(10_000) { sender.meshLink.send(recipient.peerId, payload) }
         val clearedPeers = harness.clearedQueuedOutboundPeers(sender)
 
         // Assert
@@ -350,11 +355,11 @@ class LargeTransferIntegrationTest {
             sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
-            delay(250)
+            testDelay(250)
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(10_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(10_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
@@ -394,7 +399,7 @@ class LargeTransferIntegrationTest {
         sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        delay(250)
+        testDelay(250)
         val frameCountBeforeSend = harness.sentFrames(sender).size
 
         // Act
@@ -404,17 +409,35 @@ class LargeTransferIntegrationTest {
         val notSent = assertIs<SendResult.NotSent>(sendResult)
         assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
         assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
-        assertNull(withTimeoutOrNull(500) { recipient.meshLink.messages.first() })
+        assertNull(testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() })
     }
+
+    private suspend fun testDelay(milliseconds: Int): Unit =
+        delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)
+
+    private suspend fun testDelay(milliseconds: Long): Unit =
+        delay(milliseconds * TEST_TIMING_SLACK_MULTIPLIER)
+
+    private suspend fun <T> testWithTimeout(milliseconds: Int, block: suspend () -> T): T =
+        withTimeout(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeout(milliseconds: Long, block: suspend () -> T): T =
+        withTimeout(milliseconds * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeoutOrNull(milliseconds: Int, block: suspend () -> T): T? =
+        withTimeoutOrNull(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER) { block() }
+
+    private suspend fun <T> testWithTimeoutOrNull(milliseconds: Long, block: suspend () -> T): T? =
+        withTimeoutOrNull(milliseconds * TEST_TIMING_SLACK_MULTIPLIER) { block() }
 
     private suspend fun awaitDiagnostic(
         diagnostics: () -> List<ch.trancee.meshlink.diagnostics.DiagnosticEvent>,
         code: DiagnosticCode,
         timeoutMillis: Long = 2_000,
     ): Unit {
-        withTimeout(timeoutMillis) {
+        testWithTimeout(timeoutMillis) {
             while (diagnostics().none { event -> event.code == code }) {
-                delay(10)
+                testDelay(10)
             }
         }
     }

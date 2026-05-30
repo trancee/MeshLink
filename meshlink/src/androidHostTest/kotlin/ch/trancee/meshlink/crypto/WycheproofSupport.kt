@@ -1,7 +1,5 @@
 package ch.trancee.meshlink.crypto
 
-internal actual object WycheproofSupport {
-    actual fun providerOrNull(): CryptoProvider? = null
+internal actual fun wycheproofProviderOrNull(): CryptoProvider? = null
 
-    actual fun resourceLinesOrNull(fileName: String): List<String>? = null
-}
+internal actual fun wycheproofResourceLinesOrNull(fileName: String): List<String>? = null
