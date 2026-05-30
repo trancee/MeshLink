@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 class DeliveryRetrySchedulerTest {
+    private companion object {
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Int = 4
+    }
+
     @Test
     fun `awaitRetry returns deadline expired when no retry budget remains`() = runBlocking {
         // Arrange
@@ -50,7 +54,7 @@ class DeliveryRetrySchedulerTest {
                 async(start = CoroutineStart.UNDISPATCHED) {
                     scheduler.awaitRetry(
                         attempt = 0,
-                        remainingBudget = 200.milliseconds,
+                        remainingBudget = testDuration(200),
                         lastObservedTopologyVersion = 3L,
                         runtimeGate = runtimeSurface.runtimeGate,
                         hardRunToken = hardRunToken,
@@ -58,7 +62,7 @@ class DeliveryRetrySchedulerTest {
                 }
 
             // Act
-            delay(10)
+            testDelay(10)
             topologyVersion.value = 4L
             val result = resultDeferred.await()
 
@@ -81,7 +85,7 @@ class DeliveryRetrySchedulerTest {
             val result =
                 scheduler.awaitRetry(
                     attempt = 0,
-                    remainingBudget = 20.milliseconds,
+                    remainingBudget = testDuration(20),
                     lastObservedTopologyVersion = 5L,
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
@@ -104,7 +108,7 @@ class DeliveryRetrySchedulerTest {
             async(start = CoroutineStart.UNDISPATCHED) {
                 scheduler.awaitRetry(
                     attempt = 0,
-                    remainingBudget = 200.milliseconds,
+                    remainingBudget = testDuration(200),
                     lastObservedTopologyVersion = 1L,
                     runtimeGate = runtimeSurface.runtimeGate,
                     hardRunToken = hardRunToken,
@@ -112,13 +116,19 @@ class DeliveryRetrySchedulerTest {
             }
 
         // Act
-        delay(10)
+        testDelay(10)
         runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
         val result = resultDeferred.await()
 
         // Assert
         assertEquals(RetryWakeup.HardRunEnded, result)
     }
+
+    private fun testDuration(milliseconds: Int) =
+        milliseconds.milliseconds * TEST_TIMING_SLACK_MULTIPLIER
+
+    private suspend fun testDelay(milliseconds: Int): Unit =
+        delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)
 }
 
 private object ZeroRandom : Random() {

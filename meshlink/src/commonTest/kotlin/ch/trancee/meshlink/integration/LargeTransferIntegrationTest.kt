@@ -85,6 +85,13 @@ class LargeTransferIntegrationTest {
             sender.meshLink.start()
             recipient.meshLink.start()
             testDelay(500)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
             val frameCountBeforeSend = harness.sentFrames(sender).size
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
@@ -387,6 +394,13 @@ class LargeTransferIntegrationTest {
         sender.meshLink.start()
         recipient.meshLink.start()
         testDelay(250)
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = true,
+            timeoutMillis = 5_000,
+        )
         harness.dropNextDeliveries(recipient, sender, count = 256)
 
         // Act
