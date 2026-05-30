@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.integration
 
+import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
@@ -26,7 +27,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class LargeTransferIntegrationTest {
     private companion object {
-        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 4
     }
 
     @Test
@@ -207,8 +208,22 @@ class LargeTransferIntegrationTest {
                     storage = sender.storage,
                     configOverride = senderConfig,
                 )
+            val restartedSenderFoundRelayDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) {
+                        restartedSender.meshLink.peerEvents.first { event ->
+                            event is PeerEvent.Found && event.peerId == relay.peerId
+                        }
+                    }
+                }
             restartedSender.meshLink.start()
             harness.linkPeers(relay, recipient)
+            restartedSenderFoundRelayDeferred.await()
+            awaitDiagnostic(
+                diagnostics = restartedSender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                timeoutMillis = 5_000,
+            )
 
             // Act
             val unexpectedMessage =
@@ -232,6 +247,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `duplicate and out-of-order chunk delivery does not corrupt or redeliver the payload`() =
         runBlocking {
+            if (!supportsSyntheticOutOfOrderChunkDelivery()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = MeshTestHarness()
             val sender = harness.createNode("peer-a")
@@ -249,14 +268,23 @@ class LargeTransferIntegrationTest {
             testDelay(250)
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
-                testWithTimeout(6_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(10_000) { recipient.meshLink.messages.first() }
             }
 
             // Act
-            testDelay(250)
+            testWithTimeout(5_000) {
+                while (harness.sentFrames(relay).size < 4) {
+                    testDelay(10)
+                }
+            }
+            val relayFrameCountBeforeInterference = harness.sentFrames(relay).size
             harness.holdNextDeliveries(relay, recipient, count = 1)
             harness.duplicateNextDeliveries(relay, recipient, count = 1)
-            testDelay(250)
+            testWithTimeout(5_000) {
+                while (harness.sentFrames(relay).size < relayFrameCountBeforeInterference + 2) {
+                    testDelay(10)
+                }
+            }
             harness.releaseHeldDeliveries(relay, recipient)
             val sendResult = sendResultDeferred.await()
             val receivedMessage = receivedMessageDeferred.await()

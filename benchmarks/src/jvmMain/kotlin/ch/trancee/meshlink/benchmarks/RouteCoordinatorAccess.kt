@@ -1,71 +1,27 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+@file:OptIn(ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi::class)
 
 package ch.trancee.meshlink.benchmarks
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.routing.RouteCoordinator
-import ch.trancee.meshlink.routing.RoutingAdvertisement
-import ch.trancee.meshlink.trust.TrustRecord
-import ch.trancee.meshlink.wire.WireFrame
-
-internal class BenchmarkAdvertisement
-internal constructor(internal val targetPeerId: PeerId, internal val frame: WireFrame)
+import ch.trancee.meshlink.benchmarking.BenchmarkAdvertisement
+import ch.trancee.meshlink.benchmarking.BenchmarkRouteCoordinator as RouteCoordinator
+import ch.trancee.meshlink.benchmarking.BenchmarkTrustRecord as TrustRecord
+import ch.trancee.meshlink.benchmarking.BenchmarkWireFrame as WireFrame
 
 internal object RouteCoordinatorAccess {
-    private val onPeerConnected =
-        RouteCoordinator::class
-            .java
-            .getMethod("onPeerConnected\$meshlink", PeerId::class.java, TrustRecord::class.java)
-    private val onPeerDisconnected =
-        RouteCoordinator::class.java.getMethod("onPeerDisconnected\$meshlink", PeerId::class.java)
-    private val onRouteUpdate =
-        RouteCoordinator::class
-            .java
-            .getMethod(
-                "onRouteUpdate\$meshlink",
-                PeerId::class.java,
-                WireFrame.RouteUpdate::class.java,
-            )
-    private val onRouteRetraction =
-        RouteCoordinator::class
-            .java
-            .getMethod(
-                "onRouteRetraction\$meshlink",
-                PeerId::class.java,
-                WireFrame.RouteRetraction::class.java,
-            )
-    private val onRouteDigest =
-        RouteCoordinator::class
-            .java
-            .getMethod(
-                "onRouteDigest\$meshlink",
-                PeerId::class.java,
-                WireFrame.RouteDigest::class.java,
-            )
-    private val nextHopFor =
-        RouteCoordinator::class.java.getMethod("nextHopFor\$meshlink", PeerId::class.java)
-    private val routeFor =
-        RouteCoordinator::class.java.getMethod("routeFor\$meshlink", PeerId::class.java)
-    private val routingMutationAdvertisements =
-        Class.forName("ch.trancee.meshlink.routing.RoutingMutation")
-            .getMethod("getAdvertisements\$meshlink")
-    private val targetPeerId =
-        RoutingAdvertisement::class.java.getMethod("getTargetPeerId\$meshlink")
-    private val frame = RoutingAdvertisement::class.java.getMethod("getFrame\$meshlink")
-
     internal fun onPeerConnected(
         coordinator: RouteCoordinator,
         peerId: PeerId,
         trustRecord: TrustRecord,
     ): List<BenchmarkAdvertisement> {
-        return toBenchmarkAdvertisements(onPeerConnected.invoke(coordinator, peerId, trustRecord))
+        return coordinator.onPeerConnected(peerId = peerId, trustRecord = trustRecord)
     }
 
     internal fun onPeerDisconnected(
         coordinator: RouteCoordinator,
         peerId: PeerId,
     ): List<BenchmarkAdvertisement> {
-        return toBenchmarkAdvertisements(onPeerDisconnected.invoke(coordinator, peerId))
+        return coordinator.onPeerDisconnected(peerId = peerId)
     }
 
     internal fun onRouteUpdate(
@@ -73,7 +29,7 @@ internal object RouteCoordinatorAccess {
         fromPeerId: PeerId,
         update: WireFrame.RouteUpdate,
     ): List<BenchmarkAdvertisement> {
-        return toBenchmarkAdvertisements(onRouteUpdate.invoke(coordinator, fromPeerId, update))
+        return coordinator.onRouteUpdate(fromPeerId = fromPeerId, update = update)
     }
 
     internal fun onRouteRetraction(
@@ -81,9 +37,7 @@ internal object RouteCoordinatorAccess {
         fromPeerId: PeerId,
         retraction: WireFrame.RouteRetraction,
     ): List<BenchmarkAdvertisement> {
-        return toBenchmarkAdvertisements(
-            onRouteRetraction.invoke(coordinator, fromPeerId, retraction)
-        )
+        return coordinator.onRouteRetraction(fromPeerId = fromPeerId, retraction = retraction)
     }
 
     internal fun onRouteDigest(
@@ -91,29 +45,14 @@ internal object RouteCoordinatorAccess {
         fromPeerId: PeerId,
         digest: WireFrame.RouteDigest,
     ): Unit {
-        onRouteDigest.invoke(coordinator, fromPeerId, digest)
+        coordinator.onRouteDigest(fromPeerId = fromPeerId, digest = digest)
     }
 
     internal fun nextHopFor(coordinator: RouteCoordinator, destinationPeerId: PeerId): PeerId? {
-        return nextHopFor.invoke(coordinator, destinationPeerId) as? PeerId
+        return coordinator.nextHopFor(destinationPeerId = destinationPeerId)
     }
 
     internal fun hasRoute(coordinator: RouteCoordinator, destinationPeerId: PeerId): Boolean {
-        return routeFor.invoke(coordinator, destinationPeerId) != null
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun toBenchmarkAdvertisements(result: Any?): List<BenchmarkAdvertisement> {
-        if (result == null) {
-            return emptyList()
-        }
-        val advertisements =
-            routingMutationAdvertisements.invoke(result) as List<RoutingAdvertisement>
-        return advertisements.map { advertisement ->
-            BenchmarkAdvertisement(
-                targetPeerId = targetPeerId.invoke(advertisement) as PeerId,
-                frame = frame.invoke(advertisement) as WireFrame,
-            )
-        }
+        return coordinator.hasRoute(destinationPeerId = destinationPeerId)
     }
 }

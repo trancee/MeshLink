@@ -70,6 +70,40 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.apple.HashCallbacks` | class | `hmacSha256`, `sha256` |
 | `ch.trancee.meshlink.api.apple.KeyGenerationCallbacks` | class | `generateEd25519KeyPair`, `generateX25519KeyPair` |
 
+## Package `ch.trancee.meshlink.benchmarking`
+
+| Type | Kind | Public surface |
+|---|---|---|
+| `ch.trancee.meshlink.benchmarking.BenchmarkAdvertisement` | class | `frame`, `targetPeerId` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkBleTransport` | interface | `events`, `pause()`, `resume()`, `send()`, `start()`, `stop()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkCryptoProvider` | class | `chacha20Poly1305Open()`, `chacha20Poly1305Seal()`, `generateX25519KeyPair()`, `randomBytes()`, `x25519()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkDiagnosticSink` | interface | `emit()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkOutboundFrame` | class | `init`, `payload`, `peerId`, `preferredMode` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkRouteCoordinator` | class | `hasRoute()`, `nextHopFor()`, `onPeerConnected()`, `onPeerDisconnected()`, `onRouteDigest()`, `onRouteRetraction()`, `onRouteUpdate()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent` | abstract class | — |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent.FrameReceived` | nested type | `payload`, `peerId` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent.PeerDiscovered` | nested type | `peerId`, `transportMode` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent.PeerLost` | nested type | `peerId` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent.TransportModeChanged` | nested type | `peerId`, `transportMode` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportMode` | enum | constants: `GATT`, `L2CAP` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportSendResult` | abstract class | — |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportSendResult.Delivered` | object | — |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTransportSendResult.Dropped` | nested type | `reason` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTrustPublicKeys` | class | `ed25519PublicKey`, `x25519PublicKey` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkTrustRecord` | class | `init`, `firstSeenAtEpochMillis`, `identityFingerprint`, `identityFingerprintBytes`, `lastVerifiedAtEpochMillis`, `peerIdValue`, `publicKeys` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireCodec` | object | `decode()`, `encode()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame` | abstract class | — |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.Message` | nested type | `destinationPeerId`, `encryptedPayload`, `messageId`, `originPeerId`, `priority`, `ttlMillis` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.RouteDigest` | nested type | `digest`, `peerId` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.RouteRetraction` | nested type | `destinationPeerId`, `seqNo` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.RouteUpdate` | nested type | `destinationPeerId`, `metrics`, `nextHopPeerId`, `publicKeys` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.RouteUpdateMetrics` | nested type | `feasibilityMetric`, `metric`, `seqNo` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.RouteUpdatePublicKeys` | nested type | `destinationEd25519PublicKey`, `destinationX25519PublicKey` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.TransferChunk` | nested type | `chunkIndex`, `payload`, `transferId` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkX25519KeyPair` | class | `privateKey`, `publicKey` |
+| `ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi` | annotation | — |
+| `top-level declarations` | top-level | `createBenchmarkMeshLink()` |
+
 ## Package `ch.trancee.meshlink.config`
 
 | Type | Kind | Public surface |

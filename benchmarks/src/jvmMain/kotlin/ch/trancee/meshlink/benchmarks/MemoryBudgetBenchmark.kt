@@ -1,23 +1,19 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+@file:OptIn(ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi::class)
 
 package ch.trancee.meshlink.benchmarks
 
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.benchmarking.BenchmarkBleTransport as BleTransport
+import ch.trancee.meshlink.benchmarking.BenchmarkDiagnosticSink as DiagnosticSink
+import ch.trancee.meshlink.benchmarking.BenchmarkOutboundFrame as OutboundFrame
+import ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent as TransportEvent
+import ch.trancee.meshlink.benchmarking.BenchmarkTransportMode as TransportMode
+import ch.trancee.meshlink.benchmarking.BenchmarkTransportSendResult as TransportSendResult
+import ch.trancee.meshlink.benchmarking.createBenchmarkMeshLink
 import ch.trancee.meshlink.config.meshLinkConfig
-import ch.trancee.meshlink.crypto.JvmCryptoProvider
-import ch.trancee.meshlink.crypto.NoiseIdentity
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
-import ch.trancee.meshlink.diagnostics.DiagnosticSink
-import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.storage.InMemorySecureStorage
-import ch.trancee.meshlink.transport.BleTransport
-import ch.trancee.meshlink.transport.OutboundFrame
-import ch.trancee.meshlink.transport.TransportEvent
-import ch.trancee.meshlink.transport.TransportMode
-import ch.trancee.meshlink.transport.TransportSendResult
 import java.util.concurrent.TimeUnit
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.BenchmarkMode
@@ -49,7 +45,6 @@ class MemoryBudgetBenchmark {
 }
 
 private class BenchmarkMeshScenario {
-    private val provider = JvmCryptoProvider()
     private val network = BenchmarkVirtualMeshNetwork()
     private val nodes: List<BenchmarkNode> = List(8) { index -> createNode(index) }
 
@@ -82,17 +77,10 @@ private class BenchmarkMeshScenario {
     private fun createNode(index: Int): BenchmarkNode {
         val peerId = PeerId("benchmark-peer-$index")
         val transport = BenchmarkVirtualMeshTransport(localPeerId = peerId, network = network)
-        val localIdentity =
-            LocalIdentity.fromNoiseIdentity(
-                noiseIdentity = NoiseIdentity.generate(provider),
-                provider = provider,
-                peerId = peerId,
-            )
         val api =
-            MeshEngine.create(
+            createBenchmarkMeshLink(
                 config = meshLinkConfig { appId = "benchmark.mesh" },
-                localIdentity = localIdentity,
-                secureStorage = InMemorySecureStorage(),
+                peerId = peerId,
                 bleTransport = transport,
                 diagnosticSink = BenchmarkDiagnosticSink,
             )
