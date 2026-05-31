@@ -139,25 +139,16 @@ jobs:
 
       - name: Build Swift database
         shell: bash
-        env:
-          CONFIGURATION: Debug
-          SDK_NAME: iphoneos
         run: |
-          # Build the Kotlin framework once up front and tell Xcode to skip the always-run
-          # Gradle script phase. This keeps the slow Swift scan off PRs while still scanning
-          # the tracked iOS app sources on main and the weekly schedule.
-          ./gradlew \
-            :meshlink:embedAndSignAppleFrameworkForXcode \
-            --no-daemon \
-            --console=plain
-
+          # Let Xcode invoke the Kotlin embed/sign script phase with the real build
+          # environment. Calling embedAndSignAppleFrameworkForXcode directly from the
+          # workflow shell misses required Xcode variables on GitHub-hosted runners.
           xcodebuild build \
             -project meshlink-proof/ios/ProofApp.xcodeproj \
             -target ProofApp \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED=YES
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
