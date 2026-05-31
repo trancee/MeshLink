@@ -49,9 +49,9 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
+            sender.meshLink.start()
             testDelay(250)
             prewarmRoute(sender = sender, recipient = recipient)
             val receivedMessageDeferred =
@@ -124,10 +124,10 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(firstRelay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.meshLink.start()
             firstRelay.meshLink.start()
             recipient.meshLink.start()
             alternateRelay.meshLink.start()
+            sender.meshLink.start()
             testDelay(250)
             prewarmRoute(sender = sender, recipient = recipient)
             val firstRelayFrameCountBeforeSend = harness.sentFrames(firstRelay).size
@@ -412,9 +412,9 @@ class LargeTransferIntegrationTest {
             harness.linkPeers(relay, recipient)
             harness.setMaximumPayloadBytesPerDelivery(512)
 
-            sender.meshLink.start()
             relay.meshLink.start()
             recipient.meshLink.start()
+            sender.meshLink.start()
             testDelay(250)
             prewarmRoute(sender = sender, recipient = recipient)
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size

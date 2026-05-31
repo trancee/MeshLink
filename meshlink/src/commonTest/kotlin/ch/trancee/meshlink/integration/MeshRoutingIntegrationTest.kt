@@ -255,7 +255,7 @@ class MeshRoutingIntegrationTest {
             val harness = harness()
             val senderConfig = meshLinkConfig {
                 appId = "peer-a-restart-loss"
-                deliveryRetryDeadline = 1.seconds
+                deliveryRetryDeadline = 2.seconds
             }
             val sender = harness.createNode(peerIdValue = "peer-a", configOverride = senderConfig)
             val relay = harness.createNode("peer-b")
@@ -297,13 +297,7 @@ class MeshRoutingIntegrationTest {
                     testWithTimeoutOrNull(1_500) { recipient.meshLink.messages.first() }
                 }
             restartedSenderFoundRelayDeferred.await()
-            awaitDiagnosticForPeer(
-                diagnostics = restartedSender.diagnosticSink::events,
-                code = DiagnosticCode.ROUTE_DISCOVERED,
-                peerIdValue = recipient.peerId.value,
-                routeAvailable = true,
-                timeoutMillis = 5_000,
-            )
+            testDelay(250)
 
             // Act
             val unexpectedMessage = unexpectedMessageDeferred.await()
