@@ -24,6 +24,7 @@ flows, use the scripted Android and iOS workflow tests instead.
 
 | Use this when you need to prove... | Scenario |
 |---|---|
+| the first fleet-aware retained direct baseline for S01 release review, without hand-picking serials or UDIDs | **Release baseline campaign** |
 | one clean iPhone ↔ Android exchange with retained redacted export | **Direct guided proof** |
 | that pause and resume do not strand the next send | **Direct pause/resume recovery** |
 | that live full export and retained redacted export stay separate | **Direct full-export boundary** |
@@ -38,9 +39,10 @@ flows, use the scripted Android and iOS workflow tests instead.
 Prepare the following first:
 
 - the repository checked out locally
-- Xcode with a locally valid Apple development team
-- an **iPhone 15** available as the physical sender (`A`)
 - at least one Android device available over **wireless ADB**
+- for the preferred mixed baseline, Xcode with a locally valid Apple
+  development team plus an **iPhone 15** available as the physical sender (`A`)
+- for the Android-only fallback baseline, two healthy Android devices
 - for the relay scenario, two Android devices:
   - `B = Samsung` as the relay
   - `C = OPPO` as the passive recipient
@@ -57,9 +59,102 @@ Keep the relay topology honest:
 If Android or iOS is still blocked on permissions, clear that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## Direct runner shape
+## Release baseline campaign
 
-All direct scenarios use the same runner:
+Use the fleet-aware release campaign as the default S01 retained direct-baseline
+entrypoint. It discovers the available Android fleet and optional iOS sender,
+retains `fleet-manifest.json` and `campaign-plan.json`, and then either runs
+one honest direct baseline or exits without dispatching a child runner.
+
+```bash
+python3 meshlink-reference/scripts/run_reference_release_campaign.py \
+  [--run-root /tmp/reference_release_campaign_review] \
+  [--child-timeout-seconds 1800]
+```
+
+### Selection order
+
+The campaign evaluates the same two direct-baseline assignments every time and
+chooses the first runnable option:
+
+1. `direct-guided-mixed` — preferred mixed baseline with an iOS sender and an
+   Android passive peer.
+2. `direct-guided-android-only` — fallback baseline with an Android sender and
+   a different Android passive peer.
+
+A candidate is only runnable when the required tooling and devices are healthy.
+In practice that means:
+
+- `direct-guided-mixed` needs `adb`, `xcrun devicectl`, a resolved
+  `DEVELOPMENT_TEAM`, one healthy iOS sender, and one healthy Android passive
+- `direct-guided-android-only` needs `adb` plus two healthy Android devices
+
+### Honest status taxonomy
+
+The campaign keeps the status vocabulary explicit instead of pretending every
+non-pass is the same problem.
+
+| Surface | Values | Meaning |
+|---|---|---|
+| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each baseline candidate was runnable, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
+| `selection.status` in `fleet-manifest.json` and `campaign-plan.json` | `selected`, `skipped`, `invalid-environment` | whether the campaign chose a baseline, honestly skipped because the fleet shape was insufficient, or stopped because the environment was unhealthy |
+| `campaign.status` and `campaign.baselineExecution.status` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the retained campaign lifecycle and final outcome |
+
+Use the distinction this way:
+
+- `skipped` means no direct baseline is runnable for the discovered fleet shape,
+  but the environment is not claiming to be broken. Example: only one Android
+  device is present and no iOS sender is available.
+- `invalid-environment` means the workstation, tooling, provisioning, or device
+  health is broken enough that the campaign cannot honestly treat the result as
+  a simple fleet-shape skip. Examples: missing `adb`, missing `devicectl`, an
+  unresolved `DEVELOPMENT_TEAM`, or enough discovered Android devices with
+  fewer than two healthy ones for the Android-only fallback.
+- `fail` means a baseline was selected and run, but the retained `summary.json`,
+  `analysis.json`, or `analysis.md` evidence did not support a passing result.
+
+### Exit codes
+
+| Exit code | Status | Meaning |
+|---|---|---|
+| `0` | `pass` | a selected baseline ran and retained passing analysis |
+| `1` | `fail` | a selected baseline ran, but the retained evidence did not pass |
+| `2` | `skipped` | no runnable direct baseline existed for the discovered fleet shape |
+| `3` | `invalid-environment` | discovery, tooling, provisioning, or device health blocked honest baseline selection or execution |
+
+### Retained campaign layout
+
+Open `campaign-plan.json` first when you want the reviewer-friendly answer to
+"what did the campaign choose and where are the artifacts?" Open
+`fleet-manifest.json` when you want the raw device discovery, candidate
+assignment reasoning, and `campaignLog` trail.
+
+```text
+<run-root>/
+  fleet-manifest.json
+  campaign-plan.json
+  baseline/
+    direct-guided-mixed|direct-guided-android-only/
+      summary.json
+      analysis.json
+      analysis.md
+      runner.stdout.log
+      runner.stderr.log
+      analysis.stdout.log
+      analysis.stderr.log
+```
+
+The selected baseline directory always matches the retained assignment id.
+`analysis.md` is the best first artifact for a reviewer, while `summary.json`
+and `analysis.json` are the machine-readable surfaces that later slices can
+extend without changing the story.
+
+Use the lower-level runners below when you need explicit device control,
+scenario-specific debugging, or the relay proof.
+
+## Manual direct runner shape
+
+All direct scenarios below use the explicit mixed-platform runner:
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
@@ -263,9 +358,9 @@ transfer, add:
 That mode is not a full end-to-end pass, but it still gives retained sender
 logs for the scenario-specific markers.
 
-## Retained outputs
+## Retained outputs for manual scenarios
 
-Each scenario directory writes the raw logs plus these summary artifacts:
+Each manual scenario directory writes the raw logs plus these summary artifacts:
 
 - `summary.json` — scenario-specific completion lines and retained export path
 - `analysis.json` — machine-readable pass/fail analysis for the scenario
