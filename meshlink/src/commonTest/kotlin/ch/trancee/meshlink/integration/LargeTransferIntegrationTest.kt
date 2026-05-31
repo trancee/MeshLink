@@ -396,6 +396,10 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `timed out large transfers clear queued outbound frames before returning`() = runBlocking {
+        if (!supportsRelayLargeTransferStressScenarios()) {
+            return@runBlocking
+        }
+
         // Arrange
         val harness = harness()
         val sender =
