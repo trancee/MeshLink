@@ -8,7 +8,6 @@ import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
@@ -58,7 +57,6 @@ class DeliveryRetrySchedulerTest {
                 }
 
             // Act
-            delay(10)
             topologyVersion.value = 4L
             val result = resultDeferred.await()
 
@@ -112,7 +110,6 @@ class DeliveryRetrySchedulerTest {
             }
 
         // Act
-        delay(10)
         runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
         val result = resultDeferred.await()
 
