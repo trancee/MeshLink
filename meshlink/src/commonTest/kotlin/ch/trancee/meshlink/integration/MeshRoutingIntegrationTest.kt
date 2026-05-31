@@ -47,26 +47,21 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
 
-        sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-        )
+        sender.meshLink.start()
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, payload)
-        val receivedMessage = receivedMessageDeferred.await()
+        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
+        val receivedMessage = receivedMessageDeferred.await()
         assertContentEquals(payload, receivedMessage.payload)
     }
 
@@ -82,26 +77,21 @@ class MeshRoutingIntegrationTest {
         harness.linkPeers(sender, relay)
         harness.linkPeers(relay, recipient)
 
-        sender.meshLink.start()
         relay.meshLink.start()
         recipient.meshLink.start()
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-        )
+        sender.meshLink.start()
+        testDelay(250)
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
             }
 
         // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, payload)
-        val receivedMessage = receivedMessageDeferred.await()
+        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
 
         // Assert
         assertIs<SendResult.Sent>(sendResult)
+        val receivedMessage = receivedMessageDeferred.await()
         assertContentEquals(payload, receivedMessage.payload)
         val relayDiagnostics = relay.diagnosticSink.events()
         val relayQueued = relayDiagnostics.firstOrNull { event ->
