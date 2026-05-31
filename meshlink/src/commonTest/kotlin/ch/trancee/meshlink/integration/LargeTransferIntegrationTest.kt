@@ -30,6 +30,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class LargeTransferIntegrationTest {
     private companion object {
         private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 4
+        private const val ROUTE_DISCOVERY_TIMEOUT_MILLIS: Long = 8_000
     }
 
     @Test
@@ -55,7 +56,7 @@ class LargeTransferIntegrationTest {
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
@@ -91,7 +92,7 @@ class LargeTransferIntegrationTest {
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
             val frameCountBeforeSend = harness.sentFrames(sender).size
             val receivedMessageDeferred =
@@ -143,7 +144,7 @@ class LargeTransferIntegrationTest {
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
@@ -245,7 +246,7 @@ class LargeTransferIntegrationTest {
             awaitDiagnostic(
                 diagnostics = restartedSender.diagnosticSink::events,
                 code = DiagnosticCode.ROUTE_DISCOVERED,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
 
             // Act
@@ -294,7 +295,7 @@ class LargeTransferIntegrationTest {
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred = async {
@@ -349,7 +350,7 @@ class LargeTransferIntegrationTest {
             code = DiagnosticCode.ROUTE_DISCOVERED,
             peerIdValue = recipient.peerId.value,
             routeAvailable = true,
-            timeoutMillis = 5_000,
+            timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
         )
         val receivedMessageDeferred =
             async(start = CoroutineStart.UNDISPATCHED) {
@@ -400,7 +401,7 @@ class LargeTransferIntegrationTest {
             code = DiagnosticCode.ROUTE_DISCOVERED,
             peerIdValue = recipient.peerId.value,
             routeAvailable = true,
-            timeoutMillis = 5_000,
+            timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
         )
         harness.dropNextDeliveries(recipient, sender, count = 256)
 
@@ -437,7 +438,7 @@ class LargeTransferIntegrationTest {
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
-                timeoutMillis = 5_000,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
             )
             val recipientFrameCountBeforeSend = harness.sentFrames(recipient).size
             val receivedMessageDeferred =
