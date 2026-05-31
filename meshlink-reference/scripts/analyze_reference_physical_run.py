@@ -39,6 +39,39 @@ class AndroidRoleLog:
     text: str
 
 
+@dataclass
+class LoadedSummary:
+    exists: bool
+    valid: bool
+    data: dict[str, object]
+    error: str | None = None
+
+
+@dataclass
+class DirectRunInputs:
+    sender_platform: str
+    sender_log_path: Path
+    sender_log_text: str
+    sender_launch_mode: str | None
+    passive_log_path: Path
+    passive_log_text: str
+    sender_xcodebuild_text: str
+
+
+ANDROID_ROLE_PATTERNS = {
+    "RELAY": re.compile(r"\brole=RELAY\b|\brole=relay\b"),
+    "PASSIVE": re.compile(r"\brole=PASSIVE\b|\brole=passive\b"),
+    "SENDER": re.compile(r"\brole=SENDER\b|\brole=sender\b"),
+}
+
+
+DIRECT_SENDER_REQUIRED_MARKERS = {
+    "sender_started": "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
+    "sender_peer_discovered": "REFERENCE_AUTOMATION peer.discovered role=SENDER",
+    "sender_send_requested": "REFERENCE_AUTOMATION send.requested role=sender",
+}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze a retained MeshLink reference-app physical proof run directory."
@@ -72,11 +105,91 @@ def load_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def load_summary_json(run_dir: Path) -> dict[str, object]:
+def load_summary_json(run_dir: Path) -> LoadedSummary:
     summary_path = run_dir / "summary.json"
     if not summary_path.exists():
-        return {}
-    return json.loads(summary_path.read_text(encoding="utf-8"))
+        return LoadedSummary(exists=False, valid=False, data={})
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return LoadedSummary(
+            exists=True,
+            valid=False,
+            data={},
+            error=(
+                f"{summary_path.name} could not be parsed: {error.msg} "
+                f"(line {error.lineno}, column {error.colno})"
+            ),
+        )
+    if not isinstance(payload, dict):
+        return LoadedSummary(
+            exists=True,
+            valid=False,
+            data={},
+            error=f"{summary_path.name} must contain a JSON object",
+        )
+    return LoadedSummary(exists=True, valid=True, data=payload)
+
+
+def text_value(value: object | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def summary_value(summary: LoadedSummary, *keys: str) -> object | None:
+    if not summary.valid:
+        return None
+    for key in keys:
+        if key in summary.data:
+            return summary.data.get(key)
+    return None
+
+
+def summary_text_value(summary: LoadedSummary, *keys: str) -> str | None:
+    return text_value(summary_value(summary, *keys))
+
+
+def summary_evidence_text(summary: LoadedSummary, key: str) -> str | None:
+    if not summary.valid:
+        return None
+    evidence = summary.data.get("evidence")
+    if not isinstance(evidence, dict):
+        return None
+    return text_value(evidence.get(key))
+
+
+def summary_scenario_name(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "scenario")
+
+
+def summary_status_value(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "status")
+
+
+def summary_sender_platform(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "senderPlatform")
+
+
+def summary_passive_platform(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "passivePlatform")
+
+
+def summary_sender_completion(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "senderCompletion", "ios_completion")
+
+
+def summary_passive_completion(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "passiveCompletion", "android_completion")
+
+
+def summary_export_relative_path(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "exportRelativePath", "export_relative_path")
+
+
+def summary_full_export_relative_path(summary: LoadedSummary) -> str | None:
+    return summary_text_value(summary, "fullExportRelativePath", "full_export_relative_path")
 
 
 def detect_scenario_type(run_dir: Path) -> str:
@@ -86,30 +199,40 @@ def detect_scenario_type(run_dir: Path) -> str:
     role_logs = classify_android_role_logs(run_dir)
     if "PASSIVE" in role_logs and "RELAY" in role_logs:
         return "relay"
+    if "PASSIVE" in role_logs and "SENDER" in role_logs:
+        return "direct"
+
+    summary = load_summary_json(run_dir)
+    if summary_scenario_name(summary) == "relay-constrained":
+        return "relay"
+    if summary_sender_platform(summary) == "android" and summary_passive_platform(summary) == "android":
+        return "direct"
 
     raise SystemExit(
         "Could not detect the retained run type. Pass --scenario-type direct|relay explicitly."
     )
 
 
+def detect_android_role(text: str) -> str | None:
+    for role, pattern in ANDROID_ROLE_PATTERNS.items():
+        if pattern.search(text):
+            return role
+    return None
+
+
 def classify_android_role_logs(run_dir: Path) -> dict[str, AndroidRoleLog]:
     role_logs: dict[str, AndroidRoleLog] = {}
     for candidate in sorted(run_dir.glob("*_logcat.log")):
         text = load_text(candidate)
-        if "role=RELAY" in text and "RELAY" not in role_logs:
-            role_logs["RELAY"] = AndroidRoleLog(
-                label=candidate.stem.removesuffix("_logcat"),
-                role="RELAY",
-                path=candidate,
-                text=text,
-            )
-        elif "role=PASSIVE" in text and "PASSIVE" not in role_logs:
-            role_logs["PASSIVE"] = AndroidRoleLog(
-                label=candidate.stem.removesuffix("_logcat"),
-                role="PASSIVE",
-                path=candidate,
-                text=text,
-            )
+        role = detect_android_role(text)
+        if role is None or role in role_logs:
+            continue
+        role_logs[role] = AndroidRoleLog(
+            label=candidate.stem.removesuffix("_logcat"),
+            role=role,
+            path=candidate,
+            text=text,
+        )
     return role_logs
 
 
@@ -200,41 +323,164 @@ def extract_first_matching_line(text: str, pattern: str) -> str | None:
     return next((line.strip() for line in text.splitlines() if regex.search(line)), None)
 
 
-def analyze_direct_run(run_dir: Path) -> RunAnalysis:
-    summary_json = load_summary_json(run_dir)
-    scenario_name = str(summary_json.get("scenario") or "direct-guided")
+def resolve_direct_run_inputs(run_dir: Path, summary: LoadedSummary) -> DirectRunInputs:
+    mixed_passive_log_path = run_dir / "android_logcat.log"
     sender_console_path = run_dir / "iphone_console.log"
     sender_xcodebuild_path = run_dir / "ios_xcodebuild.log"
-    passive_log_path = run_dir / "android_logcat.log"
-    sender_console = load_text(sender_console_path)
-    sender_xcodebuild = load_text(sender_xcodebuild_path)
-    passive_log = load_text(passive_log_path)
+    if (
+        mixed_passive_log_path.exists()
+        or sender_console_path.exists()
+        or sender_xcodebuild_path.exists()
+    ):
+        sender_log_text = load_text(sender_console_path)
+        sender_xcodebuild_text = load_text(sender_xcodebuild_path)
+        sender_launch_mode = (
+            "xcuitest"
+            if "** TEST SUCCEEDED **" in sender_xcodebuild_text
+            else ("devicectl" if sender_log_text else None)
+        )
+        return DirectRunInputs(
+            sender_platform="ios",
+            sender_log_path=sender_console_path,
+            sender_log_text=sender_log_text,
+            sender_launch_mode=sender_launch_mode,
+            passive_log_path=mixed_passive_log_path,
+            passive_log_text=load_text(mixed_passive_log_path),
+            sender_xcodebuild_text=sender_xcodebuild_text,
+        )
+
+    role_logs = classify_android_role_logs(run_dir)
+    sender_log_name = summary_evidence_text(summary, "senderLogcat") or "sender_logcat.log"
+    passive_log_name = summary_evidence_text(summary, "passiveLogcat") or "passive_logcat.log"
+    sender_log_path = role_logs.get("SENDER", AndroidRoleLog("sender", "SENDER", run_dir / sender_log_name, "")).path
+    passive_log_path = role_logs.get("PASSIVE", AndroidRoleLog("passive", "PASSIVE", run_dir / passive_log_name, "")).path
+    return DirectRunInputs(
+        sender_platform="android",
+        sender_log_path=sender_log_path,
+        sender_log_text=load_text(sender_log_path),
+        sender_launch_mode="android",
+        passive_log_path=passive_log_path,
+        passive_log_text=load_text(passive_log_path),
+        sender_xcodebuild_text="",
+    )
+
+
+def validate_direct_summary_metadata(
+    *,
+    summary: LoadedSummary,
+    direct_inputs: DirectRunInputs,
+    sender_completion_from_log: str | None,
+    passive_completion_from_log: str | None,
+) -> tuple[bool, list[str]]:
+    if not summary.valid:
+        return True, []
+
+    issues: list[str] = []
+    explicit_sender_platform = summary_sender_platform(summary)
+    if explicit_sender_platform is not None and explicit_sender_platform != direct_inputs.sender_platform:
+        issues.append(
+            "summary.json declares "
+            f"senderPlatform={explicit_sender_platform} but retained direct evidence resolves the sender platform as {direct_inputs.sender_platform}."
+        )
+    explicit_passive_platform = summary_passive_platform(summary)
+    if explicit_passive_platform is not None and explicit_passive_platform != "android":
+        issues.append(
+            "summary.json declares "
+            f"passivePlatform={explicit_passive_platform} but direct retained passive analysis expects android."
+        )
+
+    explicit_sender_completion = summary_sender_completion(summary)
+    if explicit_sender_completion is not None and "role=passive" in explicit_sender_completion:
+        issues.append(
+            "summary.json recorded a sender completion line that names role=passive, which contradicts the retained direct sender evidence."
+        )
+    if (
+        explicit_sender_completion is not None
+        and sender_completion_from_log is not None
+        and explicit_sender_completion != sender_completion_from_log
+        and explicit_sender_completion != "xcodebuild test passed"
+    ):
+        issues.append(
+            "summary.json sender completion does not match the retained sender log line."
+        )
+
+    explicit_passive_completion = summary_passive_completion(summary)
+    if explicit_passive_completion is not None and "role=sender" in explicit_passive_completion:
+        issues.append(
+            "summary.json recorded a passive completion line that names role=sender, which contradicts the retained direct passive evidence."
+        )
+    if (
+        explicit_passive_completion is not None
+        and passive_completion_from_log is not None
+        and explicit_passive_completion != passive_completion_from_log
+    ):
+        issues.append(
+            "summary.json passive completion does not match the retained passive log line."
+        )
+
+    explicit_export_relative_path = summary_export_relative_path(summary)
+    derived_export_relative_path = extract_export_path(passive_completion_from_log)
+    if (
+        explicit_export_relative_path is not None
+        and derived_export_relative_path is not None
+        and explicit_export_relative_path != derived_export_relative_path
+    ):
+        issues.append(
+            "summary.json export path does not match the export path recorded by the retained passive proof.complete line."
+        )
+
+    return not issues, issues
+
+
+def analyze_direct_run(run_dir: Path) -> RunAnalysis:
+    summary = load_summary_json(run_dir)
+    scenario_name = summary_scenario_name(summary) or "direct-guided"
+    direct_inputs = resolve_direct_run_inputs(run_dir, summary)
+    sender_log = direct_inputs.sender_log_text
+    passive_log = direct_inputs.passive_log_text
+    sender_xcodebuild = direct_inputs.sender_xcodebuild_text
     export_text = load_text(run_dir / "android_export.json")
     full_export_text = load_text(run_dir / "android_export_full.json")
     history_text = load_text(run_dir / "android_history.json")
 
-    sender_completion_line = (
-        extract_first_line(sender_console, "REFERENCE_AUTOMATION proof.complete role=sender")
-        or str(summary_json.get("ios_completion") or "")
+    sender_completion_from_log = extract_first_line(
+        sender_log, "REFERENCE_AUTOMATION proof.complete role=sender"
     )
-    passive_completion_line = extract_first_line(
+    sender_completion_line = sender_completion_from_log or summary_sender_completion(summary)
+    passive_completion_from_log = extract_first_line(
         passive_log, "REFERENCE_AUTOMATION proof.complete role=passive"
     )
-    sender_via_xcuitest = "** TEST SUCCEEDED **" in sender_xcodebuild
+    passive_completion_line = passive_completion_from_log or summary_passive_completion(summary)
+    sender_via_xcuitest = direct_inputs.sender_launch_mode == "xcuitest"
     passive_inbound_count = extract_integer_value(passive_completion_line, "inboundCount")
     passive_largest_inbound_bytes = extract_integer_value(
         passive_completion_line, "largestInboundBytes"
     )
     recovery_delivery_count = extract_integer_value(sender_completion_line, "deliveries")
     large_transfer_request_line = extract_first_matching_line(
-        sender_console, r"payload=large-transfer"
+        sender_log, r"payload=large-transfer"
     )
     large_transfer_request_bytes = extract_integer_value(large_transfer_request_line, "bytes")
+    summary_role_metadata_consistent, summary_metadata_issues = validate_direct_summary_metadata(
+        summary=summary,
+        direct_inputs=direct_inputs,
+        sender_completion_from_log=sender_completion_from_log,
+        passive_completion_from_log=passive_completion_from_log,
+    )
+    summary_status = (summary_status_value(summary) or "").lower()
 
     invariants = {
-        "sender_proof_complete": bool(sender_completion_line) or sender_via_xcuitest,
-        "sender_proof_failed": "REFERENCE_AUTOMATION proof.failed role=sender" in sender_console,
-        "passive_proof_complete": passive_completion_line is not None,
+        "summary_json_valid_or_absent": (not summary.exists) or summary.valid,
+        "summary_role_metadata_consistent": summary_role_metadata_consistent,
+        "summary_does_not_report_failure": summary_status not in {"failed", "fail"},
+        "sender_log_captured": bool(sender_log.strip()),
+        "sender_started": DIRECT_SENDER_REQUIRED_MARKERS["sender_started"] in sender_log,
+        "sender_peer_discovered": DIRECT_SENDER_REQUIRED_MARKERS["sender_peer_discovered"] in sender_log,
+        "sender_send_requested": DIRECT_SENDER_REQUIRED_MARKERS["sender_send_requested"] in sender_log,
+        "sender_proof_complete": sender_completion_from_log is not None or sender_via_xcuitest,
+        "sender_proof_failed": "REFERENCE_AUTOMATION proof.failed role=sender" in sender_log,
+        "passive_log_captured": bool(passive_log.strip()),
+        "passive_proof_complete": passive_completion_from_log is not None,
         "peer_discovered_on_passive": "REFERENCE_AUTOMATION peer.discovered role=PASSIVE"
         in passive_log,
         "passive_requested_redacted_export": "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
@@ -246,13 +492,13 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         and '"fullPayloadIncluded": false' in export_text
         and '"operatorOptInRecorded": false' in export_text,
         "retained_history_marked_retained": '"historyStatus": "RETAINED"' in history_text,
-        "ios_gatt_side_link_retained_after_l2cap_close": "retaining peer" in sender_console
-        and "GATT side link is still active" in sender_console,
-        "unexpected_routed_delivery": "routeIsDirect=false" in sender_console,
-        "pause_requested": "REFERENCE_AUTOMATION pause.requested role=sender" in sender_console,
-        "pause_observed": "REFERENCE_AUTOMATION pause.observed role=sender" in sender_console,
-        "resume_requested": "REFERENCE_AUTOMATION resume.requested role=sender" in sender_console,
-        "resume_observed": "REFERENCE_AUTOMATION resume.observed role=sender" in sender_console,
+        "ios_gatt_side_link_retained_after_l2cap_close": "retaining peer" in sender_log
+        and "GATT side link is still active" in sender_log,
+        "unexpected_routed_delivery": "routeIsDirect=false" in sender_log,
+        "pause_requested": "REFERENCE_AUTOMATION pause.requested role=sender" in sender_log,
+        "pause_observed": "REFERENCE_AUTOMATION pause.observed role=sender" in sender_log,
+        "resume_requested": "REFERENCE_AUTOMATION resume.requested role=sender" in sender_log,
+        "resume_observed": "REFERENCE_AUTOMATION resume.observed role=sender" in sender_log,
         "full_export_requested": "REFERENCE_AUTOMATION export.requested role=passive policy=full-payload"
         in passive_log,
         "full_export_file_captured": bool(full_export_text),
@@ -260,10 +506,10 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         and '"operatorOptInRecorded": true' in full_export_text
         and '"fullPayload":' in full_export_text,
         "trust_reset_requested": "REFERENCE_AUTOMATION trust.reset.requested role=sender"
-        in sender_console,
+        in sender_log,
         "trust_reset_observed": "REFERENCE_AUTOMATION trust.reset.observed role=sender"
-        in sender_console,
-        "recovery_send_requested": "phase=recovery" in sender_console,
+        in sender_log,
+        "recovery_send_requested": "phase=recovery" in sender_log,
         "recovery_delivery_count_met": (recovery_delivery_count or 0) >= 2,
         "passive_recovery_inbound_count_met": (passive_inbound_count or 0) >= 2,
         "large_transfer_requested": large_transfer_request_line is not None,
@@ -296,17 +542,75 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         )
 
     recommendations: list[str] = []
+    if summary.error is not None:
+        recommendations.append(
+            f"{summary.error}. The analyzer fell back to retained sender/passive logs and left summary-derived fields unset where needed."
+        )
+    recommendations.extend(summary_metadata_issues)
+    if not invariants["summary_does_not_report_failure"]:
+        recommendations.append(
+            "summary.json already reports a failed direct run. Keep the retained analysis fail until a new run writes a passing summary and matching retained logs."
+        )
+    if not invariants["sender_log_captured"] and not sender_via_xcuitest:
+        recommendations.append(
+            "Required direct sender evidence file "
+            f"'{direct_inputs.sender_log_path.name}' is missing or empty. Keep the run fail until sender-side retained proof logs are captured."
+        )
+    if not invariants["passive_log_captured"]:
+        recommendations.append(
+            "Required direct passive evidence file "
+            f"'{direct_inputs.passive_log_path.name}' is missing or empty. Keep the run fail until passive-side retained proof logs are captured."
+        )
+    if direct_inputs.sender_launch_mode != "xcuitest" and invariants["sender_log_captured"]:
+        if not invariants["sender_started"]:
+            recommendations.append(
+                "The retained sender log is missing the LIVE_PROOF start marker. Re-run the direct proof instead of trusting sender summary data alone."
+            )
+        if not invariants["sender_peer_discovered"]:
+            recommendations.append(
+                "The retained sender log never recorded peer discovery. Re-check discovery readiness before trusting the sender-side direct proof."
+            )
+        if not invariants["sender_send_requested"]:
+            recommendations.append(
+                "The retained sender log never recorded send.requested. Re-check sender automation sequencing before trusting the direct proof."
+            )
+    if invariants["sender_proof_failed"]:
+        recommendations.append(
+            "The retained sender log contains REFERENCE_AUTOMATION proof.failed role=sender. Keep the run fail and inspect sender-side trust, routing, or session recovery before retrying."
+        )
     if invariants["unexpected_routed_delivery"]:
         recommendations.append(
-            "The direct scenario observed routeIsDirect=false on the sender. Keep this scenario focused on one-hop proof or split multi-hop coverage into the relay scenario."
+            "The direct scenario observed routeIsDirect=false on the sender. Mark this run fail and move routed coverage to the relay scenario or re-position devices for a one-hop direct proof."
         )
     if not invariants["sender_proof_complete"]:
-        recommendations.append(
-            "The iPhone sender never reached proof.complete. Re-run after clearing Bluetooth prompts or use the xcuitest sender path once to settle first-run permissions."
-        )
+        sender_label = "Android sender" if direct_inputs.sender_platform == "android" else "iPhone sender"
+        if sender_via_xcuitest:
+            recommendations.append(
+                "The iPhone sender XCTest path never completed successfully. Re-run after clearing first-launch prompts or fixing the XCTest sender automation."
+            )
+        else:
+            recommendations.append(
+                f"The {sender_label} never reached proof.complete. Re-run after clearing Bluetooth prompts or inspecting the retained sender log before trusting the run."
+            )
     if not invariants["passive_proof_complete"]:
         recommendations.append(
             "The Android passive peer never retained/exported the session. Treat sender-only success as incomplete and inspect discovery, trust, or export automation before trusting the run."
+        )
+    if invariants["passive_log_captured"] and not invariants["peer_discovered_on_passive"]:
+        recommendations.append(
+            "The passive log never recorded peer discovery. Re-check passive readiness before trusting retained export evidence."
+        )
+    if invariants["passive_log_captured"] and not invariants["passive_requested_redacted_export"]:
+        recommendations.append(
+            "The passive log never recorded a redacted export request. Re-check retained-export automation before trusting android_export.json."
+        )
+    if not invariants["redacted_export_file_captured"]:
+        recommendations.append(
+            "android_export.json is missing or empty. Keep the run fail until the passive-side redacted export is captured locally."
+        )
+    if not invariants["retained_history_file_captured"]:
+        recommendations.append(
+            "android_history.json is missing or empty. Keep the run fail until retained-history evidence is captured locally."
         )
     if export_text and not invariants["redacted_export_flags_present"]:
         recommendations.append(
@@ -319,6 +623,7 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
 
     critical_keys = [
         "sender_proof_complete",
+        "passive_log_captured",
         "passive_proof_complete",
         "peer_discovered_on_passive",
         "passive_requested_redacted_export",
@@ -327,7 +632,19 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         "full_payload_absent_from_redacted_export",
         "redacted_export_flags_present",
         "retained_history_marked_retained",
+        "summary_role_metadata_consistent",
+        "summary_does_not_report_failure",
     ]
+    if direct_inputs.sender_launch_mode != "xcuitest":
+        critical_keys.extend(
+            [
+                "sender_log_captured",
+                "sender_started",
+                "sender_peer_discovered",
+                "sender_send_requested",
+            ]
+        )
+
     scenario_critical_keys: list[str] = []
     if scenario_name == "direct-pause-resume":
         scenario_critical_keys = [
@@ -373,9 +690,15 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
                 "The large-transfer scenario never observed a large inbound payload on the passive peer. Re-check the physical large-transfer threshold and delivery path before trusting the transfer evidence."
             )
 
-    status = "pass" if all(invariants[key] for key in critical_keys + scenario_critical_keys) else "fail"
+    status = (
+        "pass"
+        if all(invariants[key] for key in critical_keys + scenario_critical_keys)
+        and not invariants["sender_proof_failed"]
+        and not invariants["unexpected_routed_delivery"]
+        else "fail"
+    )
 
-    summary: list[str] = []
+    summary_lines: list[str] = []
     scenario_summary_text = {
         "direct-guided": "The direct guided proof completed end-to-end, retained the session on Android, and captured a redacted export without full payload bytes.",
         "direct-pause-resume": "The direct pause/resume proof completed after an explicit lifecycle pause and resume on the sender, then retained a redacted export on the passive peer.",
@@ -383,7 +706,7 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         "direct-trust-reset-recovery": "The direct trust-reset recovery proof completed an initial send, reset trust on the sender, then re-established delivery and retained evidence on the passive peer.",
         "direct-large-transfer": "The direct large-transfer proof delivered a large physical payload and retained a redacted export after the passive peer received the oversized message.",
     }
-    summary.append(
+    summary_lines.append(
         scenario_summary_text.get(
             scenario_name,
             "The direct physical proof completed with retained history and a redacted export.",
@@ -391,21 +714,33 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         if status == "pass"
         else "The direct physical scenario is incomplete; at least one sender, passive, or scenario-specific invariant is missing."
     )
-    if invariants["ios_gatt_side_link_retained_after_l2cap_close"]:
-        summary.append(
+    if direct_inputs.sender_platform == "android":
+        summary_lines.append(
+            "Sender-side proof evidence came from retained Android sender logcat output, while preserving the same analysis.json and analysis.md contract used by mixed direct runs."
+        )
+    elif invariants["ios_gatt_side_link_retained_after_l2cap_close"]:
+        summary_lines.append(
             "The sender log shows the iPhone keeping a GATT notify side link alive after the L2CAP channel closes, which matches the mixed-bearer resilience posture."
+        )
+    if summary.error is not None:
+        summary_lines.append(
+            "summary.json was malformed, so summary-derived fields were omitted and the analyzer fell back to retained sender/passive logs."
         )
 
     artifacts = {
+        "sender_platform": direct_inputs.sender_platform,
+        "sender_log_artifact": direct_inputs.sender_log_path.name,
+        "passive_log_artifact": direct_inputs.passive_log_path.name,
         "sender_completion_line": sender_completion_line or None,
         "passive_completion_line": passive_completion_line,
-        "sender_launch_mode": "xcuitest" if sender_via_xcuitest else ("devicectl" if sender_console else None),
-        "export_relative_path": summary_json.get("export_relative_path"),
-        "full_export_relative_path": summary_json.get("full_export_relative_path"),
+        "sender_launch_mode": direct_inputs.sender_launch_mode,
+        "export_relative_path": summary_export_relative_path(summary)
+        or extract_export_path(passive_completion_from_log),
+        "full_export_relative_path": summary_full_export_relative_path(summary),
         "passive_inbound_count": passive_inbound_count,
         "passive_largest_inbound_bytes": passive_largest_inbound_bytes,
         "large_transfer_request_bytes": large_transfer_request_bytes,
-        "analysis_based_on_summary_json": bool(summary_json),
+        "analysis_based_on_summary_json": summary.valid,
     }
 
     return RunAnalysis(
@@ -413,7 +748,7 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
         scenario_name=scenario_name,
         status=status,
         run_directory=str(run_dir),
-        summary=summary,
+        summary=summary_lines,
         invariants=invariants,
         timings_seconds=timings,
         artifacts=artifacts,
@@ -422,8 +757,8 @@ def analyze_direct_run(run_dir: Path) -> RunAnalysis:
 
 
 def analyze_relay_run(run_dir: Path) -> RunAnalysis:
-    summary_json = load_summary_json(run_dir)
-    scenario_name = str(summary_json.get("scenario") or "relay-constrained")
+    summary = load_summary_json(run_dir)
+    scenario_name = summary_scenario_name(summary) or "relay-constrained"
     sender_log = load_text(run_dir / "iphone_console.log")
     role_logs = classify_android_role_logs(run_dir)
     passive_log = role_logs.get("PASSIVE")
@@ -520,17 +855,17 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
     ]
     status = "pass" if all(invariants[key] for key in critical_keys) else "fail"
 
-    summary = []
+    summary_lines = []
     if status == "pass":
-        summary.append(
+        summary_lines.append(
             "The constrained relay proof completed with a routed sender delivery, middle-hop forwarding, and passive retained-export completion."
         )
     else:
-        summary.append(
+        summary_lines.append(
             "The constrained relay proof is incomplete or unsafe to trust; at least one routed-delivery invariant is missing."
         )
     if invariants["temporary_peer_promoted"]:
-        summary.append(
+        summary_lines.append(
             "The relay log shows temporary transport peers being promoted to canonical advertisement peers, which is a high-value diagnostic signal for responder/session continuity when that transport path is exercised."
         )
 
@@ -541,9 +876,9 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
         "passive_completion_line": passive_completion_line,
         "relay_log_label": relay_log.label,
         "passive_log_label": passive_log.label,
-        "export_relative_path": summary_json.get("export_relative_path")
+        "export_relative_path": summary_export_relative_path(summary)
         or extract_export_path(passive_completion_line),
-        "analysis_based_on_summary_json": bool(summary_json),
+        "analysis_based_on_summary_json": summary.valid,
     }
 
     return RunAnalysis(
@@ -551,7 +886,7 @@ def analyze_relay_run(run_dir: Path) -> RunAnalysis:
         scenario_name=scenario_name,
         status=status,
         run_directory=str(run_dir),
-        summary=summary,
+        summary=summary_lines,
         invariants=invariants,
         timings_seconds=timings,
         artifacts=artifacts,
