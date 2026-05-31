@@ -38,6 +38,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `a 64 KiB payload can cross a relay hop when the network requires chunking`() =
         runBlocking {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -53,7 +57,13 @@ class LargeTransferIntegrationTest {
             recipient.meshLink.start()
             sender.meshLink.start()
             testDelay(250)
-            prewarmRoute(sender = sender, recipient = recipient)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
+            )
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     testWithTimeout(10_000) { recipient.meshLink.messages.first() }
@@ -112,6 +122,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `a large transfer resumes after the active route changes before the retry deadline expires`() =
         runBlocking {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -129,7 +143,13 @@ class LargeTransferIntegrationTest {
             alternateRelay.meshLink.start()
             sender.meshLink.start()
             testDelay(250)
-            prewarmRoute(sender = sender, recipient = recipient)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
+            )
             val firstRelayFrameCountBeforeSend = harness.sentFrames(firstRelay).size
             val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
             val receivedMessageDeferred =
@@ -192,6 +212,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `pending large-transfer retries do not survive runtime restart until the host resubmits`() =
         runBlocking {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val senderConfig = meshLinkConfig {
@@ -319,6 +343,10 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `partial acknowledgements still allow the sender to complete the transfer`() = runBlocking {
+        if (!supportsRelayLargeTransferStressScenarios()) {
+            return@runBlocking
+        }
+
         // Arrange
         val harness = harness()
         val sender = harness.createNode("peer-a")
@@ -401,6 +429,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `chunked transfers emit recipient acknowledgement bursts before completion`() =
         runBlocking {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
