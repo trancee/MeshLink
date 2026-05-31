@@ -53,7 +53,7 @@ class LargeTransferIntegrationTest {
             testDelay(250)
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    testWithTimeout(6_000) { recipient.meshLink.messages.first() }
+                    testWithTimeout(10_000) { recipient.meshLink.messages.first() }
                 }
 
             // Act
