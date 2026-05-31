@@ -1,8 +1,7 @@
 package ch.trancee.meshlink.integration
 
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.toKString
-import platform.posix.getenv
+import platform.Foundation.NSHomeDirectory
+import platform.Foundation.NSProcessInfo
 
 internal actual fun supportsSyntheticOutOfOrderChunkDelivery(): Boolean = true
 
@@ -10,7 +9,9 @@ internal actual fun supportsRelayLargeTransferStressScenarios(): Boolean = !isCi
 
 internal actual fun supportsRelayRoutingStressScenarios(): Boolean = !isCiRuntime()
 
-@OptIn(ExperimentalForeignApi::class)
 private fun isCiRuntime(): Boolean {
-    return getenv("CI")?.toKString() != null || getenv("GITHUB_ACTIONS")?.toKString() != null
+    val environment = NSProcessInfo.processInfo.environment
+    return environment["CI"] != null ||
+        environment["GITHUB_ACTIONS"] != null ||
+        NSHomeDirectory().contains("/Users/runner")
 }
