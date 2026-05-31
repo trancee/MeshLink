@@ -8,6 +8,7 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.test.MeshTestHarness
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -35,7 +36,7 @@ class LargeTransferIntegrationTest {
     fun `a 64 KiB payload can cross a relay hop when the network requires chunking`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
@@ -74,7 +75,7 @@ class LargeTransferIntegrationTest {
     fun `a 64 KiB payload stays on the inline direct path when the transport budget allows it`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val recipient = harness.createNode("peer-b")
             val payload = ByteArray(64 * 1024) { index -> ((index * 3) % 251).toByte() }
@@ -121,7 +122,7 @@ class LargeTransferIntegrationTest {
     fun `a large transfer resumes after the active route changes before the retry deadline expires`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val firstRelay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
@@ -167,7 +168,7 @@ class LargeTransferIntegrationTest {
     fun `large transfers return unreachable when no route appears before the configured deadline`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender =
                 harness.createNode(
                     peerIdValue = "peer-a",
@@ -202,7 +203,7 @@ class LargeTransferIntegrationTest {
     fun `pending large-transfer retries do not survive runtime restart until the host resubmits`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val senderConfig = meshLinkConfig {
                 appId = "peer-a-large-restart-loss"
                 deliveryRetryDeadline = 1.seconds
@@ -274,7 +275,7 @@ class LargeTransferIntegrationTest {
             }
 
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
@@ -329,7 +330,7 @@ class LargeTransferIntegrationTest {
     @Test
     fun `partial acknowledgements still allow the sender to complete the transfer`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val relay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -375,7 +376,7 @@ class LargeTransferIntegrationTest {
     @Test
     fun `timed out large transfers clear queued outbound frames before returning`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender =
             harness.createNode(
                 peerIdValue = "peer-a",
@@ -417,7 +418,7 @@ class LargeTransferIntegrationTest {
     fun `chunked transfers emit recipient acknowledgement bursts before completion`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
@@ -468,7 +469,7 @@ class LargeTransferIntegrationTest {
     @Test
     fun `payloads larger than 64 KiB are rejected before any transfer starts`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val relay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -493,6 +494,16 @@ class LargeTransferIntegrationTest {
         assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
         assertNull(testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() })
     }
+
+    private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
+
+    @AfterTest
+    fun tearDown(): Unit = runBlocking {
+        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+        harnesses.clear()
+    }
+
+    private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 
     private suspend fun testDelay(milliseconds: Int): Unit =
         delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)

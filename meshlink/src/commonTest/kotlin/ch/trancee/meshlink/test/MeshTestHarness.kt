@@ -82,6 +82,11 @@ internal class MeshTestHarness {
         network.setMaximumPayloadBytesPerDelivery(limit)
     }
 
+    internal suspend fun stopAll(): Unit {
+        handles.asReversed().forEach { handle -> runCatching { handle.meshLink.stop() } }
+        handles.clear()
+    }
+
     internal fun dropNextDeliveries(
         sender: NodeHandle,
         recipient: NodeHandle,

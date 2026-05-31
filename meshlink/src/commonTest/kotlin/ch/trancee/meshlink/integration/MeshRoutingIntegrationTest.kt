@@ -8,6 +8,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.transport.TransportMode
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -35,7 +36,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `a sender can reach a destination through a single relay hop`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val relay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -70,7 +71,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `relay forwarding emits diagnostics and recipient delivery is observable`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val relay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -136,7 +137,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `routing reconverges onto an alternate relay after a topology change`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val firstRelay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -182,7 +183,7 @@ class MeshRoutingIntegrationTest {
     fun `send retries immediately when a route appears before the delivery deadline expires`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val relay = harness.createNode("peer-b")
             val recipient = harness.createNode("peer-c")
@@ -214,7 +215,7 @@ class MeshRoutingIntegrationTest {
     fun `send returns unreachable when no route appears before the configured deadline`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender =
                 harness.createNode(
                     peerIdValue = "peer-a",
@@ -249,7 +250,7 @@ class MeshRoutingIntegrationTest {
     fun `pending no route retries do not survive runtime restart until the host resubmits`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val senderConfig = meshLinkConfig {
                 appId = "peer-a-restart-loss"
                 deliveryRetryDeadline = 1.seconds
@@ -313,7 +314,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `gatt-only peers are rejected and remain unreachable`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender =
             harness.createNode(
                 peerIdValue = "peer-a",
@@ -352,7 +353,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `direct route diagnostics record peer rediscovery before send succeeds`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender =
             harness.createNode(
                 peerIdValue = "peer-a",
@@ -427,7 +428,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `direct route diagnostics record expiry before send becomes unreachable`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender =
             harness.createNode(
                 peerIdValue = "peer-a",
@@ -484,7 +485,7 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val relay = harness.createNode("peer-b")
         val recipient = harness.createNode("peer-c")
@@ -524,6 +525,16 @@ class MeshRoutingIntegrationTest {
         assertFalse(relayFramesContainPlaintext)
         assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
     }
+
+    private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
+
+    @AfterTest
+    fun tearDown(): Unit = runBlocking {
+        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+        harnesses.clear()
+    }
+
+    private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 
     private suspend fun testDelay(milliseconds: Int): Unit = delay(milliseconds.toLong())
 

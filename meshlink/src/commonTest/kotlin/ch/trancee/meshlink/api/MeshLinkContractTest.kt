@@ -13,6 +13,7 @@ import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -340,7 +341,7 @@ class MeshLinkContractTest {
     fun `successful trust verification preserves first seen and refreshes last verified timestamp`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val receiver = harness.createNode("peer-receiver")
             val sender = harness.createNode("peer-sender")
             val trustStore = TofuTrustStore(receiver.storage)
@@ -391,7 +392,7 @@ class MeshLinkContractTest {
     fun `forgetPeer deletes trust and same identity is treated as fresh tofu on recontact`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val receiver = harness.createNode("peer-receiver")
             val sender = harness.createNode("peer-sender")
             val trustStore = TofuTrustStore(receiver.storage)
@@ -450,7 +451,7 @@ class MeshLinkContractTest {
     @Test
     fun `identity change emits trust failure diagnostics`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val receiver = harness.createNode("peer-receiver")
         val trustedSender = harness.createNode("peer-sender")
 
@@ -473,6 +474,16 @@ class MeshLinkContractTest {
         assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)
         assertTrue(receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE })
     }
+
+    private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
+
+    @AfterTest
+    fun tearDownHarnesses(): Unit = runBlocking {
+        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+        harnesses.clear()
+    }
+
+    private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 
     private class RecordingBleTransport : BleTransport {
         var startCalls: Int = 0

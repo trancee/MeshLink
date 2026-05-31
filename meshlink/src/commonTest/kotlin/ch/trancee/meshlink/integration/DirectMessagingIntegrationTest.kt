@@ -8,6 +8,7 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.test.MeshTestHarness
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -30,7 +31,7 @@ class DirectMessagingIntegrationTest {
     @Test
     fun `two trusted peers can exchange a direct offline message`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val receiver = harness.createNode("peer-b")
         val payload = "hello mesh".encodeToByteArray()
@@ -62,7 +63,7 @@ class DirectMessagingIntegrationTest {
     @Test
     fun `persisted trust survives sdk restart`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val receiver = harness.createNode("peer-b")
         sender.meshLink.start()
@@ -114,7 +115,7 @@ class DirectMessagingIntegrationTest {
     fun `forgetPeer forces fresh trust establishment before the same identity can deliver again`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val receiver = harness.createNode("peer-b")
 
@@ -171,7 +172,7 @@ class DirectMessagingIntegrationTest {
     fun `runtime secure storage keeps trust metadata without persisting plaintext or peer ids`() =
         runBlocking {
             // Arrange
-            val harness = MeshTestHarness()
+            val harness = harness()
             val sender = harness.createNode("peer-a")
             val receiver = harness.createNode("peer-b")
             val plaintext = "secret message"
@@ -201,7 +202,7 @@ class DirectMessagingIntegrationTest {
     @Test
     fun `transport frames do not expose plaintext payloads`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val receiver = harness.createNode("peer-b")
         val plaintext = "secret message"
@@ -229,7 +230,7 @@ class DirectMessagingIntegrationTest {
     @Test
     fun `large inline sends suspend discovery until delivery finishes`() = runBlocking {
         // Arrange
-        val harness = MeshTestHarness()
+        val harness = harness()
         val sender = harness.createNode("peer-a")
         val receiver = harness.createNode("peer-b")
         val payload = ByteArray(65_536) { index -> (index % 251).toByte() }
@@ -252,6 +253,16 @@ class DirectMessagingIntegrationTest {
         assertContentEquals(payload, receivedMessage.payload)
         assertEquals(listOf(true, false), harness.discoverySuspendedTransitions(sender))
     }
+
+    private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
+
+    @AfterTest
+    fun tearDown(): Unit = runBlocking {
+        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+        harnesses.clear()
+    }
+
+    private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 
     private suspend fun testDelay(milliseconds: Int): Unit =
         delay(milliseconds.toLong() * TEST_TIMING_SLACK_MULTIPLIER)

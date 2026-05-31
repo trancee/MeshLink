@@ -13,9 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  meshlink-sdk:
-    runs-on: macos-latest
-    timeout-minutes: 60
+  meshlink-sdk-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -37,19 +37,52 @@ jobs:
         run: python3 -m pip install --upgrade pip yamllint
 
       - name: Validate workflow YAML
-        run: yamllint -c .yamllint.yml .github/workflows/ci.yml
+        run: yamllint -c .yamllint.yml .github/workflows/*.yml
 
-      - name: Verify MeshLink SDK
+      - name: Verify MeshLink SDK on Linux
         run: |
-          # The hosted macOS runner currently exposes only 3 CPUs; keep verification
-          # single-worker so iOS compilation does not starve timing-sensitive test tasks.
           ./gradlew \
-            :meshlink:allTests \
+            :meshlink:jvmTest \
+            :meshlink:testAndroidHostTest \
             :meshlink:detekt \
             :meshlink:apiCheck \
             :meshlink:koverVerify \
             verifyDocs \
             checkAgp9Invariants \
+            --console=plain
+
+      - name: Upload verification reports
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: meshlink-linux-reports
+          if-no-files-found: ignore
+          path: |
+            build/reports/**
+            meshlink/build/reports/**
+            **/test-results/**
+
+  meshlink-sdk-apple:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Verify MeshLink SDK on Apple targets
+        run: |
+          # The hosted macOS runner currently exposes only 3 CPUs; keep iOS verification
+          # single-worker so Kotlin/Native compilation and simulator test tasks stay stable.
+          ./gradlew \
+            :meshlink:iosSimulatorArm64Test \
             --max-workers=1 \
             --console=plain
 
@@ -57,7 +90,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: meshlink-reports
+          name: meshlink-apple-reports
           if-no-files-found: ignore
           path: |
             build/reports/**

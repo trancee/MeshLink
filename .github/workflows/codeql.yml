@@ -50,6 +50,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-swift-changes:
+    name: Detect Swift-side changes
+    runs-on: ubuntu-latest
+    outputs:
+      swift_related: ${{ steps.filter.outputs.swift_related }}
+
+    steps:
+      - name: Checkout repository
+        if: github.event_name == 'push'
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect Swift-side changes
+        id: filter
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" != 'push' ]]; then
+            echo 'swift_related=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${{ github.event.before }}"
+          if [[ -z "$base" || "$base" == '0000000000000000000000000000000000000000' ]]; then
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              base="$(git rev-parse HEAD^)"
+            else
+              echo 'swift_related=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo 'swift_related=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only "$base" "$GITHUB_SHA")"
+          printf 'Changed files between %s and %s:\n%s\n' "$base" "$GITHUB_SHA" "$changed_files"
+
+          if printf '%s\n' "$changed_files" | grep -Eq '(^|/).*\.swift$|(^|/)project\.yml$|\.xcodeproj/'; then
+            echo 'swift_related=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'swift_related=false' >> "$GITHUB_OUTPUT"
+          fi
+
   analyze-fast:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
@@ -111,12 +157,11 @@ jobs:
 
   analyze-swift:
     name: Analyze (swift)
+    needs: detect-swift-changes
     if: >-
-      ${{
-        github.event_name == 'push' ||
-        github.event_name == 'schedule' ||
-        (github.event_name == 'workflow_dispatch' && inputs.include_swift)
-      }}
+      ${{ github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && inputs.include_swift) ||
+          (github.event_name == 'push' && needs.detect-swift-changes.outputs.swift_related == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 35
 
