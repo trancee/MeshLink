@@ -279,12 +279,22 @@ class MeshRoutingIntegrationTest {
                     storage = sender.storage,
                     configOverride = senderConfig,
                 )
+            val restartedSenderFoundRelayDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) {
+                        restartedSender.meshLink.peerEvents.first { event ->
+                            event is ch.trancee.meshlink.api.PeerEvent.Found &&
+                                event.peerId == relay.peerId
+                        }
+                    }
+                }
+            harness.linkPeers(relay, recipient)
             restartedSender.meshLink.start()
             val unexpectedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     testWithTimeoutOrNull(1_500) { recipient.meshLink.messages.first() }
                 }
-            harness.linkPeers(relay, recipient)
+            restartedSenderFoundRelayDeferred.await()
             awaitDiagnosticForPeer(
                 diagnostics = restartedSender.diagnosticSink::events,
                 code = DiagnosticCode.ROUTE_DISCOVERED,
