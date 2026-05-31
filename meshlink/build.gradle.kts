@@ -1,4 +1,5 @@
 import io.gitlab.arturbosch.detekt.Detekt
+import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -70,4 +71,8 @@ powerAssert {
             "kotlin.test.assertTrue",
         )
     includedSourceSets = listOf("commonTest", "jvmTest", "androidHostTest", "iosTest")
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("meshlink.ci", providers.environmentVariable("CI"))
 }

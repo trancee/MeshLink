@@ -137,8 +137,10 @@ jobs:
         if: matrix.language == 'java-kotlin'
         shell: bash
         run: |
-          # The Java/Kotlin extractor only needs JVM and Android compilation commands.
-          # Avoid clean/full assemble so PR scans do not rebuild iOS/native artifacts.
+          # CodeQL must observe real compiler invocations, so do not let Gradle satisfy
+          # these tasks from the build cache or up-to-date checks.
+          # Keep the task list scoped to JVM and Android compilation so this stays faster
+          # than a full build and avoids unnecessary iOS/native work.
           ./gradlew \
             :meshlink:jvmJar \
             :meshlink:androidJar \
@@ -147,6 +149,8 @@ jobs:
             :meshlink-reference:bundleAndroidMainAar \
             :meshlink-reference:android:compileDebugKotlin \
             :meshlink-proof:android:compileDebugKotlin \
+            --rerun-tasks \
+            --no-build-cache \
             --no-daemon \
             --console=plain
 

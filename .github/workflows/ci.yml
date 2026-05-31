@@ -41,6 +41,9 @@ jobs:
 
       - name: Verify MeshLink SDK on Linux
         run: |
+          # The hosted Linux runners still expose tight CPU budgets for this suite.
+          # Keep verification single-worker so the routing and transfer integration
+          # tests do not starve while JVM and Android host tasks execute.
           ./gradlew \
             :meshlink:jvmTest \
             :meshlink:testAndroidHostTest \
@@ -49,6 +52,7 @@ jobs:
             :meshlink:koverVerify \
             verifyDocs \
             checkAgp9Invariants \
+            --max-workers=1 \
             --console=plain
 
       - name: Upload verification reports

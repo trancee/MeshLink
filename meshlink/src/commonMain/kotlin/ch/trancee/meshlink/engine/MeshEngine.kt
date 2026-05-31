@@ -20,6 +20,7 @@ internal object MeshEngine {
         secureStorage: SecureStorage = InMemorySecureStorage(),
         bleTransport: BleTransport? = null,
         diagnosticSink: DiagnosticSink? = null,
+        coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     ): MeshLink {
         return MeshEngineRuntime.assembleMeshEngineRuntime(
             config = config,
@@ -27,7 +28,7 @@ internal object MeshEngine {
             secureStorage = secureStorage,
             bleTransport = bleTransport,
             diagnosticSink = diagnosticSink,
-            coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            coroutineScope = coroutineScope,
         )
     }
 }
