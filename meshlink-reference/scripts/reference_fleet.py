@@ -298,6 +298,27 @@ def read_manifest(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def find_device_by_alias(manifest: Mapping[str, Any], alias: str | None) -> dict[str, Any] | None:
+    if alias is None:
+        return None
+    for device in manifest.get("devices", []):
+        if isinstance(device, Mapping) and device.get("alias") == alias:
+            return dict(device)
+    return None
+
+
+def find_candidate_assignment(
+    manifest: Mapping[str, Any],
+    assignment_id: str | None,
+) -> dict[str, Any] | None:
+    if assignment_id is None:
+        return None
+    for candidate in manifest.get("candidateAssignments", []):
+        if isinstance(candidate, Mapping) and candidate.get("assignmentId") == assignment_id:
+            return dict(candidate)
+    return None
+
+
 def probe_development_team(
     *,
     environment: Mapping[str, str] | None,
