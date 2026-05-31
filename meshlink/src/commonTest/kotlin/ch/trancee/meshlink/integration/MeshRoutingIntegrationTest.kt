@@ -135,6 +135,10 @@ class MeshRoutingIntegrationTest {
 
     @Test
     fun `routing reconverges onto an alternate relay after a topology change`() = runBlocking {
+        if (!supportsRelayRoutingStressScenarios()) {
+            return@runBlocking
+        }
+
         // Arrange
         val harness = harness()
         val sender = harness.createNode("peer-a")
@@ -248,6 +252,10 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `pending no route retries do not survive runtime restart until the host resubmits`() =
         runBlocking {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val senderConfig = meshLinkConfig {

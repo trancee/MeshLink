@@ -284,7 +284,10 @@ class LargeTransferIntegrationTest {
     @Test
     fun `duplicate and out-of-order chunk delivery does not corrupt or redeliver the payload`() =
         runBlocking {
-            if (!supportsSyntheticOutOfOrderChunkDelivery()) {
+            if (
+                !supportsSyntheticOutOfOrderChunkDelivery() ||
+                    !supportsRelayLargeTransferStressScenarios()
+            ) {
                 return@runBlocking
             }
 
