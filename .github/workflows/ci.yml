@@ -62,7 +62,7 @@ jobs:
             meshlink/build/reports/**
             **/test-results/**
 
-  meshlink-sdk-apple:
+  meshlink-sdk-macos:
     runs-on: macos-latest
     timeout-minutes: 30
 
@@ -77,7 +77,7 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Verify MeshLink SDK on Apple targets
+      - name: Verify MeshLink SDK on macOS targets
         run: |
           # The hosted macOS runner currently exposes only 3 CPUs; keep iOS verification
           # single-worker so Kotlin/Native compilation and simulator test tasks stay stable.
@@ -90,7 +90,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: meshlink-apple-reports
+          name: meshlink-macos-reports
           if-no-files-found: ignore
           path: |
             build/reports/**
