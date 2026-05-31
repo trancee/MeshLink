@@ -7,6 +7,10 @@ import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 internal class MeshTestHarness {
     private val network = VirtualMeshNetwork()
@@ -34,6 +38,7 @@ internal class MeshTestHarness {
         val transport = VirtualMeshTransport(localPeerId = peerId, network = network)
         val diagnosticSink = RecordingDiagnosticSink()
         val config = configOverride ?: defaultConfig(appId = "$peerIdValue-$identityLabel")
+        val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val meshLink =
             MeshEngine.create(
                 config = config,
@@ -45,6 +50,7 @@ internal class MeshTestHarness {
                 secureStorage = storage,
                 bleTransport = transport,
                 diagnosticSink = diagnosticSink,
+                coroutineScope = coroutineScope,
             )
         val handle =
             NodeHandle(
@@ -53,6 +59,7 @@ internal class MeshTestHarness {
                 transport = transport,
                 storage = storage,
                 diagnosticSink = diagnosticSink,
+                coroutineScope = coroutineScope,
             )
         handles += handle
         return handle
@@ -83,7 +90,10 @@ internal class MeshTestHarness {
     }
 
     internal suspend fun stopAll(): Unit {
-        handles.asReversed().forEach { handle -> runCatching { handle.meshLink.stop() } }
+        handles.asReversed().forEach { handle ->
+            runCatching { handle.meshLink.stop() }
+            runCatching { handle.coroutineScope.cancel() }
+        }
         handles.clear()
     }
 
@@ -127,4 +137,5 @@ internal constructor(
     internal val transport: VirtualMeshTransport,
     internal val storage: InMemorySecureStorage,
     internal val diagnosticSink: RecordingDiagnosticSink,
+    internal val coroutineScope: CoroutineScope,
 )
