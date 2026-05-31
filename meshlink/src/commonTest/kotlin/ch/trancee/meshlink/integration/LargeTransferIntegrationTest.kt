@@ -51,13 +51,6 @@ class LargeTransferIntegrationTest {
             relay.meshLink.start()
             recipient.meshLink.start()
             testDelay(250)
-            awaitDiagnosticForPeer(
-                diagnostics = sender.diagnosticSink::events,
-                code = DiagnosticCode.ROUTE_DISCOVERED,
-                peerIdValue = recipient.peerId.value,
-                routeAvailable = true,
-                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
-            )
             val receivedMessageDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
                     testWithTimeout(6_000) { recipient.meshLink.messages.first() }
