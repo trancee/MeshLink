@@ -24,7 +24,7 @@ flows, use the scripted Android and iOS workflow tests instead.
 
 | Use this when you need to prove... | Scenario |
 |---|---|
-| the first fleet-aware retained direct baseline for S01 release review, without hand-picking serials or UDIDs | **Release baseline campaign** |
+| the one-command retained happy-path release-review campaign, without hand-picking serials or UDIDs | **Release happy-path campaign** |
 | one clean iPhone ↔ Android exchange with retained redacted export | **Direct guided proof** |
 | that pause and resume do not strand the next send | **Direct pause/resume recovery** |
 | that live full export and retained redacted export stay separate | **Direct full-export boundary** |
@@ -32,7 +32,7 @@ flows, use the scripted Android and iOS workflow tests instead.
 | that a payload larger than the default hello still arrives | **Direct large transfer** |
 | that the first physical iPhone launch can get past Bluetooth prompt friction | **Direct XCTest permission recovery** |
 | a real `A = iPhone 15 → B = Samsung → C = OPPO` routed send with `routeIsDirect=false` | **Constrained relay proof** |
-| a repeatable multi-scenario campaign with one retained summary | **Physical matrix** |
+| an explicit manual multi-scenario matrix with custom scenario selection and one retained summary | **Physical matrix** |
 
 ## Before you start
 
@@ -59,12 +59,15 @@ Keep the relay topology honest:
 If Android or iOS is still blocked on permissions, clear that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
 
-## Release baseline campaign
+## Release happy-path campaign
 
-Use the fleet-aware release campaign as the default S01 retained direct-baseline
-entrypoint. It discovers the available Android fleet and optional iOS sender,
-retains `fleet-manifest.json` and `campaign-plan.json`, and then either runs
-one honest direct baseline or exits without dispatching a child runner.
+Use the fleet-aware release campaign as the default retained happy-path
+release-review entrypoint. It discovers the available Android fleet and
+optional iOS sender, writes `fleet-manifest.json`, `campaign-plan.json`, and
+`campaign-state.json`, plans the ordered logical happy-path catalog, and then
+executes every runnable scenario in order. Reviewers can inspect the retained
+JSON and per-scenario `analysis.md` artifacts instead of reconstructing the
+result from raw logs.
 
 ```bash
 python3 meshlink-reference/scripts/run_reference_release_campaign.py \
@@ -72,22 +75,47 @@ python3 meshlink-reference/scripts/run_reference_release_campaign.py \
   [--child-timeout-seconds 1800]
 ```
 
-### Selection order
+### Ordered happy-path scenarios
 
-The campaign evaluates the same two direct-baseline assignments every time and
-chooses the first runnable option:
+The campaign always plans the same logical scenarios in manifest order:
+
+1. `direct-guided` — always first. This is the compatibility view over the
+   selected direct baseline.
+2. `relay-constrained` — always second. It becomes runnable only when the
+   retained fleet truth includes one healthy iOS sender, two healthy Android
+   devices, `adb`, `xcrun devicectl`, and a resolved `DEVELOPMENT_TEAM`.
+
+Within `direct-guided`, the campaign preserves the existing direct-baseline
+selection order:
 
 1. `direct-guided-mixed` — preferred mixed baseline with an iOS sender and an
    Android passive peer.
 2. `direct-guided-android-only` — fallback baseline with an Android sender and
    a different Android passive peer.
 
-A candidate is only runnable when the required tooling and devices are healthy.
-In practice that means:
+Use the relay eligibility distinction this way:
 
-- `direct-guided-mixed` needs `adb`, `xcrun devicectl`, a resolved
-  `DEVELOPMENT_TEAM`, one healthy iOS sender, and one healthy Android passive
-- `direct-guided-android-only` needs `adb` plus two healthy Android devices
+- `relay-constrained` becomes `skipped` when the fleet shape is honestly too
+  small for relay, such as no iOS sender or fewer than two healthy Android
+  devices.
+- `relay-constrained` becomes `invalid-environment` when the fleet should be
+  runnable but tooling, provisioning, or device health is broken, or when
+  `direct-guided` itself could not be planned honestly from the retained
+  manifest.
+
+### Direct baseline compatibility
+
+Earlier release-review tooling can keep reading the direct compatibility
+surfaces:
+
+- `campaign-plan.json.selectedBaseline`
+- `fleet-manifest.json.campaign.baselineExecution`
+
+Both are projections of the logical `direct-guided` scenario. The direct
+scenario keeps writing under `baseline/<assignmentId>/`, where
+`<assignmentId>` is `direct-guided-mixed` or `direct-guided-android-only`.
+Later happy-path scenarios live under stable `scenarios/<order>-<scenarioId>/`
+directories such as `scenarios/02-relay-constrained/`.
 
 ### Honest status taxonomy
 
@@ -96,43 +124,66 @@ non-pass is the same problem.
 
 | Surface | Values | Meaning |
 |---|---|---|
-| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each baseline candidate was runnable, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
-| `selection.status` in `fleet-manifest.json` and `campaign-plan.json` | `selected`, `skipped`, `invalid-environment` | whether the campaign chose a baseline, honestly skipped because the fleet shape was insufficient, or stopped because the environment was unhealthy |
-| `campaign.status` and `campaign.baselineExecution.status` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the retained campaign lifecycle and final outcome |
+| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each direct-baseline candidate was runnable, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
+| `selection.status` in `fleet-manifest.json` and `campaign-plan.json` | `selected`, `skipped`, `invalid-environment` | whether the campaign chose a direct compatibility baseline, honestly skipped because the fleet shape was insufficient, or stopped because the environment was unhealthy |
+| `scenarios[].eligibilityStatus` in `campaign-plan.json` and `campaign-state.json` | `runnable`, `skipped`, `invalid-environment` | whether each logical happy-path scenario was eligible to execute |
+| `scenarios[].status` in `campaign-state.json` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the retained per-scenario lifecycle and final outcome |
+| `campaign.status` and `campaign.baselineExecution.status` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the aggregate campaign lifecycle and the direct-compatibility projection |
+| `happyPathGate.status` in `campaign-state.json` | `green`, `red` | whether any executed happy-path scenario has gone non-pass |
 
 Use the distinction this way:
 
-- `skipped` means no direct baseline is runnable for the discovered fleet shape,
-  but the environment is not claiming to be broken. Example: only one Android
-  device is present and no iOS sender is available.
+- `skipped` means the discovered fleet shape is honestly too small for that
+  scenario, but the environment is not claiming to be broken. Example:
+  `direct-guided` passes with an Android-only fleet, while
+  `relay-constrained` stays `skipped` because no iOS sender exists.
 - `invalid-environment` means the workstation, tooling, provisioning, or device
   health is broken enough that the campaign cannot honestly treat the result as
   a simple fleet-shape skip. Examples: missing `adb`, missing `devicectl`, an
-  unresolved `DEVELOPMENT_TEAM`, or enough discovered Android devices with
-  fewer than two healthy ones for the Android-only fallback.
-- `fail` means a baseline was selected and run, but the retained `summary.json`,
+  unresolved `DEVELOPMENT_TEAM`, or discovered devices that are present but not
+  healthy enough to satisfy the planned roles.
+- `fail` means a scenario was executed, but the retained `summary.json`,
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
+
+### Red-gate semantics
+
+`campaign-state.json` is the campaign execution ledger. Its
+`happyPathGate.status` starts `green`, flips to `red` on the first executed
+happy-path scenario that finishes anything other than `pass`, records that
+scenario in `firstFailScenarioId`, and stays red for the rest of the campaign
+while later runnable scenarios continue and retain evidence. If the campaign
+never dispatches a child runner because everything is skipped or planning fails
+up front, the gate can remain `green` even though `campaign.status` still ends
+as `skipped` or `invalid-environment`.
 
 ### Exit codes
 
 | Exit code | Status | Meaning |
 |---|---|---|
-| `0` | `pass` | a selected baseline ran and retained passing analysis |
-| `1` | `fail` | a selected baseline ran, but the retained evidence did not pass |
-| `2` | `skipped` | no runnable direct baseline existed for the discovered fleet shape |
-| `3` | `invalid-environment` | discovery, tooling, provisioning, or device health blocked honest baseline selection or execution |
+| `0` | `pass` | every executed happy-path scenario passed, and any non-runnable scenarios remained honest `skipped` entries |
+| `1` | `fail` | at least one executed happy-path scenario retained non-passing evidence |
+| `2` | `skipped` | no happy-path scenario was runnable for the discovered fleet shape |
+| `3` | `invalid-environment` | discovery, tooling, provisioning, or device health blocked honest planning or execution |
 
-### Retained campaign layout
+### Reviewer inspection flow
 
-Open `campaign-plan.json` first when you want the reviewer-friendly answer to
-"what did the campaign choose and where are the artifacts?" Open
-`fleet-manifest.json` when you want the raw device discovery, candidate
-assignment reasoning, and `campaignLog` trail.
+Read the retained artifacts in this order:
+
+1. `campaign-plan.json` — planned scenario order, eligibility decisions,
+   `selectedBaseline`, and artifact locations.
+2. `campaign-state.json` — actual scenario statuses, `happyPathGate`,
+   `firstFailScenarioId`, child/analyzer exit codes, and per-scenario
+   `eventHistory`.
+3. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
+   first human-readable artifact for why a scenario passed or failed.
+4. `fleet-manifest.json` — raw device discovery, candidate assignment
+   reasoning, and the full `campaignLog` trail.
 
 ```text
 <run-root>/
   fleet-manifest.json
   campaign-plan.json
+  campaign-state.json
   baseline/
     direct-guided-mixed|direct-guided-android-only/
       summary.json
@@ -142,15 +193,26 @@ assignment reasoning, and `campaignLog` trail.
       runner.stderr.log
       analysis.stdout.log
       analysis.stderr.log
+  scenarios/
+    02-relay-constrained/
+      summary.json
+      analysis.json
+      analysis.md
+      runner.stdout.log
+      runner.stderr.log
+      analysis.stdout.log
+      analysis.stderr.log
 ```
 
-The selected baseline directory always matches the retained assignment id.
-`analysis.md` is the best first artifact for a reviewer, while `summary.json`
-and `analysis.json` are the machine-readable surfaces that later slices can
-extend without changing the story.
+The direct compatibility directory always matches the retained direct
+assignment id. `analysis.md` is still the best first artifact for a reviewer,
+while `summary.json` and `analysis.json` remain the machine-readable surfaces
+that later slices can extend without changing the story.
 
-Use the lower-level runners below when you need explicit device control,
-scenario-specific debugging, or the relay proof.
+Everything below is lower-level manual control. These commands do not maintain
+campaign-wide `happyPathGate` or the aggregated `campaign-state.json` ledger;
+use them when you need explicit device control, scenario-specific debugging, or
+manual direct, relay, and matrix investigations.
 
 ## Manual direct runner shape
 

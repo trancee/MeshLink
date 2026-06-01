@@ -100,7 +100,7 @@ For exact surface and export vocabulary such as **Supported live session**,
 | If you want to... | Start here |
 |---|---|
 | manually walk through the guided experience on Android and iOS | [How to evaluate MeshLink with the reference app](../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
-| run the fleet-aware retained direct baseline for release review without hand-picking device IDs | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
+| run the one-command happy-path release-review campaign without hand-picking device IDs | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
 | retain physical direct and relay evidence from real devices with explicit device control | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
 | unblock startup or discovery permissions before debugging deeper | [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md) |
 | run deterministic automation or local verification commands | [Contributor build, test, and verification reference](../docs/reference/contributor-reference.md) |
@@ -119,15 +119,23 @@ python3 meshlink-reference/scripts/run_reference_release_campaign.py
 ```
 
 This entrypoint discovers the available Android fleet plus the optional iOS
-sender, prefers the mixed `direct-guided-mixed` baseline, falls back to the
-Android-only `direct-guided-android-only` baseline, and retains
-`fleet-manifest.json`, `campaign-plan.json`, and per-baseline `analysis.md`
-evidence under the selected run directory.
+sender, plans the ordered happy-path catalog, runs `direct-guided` first and
+`relay-constrained` second when relay is eligible, preserves
+`campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as
+compatibility views of the logical direct scenario, and retains
+`fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and
+per-scenario `analysis.md` evidence under the selected run directory.
+
+If an executed scenario finishes anything other than `pass`,
+`campaign-state.json` flips `happyPathGate` to red, records
+`firstFailScenarioId`, and still keeps later runnable scenario evidence for
+review.
 
 Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md)
 for prerequisites, honest `skipped` versus `invalid-environment` outcomes,
-retained artifact layout, and the lower-level explicit runners used for manual
-direct, relay, and matrix investigations.
+retained artifact layout, the `campaign-state.json` inspection flow, and the
+lower-level explicit runners used for manual direct, relay, and matrix
+investigations.
 
 ## Before you debug the app
 
