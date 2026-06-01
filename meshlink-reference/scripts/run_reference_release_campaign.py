@@ -32,10 +32,13 @@ INVALID_ENVIRONMENT_HINTS = (
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parents[1]
+SCENARIO_CATALOG_VERSION = 1
+CAMPAIGN_STATE_VERSION = 1
 RUNNER_SCRIPTS = {
     "direct-guided-mixed": SCRIPTS_DIR / "run_headless_reference_live_proof.py",
     "direct-guided-android-only": SCRIPTS_DIR / "run_headless_reference_android_direct_proof.py",
 }
+RELAY_RUNNER_SCRIPT = SCRIPTS_DIR / "run_headless_reference_relay_proof.py"
 ANALYSIS_SCRIPT = SCRIPTS_DIR / "analyze_reference_physical_run.py"
 
 ManifestBuilder = Callable[[], dict[str, Any]]
@@ -71,9 +74,9 @@ class CampaignError(RuntimeError):
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Discover the available MeshLink reference-app fleet, retain fleet-manifest.json and "
-            "campaign-plan.json, and execute the first eligible S01 direct baseline without manual "
-            "serial or UDID flags."
+            "Discover the available MeshLink reference-app fleet, retain fleet-manifest.json, "
+            "campaign-plan.json, and campaign-state.json, plan the ordered happy-path scenario "
+            "catalog, and execute the first eligible direct baseline without manual serial or UDID flags."
         ),
         epilog=(
             f"Exit codes: {EXIT_PASS}=pass, {EXIT_FAIL}=fail, "
@@ -218,47 +221,693 @@ def discovery_failure_manifest(run_root: Path, error: Exception) -> dict[str, An
     return manifest
 
 
-def initialize_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
-    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
-    selection_status = str(selection.get("status") or "invalid-environment")
-    selected_assignment = manifest.get("selectedAssignment")
-    baseline_status = "planned" if selection_status == "selected" else selection_status
-    manifest["campaign"] = {
-        "status": baseline_status,
+def scenario_reason(code: str, kind: str, message: str, **details: Any) -> dict[str, Any]:
+    return reference_fleet.reason(code, kind, message, **details).to_dict()
+
+
+def matching_devices_by_alias(
+    manifest: Mapping[str, Any],
+    alias: str | None,
+) -> list[dict[str, Any]]:
+    if alias is None:
+        return []
+    return [
+        dict(device)
+        for device in manifest.get("devices", [])
+        if isinstance(device, Mapping) and device.get("alias") == alias
+    ]
+
+
+def platform_devices(manifest: Mapping[str, Any], platform: str) -> list[dict[str, Any]]:
+    return [
+        dict(device)
+        for device in manifest.get("devices", [])
+        if isinstance(device, Mapping) and device.get("platform") == platform
+    ]
+
+
+def healthy_platform_devices(manifest: Mapping[str, Any], platform: str) -> list[dict[str, Any]]:
+    return [device for device in platform_devices(manifest, platform) if device.get("available")]
+
+
+def tooling_status(manifest: Mapping[str, Any], tooling_name: str) -> Mapping[str, Any]:
+    tooling = manifest.get("tooling")
+    if not isinstance(tooling, Mapping):
+        return {}
+    candidate = tooling.get(tooling_name)
+    return candidate if isinstance(candidate, Mapping) else {}
+
+
+def tooling_reasons(manifest: Mapping[str, Any], tooling_name: str) -> list[dict[str, Any]]:
+    status = tooling_status(manifest, tooling_name)
+    return list(status.get("reasons", [])) if isinstance(status.get("reasons"), list) else []
+
+
+def resolve_unique_device_alias(
+    manifest: Mapping[str, Any],
+    alias: str | None,
+    *,
+    role: str,
+    expected_platform: str,
+    code_prefix: str,
+    message_context: str,
+    assignment_id: str | None = None,
+    scenario_id: str | None = None,
+) -> dict[str, Any]:
+    if alias is None:
+        raise CampaignError(
+            f"{code_prefix}-alias-missing",
+            "invalid-environment",
+            f"{message_context} is missing the {role} participant alias.",
+            role=role,
+            assignmentId=assignment_id,
+            scenarioId=scenario_id,
+        )
+    matches = matching_devices_by_alias(manifest, str(alias))
+    if not matches:
+        raise CampaignError(
+            f"{code_prefix}-device-missing",
+            "invalid-environment",
+            f"{message_context} points at a device alias that is not present in the retained fleet manifest.",
+            role=role,
+            alias=alias,
+            assignmentId=assignment_id,
+            scenarioId=scenario_id,
+        )
+    if len(matches) > 1:
+        raise CampaignError(
+            f"{code_prefix}-device-duplicate",
+            "invalid-environment",
+            f"{message_context} points at a duplicated device alias in the retained fleet manifest.",
+            role=role,
+            alias=alias,
+            assignmentId=assignment_id,
+            scenarioId=scenario_id,
+        )
+    device = matches[0]
+    if device.get("platform") != expected_platform:
+        raise CampaignError(
+            f"{code_prefix}-platform-mismatch",
+            "invalid-environment",
+            f"{message_context} points at a device with the wrong platform for the requested role.",
+            role=role,
+            alias=alias,
+            expectedPlatform=expected_platform,
+            actualPlatform=device.get("platform"),
+            assignmentId=assignment_id,
+            scenarioId=scenario_id,
+        )
+    return device
+
+
+def run_directory_artifacts(*, run_root: Path, run_directory: Path) -> dict[str, str]:
+    return {
+        "summary": relative_path(run_directory / "summary.json", run_root=run_root),
+        "analysisJson": relative_path(run_directory / "analysis.json", run_root=run_root),
+        "analysisMarkdown": relative_path(run_directory / "analysis.md", run_root=run_root),
+        "runnerStdout": relative_path(run_directory / "runner.stdout.log", run_root=run_root),
+        "runnerStderr": relative_path(run_directory / "runner.stderr.log", run_root=run_root),
+        "analysisStdout": relative_path(run_directory / "analysis.stdout.log", run_root=run_root),
+        "analysisStderr": relative_path(run_directory / "analysis.stderr.log", run_root=run_root),
+    }
+
+
+def build_initial_campaign_status(scenarios: Sequence[Mapping[str, Any]]) -> str:
+    if any(scenario.get("status") in {"planned", "running"} for scenario in scenarios):
+        return "planned"
+    if any(scenario.get("status") == "invalid-environment" for scenario in scenarios):
+        return "invalid-environment"
+    return "skipped"
+
+
+def choose_direct_guided_projection_candidate(manifest: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    selection = manifest.get("selection")
+    if isinstance(selection, Mapping) and selection.get("status") == "selected":
+        selected_assignment = manifest.get("selectedAssignment")
+        if isinstance(selected_assignment, Mapping):
+            return selected_assignment
+
+    candidates = [
+        candidate
+        for candidate in manifest.get("candidateAssignments", [])
+        if isinstance(candidate, Mapping) and candidate.get("baseline") == "direct-guided"
+    ]
+    if not candidates:
+        return None
+
+    invalid_candidates = sorted(
+        [candidate for candidate in candidates if candidate.get("status") == "invalid-environment"],
+        key=lambda candidate: int(candidate.get("priority") or 0),
+    )
+    if invalid_candidates:
+        return invalid_candidates[0]
+
+    mixed_candidate = next((candidate for candidate in candidates if candidate.get("shape") == "mixed"), None)
+    android_only_candidate = next(
+        (candidate for candidate in candidates if candidate.get("shape") == "android-only"),
+        None,
+    )
+    if platform_devices(manifest, "ios"):
+        return mixed_candidate or android_only_candidate or candidates[0]
+    return android_only_candidate or mixed_candidate or candidates[0]
+
+
+def direct_run_directory(
+    *,
+    run_root: Path,
+    assignment_id: str | None,
+    assignment_shape: str | None,
+) -> Path:
+    projected_assignment = assignment_id
+    if not projected_assignment:
+        projected_assignment = (
+            "direct-guided-android-only"
+            if assignment_shape == "android-only"
+            else "direct-guided-mixed"
+        )
+    return run_root / "baseline" / projected_assignment
+
+
+def direct_runner_script(candidate: Mapping[str, Any] | None) -> str | None:
+    if candidate is None:
+        return None
+    assignment_id = str(candidate.get("assignmentId") or "")
+    if assignment_id in RUNNER_SCRIPTS:
+        return display_path(RUNNER_SCRIPTS[assignment_id])
+    if candidate.get("shape") == "android-only":
+        return display_path(RUNNER_SCRIPTS["direct-guided-android-only"])
+    return display_path(RUNNER_SCRIPTS["direct-guided-mixed"])
+
+
+def build_direct_guided_scenario(manifest: Mapping[str, Any], *, run_root: Path) -> dict[str, Any]:
+    selection = manifest.get("selection")
+    selection_status = str(selection.get("status") or "invalid-environment") if isinstance(selection, Mapping) else "invalid-environment"
+    projection = choose_direct_guided_projection_candidate(manifest)
+    assignment_id = str(projection.get("assignmentId") or "") if isinstance(projection, Mapping) else None
+    assignment_shape = str(projection.get("shape") or "") if isinstance(projection, Mapping) else None
+    run_directory = direct_run_directory(
+        run_root=run_root,
+        assignment_id=assignment_id,
+        assignment_shape=assignment_shape,
+    )
+
+    reasons: list[dict[str, Any]] = []
+    if isinstance(projection, Mapping):
+        reasons.extend(list(projection.get("reasons", [])))
+    if isinstance(selection, Mapping):
+        reasons.extend(list(selection.get("reasons", [])))
+    else:
+        reasons.append(
+            CampaignError(
+                "selection-missing",
+                "invalid-environment",
+                "Fleet manifest is missing a selection block.",
+            ).to_reason()
+        )
+
+    scenario = {
+        "scenarioId": "direct-guided",
+        "order": 1,
+        "baseline": "direct-guided",
+        "assignmentId": assignment_id,
+        "assignmentShape": assignment_shape,
+        "participants": dict(projection.get("participants", {})) if isinstance(projection, Mapping) else {},
+        "runnerScript": direct_runner_script(projection),
+        "analysisScript": display_path(ANALYSIS_SCRIPT),
+        "runnerCommand": None,
+        "analysisCommand": None,
+        "runDirectory": relative_path(run_directory, run_root=run_root),
+        "appId": None,
+        "initialStatus": None,
+        "status": None,
+        "eligibilityStatus": None,
+        "startedAt": None,
+        "finishedAt": None,
+        "childExitCode": None,
+        "analysisExitCode": None,
+        "analysisStatus": None,
+        "timedOut": False,
+        "artifacts": run_directory_artifacts(run_root=run_root, run_directory=run_directory),
+        "reasons": [],
+    }
+
+    if selection_status == "selected":
+        try:
+            spec = resolve_runner_spec(manifest, run_root=run_root)
+            scenario.update(
+                {
+                    "assignmentId": spec.get("assignmentId"),
+                    "assignmentShape": spec.get("shape"),
+                    "participants": dict(spec.get("participants", {})),
+                    "runnerScript": spec.get("runnerScript"),
+                    "analysisScript": spec.get("analysisScript"),
+                    "runnerCommand": display_command(spec["runnerCommand"]),
+                    "analysisCommand": display_command(spec["analysisCommand"]),
+                    "runDirectory": relative_path(spec["runDirectory"], run_root=run_root),
+                    "appId": spec.get("appId"),
+                    "initialStatus": "planned",
+                    "status": "planned",
+                    "eligibilityStatus": "runnable",
+                    "artifacts": dict(spec.get("artifacts", {})),
+                }
+            )
+        except CampaignError as error:
+            reasons.append(error.to_reason())
+            scenario["initialStatus"] = "invalid-environment"
+            scenario["status"] = "invalid-environment"
+            scenario["eligibilityStatus"] = "invalid-environment"
+    elif selection_status == "skipped":
+        scenario["initialStatus"] = "skipped"
+        scenario["status"] = "skipped"
+        scenario["eligibilityStatus"] = "skipped"
+    else:
+        if selection_status not in {"invalid-environment", "selected", "skipped"}:
+            reasons.append(
+                scenario_reason(
+                    "selection-status-invalid",
+                    "invalid-environment",
+                    "Fleet manifest reported an unknown selection status.",
+                    selectionStatus=selection_status,
+                )
+            )
+        scenario["initialStatus"] = "invalid-environment"
+        scenario["status"] = "invalid-environment"
+        scenario["eligibilityStatus"] = "invalid-environment"
+
+    scenario["reasons"] = dedupe_reason_dicts(reasons)
+    return scenario
+
+
+def build_relay_constrained_scenario(
+    manifest: Mapping[str, Any],
+    *,
+    run_root: Path,
+    direct_scenario: Mapping[str, Any],
+) -> dict[str, Any]:
+    run_directory = run_root / "scenarios" / "02-relay-constrained"
+    reasons: list[dict[str, Any]] = []
+    scenario = {
+        "scenarioId": "relay-constrained",
+        "order": 2,
+        "baseline": "relay-constrained",
+        "assignmentId": "relay-constrained",
+        "assignmentShape": "mixed",
+        "participants": {},
+        "runnerScript": display_path(RELAY_RUNNER_SCRIPT),
+        "analysisScript": display_path(ANALYSIS_SCRIPT),
+        "runnerCommand": None,
+        "analysisCommand": None,
+        "runDirectory": relative_path(run_directory, run_root=run_root),
+        "appId": None,
+        "initialStatus": None,
+        "status": None,
+        "eligibilityStatus": None,
+        "startedAt": None,
+        "finishedAt": None,
+        "childExitCode": None,
+        "analysisExitCode": None,
+        "analysisStatus": None,
+        "timedOut": False,
+        "artifacts": run_directory_artifacts(run_root=run_root, run_directory=run_directory),
+        "reasons": [],
+    }
+
+    if direct_scenario.get("eligibilityStatus") == "invalid-environment":
+        reasons.append(
+            scenario_reason(
+                "relay-prerequisite-invalid",
+                "invalid-environment",
+                "relay-constrained is not runnable because direct-guided could not be planned from the retained fleet manifest.",
+            )
+        )
+
+    adb_ready = bool(tooling_status(manifest, "adb").get("available"))
+    devicectl_ready = bool(tooling_status(manifest, "devicectl").get("available"))
+    development_team_ready = bool(tooling_status(manifest, "developmentTeam").get("available"))
+    if not adb_ready:
+        reasons.extend(tooling_reasons(manifest, "adb"))
+    if not devicectl_ready:
+        reasons.extend(tooling_reasons(manifest, "devicectl"))
+    if not development_team_ready:
+        reasons.extend(tooling_reasons(manifest, "developmentTeam"))
+
+    ios_devices = platform_devices(manifest, "ios")
+    healthy_ios = healthy_platform_devices(manifest, "ios")
+    android_devices = platform_devices(manifest, "android")
+    healthy_android = healthy_platform_devices(manifest, "android")
+
+    if not ios_devices and devicectl_ready:
+        reasons.append(
+            scenario_reason(
+                "relay-ios-sender-required",
+                "skip",
+                "relay-constrained requires one healthy iOS sender from the retained fleet manifest.",
+            )
+        )
+    elif not healthy_ios and ios_devices:
+        reasons.append(
+            scenario_reason(
+                "relay-ios-sender-unhealthy",
+                "invalid-environment",
+                "relay-constrained requires a healthy iOS sender, but none of the discovered iOS devices are runnable.",
+            )
+        )
+
+    if len(android_devices) < 2 and adb_ready:
+        reasons.append(
+            scenario_reason(
+                "relay-android-fleet-too-small",
+                "skip",
+                "relay-constrained requires two healthy Android devices from the retained fleet manifest.",
+            )
+        )
+    elif len(healthy_android) < 2 and android_devices:
+        reasons.append(
+            scenario_reason(
+                "relay-android-devices-unhealthy",
+                "invalid-environment",
+                "relay-constrained requires two healthy Android devices, but fewer than two are runnable.",
+            )
+        )
+
+    sender_device: dict[str, Any] | None = None
+    passive_device: dict[str, Any] | None = None
+    relay_device: dict[str, Any] | None = None
+    preferred_sender_alias = None
+    preferred_passive_alias = None
+    preferred_relay_participants = (
+        direct_scenario.get("eligibilityStatus") == "runnable"
+        and direct_scenario.get("assignmentShape") == "mixed"
+    )
+    if preferred_relay_participants:
+        preferred_sender_alias = direct_scenario.get("participants", {}).get("sender")
+        preferred_passive_alias = direct_scenario.get("participants", {}).get("passive")
+        try:
+            sender_device = resolve_unique_device_alias(
+                manifest,
+                preferred_sender_alias,
+                role="sender",
+                expected_platform="ios",
+                code_prefix="relay-participant",
+                message_context="relay-constrained participant selection",
+                scenario_id="relay-constrained",
+            )
+            passive_device = resolve_unique_device_alias(
+                manifest,
+                preferred_passive_alias,
+                role="passive",
+                expected_platform="android",
+                code_prefix="relay-participant",
+                message_context="relay-constrained participant selection",
+                scenario_id="relay-constrained",
+            )
+        except CampaignError as error:
+            reasons.append(error.to_reason())
+    else:
+        sender_device = healthy_ios[0] if healthy_ios else None
+        passive_device = healthy_android[0] if healthy_android else None
+
+    if sender_device is not None and not sender_device.get("available"):
+        reasons.append(
+            scenario_reason(
+                "relay-ios-sender-unhealthy",
+                "invalid-environment",
+                "relay-constrained selected an iOS sender that is not runnable.",
+                alias=sender_device.get("alias"),
+            )
+        )
+        sender_device = None
+    if passive_device is not None and not passive_device.get("available"):
+        reasons.append(
+            scenario_reason(
+                "relay-android-passive-unhealthy",
+                "invalid-environment",
+                "relay-constrained selected an Android passive device that is not runnable.",
+                alias=passive_device.get("alias"),
+            )
+        )
+        passive_device = None
+
+    if passive_device is not None:
+        relay_device = next(
+            (
+                device
+                for device in healthy_android
+                if device.get("alias") != passive_device.get("alias")
+            ),
+            None,
+        )
+    if relay_device is None and len(healthy_android) >= 2 and passive_device is None:
+        relay_device = healthy_android[1]
+    if relay_device is not None and not relay_device.get("available"):
+        reasons.append(
+            scenario_reason(
+                "relay-android-relay-unhealthy",
+                "invalid-environment",
+                "relay-constrained selected an Android relay device that is not runnable.",
+                alias=relay_device.get("alias"),
+            )
+        )
+        relay_device = None
+
+    scenario["participants"] = {
+        "sender": sender_device.get("alias") if sender_device is not None else preferred_sender_alias,
+        "relay": relay_device.get("alias") if relay_device is not None else None,
+        "passive": passive_device.get("alias") if passive_device is not None else preferred_passive_alias,
+    }
+
+    if (
+        passive_device is not None
+        and relay_device is not None
+        and passive_device.get("alias") == relay_device.get("alias")
+    ):
+        reasons.append(
+            scenario_reason(
+                "relay-android-participants-duplicate",
+                "invalid-environment",
+                "relay-constrained resolved the same Android alias for both the relay and passive roles.",
+                alias=passive_device.get("alias"),
+            )
+        )
+
+    runnable = (
+        sender_device is not None
+        and passive_device is not None
+        and relay_device is not None
+        and adb_ready
+        and devicectl_ready
+        and development_team_ready
+        and not any(reason.get("kind") == "invalid-environment" for reason in reasons)
+        and not any(reason.get("kind") == "skip" for reason in reasons)
+    )
+    if runnable:
+        app_id = build_app_id("relay-constrained")
+        runner_command = [
+            "python3",
+            str(RELAY_RUNNER_SCRIPT),
+            "--ios-device",
+            str(sender_device["controlId"]),
+            "--relay-android-serial",
+            str(relay_device["controlId"]),
+            "--passive-android-serial",
+            str(passive_device["controlId"]),
+            "--app-id",
+            app_id,
+            "--run-dir",
+            str(run_directory),
+        ]
+        analysis_command = [
+            "python3",
+            str(ANALYSIS_SCRIPT),
+            "--run-dir",
+            str(run_directory),
+        ]
+        scenario.update(
+            {
+                "appId": app_id,
+                "runnerCommand": display_command(runner_command),
+                "analysisCommand": display_command(analysis_command),
+            }
+        )
+        reasons.append(
+            scenario_reason(
+                "relay-constrained-runnable",
+                "info",
+                "relay-constrained is runnable from the retained happy-path fleet projection.",
+            )
+        )
+        scenario["eligibilityStatus"] = "runnable"
+        scenario["initialStatus"] = "planned"
+        scenario["status"] = "planned"
+    else:
+        eligibility_status = (
+            "invalid-environment"
+            if any(reason.get("kind") == "invalid-environment" for reason in reasons)
+            else "skipped"
+        )
+        scenario["eligibilityStatus"] = eligibility_status
+        scenario["initialStatus"] = eligibility_status
+        scenario["status"] = eligibility_status
+
+    scenario["reasons"] = dedupe_reason_dicts(reasons)
+    return scenario
+
+
+def build_happy_path_scenarios(manifest: Mapping[str, Any], *, run_root: Path) -> list[dict[str, Any]]:
+    direct_scenario = build_direct_guided_scenario(manifest, run_root=run_root)
+    relay_scenario = build_relay_constrained_scenario(
+        manifest,
+        run_root=run_root,
+        direct_scenario=direct_scenario,
+    )
+    return [direct_scenario, relay_scenario]
+
+
+def baseline_execution_from_scenario(scenario: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": scenario.get("status"),
+        "assignmentId": scenario.get("assignmentId"),
+        "baseline": scenario.get("baseline"),
+        "shape": scenario.get("assignmentShape"),
+        "participants": dict(scenario.get("participants", {})),
+        "runnerScript": scenario.get("runnerScript"),
+        "analysisScript": scenario.get("analysisScript"),
+        "runnerCommand": list(scenario.get("runnerCommand") or []),
+        "analysisCommand": list(scenario.get("analysisCommand") or []),
+        "runDirectory": scenario.get("runDirectory"),
+        "appId": scenario.get("appId"),
+        "startedAt": scenario.get("startedAt"),
+        "finishedAt": scenario.get("finishedAt"),
+        "childExitCode": scenario.get("childExitCode"),
+        "analysisExitCode": scenario.get("analysisExitCode"),
+        "analysisStatus": scenario.get("analysisStatus"),
+        "timedOut": scenario.get("timedOut"),
+        "reasons": list(scenario.get("reasons", [])),
+        "artifacts": dict(scenario.get("artifacts", {})),
+    }
+
+
+def serialize_scenario_plan(manifest: Mapping[str, Any], scenario: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "order": scenario.get("order"),
+        "scenarioId": scenario.get("scenarioId"),
+        "baseline": scenario.get("baseline"),
+        "assignmentId": scenario.get("assignmentId"),
+        "assignmentShape": scenario.get("assignmentShape"),
+        "initialStatus": scenario.get("initialStatus"),
+        "eligibilityStatus": scenario.get("eligibilityStatus"),
+        "runnable": scenario.get("eligibilityStatus") == "runnable",
+        "appId": scenario.get("appId"),
+        "participants": resolve_participant_details(
+            manifest,
+            scenario.get("participants") if isinstance(scenario.get("participants"), Mapping) else {},
+        ),
+        "reasons": list(scenario.get("reasons", [])),
+        "runnerScript": scenario.get("runnerScript"),
+        "analysisScript": scenario.get("analysisScript"),
+        "runnerCommand": list(scenario.get("runnerCommand") or []),
+        "analysisCommand": list(scenario.get("analysisCommand") or []),
+        "runDirectory": scenario.get("runDirectory"),
+        "artifacts": dict(scenario.get("artifacts", {})),
+    }
+
+
+def serialize_scenario_state(manifest: Mapping[str, Any], scenario: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "order": scenario.get("order"),
+        "scenarioId": scenario.get("scenarioId"),
+        "baseline": scenario.get("baseline"),
+        "assignmentId": scenario.get("assignmentId"),
+        "assignmentShape": scenario.get("assignmentShape"),
+        "initialStatus": scenario.get("initialStatus"),
+        "eligibilityStatus": scenario.get("eligibilityStatus"),
+        "status": scenario.get("status"),
+        "appId": scenario.get("appId"),
+        "participants": resolve_participant_details(
+            manifest,
+            scenario.get("participants") if isinstance(scenario.get("participants"), Mapping) else {},
+        ),
+        "reasons": list(scenario.get("reasons", [])),
+        "runnerScript": scenario.get("runnerScript"),
+        "analysisScript": scenario.get("analysisScript"),
+        "runnerCommand": list(scenario.get("runnerCommand") or []),
+        "analysisCommand": list(scenario.get("analysisCommand") or []),
+        "runDirectory": scenario.get("runDirectory"),
+        "startedAt": scenario.get("startedAt"),
+        "finishedAt": scenario.get("finishedAt"),
+        "childExitCode": scenario.get("childExitCode"),
+        "analysisExitCode": scenario.get("analysisExitCode"),
+        "analysisStatus": scenario.get("analysisStatus"),
+        "timedOut": scenario.get("timedOut"),
+        "artifacts": dict(scenario.get("artifacts", {})),
+    }
+
+
+def build_campaign_state_document(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    campaign = manifest.get("campaign") if isinstance(manifest.get("campaign"), Mapping) else {}
+    return {
+        "stateVersion": CAMPAIGN_STATE_VERSION,
+        "scenarioCatalogVersion": campaign.get("scenarioCatalogVersion"),
+        "generatedAt": manifest.get("generatedAt"),
+        "updatedAt": iso_timestamp(),
+        "status": campaign.get("status"),
+        "runRoot": campaign.get("runRoot"),
+        "fleetManifestPath": campaign.get("fleetManifestPath"),
+        "campaignPlanPath": campaign.get("campaignPlanPath"),
+        "happyPathGate": dict(campaign.get("happyPathGate", {})),
+        "scenarios": [
+            serialize_scenario_state(manifest, scenario)
+            for scenario in campaign.get("scenarios", [])
+            if isinstance(scenario, Mapping)
+        ],
+        "eventLog": list(manifest.get("campaignLog", [])),
+    }
+
+
+def plan_happy_path_campaign(manifest: Mapping[str, Any], *, run_root: Path) -> dict[str, Any]:
+    scenarios = build_happy_path_scenarios(manifest, run_root=run_root)
+    direct_scenario = next(
+        scenario for scenario in scenarios if scenario.get("scenarioId") == "direct-guided"
+    )
+    campaign = {
+        "status": build_initial_campaign_status(scenarios),
         "runRoot": str(run_root),
         "fleetManifestPath": "fleet-manifest.json",
         "campaignPlanPath": "campaign-plan.json",
-        "baselineExecution": {
-            "status": baseline_status,
-            "assignmentId": selected_assignment.get("assignmentId") if isinstance(selected_assignment, Mapping) else None,
-            "baseline": selected_assignment.get("baseline") if isinstance(selected_assignment, Mapping) else None,
-            "shape": selected_assignment.get("shape") if isinstance(selected_assignment, Mapping) else None,
-            "participants": dict(selected_assignment.get("participants", {})) if isinstance(selected_assignment, Mapping) else {},
-            "runnerScript": None,
-            "analysisScript": display_path(ANALYSIS_SCRIPT),
-            "runnerCommand": None,
-            "analysisCommand": None,
-            "runDirectory": None,
-            "appId": None,
-            "startedAt": None,
-            "finishedAt": None,
-            "childExitCode": None,
-            "analysisExitCode": None,
-            "analysisStatus": None,
-            "timedOut": False,
-            "reasons": list(selection.get("reasons", [])),
-            "artifacts": {
-                "summary": None,
-                "analysisJson": None,
-                "analysisMarkdown": None,
-                "runnerStdout": None,
-                "runnerStderr": None,
-                "analysisStdout": None,
-                "analysisStderr": None,
-            },
+        "campaignStatePath": "campaign-state.json",
+        "scenarioCatalogVersion": SCENARIO_CATALOG_VERSION,
+        "happyPathGate": {
+            "status": "green",
+            "firstFailScenarioId": None,
+            "triggeredAt": None,
+            "updatedAt": iso_timestamp(),
         },
+        "scenarios": scenarios,
+        "baselineExecution": baseline_execution_from_scenario(direct_scenario),
     }
-    append_campaign_event(manifest, "campaign-initialized", selectionStatus=selection_status)
+    working_manifest = dict(manifest)
+    working_manifest["campaign"] = campaign
+    return {
+        "campaign": campaign,
+        "plan": build_campaign_plan(working_manifest),
+        "state": build_campaign_state_document(working_manifest),
+    }
+
+
+def initialize_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
+    planned = plan_happy_path_campaign(manifest, run_root=run_root)
+    manifest["campaign"] = planned["campaign"]
+    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
+    append_campaign_event(
+        manifest,
+        "campaign-initialized",
+        selectionStatus=selection.get("status"),
+        scenarioIds=[
+            scenario.get("scenarioId")
+            for scenario in manifest["campaign"].get("scenarios", [])
+            if isinstance(scenario, Mapping)
+        ],
+    )
 
 
 def exit_code_for_status(status: str) -> int:
@@ -280,14 +929,19 @@ def merge_status(current: str, new_status: str) -> str:
     return new_status if precedence.get(new_status, 0) > precedence.get(current, 0) else current
 
 
-def campaign_paths(run_root: Path) -> tuple[Path, Path]:
-    return run_root / "fleet-manifest.json", run_root / "campaign-plan.json"
+def campaign_paths(run_root: Path) -> tuple[Path, Path, Path]:
+    return (
+        run_root / "fleet-manifest.json",
+        run_root / "campaign-plan.json",
+        run_root / "campaign-state.json",
+    )
 
 
 def persist_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
-    manifest_path, campaign_plan_path = campaign_paths(run_root)
+    manifest_path, campaign_plan_path, campaign_state_path = campaign_paths(run_root)
     write_json_document(manifest_path, manifest)
     write_json_document(campaign_plan_path, build_campaign_plan(manifest))
+    write_json_document(campaign_state_path, build_campaign_state_document(manifest))
 
 
 def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -316,8 +970,9 @@ def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:
             }
         )
 
+    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
     selected_baseline = None
-    if baseline_execution.get("assignmentId"):
+    if selection.get("status") == "selected" and baseline_execution.get("assignmentId"):
         selected_baseline = {
             "assignmentId": baseline_execution.get("assignmentId"),
             "baseline": baseline_execution.get("baseline"),
@@ -338,15 +993,54 @@ def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:
         }
 
     return {
-        "planVersion": 1,
+        "planVersion": 2,
+        "scenarioCatalogVersion": campaign.get("scenarioCatalogVersion"),
         "generatedAt": manifest.get("generatedAt"),
         "status": campaign.get("status"),
         "runRoot": campaign.get("runRoot"),
         "fleetManifestPath": campaign.get("fleetManifestPath"),
-        "selection": dict(manifest.get("selection", {})),
+        "campaignStatePath": campaign.get("campaignStatePath"),
+        "selection": dict(selection),
         "candidateAssignments": candidate_assignments,
         "selectedBaseline": selected_baseline,
+        "scenarios": [
+            serialize_scenario_plan(manifest, scenario)
+            for scenario in campaign.get("scenarios", [])
+            if isinstance(scenario, Mapping)
+        ],
     }
+
+
+def find_campaign_scenario_entry(
+    manifest: Mapping[str, Any],
+    scenario_id: str,
+) -> dict[str, Any] | None:
+    campaign = manifest.get("campaign")
+    if not isinstance(campaign, Mapping):
+        return None
+    for scenario in campaign.get("scenarios", []):
+        if isinstance(scenario, Mapping) and scenario.get("scenarioId") == scenario_id:
+            return scenario
+    return None
+
+
+def sync_baseline_execution_from_direct_scenario(manifest: dict[str, Any]) -> None:
+    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
+    if direct_scenario is None:
+        return
+    manifest["campaign"]["baselineExecution"] = baseline_execution_from_scenario(direct_scenario)
+
+
+def trip_happy_path_gate(manifest: dict[str, Any], *, scenario_id: str) -> None:
+    gate = manifest["campaign"].get("happyPathGate")
+    if not isinstance(gate, dict):
+        return
+    if gate.get("firstFailScenarioId") is not None:
+        return
+    gate["status"] = "red"
+    gate["firstFailScenarioId"] = scenario_id
+    gate["triggeredAt"] = iso_timestamp()
+    gate["updatedAt"] = gate["triggeredAt"]
 
 
 def resolve_participant_details(
@@ -355,10 +1049,11 @@ def resolve_participant_details(
 ) -> dict[str, dict[str, Any] | None]:
     resolved: dict[str, dict[str, Any] | None] = {}
     for role, alias in participants.items():
-        device = reference_fleet.find_device_by_alias(manifest, str(alias) if alias is not None else None)
-        if device is None:
+        matches = matching_devices_by_alias(manifest, str(alias) if alias is not None else None)
+        if len(matches) != 1:
             resolved[str(role)] = None
             continue
+        device = matches[0]
         resolved[str(role)] = {
             "alias": device.get("alias"),
             "platform": device.get("platform"),
@@ -424,29 +1119,15 @@ def resolve_required_participant(
             "Selected baseline assignment is missing participant aliases.",
             assignmentId=selected_assignment.get("assignmentId"),
         )
-    alias = participants.get(role)
-    device = reference_fleet.find_device_by_alias(manifest, str(alias) if alias is not None else None)
-    if device is None:
-        raise CampaignError(
-            "selected-assignment-device-missing",
-            "invalid-environment",
-            "Selected baseline assignment points at a device alias that is not present in the manifest.",
-            assignmentId=selected_assignment.get("assignmentId"),
-            role=role,
-            alias=alias,
-        )
-    if device.get("platform") != expected_platform:
-        raise CampaignError(
-            "selected-assignment-platform-mismatch",
-            "invalid-environment",
-            "Selected baseline assignment points at a device with the wrong platform for the requested role.",
-            assignmentId=selected_assignment.get("assignmentId"),
-            role=role,
-            alias=alias,
-            expectedPlatform=expected_platform,
-            actualPlatform=device.get("platform"),
-        )
-    return device
+    return resolve_unique_device_alias(
+        manifest,
+        participants.get(role),
+        role=role,
+        expected_platform=expected_platform,
+        code_prefix="selected-assignment",
+        message_context="Selected baseline assignment",
+        assignment_id=str(selected_assignment.get("assignmentId") or "") or None,
+    )
 
 
 def resolve_unused_available_android_serials(
@@ -579,27 +1260,32 @@ def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[
 
 
 def apply_runner_spec(manifest: dict[str, Any], spec: Mapping[str, Any]) -> None:
-    baseline_execution = manifest["campaign"]["baselineExecution"]
-    baseline_execution["assignmentId"] = spec.get("assignmentId")
-    baseline_execution["baseline"] = spec.get("baseline")
-    baseline_execution["shape"] = spec.get("shape")
-    baseline_execution["participants"] = dict(spec.get("participants", {}))
-    baseline_execution["runnerScript"] = spec.get("runnerScript")
-    baseline_execution["analysisScript"] = spec.get("analysisScript")
-    baseline_execution["runnerCommand"] = display_command(spec["runnerCommand"])
-    baseline_execution["analysisCommand"] = display_command(spec["analysisCommand"])
-    baseline_execution["runDirectory"] = relative_path(spec["runDirectory"], run_root=Path(manifest["campaign"]["runRoot"]))
-    baseline_execution["appId"] = spec.get("appId")
-    baseline_execution["startedAt"] = iso_timestamp()
-    baseline_execution["status"] = "running"
-    baseline_execution["artifacts"] = dict(spec.get("artifacts", {}))
+    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
+    if direct_scenario is not None:
+        direct_scenario["assignmentId"] = spec.get("assignmentId")
+        direct_scenario["assignmentShape"] = spec.get("shape")
+        direct_scenario["participants"] = dict(spec.get("participants", {}))
+        direct_scenario["runnerScript"] = spec.get("runnerScript")
+        direct_scenario["analysisScript"] = spec.get("analysisScript")
+        direct_scenario["runnerCommand"] = display_command(spec["runnerCommand"])
+        direct_scenario["analysisCommand"] = display_command(spec["analysisCommand"])
+        direct_scenario["runDirectory"] = relative_path(
+            spec["runDirectory"],
+            run_root=Path(manifest["campaign"]["runRoot"]),
+        )
+        direct_scenario["appId"] = spec.get("appId")
+        direct_scenario["startedAt"] = iso_timestamp()
+        direct_scenario["status"] = "running"
+        direct_scenario["artifacts"] = dict(spec.get("artifacts", {}))
+
+    sync_baseline_execution_from_direct_scenario(manifest)
     manifest["campaign"]["status"] = "running"
     append_campaign_event(
         manifest,
         "baseline-runner-selected",
         assignmentId=spec.get("assignmentId"),
         runnerScript=spec.get("runnerScript"),
-        runDirectory=baseline_execution["runDirectory"],
+        runDirectory=manifest["campaign"]["baselineExecution"].get("runDirectory"),
     )
 
 
@@ -814,22 +1500,28 @@ def run_campaign(
     initialize_campaign_state(manifest, run_root=run_root)
     persist_campaign_state(manifest, run_root=run_root)
 
-    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
-    selection_status = str(selection.get("status") or "invalid-environment")
-    if selection_status != "selected":
-        append_campaign_event(manifest, "campaign-finished", status=selection_status)
+    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
+    if direct_scenario is None:
+        append_campaign_event(manifest, "campaign-finished", status="invalid-environment")
+        manifest["campaign"]["status"] = "invalid-environment"
         persist_campaign_state(manifest, run_root=run_root)
-        return exit_code_for_status(selection_status)
+        return EXIT_INVALID_ENVIRONMENT
+
+    if direct_scenario.get("status") != "planned":
+        final_status = str(manifest["campaign"].get("status") or direct_scenario.get("status") or "invalid-environment")
+        append_campaign_event(manifest, "campaign-finished", status=final_status)
+        persist_campaign_state(manifest, run_root=run_root)
+        return exit_code_for_status(final_status)
 
     try:
         spec = resolve_runner_spec(manifest, run_root=run_root)
     except CampaignError as error:
-        baseline_execution = manifest["campaign"]["baselineExecution"]
-        baseline_execution["status"] = "invalid-environment"
-        baseline_execution["finishedAt"] = iso_timestamp()
-        baseline_execution["reasons"] = dedupe_reason_dicts(
-            [*baseline_execution.get("reasons", []), error.to_reason()]
+        direct_scenario["status"] = "invalid-environment"
+        direct_scenario["finishedAt"] = iso_timestamp()
+        direct_scenario["reasons"] = dedupe_reason_dicts(
+            [*direct_scenario.get("reasons", []), error.to_reason()]
         )
+        sync_baseline_execution_from_direct_scenario(manifest)
         manifest["campaign"]["status"] = "invalid-environment"
         append_campaign_event(manifest, "campaign-invalid-manifest", code=error.code)
         persist_campaign_state(manifest, run_root=run_root)
@@ -866,18 +1558,23 @@ def run_campaign(
         runner_result=runner_result,
         analysis_result=analysis_result,
     )
-    baseline_execution = manifest["campaign"]["baselineExecution"]
-    baseline_execution["status"] = status
-    baseline_execution["finishedAt"] = iso_timestamp()
-    baseline_execution["childExitCode"] = runner_result.returncode
-    baseline_execution["analysisExitCode"] = analysis_result.returncode if analysis_result is not None else None
-    baseline_execution["analysisStatus"] = analysis_status
-    baseline_execution["timedOut"] = bool(runner_result.timed_out) or bool(
-        analysis_result.timed_out if analysis_result is not None else False
-    )
-    baseline_execution["reasons"] = dedupe_reason_dicts(
-        [*baseline_execution.get("reasons", []), *reasons]
-    )
+    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
+    if direct_scenario is not None:
+        direct_scenario["status"] = status
+        direct_scenario["finishedAt"] = iso_timestamp()
+        direct_scenario["childExitCode"] = runner_result.returncode
+        direct_scenario["analysisExitCode"] = analysis_result.returncode if analysis_result is not None else None
+        direct_scenario["analysisStatus"] = analysis_status
+        direct_scenario["timedOut"] = bool(runner_result.timed_out) or bool(
+            analysis_result.timed_out if analysis_result is not None else False
+        )
+        direct_scenario["reasons"] = dedupe_reason_dicts(
+            [*direct_scenario.get("reasons", []), *reasons]
+        )
+
+    sync_baseline_execution_from_direct_scenario(manifest)
+    if status != "pass":
+        trip_happy_path_gate(manifest, scenario_id="direct-guided")
     manifest["campaign"]["status"] = status
     append_campaign_event(manifest, "campaign-finished", status=status)
     persist_campaign_state(manifest, run_root=run_root)

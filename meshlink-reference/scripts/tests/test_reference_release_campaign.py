@@ -132,12 +132,79 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
     def load_json(self, path: Path) -> dict[str, object]:
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def scenario_by_id(self, payload: dict[str, object], scenario_id: str) -> dict[str, object]:
+        return next(
+            scenario
+            for scenario in payload["scenarios"]
+            if scenario["scenarioId"] == scenario_id
+        )
+
+    def reason_codes(self, payload: dict[str, object]) -> set[str]:
+        return {reason["code"] for reason in payload.get("reasons", [])}
+
     def extra_force_stop_serials(self, command: list[str]) -> list[str]:
         return [
             command[index + 1]
             for index, token in enumerate(command[:-1])
             if token == "--extra-force-stop-serial"
         ]
+
+    def test_plan_happy_path_campaign_orders_mixed_direct_then_relay_with_green_initial_gate(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-relay", "device")),
+            android_models={
+                "android-passive": "Pixel 8",
+                "android-relay": "Galaxy S24",
+            },
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+
+        # Act
+        planned = release_campaign.plan_happy_path_campaign(
+            manifest,
+            run_root=Path("/tmp/reference-release-campaign"),
+        )
+
+        # Assert
+        campaign_plan = planned["plan"]
+        campaign_state = planned["state"]
+        direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+        relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
+        direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+        relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+
+        self.assertEqual(campaign_plan["planVersion"], 2)
+        self.assertEqual(campaign_plan["scenarioCatalogVersion"], 1)
+        self.assertEqual(campaign_state["stateVersion"], 1)
+        self.assertEqual(
+            [scenario["scenarioId"] for scenario in campaign_plan["scenarios"]],
+            ["direct-guided", "relay-constrained"],
+        )
+
+        self.assertEqual(direct_plan["assignmentShape"], "mixed")
+        self.assertEqual(direct_plan["initialStatus"], "planned")
+        self.assertEqual(direct_plan["eligibilityStatus"], "runnable")
+        self.assertEqual(Path(direct_plan["runnerScript"]).name, "run_headless_reference_live_proof.py")
+        self.assertEqual(direct_plan["runDirectory"], "baseline/direct-guided-mixed")
+        self.assertEqual(direct_plan["participants"]["sender"]["platform"], "ios")
+        self.assertEqual(direct_plan["participants"]["passive"]["platform"], "android")
+
+        self.assertEqual(relay_plan["initialStatus"], "planned")
+        self.assertEqual(relay_plan["eligibilityStatus"], "runnable")
+        self.assertEqual(Path(relay_plan["runnerScript"]).name, "run_headless_reference_relay_proof.py")
+        self.assertEqual(relay_plan["runDirectory"], "scenarios/02-relay-constrained")
+        self.assertEqual(relay_plan["participants"]["sender"]["platform"], "ios")
+        self.assertEqual(relay_plan["participants"]["relay"]["platform"], "android")
+        self.assertEqual(relay_plan["participants"]["passive"]["platform"], "android")
+        self.assertIn("--relay-android-serial", relay_plan["runnerCommand"])
+        self.assertIn("--passive-android-serial", relay_plan["runnerCommand"])
+        self.assertEqual(campaign_plan["selectedBaseline"]["shape"], "mixed")
+
+        self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+        self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
+        self.assertEqual(direct_state["status"], "planned")
+        self.assertEqual(relay_state["status"], "planned")
 
     def test_run_campaign_prefers_mixed_runner_and_persists_artifact_links(self) -> None:
         # Arrange
@@ -207,6 +274,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
 
             campaign_plan = self.load_json(run_root / "campaign-plan.json")
+            direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+            relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
             self.assertEqual(campaign_plan["status"], "pass")
             self.assertEqual(campaign_plan["selectedBaseline"]["shape"], "mixed")
             self.assertEqual(
@@ -225,6 +294,21 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 campaign_plan["selectedBaseline"]["runnerCommand"],
                 baseline_execution["runnerCommand"],
             )
+            self.assertEqual(direct_plan["initialStatus"], "planned")
+            self.assertEqual(relay_plan["initialStatus"], "planned")
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            self.assertEqual(direct_state["status"], "pass")
+            self.assertEqual(
+                direct_state["artifacts"]["summary"],
+                "baseline/direct-guided-mixed/summary.json",
+            )
+            self.assertEqual(relay_state["status"], "planned")
+            self.assertEqual(relay_state["runDirectory"], "scenarios/02-relay-constrained")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+            self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
 
     def test_run_campaign_dispatches_android_only_runner_for_three_android_devices(self) -> None:
         # Arrange
@@ -291,6 +375,21 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 unused_android_serials,
             )
 
+            campaign_plan = self.load_json(run_root / "campaign-plan.json")
+            direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+            relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
+            self.assertEqual(direct_plan["assignmentShape"], "android-only")
+            self.assertEqual(direct_plan["initialStatus"], "planned")
+            self.assertEqual(relay_plan["initialStatus"], "skipped")
+            self.assertEqual(relay_plan["eligibilityStatus"], "skipped")
+            self.assertIn("relay-ios-sender-required", self.reason_codes(relay_plan))
+            self.assertEqual(campaign_plan["selectedBaseline"]["shape"], "android-only")
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            self.assertEqual(relay_state["status"], "skipped")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+
     def test_run_campaign_marks_skipped_and_never_dispatches_a_child_runner(self) -> None:
         # Arrange
         manifest = self.build_manifest(
@@ -317,10 +416,22 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             persisted_manifest = self.load_json(run_root / "fleet-manifest.json")
             self.assertEqual(persisted_manifest["selection"]["status"], "skipped")
             self.assertEqual(persisted_manifest["campaign"]["baselineExecution"]["status"], "skipped")
-            self.assertEqual(
-                persisted_manifest["campaign"]["baselineExecution"]["reasons"][0]["code"],
+            self.assertIn(
                 "no-runnable-candidate",
+                {reason["code"] for reason in persisted_manifest["campaign"]["baselineExecution"]["reasons"]},
             )
+
+            campaign_plan = self.load_json(run_root / "campaign-plan.json")
+            direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+            relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
+            self.assertEqual(direct_plan["assignmentShape"], "android-only")
+            self.assertEqual(direct_plan["initialStatus"], "skipped")
+            self.assertEqual(relay_plan["initialStatus"], "skipped")
+            self.assertEqual(campaign_plan["selectedBaseline"], None)
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+            self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
 
     def test_run_campaign_marks_invalid_environment_and_never_dispatches_a_child_runner(self) -> None:
         # Arrange
@@ -357,6 +468,95 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "ios-development-team-unresolved",
                 {reason["code"] for reason in persisted_manifest["campaign"]["baselineExecution"]["reasons"]},
             )
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            self.assertEqual(direct_state["status"], "invalid-environment")
+            self.assertEqual(relay_state["status"], "invalid-environment")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+
+    def test_plan_happy_path_campaign_uses_android_only_direct_but_invalidates_relay_when_ios_signing_is_unresolved(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-one", "device"), ("android-two", "device")),
+            android_models={
+                "android-one": "Pixel 8",
+                "android-two": "Galaxy S24",
+            },
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+            development_team_lookup=unresolved_team_lookup,
+        )
+
+        # Act
+        planned = release_campaign.plan_happy_path_campaign(
+            manifest,
+            run_root=Path("/tmp/reference-release-campaign"),
+        )
+
+        # Assert
+        campaign_plan = planned["plan"]
+        direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+        relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
+        self.assertEqual(direct_plan["assignmentShape"], "android-only")
+        self.assertEqual(direct_plan["initialStatus"], "planned")
+        self.assertEqual(relay_plan["initialStatus"], "invalid-environment")
+        self.assertIn("ios-development-team-unresolved", self.reason_codes(relay_plan))
+        self.assertEqual(planned["state"]["happyPathGate"]["status"], "green")
+
+    def test_plan_happy_path_campaign_rejects_malformed_selection_payloads(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-relay", "device")),
+            android_models={
+                "android-passive": "Pixel 8",
+                "android-relay": "Galaxy S24",
+            },
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        duplicate_alias_manifest = json.loads(json.dumps(manifest))
+        duplicate_alias = duplicate_alias_manifest["selectedAssignment"]["participants"]["passive"]
+        for device in duplicate_alias_manifest["devices"]:
+            if device["alias"] != duplicate_alias:
+                device["alias"] = duplicate_alias
+                break
+
+        cases = [
+            (
+                "missing-selection",
+                {**manifest, "selection": None},
+                "selection-missing",
+            ),
+            (
+                "selection-mismatch",
+                {
+                    **manifest,
+                    "selection": {
+                        **manifest["selection"],
+                        "selectedAssignmentId": "unexpected-assignment",
+                    },
+                },
+                "selected-assignment-mismatch",
+            ),
+            (
+                "duplicate-alias",
+                duplicate_alias_manifest,
+                "selected-assignment-device-duplicate",
+            ),
+        ]
+
+        for name, malformed_manifest, expected_code in cases:
+            with self.subTest(name=name):
+                planned = release_campaign.plan_happy_path_campaign(
+                    malformed_manifest,
+                    run_root=Path("/tmp/reference-release-campaign"),
+                )
+                direct_plan = self.scenario_by_id(planned["plan"], "direct-guided")
+                relay_plan = self.scenario_by_id(planned["plan"], "relay-constrained")
+                self.assertEqual(direct_plan["initialStatus"], "invalid-environment")
+                self.assertIn(expected_code, self.reason_codes(direct_plan))
+                self.assertEqual(relay_plan["eligibilityStatus"], "invalid-environment")
+                self.assertEqual(relay_plan["runnerCommand"], [])
 
     def test_resolve_runner_spec_rejects_selected_manifest_without_a_known_assignment(self) -> None:
         # Arrange
@@ -416,6 +616,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 {reason["code"] for reason in baseline_execution["reasons"]},
             )
 
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            self.assertEqual(direct_state["status"], "fail")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
+            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
+
     def test_run_campaign_classifies_environmental_child_failures_honestly(self) -> None:
         # Arrange
         manifest = self.build_manifest(
@@ -453,6 +659,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "baseline-runner-invalid-environment",
                 {reason["code"] for reason in baseline_execution["reasons"]},
             )
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            self.assertEqual(direct_state["status"], "invalid-environment")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
+            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
 
 
 if __name__ == "__main__":
