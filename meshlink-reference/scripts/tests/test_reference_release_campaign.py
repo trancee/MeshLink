@@ -132,6 +132,13 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
     def load_json(self, path: Path) -> dict[str, object]:
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def extra_force_stop_serials(self, command: list[str]) -> list[str]:
+        return [
+            command[index + 1]
+            for index, token in enumerate(command[:-1])
+            if token == "--extra-force-stop-serial"
+        ]
+
     def test_run_campaign_prefers_mixed_runner_and_persists_artifact_links(self) -> None:
         # Arrange
         manifest = self.build_manifest(
@@ -163,11 +170,19 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 manifest["selectedAssignment"]["participants"]["passive"],
             )
             self.assertIsNotNone(selected_passive)
+            unused_android_serials = [
+                device["controlId"]
+                for device in manifest["devices"]
+                if device["platform"] == "android"
+                and device["available"]
+                and device["controlId"] != selected_passive["controlId"]
+            ]
             self.assertEqual(Path(child_command[1]).name, "run_headless_reference_live_proof.py")
             self.assertIn("--android-serial", child_command)
             self.assertIn(selected_passive["controlId"], child_command)
             self.assertIn("--ios-device", child_command)
             self.assertIn("00008110-000E196E0E92401E", child_command)
+            self.assertEqual(self.extra_force_stop_serials(child_command), unused_android_serials)
 
             persisted_manifest = self.load_json(run_root / "fleet-manifest.json")
             baseline_execution = persisted_manifest["campaign"]["baselineExecution"]
@@ -186,6 +201,10 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 baseline_execution["artifacts"]["analysisMarkdown"],
                 "baseline/direct-guided-mixed/analysis.md",
             )
+            self.assertEqual(
+                self.extra_force_stop_serials(baseline_execution["runnerCommand"]),
+                unused_android_serials,
+            )
 
             campaign_plan = self.load_json(run_root / "campaign-plan.json")
             self.assertEqual(campaign_plan["status"], "pass")
@@ -202,14 +221,19 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 campaign_plan["selectedBaseline"]["participants"]["passive"]["controlId"],
                 selected_passive["controlId"],
             )
+            self.assertEqual(
+                campaign_plan["selectedBaseline"]["runnerCommand"],
+                baseline_execution["runnerCommand"],
+            )
 
-    def test_run_campaign_dispatches_android_only_runner_for_two_android_devices(self) -> None:
+    def test_run_campaign_dispatches_android_only_runner_for_three_android_devices(self) -> None:
         # Arrange
         manifest = self.build_manifest(
-            android_rows=(("android-one", "device"), ("android-two", "device")),
+            android_rows=(("android-one", "device"), ("android-two", "device"), ("android-three", "device")),
             android_models={
                 "android-one": "Pixel 8",
                 "android-two": "Pixel Fold",
+                "android-three": "Galaxy S24",
             },
         )
         process_runner = ReleaseCampaignProcessRunner()
@@ -227,11 +251,29 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             # Assert
             self.assertEqual(exit_code, release_campaign.EXIT_PASS)
             child_command = process_runner.calls[0]["command"]
+            selected_sender = reference_fleet.find_device_by_alias(
+                manifest,
+                manifest["selectedAssignment"]["participants"]["sender"],
+            )
+            selected_passive = reference_fleet.find_device_by_alias(
+                manifest,
+                manifest["selectedAssignment"]["participants"]["passive"],
+            )
+            self.assertIsNotNone(selected_sender)
+            self.assertIsNotNone(selected_passive)
+            unused_android_serials = [
+                device["controlId"]
+                for device in manifest["devices"]
+                if device["platform"] == "android"
+                and device["available"]
+                and device["controlId"] not in {selected_sender["controlId"], selected_passive["controlId"]}
+            ]
             self.assertEqual(Path(child_command[1]).name, "run_headless_reference_android_direct_proof.py")
             self.assertIn("--sender-android-serial", child_command)
             self.assertIn("--passive-android-serial", child_command)
-            self.assertIn("android-one", child_command)
-            self.assertIn("android-two", child_command)
+            self.assertIn(selected_sender["controlId"], child_command)
+            self.assertIn(selected_passive["controlId"], child_command)
+            self.assertEqual(self.extra_force_stop_serials(child_command), unused_android_serials)
 
             persisted_manifest = self.load_json(run_root / "fleet-manifest.json")
             self.assertEqual(
@@ -241,6 +283,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(
                 Path(persisted_manifest["campaign"]["baselineExecution"]["runnerScript"]).name,
                 "run_headless_reference_android_direct_proof.py",
+            )
+            self.assertEqual(
+                self.extra_force_stop_serials(
+                    persisted_manifest["campaign"]["baselineExecution"]["runnerCommand"]
+                ),
+                unused_android_serials,
             )
 
     def test_run_campaign_marks_skipped_and_never_dispatches_a_child_runner(self) -> None:

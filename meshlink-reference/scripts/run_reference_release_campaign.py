@@ -325,6 +325,7 @@ def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:
             "status": baseline_execution.get("status"),
             "appId": baseline_execution.get("appId"),
             "runnerScript": baseline_execution.get("runnerScript"),
+            "runnerCommand": list(baseline_execution.get("runnerCommand") or []),
             "runDirectory": baseline_execution.get("runDirectory"),
             "participants": resolve_participant_details(
                 manifest,
@@ -448,6 +449,30 @@ def resolve_required_participant(
     return device
 
 
+def resolve_unused_available_android_serials(
+    manifest: Mapping[str, Any],
+    *,
+    selected_devices: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    selected_serials = {
+        str(device.get("controlId") or "")
+        for device in selected_devices
+        if device.get("platform") == "android" and device.get("controlId")
+    }
+    extra_serials: list[str] = []
+    for device in manifest.get("devices", []):
+        if not isinstance(device, Mapping):
+            continue
+        if device.get("platform") != "android" or not device.get("available"):
+            continue
+        control_id = str(device.get("controlId") or "")
+        if not control_id or control_id in selected_serials:
+            continue
+        extra_serials.append(control_id)
+        selected_serials.add(control_id)
+    return extra_serials
+
+
 def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[str, Any]:
     selected_assignment = resolve_selected_assignment(manifest)
     assignment_id = str(selected_assignment.get("assignmentId") or "")
@@ -467,6 +492,7 @@ def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[
             "passive",
             expected_platform="android",
         )
+        selected_devices = [sender, passive]
         runner_script = RUNNER_SCRIPTS[assignment_id]
         runner_command = [
             "python3",
@@ -495,6 +521,7 @@ def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[
             "passive",
             expected_platform="android",
         )
+        selected_devices = [sender, passive]
         runner_script = RUNNER_SCRIPTS[assignment_id]
         runner_command = [
             "python3",
@@ -515,6 +542,12 @@ def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[
             "Selected baseline assignment does not map to a known S01 runner.",
             assignmentId=assignment_id,
         )
+
+    for extra_serial in resolve_unused_available_android_serials(
+        manifest,
+        selected_devices=selected_devices,
+    ):
+        runner_command.extend(["--extra-force-stop-serial", extra_serial])
 
     analysis_command = [
         "python3",
