@@ -33,7 +33,16 @@ INVALID_ENVIRONMENT_HINTS = (
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parents[1]
 SCENARIO_CATALOG_VERSION = 1
-CAMPAIGN_STATE_VERSION = 1
+CAMPAIGN_STATE_VERSION = 2
+SCENARIO_ARTIFACT_KEYS = (
+    "summary",
+    "analysisJson",
+    "analysisMarkdown",
+    "runnerStdout",
+    "runnerStderr",
+    "analysisStdout",
+    "analysisStderr",
+)
 RUNNER_SCRIPTS = {
     "direct-guided-mixed": SCRIPTS_DIR / "run_headless_reference_live_proof.py",
     "direct-guided-android-only": SCRIPTS_DIR / "run_headless_reference_android_direct_proof.py",
@@ -332,6 +341,97 @@ def run_directory_artifacts(*, run_root: Path, run_directory: Path) -> dict[str,
     }
 
 
+def scenario_reason_prefix(scenario: Mapping[str, Any]) -> str:
+    scenario_id = str(scenario.get("scenarioId") or "scenario")
+    return "baseline" if scenario_id == "direct-guided" else scenario_id
+
+
+def scenario_label(scenario: Mapping[str, Any]) -> str:
+    scenario_id = str(scenario.get("scenarioId") or "scenario")
+    return "selected baseline" if scenario_id == "direct-guided" else f"{scenario_id} happy-path scenario"
+
+
+def scenario_event_history(scenario: dict[str, Any]) -> list[dict[str, Any]]:
+    history = scenario.get("eventHistory")
+    if isinstance(history, list):
+        return history
+    initialized_history: list[dict[str, Any]] = []
+    scenario["eventHistory"] = initialized_history
+    return initialized_history
+
+
+def append_scenario_event(scenario: dict[str, Any], event: str, **details: Any) -> None:
+    scenario_event_history(scenario).append(
+        {
+            "ts": iso_timestamp(),
+            "event": event,
+            **{key: value for key, value in details.items() if value is not None},
+        }
+    )
+
+
+def initialize_scenario_history(scenario: dict[str, Any]) -> None:
+    append_scenario_event(
+        scenario,
+        "scenario-initialized",
+        status=scenario.get("status"),
+        eligibilityStatus=scenario.get("eligibilityStatus"),
+        runDirectory=scenario.get("runDirectory"),
+        reasonCodes=[
+            reason.get("code")
+            for reason in scenario.get("reasons", [])
+            if isinstance(reason, Mapping) and reason.get("code") is not None
+        ],
+    )
+
+
+def ordered_campaign_scenarios(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    campaign = manifest.get("campaign")
+    if not isinstance(campaign, Mapping):
+        return []
+    scenarios = [
+        scenario
+        for scenario in campaign.get("scenarios", [])
+        if isinstance(scenario, dict)
+    ]
+    scenarios.sort(key=lambda scenario: int(scenario.get("order") or 0))
+    return scenarios
+
+
+def aggregate_campaign_status(scenarios: Sequence[Mapping[str, Any]]) -> str:
+    statuses = [str(scenario.get("status") or "") for scenario in scenarios]
+    if any(status == "invalid-environment" for status in statuses):
+        return "invalid-environment"
+    if any(status == "fail" for status in statuses):
+        return "fail"
+    if any(status == "pass" for status in statuses):
+        return "pass"
+    if any(status == "skipped" for status in statuses):
+        return "skipped"
+    if any(status == "running" for status in statuses):
+        return "running"
+    if any(status == "planned" for status in statuses):
+        return "planned"
+    return "invalid-environment"
+
+
+def invoke_process_runner(
+    process_runner: ProcessRunner,
+    command: Sequence[str],
+    *,
+    timeout_seconds: float,
+) -> reference_fleet.ProbeResult:
+    normalized_command = [str(part) for part in command]
+    try:
+        return process_runner(normalized_command, timeout_seconds=timeout_seconds)
+    except Exception as error:  # pragma: no cover - defensive conversion for unexpected runner wrappers.
+        return reference_fleet.ProbeResult(
+            command=normalized_command,
+            returncode=None,
+            error=str(error),
+        )
+
+
 def build_initial_campaign_status(scenarios: Sequence[Mapping[str, Any]]) -> str:
     if any(scenario.get("status") in {"planned", "running"} for scenario in scenarios):
         return "planned"
@@ -449,6 +549,7 @@ def build_direct_guided_scenario(manifest: Mapping[str, Any], *, run_root: Path)
         "timedOut": False,
         "artifacts": run_directory_artifacts(run_root=run_root, run_directory=run_directory),
         "reasons": [],
+        "eventHistory": [],
     }
 
     if selection_status == "selected":
@@ -495,6 +596,7 @@ def build_direct_guided_scenario(manifest: Mapping[str, Any], *, run_root: Path)
         scenario["eligibilityStatus"] = "invalid-environment"
 
     scenario["reasons"] = dedupe_reason_dicts(reasons)
+    initialize_scenario_history(scenario)
     return scenario
 
 
@@ -530,6 +632,7 @@ def build_relay_constrained_scenario(
         "timedOut": False,
         "artifacts": run_directory_artifacts(run_root=run_root, run_directory=run_directory),
         "reasons": [],
+        "eventHistory": [],
     }
 
     if direct_scenario.get("eligibilityStatus") == "invalid-environment":
@@ -750,6 +853,7 @@ def build_relay_constrained_scenario(
         scenario["status"] = eligibility_status
 
     scenario["reasons"] = dedupe_reason_dicts(reasons)
+    initialize_scenario_history(scenario)
     return scenario
 
 
@@ -840,6 +944,7 @@ def serialize_scenario_state(manifest: Mapping[str, Any], scenario: Mapping[str,
         "analysisStatus": scenario.get("analysisStatus"),
         "timedOut": scenario.get("timedOut"),
         "artifacts": dict(scenario.get("artifacts", {})),
+        "eventHistory": list(scenario.get("eventHistory", [])),
     }
 
 
@@ -1031,16 +1136,17 @@ def sync_baseline_execution_from_direct_scenario(manifest: dict[str, Any]) -> No
     manifest["campaign"]["baselineExecution"] = baseline_execution_from_scenario(direct_scenario)
 
 
-def trip_happy_path_gate(manifest: dict[str, Any], *, scenario_id: str) -> None:
+def trip_happy_path_gate(manifest: dict[str, Any], *, scenario_id: str) -> bool:
     gate = manifest["campaign"].get("happyPathGate")
     if not isinstance(gate, dict):
-        return
+        return False
     if gate.get("firstFailScenarioId") is not None:
-        return
+        return False
     gate["status"] = "red"
     gate["firstFailScenarioId"] = scenario_id
     gate["triggeredAt"] = iso_timestamp()
     gate["updatedAt"] = gate["triggeredAt"]
+    return True
 
 
 def resolve_participant_details(
@@ -1349,9 +1455,160 @@ def classify_nonzero_result(
     )
 
 
-def evaluate_baseline_execution(
+def scenario_execution_spec(*, run_root: Path, scenario: Mapping[str, Any]) -> dict[str, Any]:
+    prefix = scenario_reason_prefix(scenario)
+    label = scenario_label(scenario)
+    run_directory_value = scenario.get("runDirectory")
+    if not isinstance(run_directory_value, str) or not run_directory_value:
+        raise CampaignError(
+            f"{prefix}-run-directory-missing",
+            "fail",
+            f"The retained {label} is missing its run directory.",
+        )
+
+    artifacts = scenario.get("artifacts")
+    if not isinstance(artifacts, Mapping):
+        raise CampaignError(
+            f"{prefix}-artifacts-missing",
+            "fail",
+            f"The retained {label} is missing its artifact map.",
+        )
+    normalized_artifacts: dict[str, str] = {}
+    missing_artifact_keys: list[str] = []
+    for key in SCENARIO_ARTIFACT_KEYS:
+        value = artifacts.get(key)
+        if not isinstance(value, str) or not value:
+            missing_artifact_keys.append(key)
+            continue
+        normalized_artifacts[key] = value
+    if missing_artifact_keys:
+        raise CampaignError(
+            f"{prefix}-artifacts-missing",
+            "fail",
+            f"The retained {label} is missing one or more required artifact links.",
+            missingKeys=missing_artifact_keys,
+        )
+
+    def normalize_command(command_value: Any, *, command_name: str) -> list[str]:
+        if not isinstance(command_value, Sequence) or isinstance(command_value, (str, bytes)):
+            raise CampaignError(
+                f"{prefix}-{command_name}-missing",
+                "fail",
+                f"The retained {label} is missing its {command_name.replace('-', ' ')}.",
+            )
+        normalized = [str(part) for part in command_value]
+        if not normalized:
+            raise CampaignError(
+                f"{prefix}-{command_name}-missing",
+                "fail",
+                f"The retained {label} is missing its {command_name.replace('-', ' ')}.",
+            )
+        return normalized
+
+    return {
+        "scenarioId": str(scenario.get("scenarioId") or "scenario"),
+        "runDirectory": run_root / run_directory_value,
+        "runnerCommand": normalize_command(scenario.get("runnerCommand"), command_name="runner-command"),
+        "analysisCommand": normalize_command(scenario.get("analysisCommand"), command_name="analysis-command"),
+        "artifacts": normalized_artifacts,
+    }
+
+
+def set_scenario_running(manifest: dict[str, Any], scenario: dict[str, Any]) -> None:
+    previous_status = scenario.get("status")
+    scenario["status"] = "running"
+    scenario["startedAt"] = iso_timestamp()
+    scenario["finishedAt"] = None
+    scenario["childExitCode"] = None
+    scenario["analysisExitCode"] = None
+    scenario["analysisStatus"] = None
+    scenario["timedOut"] = False
+    append_scenario_event(
+        scenario,
+        "scenario-started",
+        fromStatus=previous_status,
+        status="running",
+        runDirectory=scenario.get("runDirectory"),
+        runnerCommand=list(scenario.get("runnerCommand") or []),
+        analysisCommand=list(scenario.get("analysisCommand") or []),
+    )
+    append_campaign_event(
+        manifest,
+        "scenario-started",
+        scenarioId=scenario.get("scenarioId"),
+        order=scenario.get("order"),
+        runDirectory=scenario.get("runDirectory"),
+    )
+    if scenario.get("scenarioId") == "direct-guided":
+        sync_baseline_execution_from_direct_scenario(manifest)
+
+
+def finalize_scenario_execution(
+    manifest: dict[str, Any],
+    *,
+    scenario: dict[str, Any],
+    status: str,
+    reasons: Sequence[dict[str, Any]],
+    runner_result: reference_fleet.ProbeResult | None,
+    analysis_result: reference_fleet.ProbeResult | None,
+    analysis_status: str | None,
+) -> None:
+    previous_status = scenario.get("status")
+    scenario["status"] = status
+    scenario["finishedAt"] = iso_timestamp()
+    scenario["childExitCode"] = runner_result.returncode if runner_result is not None else None
+    scenario["analysisExitCode"] = analysis_result.returncode if analysis_result is not None else None
+    scenario["analysisStatus"] = analysis_status
+    scenario["timedOut"] = bool(runner_result.timed_out if runner_result is not None else False) or bool(
+        analysis_result.timed_out if analysis_result is not None else False
+    )
+    scenario["reasons"] = dedupe_reason_dicts([*scenario.get("reasons", []), *reasons])
+    append_scenario_event(
+        scenario,
+        "scenario-finished",
+        fromStatus=previous_status,
+        status=status,
+        childExitCode=scenario.get("childExitCode"),
+        analysisExitCode=scenario.get("analysisExitCode"),
+        analysisStatus=analysis_status,
+        timedOut=scenario.get("timedOut"),
+        reasonCodes=[
+            reason.get("code")
+            for reason in scenario.get("reasons", [])
+            if isinstance(reason, Mapping) and reason.get("code") is not None
+        ],
+    )
+    if scenario.get("scenarioId") == "direct-guided":
+        sync_baseline_execution_from_direct_scenario(manifest)
+    gate_tripped = False
+    if status != "pass":
+        gate_tripped = trip_happy_path_gate(
+            manifest,
+            scenario_id=str(scenario.get("scenarioId") or "scenario"),
+        )
+    if gate_tripped:
+        append_scenario_event(scenario, "scenario-gate-triggered", gateStatus="red")
+        append_campaign_event(
+            manifest,
+            "happy-path-gate-tripped",
+            scenarioId=scenario.get("scenarioId"),
+            status=status,
+        )
+    append_campaign_event(
+        manifest,
+        "scenario-finished",
+        scenarioId=scenario.get("scenarioId"),
+        status=status,
+        childExitCode=scenario.get("childExitCode"),
+        analysisExitCode=scenario.get("analysisExitCode"),
+        analysisStatus=analysis_status,
+    )
+
+
+def evaluate_scenario_execution(
     *,
     run_root: Path,
+    scenario: Mapping[str, Any],
     spec: Mapping[str, Any],
     runner_result: reference_fleet.ProbeResult,
     analysis_result: reference_fleet.ProbeResult | None,
@@ -1363,23 +1620,25 @@ def evaluate_baseline_execution(
     analysis_json_path = run_root / artifacts["analysisJson"]
     analysis_markdown_path = run_root / artifacts["analysisMarkdown"]
     analysis_status: str | None = None
+    prefix = scenario_reason_prefix(scenario)
+    label = scenario_label(scenario)
 
     if runner_result.timed_out:
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-runner-timeout",
+                f"{prefix}-runner-timeout",
                 "fail",
-                "The selected baseline runner timed out before completion.",
+                f"The {label} runner timed out before completion.",
             ).to_dict()
         )
     elif runner_result.missing or runner_result.returncode not in (0, None):
         runner_status, runner_reason = classify_nonzero_result(
             runner_result,
-            invalid_environment_code="baseline-runner-invalid-environment",
-            failure_code="baseline-runner-failed",
-            invalid_environment_message="The selected baseline runner failed because the local environment is not runnable.",
-            failure_message="The selected baseline runner failed before the retained direct baseline could pass.",
+            invalid_environment_code=f"{prefix}-runner-invalid-environment",
+            failure_code=f"{prefix}-runner-failed",
+            invalid_environment_message=f"The {label} runner failed because the local environment is not runnable.",
+            failure_message=f"The {label} runner failed before the retained evidence could pass.",
         )
         status = merge_status(status, runner_status)
         reasons.append(runner_reason)
@@ -1388,20 +1647,45 @@ def evaluate_baseline_execution(
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-summary-missing",
+                f"{prefix}-summary-missing",
                 "fail",
-                "The selected baseline run did not retain summary.json.",
+                f"The {label} did not retain summary.json.",
                 path=artifacts["summary"],
             ).to_dict()
         )
+    else:
+        summary_payload, summary_error = load_json_object(summary_path)
+        if summary_error is not None:
+            status = merge_status(status, "fail")
+            reasons.append(
+                reference_fleet.reason(
+                    f"{prefix}-summary-invalid",
+                    "fail",
+                    f"The retained {label} summary could not be parsed or validated.",
+                    error=summary_error,
+                ).to_dict()
+            )
+        else:
+            summary_scenario = str(summary_payload.get("scenario") or "")
+            if summary_scenario and summary_scenario != str(scenario.get("scenarioId") or ""):
+                status = merge_status(status, "fail")
+                reasons.append(
+                    reference_fleet.reason(
+                        f"{prefix}-summary-contradictory",
+                        "fail",
+                        f"The retained {label} summary does not match the planned scenario id.",
+                        summaryScenario=summary_scenario,
+                        scenarioId=scenario.get("scenarioId"),
+                    ).to_dict()
+                )
 
     if analysis_result is None:
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-analysis-missing",
+                f"{prefix}-analysis-missing",
                 "fail",
-                "The selected baseline run did not produce retained analysis artifacts.",
+                f"The {label} did not produce retained analysis artifacts.",
                 path=artifacts["analysisJson"],
             ).to_dict()
         )
@@ -1411,18 +1695,18 @@ def evaluate_baseline_execution(
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-analysis-timeout",
+                f"{prefix}-analysis-timeout",
                 "fail",
-                "Retained run analysis timed out before analysis artifacts were written.",
+                f"Retained {label} analysis timed out before analysis artifacts were written.",
             ).to_dict()
         )
     elif analysis_result.missing or analysis_result.returncode not in (0, None):
         analysis_status_from_result, analysis_reason = classify_nonzero_result(
             analysis_result,
-            invalid_environment_code="baseline-analysis-invalid-environment",
-            failure_code="baseline-analysis-failed",
-            invalid_environment_message="Retained run analysis could not run because the local environment is incomplete.",
-            failure_message="Retained run analysis failed before analysis artifacts were written.",
+            invalid_environment_code=f"{prefix}-analysis-invalid-environment",
+            failure_code=f"{prefix}-analysis-failed",
+            invalid_environment_message=f"Retained {label} analysis could not run because the local environment is incomplete.",
+            failure_message=f"Retained {label} analysis failed before analysis artifacts were written.",
         )
         status = merge_status(status, analysis_status_from_result)
         reasons.append(analysis_reason)
@@ -1431,9 +1715,9 @@ def evaluate_baseline_execution(
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-analysis-missing",
+                f"{prefix}-analysis-missing",
                 "fail",
-                "The selected baseline run did not produce retained analysis artifacts.",
+                f"The {label} did not produce retained analysis artifacts.",
                 jsonPath=artifacts["analysisJson"],
                 markdownPath=artifacts["analysisMarkdown"],
             ).to_dict()
@@ -1445,9 +1729,9 @@ def evaluate_baseline_execution(
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-analysis-invalid",
+                f"{prefix}-analysis-invalid",
                 "fail",
-                "The retained analysis JSON could not be parsed or validated.",
+                f"The retained {label} analysis JSON could not be parsed or validated.",
                 error=analysis_error,
             ).to_dict()
         )
@@ -1458,9 +1742,9 @@ def evaluate_baseline_execution(
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
-                "baseline-analysis-not-pass",
+                f"{prefix}-analysis-not-pass",
                 "fail",
-                "The retained analysis did not report a passing baseline.",
+                f"The retained {label} analysis did not report a passing result.",
                 analysisStatus=analysis_status,
             ).to_dict()
         )
@@ -1498,87 +1782,123 @@ def run_campaign(
         return EXIT_INVALID_ENVIRONMENT
 
     initialize_campaign_state(manifest, run_root=run_root)
-    persist_campaign_state(manifest, run_root=run_root)
-
-    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
-    if direct_scenario is None:
+    scenarios = ordered_campaign_scenarios(manifest)
+    if not scenarios:
         append_campaign_event(manifest, "campaign-finished", status="invalid-environment")
         manifest["campaign"]["status"] = "invalid-environment"
         persist_campaign_state(manifest, run_root=run_root)
         return EXIT_INVALID_ENVIRONMENT
 
-    if direct_scenario.get("status") != "planned":
-        final_status = str(manifest["campaign"].get("status") or direct_scenario.get("status") or "invalid-environment")
+    planned_scenarios = [scenario for scenario in scenarios if scenario.get("status") == "planned"]
+    if not planned_scenarios:
+        final_status = aggregate_campaign_status(scenarios)
+        manifest["campaign"]["status"] = final_status
         append_campaign_event(manifest, "campaign-finished", status=final_status)
         persist_campaign_state(manifest, run_root=run_root)
         return exit_code_for_status(final_status)
 
-    try:
-        spec = resolve_runner_spec(manifest, run_root=run_root)
-    except CampaignError as error:
-        direct_scenario["status"] = "invalid-environment"
-        direct_scenario["finishedAt"] = iso_timestamp()
-        direct_scenario["reasons"] = dedupe_reason_dicts(
-            [*direct_scenario.get("reasons", []), error.to_reason()]
-        )
-        sync_baseline_execution_from_direct_scenario(manifest)
-        manifest["campaign"]["status"] = "invalid-environment"
-        append_campaign_event(manifest, "campaign-invalid-manifest", code=error.code)
-        persist_campaign_state(manifest, run_root=run_root)
-        return EXIT_INVALID_ENVIRONMENT
-
-    apply_runner_spec(manifest, spec)
-    persist_campaign_state(manifest, run_root=run_root)
-
-    runner_result = process_runner(spec["runnerCommand"], timeout_seconds=child_timeout_seconds)
-    write_command_logs(spec["runDirectory"], prefix="runner", result=runner_result)
+    manifest["campaign"]["status"] = "running"
     append_campaign_event(
         manifest,
-        "baseline-runner-finished",
-        assignmentId=spec.get("assignmentId"),
-        returncode=runner_result.returncode,
-        timedOut=runner_result.timed_out,
+        "campaign-execution-started",
+        scenarioIds=[scenario.get("scenarioId") for scenario in planned_scenarios],
     )
+    persist_campaign_state(manifest, run_root=run_root)
 
-    analysis_result: reference_fleet.ProbeResult | None = None
-    if should_run_analysis(spec["runDirectory"]):
-        analysis_result = process_runner(spec["analysisCommand"], timeout_seconds=child_timeout_seconds)
-        write_command_logs(spec["runDirectory"], prefix="analysis", result=analysis_result)
+    for scenario in planned_scenarios:
+        try:
+            spec = scenario_execution_spec(run_root=run_root, scenario=scenario)
+        except CampaignError as error:
+            append_campaign_event(
+                manifest,
+                "scenario-invalid-plan",
+                scenarioId=scenario.get("scenarioId"),
+                code=error.code,
+            )
+            finalize_scenario_execution(
+                manifest,
+                scenario=scenario,
+                status=error.kind,
+                reasons=[error.to_reason()],
+                runner_result=None,
+                analysis_result=None,
+                analysis_status=None,
+            )
+            persist_campaign_state(manifest, run_root=run_root)
+            continue
+
+        set_scenario_running(manifest, scenario)
+        persist_campaign_state(manifest, run_root=run_root)
+
+        runner_result = invoke_process_runner(
+            process_runner,
+            spec["runnerCommand"],
+            timeout_seconds=child_timeout_seconds,
+        )
+        write_command_logs(spec["runDirectory"], prefix="runner", result=runner_result)
+        append_scenario_event(
+            scenario,
+            "scenario-runner-finished",
+            returncode=runner_result.returncode,
+            timedOut=runner_result.timed_out,
+            stdoutPath=spec["artifacts"]["runnerStdout"],
+            stderrPath=spec["artifacts"]["runnerStderr"],
+        )
         append_campaign_event(
             manifest,
-            "baseline-analysis-finished",
-            assignmentId=spec.get("assignmentId"),
-            returncode=analysis_result.returncode,
-            timedOut=analysis_result.timed_out,
+            "scenario-runner-finished",
+            scenarioId=scenario.get("scenarioId"),
+            returncode=runner_result.returncode,
+            timedOut=runner_result.timed_out,
         )
 
-    status, reasons, analysis_status = evaluate_baseline_execution(
-        run_root=run_root,
-        spec=spec,
-        runner_result=runner_result,
-        analysis_result=analysis_result,
-    )
-    direct_scenario = find_campaign_scenario_entry(manifest, "direct-guided")
-    if direct_scenario is not None:
-        direct_scenario["status"] = status
-        direct_scenario["finishedAt"] = iso_timestamp()
-        direct_scenario["childExitCode"] = runner_result.returncode
-        direct_scenario["analysisExitCode"] = analysis_result.returncode if analysis_result is not None else None
-        direct_scenario["analysisStatus"] = analysis_status
-        direct_scenario["timedOut"] = bool(runner_result.timed_out) or bool(
-            analysis_result.timed_out if analysis_result is not None else False
-        )
-        direct_scenario["reasons"] = dedupe_reason_dicts(
-            [*direct_scenario.get("reasons", []), *reasons]
-        )
+        analysis_result: reference_fleet.ProbeResult | None = None
+        if should_run_analysis(spec["runDirectory"]):
+            analysis_result = invoke_process_runner(
+                process_runner,
+                spec["analysisCommand"],
+                timeout_seconds=child_timeout_seconds,
+            )
+            write_command_logs(spec["runDirectory"], prefix="analysis", result=analysis_result)
+            append_scenario_event(
+                scenario,
+                "scenario-analysis-finished",
+                returncode=analysis_result.returncode,
+                timedOut=analysis_result.timed_out,
+                stdoutPath=spec["artifacts"]["analysisStdout"],
+                stderrPath=spec["artifacts"]["analysisStderr"],
+            )
+            append_campaign_event(
+                manifest,
+                "scenario-analysis-finished",
+                scenarioId=scenario.get("scenarioId"),
+                returncode=analysis_result.returncode,
+                timedOut=analysis_result.timed_out,
+            )
 
-    sync_baseline_execution_from_direct_scenario(manifest)
-    if status != "pass":
-        trip_happy_path_gate(manifest, scenario_id="direct-guided")
-    manifest["campaign"]["status"] = status
-    append_campaign_event(manifest, "campaign-finished", status=status)
+        status, reasons, analysis_status = evaluate_scenario_execution(
+            run_root=run_root,
+            scenario=scenario,
+            spec=spec,
+            runner_result=runner_result,
+            analysis_result=analysis_result,
+        )
+        finalize_scenario_execution(
+            manifest,
+            scenario=scenario,
+            status=status,
+            reasons=reasons,
+            runner_result=runner_result,
+            analysis_result=analysis_result,
+            analysis_status=analysis_status,
+        )
+        persist_campaign_state(manifest, run_root=run_root)
+
+    final_status = aggregate_campaign_status(ordered_campaign_scenarios(manifest))
+    manifest["campaign"]["status"] = final_status
+    append_campaign_event(manifest, "campaign-finished", status=final_status)
     persist_campaign_state(manifest, run_root=run_root)
-    return exit_code_for_status(status)
+    return exit_code_for_status(final_status)
 
 
 def main(argv: list[str] | None = None) -> int:
