@@ -28,6 +28,9 @@ public enum class ReferenceAutomationScenario {
     DIRECT_PAUSE_RESUME,
     DIRECT_FULL_EXPORT,
     DIRECT_TRUST_RESET_RECOVERY,
+    DIRECT_RESTART_RECOVERY,
+    DIRECT_ISOLATION_RECOVERY,
+    DIRECT_ROUTE_BREAK_RECOVERY,
     DIRECT_LARGE_TRANSFER,
     RELAY_CONSTRAINED,
 }
@@ -40,6 +43,12 @@ public fun String?.toReferenceAutomationScenario(): ReferenceAutomationScenario 
             ReferenceAutomationScenario.DIRECT_FULL_EXPORT
         this.equals("direct-trust-reset-recovery", ignoreCase = true) ->
             ReferenceAutomationScenario.DIRECT_TRUST_RESET_RECOVERY
+        this.equals("direct-restart-recovery", ignoreCase = true) ->
+            ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY
+        this.equals("direct-isolation-recovery", ignoreCase = true) ->
+            ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY
+        this.equals("direct-route-break-recovery", ignoreCase = true) ->
+            ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY
         this.equals("direct-large-transfer", ignoreCase = true) ->
             ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER
         this.equals("relay-constrained", ignoreCase = true) ->
@@ -54,6 +63,9 @@ public fun ReferenceAutomationScenario.wireValue(): String {
         ReferenceAutomationScenario.DIRECT_PAUSE_RESUME -> "direct-pause-resume"
         ReferenceAutomationScenario.DIRECT_FULL_EXPORT -> "direct-full-export"
         ReferenceAutomationScenario.DIRECT_TRUST_RESET_RECOVERY -> "direct-trust-reset-recovery"
+        ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY -> "direct-restart-recovery"
+        ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY -> "direct-isolation-recovery"
+        ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY -> "direct-route-break-recovery"
         ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER -> "direct-large-transfer"
         ReferenceAutomationScenario.RELAY_CONSTRAINED -> "relay-constrained"
     }

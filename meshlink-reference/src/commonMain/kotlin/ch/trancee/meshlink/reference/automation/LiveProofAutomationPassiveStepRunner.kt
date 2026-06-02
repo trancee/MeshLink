@@ -39,6 +39,9 @@ internal fun runPassiveAutomationStep(
                 progress = progress,
                 requiredInboundCount = REQUIRED_PAUSE_RESUME_INBOUND_COUNT,
             )
+        ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY,
+        ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY,
+        ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY,
         ReferenceAutomationScenario.RELAY_CONSTRAINED,
         ReferenceAutomationScenario.DIRECT_GUIDED ->
             runPassiveBaselineAutomationStep(

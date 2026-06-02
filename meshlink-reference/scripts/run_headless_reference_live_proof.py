@@ -53,6 +53,9 @@ DIRECT_PHYSICAL_SCENARIOS = [
     "direct-pause-resume",
     "direct-full-export",
     "direct-trust-reset-recovery",
+    "direct-restart-recovery",
+    "direct-isolation-recovery",
+    "direct-route-break-recovery",
     "direct-large-transfer",
 ]
 IOS_XCUITEST_LIVE_PROOF_CONFIG = Path("/tmp/meshlink_reference_live_proof_xcuitest.json")

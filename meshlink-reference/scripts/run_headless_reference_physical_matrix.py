@@ -15,6 +15,9 @@ AVAILABLE_SCENARIOS = {
     "direct-pause-resume",
     "direct-full-export",
     "direct-trust-reset-recovery",
+    "direct-restart-recovery",
+    "direct-isolation-recovery",
+    "direct-route-break-recovery",
     "direct-large-transfer",
     "direct-xcuitest-permission-recovery",
     "relay-constrained",
@@ -48,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "--scenarios",
         default="auto",
         help=(
-            "Comma-separated scenario list. Available values: direct-guided, direct-pause-resume, direct-full-export, direct-trust-reset-recovery, direct-large-transfer, direct-xcuitest-permission-recovery, relay-constrained. "
+            "Comma-separated scenario list. Available values: direct-guided, direct-pause-resume, direct-full-export, direct-trust-reset-recovery, direct-restart-recovery, direct-isolation-recovery, direct-route-break-recovery, direct-large-transfer, direct-xcuitest-permission-recovery, relay-constrained. "
             "Defaults to auto (the full direct scenario set, plus relay-constrained when both Android relay/passive serials are available)."
         ),
     )
@@ -149,6 +152,9 @@ def main() -> int:
                 "direct-pause-resume",
                 "direct-full-export",
                 "direct-trust-reset-recovery",
+                "direct-restart-recovery",
+                "direct-isolation-recovery",
+                "direct-route-break-recovery",
                 "direct-large-transfer",
             }:
                 scenario_type = "direct"
