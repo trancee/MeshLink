@@ -182,6 +182,36 @@ class ReleaseReviewReportTests(unittest.TestCase):
             self.assertIn("scenario-fail", html_text)
             self.assertIn("analysis-status-unknown", html_text)
 
+    def test_render_report_keeps_the_offline_boundary_and_relative_evidence_links(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "campaign-run"
+            run_root.mkdir(parents=True, exist_ok=True)
+            payload = self.build_report_payload(run_root)
+            self.write_json(run_root / "report-data.json", payload)
+
+            # Act
+            html_text = release_review_report.render_report(payload)
+
+            # Assert
+            self.assertIn("Rendered from retained report-data.json only", html_text)
+            self.assertIn("Evidence links remain relative to the run root", html_text)
+            self.assertIn('href="baseline/direct-guided-mixed/summary.json"', html_text)
+            self.assertIn('href="baseline/direct-guided-android-only/analysis.json"', html_text)
+            self.assertIn('href="scenarios/02-relay-constrained/analysis.md"', html_text)
+            self.assertIn('badge verdict verdict-pass', html_text)
+            self.assertIn('badge verdict verdict-fail', html_text)
+            self.assertIn('badge verdict verdict-skipped', html_text)
+            self.assertIn('badge verdict verdict-inconclusive', html_text)
+            self.assertIn('badge verdict verdict-invalid-environment', html_text)
+            self.assertIn('Total scenarios', html_text)
+            self.assertIn('Runnable scenarios', html_text)
+            self.assertIn('Terminal scenarios', html_text)
+            self.assertIn('Failure rate', html_text)
+            self.assertIn('Inconclusive rate', html_text)
+            self.assertNotIn('https://', html_text)
+            self.assertNotIn('src="http', html_text)
+
 
 if __name__ == "__main__":
     unittest.main()

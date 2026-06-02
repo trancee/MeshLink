@@ -198,6 +198,11 @@ as the reviewer-facing artifact: it reads only the retained report data, stays
 aligned with the campaign state, and captures the honest verdict taxonomy even
 when a run exits early, skips scenarios, or only completes partially.
 
+Contract: inspect `campaign-plan.json`, then `campaign-state.json`, then
+`report-data.json`, and only then open `release-review-report.html`. The HTML
+renderer consumes retained `report-data.json` only; live devices, live logs,
+and reviewer-time discovery are not part of rendering.
+
 ```text
 <run-root>/
   fleet-manifest.json
