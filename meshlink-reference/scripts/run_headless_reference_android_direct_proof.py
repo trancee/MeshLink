@@ -36,6 +36,7 @@ from run_headless_reference_live_proof import (
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
+ANDROID_START_TIMEOUT_SECONDS = 15.0
 SENDER_LOGCAT_NAME = "sender_logcat.log"
 PASSIVE_LOGCAT_NAME = "passive_logcat.log"
 SENDER_START_NAME = "sender_start.txt"
@@ -387,7 +388,6 @@ def start_android_role_app(
         "shell",
         "am",
         "start",
-        "-W",
         "-n",
         ANDROID_ACTIVITY,
         "--ez",
@@ -410,12 +410,29 @@ def start_android_role_app(
         DIRECT_GUIDED_SCENARIO,
     ]
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
+    start_path = run_dir / role_artifacts.start_name
     try:
-        start_output = run(command, capture_output=True)
-    except Exception:
+        start_output = run(
+            command,
+            capture_output=True,
+            timeout=ANDROID_START_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        start_path.write_text(
+            "Timed out waiting for Android activity launch to return.\n"
+            f"Command: {shell_join(command)}\n"
+            f"TimeoutSeconds: {ANDROID_START_TIMEOUT_SECONDS}\n",
+            encoding="utf-8",
+        )
+        process.stop()
+        raise SystemExit(
+            f"{label} Android launch timed out after {ANDROID_START_TIMEOUT_SECONDS} seconds"
+        ) from error
+    except subprocess.CalledProcessError as error:
+        start_path.write_text((error.stdout or "") + (error.stderr or ""), encoding="utf-8")
         process.stop()
         raise
-    (run_dir / role_artifacts.start_name).write_text(
+    start_path.write_text(
         start_output.stdout + start_output.stderr,
         encoding="utf-8",
     )

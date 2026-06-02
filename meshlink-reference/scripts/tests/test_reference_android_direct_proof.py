@@ -81,6 +81,7 @@ class AndroidDirectProofTests(unittest.TestCase):
     def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
         # Arrange
         run_calls: list[list[str]] = []
+        run_timeouts: list[float | None] = []
         force_stop_calls: list[str] = []
         events: list[tuple[str, str]] = []
         shared: dict[str, object] = {}
@@ -92,9 +93,11 @@ class AndroidDirectProofTests(unittest.TestCase):
             capture_output: bool = False,
             text: bool = True,
             env: dict[str, str] | None = None,
+            timeout: float | None = None,
         ) -> subprocess.CompletedProcess[str]:
             del check, capture_output, text, env
             run_calls.append(list(command))
+            run_timeouts.append(timeout)
             if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]:
                 role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
                 events.append(("start", f"{command[2]}:{role}"))
@@ -196,6 +199,16 @@ class AndroidDirectProofTests(unittest.TestCase):
                     events.index(("start", "passive-1:passive")),
                 )
                 self.assertEqual(force_stop_calls[-3:], ["sender-1", "passive-1", "extra-1"])
+                sender_start_command = next(
+                    command
+                    for command in run_calls
+                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
+                )
+                self.assertNotIn("-W", sender_start_command)
+                self.assertEqual(
+                    run_timeouts[run_calls.index(sender_start_command)],
+                    android_direct_proof.ANDROID_START_TIMEOUT_SECONDS,
+                )
 
                 summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
                 self.assertEqual(summary["status"], "passed")
@@ -336,8 +349,9 @@ class AndroidDirectProofTests(unittest.TestCase):
             capture_output: bool = False,
             text: bool = True,
             env: dict[str, str] | None = None,
+            timeout: float | None = None,
         ) -> subprocess.CompletedProcess[str]:
-            del check, capture_output, text, env
+            del check, capture_output, text, env, timeout
             return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
 
         def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
@@ -415,6 +429,70 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertTrue(summary["partialEvidenceAvailable"])
             self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
             self.assertEqual(summary["passiveCompletion"].split(" role=")[1].split()[0], "passive")
+
+    def test_main_records_sender_launch_timeout_with_retained_start_note(self) -> None:
+        # Arrange
+        shared: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            *,
+            check: bool = True,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env
+            if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]:
+                raise subprocess.TimeoutExpired(command, android_direct_proof.ANDROID_START_TIMEOUT_SECONDS)
+            return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout, shared)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "sender-launch-timeout"
+
+            # Act
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(android_direct_proof, "install_android_app"),
+                patch.object(android_direct_proof, "verify_android_runtime_permissions"),
+                patch.object(android_direct_proof, "force_stop_reference_app"),
+                patch.object(android_direct_proof, "run", side_effect=fake_run),
+                patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(android_direct_proof, "read_android_app_file", return_value="{}"),
+                patch.object(android_direct_proof.time, "sleep", return_value=None),
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "sender-1",
+                            "--passive-android-serial",
+                            "passive-1",
+                            "--app-id",
+                            "demo.meshlink.reference.direct.test",
+                            "--run-dir",
+                            str(run_dir),
+                            "--android-ready-seconds",
+                            "0",
+                            "--capture-timeout-seconds",
+                            "1",
+                        ]
+                    )
+
+            # Assert
+            self.assertIn("timed out", str(error.exception).lower())
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "launch")
+            self.assertIn("timed out", summary["failureReason"].lower())
+            self.assertIn("Timed out waiting for Android activity launch to return.", (run_dir / "sender_start.txt").read_text(encoding="utf-8"))
+            self.assertTrue((run_dir / "sender_logcat.log").exists())
+            self.assertTrue((run_dir / "passive_logcat.log").exists())
 
     def test_wait_for_android_completions_rejects_missing_passive_export_path(self) -> None:
         # Arrange

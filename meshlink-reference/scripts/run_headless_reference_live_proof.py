@@ -172,8 +172,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run(command: list[str], *, check: bool = True, capture_output: bool = False, text: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=check, capture_output=capture_output, text=text, env=env)
+def run(
+    command: list[str],
+    *,
+    check: bool = True,
+    capture_output: bool = False,
+    text: bool = True,
+    env: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        check=check,
+        capture_output=capture_output,
+        text=text,
+        env=env,
+        timeout=timeout,
+    )
 
 
 def shell_join(command: Iterable[str]) -> str:
