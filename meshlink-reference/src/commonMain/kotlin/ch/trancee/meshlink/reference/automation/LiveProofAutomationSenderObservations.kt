@@ -74,6 +74,34 @@ internal fun announceSenderOutcomeIfNeeded(
     progress.lastSenderOutcomeSummary = lastOutcomeSummary
 }
 
+internal fun announcePauseRecoveryIfNeeded(
+    targetPeerSuffix: String,
+    actions: LiveProofAutomationActions,
+    progress: LiveProofAutomationProgress,
+): Unit {
+    if (!progress.pauseObserved || progress.recoveryWindowClosed) {
+        return
+    }
+    actions.emitAutomationLog(
+        "REFERENCE_AUTOMATION pause.recovered role=sender window=closed peer=$targetPeerSuffix"
+    )
+    progress.recoveryWindowClosed = true
+}
+
+internal fun announceTrustResetRecoveryIfNeeded(
+    targetPeerSuffix: String,
+    actions: LiveProofAutomationActions,
+    progress: LiveProofAutomationProgress,
+): Unit {
+    if (!progress.trustResetObserved || progress.recoveryWindowClosed) {
+        return
+    }
+    actions.emitAutomationLog(
+        "REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed peer=$targetPeerSuffix"
+    )
+    progress.recoveryWindowClosed = true
+}
+
 internal fun emitSenderFailure(
     snapshot: ReferenceControllerSnapshot,
     targetPeerSuffix: String?,

@@ -55,6 +55,17 @@ internal fun hasResumeObserved(snapshot: ReferenceControllerSnapshot): Boolean {
         hasTimelineEntry(snapshot, title = "Mesh resumed")
 }
 
+internal fun hasPauseResumeRecoveryWindowOpened(snapshot: ReferenceControllerSnapshot): Boolean {
+    return hasPauseObserved(snapshot)
+}
+
+internal fun hasTrustResetRecoveryWindowOpened(
+    snapshot: ReferenceControllerSnapshot,
+    peerSuffix: String? = null,
+): Boolean {
+    return hasTrustResetRecoveryReady(snapshot, peerSuffix = peerSuffix)
+}
+
 internal fun hasPeerTrustReset(
     snapshot: ReferenceControllerSnapshot,
     peerSuffix: String? = null,

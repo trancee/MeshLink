@@ -63,22 +63,34 @@ internal fun runPauseResumeSenderAutomationStep(
         ) && snapshot.session.lastOutcomeSummary == "SendResult.Sent" && deliveryCount >= 1
     ) {
         actions.emitAutomationLog("REFERENCE_AUTOMATION pause.requested role=sender")
+        progress.injectionRequested = true
         actions.requestMeshPause()
         progress.pauseRequested = true
         return
     }
     if (progress.pauseRequested && !progress.pauseObserved && hasPauseObserved(snapshot)) {
-        actions.emitAutomationLog("REFERENCE_AUTOMATION pause.observed role=sender")
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION pause.observed role=sender window=open peer=${targetPeer.peerSuffix}"
+        )
         progress.pauseObserved = true
+        progress.injectionObserved = true
+        progress.recoveryWindowOpened = hasPauseResumeRecoveryWindowOpened(snapshot)
     }
     if (progress.pauseObserved && !progress.resumeRequested) {
+        announcePauseRecoveryIfNeeded(
+            targetPeerSuffix = targetPeer.peerSuffix,
+            actions = actions,
+            progress = progress,
+        )
         actions.emitAutomationLog("REFERENCE_AUTOMATION resume.requested role=sender")
         actions.requestMeshResume()
         progress.resumeRequested = true
         return
     }
     if (progress.resumeRequested && !progress.resumeObserved && hasResumeObserved(snapshot)) {
-        actions.emitAutomationLog("REFERENCE_AUTOMATION resume.observed role=sender")
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION resume.observed role=sender window=closed peer=${targetPeer.peerSuffix}"
+        )
         progress.resumeObserved = true
     }
     if (

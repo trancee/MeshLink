@@ -48,9 +48,10 @@ internal fun runTrustResetRecoverySenderAutomationStep(
             deliveryCount >= 1
     ) {
         actions.emitAutomationLog(
-            "REFERENCE_AUTOMATION trust.reset.requested role=sender peer=$targetPeerSuffix"
+            "REFERENCE_AUTOMATION trust.reset.requested role=sender window=open peer=$targetPeerSuffix"
         )
-        actions.requestForgetPeer(targetPeer.peerId)
+        progress.injectionRequested = true
+        actions.requestTopologyDisruption(targetPeer.peerId)
         progress.trustResetRequested = true
         return
     }
@@ -60,11 +61,19 @@ internal fun runTrustResetRecoverySenderAutomationStep(
             hasTrustResetRecoveryReady(snapshot, peerSuffix = targetPeerSuffix)
     ) {
         actions.emitAutomationLog(
-            "REFERENCE_AUTOMATION trust.reset.observed role=sender peer=$targetPeerSuffix"
+            "REFERENCE_AUTOMATION trust.reset.observed role=sender window=open peer=$targetPeerSuffix"
         )
         progress.trustResetObserved = true
+        progress.injectionObserved = true
+        progress.recoveryWindowOpened =
+            hasTrustResetRecoveryWindowOpened(snapshot = snapshot, peerSuffix = targetPeerSuffix)
     }
     if (progress.trustResetObserved && !progress.recoverySendRequested) {
+        announceTrustResetRecoveryIfNeeded(
+            targetPeerSuffix = targetPeerSuffix,
+            actions = actions,
+            progress = progress,
+        )
         requestSenderPayload(
             phase = "recovery",
             targetPeer = targetPeer,
