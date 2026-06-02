@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -1752,8 +1753,17 @@ def evaluate_scenario_execution(
     return status, dedupe_reason_dicts(reasons), analysis_status
 
 
-def should_run_analysis(run_directory: Path) -> bool:
-    return run_directory.exists() and any(run_directory.iterdir())
+def prepare_scenario_run_directory(run_directory: Path) -> None:
+    if run_directory.exists():
+        if run_directory.is_dir():
+            shutil.rmtree(run_directory)
+        else:
+            run_directory.unlink()
+    run_directory.mkdir(parents=True, exist_ok=True)
+
+
+def should_run_analysis(summary_path: Path) -> bool:
+    return summary_path.exists()
 
 
 def run_campaign(
@@ -1827,6 +1837,7 @@ def run_campaign(
             persist_campaign_state(manifest, run_root=run_root)
             continue
 
+        prepare_scenario_run_directory(spec["runDirectory"])
         set_scenario_running(manifest, scenario)
         persist_campaign_state(manifest, run_root=run_root)
 
@@ -1853,7 +1864,7 @@ def run_campaign(
         )
 
         analysis_result: reference_fleet.ProbeResult | None = None
-        if should_run_analysis(spec["runDirectory"]):
+        if should_run_analysis(spec["runDirectory"] / "summary.json"):
             analysis_result = invoke_process_runner(
                 process_runner,
                 spec["analysisCommand"],

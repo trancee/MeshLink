@@ -820,6 +820,81 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
 
+    def test_run_campaign_clears_previous_artifacts_before_reusing_the_same_run_root(self) -> None:
+        # Arrange
+        def make_manifest() -> dict[str, object]:
+            return self.build_manifest(
+                android_rows=(("android-passive", "device"), ("android-relay", "device")),
+                android_models={
+                    "android-passive": "Pixel 8",
+                    "android-relay": "Galaxy S24",
+                },
+                ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+            )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "reused-run-root"
+
+            first_process_runner = ReleaseCampaignProcessRunner()
+            first_exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=make_manifest,
+                process_runner=first_process_runner,
+            )
+            self.assertEqual(first_exit_code, release_campaign.EXIT_PASS)
+            self.assertEqual(
+                [call["scenario_id"] for call in first_process_runner.calls],
+                ["direct-guided", "direct-guided", "relay-constrained", "relay-constrained"],
+            )
+
+            second_process_runner = ReleaseCampaignProcessRunner(
+                scenario_results={
+                    "direct-guided": {
+                        "child_writes_summary": False,
+                        "analysis_writes_outputs": False,
+                    },
+                }
+            )
+
+            # Act
+            second_exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=make_manifest,
+                process_runner=second_process_runner,
+            )
+
+            # Assert
+            self.assertEqual(second_exit_code, release_campaign.EXIT_FAIL)
+            self.assertEqual(
+                [call["scenario_id"] for call in second_process_runner.calls],
+                ["direct-guided", "relay-constrained", "relay-constrained"],
+            )
+            self.assertEqual(
+                [call["script_name"] for call in second_process_runner.calls],
+                [
+                    "run_headless_reference_live_proof.py",
+                    "run_headless_reference_relay_proof.py",
+                    "analyze_reference_physical_run.py",
+                ],
+            )
+
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            self.assertEqual(direct_state["status"], "fail")
+            self.assertEqual(relay_state["status"], "pass")
+            self.assertEqual(campaign_state["status"], "fail")
+            self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
+            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
+            self.assertIn(
+                "baseline-summary-missing",
+                {reason["code"] for reason in direct_state["reasons"]},
+            )
+            self.assertIn(
+                "baseline-analysis-missing",
+                {reason["code"] for reason in direct_state["reasons"]},
+            )
+
     def test_run_campaign_classifies_environmental_child_failures_honestly(self) -> None:
         # Arrange
         manifest = self.build_manifest(
