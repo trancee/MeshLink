@@ -221,6 +221,9 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
     def load_json(self, path: Path) -> dict[str, object]:
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def load_report_data(self, run_root: Path) -> dict[str, object]:
+        return self.load_json(run_root / "report-data.json")
+
     def scenario_by_id(self, payload: dict[str, object], scenario_id: str) -> dict[str, object]:
         return next(
             scenario
@@ -433,6 +436,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(relay_state["analysisExitCode"], 0)
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
+            report_data = self.load_report_data(run_root)
+            self.assertEqual(report_data["verdictCounts"], {"pass": 2, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual(report_data["gateMath"]["status"], "green")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "pass"])
+            self.assertEqual([scenario["analysisStatus"] for scenario in report_data["scenarios"]], ["pass", "pass"])
+            self.assertTrue((run_root / "report-data.json").exists())
             self.assert_artifact_links(direct_state)
             self.assert_artifact_links(relay_state)
             self.assert_event_sequence_contains(
@@ -623,6 +632,11 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             campaign_state = self.load_json(run_root / "campaign-state.json")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
+            report_data = self.load_report_data(run_root)
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 2, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual(report_data["gateMath"]["status"], "green")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["skipped", "skipped"])
+            self.assertTrue((run_root / "report-data.json").exists())
 
     def test_run_campaign_marks_invalid_environment_and_never_dispatches_a_child_runner(self) -> None:
         # Arrange
@@ -666,6 +680,11 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(direct_state["status"], "invalid-environment")
             self.assertEqual(relay_state["status"], "invalid-environment")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
+            report_data = self.load_report_data(run_root)
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 2})
+            self.assertEqual(report_data["gateMath"]["status"], "red")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["invalid-environment", "invalid-environment"])
+            self.assertTrue((run_root / "report-data.json").exists())
 
     def test_plan_happy_path_campaign_uses_android_only_direct_but_invalidates_relay_when_ios_signing_is_unresolved(self) -> None:
         # Arrange
@@ -985,6 +1004,11 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
+            report_data = self.load_report_data(run_root)
+            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
+            self.assertEqual(report_data["gateMath"]["status"], "inconclusive")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "inconclusive"])
+            self.assertTrue((run_root / "report-data.json").exists())
 
     def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
         # Arrange
@@ -1025,6 +1049,11 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "relay-constrained-analysis-invalid-environment",
                 {reason["code"] for reason in relay_state["reasons"]},
             )
+            report_data = self.load_report_data(run_root)
+            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1})
+            self.assertEqual(report_data["gateMath"]["status"], "red")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "invalid-environment"])
+            self.assertTrue((run_root / "report-data.json").exists())
 
 
 if __name__ == "__main__":

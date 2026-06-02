@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+import campaign_report_data
 import reference_fleet
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.release"
@@ -1039,6 +1040,7 @@ def persist_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
     write_json_document(manifest_path, manifest)
     write_json_document(campaign_plan_path, build_campaign_plan(manifest))
     write_json_document(campaign_state_path, build_campaign_state_document(manifest))
+    campaign_report_data.write_report_data(run_root / campaign_report_data.DEFAULT_OUTPUT_NAME, campaign_report_data.build_report_data(run_root))
 
 
 def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:

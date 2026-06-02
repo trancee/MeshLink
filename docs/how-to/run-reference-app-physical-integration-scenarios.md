@@ -180,10 +180,19 @@ Read the retained artifacts in this order:
 2. `campaign-state.json` — actual scenario statuses, `happyPathGate`,
    `firstFailScenarioId`, child/analyzer exit codes, and per-scenario
    `eventHistory`.
-3. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
+3. `report-data.json` — aggregated verdict counts, gate math, run
+   classification, and scenario-level inspection pointers. Use its verdict
+   taxonomy to distinguish `pass`, `fail`, `skipped`, `inconclusive`, and
+   `invalid-environment` instead of reconstructing outcomes from raw logs.
+4. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
    first human-readable artifact for why a scenario passed or failed.
-4. `fleet-manifest.json` — raw device discovery, candidate assignment
+5. `fleet-manifest.json` — raw device discovery, candidate assignment
    reasoning, and the full `campaignLog` trail.
+
+`report-data.json` is the next stop after the state ledger when you need a
+machine-readable answer to “what actually happened?” It stays aligned with the
+retained campaign state and captures the honest verdict taxonomy even when a
+run exits early, skips scenarios, or only completes partially.
 
 ```text
 <run-root>/
