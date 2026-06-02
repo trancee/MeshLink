@@ -927,15 +927,15 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
 
             # Assert
-            self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
             campaign_state = self.load_json(run_root / "campaign-state.json")
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
             relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
             self.assertEqual(direct_state["status"], "pass")
-            self.assertEqual(relay_state["status"], "invalid-environment")
+            self.assertEqual(relay_state["status"], "fail")
             self.assertEqual(relay_state["childExitCode"], 7)
             self.assertIn(
-                "relay-constrained-runner-invalid-environment",
+                "relay-constrained-runner-failed",
                 {reason["code"] for reason in relay_state["reasons"]},
             )
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
@@ -972,19 +972,59 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
 
             # Assert
-            self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
             campaign_state = self.load_json(run_root / "campaign-state.json")
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
             relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
             self.assertEqual(direct_state["status"], "pass")
-            self.assertEqual(relay_state["status"], "invalid-environment")
+            self.assertEqual(relay_state["status"], "fail")
             self.assertEqual(relay_state["analysisExitCode"], 4)
             self.assertIn(
-                "relay-constrained-analysis-invalid-environment",
+                "relay-constrained-analysis-failed",
                 {reason["code"] for reason in relay_state["reasons"]},
             )
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
+
+    def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-relay", "device")),
+            android_models={
+                "android-passive": "Pixel 8",
+                "android-relay": "Galaxy S24",
+            },
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        process_runner = ReleaseCampaignProcessRunner(
+            scenario_results={
+                "relay-constrained": {
+                    "analysis_returncode": 4,
+                    "analysis_stderr": "environment-sentinel=invalid",
+                    "analysis_writes_outputs": False,
+                }
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "analysis-explicit-environment-sentinel"
+
+            # Act
+            exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=lambda: manifest,
+                process_runner=process_runner,
+            )
+
+            # Assert
+            self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            self.assertEqual(relay_state["status"], "invalid-environment")
+            self.assertIn(
+                "relay-constrained-analysis-invalid-environment",
+                {reason["code"] for reason in relay_state["reasons"]},
+            )
 
 
 if __name__ == "__main__":

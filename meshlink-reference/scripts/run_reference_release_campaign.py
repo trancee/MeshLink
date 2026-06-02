@@ -17,18 +17,9 @@ EXIT_PASS = 0
 EXIT_FAIL = 1
 EXIT_SKIPPED = 2
 EXIT_INVALID_ENVIRONMENT = 3
-INVALID_ENVIRONMENT_HINTS = (
-    "adb",
-    "build failed",
-    "could not find",
-    "development_team",
-    "devicectl",
-    "install failed",
-    "not granted",
-    "not ready",
-    "provision",
-    "runtime permissions",
-    "xcodebuild",
+INVALID_ENVIRONMENT_MARKERS = (
+    "invalid-environment",
+    "environment-sentinel=invalid",
 )
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -1416,6 +1407,11 @@ def write_command_logs(
     stderr_path.write_text(stderr_text, encoding="utf-8")
 
 
+def contains_explicit_invalid_environment_signal(result: reference_fleet.ProbeResult) -> bool:
+    output_text = "\n".join(part for part in [result.stdout, result.stderr, result.error or ""] if part).lower()
+    return any(marker in output_text for marker in INVALID_ENVIRONMENT_MARKERS)
+
+
 def classify_nonzero_result(
     result: reference_fleet.ProbeResult,
     *,
@@ -1424,7 +1420,6 @@ def classify_nonzero_result(
     invalid_environment_message: str,
     failure_message: str,
 ) -> tuple[str, dict[str, Any]]:
-    output_text = "\n".join(part for part in [result.stdout, result.stderr, result.error or ""] if part).lower()
     if result.missing:
         return (
             "invalid-environment",
@@ -1435,7 +1430,7 @@ def classify_nonzero_result(
                 missing=True,
             ).to_dict(),
         )
-    if result.returncode not in (0, None) and any(hint in output_text for hint in INVALID_ENVIRONMENT_HINTS):
+    if result.returncode not in (0, None) and contains_explicit_invalid_environment_signal(result):
         return (
             "invalid-environment",
             reference_fleet.reason(

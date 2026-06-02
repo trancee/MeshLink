@@ -135,7 +135,9 @@ Use [How to run the reference-app physical integration scenarios](../docs/how-to
 for prerequisites, honest `skipped` versus `invalid-environment` outcomes,
 retained artifact layout, the `campaign-state.json` inspection flow, and the
 lower-level explicit runners used for manual direct, relay, and matrix
-investigations.
+investigations. The release campaign treats generic wrapper text such as
+`xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits
+an explicit environment sentinel.
 
 ## Before you debug the app
 

@@ -144,6 +144,9 @@ Use the distinction this way:
   healthy enough to satisfy the planned roles.
 - `fail` means a scenario was executed, but the retained `summary.json`,
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
+  Generic wrapper noise such as `xcodebuild` or `build failed` does not upgrade
+  that result to `invalid-environment`; only missing tools or an explicit
+  environment sentinel from the child/analyzer should do that.
 
 ### Red-gate semantics
 
