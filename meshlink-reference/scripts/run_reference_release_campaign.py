@@ -11,6 +11,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import campaign_report_data
 import reference_fleet
+import render_reference_release_review_report
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.release"
 DEFAULT_CHILD_TIMEOUT_SECONDS = 30 * 60
@@ -1040,7 +1041,9 @@ def persist_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
     write_json_document(manifest_path, manifest)
     write_json_document(campaign_plan_path, build_campaign_plan(manifest))
     write_json_document(campaign_state_path, build_campaign_state_document(manifest))
-    campaign_report_data.write_report_data(run_root / campaign_report_data.DEFAULT_OUTPUT_NAME, campaign_report_data.build_report_data(run_root))
+    report_data_path = run_root / campaign_report_data.DEFAULT_OUTPUT_NAME
+    campaign_report_data.write_report_data(report_data_path, campaign_report_data.build_report_data(run_root))
+    render_reference_release_review_report.render_release_review_report(run_root, report_data_path=report_data_path)
 
 
 def build_campaign_plan(manifest: Mapping[str, Any]) -> dict[str, Any]:

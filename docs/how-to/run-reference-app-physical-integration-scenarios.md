@@ -184,15 +184,19 @@ Read the retained artifacts in this order:
    classification, and scenario-level inspection pointers. Use its verdict
    taxonomy to distinguish `pass`, `fail`, `skipped`, `inconclusive`, and
    `invalid-environment` instead of reconstructing outcomes from raw logs.
-4. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
+4. `release-review-report.html` — the offline reviewer surface that renders the
+   retained report data into a self-contained HTML view with drill-downs and
+   retained evidence links.
+5. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
    first human-readable artifact for why a scenario passed or failed.
-5. `fleet-manifest.json` — raw device discovery, candidate assignment
+6. `fleet-manifest.json` — raw device discovery, candidate assignment
    reasoning, and the full `campaignLog` trail.
 
 `report-data.json` is the next stop after the state ledger when you need a
-machine-readable answer to “what actually happened?” It stays aligned with the
-retained campaign state and captures the honest verdict taxonomy even when a
-run exits early, skips scenarios, or only completes partially.
+machine-readable answer to “what actually happened?” The HTML report follows it
+as the reviewer-facing artifact: it reads only the retained report data, stays
+aligned with the campaign state, and captures the honest verdict taxonomy even
+when a run exits early, skips scenarios, or only completes partially.
 
 ```text
 <run-root>/
@@ -443,6 +447,8 @@ Each manual scenario directory writes the raw logs plus these summary artifacts:
 - `analysis.json` — machine-readable pass/fail analysis for the scenario
 - `analysis.md` — reviewer-friendly explanation of what passed, what failed,
   and what to investigate next
+- `release-review-report.html` — the offline HTML review surface for the whole
+  campaign run, generated from retained `report-data.json`
 
 The direct scenario also captures the Android retained history and redacted
 export files.

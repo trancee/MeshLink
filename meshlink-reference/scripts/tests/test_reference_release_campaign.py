@@ -441,7 +441,14 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(report_data["gateMath"]["status"], "green")
             self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "pass"])
             self.assertEqual([scenario["analysisStatus"] for scenario in report_data["scenarios"]], ["pass", "pass"])
+            report_html_path = run_root / "release-review-report.html"
+            report_html = report_html_path.read_text(encoding="utf-8")
             self.assertTrue((run_root / "report-data.json").exists())
+            self.assertTrue(report_html_path.exists())
+            self.assertIn("Rendered from retained report-data.json only", report_html)
+            self.assertIn("baseline/direct-guided-mixed/summary.json", report_html)
+            self.assertIn("baseline/direct-guided-mixed/analysis.md", report_html)
+            self.assertIn("scenarios/02-relay-constrained/analysis.json", report_html)
             self.assert_artifact_links(direct_state)
             self.assert_artifact_links(relay_state)
             self.assert_event_sequence_contains(
