@@ -117,6 +117,79 @@ class AnalyzeReferencePhysicalRunTests(unittest.TestCase):
             """,
         )
 
+    def seed_trust_reset_recovery_run(self, run_dir: Path, *, late_recovery: bool = False) -> None:
+        sender_completion_text = (
+            "2026-05-31 10:00:01.900 REFERENCE_AUTOMATION proof.complete role=sender outcome=SendResult.Sent peer=peer-123 delivery=DELIVERY_SUCCEEDED @ delivery.send {routeIsDirect=true} deliveries=2"
+            if late_recovery
+            else "2026-05-31 10:00:01.250 REFERENCE_AUTOMATION proof.complete role=sender outcome=SendResult.Sent peer=peer-123 delivery=DELIVERY_SUCCEEDED @ delivery.send {routeIsDirect=true} deliveries=2"
+        )
+        passive_completion_text = (
+            "05-31 10:00:01.200 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=passive inboundCount=2 largestInboundBytes=32 export=exports/session-redacted.json"
+        )
+        self.write_text(
+            run_dir / "summary.json",
+            textwrap.dedent(
+                f"""
+                {{
+                  "scenario": "direct-trust-reset-recovery",
+                  "status": "passed",
+                  "senderPlatform": "ios",
+                  "passivePlatform": "android",
+                  "senderCompletion": "{sender_completion_text}",
+                  "passiveCompletion": "{passive_completion_text}",
+                  "exportRelativePath": "exports/session-redacted.json",
+                  "evidence": {{
+                    "senderLogcat": "iphone_console.log",
+                    "passiveLogcat": "android_logcat.log",
+                    "androidHistory": "android_history.json",
+                    "androidExport": "android_export.json"
+                  }}
+                }}
+                """
+            ).lstrip(),
+        )
+        sender_lines = [
+            "2026-05-31 10:00:00.000 REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-trust-reset-recovery",
+            "2026-05-31 10:00:00.150 REFERENCE_AUTOMATION peer.discovered role=SENDER peer=peer-123",
+            "2026-05-31 10:00:00.300 REFERENCE_AUTOMATION send.requested role=sender phase=primary payload=guided-hello bytes=32",
+            "2026-05-31 10:00:01.000 REFERENCE_AUTOMATION trust.reset.requested role=sender window=open peer=peer-123",
+            "2026-05-31 10:00:01.100 REFERENCE_AUTOMATION trust.reset.observed role=sender window=open peer=peer-123",
+        ]
+        if late_recovery:
+            sender_lines.extend(
+                [
+                    "2026-05-31 10:00:01.850 REFERENCE_AUTOMATION send.requested role=sender phase=recovery payload=trust-reset-recovery bytes=32",
+                    "2026-05-31 10:00:01.900 REFERENCE_AUTOMATION proof.complete role=sender outcome=SendResult.Sent peer=peer-123 delivery=DELIVERY_SUCCEEDED @ delivery.send {routeIsDirect=true} deliveries=2",
+                    "2026-05-31 10:00:02.050 REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed peer=peer-123",
+                    "2026-05-31 10:00:02.100 ROUTE_RETRACTED @ trust.forgetPeer.routeRetracted",
+                ]
+            )
+        else:
+            sender_lines.extend(
+                [
+                    "2026-05-31 10:00:01.150 REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed peer=peer-123",
+                    "2026-05-31 10:00:01.200 REFERENCE_AUTOMATION send.requested role=sender phase=recovery payload=trust-reset-recovery bytes=32",
+                    "2026-05-31 10:00:01.250 REFERENCE_AUTOMATION proof.complete role=sender outcome=SendResult.Sent peer=peer-123 delivery=DELIVERY_SUCCEEDED @ delivery.send {routeIsDirect=true} deliveries=2",
+                    "2026-05-31 10:00:01.300 ROUTE_RETRACTED @ trust.forgetPeer.routeRetracted",
+                ]
+            )
+        self.write_text(run_dir / "iphone_console.log", "\n".join(sender_lines) + "\n")
+        self.write_text(
+            run_dir / "android_logcat.log",
+            """
+            05-31 10:00:00.000 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-trust-reset-recovery
+            05-31 10:00:00.200 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=peer-123
+            05-31 10:00:01.100 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION session.end.requested role=passive
+            05-31 10:00:01.150 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview
+            05-31 10:00:01.200 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=passive inboundCount=2 largestInboundBytes=32 export=exports/session-redacted.json
+            """,
+        )
+        self.write_text(run_dir / "android_history.json", '{"historyStatus": "RETAINED"}\n')
+        self.write_text(
+            run_dir / "android_export.json",
+            '{"defaultMode": "redacted-preview", "fullPayloadIncluded": false, "operatorOptInRecorded": false}\n',
+        )
+
     def test_main_writes_analysis_for_android_sender_direct_run(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -176,6 +249,74 @@ class AnalyzeReferencePhysicalRunTests(unittest.TestCase):
             self.assertEqual(analysis["status"], "pass")
             self.assertEqual(analysis["artifacts"]["relay_log_label"], "relay")
             self.assertIn("routeIsDirect=false", markdown)
+
+    def test_main_reports_within_window_recovery_verdict_and_topology_pointers(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "trust-reset-pass"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            self.seed_trust_reset_recovery_run(run_dir)
+
+            # Act
+            exit_code, analysis, markdown = self.run_cli(run_dir)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(analysis["status"], "pass")
+            self.assertEqual(analysis["recovery_window"]["verdict"], "within-window")
+            self.assertEqual(analysis["recovery_window"]["contract"], "trust-reset")
+            self.assertIn("trust.reset.requested", analysis["recovery_window"]["injection_requested_line"])
+            self.assertTrue(
+                any("ROUTE_RETRACTED" in pointer for pointer in analysis["topology_evidence"]["pointers"])
+            )
+            self.assertIn("Recovery window verdict", markdown)
+            self.assertIn("Topology evidence pointers", markdown)
+
+    def test_main_marks_late_recovery_when_completion_precedes_recovery_marker(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "trust-reset-late"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            self.seed_trust_reset_recovery_run(run_dir, late_recovery=True)
+
+            # Act
+            exit_code, analysis, markdown = self.run_cli(run_dir)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(analysis["status"], "fail")
+            self.assertEqual(analysis["recovery_window"]["verdict"], "late-recovery")
+            self.assertIn("completed before the recovery marker", analysis["recovery_window"]["reason"])
+            self.assertIn("late", " ".join(analysis["recommendations"]))
+            self.assertIn("Recovery window verdict", markdown)
+
+    def test_main_marks_missing_evidence_for_route_break_recovery_without_dedicated_markers(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "route-break-missing"
+            self.copy_fixture(ANDROID_DIRECT_FIXTURE_DIR, run_dir)
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            summary["scenario"] = "direct-route-break-recovery"
+            (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            for log_name in ("sender_logcat.log", "passive_logcat.log"):
+                log_path = run_dir / log_name
+                log_path.write_text(
+                    log_path.read_text(encoding="utf-8").replace(
+                        "direct-guided", "direct-route-break-recovery"
+                    ),
+                    encoding="utf-8",
+                )
+
+            # Act
+            exit_code, analysis, markdown = self.run_cli(run_dir)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(analysis["status"], "fail")
+            self.assertEqual(analysis["recovery_window"]["verdict"], "missing-evidence")
+            self.assertIn("No dedicated recovery-marker contract", analysis["recovery_window"]["reason"])
+            self.assertTrue(analysis["topology_evidence"]["pointers"])
+            self.assertIn("Recovery window verdict", markdown)
 
     def test_main_fails_when_android_sender_log_is_missing(self) -> None:
         # Arrange

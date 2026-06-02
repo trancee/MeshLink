@@ -29,6 +29,9 @@ flows, use the scripted Android and iOS workflow tests instead.
 | that pause and resume do not strand the next send | **Direct pause/resume recovery** |
 | that live full export and retained redacted export stay separate | **Direct full-export boundary** |
 | that `forgetPeer` really clears state and the next send recovers | **Direct trust-reset recovery** |
+| that the sender restarts and the next send recovers | **Direct restart recovery** |
+| that an intentional device isolation still allows the route to recover | **Direct isolation recovery** |
+| that a broken route can re-form without a false green | **Direct route-break recovery** |
 | that a payload larger than the default hello still arrives | **Direct large transfer** |
 | that the first physical iPhone launch can get past Bluetooth prompt friction | **Direct XCTest permission recovery** |
 | a real `A = iPhone 15 → B = Samsung → C = OPPO` routed send with `routeIsDirect=false` | **Constrained relay proof** |
@@ -441,6 +444,36 @@ The relay scenario additionally captures:
 - the passive Android identity preferences
 - the relay Android identity preferences
 
+## Recovery-window analysis contract
+
+The analyzer now publishes a small recovery-window record in `analysis.json`
+and mirrors it in `analysis.md` so reviewers can see whether a resilience run
+recovered in time without re-reading raw logs.
+
+The key fields are:
+
+- `recovery_window.verdict` — `within-window`, `late-recovery`,
+  `missing-evidence`, or `not-applicable`
+- `recovery_window.injection_requested_line`,
+  `recovery_window.injection_observed_line`,
+  `recovery_window.recovery_marker_line`, and
+  `recovery_window.completion_line` — the exact retained lines that bracket
+  the recovery window
+- `topology_evidence.pointers` — the retained lines that prove the topology
+  change, route retraction, or route-expiry signal when the run emits one
+
+For the current direct resilience scenarios, look for these markers:
+
+- `direct-pause-resume` — `pause.requested`, `pause.observed`,
+  `pause.recovered`, `resume.requested`, `resume.observed`
+- `direct-trust-reset-recovery` — `trust.reset.requested`,
+  `trust.reset.observed`, `trust.reset.recovered`, plus `ROUTE_RETRACTED`
+  when the retained route teardown appears
+- `direct-restart-recovery`, `direct-isolation-recovery`, and
+  `direct-route-break-recovery` — retained scenario names are already wired,
+  but the analyzer will honestly report `missing-evidence` until dedicated
+  recovery markers are present in the run
+
 Use the analysis artifact as the main review surface. The goal is to avoid raw
 log scrolling as the primary way to judge whether a physical run was meaningful.
 
@@ -451,7 +484,10 @@ log scrolling as the primary way to judge whether a physical run was meaningful.
 | Direct proof | sender completion; passive completion; retained redacted export captured locally; retained history captured locally; no full payload bytes in the redacted export |
 | Direct pause/resume recovery | all direct-proof criteria plus sender `pause.requested`, `pause.observed`, `resume.requested`, and `resume.observed` |
 | Direct full-export boundary | all direct-proof criteria plus live full export captured locally; full export records operator opt-in and includes full payload content; retained export still remains redacted |
-| Direct trust-reset recovery | all direct-proof criteria plus trust reset requested and observed on the sender; a second successful recovery send after the reset; two deliveries observed for the sender-side proof |
+| Direct trust-reset recovery | all direct-proof criteria plus trust reset requested and observed on the sender, a `trust.reset.recovered` close marker, a second successful recovery send after the reset, and two deliveries observed for the sender-side proof |
+| Direct restart recovery | all direct-proof criteria plus the restart scenario’s retained injection and recovery markers; the run stays honest only when `recovery_window.verdict` is `within-window` |
+| Direct isolation recovery | all direct-proof criteria plus the isolation scenario’s retained injection and recovery markers; the run stays honest only when `recovery_window.verdict` is `within-window` |
+| Direct route-break recovery | all direct-proof criteria plus the route-break scenario’s retained injection and recovery markers; the run stays honest only when `recovery_window.verdict` is `within-window` |
 | Direct large transfer | all direct-proof criteria plus sender requests the large-transfer payload; the payload is much larger than the inline hello size; the passive side records a large inbound payload when full end-to-end retention is available |
 | Relay proof | sender completion; bootstrap before routed send; sender delivery with `routeIsDirect=false`; relay queued-forward and delivered-forward observations; passive completion; no `transport.data.noSession` failure |
 
