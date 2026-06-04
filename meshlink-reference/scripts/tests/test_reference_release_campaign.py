@@ -632,6 +632,49 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
 
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="green",
+                expected_verdicts=("pass", "skipped"),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual(
+                [scenario["verdict"] for scenario in report_data["scenarios"]],
+                ["pass", "skipped"],
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["summary"],
+                "baseline/direct-guided-android-only/summary.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["analysisJson"],
+                "baseline/direct-guided-android-only/analysis.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["analysisMarkdown"],
+                "baseline/direct-guided-android-only/analysis.md",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["summary"],
+                "scenarios/02-relay-constrained/summary.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["analysisJson"],
+                "scenarios/02-relay-constrained/analysis.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["analysisMarkdown"],
+                "scenarios/02-relay-constrained/analysis.md",
+            )
+
+            report_html = (run_root / "release-review-report.html").read_text(encoding="utf-8")
+            self.assertIn("baseline/direct-guided-android-only/summary.json", report_html)
+            self.assertIn("baseline/direct-guided-android-only/analysis.md", report_html)
+            self.assertIn("scenarios/02-relay-constrained/analysis.json", report_html)
+
     def test_run_campaign_marks_skipped_and_never_dispatches_a_child_runner(self) -> None:
         # Arrange
         manifest = self.build_manifest(
