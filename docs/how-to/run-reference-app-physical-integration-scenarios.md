@@ -186,7 +186,8 @@ Read the retained artifacts in this order:
    `invalid-environment` instead of reconstructing outcomes from raw logs.
 4. `release-review-report.html` — the offline reviewer surface that renders the
    retained report data into a self-contained HTML view with drill-downs and
-   retained evidence links.
+   retained evidence links. For the retained browser/runtime proof behind this
+   surface, open [Offline release-review validation evidence](../explanation/reference-app-release-review-validation-evidence.md).
 5. `meshlink-reference/fleet-test-history/index.html` — the concise HTML history
    report for repeated fleet tests, generated from retained test outputs only.
 6. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
@@ -198,7 +199,9 @@ Read the retained artifacts in this order:
 machine-readable answer to “what actually happened?” The HTML report follows it
 as the reviewer-facing artifact: it reads only the retained report data, stays
 aligned with the campaign state, and captures the honest verdict taxonomy even
-when a run exits early, skips scenarios, or only completes partially.
+when a run exits early, skips scenarios, or only completes partially. The
+browser/runtime proof note explains how the offline reviewer surface was
+verified from disk-backed artifacts and why it substantiates R010.
 
 Contract: inspect `campaign-plan.json`, then `campaign-state.json`, then
 `report-data.json`, and only then open `release-review-report.html`. The HTML

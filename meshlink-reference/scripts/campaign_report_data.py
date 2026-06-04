@@ -12,6 +12,12 @@ import reference_fleet
 REPORT_DATA_VERSION = 1
 DEFAULT_OUTPUT_NAME = "report-data.json"
 TERMINAL_VERDICTS = {"pass", "fail", "skipped", "inconclusive", "invalid-environment"}
+RETAINED_GATE_THRESHOLDS = {
+    "failureCountMaximum": 0,
+    "inconclusiveCountMaximum": 0,
+    "invalidEnvironmentCountMaximum": 0,
+    "passRateMinimum": 1.0,
+}
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parents[1]
@@ -386,6 +392,7 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
         "verdictCounts": verdict_counts,
         "gateMath": {
             "status": gate_status,
+            "thresholds": dict(RETAINED_GATE_THRESHOLDS),
             "totalScenarios": len(scenarios),
             "runnableScenarios": runnable_count,
             "terminalScenarios": terminal_count,

@@ -60,10 +60,18 @@ def format_percent(value: object | None) -> str:
         return as_text(value)
 
 
-def render_metric_card(label: str, value: object | None, *, note: str | None = None) -> str:
+def normalize_status_token(value: object | None) -> str | None:
+    token = as_text(value).strip().lower().replace("_", "-")
+    return token if token and token != "—" else None
+
+
+def render_metric_card(label: str, value: object | None, *, note: str | None = None, status: object | None = None) -> str:
     note_html = f'<div class="metric-note">{escape_text(note)}</div>' if note else ""
+    status_token = normalize_status_token(status)
+    class_name = "metric-card" if not status_token else f"metric-card metric-card--{html.escape(status_token, quote=True)}"
+    data_status = f' data-status="{escape_attr(status_token)}"' if status_token else ""
     return (
-        '<section class="metric-card">'
+        f'<section class="{class_name}"{data_status}>'
         f'<div class="metric-label">{escape_text(label)}</div>'
         f'<div class="metric-value">{escape_text(value)}</div>'
         f"{note_html}"
@@ -100,8 +108,11 @@ def render_artifact_link(label: str, path_value: object | None) -> str:
 
 
 def render_verdict_badge(verdict: object | None) -> str:
-    normalized = str(verdict or "inconclusive")
-    return f'<span class="badge verdict verdict-{html.escape(normalized, quote=True)}">{escape_text(normalized)}</span>'
+    normalized = normalize_status_token(verdict) or "inconclusive"
+    return (
+        f'<span class="badge verdict verdict-{html.escape(normalized, quote=True)}" '
+        f'data-status="{escape_attr(normalized)}">{escape_text(normalized)}</span>'
+    )
 
 
 def render_source_paths(report_data: Mapping[str, Any]) -> str:
@@ -155,11 +166,28 @@ def render_gate_math(report_data: Mapping[str, Any]) -> str:
     )
 
 
+def render_gate_policy(report_data: Mapping[str, Any]) -> str:
+    gate_math = report_data.get("gateMath") if isinstance(report_data.get("gateMath"), Mapping) else {}
+    thresholds = gate_math.get("thresholds") if isinstance(gate_math, Mapping) and isinstance(gate_math.get("thresholds"), Mapping) else {}
+    return (
+        '<section class="panel">'
+        '<h2>Gate policy</h2>'
+        '<p class="muted">Retained policy thresholds come directly from report-data.json so reviewers can verify the release gate without live recomputation.</p>'
+        '<div class="metric-grid">'
+        f'{render_metric_card("Failure count max", thresholds.get("failureCountMaximum"))}'
+        f'{render_metric_card("Inconclusive count max", thresholds.get("inconclusiveCountMaximum"))}'
+        f'{render_metric_card("Invalid env count max", thresholds.get("invalidEnvironmentCountMaximum"))}'
+        f'{render_metric_card("Pass rate min", format_percent(thresholds.get("passRateMinimum")))}'
+        '</div>'
+        '</section>'
+    )
+
+
 def render_verdict_counts(report_data: Mapping[str, Any]) -> str:
     verdict_counts = report_data.get("verdictCounts") if isinstance(report_data.get("verdictCounts"), Mapping) else {}
     cards = []
     for verdict in VERDICT_ORDER:
-        cards.append(render_metric_card(verdict, verdict_counts.get(verdict)))
+        cards.append(render_metric_card(verdict, verdict_counts.get(verdict), status=verdict))
     return (
         '<section class="panel">'
         '<div class="panel-heading">'
@@ -217,6 +245,9 @@ def render_scenario_details(scenario: Mapping[str, Any]) -> str:
 
 
 def render_scenario_card(scenario: Mapping[str, Any]) -> str:
+    verdict_token = normalize_status_token(scenario.get("verdict"))
+    card_class = "scenario-card" if not verdict_token else f"scenario-card scenario-card--{html.escape(verdict_token, quote=True)}"
+    scenario_id = html.escape(as_text(scenario.get("scenarioId")), quote=True).replace(" ", "-")
     header_bits = [
         f"#{escape_text(scenario.get('order'))}" if scenario.get("order") is not None else "#—",
         escape_text(scenario.get("scenarioId")),
@@ -224,9 +255,7 @@ def render_scenario_card(scenario: Mapping[str, Any]) -> str:
     ]
     summary_line = " · ".join(header_bits)
     return (
-        '<article class="scenario-card" id="scenario-{}">'.format(
-            html.escape(as_text(scenario.get("scenarioId")), quote=True).replace(" ", "-")
-        )
+        f'<article class="{card_class}" id="scenario-{scenario_id}">'
         + '<header class="scenario-header">'
         + f'<div class="scenario-title">{summary_line}</div>'
         + '<div class="scenario-meta">'
@@ -302,24 +331,28 @@ def render_report(report_data: Mapping[str, Any]) -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1" />'
         '<title>MeshLink release review report</title>'
         '<style>'
-        ':root { color-scheme: light; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; '
-        'background: #f6f7fb; color: #172033; }'
-        'body { margin: 0; background: linear-gradient(180deg, #f8fafc 0, #eef2ff 100%); color: #172033; }'
+        ':root { color-scheme: light; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f5f7; color: #172033; }'
+        'body { margin: 0; background: #f4f5f7; color: #172033; }'
         '.page { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }'
-        '.hero { background: #111827; color: #f8fafc; border-radius: 24px; padding: 28px 30px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18); }'
-        '.eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: #a5b4fc; }'
+        '.hero { background: linear-gradient(180deg, #1f2937 0, #111827 100%); color: #f8fafc; border-radius: 24px; padding: 28px 30px; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18); }'
+        '.eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: #c7d2fe; }'
         'h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); line-height: 1.05; }'
         '.lede { margin: 12px 0 0; max-width: 80ch; color: #dbeafe; }'
-        '.hero-meta { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 18px; font-size: 14px; color: #d1d5db; }'
+        '.hero-meta { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 18px; font-size: 14px; color: #cbd5e1; }'
         '.layout { display: grid; gap: 20px; margin-top: 24px; }'
-        '.panel { background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 20px; padding: 22px; box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06); backdrop-filter: blur(8px); }'
+        '.panel { background: rgba(255, 255, 255, 0.96); border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 20px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05); }'
         '.panel h2 { margin: 0 0 16px; font-size: 1.2rem; }'
         '.panel-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }'
         '.panel-actions { display: flex; gap: 10px; flex-wrap: wrap; }'
-        'button { border: 0; border-radius: 999px; padding: 10px 16px; background: #2563eb; color: white; font-weight: 600; cursor: pointer; }'
-        'button:hover { background: #1d4ed8; }'
+        'button { border: 1px solid #475569; border-radius: 999px; padding: 10px 16px; background: #334155; color: white; font-weight: 600; cursor: pointer; }'
+        'button:hover { background: #1f2937; }'
         '.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }'
-        '.metric-card { border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px 16px; }'
+        '.metric-card { border-radius: 16px; background: #f8fafc; border: 1px solid #d8e1ea; padding: 14px 16px; }'
+        '.metric-card--pass { background: #f0fdf4; border-color: #bbf7d0; box-shadow: inset 0 0 0 1px rgba(22, 101, 52, 0.06); }'
+        '.metric-card--fail { background: #fff1f2; border-color: #fecdd3; box-shadow: inset 0 0 0 1px rgba(153, 27, 27, 0.06); }'
+        '.metric-card--skipped { background: #eef2ff; border-color: #c7d2fe; box-shadow: inset 0 0 0 1px rgba(55, 48, 163, 0.05); }'
+        '.metric-card--inconclusive { background: #fffbeb; border-color: #fde68a; box-shadow: inset 0 0 0 1px rgba(146, 64, 14, 0.05); }'
+        '.metric-card--invalid-environment { background: #f1f5f9; border-color: #cbd5e1; box-shadow: inset 0 0 0 1px rgba(51, 65, 85, 0.05); }'
         '.metric-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 6px; }'
         '.metric-value { font-size: 1.3rem; font-weight: 700; color: #0f172a; }'
         '.metric-note { margin-top: 6px; font-size: 12px; color: #64748b; }'
@@ -335,7 +368,12 @@ def render_report(report_data: Mapping[str, Any]) -> str:
         '.verdict-inconclusive { background: #fef3c7; color: #92400e; }'
         '.verdict-invalid-environment { background: #e2e8f0; color: #334155; }'
         '.scenario-list { display: grid; gap: 16px; }'
-        '.scenario-card { border-radius: 18px; border: 1px solid #e2e8f0; background: white; overflow: hidden; }'
+        '.scenario-card { border-radius: 18px; border: 1px solid #d8e1ea; background: white; overflow: hidden; }'
+        '.scenario-card--pass { border-color: #bbf7d0; box-shadow: 0 0 0 1px rgba(22, 101, 52, 0.04); }'
+        '.scenario-card--fail { border-color: #fecdd3; box-shadow: 0 0 0 1px rgba(153, 27, 27, 0.04); }'
+        '.scenario-card--skipped { border-color: #c7d2fe; box-shadow: 0 0 0 1px rgba(55, 48, 163, 0.03); }'
+        '.scenario-card--inconclusive { border-color: #fde68a; box-shadow: 0 0 0 1px rgba(146, 64, 14, 0.03); }'
+        '.scenario-card--invalid-environment { border-color: #cbd5e1; box-shadow: 0 0 0 1px rgba(51, 65, 85, 0.03); }'
         '.scenario-header { display: grid; gap: 10px; padding: 18px 18px 12px; background: linear-gradient(180deg, #ffffff 0, #f8fafc 100%); }'
         '.scenario-title { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-weight: 700; font-size: 1.05rem; }'
         '.scenario-meta { display: flex; gap: 14px 18px; flex-wrap: wrap; color: #475569; font-size: 14px; }'
@@ -344,7 +382,7 @@ def render_report(report_data: Mapping[str, Any]) -> str:
         '.field-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 4px; }'
         '.artifact-list { display: flex; flex-wrap: wrap; gap: 10px; }'
         '.artifact { display: inline-flex; flex-direction: column; gap: 2px; min-width: 180px; text-decoration: none; border: 1px solid #dbe4f0; background: #f8fafc; border-radius: 14px; padding: 10px 12px; color: #0f172a; }'
-        '.artifact:hover { border-color: #94a3b8; background: white; }'
+        '.artifact:hover { border-color: #94a3b8; background: #ffffff; }'
         '.artifact-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }'
         '.artifact-path { word-break: break-all; font-size: 14px; }'
         '.artifact-missing { color: #64748b; }'
@@ -375,6 +413,7 @@ def render_report(report_data: Mapping[str, Any]) -> str:
         f'{render_run_classification(report_data)}'
         f'{render_verdict_counts(report_data)}'
         f'{render_gate_math(report_data)}'
+        f'{render_gate_policy(report_data)}'
         f'{render_scenarios(report_data)}'
         '</section>'
         '<p class="footer">Rendered from retained report-data.json only. Evidence links remain relative to the run root so the report can be opened offline alongside the archived campaign artifacts.</p>'

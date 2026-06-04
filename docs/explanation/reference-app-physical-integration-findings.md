@@ -14,11 +14,11 @@ optimizations are worth keeping or pursuing.
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
 | relay proof | sender-only success is not enough; `routeIsDirect=false` plus passive completion is the real invariant |
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
-| retained review surface | per-run analysis artifacts and the fleet-test history HTML are much easier to review than raw log scrolling |
+| retained review surface | per-run analysis artifacts, the browser/runtime proof note, and the fleet-test history HTML are much easier to review than raw log scrolling |
 
 ## Current milestone outcome
 
-Milestone **M001** validated the release-review campaign end-to-end: one-command fleet discovery, ordered happy-path execution, retained report-data persistence, and the offline HTML review surface all passed on a real 4-device discovered fleet. The campaign now treats Android-only sender symmetry as a deliberate follow-up rather than a hidden assumption.
+Milestone **M001** validated the release-review campaign end-to-end: one-command fleet discovery, ordered happy-path execution, retained report-data persistence, and the offline HTML review surface all passed on a real 4-device discovered fleet. That closed the validation-surface gap for **R010** by adding retained browser/runtime proof for the offline review path, so reviewers can trust the disk-backed surface without reconstructing raw logs. The campaign now treats Android-only sender symmetry as a deliberate follow-up rather than a hidden assumption.
 
 ## Why physical scenarios still matter
 
