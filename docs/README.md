@@ -13,6 +13,7 @@ single "read everything" path.
 | check official SDK or reference-app terms | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | validate behavior on devices | [How-to guides](#how-to-guides), [Reference](#reference), and [Explanation](#explanation) |
+| review repeated fleet-test history | [How-to guides](#how-to-guides) and [Reference](#reference) |
 | understand when to use the reference app, proof apps, or retained benchmarks | [Explanation](#explanation) |
 | check the current MeshLink release posture | [Reference](#reference) |
 | understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
@@ -45,8 +46,9 @@ If you are not sure where to start, use one of these short paths.
 1. [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md)
 2. [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md)
 3. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
-4. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
-5. [Benchmark and validation baselines](../benchmarks/README.md)
+4. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
+5. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+6. [Benchmark and validation baselines](../benchmarks/README.md)
 
 ### Proof fixtures and retained benchmarks
 

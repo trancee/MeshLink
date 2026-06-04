@@ -22,8 +22,8 @@ If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
 That path now includes a validated release-review campaign, retained
-`report-data.json`, and the offline `release-review-report.html` reviewer
-surface from milestone **M001**.
+`report-data.json`, the offline `release-review-report.html` reviewer surface,
+and the repo-visible fleet-test history report from milestone **M001**.
 
 ## Before you start
 
