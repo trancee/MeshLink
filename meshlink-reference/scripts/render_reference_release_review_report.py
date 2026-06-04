@@ -155,6 +155,23 @@ def render_gate_math(report_data: Mapping[str, Any]) -> str:
     )
 
 
+def render_gate_policy(report_data: Mapping[str, Any]) -> str:
+    gate_math = report_data.get("gateMath") if isinstance(report_data.get("gateMath"), Mapping) else {}
+    thresholds = gate_math.get("thresholds") if isinstance(gate_math, Mapping) and isinstance(gate_math.get("thresholds"), Mapping) else {}
+    return (
+        '<section class="panel">'
+        '<h2>Gate policy</h2>'
+        '<p class="muted">Retained policy thresholds come directly from report-data.json so reviewers can verify the release gate without live recomputation.</p>'
+        '<div class="metric-grid">'
+        f'{render_metric_card("Failure count max", thresholds.get("failureCountMaximum"))}'
+        f'{render_metric_card("Inconclusive count max", thresholds.get("inconclusiveCountMaximum"))}'
+        f'{render_metric_card("Invalid env count max", thresholds.get("invalidEnvironmentCountMaximum"))}'
+        f'{render_metric_card("Pass rate min", format_percent(thresholds.get("passRateMinimum")))}'
+        '</div>'
+        '</section>'
+    )
+
+
 def render_verdict_counts(report_data: Mapping[str, Any]) -> str:
     verdict_counts = report_data.get("verdictCounts") if isinstance(report_data.get("verdictCounts"), Mapping) else {}
     cards = []
@@ -375,6 +392,7 @@ def render_report(report_data: Mapping[str, Any]) -> str:
         f'{render_run_classification(report_data)}'
         f'{render_verdict_counts(report_data)}'
         f'{render_gate_math(report_data)}'
+        f'{render_gate_policy(report_data)}'
         f'{render_scenarios(report_data)}'
         '</section>'
         '<p class="footer">Rendered from retained report-data.json only. Evidence links remain relative to the run root so the report can be opened offline alongside the archived campaign artifacts.</p>'
