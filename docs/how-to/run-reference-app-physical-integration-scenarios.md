@@ -16,9 +16,9 @@ their own:
 - the live-only full-export boundary
 - teardown signals such as route retraction and route expiry
 
-If you only need deterministic surface coverage for **Guided first exchange**,
-**Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI
-flows, use the scripted Android and iOS workflow tests instead.
+If you only need deterministic surface coverage for **Guided first exchange**, **Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI flows, use the scripted Android and iOS workflow tests instead.
+
+The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Android-only sender symmetry remains a deliberate follow-up rather than a hidden assumption.
 
 ## Quick scenario picker
 

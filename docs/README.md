@@ -106,7 +106,7 @@ guessing which page owns which model.
 ### Validation and proof workflows
 
 - [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — walk through the shared Android and iOS reference app and export one retained artifact.
-- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — retain direct, relay, lifecycle, and export proofs on real devices.
+- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — run the validated release-review campaign and retain direct, relay, lifecycle, export, and offline review proofs on real devices.
 - [How to run the Android proof app](../meshlink-proof/android/README.md) — retain Android-side physical proof evidence.
 - [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) — retain iPhone-side physical proof evidence.
 

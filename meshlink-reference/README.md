@@ -123,8 +123,13 @@ sender, plans the ordered happy-path catalog, runs `direct-guided` first and
 `relay-constrained` second when relay is eligible, preserves
 `campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as
 compatibility views of the logical direct scenario, and retains
-`fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and
-per-scenario `analysis.md` evidence under the selected run directory.
+`fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`,
+`report-data.json`, `release-review-report.html`, and per-scenario `analysis.md`
+evidence under the selected run directory.
+
+Milestone **M001** validated this path end-to-end on a real 4-device discovered
+fleet. The remaining Android-only sender symmetry work is tracked as follow-up
+rather than an implicit expectation.
 
 If an executed scenario finishes anything other than `pass`,
 `campaign-state.json` flips `happyPathGate` to red, records
