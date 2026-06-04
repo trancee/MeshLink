@@ -268,6 +268,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         *,
         expected_gate_status: str,
         expected_verdicts: tuple[str, ...] = (),
+        unexpected_verdicts: tuple[str, ...] = (),
     ) -> dict[str, object]:
         report_data = self.load_report_data(run_root)
         self.assertEqual(report_data["gateMath"]["thresholds"], campaign_report_data.RETAINED_GATE_THRESHOLDS)
@@ -289,6 +290,10 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn(f'metric-card metric-card--{verdict}', report_html)
             self.assertIn(f'scenario-card scenario-card--{verdict}', report_html)
             self.assertIn(f'data-status="{verdict}"', report_html)
+
+        for verdict in unexpected_verdicts:
+            self.assertNotIn(f'scenario-card scenario-card--{verdict}', report_html)
+            self.assertNotIn(f'verdict verdict-{verdict}', report_html)
 
         return report_data
 
@@ -1165,8 +1170,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "relay-constrained": {
                     "child_returncode": 7,
                     "child_stderr": "DEVELOPMENT_TEAM is required unless local provisioning exists",
-                    "child_writes_summary": False,
-                    "analysis_writes_outputs": False,
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
                 }
             }
         )
@@ -1195,6 +1199,17 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="red",
+                expected_verdicts=("pass", "fail"),
+                unexpected_verdicts=("invalid-environment",),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
 
     def test_run_campaign_classifies_environmental_analyzer_failures_honestly(self) -> None:
         # Arrange
@@ -1211,7 +1226,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "relay-constrained": {
                     "analysis_returncode": 4,
                     "analysis_stderr": "xcodebuild tool not ready",
-                    "analysis_writes_outputs": False,
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
                 }
             }
         )
@@ -1242,11 +1257,15 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
-                expected_gate_status="inconclusive",
-                expected_verdicts=("pass", "inconclusive"),
+                expected_gate_status="red",
+                expected_verdicts=("pass", "fail"),
+                unexpected_verdicts=("invalid-environment",),
             )
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "inconclusive"])
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
             self.assertTrue((run_root / "report-data.json").exists())
 
     def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
@@ -1259,44 +1278,55 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             },
             ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
         )
-        process_runner = ReleaseCampaignProcessRunner(
-            scenario_results={
-                "relay-constrained": {
-                    "analysis_returncode": 4,
-                    "analysis_stderr": "environment-sentinel=invalid",
-                    "analysis_writes_outputs": False,
-                }
-            }
+        sentinel_cases = (
+            ("analysis_stdout", "environment-sentinel=invalid from stdout"),
+            ("analysis_stderr", "environment-sentinel=invalid from stderr"),
+            ("analysis_error", "environment-sentinel=invalid from error"),
         )
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            run_root = Path(temporary_directory) / "analysis-explicit-environment-sentinel"
+        for field_name, sentinel_value in sentinel_cases:
+            with self.subTest(field_name=field_name):
+                process_runner = ReleaseCampaignProcessRunner(
+                    scenario_results={
+                        "relay-constrained": {
+                            "analysis_returncode": 4,
+                            field_name: sentinel_value,
+                        }
+                    }
+                )
 
-            # Act
-            exit_code = release_campaign.run_campaign(
-                run_root=run_root,
-                build_manifest=lambda: manifest,
-                process_runner=process_runner,
-            )
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    run_root = Path(temporary_directory) / f"analysis-explicit-environment-sentinel-{field_name}"
 
-            # Assert
-            self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
-            campaign_state = self.load_json(run_root / "campaign-state.json")
-            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
-            self.assertEqual(relay_state["status"], "invalid-environment")
-            self.assertIn(
-                "relay-constrained-analysis-invalid-environment",
-                {reason["code"] for reason in relay_state["reasons"]},
-            )
-            report_data = self.assert_retained_gate_policy_artifacts(
-                run_root,
-                expected_gate_status="red",
-                expected_verdicts=("pass", "invalid-environment"),
-            )
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1})
-            self.assertEqual(report_data["gateMath"]["status"], "red")
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "invalid-environment"])
-            self.assertTrue((run_root / "report-data.json").exists())
+                    # Act
+                    exit_code = release_campaign.run_campaign(
+                        run_root=run_root,
+                        build_manifest=lambda: manifest,
+                        process_runner=process_runner,
+                    )
+
+                    # Assert
+                    self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+                    campaign_state = self.load_json(run_root / "campaign-state.json")
+                    relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+                    self.assertEqual(relay_state["status"], "invalid-environment")
+                    self.assertIn(
+                        "relay-constrained-analysis-invalid-environment",
+                        {reason["code"] for reason in relay_state["reasons"]},
+                    )
+                    report_data = self.assert_retained_gate_policy_artifacts(
+                        run_root,
+                        expected_gate_status="red",
+                        expected_verdicts=("pass", "invalid-environment"),
+                        unexpected_verdicts=("fail",),
+                    )
+                    self.assertEqual(
+                        report_data["verdictCounts"],
+                        {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1},
+                    )
+                    self.assertEqual(report_data["gateMath"]["status"], "red")
+                    self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "invalid-environment"])
+                    self.assertTrue((run_root / "report-data.json").exists())
 
 
 if __name__ == "__main__":
