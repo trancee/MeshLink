@@ -295,6 +295,234 @@ class CampaignReportDataTests(unittest.TestCase):
             self.assertEqual(payload["scenarios"][0]["verdict"], "inconclusive")
             self.assertIn("could not be parsed", payload["scenarios"][0]["evidence"]["summary"]["error"])
 
+    def test_main_projects_thresholds_for_supported_campaign_outcomes(self) -> None:
+        # Arrange + Act + Assert
+        expected_thresholds = report_data.RETAINED_GATE_THRESHOLDS
+
+        def assert_thresholds(payload: dict[str, object]) -> None:
+            self.assertEqual(payload["gateMath"]["thresholds"], expected_thresholds)
+
+        case_definitions = [
+            {
+                "name": "pass-and-skipped",
+                "build": self._build_pass_and_skipped_case,
+                "assertions": lambda payload: (
+                    self.assertEqual(payload["runClassification"]["status"], "complete"),
+                    self.assertEqual(payload["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0}),
+                    self.assertEqual(payload["gateMath"]["status"], "green"),
+                    self.assertEqual(payload["scenarios"][0]["verdict"], "pass"),
+                    self.assertEqual(payload["scenarios"][1]["verdict"], "skipped"),
+                ),
+            },
+            {
+                "name": "partial-inconclusive",
+                "build": self._build_partial_case,
+                "assertions": lambda payload: (
+                    self.assertEqual(payload["runClassification"]["status"], "incomplete"),
+                    self.assertEqual(payload["verdictCounts"]["inconclusive"], 2),
+                    self.assertEqual(payload["gateMath"]["status"], "inconclusive"),
+                    self.assertEqual(payload["scenarios"][0]["verdict"], "inconclusive"),
+                    self.assertEqual(payload["scenarios"][1]["verdict"], "inconclusive"),
+                ),
+            },
+            {
+                "name": "invalid-environment",
+                "build": self._build_invalid_environment_case,
+                "assertions": lambda payload: (
+                    self.assertEqual(payload["verdictCounts"]["invalid-environment"], 1),
+                    self.assertEqual(payload["scenarios"][0]["verdict"], "invalid-environment"),
+                    self.assertEqual(payload["gateMath"]["status"], "red"),
+                ),
+            },
+            {
+                "name": "malformed-input",
+                "build": self._build_malformed_summary_case,
+                "assertions": lambda payload: (
+                    self.assertEqual(payload["runClassification"]["status"], "incomplete"),
+                    self.assertEqual(payload["verdictCounts"]["inconclusive"], 1),
+                    self.assertEqual(payload["scenarios"][0]["verdict"], "inconclusive"),
+                ),
+            },
+        ]
+
+        for case in case_definitions:
+            with self.subTest(case=case["name"]):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    run_root = Path(temporary_directory) / "campaign-run"
+                    run_root.mkdir(parents=True, exist_ok=True)
+                    case["build"](run_root)
+                    exit_code, payload = self.run_cli(run_root)
+
+                    self.assertEqual(exit_code, 0)
+                    assert_thresholds(payload)
+                    case["assertions"](payload)
+
+    def _build_pass_and_skipped_case(self, run_root: Path) -> None:
+        direct_artifacts = self.seed_scenario_artifacts(
+            run_root,
+            scenario_id="direct-guided",
+            run_directory="baseline/direct-guided-mixed",
+            summary_payload={
+                "scenario": "direct-guided",
+                "status": "passed",
+                "export_relative_path": "exports/session-redacted.json",
+            },
+            analysis_payload={
+                "scenario_type": "direct",
+                "status": "pass",
+            },
+            analysis_markdown="# direct guided\n",
+        )
+        self.seed_scenario_artifacts(
+            run_root,
+            scenario_id="relay-constrained",
+            run_directory="scenarios/02-relay-constrained",
+        )
+        scenarios = [
+            {
+                "order": 1,
+                "scenarioId": "direct-guided",
+                "baseline": "direct-guided",
+                "assignmentId": "direct-guided-mixed",
+                "assignmentShape": "mixed",
+                "initialStatus": "planned",
+                "eligibilityStatus": "runnable",
+                "status": "pass",
+                "runDirectory": "baseline/direct-guided-mixed",
+                "artifacts": direct_artifacts,
+            },
+            {
+                "order": 2,
+                "scenarioId": "relay-constrained",
+                "baseline": "relay-constrained",
+                "assignmentId": "relay-constrained",
+                "assignmentShape": "mixed",
+                "initialStatus": "skipped",
+                "eligibilityStatus": "skipped",
+                "status": "skipped",
+                "runDirectory": "scenarios/02-relay-constrained",
+                "artifacts": {
+                    "summary": "scenarios/02-relay-constrained/summary.json",
+                    "analysisJson": "scenarios/02-relay-constrained/analysis.json",
+                    "analysisMarkdown": "scenarios/02-relay-constrained/analysis.md",
+                    "runnerStdout": "scenarios/02-relay-constrained/runner.stdout.log",
+                    "runnerStderr": "scenarios/02-relay-constrained/runner.stderr.log",
+                    "analysisStdout": "scenarios/02-relay-constrained/analysis.stdout.log",
+                    "analysisStderr": "scenarios/02-relay-constrained/analysis.stderr.log",
+                },
+            },
+        ]
+        self.seed_campaign_files(run_root, scenarios=scenarios, status="pass")
+
+    def _build_partial_case(self, run_root: Path) -> None:
+        partial_artifacts = self.seed_scenario_artifacts(
+            run_root,
+            scenario_id="direct-guided",
+            run_directory="baseline/direct-guided-android-only",
+            summary_payload={
+                "scenario": "direct-guided",
+                "status": "passed",
+            },
+            analysis_payload=None,
+            analysis_markdown=None,
+        )
+        scenarios = [
+            {
+                "order": 1,
+                "scenarioId": "direct-guided",
+                "baseline": "direct-guided",
+                "assignmentId": "direct-guided-android-only",
+                "assignmentShape": "android-only",
+                "initialStatus": "running",
+                "eligibilityStatus": "runnable",
+                "status": "running",
+                "runDirectory": "baseline/direct-guided-android-only",
+                "artifacts": partial_artifacts,
+            },
+            {
+                "order": 2,
+                "scenarioId": "relay-constrained",
+                "baseline": "relay-constrained",
+                "assignmentId": "relay-constrained",
+                "assignmentShape": "mixed",
+                "initialStatus": "planned",
+                "eligibilityStatus": "runnable",
+                "status": "planned",
+                "runDirectory": "scenarios/02-relay-constrained",
+                "artifacts": {
+                    "summary": "scenarios/02-relay-constrained/summary.json",
+                    "analysisJson": "scenarios/02-relay-constrained/analysis.json",
+                    "analysisMarkdown": "scenarios/02-relay-constrained/analysis.md",
+                    "runnerStdout": "scenarios/02-relay-constrained/runner.stdout.log",
+                    "runnerStderr": "scenarios/02-relay-constrained/runner.stderr.log",
+                    "analysisStdout": "scenarios/02-relay-constrained/analysis.stdout.log",
+                    "analysisStderr": "scenarios/02-relay-constrained/analysis.stderr.log",
+                },
+            },
+        ]
+        self.seed_campaign_files(run_root, scenarios=scenarios, status="running")
+
+    def _build_invalid_environment_case(self, run_root: Path) -> None:
+        artifacts = {
+            "summary": "baseline/direct-guided-mixed/summary.json",
+            "analysisJson": "baseline/direct-guided-mixed/analysis.json",
+            "analysisMarkdown": "baseline/direct-guided-mixed/analysis.md",
+            "runnerStdout": "baseline/direct-guided-mixed/runner.stdout.log",
+            "runnerStderr": "baseline/direct-guided-mixed/runner.stderr.log",
+            "analysisStdout": "baseline/direct-guided-mixed/analysis.stdout.log",
+            "analysisStderr": "baseline/direct-guided-mixed/analysis.stderr.log",
+        }
+        scenarios = [
+            {
+                "order": 1,
+                "scenarioId": "direct-guided",
+                "baseline": "direct-guided",
+                "assignmentId": "direct-guided-mixed",
+                "assignmentShape": "mixed",
+                "initialStatus": "invalid-environment",
+                "eligibilityStatus": "invalid-environment",
+                "status": "invalid-environment",
+                "runDirectory": "baseline/direct-guided-mixed",
+                "artifacts": artifacts,
+            }
+        ]
+        self.seed_campaign_files(run_root, scenarios=scenarios, status="invalid-environment")
+
+    def _build_malformed_summary_case(self, run_root: Path) -> None:
+        artifacts = {
+            "summary": "baseline/direct-guided-mixed/summary.json",
+            "analysisJson": "baseline/direct-guided-mixed/analysis.json",
+            "analysisMarkdown": "baseline/direct-guided-mixed/analysis.md",
+            "runnerStdout": "baseline/direct-guided-mixed/runner.stdout.log",
+            "runnerStderr": "baseline/direct-guided-mixed/runner.stderr.log",
+            "analysisStdout": "baseline/direct-guided-mixed/analysis.stdout.log",
+            "analysisStderr": "baseline/direct-guided-mixed/analysis.stderr.log",
+        }
+        self.write_text(run_root / artifacts["summary"], "{")
+        self.write_json(
+            run_root / artifacts["analysisJson"],
+            {
+                "scenario_type": "direct",
+                "status": "pass",
+            },
+        )
+        self.write_text(run_root / artifacts["analysisMarkdown"], "# direct guided\n")
+        scenarios = [
+            {
+                "order": 1,
+                "scenarioId": "direct-guided",
+                "baseline": "direct-guided",
+                "assignmentId": "direct-guided-mixed",
+                "assignmentShape": "mixed",
+                "initialStatus": "pass",
+                "eligibilityStatus": "runnable",
+                "status": "pass",
+                "runDirectory": "baseline/direct-guided-mixed",
+                "artifacts": artifacts,
+            }
+        ]
+        self.seed_campaign_files(run_root, scenarios=scenarios, status="pass")
+
     def test_main_marks_missing_analysis_artifacts_as_inconclusive(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
