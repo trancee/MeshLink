@@ -529,6 +529,109 @@ class LiveProofAutomationStepRunnerTest {
         assertTrue(relayActions.logs.any { log -> log.contains("relay.observed role=relay") })
     }
 
+    @Test
+    fun newResilienceScenarioIdsReuseTheBaselineDispatchPaths() {
+        // Arrange
+        val peerId = "peer-abc123"
+        val peerSuffix = redactedSuffix(peerId)
+        val senderSnapshot = senderSnapshot(peerId, peerSuffix)
+        val completedSenderSnapshot =
+            senderSnapshot.copy(
+                session = senderSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    senderSnapshot.timeline +
+                        deliverySucceededEntry(peerSuffix, entryId = "session-1-2"),
+            )
+        val passiveSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                timeline =
+                    listOf(
+                        automationTestEntry(
+                            title = "TRUST_ESTABLISHED",
+                            detail = "Trust pinned.",
+                            family = TimelineFamily.DIAGNOSTIC,
+                            peerSuffix = peerSuffix,
+                        ),
+                        automationTestEntry(
+                            entryId = "session-1-2",
+                            title = "Inbound message",
+                            detail = "Received 19 bytes from $peerSuffix.",
+                            family = TimelineFamily.MESSAGE,
+                            peerSuffix = peerSuffix,
+                            payloadSizeBytes = 19,
+                        ),
+                    ),
+            )
+        val retainedSessions =
+            listOf(
+                retainedDriverSession(
+                    sessionId = passiveSnapshot.session.sessionId,
+                    endedAtEpochMillis = 5L,
+                )
+            )
+        val passiveTimelineUiState =
+            TechnicalTimelineUiState(
+                liveSnapshot = passiveSnapshot,
+                retainedSessions = retainedSessions,
+                lastExportPath =
+                    "reference/exports/${passiveSnapshot.session.sessionId}-redacted.json",
+            )
+        val resilienceScenarios =
+            listOf(
+                ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY,
+                ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY,
+                ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY,
+            )
+
+        // Act / Assert
+        resilienceScenarios.forEach { scenario ->
+            val senderActions = RecordingLiveProofAutomationActions()
+            val senderProgress = LiveProofAutomationProgress()
+            runSenderAutomationStep(
+                senderSnapshot,
+                senderAutomationConfig(scenario = scenario),
+                senderActions,
+                senderProgress,
+            )
+            runSenderAutomationStep(
+                completedSenderSnapshot,
+                senderAutomationConfig(scenario = scenario),
+                senderActions,
+                senderProgress,
+            )
+            assertEquals(1, senderActions.sendRequests.size)
+            assertEquals(peerId, senderActions.sendRequests.single().peerId)
+            assertTrue(senderProgress.completionLogged)
+            assertTrue(
+                senderActions.logs.any { log ->
+                    log.contains("send.requested role=sender phase=primary")
+                }
+            )
+
+            val passiveActions = RecordingLiveProofAutomationActions()
+            val passiveProgress = LiveProofAutomationProgress()
+            runPassiveAutomationStep(
+                passiveSnapshot,
+                passiveTimelineUiState,
+                passiveAutomationConfig(scenario),
+                passiveActions,
+                passiveProgress,
+            )
+            assertEquals(
+                listOf(ExportPayloadPolicy.REDACTED_PREVIEW),
+                passiveActions.exportRequests,
+            )
+            assertEquals(1, passiveActions.endSessionRequests)
+            assertTrue(passiveProgress.completionLogged)
+            assertTrue(
+                passiveActions.logs.any { log ->
+                    log.contains("proof.complete role=passive") && log.contains("export=")
+                }
+            )
+        }
+    }
+
     private fun senderAutomationConfig(
         scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
         requiredPeerCount: Int = 1,

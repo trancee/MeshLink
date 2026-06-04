@@ -1,0 +1,586 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from support import SCRIPTS_DIR
+
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+import run_headless_reference_android_direct_proof as android_direct_proof  # noqa: E402
+
+
+class FakeLogcatProcess:
+    def __init__(self, command: list[str], stdout, shared: dict[str, object]) -> None:
+        self.command = list(command)
+        self._stdout = stdout
+        self._shared = shared
+        self._stopped = False
+        serial = command[2]
+        if serial == "passive-1":
+            self._shared["passive_log"] = stdout
+            stdout.write(
+                "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+            )
+            stdout.write(
+                "05-31 10:00:00.100 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=passive-peer\n"
+            )
+            stdout.flush()
+        elif serial == "sender-1":
+            stdout.write(
+                "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-guided\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.200 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION send.requested role=sender phase=primary\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 routeIsDirect=true\n"
+            )
+            stdout.flush()
+            passive_log = self._shared["passive_log"]
+            passive_log.write(
+                "05-31 10:00:01.400 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview\n"
+            )
+            passive_log.write(
+                "05-31 10:00:01.500 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1 export=exports/session-redacted.json\n"
+            )
+            passive_log.flush()
+
+    def poll(self) -> int | None:
+        return None if not self._stopped else 0
+
+    def terminate(self) -> None:
+        self._stopped = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        self._stopped = True
+        return 0
+
+    def kill(self) -> None:
+        self._stopped = True
+
+
+class AndroidDirectProofTests(unittest.TestCase):
+    def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
+        # Arrange
+        run_calls: list[list[str]] = []
+        run_timeouts: list[float | None] = []
+        force_stop_calls: list[str] = []
+        events: list[tuple[str, str]] = []
+        shared: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            *,
+            check: bool = True,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env
+            run_calls.append(list(command))
+            run_timeouts.append(timeout)
+            if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]:
+                role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
+                events.append(("start", f"{command[2]}:{role}"))
+            return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout, shared)
+
+        def fake_force_stop(android_serial: str) -> None:
+            force_stop_calls.append(android_serial)
+            events.append(("force_stop", android_serial))
+
+        def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
+            self.assertEqual(android_serial, "passive-1")
+            if relative_path.endswith("reference/history.json"):
+                return '{"historyStatus": "RETAINED"}'
+            if relative_path.endswith("exports/session-redacted.json"):
+                return (
+                    '{"defaultMode": "redacted-preview", '
+                    '"fullPayloadIncluded": false, '
+                    '"operatorOptInRecorded": false}'
+                )
+            raise AssertionError(f"Unexpected relative path: {relative_path}")
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+
+            # Act
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready") as ensure_ready,
+                patch.object(android_direct_proof, "install_android_app") as install_android_app,
+                patch.object(
+                    android_direct_proof,
+                    "verify_android_runtime_permissions",
+                ) as verify_permissions,
+                patch.object(
+                    android_direct_proof,
+                    "force_stop_reference_app",
+                    side_effect=fake_force_stop,
+                ),
+                patch.object(android_direct_proof, "run", side_effect=fake_run),
+                patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(
+                    android_direct_proof,
+                    "read_android_app_file",
+                    side_effect=fake_read_android_app_file,
+                ),
+                patch.object(android_direct_proof.time, "sleep", return_value=None),
+            ):
+                exit_code = android_direct_proof.main(
+                    [
+                        "--sender-android-serial",
+                        "sender-1",
+                        "--passive-android-serial",
+                        "passive-1",
+                        "--extra-force-stop-serial",
+                        "extra-1",
+                        "--app-id",
+                        "demo.meshlink.reference.direct.test",
+                        "--run-dir",
+                        str(run_dir),
+                        "--android-ready-seconds",
+                        "0",
+                        "--capture-timeout-seconds",
+                        "1",
+                    ]
+                )
+
+                # Assert
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(
+                    [call.args[0] for call in ensure_ready.call_args_list],
+                    ["passive-1", "sender-1", "extra-1"],
+                )
+                self.assertEqual(
+                    [call.args[0] for call in install_android_app.call_args_list],
+                    ["passive-1", "sender-1"],
+                )
+                self.assertEqual(
+                    [call.args[0] for call in verify_permissions.call_args_list],
+                    ["passive-1", "sender-1"],
+                )
+
+                start_commands = [
+                    command
+                    for command in run_calls
+                    if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]
+                ]
+                self.assertEqual(start_commands[0][2], "passive-1")
+                self.assertEqual(start_commands[1][2], "sender-1")
+                self.assertIn("passive", start_commands[0])
+                self.assertIn("sender", start_commands[1])
+                self.assertIn("direct-guided", start_commands[0])
+                self.assertIn("direct-guided", start_commands[1])
+                self.assertEqual(force_stop_calls.count("extra-1"), 2)
+                self.assertLess(
+                    events.index(("force_stop", "extra-1")),
+                    events.index(("start", "passive-1:passive")),
+                )
+                self.assertEqual(force_stop_calls[-3:], ["sender-1", "passive-1", "extra-1"])
+                sender_start_command = next(
+                    command
+                    for command in run_calls
+                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
+                )
+                self.assertNotIn("-W", sender_start_command)
+                self.assertEqual(
+                    run_timeouts[run_calls.index(sender_start_command)],
+                    android_direct_proof.ANDROID_START_TIMEOUT_SECONDS,
+                )
+
+                summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+                self.assertEqual(summary["status"], "passed")
+                self.assertEqual(summary["scenario"], "direct-guided")
+                self.assertEqual(summary["senderPlatform"], "android")
+                self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
+                self.assertEqual(summary["passiveCompletion"].split(" role=")[1].split()[0], "passive")
+                self.assertEqual(summary["exportRelativePath"], "exports/session-redacted.json")
+                self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
+                self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
+                self.assertTrue((run_dir / "sender_logcat.log").exists())
+                self.assertTrue((run_dir / "passive_logcat.log").exists())
+                self.assertEqual(
+                    (run_dir / "android_history.json").read_text(encoding="utf-8"),
+                    '{"historyStatus": "RETAINED"}',
+                )
+                self.assertIn(
+                    '"defaultMode": "redacted-preview"',
+                    (run_dir / "android_export.json").read_text(encoding="utf-8"),
+                )
+
+    def test_main_rejects_duplicate_sender_and_passive_serials_and_records_failure_summary(self) -> None:
+        # Arrange / Act
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "duplicate-serials"
+            with self.assertRaises(SystemExit) as error:
+                android_direct_proof.main(
+                    [
+                        "--sender-android-serial",
+                        "same-device",
+                        "--passive-android-serial",
+                        "same-device",
+                        "--run-dir",
+                        str(run_dir),
+                    ]
+                )
+
+            # Assert
+            self.assertIn("must be different physical devices", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "input-validation")
+            self.assertIn("same-device", summary["failureReason"])
+
+    def test_main_rejects_extra_force_stop_serial_that_reuses_a_role_device(self) -> None:
+        # Arrange / Act
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "duplicate-extra-role"
+            with self.assertRaises(SystemExit) as error:
+                android_direct_proof.main(
+                    [
+                        "--sender-android-serial",
+                        "sender-1",
+                        "--passive-android-serial",
+                        "passive-1",
+                        "--extra-force-stop-serial",
+                        "sender-1",
+                        "--run-dir",
+                        str(run_dir),
+                    ]
+                )
+
+            # Assert
+            self.assertIn("cannot reuse the sender device", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "input-validation")
+            self.assertIn("sender-1", summary["failureReason"])
+
+    def test_main_rejects_duplicate_extra_force_stop_serials_and_records_failure_summary(self) -> None:
+        # Arrange / Act
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "duplicate-extra-serials"
+            with self.assertRaises(SystemExit) as error:
+                android_direct_proof.main(
+                    [
+                        "--sender-android-serial",
+                        "sender-1",
+                        "--passive-android-serial",
+                        "passive-1",
+                        "--extra-force-stop-serial",
+                        "extra-1",
+                        "--extra-force-stop-serial",
+                        "extra-1",
+                        "--run-dir",
+                        str(run_dir),
+                    ]
+                )
+
+            # Assert
+            self.assertIn("must be unique physical devices", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "input-validation")
+            self.assertIn("extra-1", summary["failureReason"])
+
+    def test_main_records_preflight_failure_with_the_failing_serial(self) -> None:
+        # Arrange / Act
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "permission-failure"
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(android_direct_proof, "install_android_app"),
+                patch.object(
+                    android_direct_proof,
+                    "verify_android_runtime_permissions",
+                    side_effect=[None, SystemExit("BLUETOOTH_SCAN not granted")],
+                ),
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "sender-1",
+                            "--passive-android-serial",
+                            "passive-1",
+                            "--run-dir",
+                            str(run_dir),
+                        ]
+                    )
+
+            # Assert
+            self.assertIn("sender-1", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "preflight")
+            self.assertIn("sender-1", summary["failureReason"])
+
+    def test_main_preserves_failure_summary_when_extra_cleanup_fails(self) -> None:
+        # Arrange
+        shared: dict[str, object] = {}
+        force_stop_counts: dict[str, int] = {}
+
+        def fake_run(
+            command: list[str],
+            *,
+            check: bool = True,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env, timeout
+            return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout, shared)
+
+        def fake_force_stop(android_serial: str) -> None:
+            force_stop_counts[android_serial] = force_stop_counts.get(android_serial, 0) + 1
+            if android_serial == "extra-1" and force_stop_counts[android_serial] == 2:
+                raise RuntimeError("adb cleanup failed")
+
+        def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
+            self.assertEqual(android_serial, "passive-1")
+            if relative_path.endswith("reference/history.json"):
+                return '{"historyStatus": "RETAINED"}'
+            if relative_path.endswith("exports/session-redacted.json"):
+                return (
+                    '{"defaultMode": "redacted-preview", '
+                    '"fullPayloadIncluded": false, '
+                    '"operatorOptInRecorded": false}'
+                )
+            raise AssertionError(f"Unexpected relative path: {relative_path}")
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "cleanup-failure"
+
+            # Act
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(android_direct_proof, "install_android_app"),
+                patch.object(android_direct_proof, "verify_android_runtime_permissions"),
+                patch.object(
+                    android_direct_proof,
+                    "force_stop_reference_app",
+                    side_effect=fake_force_stop,
+                ),
+                patch.object(android_direct_proof, "run", side_effect=fake_run),
+                patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(
+                    android_direct_proof,
+                    "read_android_app_file",
+                    side_effect=fake_read_android_app_file,
+                ),
+                patch.object(android_direct_proof.time, "sleep", return_value=None),
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "sender-1",
+                            "--passive-android-serial",
+                            "passive-1",
+                            "--extra-force-stop-serial",
+                            "extra-1",
+                            "--app-id",
+                            "demo.meshlink.reference.direct.test",
+                            "--run-dir",
+                            str(run_dir),
+                            "--android-ready-seconds",
+                            "0",
+                            "--capture-timeout-seconds",
+                            "1",
+                        ]
+                    )
+
+            # Assert
+            self.assertIn("cleanup failed", str(error.exception))
+            self.assertIn("extra-1", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "cleanup")
+            self.assertIn("extra-1", summary["failureReason"])
+            self.assertTrue(summary["captured"]["senderLogcat"])
+            self.assertTrue(summary["captured"]["passiveLogcat"])
+            self.assertTrue(summary["partialEvidenceAvailable"])
+            self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
+            self.assertEqual(summary["passiveCompletion"].split(" role=")[1].split()[0], "passive")
+
+    def test_main_records_sender_launch_timeout_with_retained_start_note(self) -> None:
+        # Arrange
+        shared: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            *,
+            check: bool = True,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env
+            if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]:
+                raise subprocess.TimeoutExpired(command, android_direct_proof.ANDROID_START_TIMEOUT_SECONDS)
+            return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout, shared)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "sender-launch-timeout"
+
+            # Act
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(android_direct_proof, "install_android_app"),
+                patch.object(android_direct_proof, "verify_android_runtime_permissions"),
+                patch.object(android_direct_proof, "force_stop_reference_app"),
+                patch.object(android_direct_proof, "run", side_effect=fake_run),
+                patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(android_direct_proof, "read_android_app_file", return_value="{}"),
+                patch.object(android_direct_proof.time, "sleep", return_value=None),
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "sender-1",
+                            "--passive-android-serial",
+                            "passive-1",
+                            "--app-id",
+                            "demo.meshlink.reference.direct.test",
+                            "--run-dir",
+                            str(run_dir),
+                            "--android-ready-seconds",
+                            "0",
+                            "--capture-timeout-seconds",
+                            "1",
+                        ]
+                    )
+
+            # Assert
+            self.assertIn("timed out", str(error.exception).lower())
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "launch")
+            self.assertIn("timed out", summary["failureReason"].lower())
+            self.assertIn("Timed out waiting for Android activity launch to return.", (run_dir / "sender_start.txt").read_text(encoding="utf-8"))
+            self.assertTrue((run_dir / "sender_logcat.log").exists())
+            self.assertTrue((run_dir / "passive_logcat.log").exists())
+
+    def test_wait_for_android_completions_rejects_missing_passive_export_path(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory)
+            (run_dir / "sender_logcat.log").write_text(
+                "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 routeIsDirect=true\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "05-31 10:00:01.500 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1\n",
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            with self.assertRaises(SystemExit) as error:
+                android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+
+        self.assertIn("missing export path", str(error.exception))
+
+    def test_wait_for_android_completions_times_out_when_only_sender_completes(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory)
+            (run_dir / "sender_logcat.log").write_text(
+                "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 routeIsDirect=true\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n",
+                encoding="utf-8",
+            )
+
+            with (
+                patch.object(
+                    android_direct_proof.time,
+                    "monotonic",
+                    side_effect=[0.0, 0.01, 0.2, 0.21],
+                ),
+                patch.object(android_direct_proof.time, "sleep", return_value=None),
+            ):
+                # Act / Assert
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+
+        self.assertIn("passive", str(error.exception))
+
+    def test_summarize_and_verify_rejects_empty_sender_log(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory)
+            (run_dir / "sender_logcat.log").write_text("", encoding="utf-8")
+            (run_dir / "passive_logcat.log").write_text(
+                "05-31 10:00:01.500 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1 export=exports/session-redacted.json\n",
+                encoding="utf-8",
+            )
+
+            completions = android_direct_proof.AndroidDirectCompletions(
+                sender_completion=(
+                    "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 routeIsDirect=true"
+                ),
+                passive_completion=(
+                    "05-31 10:00:01.500 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1 export=exports/session-redacted.json"
+                ),
+                export_relative_path="exports/session-redacted.json",
+                sender_failed=None,
+            )
+
+            # Act / Assert
+            with self.assertRaises(SystemExit) as error:
+                android_direct_proof.summarize_and_verify(
+                    sender_android_serial="sender-1",
+                    passive_android_serial="passive-1",
+                    run_dir=run_dir,
+                    storage_subdirectory="storage-subdirectory",
+                    app_id="demo.meshlink.reference.direct.test",
+                    completions=completions,
+                )
+
+        self.assertIn("Sender log is empty", str(error.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()

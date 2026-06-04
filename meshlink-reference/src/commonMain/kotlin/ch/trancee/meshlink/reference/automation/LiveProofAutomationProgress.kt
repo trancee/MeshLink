@@ -18,6 +18,10 @@ internal class LiveProofAutomationProgress {
     var resumeObserved: Boolean = false
     var trustResetRequested: Boolean = false
     var trustResetObserved: Boolean = false
+    var injectionRequested: Boolean = false
+    var injectionObserved: Boolean = false
+    var recoveryWindowOpened: Boolean = false
+    var recoveryWindowClosed: Boolean = false
     var recoverySendRequested: Boolean = false
     var retainRequested: Boolean = false
     var exportRequested: Boolean = false

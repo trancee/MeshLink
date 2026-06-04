@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
+import ch.trancee.meshlink.reference.automation.startupMarker
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.wireValue
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
@@ -52,6 +53,11 @@ public class MainActivity : ComponentActivity() {
             } else {
                 createPlatformServices(applicationContext)
             }
+        if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
+            platformServices.automationConfig?.let { automationConfig ->
+                platformServices.emitAutomationLog(automationConfig.startupMarker())
+            }
+        }
         setContent { ReferenceApp(platformServices = platformServices) }
     }
 

@@ -23,6 +23,10 @@ internal interface LiveProofAutomationActions {
 
     fun requestForgetPeer(peerId: String)
 
+    fun requestTopologyDisruption(peerId: String) {
+        requestForgetPeer(peerId)
+    }
+
     fun requestEndCurrentSession()
 
     fun requestExportCurrentSession(policy: ExportPayloadPolicy)

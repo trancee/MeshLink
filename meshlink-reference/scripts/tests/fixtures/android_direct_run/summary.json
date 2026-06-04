@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.test",
+  "storageSubdirectory": "android-direct-run",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "sender-1",
+  "passiveSerial": "passive-1",
+  "senderCompletion": "05-31 10:00:01.300 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 routeIsDirect=true",
+  "passiveCompletion": "05-31 10:00:01.600 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1 largestInboundBytes=32 export=exports/session-redacted.json",
+  "exportRelativePath": "exports/session-redacted.json",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": false,
+    "passiveStart": false,
+    "androidHistory": true,
+    "androidExport": true
+  }
+}

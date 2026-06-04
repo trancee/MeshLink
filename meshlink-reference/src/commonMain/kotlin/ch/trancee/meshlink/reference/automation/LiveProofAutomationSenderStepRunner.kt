@@ -13,13 +13,24 @@ internal fun runSenderAutomationStep(
             runPauseResumeSenderAutomationStep(snapshot, automationConfig, actions, progress)
         ReferenceAutomationScenario.DIRECT_TRUST_RESET_RECOVERY ->
             runTrustResetRecoverySenderAutomationStep(snapshot, automationConfig, actions, progress)
+        ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY,
+        ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY,
+        ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY,
         ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER ->
             runDirectSenderAutomationStep(
                 snapshot = snapshot,
                 automationConfig = automationConfig,
                 actions = actions,
                 progress = progress,
-                payloadPlan = SenderPayloadPlan.LARGE_TRANSFER,
+                payloadPlan =
+                    if (
+                        automationConfig.scenario ==
+                            ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER
+                    ) {
+                        SenderPayloadPlan.LARGE_TRANSFER
+                    } else {
+                        SenderPayloadPlan.GUIDED_HELLO
+                    },
             )
         ReferenceAutomationScenario.RELAY_CONSTRAINED ->
             runRelaySenderAutomationStep(snapshot, automationConfig, actions, progress)

@@ -100,7 +100,8 @@ For exact surface and export vocabulary such as **Supported live session**,
 | If you want to... | Start here |
 |---|---|
 | manually walk through the guided experience on Android and iOS | [How to evaluate MeshLink with the reference app](../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
-| retain physical direct and relay evidence from real devices | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
+| run the one-command happy-path release-review campaign without hand-picking device IDs | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
+| retain physical direct and relay evidence from real devices with explicit device control | [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) |
 | unblock startup or discovery permissions before debugging deeper | [How to unblock MeshLink permissions on Android and iOS](../docs/how-to/unblock-meshlink-permissions.md) |
 | run deterministic automation or local verification commands | [Contributor build, test, and verification reference](../docs/reference/contributor-reference.md) |
 | understand the shared shell, session model, and automation seams | [About the repository architecture](../docs/explanation/about-the-repository-architecture.md) |
@@ -108,6 +109,40 @@ For exact surface and export vocabulary such as **Supported live session**,
 | compare the reference app with the rest of the MeshLink docs set | [MeshLink documentation map](../docs/README.md) |
 | decide whether to stay in the reference app or switch to proof fixtures or retained benchmarks | [About proof validation surfaces](../docs/explanation/about-proof-validation-surfaces.md) |
 | inspect retained benchmark evidence and proof baselines | [Benchmarks and retained evidence](../benchmarks/README.md) |
+
+## Release-review starting point
+
+Start retained release review with the fleet-aware campaign entrypoint:
+
+```bash
+python3 meshlink-reference/scripts/run_reference_release_campaign.py
+```
+
+This entrypoint discovers the available Android fleet plus the optional iOS
+sender, plans the ordered happy-path catalog, runs `direct-guided` first and
+`relay-constrained` second when relay is eligible, preserves
+`campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as
+compatibility views of the logical direct scenario, and retains
+`fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`,
+`report-data.json`, `release-review-report.html`, and per-scenario `analysis.md`
+evidence under the selected run directory.
+
+Milestone **M001** validated this path end-to-end on a real 4-device discovered
+fleet. The remaining Android-only sender symmetry work is tracked as follow-up
+rather than an implicit expectation.
+
+If an executed scenario finishes anything other than `pass`,
+`campaign-state.json` flips `happyPathGate` to red, records
+`firstFailScenarioId`, and still keeps later runnable scenario evidence for
+review.
+
+Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md)
+for prerequisites, honest `skipped` versus `invalid-environment` outcomes,
+retained artifact layout, the `campaign-state.json` inspection flow, and the
+lower-level explicit runners used for manual direct, relay, and matrix
+investigations. The release campaign treats generic wrapper text such as
+`xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits
+an explicit environment sentinel.
 
 ## Before you debug the app
 

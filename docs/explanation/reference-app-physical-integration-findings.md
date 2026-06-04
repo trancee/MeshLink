@@ -16,6 +16,10 @@ optimizations are worth keeping or pursuing.
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
 | retained review surface | per-run analysis artifacts are much easier to review than raw log scrolling |
 
+## Current milestone outcome
+
+Milestone **M001** validated the release-review campaign end-to-end: one-command fleet discovery, ordered happy-path execution, retained report-data persistence, and the offline HTML review surface all passed on a real 4-device discovered fleet. The campaign now treats Android-only sender symmetry as a deliberate follow-up rather than a hidden assumption.
+
 ## Why physical scenarios still matter
 
 The scripted Android and iOS workflow tests already cover a lot of the
