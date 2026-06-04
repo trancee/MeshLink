@@ -297,15 +297,16 @@ class CampaignReportDataTests(unittest.TestCase):
 
     def test_main_projects_thresholds_for_supported_campaign_outcomes(self) -> None:
         # Arrange + Act + Assert
-        expected_thresholds = report_data.RETAINED_GATE_THRESHOLDS
-
-        def assert_thresholds(payload: dict[str, object]) -> None:
-            self.assertEqual(payload["gateMath"]["thresholds"], expected_thresholds)
-
         case_definitions = [
             {
                 "name": "pass-and-skipped",
                 "build": self._build_pass_and_skipped_case,
+                "expected_thresholds": {
+                    "failureCountMaximum": 0,
+                    "inconclusiveCountMaximum": 0,
+                    "invalidEnvironmentCountMaximum": 0,
+                    "passRateMinimum": 1.0,
+                },
                 "assertions": lambda payload: (
                     self.assertEqual(payload["runClassification"]["status"], "complete"),
                     self.assertEqual(payload["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0}),
@@ -317,6 +318,12 @@ class CampaignReportDataTests(unittest.TestCase):
             {
                 "name": "partial-inconclusive",
                 "build": self._build_partial_case,
+                "expected_thresholds": {
+                    "failureCountMaximum": 0,
+                    "inconclusiveCountMaximum": 0,
+                    "invalidEnvironmentCountMaximum": 0,
+                    "passRateMinimum": 1.0,
+                },
                 "assertions": lambda payload: (
                     self.assertEqual(payload["runClassification"]["status"], "incomplete"),
                     self.assertEqual(payload["verdictCounts"]["inconclusive"], 2),
@@ -328,6 +335,12 @@ class CampaignReportDataTests(unittest.TestCase):
             {
                 "name": "invalid-environment",
                 "build": self._build_invalid_environment_case,
+                "expected_thresholds": {
+                    "failureCountMaximum": 0,
+                    "inconclusiveCountMaximum": 0,
+                    "invalidEnvironmentCountMaximum": 0,
+                    "passRateMinimum": 1.0,
+                },
                 "assertions": lambda payload: (
                     self.assertEqual(payload["verdictCounts"]["invalid-environment"], 1),
                     self.assertEqual(payload["scenarios"][0]["verdict"], "invalid-environment"),
@@ -337,6 +350,12 @@ class CampaignReportDataTests(unittest.TestCase):
             {
                 "name": "malformed-input",
                 "build": self._build_malformed_summary_case,
+                "expected_thresholds": {
+                    "failureCountMaximum": 0,
+                    "inconclusiveCountMaximum": 0,
+                    "invalidEnvironmentCountMaximum": 0,
+                    "passRateMinimum": 1.0,
+                },
                 "assertions": lambda payload: (
                     self.assertEqual(payload["runClassification"]["status"], "incomplete"),
                     self.assertEqual(payload["verdictCounts"]["inconclusive"], 1),
@@ -354,7 +373,7 @@ class CampaignReportDataTests(unittest.TestCase):
                     exit_code, payload = self.run_cli(run_root)
 
                     self.assertEqual(exit_code, 0)
-                    assert_thresholds(payload)
+                    self.assertEqual(payload["gateMath"]["thresholds"], case["expected_thresholds"])
                     case["assertions"](payload)
 
     def _build_pass_and_skipped_case(self, run_root: Path) -> None:

@@ -217,6 +217,14 @@ class ReleaseReviewReportTests(unittest.TestCase):
             self.assertIn('badge verdict verdict-skipped', html_text)
             self.assertIn('badge verdict verdict-inconclusive', html_text)
             self.assertIn('badge verdict verdict-invalid-environment', html_text)
+            self.assertIn('metric-card metric-card--pass', html_text)
+            self.assertIn('metric-card metric-card--fail', html_text)
+            self.assertIn('metric-card metric-card--skipped', html_text)
+            self.assertIn('metric-card metric-card--invalid-environment', html_text)
+            self.assertIn('scenario-card scenario-card--pass', html_text)
+            self.assertIn('scenario-card scenario-card--fail', html_text)
+            self.assertIn('scenario-card scenario-card--skipped', html_text)
+            self.assertIn('scenario-card scenario-card--invalid-environment', html_text)
             self.assertIn('Total scenarios', html_text)
             self.assertIn('Runnable scenarios', html_text)
             self.assertIn('Terminal scenarios', html_text)
@@ -226,6 +234,31 @@ class ReleaseReviewReportTests(unittest.TestCase):
             self.assertIn('Pass rate min', html_text)
             self.assertNotIn('https://', html_text)
             self.assertNotIn('src="http', html_text)
+
+    def test_render_report_uses_status_colored_surfaces_for_review_state_scanability(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "campaign-run"
+            run_root.mkdir(parents=True, exist_ok=True)
+            payload = self.build_report_payload(run_root)
+            self.write_json(run_root / "report-data.json", payload)
+
+            # Act
+            html_text = release_review_report.render_report(payload)
+
+            # Assert
+            self.assertIn('.metric-card--pass {', html_text)
+            self.assertIn('.metric-card--fail {', html_text)
+            self.assertIn('.metric-card--skipped {', html_text)
+            self.assertIn('.metric-card--invalid-environment {', html_text)
+            self.assertIn('.scenario-card--pass {', html_text)
+            self.assertIn('.scenario-card--fail {', html_text)
+            self.assertIn('.scenario-card--skipped {', html_text)
+            self.assertIn('.scenario-card--invalid-environment {', html_text)
+            self.assertIn('data-status="pass"', html_text)
+            self.assertIn('data-status="fail"', html_text)
+            self.assertIn('data-status="skipped"', html_text)
+            self.assertIn('data-status="invalid-environment"', html_text)
 
 
 if __name__ == "__main__":
