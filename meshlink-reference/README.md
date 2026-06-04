@@ -129,7 +129,10 @@ evidence under the selected run directory.
 
 Milestone **M001** validated this path end-to-end on a real 4-device discovered
 fleet. The remaining Android-only sender symmetry work is tracked as follow-up
-rather than an implicit expectation.
+rather than an implicit expectation, and repeated fleet tests now also render a
+repo-visible history report at `meshlink-reference/fleet-test-history/index.html`.
+The history report is generated from retained test outputs only so repeated
+runs stay comparable without depending on live discovery state.
 
 If an executed scenario finishes anything other than `pass`,
 `campaign-state.json` flips `happyPathGate` to red, records

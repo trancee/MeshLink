@@ -18,7 +18,7 @@ their own:
 
 If you only need deterministic surface coverage for **Guided first exchange**, **Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI flows, use the scripted Android and iOS workflow tests instead.
 
-The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Android-only sender symmetry remains a deliberate follow-up rather than a hidden assumption.
+The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Repeated fleet tests also leave behind the repo-visible `meshlink-reference/fleet-test-history/index.html` report, which is generated from retained test outputs only and linked from the root README. Android-only sender symmetry remains a deliberate follow-up rather than a hidden assumption.
 
 ## Quick scenario picker
 
@@ -187,9 +187,11 @@ Read the retained artifacts in this order:
 4. `release-review-report.html` — the offline reviewer surface that renders the
    retained report data into a self-contained HTML view with drill-downs and
    retained evidence links.
-5. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
+5. `meshlink-reference/fleet-test-history/index.html` — the concise HTML history
+   report for repeated fleet tests, generated from retained test outputs only.
+6. per-scenario `analysis.md` under `baseline/...` or `scenarios/...` — the
    first human-readable artifact for why a scenario passed or failed.
-6. `fleet-manifest.json` — raw device discovery, candidate assignment
+7. `fleet-manifest.json` — raw device discovery, candidate assignment
    reasoning, and the full `campaignLog` trail.
 
 `report-data.json` is the next stop after the state ledger when you need a

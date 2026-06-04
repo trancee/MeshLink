@@ -14,7 +14,7 @@ optimizations are worth keeping or pursuing.
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
 | relay proof | sender-only success is not enough; `routeIsDirect=false` plus passive completion is the real invariant |
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
-| retained review surface | per-run analysis artifacts are much easier to review than raw log scrolling |
+| retained review surface | per-run analysis artifacts and the fleet-test history HTML are much easier to review than raw log scrolling |
 
 ## Current milestone outcome
 

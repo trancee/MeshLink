@@ -77,6 +77,7 @@ post-migration AGP 9 module shape stays intact.
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)
+- [Fleet test history report](meshlink-reference/fleet-test-history/index.html) — concise HTML history of repeated fleet tests with device, result, and comparison context.
 - [Feature specification and release decision](specs/001-ble-mesh-sdk/spec.md)
 - [Spec alignment audit](specs/001-ble-mesh-sdk/alignment-audit.md)
 
