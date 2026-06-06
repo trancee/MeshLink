@@ -324,6 +324,7 @@ def build_ios_app(ios_device: str, run_dir: Path) -> Path:
         "-destination",
         f"id={ios_device}",
         f"DEVELOPMENT_TEAM={development_team}",
+        "-allowProvisioningUpdates",
         "build",
     ]
     redacted_command = [
