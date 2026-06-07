@@ -121,6 +121,42 @@ class LiveReferenceMeshRuntimeTest {
         assertEquals("Peer found", snapshot.session.lastOutcomeSummary)
         assertEquals(peerId.value, snapshot.session.selectedPeerId)
     }
+
+    @Test
+    fun bindLiveReferenceControllerFlowsReplaysPeerEventsQueuedBeforeTheCollectorStarts() =
+        runBlocking {
+            // Arrange
+            val peerEvents = MutableSharedFlow<PeerEvent>(replay = 1)
+            val meshLink = RecordingMeshLink(peerEventsFlow = peerEvents)
+            val stateStore = referenceStateStore()
+            val sessionProjector = LiveReferenceSessionProjector(stateStore)
+            val peerId = PeerId("peer-654321")
+            peerEvents.emit(
+                PeerEvent.Found(
+                    peerId,
+                    ch.trancee.meshlink.api.PeerConnectionState.CONNECTED,
+                )
+            )
+
+            // Act
+            bindLiveReferenceControllerFlows(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                meshLink = meshLink,
+                peerEvents = peerEvents,
+                stateStore = stateStore,
+                nowProvider = { 3_000L },
+                sessionProjector = sessionProjector,
+            )
+
+            // Assert
+            val snapshot = stateStore.currentSnapshot
+            assertEquals(
+                peerId.value,
+                snapshot.peers.first { peer -> peer.peerId == peerId.value }.peerId,
+            )
+            assertEquals("Peer found", snapshot.session.lastOutcomeSummary)
+            assertEquals(peerId.value, snapshot.session.selectedPeerId)
+        }
 }
 
 private class RecordingMeshLink(
