@@ -6,6 +6,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Live controller runtime that binds MeshLink state into the reference-app snapshot.
+ *
+ * The runtime intentionally relays peer events through a replaying app-local flow so the first
+ * discovery event cannot be lost if it arrives before the snapshot/projector collectors finish
+ * attaching.
+ */
 internal class LiveReferenceMeshRuntime(
     private val appId: String,
     private val meshLinkBootstrap: MeshLinkBootstrap?,
