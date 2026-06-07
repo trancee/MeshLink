@@ -9,6 +9,15 @@ internal fun runDirectSenderAutomationStep(
     progress: LiveProofAutomationProgress,
     payloadPlan: SenderPayloadPlan,
 ): Unit {
+    if (snapshot.peers.isEmpty()) {
+        if (!progress.senderPeerWaitLogged) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION sender.waiting role=sender reason=no-peers"
+            )
+            progress.senderPeerWaitLogged = true
+        }
+        return
+    }
     val targetPeer =
         autoSendTargetPeer(
             snapshot = snapshot,

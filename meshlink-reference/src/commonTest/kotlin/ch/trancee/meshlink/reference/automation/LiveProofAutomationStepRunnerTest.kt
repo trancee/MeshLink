@@ -160,6 +160,46 @@ class LiveProofAutomationStepRunnerTest {
     }
 
     @Test
+    fun directSenderStepWaitsForPeersBeforeSending() {
+        // Arrange
+        val peerId = "peer-abc123"
+        val peerSuffix = redactedSuffix(peerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig = senderAutomationConfig()
+        val emptySnapshot = automationTestSnapshot(meshStateLabel = "Running")
+        val discoveredSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers = listOf(automationTestPeer(peerId = peerId, peerSuffix = peerSuffix)),
+                timeline = listOf(routeAvailableEntry(peerId, peerSuffix)),
+            )
+
+        // Act
+        runDirectSenderAutomationStep(
+            emptySnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            discoveredSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+
+        // Assert
+        assertEquals(1, actions.sendRequests.size)
+        assertEquals(peerId, actions.sendRequests.single().peerId)
+        assertTrue(actions.logs.first().contains("sender.waiting role=sender reason=no-peers"))
+        assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender") })
+        assertTrue(progress.senderPeerWaitLogged)
+    }
+
+    @Test
     fun pauseResumeSenderStepRequestsPauseResumeRecoveryAndCompletes() {
         // Arrange
         val peerId = "peer-abc123"
