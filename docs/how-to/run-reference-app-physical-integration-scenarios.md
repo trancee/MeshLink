@@ -158,7 +158,10 @@ Use the distinction this way:
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
   Generic wrapper noise such as `xcodebuild` or `build failed` does not upgrade
   that result to `invalid-environment`; only missing tools or an explicit
-  environment sentinel from the child/analyzer should do that.
+  environment sentinel from the child/analyzer should do that. For Android
+  direct proofs, a retained run that reaches `MeshLinkTransport` scan and
+  advertise startup but never retains any `peer.discovered` marker is also a
+  real `fail`, because the sender never received a trustworthy discovery seed.
 
 ### Red-gate semantics
 
