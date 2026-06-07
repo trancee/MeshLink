@@ -589,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
+    discovery_wait_seconds = max(args.android_ready_seconds * 2, 20.0)
+    discovered_peer_id: str | None = args.target_peer_id
     stage = "input-validation"
     sender_process: BackgroundProcess | None = None
     passive_process: BackgroundProcess | None = None
@@ -633,9 +635,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization"
             )
             time.sleep(args.android_ready_seconds)
-            discovered_peer_id = args.target_peer_id or wait_for_discovered_peer_id(
+            discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
                 passive_log_path(run_dir),
-                args.android_ready_seconds,
+                discovery_wait_seconds,
             )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
@@ -663,7 +665,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise
 
         stage = "summary"
-        summarize_and_verify(
+        summary = summarize_and_verify(
             sender_android_serial=args.sender_android_serial,
             passive_android_serial=args.passive_android_serial,
             run_dir=run_dir,
@@ -671,6 +673,9 @@ def main(argv: list[str] | None = None) -> int:
             app_id=app_id,
             completions=completions,
         )
+        summary["discoveredPeerId"] = discovered_peer_id
+        write_summary(run_dir, summary)
+        print("==> Android discovery seed:", discovered_peer_id or "none")
         return 0
     except SystemExit as error:
         write_summary(
