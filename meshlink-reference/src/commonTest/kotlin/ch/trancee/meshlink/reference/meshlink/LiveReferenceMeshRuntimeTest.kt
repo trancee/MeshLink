@@ -18,10 +18,12 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 
 class LiveReferenceMeshRuntimeTest {
@@ -80,11 +82,56 @@ class LiveReferenceMeshRuntimeTest {
         assertEquals(ForgetPeerResult.Forgotten, result.getOrThrow())
         assertEquals("peer-abcdef", meshLink.lastForgottenPeerId)
     }
+
+    @Test
+    fun firstPeerEventEmittedDuringTheInitialExecuteCallIsRetained() = runBlocking {
+        // Arrange
+        val peerEvents = MutableSharedFlow<PeerEvent>()
+        val meshLink = RecordingMeshLink(peerEventsFlow = peerEvents)
+        val runtime =
+            LiveReferenceMeshRuntime(
+                appId = "demo.meshlink.reference",
+                meshLinkBootstrap = null,
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                meshLinkFactory = { _, _ -> meshLink },
+            )
+        val stateStore = referenceStateStore()
+        val sessionProjector = LiveReferenceSessionProjector(stateStore)
+        val peerId = PeerId("peer-123456")
+
+        // Act
+        val result =
+            runtime.execute(stateStore, nowProvider = { 2_000L }, sessionProjector) {
+                meshLink.publishPeerEvent(
+                    PeerEvent.Found(
+                        peerId,
+                        ch.trancee.meshlink.api.PeerConnectionState.CONNECTED,
+                    )
+                )
+                StartResult.Started
+            }
+
+        // Assert
+        assertEquals(StartResult.Started, result.getOrThrow())
+        val snapshot = stateStore.currentSnapshot
+        assertEquals(
+            peerId.value,
+            snapshot.peers.first { peer -> peer.peerId == peerId.value }.peerId,
+        )
+        assertEquals("Peer found", snapshot.session.lastOutcomeSummary)
+        assertEquals(peerId.value, snapshot.session.selectedPeerId)
+    }
 }
 
-private class RecordingMeshLink : MeshLink {
+private class RecordingMeshLink(
+    private val peerEventsFlow: MutableSharedFlow<PeerEvent> = MutableSharedFlow(),
+) : MeshLink {
     override val state = MutableStateFlow<MeshLinkState>(MeshLinkState.Uninitialized)
-    override val peerEvents: Flow<PeerEvent> = MutableSharedFlow()
+    override val peerEvents: Flow<PeerEvent> = peerEventsFlow
+
+    suspend fun publishPeerEvent(event: PeerEvent): Unit {
+        peerEventsFlow.emit(event)
+    }
     override val diagnosticEvents: Flow<DiagnosticEvent> = MutableSharedFlow()
     override val messages: Flow<InboundMessage> = MutableSharedFlow()
 

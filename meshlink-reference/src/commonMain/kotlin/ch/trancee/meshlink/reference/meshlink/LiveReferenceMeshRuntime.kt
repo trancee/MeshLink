@@ -3,6 +3,8 @@ package ch.trancee.meshlink.reference.meshlink
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 
 internal class LiveReferenceMeshRuntime(
     private val appId: String,
@@ -13,6 +15,8 @@ internal class LiveReferenceMeshRuntime(
 ) {
     private var meshLink: MeshLink? = null
     private var flowsBound: Boolean = false
+    private val peerEventRelay: MutableSharedFlow<ch.trancee.meshlink.api.PeerEvent> =
+        MutableSharedFlow(replay = 1, extraBufferCapacity = 16)
 
     suspend fun <T> execute(
         stateStore: ReferenceControllerStateStore,
@@ -37,9 +41,14 @@ internal class LiveReferenceMeshRuntime(
             return
         }
         flowsBound = true
+        val meshLink = requireMeshLink()
+        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            meshLink.peerEvents.collect { event -> peerEventRelay.emit(event) }
+        }
         bindLiveReferenceControllerFlows(
             scope = scope,
-            meshLink = requireMeshLink(),
+            meshLink = meshLink,
+            peerEvents = peerEventRelay,
             stateStore = stateStore,
             nowProvider = nowProvider,
             sessionProjector = sessionProjector,

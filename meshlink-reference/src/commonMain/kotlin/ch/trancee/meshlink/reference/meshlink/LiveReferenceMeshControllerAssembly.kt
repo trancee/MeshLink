@@ -13,6 +13,7 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 internal fun createLiveReferenceInitialSnapshot(
@@ -80,6 +81,7 @@ internal fun createLiveReferenceMeshLink(
 internal fun bindLiveReferenceControllerFlows(
     scope: CoroutineScope,
     meshLink: MeshLink,
+    peerEvents: Flow<ch.trancee.meshlink.api.PeerEvent> = meshLink.peerEvents,
     stateStore: ReferenceControllerStateStore,
     nowProvider: () -> Long,
     sessionProjector: LiveReferenceSessionProjector,
@@ -90,7 +92,7 @@ internal fun bindLiveReferenceControllerFlows(
         }
     }
     scope.launch {
-        meshLink.peerEvents.collect { event ->
+        peerEvents.collect { event ->
             applyPeerEvent(stateStore = stateStore, nowProvider = nowProvider, event = event)
         }
     }
