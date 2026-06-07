@@ -64,6 +64,15 @@ If Bluetooth access was denied earlier, re-enable it in iPhone Settings and then
 launch the app again. The recovery path is usually under **Settings > Privacy &
 Security > Bluetooth** or the app's own settings page.
 
+If the iPhone sender build fails during `codesign` with `errSecInternalComponent`,
+check the signing keychain before changing the app or campaign logic:
+
+1. verify the Apple Development certificate is present in `login.keychain-db`
+2. confirm the private key has an ACL / partition list that allows Xcode and
+   `codesign`
+3. if needed, reset the partition list with `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`
+4. rerun the build from a fresh Xcode session
+
 After changing iPhone permission state:
 
 1. relaunch the app
@@ -93,3 +102,18 @@ You are past the permission issue when:
 If both platforms have the right permissions and discovery still fails, continue
 with the task-specific guide you started from rather than staying in permission
 troubleshooting.
+
+## 6. If iPhone signing fails before launch, check the keychain first
+
+When Xcode reaches `codesign` and exits with `errSecInternalComponent`, the
+problem is often the signing keychain rather than the project settings. The
+reference-app mixed-fleet proof has recovered by:
+
+- confirming the Apple Development identity exists in `login.keychain-db`
+- opening the key's ACL in Keychain Access
+- resetting the partition list with `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`
+- rerunning the proof from a clean run directory
+
+If the error changes to a bundle-name or `.xctestrun` lookup issue, the build
+succeeded and the remaining problem is in the Xcode test bundle path or scheme
+mapping, not signing.
