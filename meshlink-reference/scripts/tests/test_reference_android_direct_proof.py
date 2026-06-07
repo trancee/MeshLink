@@ -78,6 +78,19 @@ class FakeLogcatProcess:
 
 
 class AndroidDirectProofTests(unittest.TestCase):
+    def test_extract_discovered_peer_id_reads_passive_peer_discovery_marker(self) -> None:
+        # Arrange
+        log_text = (
+            "05-31 10:00:00.100 I MeshLinkReferenceAutomation: "
+            "REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=passive-peer-123456\n"
+        )
+
+        # Act
+        peer_id = android_direct_proof.extract_discovered_peer_id(log_text)
+
+        # Assert
+        self.assertEqual(peer_id, "passive-peer-123456")
+
     def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
         # Arrange
         run_calls: list[list[str]] = []

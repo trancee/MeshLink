@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -172,6 +173,16 @@ def sender_log_path(run_dir: Path) -> Path:
 
 def passive_log_path(run_dir: Path) -> Path:
     return run_dir / PASSIVE_LOGCAT_NAME
+
+
+def extract_discovered_peer_id(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "REFERENCE_AUTOMATION peer.discovered role=PASSIVE" not in line:
+            continue
+        match = re.search(r"peer=([A-Za-z0-9._:-]+)", line)
+        if match is not None:
+            return match.group(1)
+    return None
 
 
 def extract_sender_completion(log_text: str) -> str | None:
@@ -446,6 +457,16 @@ def start_android_role_app(
     return process
 
 
+def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        peer_id = extract_discovered_peer_id(read_text(log_path))
+        if peer_id is not None:
+            return peer_id
+        time.sleep(0.5)
+    return extract_discovered_peer_id(read_text(log_path))
+
+
 def verify_sender_log(log_path: Path) -> str:
     log_text = read_text(log_path)
     if not log_text.strip():
@@ -612,6 +633,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization"
             )
             time.sleep(args.android_ready_seconds)
+            discovered_peer_id = args.target_peer_id or wait_for_discovered_peer_id(
+                passive_log_path(run_dir),
+                args.android_ready_seconds,
+            )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.sender_android_serial,
@@ -620,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                target_peer_id=args.target_peer_id,
+                target_peer_id=discovered_peer_id,
             )
             stage = "capture"
             completions = wait_for_android_completions(run_dir, args.capture_timeout_seconds)
