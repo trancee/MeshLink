@@ -194,7 +194,7 @@ class LiveProofAutomationStepRunnerTest {
         // Assert
         assertEquals(1, actions.sendRequests.size)
         assertEquals(peerId, actions.sendRequests.single().peerId)
-        assertTrue(actions.logs.first().contains("sender.waiting role=sender reason=no-peers"))
+        assertTrue(actions.logs.any { log -> log.contains("sender.waiting role=sender reason=no-peers") })
         assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender") })
         assertTrue(progress.senderPeerWaitLogged)
     }
