@@ -120,14 +120,23 @@ scenario keeps writing under `baseline/<assignmentId>/`, where
 Later happy-path scenarios live under stable `scenarios/<order>-<scenarioId>/`
 directories such as `scenarios/02-relay-constrained/`.
 
+For Android direct proof runs specifically, the launcher now accepts an
+optional `--target-peer-id` bootstrap hint and forwards it into the sender
+activity as `MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID`. That seam is only
+useful when some upstream orchestration already knows a concrete peer id; it
+does not invent first-contact discovery on its own. If no peer id is available,
+the direct proof still depends on live peer discovery and may time out with no
+`proof.complete`.
+
 ### Honest status taxonomy
 
-The campaign keeps the status vocabulary explicit instead of pretending every
-non-pass is the same problem.
+The campaign keeps the retained decision vocabulary explicit instead of pretending every
+non-pass is the same problem. The planning-time fields may say whether a choice was
+runnable, but the retained outcomes stay in the campaign-status vocabulary below.
 
 | Surface | Values | Meaning |
 |---|---|---|
-| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each direct-baseline candidate was runnable, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
+| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each direct-baseline candidate was runnable for this fleet shape, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
 | `selection.status` in `fleet-manifest.json` and `campaign-plan.json` | `selected`, `skipped`, `invalid-environment` | whether the campaign chose a direct compatibility baseline, honestly skipped because the fleet shape was insufficient, or stopped because the environment was unhealthy |
 | `scenarios[].eligibilityStatus` in `campaign-plan.json` and `campaign-state.json` | `runnable`, `skipped`, `invalid-environment` | whether each logical happy-path scenario was eligible to execute |
 | `scenarios[].status` in `campaign-state.json` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the retained per-scenario lifecycle and final outcome |
@@ -202,6 +211,13 @@ aligned with the campaign state, and captures the honest verdict taxonomy even
 when a run exits early, skips scenarios, or only completes partially. The
 browser/runtime proof note explains how the offline reviewer surface was
 verified from disk-backed artifacts and why it substantiates R010.
+
+If a release-review rerun fails before any retained proof artifacts appear and
+`runner.stderr.log` ends in `CodeSign ... errSecInternalComponent`, treat that as
+a signing keychain problem, not a campaign-planning problem. The earlier recovery
+path was to confirm the Apple Development certificate and private-key ACL in
+`login.keychain-db`, reset the partition list for Xcode / `codesign`, and rerun
+from a clean run root.
 
 Contract: inspect `campaign-plan.json`, then `campaign-state.json`, then
 `report-data.json`, and only then open `release-review-report.html`. The HTML

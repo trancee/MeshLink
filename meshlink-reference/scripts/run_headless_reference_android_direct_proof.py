@@ -128,6 +128,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Also capture MeshLinkTransport Android logcat lines for transport diagnosis",
     )
+    parser.add_argument(
+        "--target-peer-id",
+        help="Optional peer id to seed into the Android sender as a bootstrap hint when orchestration knows it",
+    )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
 
@@ -368,6 +372,7 @@ def start_android_role_app(
     app_id: str,
     storage_subdirectory: str,
     android_transport_logcat: bool,
+    target_peer_id: str | None = None,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_reference_app(android_serial)
@@ -409,6 +414,8 @@ def start_android_role_app(
         ANDROID_EXTRA_SCENARIO,
         DIRECT_GUIDED_SCENARIO,
     ]
+    if target_peer_id:
+        command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
     try:
@@ -613,6 +620,7 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
+                target_peer_id=args.target_peer_id,
             )
             stage = "capture"
             completions = wait_for_android_completions(run_dir, args.capture_timeout_seconds)

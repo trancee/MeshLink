@@ -9,23 +9,41 @@ internal fun runDirectSenderAutomationStep(
     progress: LiveProofAutomationProgress,
     payloadPlan: SenderPayloadPlan,
 ): Unit {
-    if (snapshot.peers.isEmpty()) {
-        if (!progress.senderPeerWaitLogged) {
-            actions.emitAutomationLog(
-                "REFERENCE_AUTOMATION sender.waiting role=sender reason=no-peers"
-            )
-            progress.senderPeerWaitLogged = true
-        }
-        return
-    }
     val targetPeer =
         autoSendTargetPeer(
             snapshot = snapshot,
             requiredPeerCount = automationConfig.requiredPeerCount,
             targetPeerIndex = automationConfig.targetPeerIndex,
             targetPeerId = automationConfig.targetPeerId,
-        ) ?: return
+        )
+    val bootstrapPeer =
+        bootstrapTargetPeer(snapshot = snapshot, targetPeerId = automationConfig.targetPeerId)
     if (!isMeshRunning(snapshot.session.meshStateLabel)) {
+        return
+    }
+
+    if (targetPeer == null) {
+        if (!progress.senderPeerWaitLogged) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION sender.waiting role=sender reason=no-peers"
+            )
+            progress.senderPeerWaitLogged = true
+        }
+        if (!progress.bootstrapRequested && bootstrapPeer != null) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION bootstrap.requested role=sender " +
+                    "peer=${bootstrapPeer.peerSuffix} " +
+                    "targetPeerId=${automationConfig.targetPeerId ?: "auto"}"
+            )
+            requestSenderPayload(
+                phase = "bootstrap",
+                targetPeer = bootstrapPeer,
+                payloadPlan = SenderPayloadPlan.GUIDED_HELLO,
+                automationConfig = automationConfig,
+                actions = actions,
+            )
+            progress.bootstrapRequested = true
+        }
         return
     }
 

@@ -108,6 +108,7 @@ public class MainActivity : ComponentActivity() {
             appId: String,
             role: ReferenceAutomationRole,
             scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
+            targetPeerId: String? = null,
         ): Intent {
             return Intent(context, MainActivity::class.java).apply {
                 putExtra(EXTRA_UI_AUTOMATION, true)
@@ -116,6 +117,7 @@ public class MainActivity : ComponentActivity() {
                 putExtra(EXTRA_UI_AUTOMATION_APP_ID, appId)
                 putExtra(EXTRA_UI_AUTOMATION_ROLE, role.name.lowercase())
                 putExtra(EXTRA_UI_AUTOMATION_SCENARIO, scenario.wireValue())
+                targetPeerId?.let { putExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_ID, it) }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }

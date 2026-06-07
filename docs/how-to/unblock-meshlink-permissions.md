@@ -46,6 +46,11 @@ If discovery still stays empty on some Android 12+ OEM builds, also grant
 Location permission for the app. In Android settings, the two labels you
 usually need to verify are **Nearby devices** and **Location**.
 
+If you are using the Android direct-proof launcher, note that it now accepts an
+optional `--target-peer-id` bootstrap hint. That only helps when the upstream
+runner already knows a concrete peer id; it does not replace real discovery, so
+an empty peer list can still stall the proof if no seed is supplied.
+
 After changing Android permissions:
 
 1. force-stop or relaunch the app
@@ -117,3 +122,9 @@ reference-app mixed-fleet proof has recovered by:
 If the error changes to a bundle-name or `.xctestrun` lookup issue, the build
 succeeded and the remaining problem is in the Xcode test bundle path or scheme
 mapping, not signing.
+
+When a release-review campaign rerun fails the same way, look for a retained
+`runner.stderr.log` tail that contains `CodeSign ... errSecInternalComponent`
+and a missing `summary.json` / `analysis.json` pair. That combination means the
+campaign runner died before it could retain proof artifacts, so the fix belongs
+in the signing keychain path rather than in the campaign orchestration.
