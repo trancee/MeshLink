@@ -59,6 +59,12 @@ PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION peer.discovered role=PASSIVE",
     "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview",
 ]
+TRANSPORT_REQUIRED_MARKERS = [
+    "D MeshLinkTransport: start()",
+    "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true",
+    "D MeshLinkTransport: scan started",
+    "D MeshLinkTransport: advertising started",
+]
 
 
 @dataclass
@@ -242,6 +248,20 @@ def collect_android_completions_best_effort(run_dir: Path) -> AndroidDirectCompl
     )
 
 
+def transport_failure_reason(run_dir: Path) -> str | None:
+    sender_log = read_text(sender_log_path(run_dir))
+    passive_log = read_text(passive_log_path(run_dir))
+    combined_log = sender_log + "\n" + passive_log
+    if "peer.discovered role=PASSIVE" in combined_log or "peer.discovered role=SENDER" in combined_log:
+        return None
+    if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
+        return (
+            "Android transport reached scan/advertise startup but never emitted peer.discovered; "
+            "direct proof cannot proceed without a retained discovery seed"
+        )
+    return None
+
+
 def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -266,6 +286,9 @@ def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> Andro
         missing_roles.append("sender")
     if completions.passive_completion is None:
         missing_roles.append("passive")
+    transport_reason = transport_failure_reason(run_dir)
+    if transport_reason is not None:
+        raise SystemExit(transport_reason)
     raise SystemExit(
         "Timed out waiting for proof.complete on Android roles: "
         + ", ".join(missing_roles or ["unknown"])

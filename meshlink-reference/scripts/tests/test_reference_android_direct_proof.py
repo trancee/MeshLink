@@ -243,6 +243,40 @@ class AndroidDirectProofTests(unittest.TestCase):
                     (run_dir / "android_export.json").read_text(encoding="utf-8"),
                 )
 
+    def test_main_rejects_missing_transport_discovery_with_specific_failure(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "transport-failure"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "sender_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=141",
+                        "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true psm=141",
+                        "D MeshLinkTransport: scan started",
+                        "D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=152",
+                        "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true psm=152",
+                        "D MeshLinkTransport: scan started",
+                        "D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            self.assertEqual(
+                android_direct_proof.transport_failure_reason(run_dir),
+                "Android transport reached scan/advertise startup but never emitted peer.discovered; direct proof cannot proceed without a retained discovery seed",
+            )
+
     def test_main_rejects_duplicate_sender_and_passive_serials_and_records_failure_summary(self) -> None:
         # Arrange / Act
         with tempfile.TemporaryDirectory() as temporary_directory:
