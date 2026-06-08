@@ -249,6 +249,11 @@ def summarize_scenario(
         verdict = "inconclusive"
         verdict_reasons.append("evidence-incomplete")
 
+    if isinstance(summary_payload, Mapping):
+        failure_reason = summary_payload.get("failureReason")
+        if failure_reason:
+            verdict_reasons.append(f"summary-failure:{failure_reason}")
+
     if verdict not in TERMINAL_VERDICTS:
         verdict = "inconclusive"
 

@@ -18,7 +18,7 @@ their own:
 
 If you only need deterministic surface coverage for **Guided first exchange**, **Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI flows, use the scripted Android and iOS workflow tests instead.
 
-The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Repeated fleet tests also leave behind the repo-visible `meshlink-reference/fleet-test-history/index.html` report, which is generated from retained test outputs only and linked from the root README. Android-only sender symmetry remains a deliberate follow-up rather than a hidden assumption.
+The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Repeated fleet tests also leave behind the repo-visible `meshlink-reference/fleet-test-history/index.html` report, which is generated from retained test outputs only and linked from the root README. The live mixed iOS sender path is currently re-scoped out of release review; the campaign now falls back to Android-only direct-guided when the mixed path is not yet supported.
 
 ## Quick scenario picker
 
@@ -64,13 +64,7 @@ If Android or iOS is still blocked on permissions, clear that first with
 
 ## Release happy-path campaign
 
-Use the fleet-aware release campaign as the default retained happy-path
-release-review entrypoint. It discovers the available Android fleet and
-optional iOS sender, writes `fleet-manifest.json`, `campaign-plan.json`, and
-`campaign-state.json`, plans the ordered logical happy-path catalog, and then
-executes every runnable scenario in order. Reviewers can inspect the retained
-JSON and per-scenario `analysis.md` artifacts instead of reconstructing the
-result from raw logs.
+Use the fleet-aware release campaign as the default retained happy-path release-review entrypoint. It discovers the available Android fleet and optional iOS sender, writes `fleet-manifest.json`, `campaign-plan.json`, and `campaign-state.json`, plans the ordered logical happy-path catalog, and then executes every runnable scenario in order. Reviewers can inspect the retained JSON and per-scenario `analysis.md` artifacts instead of reconstructing the result from raw logs. When mixed direct-guided is unavailable as a live-proof path, the campaign selects the Android-only direct-guided fallback and keeps that choice explicit in the retained manifest.
 
 ```bash
 python3 meshlink-reference/scripts/run_reference_release_campaign.py \
@@ -88,13 +82,10 @@ The campaign always plans the same logical scenarios in manifest order:
    retained fleet truth includes one healthy iOS sender, two healthy Android
    devices, `adb`, `xcrun devicectl`, and a resolved `DEVELOPMENT_TEAM`.
 
-Within `direct-guided`, the campaign preserves the existing direct-baseline
-selection order:
+Within `direct-guided`, the campaign preserves the direct-baseline compatibility order, but the current release-review host falls back to Android-only when mixed iOS live-proof is unsupported:
 
-1. `direct-guided-mixed` — preferred mixed baseline with an iOS sender and an
-   Android passive peer.
-2. `direct-guided-android-only` — fallback baseline with an Android sender and
-   a different Android passive peer.
+1. `direct-guided-mixed` — preferred mixed baseline with an iOS sender and an Android passive peer.
+2. `direct-guided-android-only` — fallback baseline with an Android sender and a different Android passive peer.
 
 Use the relay eligibility distinction this way:
 
@@ -120,14 +111,69 @@ scenario keeps writing under `baseline/<assignmentId>/`, where
 Later happy-path scenarios live under stable `scenarios/<order>-<scenarioId>/`
 directories such as `scenarios/02-relay-constrained/`.
 
+For Android direct proof runs specifically, the launcher now accepts an
+optional `--target-peer-id` bootstrap hint and forwards it into the sender
+activity as `MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID`. That seam is only
+useful when some upstream orchestration already knows a concrete peer id; it
+does not invent first-contact discovery on its own. If no peer id is available,
+the direct proof still depends on live peer discovery and may time out with no
+`proof.complete`.
+
+### Direct proof checklist
+
+```md
+### Direct
+- [ ] app launch and automation start
+- [ ] passive peer discovery
+- [ ] sender peer discovery
+- [ ] explicit `targetPeerId` bootstrap
+- [ ] trust establishment
+- [ ] hop/session establishment
+- [ ] direct route discovery (`routeAvailable=true`, `routeIsDirect=true`)
+- [ ] send request and delivery success
+- [ ] sender `proof.complete`
+- [ ] passive `proof.complete`
+- [ ] retained Android export written
+- [ ] direct-run analysis retained and honest on failures
+
+### Relay
+- [ ] relay wrapper runs independently
+- [ ] relay retained artifacts are produced
+- [ ] relay-specific analysis passes
+- [ ] relay coverage stays out of the default direct campaign
+
+### Reporting
+- [ ] `campaign-state.json` retained
+- [ ] `report-data.json` generated from retained artifacts
+- [ ] offline HTML report rerenders from the run root
+- [ ] report uses semantic comparison, not byte-for-byte timestamp diffs
+- [ ] selection / execution statuses remain honest (`selected`, `skipped`, `invalid-environment`, `pass`, `fail`)
+```
+
+### Proof excerpt from the passing mixed run
+
+The retained mixed direct-guided run on this host passed only after the iPhone sender was seeded with an explicit target peer id derived from the Android passive side. The key evidence lines were:
+
+```text
+REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=79aade
+REFERENCE_AUTOMATION bootstrap.requested role=sender peer=17c92d targetPeerId=c3b975925b66bfce3317c92d
+REFERENCE_AUTOMATION send.requested role=sender phase=primary peer=17c92d priority=NORMAL bytes=19 payload=guided-hello targetIndex=0 requiredPeerCount=1 targetPeerId=c3b975925b66bfce3317c92d
+REFERENCE_RUNTIME diagnostic code=ROUTE_DISCOVERED stage=transport.handshake.message2.complete.routeAvailable peer=17c92d detail=ROUTE_DISCOVERED @ transport.handshake.message2.complete.routeAvailable {peerId=c3b975925b66bfce3317c92d, topologyVersion=1, routeAvailable=true, destinationPeerId=c3b975925b66bfce3317c92d, nextHopPeerId=c3b975925b66bfce3317c92d, routeMetric=1, routeSeqNo=1, routeIsDirect=true, connectedPeerId=c3b975925b66bfce3317c92d, routeChange=available}
+REFERENCE_AUTOMATION proof.complete role=sender outcome=SendResult.Sent peer=17c92d delivery=DELIVERY_SUCCEEDED @ delivery.send {peerId=c3b975925b66bfce3317c92d, topologyVersion=1, routeAvailable=true, destinationPeerId=c3b975925b66bfce3317c92d, nextHopPeerId=c3b975925b66bfce3317c92d, routeMetric=1, routeSeqNo=1, routeIsDirect=true}
+REFERENCE_AUTOMATION proof.complete role=passive inbound=true inboundCount=1 trust=true export=reference/exports/android-1780854015413-1780854032707-redacted.json largestInboundBytes=19
+```
+
+The later `ROUTE_EXPIRED` marker in the sender console appears during teardown after success and does not change the passing first-contact sequence.
+
 ### Honest status taxonomy
 
-The campaign keeps the status vocabulary explicit instead of pretending every
-non-pass is the same problem.
+The campaign keeps the retained decision vocabulary explicit instead of pretending every
+non-pass is the same problem. The planning-time fields may say whether a choice was
+runnable, but the retained outcomes stay in the campaign-status vocabulary below.
 
 | Surface | Values | Meaning |
 |---|---|---|
-| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each direct-baseline candidate was runnable, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
+| `candidateAssignments[].status` in `fleet-manifest.json` | `runnable`, `skipped`, `invalid-environment` | whether each direct-baseline candidate was runnable for this fleet shape, merely absent for this fleet shape, or blocked by unhealthy tooling or devices |
 | `selection.status` in `fleet-manifest.json` and `campaign-plan.json` | `selected`, `skipped`, `invalid-environment` | whether the campaign chose a direct compatibility baseline, honestly skipped because the fleet shape was insufficient, or stopped because the environment was unhealthy |
 | `scenarios[].eligibilityStatus` in `campaign-plan.json` and `campaign-state.json` | `runnable`, `skipped`, `invalid-environment` | whether each logical happy-path scenario was eligible to execute |
 | `scenarios[].status` in `campaign-state.json` | `planned`, `running`, `pass`, `fail`, `skipped`, `invalid-environment` | the retained per-scenario lifecycle and final outcome |
@@ -149,7 +195,10 @@ Use the distinction this way:
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
   Generic wrapper noise such as `xcodebuild` or `build failed` does not upgrade
   that result to `invalid-environment`; only missing tools or an explicit
-  environment sentinel from the child/analyzer should do that.
+  environment sentinel from the child/analyzer should do that. For Android
+  direct proofs, a retained run that reaches `MeshLinkTransport` scan and
+  advertise startup but never retains any `peer.discovered` marker is also a
+  real `fail`, because the sender never received a trustworthy discovery seed.
 
 ### Red-gate semantics
 
@@ -203,6 +252,13 @@ when a run exits early, skips scenarios, or only completes partially. The
 browser/runtime proof note explains how the offline reviewer surface was
 verified from disk-backed artifacts and why it substantiates R010.
 
+If a release-review rerun fails before any retained proof artifacts appear and
+`runner.stderr.log` ends in `CodeSign ... errSecInternalComponent`, treat that as
+a signing keychain problem, not a campaign-planning problem. The earlier recovery
+path was to confirm the Apple Development certificate and private-key ACL in
+`login.keychain-db`, reset the partition list for Xcode / `codesign`, and rerun
+from a clean run root.
+
 Contract: inspect `campaign-plan.json`, then `campaign-state.json`, then
 `report-data.json`, and only then open `release-review-report.html`. The HTML
 renderer consumes retained `report-data.json` only; live devices, live logs,
@@ -233,10 +289,9 @@ and reviewer-time discovery are not part of rendering.
       analysis.stderr.log
 ```
 
-The direct compatibility directory always matches the retained direct
-assignment id. `analysis.md` is still the best first artifact for a reviewer,
-while `summary.json` and `analysis.json` remain the machine-readable surfaces
-that later slices can extend without changing the story.
+The direct compatibility directory always matches the retained direct assignment id. `analysis.md` is still the best first artifact for a reviewer, while `summary.json` and `analysis.json` remain the machine-readable surfaces that later slices can extend without changing the story.
+
+For release-review selection, keep the status vocabulary exact: `selection.status` uses `selected`, `skipped`, or `invalid-environment`, while scenario execution uses `pass`, `fail`, `skipped`, or `invalid-environment`. Do not compress the Android-only fallback and the unsupported mixed path into the same generic failure wording; the retained manifest must show which path was selected and why.
 
 Everything below is lower-level manual control. These commands do not maintain
 campaign-wide `happyPathGate` or the aggregated `campaign-state.json` ledger;
@@ -416,7 +471,7 @@ By default the matrix runs:
 - `direct-full-export`
 - `direct-trust-reset-recovery`
 - `direct-large-transfer`
-- `relay-constrained` when both relay Android devices are present
+- `relay-constrained` only when you explicitly opt into relay coverage with both relay Android devices present
 
 You can override the selection explicitly:
 
@@ -426,7 +481,7 @@ python3 meshlink-reference/scripts/run_headless_reference_physical_matrix.py \
   --direct-android-serial <android-serial-in-direct-range> \
   --passive-android-serial <oppo-serial> \
   --relay-android-serial <samsung-serial> \
-  --scenarios direct-guided,direct-pause-resume,direct-trust-reset-recovery,relay-constrained
+  --scenarios direct-guided,direct-pause-resume,direct-trust-reset-recovery
 ```
 
 Two practical notes:

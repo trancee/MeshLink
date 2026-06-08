@@ -30,11 +30,7 @@ That separation is deliberate. MeshLink needs to prove both that the SDK behaves
 correctly on devices and that the supported evaluation experience stays coherent.
 Trying to make one app do every job would blur those claims together.
 
-The reference-app family now also includes a validated retained release-review
-campaign surface. It discovers the live fleet, persists `fleet-manifest.json`,
-`campaign-plan.json`, `campaign-state.json`, and `report-data.json`, and renders
-a self-contained offline `release-review-report.html` for reviewers who need a
-ship-or-no-ship decision without raw-log archaeology.
+The reference-app family now also includes a validated retained release-review campaign surface. It discovers the live fleet, persists `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, and renders a self-contained offline `release-review-report.html` for reviewers who need a ship-or-no-ship decision without raw-log archaeology. On hosts where mixed iOS live proof is unsupported, that campaign explicitly falls back to Android-only direct-guided; the proof apps themselves remain separate evidence surfaces and do not carry the release-review selection contract.
 
 ## Why the proof apps remain separate
 

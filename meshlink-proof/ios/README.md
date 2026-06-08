@@ -178,6 +178,8 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
 
 Use this guide to build and run the iOS proof app.
 
+This proof app is not the release-review campaign surface. If you are looking for the campaign's retained selection vocabulary or the Android-only fallback when mixed live proof is unsupported, use the reference-app release-review docs instead.
+
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)

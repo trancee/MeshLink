@@ -1157,6 +1157,18 @@ def select_assignment(candidates: list[CandidateAssignment]) -> SelectionSummary
     mixed_candidate = next(candidate for candidate in candidates if candidate.shape == "mixed")
     android_only_candidate = next(candidate for candidate in candidates if candidate.shape == "android-only")
 
+    if android_only_candidate.runnable:
+        return SelectionSummary(
+            status="selected",
+            selected_assignment_id=android_only_candidate.assignment_id,
+            reasons=[
+                reason(
+                    "selected-android-only-fallback",
+                    "info",
+                    "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs.",
+                )
+            ],
+        )
     if mixed_candidate.runnable:
         return SelectionSummary(
             status="selected",
@@ -1166,18 +1178,6 @@ def select_assignment(candidates: list[CandidateAssignment]) -> SelectionSummary
                     "selected-preferred-mixed",
                     "info",
                     "Selected the preferred mixed direct-guided baseline because an iOS sender and Android passive are runnable.",
-                )
-            ],
-        )
-    if android_only_candidate.runnable:
-        return SelectionSummary(
-            status="selected",
-            selected_assignment_id=android_only_candidate.assignment_id,
-            reasons=[
-                reason(
-                    "selected-android-only-fallback",
-                    "info",
-                    "Selected the Android-only direct-guided fallback because the preferred mixed baseline is not runnable.",
                 )
             ],
         )

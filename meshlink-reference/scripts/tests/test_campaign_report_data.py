@@ -244,6 +244,51 @@ class CampaignReportDataTests(unittest.TestCase):
             self.assertEqual(payload["scenarios"][0]["verdict"], "inconclusive")
             self.assertEqual(payload["scenarios"][1]["verdict"], "inconclusive")
 
+    def test_main_includes_summary_failure_reason_in_run_classification(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "campaign-run"
+            run_root.mkdir(parents=True, exist_ok=True)
+
+            direct_artifacts = self.seed_scenario_artifacts(
+                run_root,
+                scenario_id="direct-guided",
+                run_directory="baseline/direct-guided-android-only",
+                summary_payload={
+                    "scenario": "direct-guided",
+                    "status": "failed",
+                    "failureReason": "Android transport reached scan/advertise startup but never emitted peer.discovered; direct proof cannot proceed without a retained discovery seed",
+                },
+                analysis_payload=None,
+                analysis_markdown=None,
+            )
+            scenarios = [
+                {
+                    "order": 1,
+                    "scenarioId": "direct-guided",
+                    "baseline": "direct-guided",
+                    "assignmentId": "direct-guided-android-only",
+                    "assignmentShape": "android-only",
+                    "initialStatus": "failed",
+                    "eligibilityStatus": "runnable",
+                    "status": "fail",
+                    "runDirectory": "baseline/direct-guided-android-only",
+                    "artifacts": direct_artifacts,
+                }
+            ]
+            self.seed_campaign_files(run_root, scenarios=scenarios, status="fail")
+
+            # Act
+            exit_code, payload = self.run_cli(run_root)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["scenarios"][0]["verdict"], "inconclusive")
+            self.assertIn(
+                "summary-failure:Android transport reached scan/advertise startup but never emitted peer.discovered; direct proof cannot proceed without a retained discovery seed",
+                payload["scenarios"][0]["reasons"],
+            )
+
     def test_main_handles_malformed_json_without_guessing_verdicts(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:

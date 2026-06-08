@@ -36,8 +36,8 @@ class LiveProofAutomationStepRunnerTest {
             SenderPayloadPlan.LARGE_TRANSFER.priority,
             actions.sendRequests.single().priority,
         )
-        assertTrue(actions.logs.single().contains("payload=large-transfer"))
-        assertTrue(actions.logs.single().contains("targetPeerId=${targetPeer.peerId}"))
+        assertTrue(actions.logs.any { log -> log.contains("payload=large-transfer") })
+        assertTrue(actions.logs.any { log -> log.contains("targetPeerId=${targetPeer.peerId}") })
     }
 
     @Test
@@ -157,6 +157,121 @@ class LiveProofAutomationStepRunnerTest {
                 log.contains("proof.complete role=sender") && log.contains("peer=$peerSuffix")
             }
         )
+    }
+
+    @Test
+    fun directSenderStepWaitsForPeersBeforeSending() {
+        // Arrange
+        val peerId = "peer-abc123"
+        val peerSuffix = redactedSuffix(peerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig = senderAutomationConfig()
+        val emptySnapshot = automationTestSnapshot(meshStateLabel = "Running")
+        val discoveredSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers = listOf(automationTestPeer(peerId = peerId, peerSuffix = peerSuffix)),
+                timeline = listOf(routeAvailableEntry(peerId, peerSuffix)),
+            )
+
+        // Act
+        runDirectSenderAutomationStep(
+            emptySnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            discoveredSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+
+        // Assert
+        assertEquals(1, actions.sendRequests.size)
+        assertEquals(peerId, actions.sendRequests.single().peerId)
+        assertTrue(actions.logs.any { log -> log.contains("sender.waiting role=sender reason=no-peers") })
+        assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender") })
+        assertTrue(progress.senderPeerWaitLogged)
+    }
+
+    @Test
+    fun directSenderStepBootstrapsWhenAnExplicitTargetPeerIsConfigured() {
+        // Arrange
+        val bootstrapPeerId = "bootstrap-peer-123456"
+        val targetPeerId = "relay-target-abcdef"
+        val bootstrapPeerSuffix = redactedSuffix(bootstrapPeerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig = senderAutomationConfig(targetPeerId = targetPeerId)
+        val emptySnapshot = automationTestSnapshot(meshStateLabel = "Running")
+        val bootstrapSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers = listOf(automationTestPeer(peerId = bootstrapPeerId, peerSuffix = bootstrapPeerSuffix)),
+                timeline = listOf(routeAvailableEntry(bootstrapPeerId, bootstrapPeerSuffix)),
+            )
+        val routedSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers =
+                    listOf(
+                        automationTestPeer(peerId = bootstrapPeerId, peerSuffix = bootstrapPeerSuffix),
+                        automationTestPeer(peerId = targetPeerId),
+                    ),
+                timeline = listOf(routeAvailableEntry(targetPeerId, redactedSuffix(targetPeerId))),
+            )
+        val completedSnapshot =
+            routedSnapshot.copy(
+                session = routedSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    routedSnapshot.timeline +
+                        deliverySucceededEntry(redactedSuffix(targetPeerId), entryId = "session-1-2"),
+            )
+
+        // Act
+        runDirectSenderAutomationStep(
+            emptySnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            bootstrapSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            routedSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            completedSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+
+        // Assert
+        assertEquals(2, actions.sendRequests.size)
+        assertEquals(bootstrapPeerId, actions.sendRequests.first().peerId)
+        assertEquals(targetPeerId, actions.sendRequests.last().peerId)
+        assertTrue(progress.bootstrapRequested)
+        assertTrue(progress.sendRequested)
+        assertTrue(progress.completionLogged)
+        assertTrue(actions.logs.any { log -> log.contains("bootstrap.requested role=sender") })
+        assertTrue(actions.logs.any { log -> log.contains("proof.complete role=sender") })
     }
 
     @Test

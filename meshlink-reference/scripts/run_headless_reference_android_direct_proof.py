@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -57,6 +58,12 @@ PASSIVE_REQUIRED_LOG_MARKERS = [
     f"scenario={DIRECT_GUIDED_SCENARIO}",
     "REFERENCE_AUTOMATION peer.discovered role=PASSIVE",
     "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview",
+]
+TRANSPORT_REQUIRED_MARKERS = [
+    "D MeshLinkTransport: start()",
+    "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true",
+    "D MeshLinkTransport: scan started",
+    "D MeshLinkTransport: advertising started",
 ]
 
 
@@ -128,6 +135,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Also capture MeshLinkTransport Android logcat lines for transport diagnosis",
     )
+    parser.add_argument(
+        "--target-peer-id",
+        help="Optional peer id to seed into the Android sender as a bootstrap hint when orchestration knows it",
+    )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
 
@@ -168,6 +179,16 @@ def sender_log_path(run_dir: Path) -> Path:
 
 def passive_log_path(run_dir: Path) -> Path:
     return run_dir / PASSIVE_LOGCAT_NAME
+
+
+def extract_discovered_peer_id(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "REFERENCE_AUTOMATION peer.discovered role=PASSIVE" not in line:
+            continue
+        match = re.search(r"peer=([A-Za-z0-9._:-]+)", line)
+        if match is not None:
+            return match.group(1)
+    return None
 
 
 def extract_sender_completion(log_text: str) -> str | None:
@@ -227,6 +248,20 @@ def collect_android_completions_best_effort(run_dir: Path) -> AndroidDirectCompl
     )
 
 
+def transport_failure_reason(run_dir: Path) -> str | None:
+    sender_log = read_text(sender_log_path(run_dir))
+    passive_log = read_text(passive_log_path(run_dir))
+    combined_log = sender_log + "\n" + passive_log
+    if "peer.discovered role=PASSIVE" in combined_log or "peer.discovered role=SENDER" in combined_log:
+        return None
+    if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
+        return (
+            "Android transport reached scan/advertise startup but never emitted peer.discovered; "
+            "direct proof cannot proceed without a retained discovery seed"
+        )
+    return None
+
+
 def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -251,6 +286,9 @@ def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> Andro
         missing_roles.append("sender")
     if completions.passive_completion is None:
         missing_roles.append("passive")
+    transport_reason = transport_failure_reason(run_dir)
+    if transport_reason is not None:
+        raise SystemExit(transport_reason)
     raise SystemExit(
         "Timed out waiting for proof.complete on Android roles: "
         + ", ".join(missing_roles or ["unknown"])
@@ -368,6 +406,7 @@ def start_android_role_app(
     app_id: str,
     storage_subdirectory: str,
     android_transport_logcat: bool,
+    target_peer_id: str | None = None,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_reference_app(android_serial)
@@ -409,6 +448,8 @@ def start_android_role_app(
         ANDROID_EXTRA_SCENARIO,
         DIRECT_GUIDED_SCENARIO,
     ]
+    if target_peer_id:
+        command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
     try:
@@ -437,6 +478,16 @@ def start_android_role_app(
         encoding="utf-8",
     )
     return process
+
+
+def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        peer_id = extract_discovered_peer_id(read_text(log_path))
+        if peer_id is not None:
+            return peer_id
+        time.sleep(0.5)
+    return extract_discovered_peer_id(read_text(log_path))
 
 
 def verify_sender_log(log_path: Path) -> str:
@@ -561,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
+    discovery_wait_seconds = max(args.android_ready_seconds * 2, 20.0)
+    discovered_peer_id: str | None = args.target_peer_id
     stage = "input-validation"
     sender_process: BackgroundProcess | None = None
     passive_process: BackgroundProcess | None = None
@@ -605,6 +658,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization"
             )
             time.sleep(args.android_ready_seconds)
+            discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
+                passive_log_path(run_dir),
+                discovery_wait_seconds,
+            )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.sender_android_serial,
@@ -613,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
+                target_peer_id=discovered_peer_id,
             )
             stage = "capture"
             completions = wait_for_android_completions(run_dir, args.capture_timeout_seconds)
@@ -630,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise
 
         stage = "summary"
-        summarize_and_verify(
+        summary = summarize_and_verify(
             sender_android_serial=args.sender_android_serial,
             passive_android_serial=args.passive_android_serial,
             run_dir=run_dir,
@@ -638,6 +696,9 @@ def main(argv: list[str] | None = None) -> int:
             app_id=app_id,
             completions=completions,
         )
+        summary["discoveredPeerId"] = discovered_peer_id
+        write_summary(run_dir, summary)
+        print("==> Android discovery seed:", discovered_peer_id or "none")
         return 0
     except SystemExit as error:
         write_summary(

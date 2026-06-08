@@ -10,6 +10,7 @@ internal class LiveProofAutomationProgress {
     var meshStartRequested: Boolean = false
     var bootstrapRequested: Boolean = false
     var sendRequested: Boolean = false
+    var senderPeerWaitLogged: Boolean = false
     var pauseRequested: Boolean = false
     var pauseObserved: Boolean = false
     var pauseResumeTargetPeerId: String? = null

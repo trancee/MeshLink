@@ -324,6 +324,7 @@ def build_ios_app(ios_device: str, run_dir: Path) -> Path:
         "-destination",
         f"id={ios_device}",
         f"DEVELOPMENT_TEAM={development_team}",
+        "-allowProvisioningUpdates",
         "build",
     ]
     redacted_command = [
@@ -338,6 +339,10 @@ def build_ios_app(ios_device: str, run_dir: Path) -> Path:
     if result.returncode != 0:
         print("==> iPhone reference app build failed; tail follows:", file=sys.stderr)
         print("\n".join(log_text.splitlines()[-40:]), file=sys.stderr)
+        if "errSecInternalComponent" in log_text:
+            raise SystemExit(
+                "iPhone codesign failed with errSecInternalComponent. If the signing keychain ACL was not granted, retry after fixing the ACL before changing the campaign logic."
+            )
         raise SystemExit(result.returncode)
     return latest_built_app()
 
@@ -429,6 +434,10 @@ def run_ios_live_proof_test(
     if build_result.returncode != 0:
         print("==> Physical iPhone build-for-testing failed; tail follows:", file=sys.stderr)
         print("\n".join(build_log_text.splitlines()[-60:]), file=sys.stderr)
+        if "errSecInternalComponent" in build_log_text:
+            raise SystemExit(
+                "iPhone codesign failed with errSecInternalComponent during build-for-testing. If the signing keychain ACL was not granted, retry after fixing the ACL before changing the campaign logic."
+            )
         raise SystemExit(build_result.returncode)
 
     source_xctestrun = latest_built_xctestrun()
@@ -436,13 +445,17 @@ def run_ios_live_proof_test(
     shutil.copy2(source_xctestrun, xctestrun_path)
     with xctestrun_path.open("rb") as source_file:
         xctestrun = plistlib.load(source_file)
-    test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
-    ui_test_target = next(
-        (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppPhysicalUITests"),
-        None,
-    )
+    ui_test_target = xctestrun.get("ReferenceAppPhysicalUITests")
+    if not isinstance(ui_test_target, dict):
+        test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
+        ui_test_target = next(
+            (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppPhysicalUITests"),
+            None,
+        )
     if ui_test_target is None:
-        raise SystemExit("Could not find ReferenceAppPhysicalUITests in generated .xctestrun file")
+        raise SystemExit(
+            "Could not find ReferenceAppPhysicalUITests in generated .xctestrun file; expected a top-level target entry or a TestConfigurations/TestTargets match"
+        )
     ios_transport_environment = build_ios_transport_environment(
         transport_debug=ios_transport_debug,
         transport_telemetry=ios_transport_telemetry,
