@@ -116,7 +116,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--android-ready-seconds",
         type=float,
         default=DEFAULT_ANDROID_READY_SECONDS,
-        help="How long to wait after launching the passive Android peer before starting the sender",
+        help=(
+            "How long to wait after launching the passive Android peer before starting the sender. "
+            "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
+            "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover."
+        ),
     )
     parser.add_argument(
         "--capture-timeout-seconds",

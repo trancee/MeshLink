@@ -302,6 +302,8 @@ manual direct, relay, and matrix investigations.
 
 All direct scenarios below use the explicit mixed-platform runner:
 
+On this host, the Android direct-proof pair that completed end-to-end was Spacewar (sender) + DN2103 (passive). The Nokia X20 + DN2103 pairing repeatedly failed to produce mutual discovery even though both devices were advertising and scanning, so treat the selected sender/passive pair as part of the environment contract.
+
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \
   --android-serial <android-serial-in-direct-range> \

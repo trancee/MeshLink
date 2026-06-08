@@ -58,6 +58,8 @@ If you are using this app as the receiving proof peer for
 keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
 matches the tutorial host app.
 
+For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning.
+
 ## 3. Override launch settings when you need a specific proof shape
 
 The Android proof app reads these intent extras on launch:
