@@ -132,6 +132,12 @@ path.
 If it does not, choose a fixed `PowerMode` instead. That is often the cleaner
 and more honest choice.
 
+For Android direct-proof sessions on doze-sensitive devices, prefer the
+reference app's live-proof foreground wake-lock mitigation or a deliberate
+screen-awake/battery-optimization policy rather than assuming passive BLE
+scanning will stay alive on its own. Keep that mitigation in the app shell or
+operator flow, not buried in a one-off runner flag.
+
 For the policy model, read [Power management](power-management.md).
 
 ## Keep platform code at the edges
@@ -160,7 +166,7 @@ A production-shaped MeshLink integration usually has all of the following:
   transport success
 - explicit trust reset UX or operator flow
 - a visible diagnostics surface
-- a deliberate power-policy choice
+- a deliberate power-policy choice, including a clear stance on doze-sensitive Android direct-proof sessions
 - platform-specific bootstrap code kept at the edges
 
 ## Related docs
