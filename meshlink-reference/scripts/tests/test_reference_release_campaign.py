@@ -268,6 +268,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         *,
         expected_gate_status: str,
         expected_verdicts: tuple[str, ...] = (),
+        unexpected_verdicts: tuple[str, ...] = (),
     ) -> dict[str, object]:
         report_data = self.load_report_data(run_root)
         self.assertEqual(report_data["gateMath"]["thresholds"], campaign_report_data.RETAINED_GATE_THRESHOLDS)
@@ -289,6 +290,10 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn(f'metric-card metric-card--{verdict}', report_html)
             self.assertIn(f'scenario-card scenario-card--{verdict}', report_html)
             self.assertIn(f'data-status="{verdict}"', report_html)
+
+        for verdict in unexpected_verdicts:
+            self.assertNotIn(f'scenario-card scenario-card--{verdict}', report_html)
+            self.assertNotIn(f'verdict verdict-{verdict}', report_html)
 
         return report_data
 
@@ -632,6 +637,49 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
 
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="green",
+                expected_verdicts=("pass", "skipped"),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual(
+                [scenario["verdict"] for scenario in report_data["scenarios"]],
+                ["pass", "skipped"],
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["summary"],
+                "baseline/direct-guided-android-only/summary.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["analysisJson"],
+                "baseline/direct-guided-android-only/analysis.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][0]["artifacts"]["analysisMarkdown"],
+                "baseline/direct-guided-android-only/analysis.md",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["summary"],
+                "scenarios/02-relay-constrained/summary.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["analysisJson"],
+                "scenarios/02-relay-constrained/analysis.json",
+            )
+            self.assertEqual(
+                report_data["scenarios"][1]["artifacts"]["analysisMarkdown"],
+                "scenarios/02-relay-constrained/analysis.md",
+            )
+
+            report_html = (run_root / "release-review-report.html").read_text(encoding="utf-8")
+            self.assertIn("baseline/direct-guided-android-only/summary.json", report_html)
+            self.assertIn("baseline/direct-guided-android-only/analysis.md", report_html)
+            self.assertIn("scenarios/02-relay-constrained/analysis.json", report_html)
+
     def test_run_campaign_marks_skipped_and_never_dispatches_a_child_runner(self) -> None:
         # Arrange
         manifest = self.build_manifest(
@@ -899,6 +947,100 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
             )
 
+        stale_campaign_plan = {
+            "planVersion": 999,
+            "scenarioCatalogVersion": 999,
+            "generatedAt": "1999-01-01T00:00:00+00:00",
+            "status": "stale",
+            "runRoot": "stale-run-root",
+            "campaignStatePath": "stale-campaign-state.json",
+            "selectedBaseline": {
+                "assignmentId": "stale-assignment",
+                "status": "stale",
+                "artifacts": {
+                    "summary": "stale/summary.json",
+                },
+            },
+            "scenarios": [
+                {
+                    "scenarioId": "stale-scenario",
+                    "status": "stale",
+                },
+            ],
+        }
+        stale_campaign_state = {
+            "stateVersion": 999,
+            "scenarioCatalogVersion": 999,
+            "generatedAt": "1999-01-01T00:00:00+00:00",
+            "updatedAt": "1999-01-01T00:00:01+00:00",
+            "status": "stale",
+            "runRoot": "stale-run-root",
+            "campaignPlanPath": "stale-campaign-plan.json",
+            "happyPathGate": {
+                "status": "green",
+                "firstFailScenarioId": None,
+                "triggeredAt": None,
+                "updatedAt": "1999-01-01T00:00:01+00:00",
+            },
+            "scenarios": [
+                {
+                    "scenarioId": "stale-scenario",
+                    "status": "stale",
+                },
+            ],
+        }
+        stale_report_data = {
+            "reportDataVersion": 999,
+            "generatedAt": "1999-01-01T00:00:00+00:00",
+            "runRoot": "stale-run-root",
+            "sourceFiles": {
+                "campaignPlan": "stale-campaign-plan.json",
+                "campaignState": "stale-campaign-state.json",
+            },
+            "campaign": {
+                "status": "stale",
+                "planStatus": "stale",
+                "happyPathGate": {
+                    "status": "green",
+                    "firstFailScenarioId": None,
+                },
+            },
+            "runClassification": {
+                "status": "complete",
+                "reasons": ["stale"],
+            },
+            "verdictCounts": {
+                "pass": 0,
+                "fail": 0,
+                "skipped": 0,
+                "inconclusive": 0,
+                "invalid-environment": 0,
+            },
+            "gateMath": {
+                "status": "green",
+                "thresholds": {
+                    "failureCountMaximum": 99,
+                    "inconclusiveCountMaximum": 99,
+                    "invalidEnvironmentCountMaximum": 99,
+                    "passRateMinimum": 0.0,
+                },
+                "totalScenarios": 0,
+                "runnableScenarios": 0,
+                "terminalScenarios": 0,
+                "passRate": 1.0,
+                "failureRate": 0.0,
+                "inconclusiveRate": 0.0,
+            },
+            "scenarios": [
+                {
+                    "scenarioId": "stale-scenario",
+                    "verdict": "pass",
+                    "evidenceIssues": [],
+                },
+            ],
+        }
+        stale_html_marker = "STALE REVIEW REPORT"
+
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "reused-run-root"
 
@@ -912,6 +1054,24 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(
                 [call["scenario_id"] for call in first_process_runner.calls],
                 ["direct-guided", "direct-guided", "relay-constrained", "relay-constrained"],
+            )
+
+            # Pre-seed stale retained root artifacts so the rerun must replace them semantically.
+            (run_root / "campaign-plan.json").write_text(
+                json.dumps(stale_campaign_plan, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (run_root / "campaign-state.json").write_text(
+                json.dumps(stale_campaign_state, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (run_root / "report-data.json").write_text(
+                json.dumps(stale_report_data, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (run_root / "release-review-report.html").write_text(
+                stale_html_marker,
+                encoding="utf-8",
             )
 
             second_process_runner = ReleaseCampaignProcessRunner(
@@ -945,14 +1105,39 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 ],
             )
 
+            campaign_plan = self.load_json(run_root / "campaign-plan.json")
             campaign_state = self.load_json(run_root / "campaign-state.json")
+            report_data = self.load_json(run_root / "report-data.json")
+            report_html = (run_root / "release-review-report.html").read_text(encoding="utf-8")
+            direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
+            relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
             relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+            direct_report = self.scenario_by_id(report_data, "direct-guided")
+            relay_report = self.scenario_by_id(report_data, "relay-constrained")
+
+            self.assertNotEqual(campaign_plan["generatedAt"], stale_campaign_plan["generatedAt"])
+            self.assertNotEqual(campaign_state["generatedAt"], stale_campaign_state["generatedAt"])
+            self.assertNotEqual(report_data["generatedAt"], stale_report_data["generatedAt"])
+            self.assertNotIn(stale_html_marker, report_html)
+            self.assertEqual(campaign_plan["status"], "fail")
+            self.assertEqual(campaign_plan["selectedBaseline"]["status"], "fail")
+            self.assertEqual(direct_plan["initialStatus"], "planned")
+            self.assertEqual(relay_plan["initialStatus"], "planned")
             self.assertEqual(direct_state["status"], "fail")
             self.assertEqual(relay_state["status"], "pass")
             self.assertEqual(campaign_state["status"], "fail")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
+            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
+            self.assertEqual(report_data["gateMath"]["status"], "inconclusive")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["inconclusive", "pass"])
+            self.assertIn("summary-missing", direct_report["evidenceIssues"])
+            self.assertIn("analysis-json-missing", direct_report["evidenceIssues"])
+            self.assertIn("analysis-markdown-missing", direct_report["evidenceIssues"])
+            self.assertEqual(relay_report["verdict"], "pass")
+            self.assertEqual(relay_report["analysisStatus"], "pass")
+            self.assertEqual(relay_report["completeEvidence"], True)
             self.assertIn(
                 "baseline-summary-missing",
                 {reason["code"] for reason in direct_state["reasons"]},
@@ -960,6 +1145,14 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn(
                 "baseline-analysis-missing",
                 {reason["code"] for reason in direct_state["reasons"]},
+            )
+            self.assertEqual(
+                self.assert_retained_gate_policy_artifacts(
+                    run_root,
+                    expected_gate_status="inconclusive",
+                    expected_verdicts=("pass", "inconclusive"),
+                )["gateMath"]["status"],
+                "inconclusive",
             )
 
     def test_run_campaign_classifies_environmental_child_failures_honestly(self) -> None:
@@ -977,8 +1170,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "relay-constrained": {
                     "child_returncode": 7,
                     "child_stderr": "DEVELOPMENT_TEAM is required unless local provisioning exists",
-                    "child_writes_summary": False,
-                    "analysis_writes_outputs": False,
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
                 }
             }
         )
@@ -1007,6 +1199,17 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             )
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="red",
+                expected_verdicts=("pass", "fail"),
+                unexpected_verdicts=("invalid-environment",),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
 
     def test_run_campaign_classifies_environmental_analyzer_failures_honestly(self) -> None:
         # Arrange
@@ -1023,7 +1226,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                 "relay-constrained": {
                     "analysis_returncode": 4,
                     "analysis_stderr": "xcodebuild tool not ready",
-                    "analysis_writes_outputs": False,
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
                 }
             }
         )
@@ -1054,11 +1257,15 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
-                expected_gate_status="inconclusive",
-                expected_verdicts=("pass", "inconclusive"),
+                expected_gate_status="red",
+                expected_verdicts=("pass", "fail"),
+                unexpected_verdicts=("invalid-environment",),
             )
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "inconclusive"])
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
             self.assertTrue((run_root / "report-data.json").exists())
 
     def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
@@ -1071,44 +1278,55 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             },
             ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
         )
-        process_runner = ReleaseCampaignProcessRunner(
-            scenario_results={
-                "relay-constrained": {
-                    "analysis_returncode": 4,
-                    "analysis_stderr": "environment-sentinel=invalid",
-                    "analysis_writes_outputs": False,
-                }
-            }
+        sentinel_cases = (
+            ("analysis_stdout", "environment-sentinel=invalid from stdout"),
+            ("analysis_stderr", "environment-sentinel=invalid from stderr"),
+            ("analysis_error", "environment-sentinel=invalid from error"),
         )
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            run_root = Path(temporary_directory) / "analysis-explicit-environment-sentinel"
+        for field_name, sentinel_value in sentinel_cases:
+            with self.subTest(field_name=field_name):
+                process_runner = ReleaseCampaignProcessRunner(
+                    scenario_results={
+                        "relay-constrained": {
+                            "analysis_returncode": 4,
+                            field_name: sentinel_value,
+                        }
+                    }
+                )
 
-            # Act
-            exit_code = release_campaign.run_campaign(
-                run_root=run_root,
-                build_manifest=lambda: manifest,
-                process_runner=process_runner,
-            )
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    run_root = Path(temporary_directory) / f"analysis-explicit-environment-sentinel-{field_name}"
 
-            # Assert
-            self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
-            campaign_state = self.load_json(run_root / "campaign-state.json")
-            relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
-            self.assertEqual(relay_state["status"], "invalid-environment")
-            self.assertIn(
-                "relay-constrained-analysis-invalid-environment",
-                {reason["code"] for reason in relay_state["reasons"]},
-            )
-            report_data = self.assert_retained_gate_policy_artifacts(
-                run_root,
-                expected_gate_status="red",
-                expected_verdicts=("pass", "invalid-environment"),
-            )
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1})
-            self.assertEqual(report_data["gateMath"]["status"], "red")
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "invalid-environment"])
-            self.assertTrue((run_root / "report-data.json").exists())
+                    # Act
+                    exit_code = release_campaign.run_campaign(
+                        run_root=run_root,
+                        build_manifest=lambda: manifest,
+                        process_runner=process_runner,
+                    )
+
+                    # Assert
+                    self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+                    campaign_state = self.load_json(run_root / "campaign-state.json")
+                    relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+                    self.assertEqual(relay_state["status"], "invalid-environment")
+                    self.assertIn(
+                        "relay-constrained-analysis-invalid-environment",
+                        {reason["code"] for reason in relay_state["reasons"]},
+                    )
+                    report_data = self.assert_retained_gate_policy_artifacts(
+                        run_root,
+                        expected_gate_status="red",
+                        expected_verdicts=("pass", "invalid-environment"),
+                        unexpected_verdicts=("fail",),
+                    )
+                    self.assertEqual(
+                        report_data["verdictCounts"],
+                        {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1},
+                    )
+                    self.assertEqual(report_data["gateMath"]["status"], "red")
+                    self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "invalid-environment"])
+                    self.assertTrue((run_root / "report-data.json").exists())
 
 
 if __name__ == "__main__":

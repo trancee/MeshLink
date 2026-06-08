@@ -592,6 +592,84 @@ class CampaignReportDataTests(unittest.TestCase):
             self.assertIn("analysis-json-missing", payload["scenarios"][0]["evidenceIssues"])
             self.assertIn("direct-guided:analysis-markdown-missing", payload["runClassification"]["reasons"])
 
+    def test_main_keeps_android_only_retained_artifacts_and_relay_skip_story_visible(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "campaign-run"
+            run_root.mkdir(parents=True, exist_ok=True)
+
+            direct_artifacts = self.seed_scenario_artifacts(
+                run_root,
+                scenario_id="direct-guided",
+                run_directory="baseline/direct-guided-android-only",
+                summary_payload={
+                    "scenario": "direct-guided",
+                    "status": "passed",
+                    "export_relative_path": "exports/direct-guided-android-only/session-redacted.json",
+                },
+                analysis_payload={
+                    "scenario_type": "direct",
+                    "status": "pass",
+                    "baseline": "direct-guided-android-only",
+                },
+                analysis_markdown="# direct guided\n",
+            )
+            relay_artifacts = {
+                "summary": "scenarios/02-relay-constrained/summary.json",
+                "analysisJson": "scenarios/02-relay-constrained/analysis.json",
+                "analysisMarkdown": "scenarios/02-relay-constrained/analysis.md",
+                "runnerStdout": "scenarios/02-relay-constrained/runner.stdout.log",
+                "runnerStderr": "scenarios/02-relay-constrained/runner.stderr.log",
+                "analysisStdout": "scenarios/02-relay-constrained/analysis.stdout.log",
+                "analysisStderr": "scenarios/02-relay-constrained/analysis.stderr.log",
+            }
+            scenarios = [
+                {
+                    "order": 1,
+                    "scenarioId": "direct-guided",
+                    "baseline": "direct-guided",
+                    "assignmentId": "direct-guided-android-only",
+                    "assignmentShape": "android-only",
+                    "initialStatus": "planned",
+                    "eligibilityStatus": "runnable",
+                    "status": "pass",
+                    "runDirectory": "baseline/direct-guided-android-only",
+                    "artifacts": direct_artifacts,
+                },
+                {
+                    "order": 2,
+                    "scenarioId": "relay-constrained",
+                    "baseline": "relay-constrained",
+                    "assignmentId": "relay-constrained",
+                    "assignmentShape": "mixed",
+                    "initialStatus": "skipped",
+                    "eligibilityStatus": "skipped",
+                    "status": "skipped",
+                    "runDirectory": "scenarios/02-relay-constrained",
+                    "artifacts": relay_artifacts,
+                },
+            ]
+            self.seed_campaign_files(run_root, scenarios=scenarios, status="pass")
+
+            # Act
+            exit_code, payload = self.run_cli(run_root)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["runClassification"]["status"], "complete")
+            self.assertEqual(payload["gateMath"]["status"], "green")
+            self.assertEqual(payload["scenarios"][0]["baseline"], "direct-guided")
+            self.assertEqual(payload["scenarios"][0]["artifacts"]["summary"], "baseline/direct-guided-android-only/summary.json")
+            self.assertEqual(payload["scenarios"][0]["artifacts"]["analysisJson"], "baseline/direct-guided-android-only/analysis.json")
+            self.assertEqual(payload["scenarios"][0]["artifacts"]["analysisMarkdown"], "baseline/direct-guided-android-only/analysis.md")
+            self.assertEqual(payload["scenarios"][0]["analysisStatus"], "pass")
+            self.assertEqual(payload["scenarios"][0]["verdict"], "pass")
+            self.assertEqual(payload["scenarios"][1]["verdict"], "skipped")
+            self.assertEqual(payload["scenarios"][1]["artifacts"]["summary"], "scenarios/02-relay-constrained/summary.json")
+            self.assertEqual(payload["scenarios"][1]["eligibilityStatus"], "skipped")
+            self.assertEqual(payload["scenarios"][1]["status"], "skipped")
+            self.assertTrue((run_root / "report-data.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

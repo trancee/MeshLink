@@ -372,6 +372,27 @@ class AnalyzeReferencePhysicalRunTests(unittest.TestCase):
             self.assertIn("senderPlatform=ios", "\n".join(analysis["recommendations"]))
             self.assertIn("senderPlatform=ios", markdown)
 
+    def test_main_fails_when_summary_passive_completion_contradicts_android_logs(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "passive-completion-contradiction"
+            self.copy_fixture(ANDROID_DIRECT_FIXTURE_DIR, run_dir)
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            summary["passiveCompletion"] = summary["passiveCompletion"].replace(
+                "role=passive", "role=sender"
+            )
+            (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+            # Act
+            exit_code, analysis, markdown = self.run_cli(run_dir)
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(analysis["status"], "fail")
+            self.assertFalse(analysis["invariants"]["summary_role_metadata_consistent"])
+            self.assertIn("role=sender", "\n".join(analysis["recommendations"]))
+            self.assertIn("role=sender", markdown)
+
     def test_main_fails_when_sender_reports_failed_or_routed_direct_run(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -401,21 +422,12 @@ class AnalyzeReferencePhysicalRunTests(unittest.TestCase):
             self.assertIn("routeIsDirect=false", "\n".join(analysis["recommendations"]))
             self.assertIn("proof.failed", markdown)
 
-    def test_main_fails_when_passive_never_completes(self) -> None:
+    def test_main_fails_when_passive_log_is_missing(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory) / "passive-missing"
             self.copy_fixture(ANDROID_DIRECT_FIXTURE_DIR, run_dir)
-            (run_dir / "passive_logcat.log").write_text(
-                textwrap.dedent(
-                    """
-                    05-31 10:00:00.000 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided
-                    05-31 10:00:00.100 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=sender-peer
-                    05-31 10:00:01.500 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview
-                    """
-                ).lstrip(),
-                encoding="utf-8",
-            )
+            (run_dir / "passive_logcat.log").unlink()
 
             # Act
             exit_code, analysis, markdown = self.run_cli(run_dir)
@@ -423,9 +435,9 @@ class AnalyzeReferencePhysicalRunTests(unittest.TestCase):
             # Assert
             self.assertEqual(exit_code, 0)
             self.assertEqual(analysis["status"], "fail")
-            self.assertFalse(analysis["invariants"]["passive_proof_complete"])
-            self.assertIn("never retained/exported the session", "\n".join(analysis["recommendations"]))
-            self.assertIn("passive_proof_complete", markdown)
+            self.assertFalse(analysis["invariants"]["passive_log_captured"])
+            self.assertIn("passive_logcat.log", "\n".join(analysis["recommendations"]))
+            self.assertIn("passive_logcat.log", markdown)
 
 
 if __name__ == "__main__":

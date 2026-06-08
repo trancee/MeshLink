@@ -157,6 +157,30 @@ class ReleaseReviewReportTests(unittest.TestCase):
             self.assertNotIn("https://", html_text)
             self.assertNotIn('src="http', html_text)
 
+    def test_main_regenerates_android_only_bundle_and_keeps_relay_skip_story_visible(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "campaign-run"
+            run_root.mkdir(parents=True, exist_ok=True)
+            payload = self.build_report_payload(run_root)
+            self.write_json(run_root / "report-data.json", payload)
+
+            # Act
+            output_path = self.run_renderer(run_root)
+            html_text = output_path.read_text(encoding="utf-8")
+
+            # Assert
+            self.assertTrue(output_path.exists())
+            self.assertIn("baseline/direct-guided-android-only/summary.json", html_text)
+            self.assertIn("baseline/direct-guided-android-only/analysis.json", html_text)
+            self.assertIn('href="baseline/direct-guided-android-only/analysis.json"', html_text)
+            self.assertIn('href="scenarios/02-relay-constrained/analysis.md"', html_text)
+            self.assertIn("relay-constrained", html_text)
+            self.assertIn("Eligibility: <strong>skipped</strong>", html_text)
+            self.assertIn("Status: <strong>skipped</strong>", html_text)
+            self.assertIn("Rendered from retained report-data.json only", html_text)
+            self.assertIn("Evidence links remain relative to the run root", html_text)
+
     def test_render_report_surfaces_verdict_counts_gate_math_summaries_and_retained_links(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
