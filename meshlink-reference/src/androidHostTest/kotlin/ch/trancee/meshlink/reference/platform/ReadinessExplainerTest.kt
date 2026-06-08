@@ -59,4 +59,23 @@ class ReadinessExplainerTest {
         // Assert
         assertEquals(expected, actual)
     }
+
+    @Test
+    fun blockersIncludeDozeWarningWhenPowerManagerReportsIdle() {
+        // Arrange
+        val missingPermissions = emptyList<String>()
+        val expected =
+            listOf(
+                "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; doze can stall BLE discovery on some Android 14 devices.",
+            )
+
+        // Act
+        val actual = readinessBlockers(
+            missingPermissions = missingPermissions,
+            powerManagement = expected,
+        )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
 }

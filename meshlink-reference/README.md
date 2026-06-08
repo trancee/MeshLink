@@ -65,7 +65,8 @@ flowchart LR
 The Android app module and the iOS host project both mount the same shared
 Compose shell. Session boundaries, **Recent history**, export policy, and
 automation live in shared code. Platform code mainly supplies bootstrap,
-storage location, readiness blockers, and the native host entry points.
+storage location, readiness blockers, power mitigation for doze-sensitive
+Android proof sessions, and the native host entry points.
 
 For the deeper contributor view, use the
 [Repository layout reference](../docs/reference/repository-layout.md) and
@@ -118,7 +119,7 @@ Start retained release review with the fleet-aware campaign entrypoint:
 python3 meshlink-reference/scripts/run_reference_release_campaign.py
 ```
 
-This entrypoint discovers the available Android fleet plus the optional iOS sender, plans the ordered happy-path catalog, runs the direct baseline path, preserves `campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as compatibility views of that baseline, and retains `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, `report-data.json`, `release-review-report.html`, and per-scenario `analysis.md` evidence under the selected run directory. When mixed live proof is not supported on the current host, the campaign falls back to the Android-only direct-guided path and records that selection explicitly in the retained manifest.
+This entrypoint discovers the available Android fleet plus the optional iOS sender, plans the ordered happy-path catalog, runs the direct baseline path, preserves `campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as compatibility views of that baseline, and retains `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, `report-data.json`, `release-review-report.html`, and per-scenario `analysis.md` evidence under the selected run directory. When mixed live proof is not supported on the current host, the campaign falls back to the Android-only direct-guided path and records that selection explicitly in the retained manifest. For Android direct-proof runs, the reference app now also starts a foreground wake-lock mitigation during live-proof automation so doze-sensitive devices like the Nokia X20 can keep BLE discovery alive long enough to complete the proof session.
 
 Milestone **M001** validated this path end-to-end on a real 4-device discovered
 fleet. The remaining Android-only sender symmetry work is tracked as follow-up
@@ -140,6 +141,7 @@ Use [How to run the reference-app physical integration scenarios](../docs/how-to
 - treat **Solo exploration** as a non-authoritative walkthrough, not physical proof
 - keep proof-only and benchmark-only work in **Lab** or the proof surfaces
   instead of treating it as supported product behavior
+- for Android direct proof on aggressive OEM builds, keep the screen awake or rely on the foreground wake-lock mitigation started by the live-proof session
 
 ## Expected outcome
 

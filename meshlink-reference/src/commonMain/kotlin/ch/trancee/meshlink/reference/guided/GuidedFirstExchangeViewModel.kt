@@ -22,6 +22,10 @@ internal class GuidedFirstExchangeViewModel(
             readinessBlockers = platformServices.readinessBlockers,
             initialSnapshot = platformServices.meshLinkController.snapshot.value,
         )
+    private val powerMitigationStatus: String? = platformServices.powerMitigationStatus
+
+    public val powerMitigationLabel: String?
+        get() = powerMitigationStatus
 
     public val uiState: StateFlow<GuidedFirstExchangeUiState> = stateStore.uiState
 

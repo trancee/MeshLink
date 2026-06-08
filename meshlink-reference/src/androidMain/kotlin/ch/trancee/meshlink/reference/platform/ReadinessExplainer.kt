@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.Manifest
+import android.os.PowerManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -9,7 +10,8 @@ internal fun readinessGuidance(): List<String> {
     return listOf(
         "Confirm Bluetooth is enabled and the Android device is on API 29 or newer.",
         "Use the debug install path so runtime permissions are granted where the platform allows it.",
-        "Keep the device offline and near the iPhone peer before starting the guided exchange.",
+        "Keep the device awake during direct proof on aggressive OEM builds; doze can stall BLE discovery.",
+        "Keep the device offline and near the peer before starting the guided exchange.",
     )
 }
 
@@ -18,7 +20,10 @@ internal fun readinessBlockers(context: Context): List<String> {
         requiredPermissions(Build.VERSION.SDK_INT).filterNot { permission ->
             context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
         }
-    return readinessBlockers(missingPermissions)
+    return readinessBlockers(
+        missingPermissions = missingPermissions,
+        powerManagement = powerManagementBlockers(context),
+    )
 }
 
 internal fun requiredPermissions(sdkInt: Int): List<String> {
@@ -34,16 +39,38 @@ internal fun requiredPermissions(sdkInt: Int): List<String> {
     }
 }
 
-internal fun readinessBlockers(missingPermissions: List<String>): List<String> {
-    if (missingPermissions.isEmpty()) {
+internal fun readinessBlockers(
+    missingPermissions: List<String>,
+    powerManagement: List<String> = emptyList(),
+): List<String> {
+    val blockers = mutableListOf<String>()
+    if (missingPermissions.isNotEmpty()) {
+        val permissionNames =
+            missingPermissions.joinToString(separator = ", ") { permission ->
+                permission.substringAfterLast('.')
+            }
+        blockers +=
+            "Grant the required Android BLE permissions before starting MeshLink: $permissionNames."
+        blockers +=
+            "Some Android devices also require Location permission before BLE scan results become visible."
+    }
+    blockers += powerManagement
+    return blockers
+}
+
+private fun powerManagementBlockers(context: Context): List<String> {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
         return emptyList()
     }
-    val permissionNames =
-        missingPermissions.joinToString(separator = ", ") { permission ->
-            permission.substringAfterLast('.')
-        }
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return emptyList()
+    val packageName = context.packageName
+    val ignoringOptimizations = powerManager.isIgnoringBatteryOptimizations(packageName)
+    val idleMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isDeviceIdleMode else false
+    val interactive = powerManager.isInteractive
+    if (!idleMode && (interactive || ignoringOptimizations)) {
+        return emptyList()
+    }
     return listOf(
-        "Grant the required Android BLE permissions before starting MeshLink: $permissionNames.",
-        "Some Android devices also require Location permission before BLE scan results become visible.",
+        "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; doze can stall BLE discovery on some Android 14 devices.",
     )
 }

@@ -70,6 +70,7 @@ internal fun rememberReferenceNavHostDependencies(
             SessionTransitionService(
                 timelineStore = timelineStore,
                 sessionController = sessionController,
+                platformServices = sessionPlatformServices,
                 currentTimeMillis = sessionPlatformServices::currentTimeMillis,
             )
         }

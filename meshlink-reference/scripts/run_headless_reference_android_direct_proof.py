@@ -119,7 +119,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
-            "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover."
+            "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
+            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake and disable battery optimization if discovery stalls."
         ),
     )
     parser.add_argument(

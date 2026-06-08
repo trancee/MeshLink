@@ -158,12 +158,14 @@ private fun fakePlatformServices(
             listOf("Keep two devices nearby", "Stay offline")
         override val readinessBlockers: List<String> = startupBlockers
         override val automationConfig: ReferenceAutomationConfig? = null
+        override val powerMitigationStatus: String? = null
         override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
         override val meshLinkController: ReferenceMeshLinkController = controller
 
         override fun currentTimeMillis(): Long = 1_000L
 
         override fun emitAutomationLog(message: String): Unit = Unit
+        override fun stopPowerMitigation(): Unit = Unit
     }
 }
 

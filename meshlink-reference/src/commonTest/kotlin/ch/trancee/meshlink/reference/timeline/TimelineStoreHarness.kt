@@ -68,6 +68,7 @@ internal class TimelineStoreHarness(
             override val readinessGuidance: List<String> = emptyList()
             override val readinessBlockers: List<String> = emptyList()
             override val automationConfig: ReferenceAutomationConfig? = activeAutomationConfig
+            override val powerMitigationStatus: String? = null
             override val documentStore: ReferenceDocumentStore =
                 this@TimelineStoreHarness.documentStore
             override val meshLinkController: ReferenceMeshLinkController = sessionController
@@ -81,6 +82,7 @@ internal class TimelineStoreHarness(
             override fun currentTimeMillis(): Long = nowMillis
 
             override fun emitAutomationLog(message: String): Unit = Unit
+            override fun stopPowerMitigation(): Unit = Unit
         }
 
     fun createStore(scope: kotlinx.coroutines.CoroutineScope): TechnicalTimelineStore {
@@ -102,6 +104,7 @@ internal class TimelineStoreHarness(
                 SessionTransitionService(
                     timelineStore = timelineStore,
                     sessionController = sessionController,
+                    platformServices = platformServices,
                     currentTimeMillis = { nowMillis },
                 ),
         )

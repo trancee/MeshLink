@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.content.ContextCompat
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
@@ -21,6 +22,10 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val automationEnabled = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION, false) == true
         val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
+        val directProofEnabled = automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF
+        if (directProofEnabled) {
+            startDirectProofPowerService()
+        }
         val platformServices =
             if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
                 createLiveAutomationPlatformServices(
@@ -53,12 +58,24 @@ public class MainActivity : ComponentActivity() {
             } else {
                 createPlatformServices(applicationContext)
             }
-        if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
+        if (directProofEnabled) {
             platformServices.automationConfig?.let { automationConfig ->
                 platformServices.emitAutomationLog(automationConfig.startupMarker())
             }
         }
         setContent { ReferenceApp(platformServices = platformServices) }
+    }
+
+    override fun onDestroy() {
+        stopDirectProofPowerService()
+        super.onDestroy()
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) {
+            stopDirectProofPowerService()
+        }
+        super.onStop()
     }
 
     public companion object {
@@ -122,6 +139,14 @@ public class MainActivity : ComponentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
         }
+    }
+
+    private fun startDirectProofPowerService() {
+        ContextCompat.startForegroundService(this, DirectProofPowerService.start(this))
+    }
+
+    private fun stopDirectProofPowerService() {
+        stopService(DirectProofPowerService.start(this))
     }
 }
 

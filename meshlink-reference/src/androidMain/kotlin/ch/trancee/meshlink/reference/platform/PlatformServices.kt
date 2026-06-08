@@ -3,6 +3,7 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
@@ -110,7 +111,17 @@ public fun createLiveAutomationPlatformServices(
                         targetPeerId = targetPeerId,
                         scenario = scenario,
                     )
+                powerMitigationStatus =
+                    "Foreground wake lock active for live-proof automation sessions."
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
+                stopPowerMitigation = {
+                    context.stopService(
+                        Intent().setClassName(
+                            context.packageName,
+                            "ch.trancee.meshlink.reference.DirectProofPowerService",
+                        ),
+                    )
+                }
             },
     )
 }
