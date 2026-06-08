@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
+import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
+import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.startupMarker
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
@@ -23,6 +25,13 @@ public class MainActivity : ComponentActivity() {
         val automationEnabled = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION, false) == true
         val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
         val directProofEnabled = automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF
+        if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
+            AndroidDiscoveryAdvertisementConfig.carrier =
+                intent?.getStringExtra(EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER)
+                    .toDiscoveryAdvertisementCarrier()
+        } else {
+            AndroidDiscoveryAdvertisementConfig.carrier = DiscoveryAdvertisementCarrier.UUID_PAIR
+        }
         if (directProofEnabled) {
             startDirectProofPowerService()
         }
@@ -99,6 +108,8 @@ public class MainActivity : ComponentActivity() {
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
         public const val EXTRA_UI_AUTOMATION_SCENARIO: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
+        public const val EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER"
         public const val DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY: String = "default"
         public const val DEFAULT_LIVE_AUTOMATION_APP_ID: String = "demo.meshlink.reference.live"
         public const val AUTOMATION_MODE_SCRIPTED: String = "scripted"
@@ -126,6 +137,8 @@ public class MainActivity : ComponentActivity() {
             role: ReferenceAutomationRole,
             scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
             targetPeerId: String? = null,
+            advertisementCarrier: DiscoveryAdvertisementCarrier =
+                DiscoveryAdvertisementCarrier.UUID_PAIR,
         ): Intent {
             return Intent(context, MainActivity::class.java).apply {
                 putExtra(EXTRA_UI_AUTOMATION, true)
@@ -134,6 +147,7 @@ public class MainActivity : ComponentActivity() {
                 putExtra(EXTRA_UI_AUTOMATION_APP_ID, appId)
                 putExtra(EXTRA_UI_AUTOMATION_ROLE, role.name.lowercase())
                 putExtra(EXTRA_UI_AUTOMATION_SCENARIO, scenario.wireValue())
+                putExtra(EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER, advertisementCarrier.name)
                 targetPeerId?.let { putExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_ID, it) }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -155,5 +169,15 @@ private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
         this.equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
         this.equals("relay", ignoreCase = true) -> ReferenceAutomationRole.RELAY
         else -> ReferenceAutomationRole.PASSIVE
+    }
+}
+
+private fun String?.toDiscoveryAdvertisementCarrier(): DiscoveryAdvertisementCarrier {
+    return when {
+        this.equals(
+            DiscoveryAdvertisementCarrier.UUID_PAIR_PLUS_SERVICE_DATA.name,
+            ignoreCase = true,
+        ) -> DiscoveryAdvertisementCarrier.UUID_PAIR_PLUS_SERVICE_DATA
+        else -> DiscoveryAdvertisementCarrier.UUID_PAIR
     }
 }

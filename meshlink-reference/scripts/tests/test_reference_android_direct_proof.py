@@ -177,6 +177,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                         "0",
                         "--capture-timeout-seconds",
                         "1",
+                        "--advertisement-carrier",
+                        "uuid-pair-plus-service-data",
                     ]
                 )
 
@@ -206,17 +208,22 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("sender", start_commands[1])
                 self.assertIn("direct-guided", start_commands[0])
                 self.assertIn("direct-guided", start_commands[1])
+                sender_start_command = next(
+                    command
+                    for command in run_calls
+                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
+                )
+                self.assertIn(
+                    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
+                    sender_start_command,
+                )
+                self.assertIn("uuid-pair-plus-service-data", sender_start_command)
                 self.assertEqual(force_stop_calls.count("extra-1"), 2)
                 self.assertLess(
                     events.index(("force_stop", "extra-1")),
                     events.index(("start", "passive-1:passive")),
                 )
                 self.assertEqual(force_stop_calls[-3:], ["sender-1", "passive-1", "extra-1"])
-                sender_start_command = next(
-                    command
-                    for command in run_calls
-                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
-                )
                 self.assertNotIn("-W", sender_start_command)
                 self.assertEqual(
                     run_timeouts[run_calls.index(sender_start_command)],

@@ -145,6 +145,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--target-peer-id",
         help="Optional peer id to seed into the Android sender as a bootstrap hint when orchestration knows it",
     )
+    parser.add_argument(
+        "--advertisement-carrier",
+        choices=("uuid-pair", "uuid-pair-plus-service-data"),
+        default="uuid-pair",
+        help=(
+            "Android advertisement carrier to use for direct proof. Keep the default UUID pair "
+            "unless you are isolating discovery-carrier behavior on a specific device."
+        ),
+    )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
 
@@ -413,6 +422,7 @@ def start_android_role_app(
     storage_subdirectory: str,
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
+    advertisement_carrier: str = "uuid-pair",
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_reference_app(android_serial)
@@ -456,6 +466,13 @@ def start_android_role_app(
     ]
     if target_peer_id:
         command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
+    command.extend(
+        [
+            "--es",
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
+            advertisement_carrier,
+        ]
+    )
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
     try:
@@ -659,6 +676,7 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
+                advertisement_carrier=args.advertisement_carrier,
             )
             print(
                 f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization"
@@ -677,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=discovered_peer_id,
+                advertisement_carrier=args.advertisement_carrier,
             )
             stage = "capture"
             completions = wait_for_android_completions(run_dir, args.capture_timeout_seconds)

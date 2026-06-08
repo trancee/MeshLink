@@ -30,6 +30,11 @@ internal enum class DiscoveryAdvertisementCarrier {
     UUID_PAIR_PLUS_SERVICE_DATA,
 }
 
+internal object AndroidDiscoveryAdvertisementConfig {
+    @Volatile
+    var carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR
+}
+
 internal data class DiscoveryAdvertisePlan(
     internal val serviceUuids: List<String>,
     internal val serviceData: Map<String, ByteArray>,
@@ -56,7 +61,7 @@ internal fun buildAdvertisePlan(
 
 internal fun buildAdvertiseData(
     payload: BleDiscoveryPayload,
-    carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR,
+    carrier: DiscoveryAdvertisementCarrier = AndroidDiscoveryAdvertisementConfig.carrier,
 ): AdvertiseData {
     val plan = buildAdvertisePlan(payload = payload, carrier = carrier)
     val builder = AdvertiseData.Builder().setIncludeDeviceName(false)
