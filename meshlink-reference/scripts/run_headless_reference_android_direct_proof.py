@@ -91,7 +91,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run a retained Android-only MeshLink reference-app direct proof with an Android sender "
-            "and Android passive peer."
+            "and Android passive peer. The live-proof path starts a foreground service plus wake lock "
+            "during automation to reduce doze risk on aggressive OEM builds."
         )
     )
     parser.add_argument(
@@ -120,7 +121,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "How long to wait after launching the passive Android peer before starting the sender. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
             "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
-            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake and disable battery optimization if discovery stalls."
+            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake, disable battery optimization if discovery stalls, and rely on the live-proof foreground wake-lock mitigation when the reference app starts it."
         ),
     )
     parser.add_argument(

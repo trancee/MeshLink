@@ -14,6 +14,8 @@ import androidx.core.app.NotificationCompat
 /**
  * Foreground service used during Android direct proof to keep the process and CPU awake
  * while the device is discovering peers.
+ *
+ * This is part of the live-proof mitigation for doze-sensitive Android OEM builds.
  */
 public class DirectProofPowerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
@@ -61,7 +63,7 @@ public class DirectProofPowerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("MeshLink direct proof running")
-            .setContentText("Keeping Bluetooth discovery awake during the proof session.")
+            .setContentText("Keeping Bluetooth discovery awake during the live-proof session.")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
@@ -78,7 +80,7 @@ public class DirectProofPowerService : Service() {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Keeps MeshLink direct-proof sessions awake during Bluetooth discovery."
+                description = "Keeps MeshLink direct-proof live sessions awake during Bluetooth discovery."
             }
         manager.createNotificationChannel(channel)
     }

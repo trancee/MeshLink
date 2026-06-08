@@ -66,7 +66,7 @@ class ReadinessExplainerTest {
         val missingPermissions = emptyList<String>()
         val expected =
             listOf(
-                "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; doze can stall BLE discovery on some Android 14 devices.",
+                "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls.",
             )
 
         // Act
