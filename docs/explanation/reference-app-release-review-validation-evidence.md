@@ -15,8 +15,8 @@ can follow the evidence pointers back to the retained campaign run root.
 
 Start with the campaign artifacts in this order:
 
-1. `campaign-plan.json` — planned scenario order, selected baseline, and artifact locations.
-2. `campaign-state.json` — actual scenario statuses, happy-path gate state, and failure provenance.
+1. `campaign-plan.json` — planned scenario order, selected baseline, and artifact locations; selection status stays in the retained `selected` / `skipped` / `invalid-environment` vocabulary.
+2. `campaign-state.json` — actual scenario statuses, happy-path gate state, and failure provenance; execution stays in the retained `pass` / `fail` / `skipped` / `invalid-environment` vocabulary.
 3. `report-data.json` — retained verdict counts, gate math, and scenario inspection pointers.
 4. `release-review-report.html` — the offline reviewer surface rendered only from retained report data.
 

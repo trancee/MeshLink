@@ -118,14 +118,7 @@ Start retained release review with the fleet-aware campaign entrypoint:
 python3 meshlink-reference/scripts/run_reference_release_campaign.py
 ```
 
-This entrypoint discovers the available Android fleet plus the optional iOS
-sender, plans the ordered happy-path catalog, runs `direct-guided` first and
-`relay-constrained` second when relay is eligible, preserves
-`campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as
-compatibility views of the logical direct scenario, and retains
-`fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`,
-`report-data.json`, `release-review-report.html`, and per-scenario `analysis.md`
-evidence under the selected run directory.
+This entrypoint discovers the available Android fleet plus the optional iOS sender, plans the ordered happy-path catalog, runs the direct baseline path, preserves `campaign-plan.json.selectedBaseline` and `campaign.baselineExecution` as compatibility views of that baseline, and retains `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, `report-data.json`, `release-review-report.html`, and per-scenario `analysis.md` evidence under the selected run directory. When mixed live proof is not supported on the current host, the campaign falls back to the Android-only direct-guided path and records that selection explicitly in the retained manifest.
 
 Milestone **M001** validated this path end-to-end on a real 4-device discovered
 fleet. The remaining Android-only sender symmetry work is tracked as follow-up
@@ -139,13 +132,7 @@ If an executed scenario finishes anything other than `pass`,
 `firstFailScenarioId`, and still keeps later runnable scenario evidence for
 review.
 
-Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md)
-for prerequisites, honest `skipped` versus `invalid-environment` outcomes,
-retained artifact layout, the `campaign-state.json` inspection flow, and the
-lower-level explicit runners used for manual direct, relay, and matrix
-investigations. The release campaign treats generic wrapper text such as
-`xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits
-an explicit environment sentinel.
+Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) for prerequisites, honest `skipped` versus `invalid-environment` outcomes, retained artifact layout, the `campaign-state.json` inspection flow, and the lower-level explicit runners used for manual direct, relay, and matrix investigations. The release campaign treats generic wrapper text such as `xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits an explicit environment sentinel. Keep the exact status vocabulary in mind: selection uses `selected` / `skipped` / `invalid-environment`, while execution uses `pass` / `fail` / `skipped` / `invalid-environment`.
 
 ## Before you debug the app
 

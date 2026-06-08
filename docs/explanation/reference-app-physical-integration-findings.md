@@ -8,7 +8,7 @@ optimizations are worth keeping or pursuing.
 
 | Area | What we learned |
 |---|---|
-| direct proof | it is still the baseline physical signal and must stay clean before deeper scenarios matter |
+| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported |
 | direct vs relay placement | they often need different room geometry; running them back-to-back without changing placement can create fake failures |
 | direct passive automation | moving it off the UI surface closed a misleading blind spot |
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
@@ -49,6 +49,8 @@ devices, real Bluetooth stacks, and real route convergence are involved.
 ## What the direct proof taught us
 
 The direct guided proof is the baseline physical scenario.
+
+On the current release-review host, the campaign may still discover a mixed iOS sender and Android passive pair, but release review now falls back to Android-only direct-guided when the live mixed bootstrap path is not supported. That keeps the campaign honest without pretending a runnable-but-unwired mixed path is the baseline for release review.
 
 When it passes, we know:
 

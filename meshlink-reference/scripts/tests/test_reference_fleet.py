@@ -19,7 +19,7 @@ from support import (
 
 
 class ReferenceFleetTests(unittest.TestCase):
-    def test_prefers_mixed_candidate_when_ios_sender_and_android_passive_are_runnable(self) -> None:
+    def test_prefers_android_only_fallback_when_live_mixed_is_not_supported(self) -> None:
         # Arrange
         runner = FakeCommandRunner(
             {
@@ -55,10 +55,11 @@ class ReferenceFleetTests(unittest.TestCase):
         android_only_candidate = candidate_by_shape(manifest, "android-only")
 
         self.assertEqual(manifest["selection"]["status"], "selected")
-        self.assertEqual(manifest["selectedAssignment"]["shape"], "mixed")
+        self.assertEqual(manifest["selectedAssignment"]["shape"], "android-only")
         self.assertEqual(manifest["selectedAssignment"]["baseline"], "direct-guided")
         self.assertEqual(mixed_candidate["status"], "runnable")
         self.assertEqual(android_only_candidate["status"], "runnable")
+        self.assertIn("mixed iOS sender path is not yet supported", reason_codes(manifest["selection"]))
         self.assertTrue(all(isinstance(call["command"], list) for call in runner.calls))
 
     def test_selects_android_only_when_two_healthy_android_devices_are_available(self) -> None:
@@ -191,6 +192,100 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertEqual(manifest["selectedAssignment"]["shape"], "mixed")
         self.assertEqual(manifest["tooling"]["devicectl"]["status"], "ready-with-warnings")
         self.assertIn("ios-devicectl-row-malformed", reason_codes(manifest["tooling"]["devicectl"]))
+
+    def test_prefers_mixed_candidate_and_records_all_discovered_devices_with_extra_android_peers(self) -> None:
+        # Arrange
+        runner = FakeCommandRunner(
+            {
+                ("adb", "devices"): probe_response(
+                    stdout=adb_devices_output(
+                        ("android-passive", "device"),
+                        ("android-relay", "device"),
+                        ("android-spare", "device"),
+                    )
+                ),
+                ("adb", "-s", "android-passive", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel 8")
+                ),
+                ("adb", "-s", "android-relay", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Galaxy S24")
+                ),
+                ("adb", "-s", "android-spare", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel Fold")
+                ),
+                ("xcrun", "devicectl", "list", "devices"): probe_response(
+                    stdout=devicectl_table(
+                        ("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),
+                        ("iPhone 14", "iOS 17.6", "Connected", "00008120-000F196F0E92401F"),
+                    )
+                ),
+            }
+        )
+
+        # Act
+        manifest = reference_fleet.build_fleet_manifest(
+            command_runner=runner,
+            environment={},
+            development_team_lookup=resolved_team_lookup,
+        )
+
+        # Assert
+        mixed_candidate = candidate_by_shape(manifest, "mixed")
+        android_only_candidate = candidate_by_shape(manifest, "android-only")
+        ios_aliases = [device["alias"] for device in manifest["devices"] if device["platform"] == "ios"]
+        android_aliases = [device["alias"] for device in manifest["devices"] if device["platform"] == "android"]
+
+        self.assertEqual(manifest["selection"]["status"], "selected")
+        self.assertEqual(manifest["selectedAssignment"]["shape"], "android-only")
+        self.assertEqual(mixed_candidate["participants"]["sender"], ios_aliases[0])
+        self.assertEqual(mixed_candidate["participants"]["passive"], android_aliases[0])
+        self.assertEqual(mixed_candidate["consideredDeviceAliases"]["ios"], ios_aliases)
+        self.assertEqual(mixed_candidate["consideredDeviceAliases"]["android"], android_aliases)
+        self.assertEqual(android_only_candidate["participants"], {"sender": android_aliases[0], "passive": android_aliases[1]})
+
+    def test_marks_extra_android_devices_unhealthy_without_breaking_android_only_selection(self) -> None:
+        # Arrange
+        runner = FakeCommandRunner(
+            {
+                ("adb", "devices"): probe_response(
+                    stdout=adb_devices_output(
+                        ("android-one", "device"),
+                        ("android-two", "device"),
+                        ("android-three", "offline"),
+                    )
+                ),
+                ("adb", "-s", "android-one", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel 8")
+                ),
+                ("adb", "-s", "android-two", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel Fold")
+                ),
+                ("adb", "-s", "android-three", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Galaxy S22")
+                ),
+                ("xcrun", "devicectl", "list", "devices"): probe_response(stdout=devicectl_table()),
+            }
+        )
+
+        # Act
+        manifest = reference_fleet.build_fleet_manifest(
+            command_runner=runner,
+            environment={},
+            development_team_lookup=resolved_team_lookup,
+        )
+
+        # Assert
+        android_only_candidate = candidate_by_shape(manifest, "android-only")
+        android_aliases = [device["alias"] for device in manifest["devices"] if device["platform"] == "android"]
+
+        self.assertEqual(manifest["selection"]["status"], "selected")
+        self.assertEqual(manifest["selectedAssignment"]["shape"], "android-only")
+        self.assertEqual(android_only_candidate["status"], "runnable")
+        self.assertEqual(len(android_only_candidate["consideredDeviceAliases"]["android"]), 3)
+        self.assertEqual(len(set(android_only_candidate["participants"].values())), 2)
+        for alias in android_only_candidate["participants"].values():
+            self.assertIn(alias, android_only_candidate["consideredDeviceAliases"]["android"])
+        self.assertIn("android-only-direct-guided-runnable", reason_codes(android_only_candidate))
 
     def test_write_manifest_round_trips_through_json(self) -> None:
         # Arrange

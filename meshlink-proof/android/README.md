@@ -148,6 +148,8 @@ Use physical devices for meaningful transport and power evidence.
 
 Use this guide to run the Android proof app.
 
+This proof app is not the release-review campaign surface. If you are looking for the campaign's retained selection vocabulary or the Android-only fallback when mixed live proof is unsupported, use the reference-app release-review docs instead.
+
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
