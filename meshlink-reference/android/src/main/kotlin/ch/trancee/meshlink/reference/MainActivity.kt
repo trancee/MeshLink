@@ -3,6 +3,8 @@ package ch.trancee.meshlink.reference
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.PowerManager
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
@@ -14,17 +16,21 @@ import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.startupMarker
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.wireValue
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
 
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
+    private var activePlatformServices: PlatformServices? = null
+    private var directProofEnabled: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
         val automationEnabled = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION, false) == true
         val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
-        val directProofEnabled = automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF
+        directProofEnabled = automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF
         if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
             AndroidDiscoveryAdvertisementConfig.carrier =
                 intent?.getStringExtra(EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER)
@@ -34,6 +40,7 @@ public class MainActivity : ComponentActivity() {
         }
         if (directProofEnabled) {
             startDirectProofPowerService()
+            keepScreenOn()
         }
         val platformServices =
             if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
@@ -67,24 +74,47 @@ public class MainActivity : ComponentActivity() {
             } else {
                 createPlatformServices(applicationContext)
             }
+        activePlatformServices = platformServices
         if (directProofEnabled) {
             platformServices.automationConfig?.let { automationConfig ->
                 platformServices.emitAutomationLog(automationConfig.startupMarker())
             }
+            emitDirectProofPowerState(platformServices, "onCreate")
         }
         setContent { ReferenceApp(platformServices = platformServices) }
     }
 
-    override fun onDestroy() {
-        stopDirectProofPowerService()
-        super.onDestroy()
+    override fun onResume() {
+        super.onResume()
+        if (directProofEnabled) {
+            emitDirectProofPowerState(activePlatformServices, "onResume")
+        }
+    }
+
+    override fun onPause() {
+        if (directProofEnabled) {
+            emitDirectProofPowerState(activePlatformServices, "onPause")
+        }
+        super.onPause()
     }
 
     override fun onStop() {
+        if (directProofEnabled) {
+            emitDirectProofPowerState(activePlatformServices, "onStop")
+        }
         if (!isChangingConfigurations) {
             stopDirectProofPowerService()
         }
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (directProofEnabled) {
+            emitDirectProofPowerState(activePlatformServices, "onDestroy")
+        }
+        releaseScreenOn()
+        stopDirectProofPowerService()
+        super.onDestroy()
     }
 
     public companion object {
@@ -161,6 +191,42 @@ public class MainActivity : ComponentActivity() {
 
     private fun stopDirectProofPowerService() {
         stopService(DirectProofPowerService.start(this))
+    }
+
+    private fun keepScreenOn() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun releaseScreenOn() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun emitDirectProofPowerState(
+        platformServices: PlatformServices?,
+        stage: String,
+    ) {
+        if (platformServices == null) return
+        platformServices.emitAutomationLog(
+            "REFERENCE_AUTOMATION power.state stage=$stage interactive=${isDeviceInteractive()} powerSaveMode=${isPowerSaveMode()} directProof=$directProofEnabled",
+        )
+    }
+
+    private fun isDeviceInteractive(): Boolean {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT_WATCH) {
+            powerManager.isInteractive
+        } else {
+            @Suppress("DEPRECATION") powerManager.isScreenOn
+        }
+    }
+
+    private fun isPowerSaveMode(): Boolean {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            powerManager.isPowerSaveMode
+        } else {
+            false
+        }
     }
 }
 

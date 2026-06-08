@@ -379,8 +379,8 @@ def main() -> int:
     iphone_storage = f"{run_token}-iphone"
 
     if not args.skip_android_install:
-        install_android_app(args.passive_android_serial)
-        install_android_app(args.relay_android_serial)
+        install_android_app(args.passive_android_serial, run_dir)
+        install_android_app(args.relay_android_serial, run_dir)
     verify_android_runtime_permissions(args.passive_android_serial)
     verify_android_runtime_permissions(args.relay_android_serial)
 

@@ -25,17 +25,17 @@ internal fun buildDiscoveryPayload(
     )
 }
 
-internal enum class DiscoveryAdvertisementCarrier {
+public enum class DiscoveryAdvertisementCarrier {
     UUID_PAIR,
     UUID_PAIR_PLUS_SERVICE_DATA,
 }
 
-internal object AndroidDiscoveryAdvertisementConfig {
+public object AndroidDiscoveryAdvertisementConfig {
     @Volatile
-    var carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR
+    public var carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR
 }
 
-internal data class DiscoveryAdvertisePlan(
+public data class DiscoveryAdvertisePlan(
     internal val serviceUuids: List<String>,
     internal val serviceData: Map<String, ByteArray>,
 )

@@ -249,6 +249,10 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '"defaultMode": "redacted-preview"',
                     (run_dir / "android_export.json").read_text(encoding="utf-8"),
                 )
+                self.assertIn("startupTiming", summary)
+                self.assertEqual(summary["startupTiming"]["launch"]["passiveStartupWaitSeconds"], 0)
+                self.assertIn("install", summary["startupTiming"])
+                self.assertIn("permissions", summary["startupTiming"])
 
     def test_main_rejects_missing_transport_discovery_with_specific_failure(self) -> None:
         # Arrange
@@ -565,7 +569,12 @@ class AndroidDirectProofTests(unittest.TestCase):
 
             # Act / Assert
             with self.assertRaises(SystemExit) as error:
-                android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+                android_direct_proof.wait_for_android_completions(
+                    run_dir,
+                    timeout_seconds=0.1,
+                    sender_android_serial="sender-1",
+                    passive_android_serial="passive-1",
+                )
 
         self.assertIn("missing export path", str(error.exception))
 
@@ -594,7 +603,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             ):
                 # Act / Assert
                 with self.assertRaises(SystemExit) as error:
-                    android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir,
+                        timeout_seconds=0.1,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
 
         self.assertIn("passive", str(error.exception))
 
