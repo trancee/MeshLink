@@ -38,12 +38,17 @@ internal suspend fun sendViaL2capWhenReady(
     }
     if (context.advertisedL2capPsm == 0 && directLink == null) {
         dependencies.log(
-            "send(${context.hintPeerId.value.takeLast(6)}) no advertised PSM, triggering connect"
+            "send(${context.hintPeerId.value.takeLast(6)}) no advertised PSM, waiting for inbound link"
         )
-        dependencies.triggerConnectIfNeeded()
         return waitForConnectAndSend(frame = frame, context = context, dependencies = dependencies)
     }
     if (directLink == null) {
+        if (!dependencies.shouldInitiateL2cap()) {
+            dependencies.log(
+                "send(${context.hintPeerId.value.takeLast(6)}) no active link, waiting for inbound link"
+            )
+            return waitForConnectAndSend(frame = frame, context = context, dependencies = dependencies)
+        }
         dependencies.log(
             "send(${context.hintPeerId.value.takeLast(6)}) no active link, triggering connect"
         )
