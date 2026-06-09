@@ -19,6 +19,39 @@ from support import (
 
 
 class ReferenceFleetTests(unittest.TestCase):
+    def test_build_fleet_manifest_remains_a_pure_manifest_seam(self) -> None:
+        # Arrange
+        runner = FakeCommandRunner(
+            {
+                ("adb", "devices"): probe_response(
+                    stdout=adb_devices_output(
+                        ("android-passive", "device"),
+                        ("android-sender", "device"),
+                    )
+                ),
+                ("adb", "-s", "android-passive", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel 8")
+                ),
+                ("adb", "-s", "android-sender", "shell", "getprop", "ro.product.model"): probe_response(
+                    stdout=android_model_output("Pixel 7")
+                ),
+                ("xcrun", "devicectl", "list", "devices"): probe_response(stdout=devicectl_table()),
+            }
+        )
+
+        # Act
+        manifest = reference_fleet.build_fleet_manifest(command_runner=runner)
+
+        # Assert
+        self.assertIn("selectedAssignment", manifest)
+        self.assertIn("candidateAssignments", manifest)
+        self.assertEqual(manifest["selection"]["status"], "selected")
+        self.assertEqual(manifest["selectedAssignment"]["shape"], "android-only")
+        self.assertTrue(any(candidate["shape"] == "mixed" for candidate in manifest["candidateAssignments"]))
+        self.assertTrue(any(candidate["shape"] == "android-only" for candidate in manifest["candidateAssignments"]))
+        self.assertTrue(all("runnerCommand" not in candidate for candidate in manifest["candidateAssignments"]))
+        self.assertTrue(all("analysisCommand" not in candidate for candidate in manifest["candidateAssignments"]))
+
     def test_prefers_android_only_fallback_when_live_mixed_is_not_supported(self) -> None:
         # Arrange
         runner = FakeCommandRunner(

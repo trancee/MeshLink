@@ -261,6 +261,73 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         self.assert_artifact_links(direct_state)
         self.assert_event_sequence_contains(direct_state, "scenario-initialized")
 
+    def test_campaign_selection_taxonomy_uses_retained_status_vocabulary(self) -> None:
+        # Arrange
+        manifest = {
+            "selectedAssignment": {
+                "assignmentId": "direct-guided-android-only",
+                "shape": "android-only",
+                "status": "runnable",
+                "reasons": [
+                    {"code": "selected-android-only-fallback", "kind": "info", "message": "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs."}
+                ],
+            },
+            "candidateAssignments": [
+                {
+                    "assignmentId": "direct-guided-mixed",
+                    "shape": "mixed",
+                    "status": "runnable",
+                    "reasons": [{"code": "mixed-direct-guided-runnable", "kind": "info", "message": "Selected the mixed direct-guided fleet."}],
+                },
+                {
+                    "assignmentId": "direct-guided-android-only",
+                    "shape": "android-only",
+                    "status": "runnable",
+                    "reasons": [{"code": "selected-android-only-fallback", "kind": "info", "message": "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs."}],
+                },
+            ],
+        }
+
+        # Act
+        selected_assignment = manifest["selectedAssignment"]
+        candidate_statuses = [candidate["status"] for candidate in manifest["candidateAssignments"]]
+
+        # Assert
+        self.assertEqual(selected_assignment["shape"], "android-only")
+        self.assertEqual(selected_assignment["reasons"][0]["code"], "selected-android-only-fallback")
+        self.assertIn("runnable", candidate_statuses)
+        self.assertEqual(candidate_statuses, ["runnable", "runnable"])
+        self.assertTrue(all(reason["kind"] == "info" for reason in selected_assignment["reasons"]))
+        self.assertEqual(selected_assignment["reasons"][0]["code"], "selected-android-only-fallback")
+        self.assertEqual(
+            selected_assignment["reasons"][0]["message"],
+            "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs.",
+        )
+
+    def test_campaign_persists_standalone_provenance_before_dispatch(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        run_root = Path("/tmp/reference-release-campaign")
+
+        # Act
+        planned = release_campaign.plan_happy_path_campaign(manifest, run_root=run_root)
+        provenance_input = dict(manifest)
+        provenance_input["campaign"] = planned["campaign"]
+        provenance = release_campaign.build_campaign_provenance_document(provenance_input)
+
+        # Assert
+        self.assertEqual(planned["campaign"]["campaignProvenancePath"], "campaign-provenance.json")
+        self.assertEqual(provenance["provenanceVersion"], 1)
+        self.assertEqual(provenance["fleetManifestPath"], "fleet-manifest.json")
+        self.assertEqual(provenance["selection"]["status"], "selected")
+        self.assertEqual(provenance["selectedAssignment"]["assignmentId"], "direct-guided-android-only")
+        self.assertGreaterEqual(len(provenance["candidateAssignments"]), 2)
+        self.assertTrue(provenance["campaignStatus"] in {"planned", "pass", "fail", "skipped", "invalid-environment"})
+
     def test_resolve_unused_android_serials_force_stops_non_selected_devices(self) -> None:
         # Arrange
         manifest = self.build_manifest(

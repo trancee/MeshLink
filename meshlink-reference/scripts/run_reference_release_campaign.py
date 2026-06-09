@@ -981,6 +981,7 @@ def build_campaign_state_document(manifest: Mapping[str, Any]) -> dict[str, Any]
         "runRoot": campaign.get("runRoot"),
         "fleetManifestPath": campaign.get("fleetManifestPath"),
         "campaignPlanPath": campaign.get("campaignPlanPath"),
+        "campaignProvenancePath": campaign.get("campaignProvenancePath"),
         "happyPathGate": dict(campaign.get("happyPathGate", {})),
         "scenarios": [
             serialize_scenario_state(manifest, scenario)
@@ -988,6 +989,42 @@ def build_campaign_state_document(manifest: Mapping[str, Any]) -> dict[str, Any]
             if isinstance(scenario, Mapping)
         ],
         "eventLog": list(manifest.get("campaignLog", [])),
+    }
+
+
+def build_campaign_provenance_document(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    campaign = manifest.get("campaign") if isinstance(manifest.get("campaign"), Mapping) else {}
+    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
+    candidate_assignments = []
+    for candidate in manifest.get("candidateAssignments", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        candidate_assignments.append(
+            {
+                "assignmentId": candidate.get("assignmentId"),
+                "baseline": candidate.get("baseline"),
+                "shape": candidate.get("shape"),
+                "status": candidate.get("status"),
+                "runnable": candidate.get("runnable"),
+                "reasons": list(candidate.get("reasons", [])),
+                "participants": resolve_participant_details(
+                    manifest,
+                    candidate.get("participants") if isinstance(candidate.get("participants"), Mapping) else {},
+                ),
+            }
+        )
+    return {
+        "provenanceVersion": 1,
+        "generatedAt": iso_timestamp(),
+        "runRoot": campaign.get("runRoot"),
+        "fleetManifestPath": campaign.get("fleetManifestPath") or "fleet-manifest.json",
+        "selection": dict(selection),
+        "tooling": dict(manifest.get("tooling", {})) if isinstance(manifest.get("tooling"), Mapping) else {},
+        "devices": [dict(device) for device in manifest.get("devices", []) if isinstance(device, Mapping)],
+        "candidateAssignments": candidate_assignments,
+        "selectedAssignment": dict(manifest.get("selectedAssignment", {})) if isinstance(manifest.get("selectedAssignment"), Mapping) else None,
+        "campaignStatus": campaign.get("status"),
+        "happyPathGate": dict(campaign.get("happyPathGate", {})),
     }
 
 
@@ -1002,6 +1039,7 @@ def plan_happy_path_campaign(manifest: Mapping[str, Any], *, run_root: Path) -> 
         "fleetManifestPath": "fleet-manifest.json",
         "campaignPlanPath": "campaign-plan.json",
         "campaignStatePath": "campaign-state.json",
+        "campaignProvenancePath": "campaign-provenance.json",
         "scenarioCatalogVersion": SCENARIO_CATALOG_VERSION,
         "happyPathGate": {
             "status": "green",
@@ -1056,17 +1094,19 @@ def merge_status(current: str, new_status: str) -> str:
     return new_status if precedence.get(new_status, 0) > precedence.get(current, 0) else current
 
 
-def campaign_paths(run_root: Path) -> tuple[Path, Path, Path]:
+def campaign_paths(run_root: Path) -> tuple[Path, Path, Path, Path]:
     return (
         run_root / "fleet-manifest.json",
         run_root / "campaign-plan.json",
         run_root / "campaign-state.json",
+        run_root / "campaign-provenance.json",
     )
 
 
 def persist_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
-    manifest_path, campaign_plan_path, campaign_state_path = campaign_paths(run_root)
+    manifest_path, campaign_plan_path, campaign_state_path, campaign_provenance_path = campaign_paths(run_root)
     write_json_document(manifest_path, manifest)
+    write_json_document(campaign_provenance_path, build_campaign_provenance_document(manifest))
     write_json_document(campaign_plan_path, build_campaign_plan(manifest))
     write_json_document(campaign_state_path, build_campaign_state_document(manifest))
     report_data_path = run_root / campaign_report_data.DEFAULT_OUTPUT_NAME

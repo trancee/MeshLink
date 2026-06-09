@@ -10,6 +10,54 @@ import kotlin.test.assertTrue
 
 class LiveProofAutomationStepRunnerTest {
     @Test
+    fun passiveStartupTimeoutReportsExactReasonAndSuppressesDownstreamClaims() {
+        // Arrange
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.LIVE_PROOF,
+                role = ReferenceAutomationRole.PASSIVE,
+                appId = "demo.meshlink.reference.test",
+                storageSubdirectory = "passive-timeout-tests",
+            )
+        val snapshot =
+            automationTestSnapshot(
+                sessionId = "session-passive-timeout",
+                meshStateLabel = "Starting",
+                lastOutcomeSummary = null,
+                peers = emptyList(),
+                timeline = emptyList(),
+            )
+        val timelineUiState =
+            TechnicalTimelineUiState(
+                liveSnapshot = snapshot,
+                retainedSessions = emptyList(),
+                lastExportPath = null,
+            )
+
+        // Act
+        val coordinator =
+            LiveProofAutomationCoordinator(
+                automationConfig = automationConfig,
+                actions = actions,
+                progress = progress,
+            )
+        coordinator.run(snapshot = snapshot, timelineUiState = timelineUiState)
+
+        // Assert
+        assertTrue(
+            actions.logs.any { log ->
+                log.contains("Android passive transport did not start within 18.0 seconds") ||
+                    log.contains("passive transport did not start")
+            }
+        )
+        assertTrue(actions.logs.none { log -> log.contains("sender.started") })
+        assertTrue(actions.logs.none { log -> log.contains("peer.discovered") })
+        assertTrue(actions.logs.none { log -> log.contains("proof.complete") })
+    }
+
+    @Test
     fun requestSenderPayloadRecordsPlanMetadataAndUsesTheExpectedPayload() {
         // Arrange
         val targetPeer = AutoSendTargetPeer(peerId = "relay-target-abcdef", peerSuffix = "abcdef")
@@ -822,6 +870,28 @@ class LiveProofAutomationStepRunnerTest {
                 }
             )
         }
+    }
+
+    @Test
+    fun senderFailureLogNamesTheConcreteMissingEvidenceEvenWithoutSummaryMetadata() {
+        // Arrange
+        val snapshot = automationTestSnapshot(lastOutcomeSummary = null, timeline = emptyList())
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+
+        // Act
+        emitSenderFailure(
+            snapshot = snapshot,
+            targetPeerSuffix = null,
+            actions = actions,
+            progress = progress,
+        )
+
+        // Assert
+        assertTrue(actions.logs.any { log -> log.contains("proof.failed role=sender") })
+        assertTrue(actions.logs.any { log -> log.contains("observation=none") })
+        assertTrue(actions.logs.any { log -> log.contains("detail=none") })
+        assertTrue(actions.logs.any { log -> log.contains("outcome=") })
     }
 
     private fun senderAutomationConfig(
