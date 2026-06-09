@@ -45,11 +45,7 @@ internal fun buildAdvertisePlan(
     carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR,
 ): DiscoveryAdvertisePlan {
     val payloadUuid = payload.payloadUuidString()
-    val serviceUuids =
-        listOf(
-            BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED,
-            payloadUuid,
-        )
+    val serviceUuids = listOf(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED, payloadUuid)
     val serviceData =
         when (carrier) {
             DiscoveryAdvertisementCarrier.UUID_PAIR -> emptyMap()

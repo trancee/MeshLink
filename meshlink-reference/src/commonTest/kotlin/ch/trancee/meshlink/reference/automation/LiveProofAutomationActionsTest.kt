@@ -126,6 +126,7 @@ private fun platformServicesStub(
         override fun currentTimeMillis(): Long = 1_000L
 
         override fun emitAutomationLog(message: String): Unit = Unit
+
         override fun stopPowerMitigation(): Unit = Unit
     }
 }

@@ -1,8 +1,8 @@
 package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.reference.platform.PlatformServices
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 /**

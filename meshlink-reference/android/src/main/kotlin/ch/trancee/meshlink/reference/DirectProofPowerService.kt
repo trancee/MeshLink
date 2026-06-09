@@ -23,19 +23,29 @@ public class DirectProofPowerService : Service() {
 
     override fun onCreate(): Unit {
         super.onCreate()
-        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onCreate wakeLockHeld=${wakeLock?.isHeld == true}")
+        Log.i(
+            TAG,
+            "REFERENCE_AUTOMATION direct-proof service stage=onCreate wakeLockHeld=${wakeLock?.isHeld == true}",
+        )
         acquireWakeLock()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
         acquireWakeLock()
-        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onStartCommand wakeLockHeld=${wakeLock?.isHeld == true} flags=$flags startId=$startId")
+        Log.i(
+            TAG,
+            "REFERENCE_AUTOMATION direct-proof service stage=onStartCommand " +
+                "wakeLockHeld=${wakeLock?.isHeld == true} flags=$flags startId=$startId",
+        )
         return START_STICKY
     }
 
     override fun onDestroy(): Unit {
-        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onDestroy wakeLockHeld=${wakeLock?.isHeld == true}")
+        Log.i(
+            TAG,
+            "REFERENCE_AUTOMATION direct-proof service stage=onDestroy wakeLockHeld=${wakeLock?.isHeld == true}",
+        )
         releaseWakeLock()
         super.onDestroy()
     }

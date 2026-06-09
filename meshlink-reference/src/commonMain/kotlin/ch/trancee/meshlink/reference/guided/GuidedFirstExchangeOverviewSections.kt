@@ -45,9 +45,7 @@ internal fun GuidedLiveFirstMessageSection(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            powerMitigationLabel?.let { label ->
-                ReferenceBadge(label = label, prominent = true)
-            }
+            powerMitigationLabel?.let { label -> ReferenceBadge(label = label, prominent = true) }
             ReferenceBadge(
                 label =
                     when {

@@ -573,33 +573,6 @@ def write_android_install_cache(run_dir: Path, android_serial: str, payload: dic
     android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def dismiss_play_protect_prompt(android_serial: str) -> bool:
-    ui_dump_command = (
-        "uiautomator dump /sdcard/meshlink-reference-ui.xml >/dev/null && "
-        "cat /sdcard/meshlink-reference-ui.xml"
-    )
-    try:
-        ui_dump = run(["adb", "-s", android_serial, "shell", ui_dump_command], capture_output=True)
-    except Exception:
-        return False
-    xml = (ui_dump.stdout or "") + (ui_dump.stderr or "")
-    if not any(label.lower() in xml.lower() for label in ("Don't send", "Do not send", "Nicht senden", "Play Protect")):
-        return False
-    label_match = re.search(
-        r"text=\"(?P<label>Don't send|Do not send|Nicht senden|Play Protect)\"[^>]*bounds=\"\\[(?P<left>\\d+),(?P<top>\\d+)]\\[(?P<right>\\d+),(?P<bottom>\\d+)]\"",
-        xml,
-    )
-    if label_match is None:
-        return False
-    tap_x = (int(label_match.group("left")) + int(label_match.group("right"))) // 2
-    tap_y = (int(label_match.group("top")) + int(label_match.group("bottom"))) // 2
-    try:
-        run(["adb", "-s", android_serial, "shell", "input", "tap", str(tap_x), str(tap_y)])
-        return True
-    except Exception:
-        return False
-
-
 def install_android_app(android_serial: str, run_dir: Path | None = None) -> None:
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = android_serial
@@ -617,30 +590,41 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
             print("==> Reusing Android reference app install; APK fingerprint unchanged")
             return
     command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
-    print(f"==> Installing Android reference app: {shell_join(command)}")
-    install_process = subprocess.Popen(command, env=env, text=True)
-    prompt_dismissed_count = 0
+
+    def run_install_once() -> None:
+        print(f"==> Installing Android reference app: {shell_join(command)}")
+        install_process = subprocess.Popen(command, env=env, text=True)
+        try:
+            while install_process.poll() is None:
+                time.sleep(0.5)
+            if install_process.returncode != 0:
+                raise subprocess.CalledProcessError(install_process.returncode, command)
+        finally:
+            if install_process.poll() is None:
+                install_process.terminate()
+                try:
+                    install_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    install_process.kill()
+                    install_process.wait(timeout=5)
+
     try:
-        while install_process.poll() is None:
-            if dismiss_play_protect_prompt(android_serial):
-                prompt_dismissed_count += 1
-                if prompt_dismissed_count >= 5:
-                    raise SystemExit(
-                        "Repeated Play Protect dismissal attempts did not clear the install prompt; fail fast to avoid a hung Android install"
-                    )
-            else:
-                prompt_dismissed_count = 0
-            time.sleep(0.5)
-        if install_process.returncode != 0:
-            raise subprocess.CalledProcessError(install_process.returncode, command)
-    finally:
-        if install_process.poll() is None:
-            install_process.terminate()
-            try:
-                install_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                install_process.kill()
-                install_process.wait(timeout=5)
+        run_install_once()
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode != 1:
+            raise
+        print(
+            "==> Android install failed; retrying once after uninstalling the existing package"
+        )
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True)
+        uninstall_stdout = (uninstall_result.stdout or "").strip()
+        uninstall_stderr = (uninstall_result.stderr or "").strip()
+        print(
+            "==> Android uninstall result: "
+            + (uninstall_stdout or "(no stdout)")
+            + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
+        )
+        run_install_once()
     apk_path = android_apk_path()
     if apk_path is not None:
         write_android_install_cache(

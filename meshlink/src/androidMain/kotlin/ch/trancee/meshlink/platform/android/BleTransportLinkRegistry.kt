@@ -55,16 +55,15 @@ internal class BleTransportLinkRegistry<T>(private val bindings: PeerBindings) {
                 ActivePeerHintResolutionRequest(
                     hintPeerIdValue = peer.hintPeerId.value,
                     temporaryHintPeerIdValue =
-                        bindings.temporaryHintForAddress(peer.deviceAddress) ?: bindings.hintForAddress(peer.deviceAddress),
+                        bindings.temporaryHintForAddress(peer.deviceAddress)
+                            ?: bindings.hintForAddress(peer.deviceAddress),
                     activeHintIds = activeHintIds(),
                 )
             ) ?: bindings.hintForAddress(peer.deviceAddress)?.takeIf { it in activeHintIds() }
         if (activeHint != null) {
             return activeLink(activeHint)
         }
-        return synchronized(activeLinksByHint) {
-            activeLinksByHint.values.firstOrNull()
-        }
+        return synchronized(activeLinksByHint) { activeLinksByHint.values.firstOrNull() }
     }
 
     internal fun hasPendingConnect(hintPeerIdValue: String): Boolean {

@@ -105,9 +105,8 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
             self.assertIn("launch", summary["startupTiming"])
             self.assertEqual(summary["startupTiming"]["launch"]["postResultIdleSeconds"], 0)
 
-    def test_install_android_app_dismisses_play_protect_prompt_while_install_is_running(self) -> None:
+    def test_install_android_app_runs_without_play_protect_prompt_handling(self) -> None:
         # Arrange
-        prompt_attempts: list[str] = []
         poll_calls = 0
 
         class FakeProcess:
@@ -137,14 +136,13 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
             patch.object(live_proof, "android_apk_path", return_value=None),
             patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
             patch.object(live_proof.subprocess, "Popen", return_value=FakeProcess()),
-            patch.object(live_proof, "dismiss_play_protect_prompt", side_effect=lambda serial: prompt_attempts.append(serial) or True),
             patch.object(live_proof.time, "sleep", return_value=None),
         ):
             # Act
             live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
 
         # Assert
-        self.assertEqual(prompt_attempts, ["nokia-x20", "nokia-x20"])
+        self.assertGreaterEqual(poll_calls, 3)
 
 
 class ReferencePhysicalMatrixScriptTests(unittest.TestCase):

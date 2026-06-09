@@ -25,9 +25,7 @@ class LiveProofAutomationCoordinatorTest {
                 progress = progress,
             )
         val snapshot =
-            automationTestSnapshot(
-                peers = listOf(automationTestPeer(peerId = "peer-123456")),
-            )
+            automationTestSnapshot(peers = listOf(automationTestPeer(peerId = "peer-123456")))
         val timelineUiState = TechnicalTimelineUiState(liveSnapshot = snapshot)
 
         // Act
@@ -35,11 +33,15 @@ class LiveProofAutomationCoordinatorTest {
 
         // Assert
         assertTrue(
-            actions.logs.any {
-                log -> log.contains("REFERENCE_AUTOMATION peer.discovered role=SENDER peer=123456")
+            actions.logs.any { log ->
+                log.contains("REFERENCE_AUTOMATION peer.discovered role=SENDER peer=123456")
             }
         )
-        assertTrue(actions.logs.any { log -> log.contains("REFERENCE_AUTOMATION peers role=SENDER count=1") })
+        assertTrue(
+            actions.logs.any { log ->
+                log.contains("REFERENCE_AUTOMATION peers role=SENDER count=1")
+            }
+        )
     }
 
     @Test
@@ -69,6 +71,10 @@ class LiveProofAutomationCoordinatorTest {
 
         // Assert
         assertTrue(actions.meshStartRequests == 1)
-        assertTrue(actions.logs.any { log -> log.contains("REFERENCE_AUTOMATION mesh.start.requested role=PASSIVE") })
+        assertTrue(
+            actions.logs.any { log ->
+                log.contains("REFERENCE_AUTOMATION mesh.start.requested role=PASSIVE")
+            }
+        )
     }
 }

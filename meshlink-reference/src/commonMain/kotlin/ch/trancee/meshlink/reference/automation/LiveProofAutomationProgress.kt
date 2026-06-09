@@ -51,13 +51,14 @@ internal fun latestSenderDeliveryDetail(
                 (entry.title == "Guided message sent" || entry.title == "DELIVERY_SUCCEEDED") &&
                 (peerSuffix == null || entry.peerSuffix == peerSuffix)
         }
-        ?.detail ?: snapshot.timeline
-        .lastOrNull { entry ->
-            entry.family == TimelineFamily.DIAGNOSTIC &&
-                entry.title == "DELIVERY_SUCCEEDED" &&
-                (peerSuffix == null || entry.peerSuffix == peerSuffix)
-        }
         ?.detail
+        ?: snapshot.timeline
+            .lastOrNull { entry ->
+                entry.family == TimelineFamily.DIAGNOSTIC &&
+                    entry.title == "DELIVERY_SUCCEEDED" &&
+                    (peerSuffix == null || entry.peerSuffix == peerSuffix)
+            }
+            ?.detail
 }
 
 internal enum class SenderPayloadPlan(val label: String, val priority: DeliveryPriority) {

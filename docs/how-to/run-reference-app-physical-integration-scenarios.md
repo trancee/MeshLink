@@ -119,6 +119,12 @@ does not invent first-contact discovery on its own. If no peer id is available,
 the direct proof still depends on live peer discovery and may time out with no
 `proof.complete`.
 
+On this host, the Android direct-proof contract now treats sender
+`proof.complete` as mandatory but accepts passive retained evidence without a
+passive `proof.complete` line. The passive role still has a best-effort
+completion log when it appears, but retained history/export evidence is the
+supported gate for a passed direct-guided run.
+
 ### Direct proof checklist
 
 ```md

@@ -46,7 +46,11 @@ internal class GuidedFirstExchangeViewModel(
     private fun maybeAutoStartMesh(): Unit {
         if (autoStartRequested) return
         val config = platformServices.automationConfig ?: return
-        if (config.mode != ch.trancee.meshlink.reference.automation.ReferenceAutomationMode.LIVE_PROOF) return
+        if (
+            config.mode !=
+                ch.trancee.meshlink.reference.automation.ReferenceAutomationMode.LIVE_PROOF
+        )
+            return
         val currentSnapshot = uiState.value.snapshot
         if (!currentSnapshot.session.meshStateLabel.contains("Uninitialized")) return
         if (uiState.value.readiness.isBlocked) return

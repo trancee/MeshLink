@@ -108,7 +108,10 @@ class LiveProofAutomationStepRunnerTest {
             )
         val unreachableSnapshot =
             waitingSnapshot.copy(
-                session = waitingSnapshot.session.copy(lastOutcomeSummary = "SendResult.NotSent(UNREACHABLE)")
+                session =
+                    waitingSnapshot.session.copy(
+                        lastOutcomeSummary = "SendResult.NotSent(UNREACHABLE)"
+                    )
             )
         val deliveredSnapshot =
             waitingSnapshot.copy(
@@ -145,7 +148,9 @@ class LiveProofAutomationStepRunnerTest {
         assertEquals(1, actions.sendRequests.size)
         assertTrue(progress.sendRequested)
         assertTrue(progress.completionLogged)
-        assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender phase=primary") })
+        assertTrue(
+            actions.logs.any { log -> log.contains("send.requested role=sender phase=primary") }
+        )
         assertTrue(actions.logs.none { log -> log.contains("proof.failed role=sender") })
         assertTrue(actions.logs.any { log -> log.contains("proof.complete role=sender") })
     }
@@ -252,7 +257,9 @@ class LiveProofAutomationStepRunnerTest {
         // Assert
         assertEquals(1, actions.sendRequests.size)
         assertEquals(peerId, actions.sendRequests.single().peerId)
-        assertTrue(actions.logs.any { log -> log.contains("sender.waiting role=sender reason=no-peers") })
+        assertTrue(
+            actions.logs.any { log -> log.contains("sender.waiting role=sender reason=no-peers") }
+        )
         assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender") })
         assertTrue(progress.senderPeerWaitLogged)
     }
@@ -270,7 +277,13 @@ class LiveProofAutomationStepRunnerTest {
         val bootstrapSnapshot =
             automationTestSnapshot(
                 meshStateLabel = "Running",
-                peers = listOf(automationTestPeer(peerId = bootstrapPeerId, peerSuffix = bootstrapPeerSuffix)),
+                peers =
+                    listOf(
+                        automationTestPeer(
+                            peerId = bootstrapPeerId,
+                            peerSuffix = bootstrapPeerSuffix,
+                        )
+                    ),
                 timeline = listOf(routeAvailableEntry(bootstrapPeerId, bootstrapPeerSuffix)),
             )
         val routedSnapshot =
@@ -278,7 +291,10 @@ class LiveProofAutomationStepRunnerTest {
                 meshStateLabel = "Running",
                 peers =
                     listOf(
-                        automationTestPeer(peerId = bootstrapPeerId, peerSuffix = bootstrapPeerSuffix),
+                        automationTestPeer(
+                            peerId = bootstrapPeerId,
+                            peerSuffix = bootstrapPeerSuffix,
+                        ),
                         automationTestPeer(peerId = targetPeerId),
                     ),
                 timeline = listOf(routeAvailableEntry(targetPeerId, redactedSuffix(targetPeerId))),
@@ -288,7 +304,10 @@ class LiveProofAutomationStepRunnerTest {
                 session = routedSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
                 timeline =
                     routedSnapshot.timeline +
-                        deliverySucceededEntry(redactedSuffix(targetPeerId), entryId = "session-1-2"),
+                        deliverySucceededEntry(
+                            redactedSuffix(targetPeerId),
+                            entryId = "session-1-2",
+                        ),
             )
 
         // Act

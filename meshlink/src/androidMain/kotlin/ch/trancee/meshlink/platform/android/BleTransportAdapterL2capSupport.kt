@@ -31,7 +31,8 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
         return
     }
     val adapter = bluetoothAdapter ?: return
-    val device = peerBindings.deviceFor(peer.deviceAddress) ?: adapter.getRemoteDevice(peer.deviceAddress)
+    val device =
+        peerBindings.deviceFor(peer.deviceAddress) ?: adapter.getRemoteDevice(peer.deviceAddress)
     val connectJob =
         coroutineScope.launch(start = CoroutineStart.LAZY) {
             runCatching {
@@ -121,7 +122,12 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     socket: BluetoothSocket,
 ): Unit {
     val link =
-        L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer(), log = ::log)
+        L2capLink(
+            peerHintId = hintPeerId,
+            socket = socket,
+            incomingFrames = L2capFrameBuffer(),
+            log = ::log,
+        )
     if (!linkRegistry.registerActiveLink(hintPeerId.value, link)) {
         log("ignoring duplicate L2CAP socket for ${hintPeerId.value.takeLast(6)}")
         closeQuietly(socket)

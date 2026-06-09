@@ -59,7 +59,7 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertEqual(manifest["selectedAssignment"]["baseline"], "direct-guided")
         self.assertEqual(mixed_candidate["status"], "runnable")
         self.assertEqual(android_only_candidate["status"], "runnable")
-        self.assertIn("mixed iOS sender path is not yet supported", reason_codes(manifest["selection"]))
+        self.assertIn("selected-android-only-fallback", reason_codes(manifest["selection"]))
         self.assertTrue(all(isinstance(call["command"], list) for call in runner.calls))
 
     def test_selects_android_only_when_two_healthy_android_devices_are_available(self) -> None:

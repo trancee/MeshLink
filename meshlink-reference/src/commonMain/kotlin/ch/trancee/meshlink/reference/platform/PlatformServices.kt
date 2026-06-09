@@ -60,7 +60,7 @@ internal class DefaultPlatformServices(
     override val automationConfig: ReferenceAutomationConfig? = options.automationConfig
     override val powerMitigationStatus: String? = options.powerMitigationStatus
     private val automationLogger: (String) -> Unit = options.automationLogger
-    private val stopPowerMitigation: () -> Unit = options.stopPowerMitigation
+    private val stopPowerMitigationAction: () -> Unit = options.stopPowerMitigation
     private val meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? =
         options.meshLinkControllerFactory
 
@@ -108,7 +108,7 @@ internal class DefaultPlatformServices(
     }
 
     override fun stopPowerMitigation(): Unit {
-        stopPowerMitigation()
+        stopPowerMitigationAction()
     }
 }
 

@@ -1,10 +1,10 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.Manifest
-import android.os.PowerManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 
 internal fun readinessGuidance(): List<String> {
     return listOf(
@@ -62,15 +62,17 @@ private fun powerManagementBlockers(context: Context): List<String> {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
         return emptyList()
     }
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return emptyList()
+    val powerManager =
+        context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return emptyList()
     val packageName = context.packageName
     val ignoringOptimizations = powerManager.isIgnoringBatteryOptimizations(packageName)
-    val idleMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isDeviceIdleMode else false
+    val idleMode =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isDeviceIdleMode else false
     val interactive = powerManager.isInteractive
     if (!idleMode && (interactive || ignoringOptimizations)) {
         return emptyList()
     }
     return listOf(
-        "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls.",
+        "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls."
     )
 }

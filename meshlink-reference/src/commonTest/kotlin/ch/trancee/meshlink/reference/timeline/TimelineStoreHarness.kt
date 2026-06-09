@@ -82,6 +82,7 @@ internal class TimelineStoreHarness(
             override fun currentTimeMillis(): Long = nowMillis
 
             override fun emitAutomationLog(message: String): Unit = Unit
+
             override fun stopPowerMitigation(): Unit = Unit
         }
 

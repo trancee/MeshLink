@@ -66,14 +66,12 @@ class ReadinessExplainerTest {
         val missingPermissions = emptyList<String>()
         val expected =
             listOf(
-                "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls.",
+                "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls."
             )
 
         // Act
-        val actual = readinessBlockers(
-            missingPermissions = missingPermissions,
-            powerManagement = expected,
-        )
+        val actual =
+            readinessBlockers(missingPermissions = missingPermissions, powerManagement = expected)
 
         // Assert
         assertEquals(expected, actual)

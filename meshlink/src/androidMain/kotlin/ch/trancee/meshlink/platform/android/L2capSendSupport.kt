@@ -47,7 +47,11 @@ internal suspend fun sendViaL2capWhenReady(
             dependencies.log(
                 "send(${context.hintPeerId.value.takeLast(6)}) no active link, waiting for inbound link"
             )
-            return waitForConnectAndSend(frame = frame, context = context, dependencies = dependencies)
+            return waitForConnectAndSend(
+                frame = frame,
+                context = context,
+                dependencies = dependencies,
+            )
         }
         dependencies.log(
             "send(${context.hintPeerId.value.takeLast(6)}) no active link, triggering connect"

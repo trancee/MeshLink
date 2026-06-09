@@ -73,7 +73,15 @@ internal class MeshEngineOutboundDeliveryDriver(
                                 emitDiagnostics = attemptOutcome.retryPolicy.emitDiagnostics,
                             )
                     ) {
-                        is MeshEngineDeliveryRetryResult.Woke -> retryState = wakeupResult.state
+                        is MeshEngineDeliveryRetryResult.Woke ->
+                            retryState =
+                                wakeupResult.state.copy(
+                                    topologyVersion =
+                                        maxOf(
+                                            wakeupResult.state.topologyVersion,
+                                            adapter.currentTopologyVersion(),
+                                        )
+                                )
                         MeshEngineDeliveryRetryResult.DeadlineExpired -> {
                             return adapter.onDeadlineExpired(deliveryState, attemptContext)
                         }

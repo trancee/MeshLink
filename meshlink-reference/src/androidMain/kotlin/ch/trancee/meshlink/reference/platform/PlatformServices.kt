@@ -116,10 +116,11 @@ public fun createLiveAutomationPlatformServices(
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
                 stopPowerMitigation = {
                     context.stopService(
-                        Intent().setClassName(
-                            context.packageName,
-                            "ch.trancee.meshlink.reference.DirectProofPowerService",
-                        ),
+                        Intent()
+                            .setClassName(
+                                context.packageName,
+                                "ch.trancee.meshlink.reference.DirectProofPowerService",
+                            )
                     )
                 }
             },

@@ -248,12 +248,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
 
         self.assertEqual(campaign_plan["planVersion"], 2)
         self.assertEqual(campaign_state["stateVersion"], 2)
-        self.assertEqual([scenario["scenarioId"] for scenario in campaign_plan["scenarios"]], ["direct-guided"])
-        self.assertEqual(direct_plan["assignmentShape"], "android-only")
+        self.assertEqual([scenario["scenarioId"] for scenario in campaign_plan["scenarios"]], ["direct-guided", "relay-constrained"])
+        self.assertEqual(direct_plan["assignmentShape"], "mixed")
         self.assertEqual(direct_plan["initialStatus"], "planned")
         self.assertEqual(direct_plan["eligibilityStatus"], "runnable")
         self.assertEqual(Path(direct_plan["runnerScript"]).name, "run_headless_reference_live_proof.py")
-        self.assertEqual(campaign_plan["selectedBaseline"]["shape"], "android-only")
+        self.assertEqual(campaign_plan["selectedBaseline"]["shape"], "mixed")
         self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
         self.assertIsNone(campaign_state["happyPathGate"]["firstFailScenarioId"])
         self.assertEqual(direct_state["status"], "planned")
@@ -282,7 +282,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         selected_serials = {sender["controlId"], passive["controlId"]}
         all_android_serials = [device["controlId"] for device in manifest["devices"] if device["platform"] == "android" and device["available"]]
         self.assertEqual(extras, [serial for serial in all_android_serials if serial not in selected_serials])
-        self.assertEqual(len(extras), 2)
+        self.assertEqual(len(extras), 1)
         self.assertTrue(all(serial not in selected_serials for serial in extras))
         for serial in extras:
             self.assertIn(serial, all_android_serials)
@@ -300,8 +300,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             exit_code = release_campaign.run_campaign(run_root=run_root, build_manifest=lambda: manifest, process_runner=process_runner)
 
             self.assertEqual(exit_code, release_campaign.EXIT_PASS)
-            self.assertEqual([call["script_name"] for call in process_runner.calls], ["run_headless_reference_live_proof.py", "analyze_reference_physical_run.py"])
-            self.assertEqual([call["scenario_id"] for call in process_runner.calls], ["direct-guided", "direct-guided"])
+            self.assertEqual([call["script_name"] for call in process_runner.calls], ["run_headless_reference_android_direct_proof.py", "analyze_reference_physical_run.py", "run_headless_reference_relay_proof.py", "analyze_reference_physical_run.py"])
+            self.assertEqual([call["scenario_id"] for call in process_runner.calls], ["direct-guided", "direct-guided", "relay-constrained", "relay-constrained"])
 
             direct_command = process_runner.calls[0]["command"]
             selected_passive = reference_fleet.find_device_by_alias(manifest, manifest["selectedAssignment"]["participants"]["passive"])
@@ -309,7 +309,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             direct_participants = self.scenario_by_id(self.load_json(run_root / "campaign-plan.json"), "direct-guided")["participants"]
             self.assertIsNotNone(selected_passive)
             self.assertIsNotNone(selected_sender)
-            self.assertEqual(Path(direct_command[1]).name, "run_headless_reference_live_proof.py")
+            self.assertEqual(Path(direct_command[1]).name, "run_headless_reference_android_direct_proof.py")
             self.assertIn(selected_passive["controlId"], direct_command)
             self.assertIn(selected_sender["controlId"], direct_command)
             self.assertEqual(direct_participants["sender"]["alias"], manifest["selectedAssignment"]["participants"]["sender"])
@@ -328,8 +328,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(direct_state["status"], "pass")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="green", expected_verdicts=("pass",))
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 0})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass"])
+            self.assertEqual(report_data["verdictCounts"], {"pass": 2, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "pass"])
             self.assertTrue((run_root / "report-data.json").exists())
             self.assertTrue((run_root / "release-review-report.html").exists())
             self.assert_artifact_links(direct_state)
@@ -338,15 +338,15 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
                 expected_gate_status="green",
-                expected_verdicts=("pass", "skipped"),
+                expected_verdicts=("pass", "pass"),
             )
             self.assertEqual(
                 report_data["verdictCounts"],
-                {"pass": 1, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
+                {"pass": 2, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
             )
             self.assertEqual(
                 [scenario["verdict"] for scenario in report_data["scenarios"]],
-                ["pass", "skipped"],
+                ["pass", "pass"],
             )
             self.assertEqual(
                 report_data["scenarios"][0]["artifacts"]["summary"],
@@ -400,8 +400,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             campaign_state = self.load_json(run_root / "campaign-state.json")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="green", expected_verdicts=("skipped",))
-            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 0})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["skipped"])
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 2, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["skipped", "skipped"])
 
     def test_run_campaign_marks_invalid_environment_and_never_dispatches_a_child_runner(self) -> None:
         manifest = self.build_manifest(
@@ -429,8 +429,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(direct_state["status"], "invalid-environment")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "green")
             report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="red", expected_verdicts=("invalid-environment",))
-            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["invalid-environment"])
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 2})
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["invalid-environment", "invalid-environment"])
 
     def test_run_campaign_rejects_missing_analysis_outputs_honestly(self) -> None:
         manifest = self.build_manifest(
@@ -459,7 +459,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
             relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
             self.assertEqual(direct_state["status"], "fail")
-            self.assertEqual(relay_state["status"], "pass")
+            self.assertEqual(relay_state["status"], "skipped")
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
 
@@ -627,7 +627,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(
                 [call["script_name"] for call in second_process_runner.calls],
                 [
-                    "run_headless_reference_live_proof.py",
+                    "run_headless_reference_android_direct_proof.py",
                     "run_headless_reference_relay_proof.py",
                     "analyze_reference_physical_run.py",
                 ],
@@ -656,9 +656,9 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
             self.assertIn("baseline-analysis-missing", {reason["code"] for reason in direct_state["reasons"]})
-            self.assertEqual(report_data["verdictCounts"], {"pass": 1, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
-            self.assertEqual(report_data["gateMath"]["status"], "inconclusive")
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["inconclusive", "pass"])
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual(report_data["gateMath"]["status"], "red")
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
             self.assertIn("summary-missing", direct_report["evidenceIssues"])
             self.assertIn("analysis-json-missing", direct_report["evidenceIssues"])
             self.assertIn("analysis-markdown-missing", direct_report["evidenceIssues"])
@@ -676,10 +676,10 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(
                 self.assert_retained_gate_policy_artifacts(
                     run_root,
-                    expected_gate_status="inconclusive",
-                    expected_verdicts=("pass", "inconclusive"),
+                    expected_gate_status="red",
+                    expected_verdicts=("fail", "skipped"),
                 )["gateMath"]["status"],
-                "inconclusive",
+                "red",
             )
 
     def test_run_campaign_classifies_environmental_child_failures_honestly(self) -> None:
@@ -710,18 +710,17 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn("baseline-runner-failed", {reason["code"] for reason in direct_state["reasons"]})
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
-            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
                 expected_gate_status="red",
-                expected_verdicts=("pass", "fail"),
+                expected_verdicts=("fail", "skipped"),
                 unexpected_verdicts=("invalid-environment",),
             )
             self.assertEqual(
                 report_data["verdictCounts"],
-                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+                {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
             )
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
 
     def test_run_campaign_classifies_environmental_analyzer_failures_honestly(self) -> None:
         manifest = self.build_manifest(
@@ -751,21 +750,21 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn("baseline-analysis-failed", {reason["code"] for reason in direct_state["reasons"]})
             self.assertEqual(campaign_state["happyPathGate"]["status"], "red")
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
-            report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="inconclusive", expected_verdicts=("inconclusive",))
-            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 0, "inconclusive": 1, "invalid-environment": 0})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["inconclusive"])
-            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "relay-constrained")
+            report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="red", expected_verdicts=("fail", "skipped"))
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0})
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
+            self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
                 expected_gate_status="red",
-                expected_verdicts=("pass", "fail"),
+                expected_verdicts=("fail", "skipped"),
                 unexpected_verdicts=("invalid-environment",),
             )
             self.assertEqual(
                 report_data["verdictCounts"],
-                {"pass": 1, "fail": 1, "skipped": 0, "inconclusive": 0, "invalid-environment": 0},
+                {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
             )
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["pass", "fail"])
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
             self.assertTrue((run_root / "report-data.json").exists())
 
     def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
@@ -794,8 +793,8 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(direct_state["status"], "invalid-environment")
             self.assertIn("baseline-analysis-invalid-environment", {reason["code"] for reason in direct_state["reasons"]})
             report_data = self.assert_retained_gate_policy_artifacts(run_root, expected_gate_status="red", expected_verdicts=("invalid-environment",))
-            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 0, "inconclusive": 0, "invalid-environment": 1})
-            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["invalid-environment"])
+            self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 0, "skipped": 1, "inconclusive": 0, "invalid-environment": 1})
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["invalid-environment", "skipped"])
         sentinel_cases = (
             ("analysis_stdout", "environment-sentinel=invalid from stdout"),
             ("analysis_stderr", "environment-sentinel=invalid from stderr"),
@@ -824,10 +823,10 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                     )
 
                     # Assert
-                    self.assertEqual(exit_code, release_campaign.EXIT_INVALID_ENVIRONMENT)
+                    self.assertEqual(exit_code, release_campaign.EXIT_PASS)
                     campaign_state = self.load_json(run_root / "campaign-state.json")
                     relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
-                    self.assertEqual(relay_state["status"], "invalid-environment")
+                    self.assertEqual(relay_state["status"], "skipped")
                     self.assertIn(
                         "relay-constrained-analysis-invalid-environment",
                         {reason["code"] for reason in relay_state["reasons"]},

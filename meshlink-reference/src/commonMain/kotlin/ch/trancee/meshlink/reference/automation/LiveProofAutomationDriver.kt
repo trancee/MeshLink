@@ -67,9 +67,14 @@ internal class LiveProofAutomationDriver(
         scheduleSenderUnreachableRetryIfNeeded(timelineUiState = timelineUiState)
     }
 
-    private fun scheduleSenderPeerWaitRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+    private fun scheduleSenderPeerWaitRetryIfNeeded(
+        timelineUiState: TechnicalTimelineUiState
+    ): Unit {
         val config = automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+        if (
+            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
+                config.role != ReferenceAutomationRole.SENDER
+        ) {
             return
         }
         if (timelineUiState.liveSnapshot.peers.isNotEmpty()) {
@@ -78,9 +83,14 @@ internal class LiveProofAutomationDriver(
         scheduleSenderRouteRetry("no-peers")
     }
 
-    private fun scheduleSenderRouteWaitRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+    private fun scheduleSenderRouteWaitRetryIfNeeded(
+        timelineUiState: TechnicalTimelineUiState
+    ): Unit {
         val config = automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+        if (
+            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
+                config.role != ReferenceAutomationRole.SENDER
+        ) {
             return
         }
         val meshState = timelineUiState.liveSnapshot.session.meshStateLabel
@@ -90,7 +100,8 @@ internal class LiveProofAutomationDriver(
         if (timelineUiState.liveSnapshot.peers.isEmpty()) {
             return
         }
-        if (timelineUiState.liveSnapshot.peers.any { peer ->
+        if (
+            timelineUiState.liveSnapshot.peers.any { peer ->
                 hasAvailableRouteForPeer(timelineUiState.liveSnapshot, peer.peerId)
             }
         ) {
@@ -99,9 +110,14 @@ internal class LiveProofAutomationDriver(
         scheduleSenderRouteRetry("route-unavailable")
     }
 
-    private fun scheduleSenderUnreachableRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+    private fun scheduleSenderUnreachableRetryIfNeeded(
+        timelineUiState: TechnicalTimelineUiState
+    ): Unit {
         val config = automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+        if (
+            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
+                config.role != ReferenceAutomationRole.SENDER
+        ) {
             return
         }
         if (progress.completionLogged || !progress.sendRequested) {
@@ -115,7 +131,10 @@ internal class LiveProofAutomationDriver(
     }
 
     private fun scheduleSenderRouteRetry(reason: String): Unit {
-        if (progress.senderPeerWaitRetryScheduled || progress.senderPeerWaitRetryCount >= SENDER_PEER_WAIT_MAX_RETRIES) {
+        if (
+            progress.senderPeerWaitRetryScheduled ||
+                progress.senderPeerWaitRetryCount >= SENDER_PEER_WAIT_MAX_RETRIES
+        ) {
             return
         }
         progress.senderPeerWaitRetryScheduled = true

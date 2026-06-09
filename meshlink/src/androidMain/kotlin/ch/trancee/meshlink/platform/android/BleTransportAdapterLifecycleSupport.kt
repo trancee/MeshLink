@@ -112,7 +112,9 @@ internal fun BleTransportAdapter.discoveryHardware(): BleTransportDiscoveryHardw
                 buildAdvertiseData(payload),
                 callback,
             )
-            log("advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}")
+            log(
+                "advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"
+            )
         },
     )
 }
