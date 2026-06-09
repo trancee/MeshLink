@@ -57,6 +57,9 @@ internal class LiveReferenceMeshLinkController(
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = stateStore.snapshot
 
     override suspend fun start(): Unit {
+        runtimeLogger(
+            "REFERENCE_AUTOMATION live.controller.start surface=$surfaceOfOrigin platform=$platformName appId=$appId"
+        )
         commandExecutor.start()
     }
 

@@ -40,6 +40,7 @@ internal fun rememberReferenceNavHostDependencies(
                 platformName = platformServices.platformName,
                 nowProvider = platformServices::currentTimeMillis,
                 supportedControllerFactory = platformServices::createSupportedMeshLinkController,
+                emitAutomationLog = platformServices::emitAutomationLog,
             )
         }
     val sessionPlatformServices =
@@ -70,6 +71,7 @@ internal fun rememberReferenceNavHostDependencies(
             SessionTransitionService(
                 timelineStore = timelineStore,
                 sessionController = sessionController,
+                platformServices = sessionPlatformServices,
                 currentTimeMillis = sessionPlatformServices::currentTimeMillis,
             )
         }

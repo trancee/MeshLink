@@ -155,6 +155,22 @@ val checkAgp9Invariants by
         commandLine("python3", "scripts/check_agp9_invariants.py")
     }
 
+val codeqlJavaKotlinBuild by
+    tasks.registering {
+        group = "verification"
+        description =
+            "Builds the repository subset CodeQL needs for Java/Kotlin analysis without duplicating the workflow task graph."
+        dependsOn(
+            ":meshlink:jvmJar",
+            ":meshlink:androidJar",
+            ":benchmarks:jvmJar",
+            ":meshlink-reference:jvmJar",
+            ":meshlink-reference:bundleAndroidMainAar",
+            ":meshlink-reference:android:compileDebugKotlin",
+            ":meshlink-proof:android:compileDebugKotlin",
+        )
+    }
+
 val cleanJvmSmokeBenchmarkReports by
     tasks.registering(Delete::class) {
         group = "verification"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
@@ -27,7 +28,7 @@ ANDROID_AUTOMATION_LOG_TAGS = ["MeshLinkReferenceAutomation:I", "*:S"]
 ANDROID_TRANSPORT_LOG_TAGS = ["MeshLinkTransport:D"]
 DEFAULT_ANDROID_READY_SECONDS = 8
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
-DEFAULT_POST_RESULT_IDLE_SECONDS = 5
+DEFAULT_POST_RESULT_IDLE_SECONDS = 1
 ADB_DEVICE_PATTERN = re.compile(r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)\b")
 ANDROID_PROOF_COMPLETE_PATTERN = re.compile(
     r"REFERENCE_AUTOMATION proof\.complete role=passive .* export=(?P<export>\S+)"
@@ -524,12 +525,117 @@ def run_ios_live_proof_test(
         raise SystemExit(result.returncode)
 
 
-def install_android_app(android_serial: str) -> None:
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def git_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return run(["git", "-C", str(repo_root()), *args], capture_output=True)
+
+
+def launcher_source_fingerprint() -> str:
+    head = git_command(["rev-parse", "HEAD"]).stdout.strip()
+    status = git_command(["status", "--porcelain"]).stdout.strip()
+    dirty = "dirty" if status else "clean"
+    return f"{head}:{dirty}"
+
+
+def android_apk_path() -> Path | None:
+    apk_dir = repo_root() / "meshlink-reference" / "android" / "build" / "outputs" / "apk" / "debug"
+    candidates = sorted(apk_dir.glob("*.apk"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return candidates[0] if candidates else None
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def android_install_cache_path(run_dir: Path, android_serial: str) -> Path:
+    safe_serial = re.sub(r"[^A-Za-z0-9._-]", "_", android_serial)
+    return run_dir / f".android-install-cache-{safe_serial}.json"
+
+
+def load_android_install_cache(run_dir: Path, android_serial: str) -> dict[str, Any] | None:
+    cache_path = android_install_cache_path(run_dir, android_serial)
+    if not cache_path.exists():
+        return None
+    try:
+        return json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def write_android_install_cache(run_dir: Path, android_serial: str, payload: dict[str, Any]) -> None:
+    android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def install_android_app(android_serial: str, run_dir: Path | None = None) -> None:
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = android_serial
+    cache_run_dir = run_dir or Path("/tmp")
+    source_fingerprint = launcher_source_fingerprint()
+    apk_path = android_apk_path()
+    if apk_path is not None:
+        cached = load_android_install_cache(cache_run_dir, android_serial)
+        current_apk_hash = sha256_file(apk_path)
+        if (
+            cached is not None
+            and cached.get("sourceFingerprint") == source_fingerprint
+            and cached.get("apkHash") == current_apk_hash
+        ):
+            print("==> Reusing Android reference app install; APK fingerprint unchanged")
+            return
     command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
-    print(f"==> Installing Android reference app: {shell_join(command)}")
-    run(command, env=env)
+
+    def run_install_once() -> None:
+        print(f"==> Installing Android reference app: {shell_join(command)}")
+        install_process = subprocess.Popen(command, env=env, text=True)
+        try:
+            while install_process.poll() is None:
+                time.sleep(0.5)
+            if install_process.returncode != 0:
+                raise subprocess.CalledProcessError(install_process.returncode, command)
+        finally:
+            if install_process.poll() is None:
+                install_process.terminate()
+                try:
+                    install_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    install_process.kill()
+                    install_process.wait(timeout=5)
+
+    try:
+        run_install_once()
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode != 1:
+            raise
+        print(
+            "==> Android install failed; retrying once after uninstalling the existing package"
+        )
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True)
+        uninstall_stdout = (uninstall_result.stdout or "").strip()
+        uninstall_stderr = (uninstall_result.stderr or "").strip()
+        print(
+            "==> Android uninstall result: "
+            + (uninstall_stdout or "(no stdout)")
+            + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
+        )
+        run_install_once()
+    apk_path = android_apk_path()
+    if apk_path is not None:
+        write_android_install_cache(
+            cache_run_dir,
+            android_serial,
+            {
+                "sourceFingerprint": source_fingerprint,
+                "apkPath": str(apk_path),
+                "apkHash": sha256_file(apk_path),
+            },
+        )
 
 
 def android_sdk_int(android_serial: str) -> int:
@@ -845,6 +951,7 @@ def summarize_sender_only(*, run_dir: Path, scenario: str, ios_completion: str) 
 
 def main() -> int:
     args = parse_args()
+    run_started_at = time.monotonic()
     ensure_android_device_ready(args.android_serial)
     for extra_serial in args.extra_force_stop_serial:
         ensure_android_device_ready(extra_serial)
@@ -854,9 +961,21 @@ def main() -> int:
     app_id = args.app_id or f"demo.meshlink.reference.live.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
 
+    install_reused = args.skip_android_install
     if not args.skip_android_install:
-        install_android_app(args.android_serial)
+        install_started_at = time.monotonic()
+        install_android_app(args.android_serial, run_dir)
+        install_seconds = round(time.monotonic() - install_started_at, 1)
+        print(f"==> Android install completed in {install_seconds:.1f}s")
+        install_reused = False
+    else:
+        install_seconds = None
+        print("==> Reusing Android reference app install; APK fingerprint unchanged")
+    permissions_started_at = time.monotonic()
     verify_android_runtime_permissions(args.android_serial)
+    permissions_seconds = round(time.monotonic() - permissions_started_at, 1)
+    print(f"==> Android permissions verified in {permissions_seconds:.1f}s")
+    print(f"==> Android preflight ready in {time.monotonic() - run_started_at:.1f}s")
 
     ios_app_path = None
     if args.ios_launch_mode == "devicectl":
@@ -875,11 +994,26 @@ def main() -> int:
         args.scenario,
         args.android_transport_logcat,
     )
+    print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
     ios_console_process: BackgroundProcess | None = None
 
     try:
-        print(f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization")
-        time.sleep(args.android_ready_seconds)
+        passive_marker = "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE"
+        passive_log_path = run_dir / "android_logcat.log"
+        print(f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker")
+        passive_ready = False
+        deadline = time.monotonic() + args.android_ready_seconds
+        while time.monotonic() < deadline:
+            if passive_marker in passive_log_path.read_text(encoding="utf-8", errors="replace"):
+                passive_ready = True
+                break
+            time.sleep(0.25)
+        if passive_ready:
+            print("==> Android passive startup marker observed")
+        else:
+            print(
+                f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with launch sequence"
+            )
         if args.ios_launch_mode == "xcuitest":
             if args.cleanup_ios_dev_app_slots:
                 cleanup_ios_dev_app_slots(args.ios_device)
@@ -893,6 +1027,7 @@ def main() -> int:
                 ios_transport_telemetry=args.ios_transport_telemetry,
             )
             ios_completion = "xcodebuild test passed"
+            print(f"==> iPhone sender completed at +{time.monotonic() - run_started_at:.1f}s")
         else:
             ios_console_process = start_ios_app_via_devicectl(
                 ios_device=args.ios_device,
@@ -903,13 +1038,17 @@ def main() -> int:
                 ios_transport_debug=args.ios_transport_debug,
                 ios_transport_telemetry=args.ios_transport_telemetry,
             )
+            print(f"==> iPhone sender launched at +{time.monotonic() - run_started_at:.1f}s")
         if args.ios_launch_mode == "devicectl":
             wait_for_ios_sender_result(
                 run_dir / "iphone_console.log",
                 args.capture_timeout_seconds,
             )
-            time.sleep(args.post_result_idle_seconds)
+            if args.post_result_idle_seconds > 0:
+                print(f"==> Waiting {args.post_result_idle_seconds:.1f} seconds for iPhone console to settle")
+                time.sleep(args.post_result_idle_seconds)
             ios_completion = verify_ios_sender_log(run_dir / "iphone_console.log", args.scenario)
+            print(f"==> iPhone sender completed at +{time.monotonic() - run_started_at:.1f}s")
         if args.skip_android_completion_wait:
             android_completion_line = None
             export_relative_path = None
@@ -926,8 +1065,34 @@ def main() -> int:
         for extra_serial in args.extra_force_stop_serial:
             force_stop_reference_app(extra_serial)
 
+    timings = {
+        "totalSeconds": round(time.monotonic() - run_started_at, 1),
+        "androidReadySeconds": args.android_ready_seconds,
+        "captureTimeoutSeconds": args.capture_timeout_seconds,
+        "androidInstallReused": install_reused,
+        "androidInstallSeconds": install_seconds,
+        "androidPermissionsSeconds": permissions_seconds,
+    }
+    startup_timing = {
+        "install": {
+            "androidSeconds": install_seconds,
+            "androidReused": install_reused,
+        },
+        "permissions": {
+            "androidSeconds": permissions_seconds,
+        },
+        "launch": {
+            "passiveStartupWaitSeconds": args.android_ready_seconds,
+            "postResultIdleSeconds": args.post_result_idle_seconds,
+        },
+        "totalSeconds": timings["totalSeconds"],
+    }
     if args.skip_android_completion_wait:
         summarize_sender_only(run_dir=run_dir, scenario=args.scenario, ios_completion=ios_completion)
+        summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+        summary["timings"] = timings
+        summary["startupTiming"] = startup_timing
+        (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     else:
         summarize_and_verify(
             android_serial=args.android_serial,
@@ -938,6 +1103,11 @@ def main() -> int:
             ios_completion=ios_completion,
             export_relative_path=export_relative_path,
         )
+        summary_path = run_dir / "summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["timings"] = timings
+        summary["startupTiming"] = startup_timing
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return 0
 
 

@@ -46,7 +46,11 @@ internal class BleTransportDiscoveryLifecycle(
             }
 
             override fun onStartFailure(errorCode: Int) {
-                log("advertising failed errorCode=$errorCode")
+                log(
+                    "advertising failed errorCode=$errorCode carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} " +
+                        "mode=${currentPowerProfile.advertiseMode} tx=${currentPowerProfile.txPowerLevel} " +
+                        "connectable=true psm=${currentDiscoveryPayload.l2capPsm}"
+                )
             }
         }
 
@@ -100,7 +104,7 @@ internal class BleTransportDiscoveryLifecycle(
 
     fun refresh(started: Boolean, hardware: BleTransportDiscoveryHardware): Unit {
         log(
-            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} psm=${currentDiscoveryPayload.l2capPsm}"
+            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
         )
         stop(hardware)
         if (!started || isDiscoverySuspended) {
@@ -112,7 +116,18 @@ internal class BleTransportDiscoveryLifecycle(
         ensurePermissionsGranted()
         hardware.startScan(currentPowerProfile, scanCallback)
         log("scan started")
-        hardware.startAdvertising(currentPowerProfile, currentDiscoveryPayload, advertiseCallback)
+        if (hardware.hasAdvertiser) {
+            hardware.startAdvertising(
+                currentPowerProfile,
+                currentDiscoveryPayload,
+                advertiseCallback,
+            )
+        } else {
+            log("advertise skipped: advertiser unavailable")
+        }
+        log(
+            "advertise requested carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${currentDiscoveryPayload.l2capPsm}"
+        )
     }
 
     private fun buildPayload(l2capPsm: UByte): BleDiscoveryPayload {

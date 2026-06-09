@@ -7,6 +7,8 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.ResumeResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
+import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.model.TimelineSeverity
 
 /**
  * Centralizes live MeshLink command execution so binding, runtime calls, and app-facing side
@@ -20,12 +22,20 @@ internal class LiveReferenceMeshCommandExecutor(
     private val sendRecorder: LiveReferenceSendRecorder,
 ) {
     suspend fun start(): Unit {
+        stateStore.appendEvent(
+            ReferenceTimelineEvent(
+                family = TimelineFamily.LIFECYCLE,
+                severity = TimelineSeverity.INFO,
+                title = "Mesh start requested",
+                detail = "mesh.start() requested from app coordinator",
+            )
+        )
         recordLifecycleCommand(
             successTitle = "Mesh started",
             successDetail = { result: StartResult -> "mesh.start() -> $result" },
             errorTitle = "Mesh start failed",
         ) {
-            start()
+            this.start()
         }
     }
 
@@ -35,7 +45,7 @@ internal class LiveReferenceMeshCommandExecutor(
             successDetail = { result: PauseResult -> "mesh.pause() -> $result" },
             errorTitle = "Mesh pause failed",
         ) {
-            pause()
+            this.pause()
         }
     }
 
@@ -45,7 +55,7 @@ internal class LiveReferenceMeshCommandExecutor(
             successDetail = { result: ResumeResult -> "mesh.resume() -> $result" },
             errorTitle = "Mesh resume failed",
         ) {
-            resume()
+            this.resume()
         }
     }
 
@@ -55,7 +65,7 @@ internal class LiveReferenceMeshCommandExecutor(
             successDetail = { result: StopResult -> "mesh.stop() -> $result" },
             errorTitle = "Mesh stop failed",
         ) {
-            stop()
+            this.stop()
         }
     }
 

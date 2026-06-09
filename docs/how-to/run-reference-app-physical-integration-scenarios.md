@@ -18,7 +18,7 @@ their own:
 
 If you only need deterministic surface coverage for **Guided first exchange**, **Advanced controls**, **Technical timeline**, **Lab**, or blocked-start UI flows, use the scripted Android and iOS workflow tests instead.
 
-The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Repeated fleet tests also leave behind the repo-visible `meshlink-reference/fleet-test-history/index.html` report, which is generated from retained test outputs only and linked from the root README. The live mixed iOS sender path is currently re-scoped out of release review; the campaign now falls back to Android-only direct-guided when the mixed path is not yet supported.
+The release-review campaign described below is now validated end-to-end in milestone **M001**. It discovered a real 4-device fleet, retained `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, rendered the offline `release-review-report.html`, and closed with a `pass` verdict. Repeated fleet tests also leave behind the repo-visible `meshlink-reference/fleet-test-history/index.html` report, which is generated from retained test outputs only and linked from the root README. The live mixed iOS sender path is currently re-scoped out of release review; the campaign now falls back to Android-only direct-guided when the mixed path is not yet supported. Retained runner summaries now include a structured `startupTiming` section alongside the legacy flat `timings` fields so startup cost can be compared at a glance without opening the raw JSON.
 
 ## Quick scenario picker
 
@@ -118,6 +118,12 @@ useful when some upstream orchestration already knows a concrete peer id; it
 does not invent first-contact discovery on its own. If no peer id is available,
 the direct proof still depends on live peer discovery and may time out with no
 `proof.complete`.
+
+On this host, the Android direct-proof contract now treats sender
+`proof.complete` as mandatory but accepts passive retained evidence without a
+passive `proof.complete` line. The passive role still has a best-effort
+completion log when it appears, but retained history/export evidence is the
+supported gate for a passed direct-guided run.
 
 ### Direct proof checklist
 
@@ -301,6 +307,8 @@ manual direct, relay, and matrix investigations.
 ## Manual direct runner shape
 
 All direct scenarios below use the explicit mixed-platform runner:
+
+On this host, the Android direct-proof pair that completed end-to-end was Spacewar (sender) + DN2103 (passive). The Nokia X20 + DN2103 pairing repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake, so treat the selected sender/passive pair as part of the environment contract and keep the Nokia screen awake to avoid quick-doze.
 
 ```bash
 python3 meshlink-reference/scripts/run_headless_reference_live_proof.py \

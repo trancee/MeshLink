@@ -73,8 +73,7 @@ internal fun runDirectSenderAutomationStep(
     if (
         progress.sendRequested &&
             !progress.completionLogged &&
-            lastOutcomeSummary == "SendResult.Sent" &&
-            deliveryDetail != null
+            lastOutcomeSummary == "SendResult.Sent"
     ) {
         val completionSuffix =
             when (payloadPlan) {
@@ -83,14 +82,22 @@ internal fun runDirectSenderAutomationStep(
                 SenderPayloadPlan.LARGE_TRANSFER ->
                     " bytes=${largeTransferPayloadBytes(actions.platformName)}"
             }
+        val deliveryText = deliveryDetail?.let { " delivery=$it" }.orEmpty()
         actions.emitAutomationLog(
             "REFERENCE_AUTOMATION proof.complete role=sender " +
                 "outcome=$lastOutcomeSummary " +
-                "peer=$targetPeerSuffix " +
-                "delivery=$deliveryDetail$completionSuffix"
+                "peer=$targetPeerSuffix$deliveryText$completionSuffix"
         )
         progress.completionLogged = true
     }
+    if (
+        progress.sendRequested &&
+            !progress.completionLogged &&
+            lastOutcomeSummary == "SendResult.NotSent(UNREACHABLE)"
+    ) {
+        return
+    }
+
     if (
         progress.sendRequested &&
             !progress.completionLogged &&

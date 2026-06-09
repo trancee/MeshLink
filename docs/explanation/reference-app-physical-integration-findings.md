@@ -8,7 +8,7 @@ optimizations are worth keeping or pursuing.
 
 | Area | What we learned |
 |---|---|
-| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported |
+| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported; doze-sensitive Android devices now start a foreground wake-lock mitigation during live-proof automation |
 | direct vs relay placement | they often need different room geometry; running them back-to-back without changing placement can create fake failures |
 | direct passive automation | moving it off the UI surface closed a misleading blind spot |
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
@@ -209,6 +209,32 @@ A good constrained relay run proves an ordered chain of real behaviors:
 
 That level of evidence makes the next debugging step much clearer when
 something regresses.
+
+### 5. A foreground wake-lock mitigation is worth keeping on Android direct proof
+
+The Nokia X20 incident showed that some Android OEM builds can enter quick-doze
+fast enough to stall peer discovery even when Bluetooth permissions and the app
+startup path are healthy. On the current Nokia X20 + DN2103 pair, retained
+logcat breadcrumbs showed `interactive=false` at `onCreate` and `onResume`, and
+the passive activity also reached `onStop` before the run timed out. That makes
+doze/screen-off a plausible contributor, but not a proven sole root cause.
+
+The reference app now starts a foreground service plus partial wake lock during
+live-proof automation so the device stays awake long enough for discovery and
+proof completion. The app also now emits retained `power.state` breadcrumbs so
+future runs can tell whether the device was interactive and whether lifecycle
+transitions suggest backgrounding or idle behavior when proof stalls.
+
+This is worth keeping because it:
+
+- reduces false transport failures caused by aggressive device sleep policies
+- keeps the mitigation inside the supported reference-app shell rather than the runner
+- makes doze-related issues visible as readiness and lifecycle state instead of silent timeouts
+- gives later runs a retained signal to compare against pair-specific discovery failures
+
+The mitigation is not a substitute for clean battery policy on every device, but
+it turns a flaky environment dependence into an explicit, documented operator
+step.
 
 ## Optimizations worth keeping
 

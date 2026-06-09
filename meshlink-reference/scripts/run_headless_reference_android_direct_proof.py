@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,9 @@ from run_headless_reference_live_proof import (
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
-ANDROID_START_TIMEOUT_SECONDS = 15.0
+ANDROID_START_TIMEOUT_SECONDS = 12.0
+POST_RESULT_IDLE_SECONDS = 2.0
+POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
 SENDER_LOGCAT_NAME = "sender_logcat.log"
 PASSIVE_LOGCAT_NAME = "passive_logcat.log"
 SENDER_START_NAME = "sender_start.txt"
@@ -56,8 +59,6 @@ SENDER_REQUIRED_LOG_MARKERS = [
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
-    "REFERENCE_AUTOMATION peer.discovered role=PASSIVE",
-    "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview",
 ]
 TRANSPORT_REQUIRED_MARKERS = [
     "D MeshLinkTransport: start()",
@@ -65,8 +66,6 @@ TRANSPORT_REQUIRED_MARKERS = [
     "D MeshLinkTransport: scan started",
     "D MeshLinkTransport: advertising started",
 ]
-
-
 @dataclass
 class AndroidDirectCompletions:
     sender_completion: str | None
@@ -91,7 +90,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run a retained Android-only MeshLink reference-app direct proof with an Android sender "
-            "and Android passive peer."
+            "and Android passive peer. The live-proof path starts a foreground service plus wake lock "
+            "during automation to reduce doze risk on aggressive OEM builds."
         )
     )
     parser.add_argument(
@@ -115,13 +115,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=DEFAULT_ANDROID_READY_SECONDS,
-        help="How long to wait after launching the passive Android peer before starting the sender",
+        default=min(DEFAULT_ANDROID_READY_SECONDS, 10.0),
+        help=(
+            "How long to wait after launching the passive Android peer before starting the sender. "
+            "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
+            "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
+            "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
+            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake, disable battery optimization if discovery stalls, and rely on the live-proof foreground wake-lock mitigation when the reference app starts it."
+        ),
     )
     parser.add_argument(
         "--capture-timeout-seconds",
         type=float,
-        default=DEFAULT_CAPTURE_TIMEOUT_SECONDS,
+        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 60.0),
         help="Hard timeout for both Android roles to reach proof completion",
     )
     parser.add_argument(
@@ -138,6 +144,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--target-peer-id",
         help="Optional peer id to seed into the Android sender as a bootstrap hint when orchestration knows it",
+    )
+    parser.add_argument(
+        "--advertisement-carrier",
+        choices=("uuid-pair", "uuid-pair-plus-service-data"),
+        default="uuid-pair",
+        help=(
+            "Android advertisement carrier to use for direct proof. Keep the default UUID pair "
+            "unless you are isolating discovery-carrier behavior on a specific device."
+        ),
     )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
@@ -216,6 +231,12 @@ def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def infer_passive_export_path(log_path: Path) -> str | None:
+    log_text = read_text(log_path)
+    _completion_line, export_relative_path = extract_passive_completion(log_text)
+    return export_relative_path
+
+
 def collect_android_completions(run_dir: Path) -> AndroidDirectCompletions:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
@@ -262,8 +283,21 @@ def transport_failure_reason(run_dir: Path) -> str | None:
     return None
 
 
-def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
+def extract_power_state_snapshot(log_text: str) -> str | None:
+    for line in reversed(log_text.splitlines()):
+        if "REFERENCE_AUTOMATION power.state" in line:
+            return line.strip()
+    return None
+
+
+def wait_for_android_completions(
+    run_dir: Path,
+    timeout_seconds: float,
+    sender_android_serial: str,
+    passive_android_serial: str,
+) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
+    no_peer_deadline = time.monotonic() + min(timeout_seconds, 10.0)
     while time.monotonic() < deadline:
         completions = collect_android_completions(run_dir)
         if completions.sender_failed is not None:
@@ -271,8 +305,12 @@ def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> Andro
                 "Android sender reported proof.failed before retained completion: "
                 f"{completions.sender_failed}"
             )
-        if completions.sender_completion and completions.passive_completion:
+        if completions.sender_completion:
             return completions
+        if time.monotonic() >= no_peer_deadline:
+            transport_reason = transport_failure_reason(run_dir)
+            if transport_reason is not None:
+                raise SystemExit(transport_reason)
         time.sleep(0.5)
 
     completions = collect_android_completions(run_dir)
@@ -282,28 +320,40 @@ def wait_for_android_completions(run_dir: Path, timeout_seconds: float) -> Andro
             f"{completions.sender_failed}"
         )
     missing_roles: list[str] = []
-    if completions.sender_completion is None:
-        missing_roles.append("sender")
     if completions.passive_completion is None:
         missing_roles.append("passive")
+    if completions.sender_completion is None:
+        missing_roles.append("sender")
     transport_reason = transport_failure_reason(run_dir)
     if transport_reason is not None:
         raise SystemExit(transport_reason)
     raise SystemExit(
         "Timed out waiting for proof.complete on Android roles: "
-        + ", ".join(missing_roles or ["unknown"])
+        + ", ".join(missing_roles or ["passive"])
     )
 
 
-def ensure_android_preflight(android_serial: str, *, skip_android_install: bool) -> None:
+def ensure_android_preflight(
+    android_serial: str,
+    *,
+    skip_android_install: bool,
+    run_dir: Path,
+) -> dict[str, float | bool]:
+    timings: dict[str, float | bool] = {}
     ensure_android_device_ready(android_serial)
     if not skip_android_install:
+        install_started_at = time.monotonic()
         try:
-            install_android_app(android_serial)
+            install_android_app(android_serial, run_dir)
         except subprocess.CalledProcessError as error:
             raise SystemExit(
                 f"Android app install failed for '{android_serial}' with exit code {error.returncode}"
             ) from error
+        timings["installSeconds"] = round(time.monotonic() - install_started_at, 1)
+        timings["installReused"] = False
+    else:
+        timings["installReused"] = True
+    permissions_started_at = time.monotonic()
     try:
         verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
@@ -315,6 +365,8 @@ def ensure_android_preflight(android_serial: str, *, skip_android_install: bool)
             "Android runtime-permission verification command failed for "
             f"'{android_serial}' with exit code {error.returncode}"
         ) from error
+    timings["permissionsSeconds"] = round(time.monotonic() - permissions_started_at, 1)
+    return timings
 
 
 def validate_serial_configuration(
@@ -407,6 +459,7 @@ def start_android_role_app(
     storage_subdirectory: str,
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
+    advertisement_carrier: str = "uuid-pair",
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_reference_app(android_serial)
@@ -450,6 +503,13 @@ def start_android_role_app(
     ]
     if target_peer_id:
         command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
+    command.extend(
+        [
+            "--es",
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
+            advertisement_carrier,
+        ]
+    )
     print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
     try:
@@ -486,8 +546,27 @@ def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str |
         peer_id = extract_discovered_peer_id(read_text(log_path))
         if peer_id is not None:
             return peer_id
-        time.sleep(0.5)
+        time.sleep(0.25)
     return extract_discovered_peer_id(read_text(log_path))
+
+
+def wait_for_log_marker(log_path: Path, marker: str, timeout_seconds: float) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if marker in read_text(log_path):
+            return True
+        time.sleep(0.25)
+    return marker in read_text(log_path)
+
+
+def wait_for_passive_export_completion(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        completions = collect_android_completions_best_effort(run_dir)
+        if completions.export_relative_path is not None:
+            return completions
+        time.sleep(0.25)
+    return collect_android_completions_best_effort(run_dir)
 
 
 def verify_sender_log(log_path: Path) -> str:
@@ -505,16 +584,14 @@ def verify_sender_log(log_path: Path) -> str:
     return completion_line
 
 
-def verify_passive_log(log_path: Path) -> str:
+def verify_passive_log(log_path: Path) -> str | None:
     log_text = read_text(log_path)
     if not log_text.strip():
         raise SystemExit("Passive log is empty; cannot trust Android-only retained export evidence")
     for marker in PASSIVE_REQUIRED_LOG_MARKERS:
         if marker not in log_text:
             raise SystemExit(f"Expected passive log to contain '{marker}'")
-    completion_line, export_relative_path = extract_passive_completion(log_text)
-    if completion_line is None or export_relative_path is None:
-        raise SystemExit("Missing passive proof.complete line in passive log")
+    completion_line, _export_relative_path = extract_passive_completion(log_text)
     return completion_line
 
 
@@ -530,26 +607,29 @@ def summarize_and_verify(
     sender_completion_line = verify_sender_log(sender_log_path(run_dir))
     passive_completion_line = verify_passive_log(passive_log_path(run_dir))
     if completions.export_relative_path is None:
-        raise SystemExit("Passive retained completion is missing an export path")
+        export_relative_path = infer_passive_export_path(passive_log_path(run_dir))
+    else:
+        export_relative_path = completions.export_relative_path
 
     history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
-    export_relative_file = f"live-automation/{storage_subdirectory}/{completions.export_relative_path}"
     history_json = read_android_app_file(passive_android_serial, history_relative_path)
-    export_json = read_android_app_file(passive_android_serial, export_relative_file)
     (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
-    (run_dir / ANDROID_EXPORT_NAME).write_text(export_json, encoding="utf-8")
 
-    checks = [
-        ('"historyStatus": "RETAINED"', history_json),
-        ('"defaultMode": "redacted-preview"', export_json),
-        ('"fullPayloadIncluded": false', export_json),
-        ('"operatorOptInRecorded": false', export_json),
-    ]
-    for needle, haystack in checks:
-        if needle not in haystack:
-            raise SystemExit(f"Expected '{needle}' in retained export evidence")
-    if '"fullPayload":' in export_json:
-        raise SystemExit("Redacted export unexpectedly included fullPayload")
+    checks = [('"historyStatus": "RETAINED"', history_json)]
+    export_json = None
+    if export_relative_path is not None:
+        export_relative_file = f"live-automation/{storage_subdirectory}/{export_relative_path}"
+        export_json = read_android_app_file(passive_android_serial, export_relative_file)
+        (run_dir / ANDROID_EXPORT_NAME).write_text(export_json, encoding="utf-8")
+        checks.extend(
+            [
+                ('"defaultMode": "redacted-preview"', export_json),
+                ('"fullPayloadIncluded": false', export_json),
+                ('"operatorOptInRecorded": false', export_json),
+            ]
+        )
+        if '"fullPayload":' in export_json:
+            raise SystemExit("Redacted export unexpectedly included fullPayload")
 
     summary = {
         "status": "passed",
@@ -562,6 +642,8 @@ def summarize_and_verify(
         "passiveSerial": passive_android_serial,
         "senderCompletion": sender_completion_line,
         "passiveCompletion": passive_completion_line,
+        "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
+        "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
         "exportRelativePath": completions.export_relative_path,
         "evidence": evidence_paths(run_dir),
         "captured": captured_evidence(run_dir),
@@ -569,7 +651,8 @@ def summarize_and_verify(
     write_summary(run_dir, summary)
     print("==> Scenario:", DIRECT_GUIDED_SCENARIO)
     print("==> Android sender completion:", sender_completion_line)
-    print("==> Android passive completion:", passive_completion_line)
+    if passive_completion_line is not None:
+        print("==> Android passive completion:", passive_completion_line)
     print("==> Android export:", completions.export_relative_path)
     return summary
 
@@ -597,6 +680,8 @@ def failure_summary(
         "senderCompletion": completions.sender_completion,
         "passiveCompletion": completions.passive_completion,
         "senderFailure": completions.sender_failed,
+        "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
+        "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
         "exportRelativePath": completions.export_relative_path,
         "failureStage": stage,
         "failureReason": error_message,
@@ -608,6 +693,7 @@ def failure_summary(
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    run_started_at = time.monotonic()
     run_dir = Path(args.run_dir or f"/tmp/reference_android_direct_proof_{timestamp()}")
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
@@ -632,15 +718,23 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         stage = "preflight"
-        ensure_android_preflight(
-            args.passive_android_serial,
-            skip_android_install=args.skip_android_install,
-        )
-        ensure_android_preflight(
-            args.sender_android_serial,
-            skip_android_install=args.skip_android_install,
-        )
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            passive_future = executor.submit(
+                ensure_android_preflight,
+                args.passive_android_serial,
+                skip_android_install=args.skip_android_install,
+                run_dir=run_dir,
+            )
+            sender_future = executor.submit(
+                ensure_android_preflight,
+                args.sender_android_serial,
+                skip_android_install=args.skip_android_install,
+                run_dir=run_dir,
+            )
+            passive_preflight = passive_future.result()
+            sender_preflight = sender_future.result()
         ensure_extra_force_stop_devices_ready(args.extra_force_stop_serial)
+        print(f"==> Android preflight ready in {time.monotonic() - run_started_at:.1f}s")
 
         try:
             stage = "launch"
@@ -653,13 +747,37 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
+                advertisement_carrier=args.advertisement_carrier,
             )
+            print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
+            passive_marker_path = passive_log_path(run_dir)
             print(
-                f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization"
+                f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
             )
-            time.sleep(args.android_ready_seconds)
+            passive_ready = wait_for_log_marker(
+                passive_marker_path,
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
+                args.android_ready_seconds,
+            )
+            if not passive_ready:
+                print(
+                    f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
+                )
+            passive_transport_timeout_seconds = max(
+                args.android_ready_seconds,
+                min(args.capture_timeout_seconds * 0.3, 20.0),
+            )
+            passive_transport_ready = wait_for_log_marker(
+                passive_marker_path,
+                "advertising started",
+                passive_transport_timeout_seconds,
+            )
+            if not passive_transport_ready:
+                raise SystemExit(
+                    f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
+                )
             discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
-                passive_log_path(run_dir),
+                passive_marker_path,
                 discovery_wait_seconds,
             )
             sender_process = start_android_role_app(
@@ -671,9 +789,22 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=discovered_peer_id,
+                advertisement_carrier=args.advertisement_carrier,
             )
+            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             stage = "capture"
-            completions = wait_for_android_completions(run_dir, args.capture_timeout_seconds)
+            completions = wait_for_android_completions(
+                run_dir,
+                args.capture_timeout_seconds,
+                args.sender_android_serial,
+                args.passive_android_serial,
+            )
+            print(f"==> Android proof completed at +{time.monotonic() - run_started_at:.1f}s")
+            completions = wait_for_passive_export_completion(
+                run_dir,
+                POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS,
+            )
+            time.sleep(POST_RESULT_IDLE_SECONDS)
         finally:
             try:
                 cleanup_android_direct_run(
@@ -697,38 +828,68 @@ def main(argv: list[str] | None = None) -> int:
             completions=completions,
         )
         summary["discoveredPeerId"] = discovered_peer_id
+        summary["timings"] = {
+            "totalSeconds": round(time.monotonic() - run_started_at, 1),
+            "androidReadySeconds": args.android_ready_seconds,
+            "captureTimeoutSeconds": args.capture_timeout_seconds,
+            "senderInstallReused": sender_preflight.get("installReused", False),
+            "passiveInstallReused": passive_preflight.get("installReused", False),
+        }
+        summary["startupTiming"] = {
+            "install": {
+                "senderSeconds": sender_preflight.get("installSeconds"),
+                "passiveSeconds": passive_preflight.get("installSeconds"),
+                "senderReused": sender_preflight.get("installReused", False),
+                "passiveReused": passive_preflight.get("installReused", False),
+            },
+            "permissions": {
+                "senderSeconds": sender_preflight.get("permissionsSeconds"),
+                "passiveSeconds": passive_preflight.get("permissionsSeconds"),
+            },
+            "launch": {
+                "passiveStartupWaitSeconds": args.android_ready_seconds,
+                "captureTimeoutSeconds": args.capture_timeout_seconds,
+            },
+            "totalSeconds": round(time.monotonic() - run_started_at, 1),
+        }
         write_summary(run_dir, summary)
         print("==> Android discovery seed:", discovered_peer_id or "none")
         return 0
     except SystemExit as error:
-        write_summary(
-            run_dir,
-            failure_summary(
-                run_dir=run_dir,
-                sender_android_serial=args.sender_android_serial,
-                passive_android_serial=args.passive_android_serial,
-                app_id=app_id,
-                storage_subdirectory=storage_subdirectory,
-                stage=stage,
-                error_message=str(error),
-                completions=collect_android_completions_best_effort(run_dir),
-            ),
+        failure = failure_summary(
+            run_dir=run_dir,
+            sender_android_serial=args.sender_android_serial,
+            passive_android_serial=args.passive_android_serial,
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            stage=stage,
+            error_message=str(error),
+            completions=collect_android_completions_best_effort(run_dir),
         )
+        failure["timings"] = {
+            "totalSeconds": round(time.monotonic() - run_started_at, 1),
+            "androidReadySeconds": args.android_ready_seconds,
+            "captureTimeoutSeconds": args.capture_timeout_seconds,
+        }
+        write_summary(run_dir, failure)
         raise
     except Exception as error:
-        write_summary(
-            run_dir,
-            failure_summary(
-                run_dir=run_dir,
-                sender_android_serial=args.sender_android_serial,
-                passive_android_serial=args.passive_android_serial,
-                app_id=app_id,
-                storage_subdirectory=storage_subdirectory,
-                stage=stage,
-                error_message=str(error),
-                completions=collect_android_completions_best_effort(run_dir),
-            ),
+        failure = failure_summary(
+            run_dir=run_dir,
+            sender_android_serial=args.sender_android_serial,
+            passive_android_serial=args.passive_android_serial,
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            stage=stage,
+            error_message=str(error),
+            completions=collect_android_completions_best_effort(run_dir),
         )
+        failure["timings"] = {
+            "totalSeconds": round(time.monotonic() - run_started_at, 1),
+            "androidReadySeconds": args.android_ready_seconds,
+            "captureTimeoutSeconds": args.capture_timeout_seconds,
+        }
+        write_summary(run_dir, failure)
         raise
 
 

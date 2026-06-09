@@ -23,6 +23,7 @@ internal fun GuidedFirstExchangeScreen(
 
     GuidedFirstExchangeContent(
         uiState = uiState,
+        powerMitigationLabel = viewModel.powerMitigationLabel,
         onStartMesh = viewModel::startMesh,
         onSendHello = viewModel::sendHelloToFirstPeer,
         onOpenSolo = onOpenSolo,
@@ -34,6 +35,7 @@ internal fun GuidedFirstExchangeScreen(
 @Composable
 private fun GuidedFirstExchangeContent(
     uiState: GuidedFirstExchangeUiState,
+    powerMitigationLabel: String?,
     onStartMesh: () -> Unit,
     onSendHello: () -> Unit,
     onOpenSolo: () -> Unit,
@@ -47,6 +49,7 @@ private fun GuidedFirstExchangeContent(
         item {
             GuidedLiveFirstMessageSection(
                 uiState = uiState,
+                powerMitigationLabel = powerMitigationLabel,
                 onStartMesh = onStartMesh,
                 onSendHello = onSendHello,
                 onOpenSolo = onOpenSolo,

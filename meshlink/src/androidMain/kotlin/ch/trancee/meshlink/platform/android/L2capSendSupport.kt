@@ -4,6 +4,8 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
 
 internal class L2capSendContext
 internal constructor(
@@ -36,22 +38,43 @@ internal suspend fun sendViaL2capWhenReady(
     }
     if (context.advertisedL2capPsm == 0 && directLink == null) {
         dependencies.log(
-            "send(${context.hintPeerId.value.takeLast(6)}) waiting for inbound L2CAP link"
+            "send(${context.hintPeerId.value.takeLast(6)}) no advertised PSM, waiting for inbound link"
         )
-        return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
+        return waitForConnectAndSend(frame = frame, context = context, dependencies = dependencies)
     }
     if (directLink == null) {
-        if (dependencies.shouldInitiateL2cap()) {
+        if (!dependencies.shouldInitiateL2cap()) {
             dependencies.log(
-                "send(${context.hintPeerId.value.takeLast(6)}) no active link, triggering connect"
+                "send(${context.hintPeerId.value.takeLast(6)}) no active link, waiting for inbound link"
             )
-            dependencies.triggerConnectIfNeeded()
-        } else {
-            dependencies.log(
-                "send(${context.hintPeerId.value.takeLast(6)}) waiting for inbound L2CAP link"
+            return waitForConnectAndSend(
+                frame = frame,
+                context = context,
+                dependencies = dependencies,
             )
         }
-        return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
+        dependencies.log(
+            "send(${context.hintPeerId.value.takeLast(6)}) no active link, triggering connect"
+        )
+        dependencies.triggerConnectIfNeeded()
+        return waitForConnectAndSend(frame = frame, context = context, dependencies = dependencies)
     }
     return directLink.send(frame)
+}
+
+private suspend fun waitForConnectAndSend(
+    frame: OutboundFrame,
+    context: L2capSendContext,
+    dependencies: L2capSendDependencies,
+): TransportSendResult {
+    repeat(20) { attempt ->
+        val link = dependencies.currentLink()
+        if (link != null) {
+            return link.send(frame)
+        }
+        if (attempt < 19) {
+            delay(25.milliseconds)
+        }
+    }
+    return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")
 }

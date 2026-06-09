@@ -25,14 +25,49 @@ internal fun buildDiscoveryPayload(
     )
 }
 
-internal fun buildAdvertiseData(payload: BleDiscoveryPayload): AdvertiseData {
-    return AdvertiseData.Builder()
-        .setIncludeDeviceName(false)
-        .addServiceUuid(
-            ParcelUuid.fromString(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
-        )
-        .addServiceUuid(ParcelUuid.fromString(payload.payloadUuidString()))
-        .build()
+public enum class DiscoveryAdvertisementCarrier {
+    UUID_PAIR,
+    UUID_PAIR_PLUS_SERVICE_DATA,
+}
+
+public object AndroidDiscoveryAdvertisementConfig {
+    @Volatile
+    public var carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR
+}
+
+public data class DiscoveryAdvertisePlan(
+    internal val serviceUuids: List<String>,
+    internal val serviceData: Map<String, ByteArray>,
+)
+
+internal fun buildAdvertisePlan(
+    payload: BleDiscoveryPayload,
+    carrier: DiscoveryAdvertisementCarrier = DiscoveryAdvertisementCarrier.UUID_PAIR,
+): DiscoveryAdvertisePlan {
+    val payloadUuid = payload.payloadUuidString()
+    val serviceUuids = listOf(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED, payloadUuid)
+    val serviceData =
+        when (carrier) {
+            DiscoveryAdvertisementCarrier.UUID_PAIR -> emptyMap()
+            DiscoveryAdvertisementCarrier.UUID_PAIR_PLUS_SERVICE_DATA ->
+                mapOf(payloadUuid to payload.encode())
+        }
+    return DiscoveryAdvertisePlan(serviceUuids = serviceUuids, serviceData = serviceData)
+}
+
+internal fun buildAdvertiseData(
+    payload: BleDiscoveryPayload,
+    carrier: DiscoveryAdvertisementCarrier = AndroidDiscoveryAdvertisementConfig.carrier,
+): AdvertiseData {
+    val plan = buildAdvertisePlan(payload = payload, carrier = carrier)
+    val builder = AdvertiseData.Builder().setIncludeDeviceName(false)
+    plan.serviceUuids.forEach { serviceUuid ->
+        builder.addServiceUuid(ParcelUuid.fromString(serviceUuid))
+    }
+    plan.serviceData.forEach { (serviceUuid, bytes) ->
+        builder.addServiceData(ParcelUuid.fromString(serviceUuid), bytes)
+    }
+    return builder.build()
 }
 
 internal fun buildAdvertiseSettings(currentPowerProfile: PowerProfile): AdvertiseSettings {

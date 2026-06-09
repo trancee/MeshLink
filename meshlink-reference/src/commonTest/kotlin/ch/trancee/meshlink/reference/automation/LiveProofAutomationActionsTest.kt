@@ -26,28 +26,14 @@ class LiveProofAutomationActionsTest {
         // Arrange
         val harness = TimelineStoreHarness()
         val timelineStore = harness.createStore(scope = this)
+        val platformServices = platformServicesStub(timelineStore, harness.sessionController)
         val sessionTransitionService =
             SessionTransitionService(
                 timelineStore = timelineStore,
                 sessionController = harness.sessionController,
+                platformServices = platformServices,
                 currentTimeMillis = { 1_000L },
             )
-        val platformServices =
-            object : PlatformServices {
-                override val platformName: String = "Test"
-                override val defaultAuthorityMode: ReferenceAuthorityMode =
-                    ReferenceAuthorityMode.LIVE
-                override val readinessGuidance: List<String> = emptyList()
-                override val readinessBlockers: List<String> = emptyList()
-                override val automationConfig: ReferenceAutomationConfig? = null
-                override val documentStore: ReferenceDocumentStore =
-                    InMemoryReferenceDocumentStore()
-                override val meshLinkController = harness.sessionController
-
-                override fun currentTimeMillis(): Long = 1_000L
-
-                override fun emitAutomationLog(message: String): Unit = Unit
-            }
         val actions =
             TimelineStoreLiveProofAutomationActions(
                 platformServices = platformServices,
@@ -74,29 +60,15 @@ class LiveProofAutomationActionsTest {
         // Arrange
         val harness = TimelineStoreHarness()
         val timelineStore = harness.createStore(scope = this)
+        val controller = RecordingAutomationController(harness.sessionController.snapshot.value)
+        val platformServices = platformServicesStub(timelineStore, controller)
         val sessionTransitionService =
             SessionTransitionService(
                 timelineStore = timelineStore,
                 sessionController = harness.sessionController,
+                platformServices = platformServices,
                 currentTimeMillis = { 1_000L },
             )
-        val controller = RecordingAutomationController(harness.sessionController.snapshot.value)
-        val platformServices =
-            object : PlatformServices {
-                override val platformName: String = "Test"
-                override val defaultAuthorityMode: ReferenceAuthorityMode =
-                    ReferenceAuthorityMode.LIVE
-                override val readinessGuidance: List<String> = emptyList()
-                override val readinessBlockers: List<String> = emptyList()
-                override val automationConfig: ReferenceAutomationConfig? = null
-                override val documentStore: ReferenceDocumentStore =
-                    InMemoryReferenceDocumentStore()
-                override val meshLinkController: ReferenceMeshLinkController = controller
-
-                override fun currentTimeMillis(): Long = 1_000L
-
-                override fun emitAutomationLog(message: String): Unit = Unit
-            }
         val actions =
             TimelineStoreLiveProofAutomationActions(
                 platformServices = platformServices,
@@ -134,6 +106,28 @@ class LiveProofAutomationActionsTest {
         } finally {
             coroutineContext.cancelChildren()
         }
+    }
+}
+
+private fun platformServicesStub(
+    timelineStore: ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore,
+    controller: ReferenceMeshLinkController,
+): PlatformServices {
+    return object : PlatformServices {
+        override val platformName: String = "Test"
+        override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
+        override val readinessGuidance: List<String> = emptyList()
+        override val readinessBlockers: List<String> = emptyList()
+        override val automationConfig: ReferenceAutomationConfig? = null
+        override val powerMitigationStatus: String? = null
+        override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
+        override val meshLinkController: ReferenceMeshLinkController = controller
+
+        override fun currentTimeMillis(): Long = 1_000L
+
+        override fun emitAutomationLog(message: String): Unit = Unit
+
+        override fun stopPowerMitigation(): Unit = Unit
     }
 }
 

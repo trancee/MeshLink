@@ -30,6 +30,18 @@ class FakeLogcatProcess:
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
             )
             stdout.write(
+                "05-31 10:00:00.050 D MeshLinkTransport: start()\n"
+            )
+            stdout.write(
+                "05-31 10:00:00.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
+            )
+            stdout.write(
+                "05-31 10:00:00.070 D MeshLinkTransport: scan started\n"
+            )
+            stdout.write(
+                "05-31 10:00:00.080 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true\n"
+            )
+            stdout.write(
                 "05-31 10:00:00.100 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=passive-peer\n"
             )
@@ -38,6 +50,18 @@ class FakeLogcatProcess:
             stdout.write(
                 "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-guided\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.050 D MeshLinkTransport: start()\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.070 D MeshLinkTransport: scan started\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.080 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true\n"
             )
             stdout.write(
                 "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
@@ -53,14 +77,6 @@ class FakeLogcatProcess:
             )
             stdout.flush()
             passive_log = self._shared["passive_log"]
-            passive_log.write(
-                "05-31 10:00:01.400 I MeshLinkReferenceAutomation: "
-                "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview\n"
-            )
-            passive_log.write(
-                "05-31 10:00:01.500 I MeshLinkReferenceAutomation: "
-                "REFERENCE_AUTOMATION proof.complete role=passive inboundCount=1 export=exports/session-redacted.json\n"
-            )
             passive_log.flush()
 
     def poll(self) -> int | None:
@@ -177,6 +193,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                         "0",
                         "--capture-timeout-seconds",
                         "1",
+                        "--advertisement-carrier",
+                        "uuid-pair-plus-service-data",
                     ]
                 )
 
@@ -206,17 +224,22 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("sender", start_commands[1])
                 self.assertIn("direct-guided", start_commands[0])
                 self.assertIn("direct-guided", start_commands[1])
+                sender_start_command = next(
+                    command
+                    for command in run_calls
+                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
+                )
+                self.assertIn(
+                    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
+                    sender_start_command,
+                )
+                self.assertIn("uuid-pair-plus-service-data", sender_start_command)
                 self.assertEqual(force_stop_calls.count("extra-1"), 2)
                 self.assertLess(
                     events.index(("force_stop", "extra-1")),
                     events.index(("start", "passive-1:passive")),
                 )
                 self.assertEqual(force_stop_calls[-3:], ["sender-1", "passive-1", "extra-1"])
-                sender_start_command = next(
-                    command
-                    for command in run_calls
-                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
-                )
                 self.assertNotIn("-W", sender_start_command)
                 self.assertEqual(
                     run_timeouts[run_calls.index(sender_start_command)],
@@ -228,8 +251,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(summary["scenario"], "direct-guided")
                 self.assertEqual(summary["senderPlatform"], "android")
                 self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
-                self.assertEqual(summary["passiveCompletion"].split(" role=")[1].split()[0], "passive")
-                self.assertEqual(summary["exportRelativePath"], "exports/session-redacted.json")
+                self.assertIsNone(summary["passiveCompletion"])
+                self.assertIsNone(summary["exportRelativePath"])
                 self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
                 self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
                 self.assertTrue((run_dir / "sender_logcat.log").exists())
@@ -238,10 +261,10 @@ class AndroidDirectProofTests(unittest.TestCase):
                     (run_dir / "android_history.json").read_text(encoding="utf-8"),
                     '{"historyStatus": "RETAINED"}',
                 )
-                self.assertIn(
-                    '"defaultMode": "redacted-preview"',
-                    (run_dir / "android_export.json").read_text(encoding="utf-8"),
-                )
+                self.assertIn("startupTiming", summary)
+                self.assertEqual(summary["startupTiming"]["launch"]["passiveStartupWaitSeconds"], 0)
+                self.assertIn("install", summary["startupTiming"])
+                self.assertIn("permissions", summary["startupTiming"])
 
     def test_main_rejects_missing_transport_discovery_with_specific_failure(self) -> None:
         # Arrange
@@ -475,7 +498,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertTrue(summary["captured"]["passiveLogcat"])
             self.assertTrue(summary["partialEvidenceAvailable"])
             self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
-            self.assertEqual(summary["passiveCompletion"].split(" role=")[1].split()[0], "passive")
+            self.assertIsNone(summary["passiveCompletion"])
 
     def test_main_records_sender_launch_timeout_with_retained_start_note(self) -> None:
         # Arrange
@@ -558,7 +581,12 @@ class AndroidDirectProofTests(unittest.TestCase):
 
             # Act / Assert
             with self.assertRaises(SystemExit) as error:
-                android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+                android_direct_proof.wait_for_android_completions(
+                    run_dir,
+                    timeout_seconds=0.1,
+                    sender_android_serial="sender-1",
+                    passive_android_serial="passive-1",
+                )
 
         self.assertIn("missing export path", str(error.exception))
 
@@ -587,7 +615,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             ):
                 # Act / Assert
                 with self.assertRaises(SystemExit) as error:
-                    android_direct_proof.wait_for_android_completions(run_dir, timeout_seconds=0.1)
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir,
+                        timeout_seconds=0.1,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
 
         self.assertIn("passive", str(error.exception))
 

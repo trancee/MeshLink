@@ -13,6 +13,7 @@ internal class LiveProofAutomationCoordinator(
         timelineUiState: TechnicalTimelineUiState,
     ): Unit {
         announceAutomationStartIfNeeded()
+        announceSnapshotState(snapshot)
         announcePeerDiscoveryIfNeeded(snapshot)
         announcePeerSnapshotIfNeeded(snapshot)
         requestMeshStartIfNeeded(snapshot)
@@ -30,6 +31,14 @@ internal class LiveProofAutomationCoordinator(
                 )
             ReferenceAutomationRole.RELAY -> runRelayAutomationStep(snapshot, actions, progress)
         }
+    }
+
+    private fun announceSnapshotState(snapshot: ReferenceControllerSnapshot): Unit {
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION snapshot role=${automationConfig.role} peers=${snapshot.peers.size} " +
+                "hasPeers=${snapshot.peers.isNotEmpty()} meshStartRequested=${progress.meshStartRequested} " +
+                "peerAnnounced=${progress.peerAnnounced} announced=${progress.announced}"
+        )
     }
 
     private fun announceAutomationStartIfNeeded(): Unit {
@@ -78,18 +87,25 @@ internal class LiveProofAutomationCoordinator(
     }
 
     private fun requestMeshStartIfNeeded(snapshot: ReferenceControllerSnapshot): Unit {
-        if (
-            !shouldRequestLiveProofMeshStart(
+        val readinessBlockers = actions.readinessBlockers
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION mesh.start.evaluate role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
+        )
+        val shouldRequest =
+            shouldRequestLiveProofMeshStart(
                 meshStartRequested = progress.meshStartRequested,
                 snapshot = snapshot,
-                readinessBlockers = actions.readinessBlockers,
+                readinessBlockers = readinessBlockers,
             )
-        ) {
+        if (!shouldRequest) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION mesh.start.skipped role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
+            )
             return
         }
 
         actions.emitAutomationLog(
-            "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role}"
+            "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
         )
         actions.requestMeshStart()
         progress.meshStartRequested = true

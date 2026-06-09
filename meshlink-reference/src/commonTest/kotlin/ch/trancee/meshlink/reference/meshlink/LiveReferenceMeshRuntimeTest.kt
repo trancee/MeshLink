@@ -103,10 +103,7 @@ class LiveReferenceMeshRuntimeTest {
         val result =
             runtime.execute(stateStore, nowProvider = { 2_000L }, sessionProjector) {
                 meshLink.publishPeerEvent(
-                    PeerEvent.Found(
-                        peerId,
-                        ch.trancee.meshlink.api.PeerConnectionState.CONNECTED,
-                    )
+                    PeerEvent.Found(peerId, ch.trancee.meshlink.api.PeerConnectionState.CONNECTED)
                 )
                 StartResult.Started
             }
@@ -132,10 +129,7 @@ class LiveReferenceMeshRuntimeTest {
             val sessionProjector = LiveReferenceSessionProjector(stateStore)
             val peerId = PeerId("peer-654321")
             peerEvents.emit(
-                PeerEvent.Found(
-                    peerId,
-                    ch.trancee.meshlink.api.PeerConnectionState.CONNECTED,
-                )
+                PeerEvent.Found(peerId, ch.trancee.meshlink.api.PeerConnectionState.CONNECTED)
             )
 
             // Act
@@ -160,7 +154,7 @@ class LiveReferenceMeshRuntimeTest {
 }
 
 private class RecordingMeshLink(
-    private val peerEventsFlow: MutableSharedFlow<PeerEvent> = MutableSharedFlow(),
+    private val peerEventsFlow: MutableSharedFlow<PeerEvent> = MutableSharedFlow()
 ) : MeshLink {
     override val state = MutableStateFlow<MeshLinkState>(MeshLinkState.Uninitialized)
     override val peerEvents: Flow<PeerEvent> = peerEventsFlow
@@ -168,6 +162,7 @@ private class RecordingMeshLink(
     suspend fun publishPeerEvent(event: PeerEvent): Unit {
         peerEventsFlow.emit(event)
     }
+
     override val diagnosticEvents: Flow<DiagnosticEvent> = MutableSharedFlow()
     override val messages: Flow<InboundMessage> = MutableSharedFlow()
 

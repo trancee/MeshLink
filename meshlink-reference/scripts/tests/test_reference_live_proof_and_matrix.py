@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from support import SCRIPTS_DIR
@@ -37,6 +40,109 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
         self.assertIn("direct-restart-recovery", live_proof.DIRECT_PHYSICAL_SCENARIOS)
         self.assertIn("direct-isolation-recovery", live_proof.DIRECT_PHYSICAL_SCENARIOS)
         self.assertIn("direct-route-break-recovery", live_proof.DIRECT_PHYSICAL_SCENARIOS)
+
+    def test_main_writes_startup_timing_section_to_summary(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "live-proof"
+            argv = [
+                "run_headless_reference_live_proof.py",
+                "--android-serial",
+                "android-serial-123",
+                "--ios-device",
+                "ios-device-123",
+                "--run-dir",
+                str(run_dir),
+                "--skip-ios-build",
+                "--skip-ios-install",
+                "--skip-android-install",
+                "--skip-android-completion-wait",
+                "--android-ready-seconds",
+                "0",
+                "--capture-timeout-seconds",
+                "0.1",
+                "--post-result-idle-seconds",
+                "0",
+            ]
+
+            class FakeProcess:
+                def stop(self) -> None:
+                    return None
+
+            def fake_start_android_app(*args, **kwargs):
+                del args, kwargs
+                log_path = run_dir / "android_logcat.log"
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE\n",
+                    encoding="utf-8",
+                )
+                return FakeProcess()
+
+            with (
+                patch.object(sys, "argv", argv),
+                patch.object(live_proof, "ensure_android_device_ready"),
+                patch.object(live_proof, "verify_android_runtime_permissions"),
+                patch.object(live_proof, "install_android_app"),
+                patch.object(live_proof, "latest_built_app", return_value=Path("/tmp/fake.app")),
+                patch.object(live_proof, "install_ios_app"),
+                patch.object(live_proof, "build_ios_app", return_value=Path("/tmp/fake.app")),
+                patch.object(live_proof, "start_android_app", side_effect=fake_start_android_app),
+                patch.object(live_proof, "wait_for_android_completion", return_value=("android complete", "exports/session-redacted.json")),
+                patch.object(live_proof, "wait_for_ios_sender_result"),
+                patch.object(live_proof, "verify_ios_sender_log", return_value="ios complete"),
+                patch.object(live_proof, "force_stop_reference_app"),
+                patch.object(live_proof.time, "sleep", return_value=None),
+            ):
+                exit_code = live_proof.main()
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("startupTiming", summary)
+            self.assertIn("install", summary["startupTiming"])
+            self.assertIn("permissions", summary["startupTiming"])
+            self.assertIn("launch", summary["startupTiming"])
+            self.assertEqual(summary["startupTiming"]["launch"]["postResultIdleSeconds"], 0)
+
+    def test_install_android_app_runs_without_play_protect_prompt_handling(self) -> None:
+        # Arrange
+        poll_calls = 0
+
+        class FakeProcess:
+            def __init__(self) -> None:
+                self.returncode = None
+
+            def poll(self) -> int | None:
+                nonlocal poll_calls
+                poll_calls += 1
+                if poll_calls < 3:
+                    return None
+                self.returncode = 0
+                return 0
+
+            def terminate(self) -> None:
+                self.returncode = 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                del timeout
+                self.returncode = 0
+                return 0
+
+            def kill(self) -> None:
+                self.returncode = 0
+
+        with (
+            patch.object(live_proof, "android_apk_path", return_value=None),
+            patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+            patch.object(live_proof.subprocess, "Popen", return_value=FakeProcess()),
+            patch.object(live_proof.time, "sleep", return_value=None),
+        ):
+            # Act
+            live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
+
+        # Assert
+        self.assertGreaterEqual(poll_calls, 3)
 
 
 class ReferencePhysicalMatrixScriptTests(unittest.TestCase):

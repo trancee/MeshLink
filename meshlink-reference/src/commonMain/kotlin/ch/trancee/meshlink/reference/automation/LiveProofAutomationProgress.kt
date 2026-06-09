@@ -11,6 +11,8 @@ internal class LiveProofAutomationProgress {
     var bootstrapRequested: Boolean = false
     var sendRequested: Boolean = false
     var senderPeerWaitLogged: Boolean = false
+    var senderPeerWaitRetryScheduled: Boolean = false
+    var senderPeerWaitRetryCount: Int = 0
     var pauseRequested: Boolean = false
     var pauseObserved: Boolean = false
     var pauseResumeTargetPeerId: String? = null
@@ -45,11 +47,18 @@ internal fun latestSenderDeliveryDetail(
 ): String? {
     return snapshot.timeline
         .lastOrNull { entry ->
-            entry.family == TimelineFamily.DIAGNOSTIC &&
-                entry.title == "DELIVERY_SUCCEEDED" &&
+            entry.family == TimelineFamily.MESSAGE &&
+                (entry.title == "Guided message sent" || entry.title == "DELIVERY_SUCCEEDED") &&
                 (peerSuffix == null || entry.peerSuffix == peerSuffix)
         }
         ?.detail
+        ?: snapshot.timeline
+            .lastOrNull { entry ->
+                entry.family == TimelineFamily.DIAGNOSTIC &&
+                    entry.title == "DELIVERY_SUCCEEDED" &&
+                    (peerSuffix == null || entry.peerSuffix == peerSuffix)
+            }
+            ?.detail
 }
 
 internal enum class SenderPayloadPlan(val label: String, val priority: DeliveryPriority) {

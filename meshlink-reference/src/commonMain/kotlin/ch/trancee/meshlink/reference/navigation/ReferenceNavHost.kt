@@ -103,7 +103,10 @@ internal fun ReferenceNavHost(platformServices: PlatformServices) {
 
     DisposableEffect(dependencies.liveProofAutomationDriver) {
         dependencies.liveProofAutomationDriver.start()
-        onDispose { dependencies.liveProofAutomationDriver.close() }
+        onDispose {
+            dependencies.liveProofAutomationDriver.close()
+            platformServices.stopPowerMitigation()
+        }
     }
 
     ReferenceShellScaffold(

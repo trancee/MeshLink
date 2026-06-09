@@ -58,6 +58,8 @@ If you are using this app as the receiving proof peer for
 keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
 matches the tutorial host app.
 
+For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake. The reference app now starts a foreground wake-lock mitigation during live-proof automation sessions to reduce that quick-doze risk on doze-sensitive OEM builds. The direct-proof runner now requires sender `proof.complete` but accepts passive retained evidence without passive `proof.complete`, so the passive role can pass on retained history/export evidence even when the completion log is absent.
+
 ## 3. Override launch settings when you need a specific proof shape
 
 The Android proof app reads these intent extras on launch:
@@ -123,6 +125,13 @@ In normal `meshlink` mode, the proof app gives you:
 If you are validating supported user-visible behavior, stay in `meshlink` mode
 or move to the reference app. Use `gatt` and `gatt-notify` only when you are
 explicitly doing retained transport investigation or benchmark-oriented work.
+
+When using the reference app for Android direct proof, keep in mind that the
+live-proof automation path now starts a foreground wake lock plus a foreground
+service to keep doze-sensitive devices awake while the session is running.
+That makes the reference app more reliable on aggressive OEM builds, but it is
+still best to keep the device on a charger or otherwise avoid battery-saver
+policies during long capture windows.
 
 ### Contributor note
 

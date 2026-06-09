@@ -49,7 +49,11 @@ usually need to verify are **Nearby devices** and **Location**.
 If you are using the Android direct-proof launcher, note that it now accepts an
 optional `--target-peer-id` bootstrap hint. That only helps when the upstream
 runner already knows a concrete peer id; it does not replace real discovery, so
-an empty peer list can still stall the proof if no seed is supplied.
+an empty peer list can still stall the proof if no seed is supplied. On
+doze-sensitive Android builds, the reference app also starts a foreground
+wake-lock mitigation during live-proof automation; if discovery still stalls,
+check both permissions and battery optimization / screen-awake state before
+assuming it is a pure transport failure.
 
 After changing Android permissions:
 

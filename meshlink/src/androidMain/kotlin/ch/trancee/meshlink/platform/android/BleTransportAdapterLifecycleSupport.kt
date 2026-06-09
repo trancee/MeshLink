@@ -31,6 +31,9 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             throw androidPermissionDenied(exception)
         }
 
+    log(
+        "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+    )
     val serverSocket =
         runCatching {
                 L2capSocketFactory.listenInsecure(adapter) { error ->
@@ -93,14 +96,24 @@ internal fun BleTransportAdapter.discoveryHardware(): BleTransportDiscoveryHardw
         hasAdvertiser = advertiser != null,
         stopScan = { callback -> scanner?.stopScan(callback) },
         startScan = { powerProfile, callback ->
+            log(
+                "scan requested mode=${powerProfile.scanMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+            )
             scanner?.startScan(buildScanFilters(), buildScanSettings(powerProfile), callback)
+            log("scan start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}")
         },
         stopAdvertising = { callback -> advertiser?.stopAdvertising(callback) },
         startAdvertising = { powerProfile, payload, callback ->
+            log(
+                "advertise requested mode=${powerProfile.advertiseMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"
+            )
             advertiser?.startAdvertising(
                 buildAdvertiseSettings(powerProfile),
                 buildAdvertiseData(payload),
                 callback,
+            )
+            log(
+                "advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"
             )
         },
     )
