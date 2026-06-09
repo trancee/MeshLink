@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.reference.automation
 
-import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +28,7 @@ public class ReferenceStartupCoordinator(
 
         liveProofStartupRequested = true
         platformServices.emitAutomationLog(
-            "REFERENCE_AUTOMATION startup.coordinator.requested mode=${config.mode} role=${config.role} appId=${config.appId} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
+            "REFERENCE_AUTOMATION startup.coordinator.requested mode=${config.mode} role=${config.role} appId=${config.appId} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
         )
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             platformServices.emitAutomationLog(
