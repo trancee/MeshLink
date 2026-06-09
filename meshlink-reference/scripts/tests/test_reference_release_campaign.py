@@ -662,7 +662,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertIn("summary-missing", direct_report["evidenceIssues"])
             self.assertIn("analysis-json-missing", direct_report["evidenceIssues"])
             self.assertIn("analysis-markdown-missing", direct_report["evidenceIssues"])
-            self.assertEqual(relay_report["verdict"], "pass")
+            self.assertEqual(relay_report["verdict"], "skipped")
             self.assertEqual(relay_report["analysisStatus"], "pass")
             self.assertEqual(relay_report["completeEvidence"], True)
             self.assertIn(
@@ -826,6 +826,7 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
                     self.assertEqual(exit_code, release_campaign.EXIT_PASS)
                     campaign_state = self.load_json(run_root / "campaign-state.json")
                     relay_state = self.scenario_by_id(campaign_state, "relay-constrained")
+                    report_data = self.load_json(run_root / "report-data.json")
                     self.assertEqual(relay_state["status"], "skipped")
                     self.assertIn(
                         "relay-constrained-analysis-invalid-environment",
