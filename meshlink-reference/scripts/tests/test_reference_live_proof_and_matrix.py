@@ -105,6 +105,47 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
             self.assertIn("launch", summary["startupTiming"])
             self.assertEqual(summary["startupTiming"]["launch"]["postResultIdleSeconds"], 0)
 
+    def test_install_android_app_dismisses_play_protect_prompt_while_install_is_running(self) -> None:
+        # Arrange
+        prompt_attempts: list[str] = []
+        poll_calls = 0
+
+        class FakeProcess:
+            def __init__(self) -> None:
+                self.returncode = None
+
+            def poll(self) -> int | None:
+                nonlocal poll_calls
+                poll_calls += 1
+                if poll_calls < 3:
+                    return None
+                self.returncode = 0
+                return 0
+
+            def terminate(self) -> None:
+                self.returncode = 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                del timeout
+                self.returncode = 0
+                return 0
+
+            def kill(self) -> None:
+                self.returncode = 0
+
+        with (
+            patch.object(live_proof, "android_apk_path", return_value=None),
+            patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+            patch.object(live_proof.subprocess, "Popen", return_value=FakeProcess()),
+            patch.object(live_proof, "dismiss_play_protect_prompt", side_effect=lambda serial: prompt_attempts.append(serial) or True),
+            patch.object(live_proof.time, "sleep", return_value=None),
+        ):
+            # Act
+            live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
+
+        # Assert
+        self.assertEqual(prompt_attempts, ["nokia-x20", "nokia-x20"])
+
 
 class ReferencePhysicalMatrixScriptTests(unittest.TestCase):
     def test_help_lists_the_new_resilience_scenarios(self) -> None:
