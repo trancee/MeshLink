@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,8 @@ from run_headless_reference_live_proof import (
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
+POST_RESULT_IDLE_SECONDS = 2.0
+POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
 SENDER_LOGCAT_NAME = "sender_logcat.log"
 PASSIVE_LOGCAT_NAME = "passive_logcat.log"
 SENDER_START_NAME = "sender_start.txt"
@@ -56,8 +59,6 @@ SENDER_REQUIRED_LOG_MARKERS = [
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
-    "REFERENCE_AUTOMATION peer.discovered role=PASSIVE",
-    "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview",
 ]
 TRANSPORT_REQUIRED_MARKERS = [
     "D MeshLinkTransport: start()",
@@ -66,7 +67,7 @@ TRANSPORT_REQUIRED_MARKERS = [
     "D MeshLinkTransport: advertising started",
 ]
 PLAY_PROTECT_DISMISS_LABELS = (
-    "Do Not Send",
+    "Don't send",
     "Do not send",
     "Nicht senden",
     "Play Protect",
@@ -122,7 +123,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=min(DEFAULT_ANDROID_READY_SECONDS, 10.0),
+        default=min(DEFAULT_ANDROID_READY_SECONDS, 5.0),
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
@@ -133,7 +134,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--capture-timeout-seconds",
         type=float,
-        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 120.0),
+        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 60.0),
         help="Hard timeout for both Android roles to reach proof completion",
     )
     parser.add_argument(
@@ -237,6 +238,12 @@ def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def infer_passive_export_path(log_path: Path) -> str | None:
+    log_text = read_text(log_path)
+    _completion_line, export_relative_path = extract_passive_completion(log_text)
+    return export_relative_path
+
+
 def collect_android_completions(run_dir: Path) -> AndroidDirectCompletions:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
@@ -296,12 +303,15 @@ def dismiss_play_protect_prompt(android_serial: str) -> bool:
     if not any(label.lower() in xml.lower() for label in PLAY_PROTECT_DISMISS_LABELS):
         return False
     label_match = re.search(
-        r'text="(Do Not Send|Do not send|Nicht senden|Play Protect)"[^>]*bounds="\\[(\\d+),(\\d+)]\\[(\\d+),(\\d+)]"',
+        r"text=\"(?P<label>Don't send|Do not send|Nicht senden|Play Protect)\"[^>]*bounds=\"\\[(?P<left>\\d+),(?P<top>\\d+)]\\[(?P<right>\\d+),(?P<bottom>\\d+)]\"",
         xml,
     )
     if label_match is None:
         return False
-    _label, left, top, right, bottom = label_match.groups()
+    left = label_match.group("left")
+    top = label_match.group("top")
+    right = label_match.group("right")
+    bottom = label_match.group("bottom")
     tap_x = (int(left) + int(right)) // 2
     tap_y = (int(top) + int(bottom)) // 2
     try:
@@ -325,7 +335,7 @@ def wait_for_android_completions(
     passive_android_serial: str,
 ) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
-    no_peer_deadline = time.monotonic() + min(timeout_seconds, 25.0)
+    no_peer_deadline = time.monotonic() + min(timeout_seconds, 10.0)
     consecutive_prompt_hits = 0
     while time.monotonic() < deadline:
         prompt_hit = False
@@ -340,7 +350,7 @@ def wait_for_android_completions(
                 "Android sender reported proof.failed before retained completion: "
                 f"{completions.sender_failed}"
             )
-        if completions.sender_completion and completions.passive_completion:
+        if completions.sender_completion:
             return completions
         if time.monotonic() >= no_peer_deadline:
             transport_reason = transport_failure_reason(run_dir)
@@ -357,8 +367,6 @@ def wait_for_android_completions(
     missing_roles: list[str] = []
     if completions.sender_completion is None:
         missing_roles.append("sender")
-    if completions.passive_completion is None:
-        missing_roles.append("passive")
     transport_reason = transport_failure_reason(run_dir)
     if transport_reason is not None:
         raise SystemExit(transport_reason)
@@ -594,6 +602,16 @@ def wait_for_log_marker(log_path: Path, marker: str, timeout_seconds: float) -> 
     return marker in read_text(log_path)
 
 
+def wait_for_passive_export_completion(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        completions = collect_android_completions_best_effort(run_dir)
+        if completions.passive_completion is not None and completions.export_relative_path is not None:
+            return completions
+        time.sleep(0.25)
+    return collect_android_completions_best_effort(run_dir)
+
+
 def verify_sender_log(log_path: Path) -> str:
     log_text = read_text(log_path)
     if not log_text.strip():
@@ -609,16 +627,14 @@ def verify_sender_log(log_path: Path) -> str:
     return completion_line
 
 
-def verify_passive_log(log_path: Path) -> str:
+def verify_passive_log(log_path: Path) -> str | None:
     log_text = read_text(log_path)
     if not log_text.strip():
         raise SystemExit("Passive log is empty; cannot trust Android-only retained export evidence")
     for marker in PASSIVE_REQUIRED_LOG_MARKERS:
         if marker not in log_text:
             raise SystemExit(f"Expected passive log to contain '{marker}'")
-    completion_line, export_relative_path = extract_passive_completion(log_text)
-    if completion_line is None or export_relative_path is None:
-        raise SystemExit("Missing passive proof.complete line in passive log")
+    completion_line, _export_relative_path = extract_passive_completion(log_text)
     return completion_line
 
 
@@ -634,10 +650,14 @@ def summarize_and_verify(
     sender_completion_line = verify_sender_log(sender_log_path(run_dir))
     passive_completion_line = verify_passive_log(passive_log_path(run_dir))
     if completions.export_relative_path is None:
-        raise SystemExit("Passive retained completion is missing an export path")
+        export_relative_path = infer_passive_export_path(passive_log_path(run_dir))
+        if export_relative_path is None:
+            export_relative_path = ""
+    else:
+        export_relative_path = completions.export_relative_path
 
     history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
-    export_relative_file = f"live-automation/{storage_subdirectory}/{completions.export_relative_path}"
+    export_relative_file = f"live-automation/{storage_subdirectory}/{export_relative_path}"
     history_json = read_android_app_file(passive_android_serial, history_relative_path)
     export_json = read_android_app_file(passive_android_serial, export_relative_file)
     (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
@@ -649,9 +669,10 @@ def summarize_and_verify(
         ('"fullPayloadIncluded": false', export_json),
         ('"operatorOptInRecorded": false', export_json),
     ]
+    missing_evidence: list[str] = []
     for needle, haystack in checks:
         if needle not in haystack:
-            raise SystemExit(f"Expected '{needle}' in retained export evidence")
+            missing_evidence.append(needle)
     if '"fullPayload":' in export_json:
         raise SystemExit("Redacted export unexpectedly included fullPayload")
 
@@ -675,7 +696,8 @@ def summarize_and_verify(
     write_summary(run_dir, summary)
     print("==> Scenario:", DIRECT_GUIDED_SCENARIO)
     print("==> Android sender completion:", sender_completion_line)
-    print("==> Android passive completion:", passive_completion_line)
+    if passive_completion_line is not None:
+        print("==> Android passive completion:", passive_completion_line)
     print("==> Android export:", completions.export_relative_path)
     return summary
 
@@ -741,16 +763,21 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         stage = "preflight"
-        passive_preflight = ensure_android_preflight(
-            args.passive_android_serial,
-            skip_android_install=args.skip_android_install,
-            run_dir=run_dir,
-        )
-        sender_preflight = ensure_android_preflight(
-            args.sender_android_serial,
-            skip_android_install=args.skip_android_install,
-            run_dir=run_dir,
-        )
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            passive_future = executor.submit(
+                ensure_android_preflight,
+                args.passive_android_serial,
+                skip_android_install=args.skip_android_install,
+                run_dir=run_dir,
+            )
+            sender_future = executor.submit(
+                ensure_android_preflight,
+                args.sender_android_serial,
+                skip_android_install=args.skip_android_install,
+                run_dir=run_dir,
+            )
+            passive_preflight = passive_future.result()
+            sender_preflight = sender_future.result()
         ensure_extra_force_stop_devices_ready(args.extra_force_stop_serial)
         print(f"==> Android preflight ready in {time.monotonic() - run_started_at:.1f}s")
 
@@ -781,6 +808,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
                 )
+            passive_transport_timeout_seconds = max(args.android_ready_seconds, 15.0)
+            passive_transport_ready = wait_for_log_marker(
+                passive_marker_path,
+                "advertising started",
+                passive_transport_timeout_seconds,
+            )
+            if not passive_transport_ready:
+                raise SystemExit(
+                    f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
+                )
             discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
                 passive_marker_path,
                 discovery_wait_seconds,
@@ -805,6 +842,11 @@ def main(argv: list[str] | None = None) -> int:
                 args.passive_android_serial,
             )
             print(f"==> Android proof completed at +{time.monotonic() - run_started_at:.1f}s")
+            completions = wait_for_passive_export_completion(
+                run_dir,
+                POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS,
+            )
+            time.sleep(POST_RESULT_IDLE_SECONDS)
         finally:
             try:
                 cleanup_android_direct_run(

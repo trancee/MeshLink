@@ -7,10 +7,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+
+private const val SENDER_PEER_WAIT_RETRY_DELAY_MILLIS: Long = 5_000
+private const val SENDER_PEER_WAIT_MAX_RETRIES: Int = 10
 
 internal class LiveProofAutomationDriver(
     private val automationConfig: ReferenceAutomationConfig?,
@@ -40,12 +44,91 @@ internal class LiveProofAutomationDriver(
             return
         }
 
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION driver.handle role=${config.role} mode=${config.mode} " +
+                "snapshotPeers=${timelineUiState.liveSnapshot.peers.size} " +
+                "timelineEntries=${timelineUiState.liveSnapshot.timeline.size}"
+        )
+        if (config.role == ReferenceAutomationRole.SENDER && !progress.meshStartRequested) {
+            actions.emitAutomationLog(
+                "REFERENCE_AUTOMATION mesh.start.requested role=${config.role} meshState=${timelineUiState.liveSnapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
+            )
+            actions.requestMeshStart()
+            progress.meshStartRequested = true
+        }
         LiveProofAutomationCoordinator(
                 automationConfig = config,
                 actions = actions,
                 progress = progress,
             )
             .run(snapshot = timelineUiState.liveSnapshot, timelineUiState = timelineUiState)
+        scheduleSenderPeerWaitRetryIfNeeded(timelineUiState = timelineUiState)
+        scheduleSenderRouteWaitRetryIfNeeded(timelineUiState = timelineUiState)
+        scheduleSenderUnreachableRetryIfNeeded(timelineUiState = timelineUiState)
+    }
+
+    private fun scheduleSenderPeerWaitRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+        val config = automationConfig ?: return
+        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+            return
+        }
+        if (timelineUiState.liveSnapshot.peers.isNotEmpty()) {
+            return
+        }
+        scheduleSenderRouteRetry("no-peers")
+    }
+
+    private fun scheduleSenderRouteWaitRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+        val config = automationConfig ?: return
+        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+            return
+        }
+        val meshState = timelineUiState.liveSnapshot.session.meshStateLabel
+        if (!meshState.contains("Running")) {
+            return
+        }
+        if (timelineUiState.liveSnapshot.peers.isEmpty()) {
+            return
+        }
+        if (timelineUiState.liveSnapshot.peers.any { peer ->
+                hasAvailableRouteForPeer(timelineUiState.liveSnapshot, peer.peerId)
+            }
+        ) {
+            return
+        }
+        scheduleSenderRouteRetry("route-unavailable")
+    }
+
+    private fun scheduleSenderUnreachableRetryIfNeeded(timelineUiState: TechnicalTimelineUiState): Unit {
+        val config = automationConfig ?: return
+        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || config.role != ReferenceAutomationRole.SENDER) {
+            return
+        }
+        if (progress.completionLogged || !progress.sendRequested) {
+            return
+        }
+        val outcome = timelineUiState.liveSnapshot.session.lastOutcomeSummary ?: return
+        if (outcome != "SendResult.NotSent(UNREACHABLE)") {
+            return
+        }
+        scheduleSenderRouteRetry("unreachable")
+    }
+
+    private fun scheduleSenderRouteRetry(reason: String): Unit {
+        if (progress.senderPeerWaitRetryScheduled || progress.senderPeerWaitRetryCount >= SENDER_PEER_WAIT_MAX_RETRIES) {
+            return
+        }
+        progress.senderPeerWaitRetryScheduled = true
+        progress.senderPeerWaitRetryCount += 1
+        val retryNumber = progress.senderPeerWaitRetryCount
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION sender.wait.retry role=sender reason=$reason attempt=$retryNumber delayMs=$SENDER_PEER_WAIT_RETRY_DELAY_MILLIS"
+        )
+        scope.launch {
+            delay(SENDER_PEER_WAIT_RETRY_DELAY_MILLIS)
+            progress.senderPeerWaitRetryScheduled = false
+            handle(timelineUiStateFlow.value)
+        }
     }
 
     fun stop() {

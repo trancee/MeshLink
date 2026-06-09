@@ -23,6 +23,7 @@ internal class GuidedFirstExchangeViewModel(
             initialSnapshot = platformServices.meshLinkController.snapshot.value,
         )
     private val powerMitigationStatus: String? = platformServices.powerMitigationStatus
+    private var autoStartRequested: Boolean = false
 
     public val powerMitigationLabel: String?
         get() = powerMitigationStatus
@@ -31,12 +32,27 @@ internal class GuidedFirstExchangeViewModel(
 
     init {
         scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest(stateStore::applySnapshot)
+            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
+                stateStore.applySnapshot(snapshot)
+                maybeAutoStartMesh()
+            }
         }
     }
 
     public fun startMesh(): Unit {
         scope.launch { platformServices.meshLinkController.start() }
+    }
+
+    private fun maybeAutoStartMesh(): Unit {
+        if (autoStartRequested) return
+        val config = platformServices.automationConfig ?: return
+        if (config.mode != ch.trancee.meshlink.reference.automation.ReferenceAutomationMode.LIVE_PROOF) return
+        val currentSnapshot = uiState.value.snapshot
+        if (!currentSnapshot.session.meshStateLabel.contains("Uninitialized")) return
+        if (uiState.value.readiness.isBlocked) return
+
+        autoStartRequested = true
+        startMesh()
     }
 
     public fun sendHelloToFirstPeer(): Unit {

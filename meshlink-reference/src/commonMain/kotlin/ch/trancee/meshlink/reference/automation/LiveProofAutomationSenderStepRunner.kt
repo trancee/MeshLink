@@ -8,6 +8,13 @@ internal fun runSenderAutomationStep(
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {
+    if (!progress.meshStartRequested) {
+        actions.emitAutomationLog(
+            "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
+        )
+        actions.requestMeshStart()
+        progress.meshStartRequested = true
+    }
     when (automationConfig.scenario) {
         ReferenceAutomationScenario.DIRECT_PAUSE_RESUME ->
             runPauseResumeSenderAutomationStep(snapshot, automationConfig, actions, progress)

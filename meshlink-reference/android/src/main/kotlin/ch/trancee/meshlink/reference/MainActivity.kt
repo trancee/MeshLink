@@ -4,15 +4,18 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.PowerManager
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
 import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
+import ch.trancee.meshlink.reference.automation.ReferenceStartupCoordinator
 import ch.trancee.meshlink.reference.automation.startupMarker
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.automation.wireValue
@@ -20,14 +23,17 @@ import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
+import kotlinx.coroutines.launch
 
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
     private var activePlatformServices: PlatformServices? = null
     private var directProofEnabled: Boolean = false
+    private var startupCoordinator: ReferenceStartupCoordinator? = null
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
+        Log.i(TAG, "REFERENCE_AUTOMATION activity.stage=onCreate directProof=$directProofEnabled screenOn=${isDeviceInteractive()}")
         val automationEnabled = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION, false) == true
         val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
         directProofEnabled = automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF
@@ -75,11 +81,18 @@ public class MainActivity : ComponentActivity() {
                 createPlatformServices(applicationContext)
             }
         activePlatformServices = platformServices
+        startupCoordinator =
+            if (directProofEnabled) {
+                ReferenceStartupCoordinator(platformServices = platformServices, scope = lifecycleScope)
+            } else {
+                null
+            }
         if (directProofEnabled) {
             platformServices.automationConfig?.let { automationConfig ->
                 platformServices.emitAutomationLog(automationConfig.startupMarker())
             }
             emitDirectProofPowerState(platformServices, "onCreate")
+            startupCoordinator?.startLiveProofIfNeeded()
         }
         setContent { ReferenceApp(platformServices = platformServices) }
     }
@@ -87,12 +100,14 @@ public class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (directProofEnabled) {
+            Log.i(TAG, "REFERENCE_AUTOMATION activity.stage=onResume directProof=$directProofEnabled screenOn=${isDeviceInteractive()}")
             emitDirectProofPowerState(activePlatformServices, "onResume")
         }
     }
 
     override fun onPause() {
         if (directProofEnabled) {
+            Log.i(TAG, "REFERENCE_AUTOMATION activity.stage=onPause directProof=$directProofEnabled screenOn=${isDeviceInteractive()}")
             emitDirectProofPowerState(activePlatformServices, "onPause")
         }
         super.onPause()
@@ -100,9 +115,10 @@ public class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         if (directProofEnabled) {
+            Log.i(TAG, "REFERENCE_AUTOMATION activity.stage=onStop directProof=$directProofEnabled screenOn=${isDeviceInteractive()}")
             emitDirectProofPowerState(activePlatformServices, "onStop")
         }
-        if (!isChangingConfigurations) {
+        if (!isChangingConfigurations && !directProofEnabled) {
             stopDirectProofPowerService()
         }
         super.onStop()
@@ -110,6 +126,7 @@ public class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (directProofEnabled) {
+            Log.i(TAG, "REFERENCE_AUTOMATION activity.stage=onDestroy directProof=$directProofEnabled screenOn=${isDeviceInteractive()}")
             emitDirectProofPowerState(activePlatformServices, "onDestroy")
         }
         releaseScreenOn()
@@ -118,6 +135,7 @@ public class MainActivity : ComponentActivity() {
     }
 
     public companion object {
+        private const val TAG = "MeshLinkReference"
         public const val EXTRA_UI_AUTOMATION: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION"
         public const val EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY: String =

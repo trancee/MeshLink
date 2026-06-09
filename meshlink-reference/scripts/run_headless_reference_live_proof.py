@@ -554,12 +554,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def android_install_cache_path(run_dir: Path) -> Path:
-    return run_dir / ".android-install-cache.json"
+def android_install_cache_path(run_dir: Path, android_serial: str) -> Path:
+    safe_serial = re.sub(r"[^A-Za-z0-9._-]", "_", android_serial)
+    return run_dir / f".android-install-cache-{safe_serial}.json"
 
 
-def load_android_install_cache(run_dir: Path) -> dict[str, Any] | None:
-    cache_path = android_install_cache_path(run_dir)
+def load_android_install_cache(run_dir: Path, android_serial: str) -> dict[str, Any] | None:
+    cache_path = android_install_cache_path(run_dir, android_serial)
     if not cache_path.exists():
         return None
     try:
@@ -568,8 +569,8 @@ def load_android_install_cache(run_dir: Path) -> dict[str, Any] | None:
         return None
 
 
-def write_android_install_cache(run_dir: Path, payload: dict[str, Any]) -> None:
-    android_install_cache_path(run_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+def write_android_install_cache(run_dir: Path, android_serial: str, payload: dict[str, Any]) -> None:
+    android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def install_android_app(android_serial: str, run_dir: Path | None = None) -> None:
@@ -579,7 +580,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
     source_fingerprint = launcher_source_fingerprint()
     apk_path = android_apk_path()
     if apk_path is not None:
-        cached = load_android_install_cache(cache_run_dir)
+        cached = load_android_install_cache(cache_run_dir, android_serial)
         current_apk_hash = sha256_file(apk_path)
         if (
             cached is not None
@@ -595,6 +596,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
     if apk_path is not None:
         write_android_install_cache(
             cache_run_dir,
+            android_serial,
             {
                 "sourceFingerprint": source_fingerprint,
                 "apkPath": str(apk_path),

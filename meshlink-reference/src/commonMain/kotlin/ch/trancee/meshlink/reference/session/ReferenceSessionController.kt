@@ -16,6 +16,7 @@ internal class ReferenceSessionController(
     private val platformName: String,
     private val nowProvider: () -> Long,
     supportedControllerFactory: (String) -> ReferenceMeshLinkController,
+    private val emitAutomationLog: (String) -> Unit = {},
     initialSupportedSurface: String = "main-guided",
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
@@ -23,6 +24,7 @@ internal class ReferenceSessionController(
         SupportedControllerRuntime(
             initialSurfaceOfOrigin = initialSupportedSurface,
             supportedControllerFactory = supportedControllerFactory,
+            emitAutomationLog = emitAutomationLog,
             scope = scope,
         )
     private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot> =
@@ -37,6 +39,9 @@ internal class ReferenceSessionController(
     }
 
     override suspend fun start(): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION session.controller.start kind=$currentKind platform=$platformName"
+        )
         runOnSupportedLiveController { controller -> controller.start() }
     }
 
@@ -120,7 +125,11 @@ internal class ReferenceSessionController(
     ): Unit {
         if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
             supportedControllerRuntime.run(action)
+            return
         }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION session.controller.skip kind=$currentKind platform=$platformName"
+        )
     }
 
     private suspend fun startAlternativeSession(

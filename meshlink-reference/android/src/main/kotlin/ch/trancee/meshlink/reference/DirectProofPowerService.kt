@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
@@ -22,16 +23,19 @@ public class DirectProofPowerService : Service() {
 
     override fun onCreate(): Unit {
         super.onCreate()
+        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onCreate wakeLockHeld=${wakeLock?.isHeld == true}")
         acquireWakeLock()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
         acquireWakeLock()
+        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onStartCommand wakeLockHeld=${wakeLock?.isHeld == true} flags=$flags startId=$startId")
         return START_STICKY
     }
 
     override fun onDestroy(): Unit {
+        Log.i(TAG, "REFERENCE_AUTOMATION direct-proof service stage=onDestroy wakeLockHeld=${wakeLock?.isHeld == true}")
         releaseWakeLock()
         super.onDestroy()
     }
@@ -86,6 +90,7 @@ public class DirectProofPowerService : Service() {
     }
 
     public companion object {
+        private const val TAG = "MeshLinkReference"
         private const val CHANNEL_ID = "meshlink_reference_direct_proof_power"
         private const val CHANNEL_NAME = "MeshLink direct proof"
         private const val NOTIFICATION_ID = 4201

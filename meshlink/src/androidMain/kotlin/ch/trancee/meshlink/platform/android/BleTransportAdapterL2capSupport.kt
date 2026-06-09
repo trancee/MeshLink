@@ -31,7 +31,7 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
         return
     }
     val adapter = bluetoothAdapter ?: return
-    val device = peerBindings.deviceFor(peer.deviceAddress) ?: return
+    val device = peerBindings.deviceFor(peer.deviceAddress) ?: adapter.getRemoteDevice(peer.deviceAddress)
     val connectJob =
         coroutineScope.launch(start = CoroutineStart.LAZY) {
             runCatching {
@@ -121,7 +121,7 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     socket: BluetoothSocket,
 ): Unit {
     val link =
-        L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer())
+        L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer(), log = ::log)
     if (!linkRegistry.registerActiveLink(hintPeerId.value, link)) {
         log("ignoring duplicate L2CAP socket for ${hintPeerId.value.takeLast(6)}")
         closeQuietly(socket)
@@ -162,6 +162,9 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                     continue
                 }
                 consecutiveZeroByteReads = 0
+                log(
+                    "L2CAP read ${link.peerHintId.value.takeLast(6)} bytes=$read prefix=${readBuffer.copyOf(minOf(read, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
+                )
                 val appendResult =
                     link.incomingFrames.appendDetailed(source = readBuffer, length = read)
                 appendResult.frames.forEachIndexed { frameIndex, payload ->
@@ -253,6 +256,7 @@ internal class L2capLink(
     internal var peerHintId: PeerId,
     private val socket: BluetoothSocket,
     internal val incomingFrames: L2capFrameBuffer,
+    private val log: (String) -> Unit,
 ) : Closeable {
     internal val remoteDevice: android.bluetooth.BluetoothDevice = socket.remoteDevice
     internal val inputStream: InputStream = socket.inputStream
@@ -262,7 +266,11 @@ internal class L2capLink(
     private val outputStream = socket.outputStream
 
     internal suspend fun write(payload: ByteArray): Unit {
-        outputStream.write(incomingFrames.encode(payload))
+        val encoded = L2capFrameBuffer().encode(payload)
+        log(
+            "L2CAP write ${peerHintId.value.takeLast(6)} payloadBytes=${payload.size} encodedBytes=${encoded.size} payloadPrefix=${payload.copyOf(minOf(payload.size, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
+        )
+        outputStream.write(encoded)
     }
 
     override fun close(): Unit {

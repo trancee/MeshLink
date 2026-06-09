@@ -93,6 +93,64 @@ class LiveProofAutomationStepRunnerTest {
     }
 
     @Test
+    fun directSenderStepKeepsRetryingUnreachableUntilTheLinkSettles() {
+        // Arrange
+        val peerId = "peer-abc123"
+        val peerSuffix = redactedSuffix(peerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig = senderAutomationConfig()
+        val waitingSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers = listOf(automationTestPeer(peerId = peerId, peerSuffix = peerSuffix)),
+                timeline = listOf(routeAvailableEntry(peerId, peerSuffix)),
+            )
+        val unreachableSnapshot =
+            waitingSnapshot.copy(
+                session = waitingSnapshot.session.copy(lastOutcomeSummary = "SendResult.NotSent(UNREACHABLE)")
+            )
+        val deliveredSnapshot =
+            waitingSnapshot.copy(
+                session = waitingSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    waitingSnapshot.timeline +
+                        deliverySucceededEntry(peerSuffix, entryId = "session-1-2"),
+            )
+
+        // Act
+        runDirectSenderAutomationStep(
+            waitingSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            unreachableSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+        runDirectSenderAutomationStep(
+            deliveredSnapshot,
+            automationConfig,
+            actions,
+            progress,
+            SenderPayloadPlan.GUIDED_HELLO,
+        )
+
+        // Assert
+        assertEquals(1, actions.sendRequests.size)
+        assertTrue(progress.sendRequested)
+        assertTrue(progress.completionLogged)
+        assertTrue(actions.logs.any { log -> log.contains("send.requested role=sender phase=primary") })
+        assertTrue(actions.logs.none { log -> log.contains("proof.failed role=sender") })
+        assertTrue(actions.logs.any { log -> log.contains("proof.complete role=sender") })
+    }
+
+    @Test
     fun directSenderStepRequestsThePrimarySendAndCompletesAfterDelivery() {
         // Arrange
         val peerId = "peer-abc123"

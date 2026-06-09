@@ -83,7 +83,15 @@ internal class DefaultPlatformServices(
                         runtimeLogger = automationLogger,
                     )
                 }
-                .getOrElse {
+                .onSuccess {
+                    automationLogger(
+                        "REFERENCE_AUTOMATION live.controller.created surface=$surfaceOfOrigin platform=$platformName appId=$appId"
+                    )
+                }
+                .getOrElse { error ->
+                    automationLogger(
+                        "REFERENCE_AUTOMATION live.controller.fallback surface=$surfaceOfOrigin platform=$platformName appId=$appId reason=${error::class.simpleName}: ${error.message.orEmpty()}"
+                    )
                     PreviewReferenceMeshLinkController(
                         platformName = platformName,
                         nowEpochMillis = nowProvider(),

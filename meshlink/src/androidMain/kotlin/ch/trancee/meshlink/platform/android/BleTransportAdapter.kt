@@ -322,9 +322,7 @@ internal class BleTransportAdapter(
     }
 
     internal fun log(message: () -> String): Unit {
-        if (transportDebugLoggingEnabled) {
-            Log.d(LOG_TAG, message())
-        }
+        Log.i(LOG_TAG, message())
     }
 
     internal fun log(message: String): Unit {
@@ -332,6 +330,6 @@ internal class BleTransportAdapter(
     }
 
     private companion object {
-        private const val LOG_TAG: String = "MeshLinkTransport"
+        private const val LOG_TAG: String = "MeshLinkReferenceAutomation"
     }
 }
