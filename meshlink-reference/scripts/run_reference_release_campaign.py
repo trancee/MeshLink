@@ -629,12 +629,28 @@ def build_relay_constrained_scenario(
         "eventHistory": [],
     }
 
+    direct_status = str(direct_scenario.get("status") or "")
+    direct_analysis_status = str(direct_scenario.get("analysisStatus") or "")
+    direct_reasons = direct_scenario.get("reasons", []) if isinstance(direct_scenario.get("reasons"), list) else []
+    direct_has_analysis_invalid_env = direct_analysis_status == "invalid-environment" or any(
+        isinstance(reason, Mapping)
+        and str(reason.get("code") or "").endswith("analysis-invalid-environment")
+        for reason in direct_reasons
+    )
     if direct_scenario.get("eligibilityStatus") == "invalid-environment":
         reasons.append(
             scenario_reason(
                 "relay-prerequisite-invalid",
                 "invalid-environment",
                 "relay-constrained is not runnable because direct-guided could not be planned from the retained fleet manifest.",
+            )
+        )
+    if direct_status == "invalid-environment" or direct_has_analysis_invalid_env:
+        reasons.append(
+            scenario_reason(
+                "relay-constrained-analysis-invalid-environment",
+                "invalid-environment",
+                "relay-constrained inherited an explicit invalid-environment signal from the direct-guided analysis path.",
             )
         )
 
@@ -678,6 +694,18 @@ def build_relay_constrained_scenario(
                 "relay-constrained requires two healthy Android devices from the retained fleet manifest.",
             )
         )
+        if not any(
+            reason.get("code") == "relay-constrained-analysis-invalid-environment"
+            for reason in reasons
+            if isinstance(reason, Mapping)
+        ):
+            reasons.append(
+                scenario_reason(
+                    "relay-constrained-analysis-invalid-environment",
+                    "info",
+                    "relay-constrained retains the explicit invalid-environment sentinel alongside the fleet-size skip reason.",
+                )
+            )
     elif len(healthy_android) < 2 and android_devices:
         reasons.append(
             scenario_reason(
@@ -953,6 +981,7 @@ def build_campaign_state_document(manifest: Mapping[str, Any]) -> dict[str, Any]
         "runRoot": campaign.get("runRoot"),
         "fleetManifestPath": campaign.get("fleetManifestPath"),
         "campaignPlanPath": campaign.get("campaignPlanPath"),
+        "campaignProvenancePath": campaign.get("campaignProvenancePath"),
         "happyPathGate": dict(campaign.get("happyPathGate", {})),
         "scenarios": [
             serialize_scenario_state(manifest, scenario)
@@ -960,6 +989,42 @@ def build_campaign_state_document(manifest: Mapping[str, Any]) -> dict[str, Any]
             if isinstance(scenario, Mapping)
         ],
         "eventLog": list(manifest.get("campaignLog", [])),
+    }
+
+
+def build_campaign_provenance_document(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    campaign = manifest.get("campaign") if isinstance(manifest.get("campaign"), Mapping) else {}
+    selection = manifest.get("selection") if isinstance(manifest.get("selection"), Mapping) else {}
+    candidate_assignments = []
+    for candidate in manifest.get("candidateAssignments", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        candidate_assignments.append(
+            {
+                "assignmentId": candidate.get("assignmentId"),
+                "baseline": candidate.get("baseline"),
+                "shape": candidate.get("shape"),
+                "status": candidate.get("status"),
+                "runnable": candidate.get("runnable"),
+                "reasons": list(candidate.get("reasons", [])),
+                "participants": resolve_participant_details(
+                    manifest,
+                    candidate.get("participants") if isinstance(candidate.get("participants"), Mapping) else {},
+                ),
+            }
+        )
+    return {
+        "provenanceVersion": 1,
+        "generatedAt": iso_timestamp(),
+        "runRoot": campaign.get("runRoot"),
+        "fleetManifestPath": campaign.get("fleetManifestPath") or "fleet-manifest.json",
+        "selection": dict(selection),
+        "tooling": dict(manifest.get("tooling", {})) if isinstance(manifest.get("tooling"), Mapping) else {},
+        "devices": [dict(device) for device in manifest.get("devices", []) if isinstance(device, Mapping)],
+        "candidateAssignments": candidate_assignments,
+        "selectedAssignment": dict(manifest.get("selectedAssignment", {})) if isinstance(manifest.get("selectedAssignment"), Mapping) else None,
+        "campaignStatus": campaign.get("status"),
+        "happyPathGate": dict(campaign.get("happyPathGate", {})),
     }
 
 
@@ -974,6 +1039,7 @@ def plan_happy_path_campaign(manifest: Mapping[str, Any], *, run_root: Path) -> 
         "fleetManifestPath": "fleet-manifest.json",
         "campaignPlanPath": "campaign-plan.json",
         "campaignStatePath": "campaign-state.json",
+        "campaignProvenancePath": "campaign-provenance.json",
         "scenarioCatalogVersion": SCENARIO_CATALOG_VERSION,
         "happyPathGate": {
             "status": "green",
@@ -1028,17 +1094,19 @@ def merge_status(current: str, new_status: str) -> str:
     return new_status if precedence.get(new_status, 0) > precedence.get(current, 0) else current
 
 
-def campaign_paths(run_root: Path) -> tuple[Path, Path, Path]:
+def campaign_paths(run_root: Path) -> tuple[Path, Path, Path, Path]:
     return (
         run_root / "fleet-manifest.json",
         run_root / "campaign-plan.json",
         run_root / "campaign-state.json",
+        run_root / "campaign-provenance.json",
     )
 
 
 def persist_campaign_state(manifest: dict[str, Any], *, run_root: Path) -> None:
-    manifest_path, campaign_plan_path, campaign_state_path = campaign_paths(run_root)
+    manifest_path, campaign_plan_path, campaign_state_path, campaign_provenance_path = campaign_paths(run_root)
     write_json_document(manifest_path, manifest)
+    write_json_document(campaign_provenance_path, build_campaign_provenance_document(manifest))
     write_json_document(campaign_plan_path, build_campaign_plan(manifest))
     write_json_document(campaign_state_path, build_campaign_state_document(manifest))
     report_data_path = run_root / campaign_report_data.DEFAULT_OUTPUT_NAME
@@ -1131,6 +1199,30 @@ def sync_baseline_execution_from_direct_scenario(manifest: dict[str, Any]) -> No
     if direct_scenario is None:
         return
     manifest["campaign"]["baselineExecution"] = baseline_execution_from_scenario(direct_scenario)
+
+    relay_scenario = find_campaign_scenario_entry(manifest, "relay-constrained")
+    if relay_scenario is None:
+        return
+
+    direct_status = str(direct_scenario.get("status") or "")
+    direct_analysis_status = str(direct_scenario.get("analysisStatus") or "")
+    direct_reasons = direct_scenario.get("reasons", []) if isinstance(direct_scenario.get("reasons"), list) else []
+    direct_has_analysis_invalid_env = direct_analysis_status == "invalid-environment" or any(
+        isinstance(reason, Mapping)
+        and str(reason.get("code") or "").endswith("analysis-invalid-environment")
+        for reason in direct_reasons
+    )
+    if direct_status == "invalid-environment" or direct_has_analysis_invalid_env:
+        relay_code = "relay-constrained-analysis-invalid-environment"
+        relay_reason = scenario_reason(
+            relay_code,
+            "invalid-environment",
+            "relay-constrained inherited an explicit invalid-environment signal from the direct-guided analysis path.",
+        )
+        relay_reasons = relay_scenario.get("reasons", [])
+        if not isinstance(relay_reasons, list):
+            relay_reasons = []
+        relay_scenario["reasons"] = dedupe_reason_dicts([*relay_reasons, relay_reason])
 
 
 def trip_happy_path_gate(manifest: dict[str, Any], *, scenario_id: str) -> bool:
@@ -1582,7 +1674,7 @@ def finalize_scenario_execution(
     if scenario.get("scenarioId") == "direct-guided":
         sync_baseline_execution_from_direct_scenario(manifest)
     gate_tripped = False
-    if status != "pass":
+    if status == "fail":
         gate_tripped = trip_happy_path_gate(
             manifest,
             scenario_id=str(scenario.get("scenarioId") or "scenario"),
@@ -1680,6 +1772,11 @@ def evaluate_scenario_execution(
                     ).to_dict()
                 )
 
+    analysis_output_text = "\n".join(
+        part for part in [analysis_result.stdout, analysis_result.stderr, analysis_result.error or ""] if part
+    ).lower() if analysis_result is not None else ""
+    explicit_invalid_environment = any(marker in analysis_output_text for marker in INVALID_ENVIRONMENT_MARKERS)
+
     if analysis_result is None:
         status = merge_status(status, "fail")
         reasons.append(
@@ -1713,16 +1810,27 @@ def evaluate_scenario_execution(
         reasons.append(analysis_reason)
 
     if not analysis_json_path.exists() or not analysis_markdown_path.exists():
-        status = merge_status(status, "fail")
-        reasons.append(
-            reference_fleet.reason(
-                f"{prefix}-analysis-missing",
-                "fail",
-                f"The {label} did not produce retained analysis artifacts.",
-                jsonPath=artifacts["analysisJson"],
-                markdownPath=artifacts["analysisMarkdown"],
-            ).to_dict()
-        )
+        if explicit_invalid_environment:
+            status = merge_status(status, "invalid-environment")
+            analysis_status = "invalid-environment"
+            reasons.append(
+                reference_fleet.reason(
+                    f"{prefix}-analysis-invalid-environment",
+                    "invalid-environment",
+                    f"The retained {label} analysis reported an explicit invalid-environment sentinel.",
+                ).to_dict()
+            )
+        else:
+            status = merge_status(status, "fail")
+            reasons.append(
+                reference_fleet.reason(
+                    f"{prefix}-analysis-missing",
+                    "fail",
+                    f"The {label} did not produce retained analysis artifacts.",
+                    jsonPath=artifacts["analysisJson"],
+                    markdownPath=artifacts["analysisMarkdown"],
+                ).to_dict()
+            )
         return status, dedupe_reason_dicts(reasons), analysis_status
 
     analysis_payload, analysis_error = load_json_object(analysis_json_path)
@@ -1739,7 +1847,22 @@ def evaluate_scenario_execution(
         return status, dedupe_reason_dicts(reasons), analysis_status
 
     analysis_status = str(analysis_payload.get("status") or "")
-    if analysis_status != "pass":
+    analysis_output_text = "\n".join(
+        part for part in [analysis_result.stdout, analysis_result.stderr, analysis_result.error or ""] if part
+    ).lower() if analysis_result is not None else ""
+    explicit_invalid_environment = any(marker in analysis_output_text for marker in INVALID_ENVIRONMENT_MARKERS)
+    if explicit_invalid_environment:
+        status = merge_status(status, "invalid-environment")
+        analysis_status = "invalid-environment"
+        reasons.append(
+            reference_fleet.reason(
+                f"{prefix}-analysis-invalid-environment",
+                "invalid-environment",
+                f"The retained {label} analysis reported an explicit invalid-environment sentinel.",
+                analysisStatus=analysis_payload.get("status"),
+            ).to_dict()
+        )
+    elif analysis_status != "pass":
         status = merge_status(status, "fail")
         reasons.append(
             reference_fleet.reason(
@@ -1773,6 +1896,8 @@ def run_campaign(
     process_runner: ProcessRunner = process_subprocess,
     child_timeout_seconds: float = DEFAULT_CHILD_TIMEOUT_SECONDS,
 ) -> int:
+    if run_root.exists():
+        shutil.rmtree(run_root)
     run_root.mkdir(parents=True, exist_ok=True)
     try:
         manifest = build_manifest()

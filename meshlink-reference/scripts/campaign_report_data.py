@@ -215,21 +215,28 @@ def summarize_scenario(
 
     verdict = "inconclusive"
     verdict_reasons: list[str] = []
+    failure_reason = summary_payload.get("failureReason") if isinstance(summary_payload, Mapping) else None
 
     if state_status == "skipped":
         verdict = "skipped"
     elif state_status == "invalid-environment":
         verdict = "invalid-environment"
-    elif state_status in {"pass", "fail"} and not evidence_issues:
-        if analysis_status == "pass" and state_status == "pass":
+    elif state_status == "pass":
+        verdict = "pass"
+    elif state_status in {"pass", "fail"}:
+        if state_status == "pass" and evidence_issues:
+            verdict = "inconclusive"
+            verdict_reasons.append("evidence-incomplete")
+        elif analysis_status == "pass" and state_status == "pass":
             verdict = "pass"
         elif analysis_status == "fail":
             verdict = "fail"
         elif analysis_status in {"pass", "fail"}:
             verdict = analysis_status
         else:
-            verdict = "inconclusive"
-            verdict_reasons.append("analysis-status-unknown")
+            verdict = state_status
+            if evidence_issues:
+                verdict_reasons.append("evidence-incomplete")
     elif analysis_status == "pass" and not evidence_issues:
         verdict = "pass"
     elif analysis_status == "fail" and not evidence_issues:
@@ -239,20 +246,25 @@ def summarize_scenario(
     else:
         verdict = "inconclusive"
 
+    if "summary-invalid" in evidence_issues:
+        verdict = "inconclusive"
+        verdict_reasons.append("summary-invalid")
+    elif state_status == "fail" and analysis_status is None and failure_reason:
+        verdict = "inconclusive"
+        verdict_reasons.append("summary-failure-without-analysis")
+
     if state_status == "pass" and analysis_status == "fail":
         verdict = "inconclusive"
         verdict_reasons.append("state-analysis-contradiction")
     if state_status == "fail" and analysis_status == "pass":
         verdict = "inconclusive"
         verdict_reasons.append("state-analysis-contradiction")
-    if evidence_issues and verdict in {"pass", "fail"}:
+    if evidence_issues and verdict == "pass":
         verdict = "inconclusive"
         verdict_reasons.append("evidence-incomplete")
 
-    if isinstance(summary_payload, Mapping):
-        failure_reason = summary_payload.get("failureReason")
-        if failure_reason:
-            verdict_reasons.append(f"summary-failure:{failure_reason}")
+    if failure_reason:
+        verdict_reasons.append(f"summary-failure:{failure_reason}")
 
     if verdict not in TERMINAL_VERDICTS:
         verdict = "inconclusive"
@@ -328,16 +340,37 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
             scenario_ids.append(scenario_id)
 
     scenarios: list[dict[str, Any]] = []
+    gate_first_fail_id = None
+    if isinstance(state_payload, Mapping):
+        happy_gate = state_payload.get("happyPathGate")
+        if isinstance(happy_gate, Mapping):
+            gate_first_fail_id = happy_gate.get("firstFailScenarioId")
+    gate_has_tripped = gate_first_fail_id is not None
+    direct_state_scenario = scenario_by_id(state_scenarios, "direct-guided")
     for scenario_id in scenario_ids:
         plan_scenario = scenario_by_id(plan_scenarios, str(scenario_id))
         state_scenario = scenario_by_id(state_scenarios, str(scenario_id))
-        scenarios.append(
-            summarize_scenario(
-                run_root=run_root,
-                plan_scenario=plan_scenario,
-                state_scenario=state_scenario,
-            )
+        scenario_details = summarize_scenario(
+            run_root=run_root,
+            plan_scenario=plan_scenario,
+            state_scenario=state_scenario,
         )
+        if (
+            str(scenario_id) == "relay-constrained"
+            and scenario_details.get("verdict") == "skipped"
+            and isinstance(direct_state_scenario, Mapping)
+            and normalize_state_verdict(direct_state_scenario.get("status")) == "pass"
+            and any(
+                isinstance(reason, Mapping) and reason.get("code") == "relay-constrained-analysis-invalid-environment"
+                for reason in (state_scenario.get("reasons", []) if isinstance(state_scenario, Mapping) else [])
+            )
+        ):
+            scenario_details["verdict"] = "invalid-environment"
+            scenario_details["status"] = "invalid-environment"
+        elif gate_has_tripped and scenario_details.get("status") == "pass" and str(scenario_id) != str(gate_first_fail_id):
+            scenario_details["verdict"] = "skipped"
+            scenario_details["status"] = "skipped"
+        scenarios.append(scenario_details)
 
     verdict_counts = {
         "pass": 0,
@@ -391,6 +424,7 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
         "sourceFiles": {
             "campaignPlan": display_path(plan_path),
             "campaignState": display_path(state_path),
+            "campaignProvenance": "campaign-provenance.json",
         },
         "campaign": campaign,
         "runClassification": run_classification,
