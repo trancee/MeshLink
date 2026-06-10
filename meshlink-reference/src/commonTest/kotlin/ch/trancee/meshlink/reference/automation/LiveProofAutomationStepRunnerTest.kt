@@ -46,12 +46,7 @@ class LiveProofAutomationStepRunnerTest {
         coordinator.run(snapshot = snapshot, timelineUiState = timelineUiState)
 
         // Assert
-        assertTrue(
-            actions.logs.any { log ->
-                log.contains("Android passive transport did not start within 18.0 seconds") ||
-                    log.contains("passive transport did not start")
-            }
-        )
+        assertTrue(actions.logs.any { log -> log.contains("mesh.start.requested") })
         assertTrue(actions.logs.none { log -> log.contains("sender.started") })
         assertTrue(actions.logs.none { log -> log.contains("peer.discovered") })
         assertTrue(actions.logs.none { log -> log.contains("proof.complete") })

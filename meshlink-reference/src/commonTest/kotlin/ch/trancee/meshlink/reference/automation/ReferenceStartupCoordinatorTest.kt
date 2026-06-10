@@ -43,7 +43,7 @@ class ReferenceStartupCoordinatorTest {
 private fun referenceStartupPlatformServices(
     controller: RecordingReferenceMeshLinkController
 ): RecordingStartupPlatformServices {
-    return RecordingStartupPlatformServices(controller = controller)
+    return RecordingStartupPlatformServices(meshLinkController = controller)
 }
 
 private class RecordingStartupPlatformServices(
@@ -76,7 +76,37 @@ private class RecordingStartupPlatformServices(
 private class RecordingReferenceMeshLinkController : ReferenceMeshLinkController {
     var startCount: Int = 0
 
-    override fun start() {
+    override val snapshot =
+        kotlinx.coroutines.flow.MutableStateFlow(
+            ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot(
+                session =
+                    ch.trancee.meshlink.reference.model.ReferenceSession(
+                        sessionId = "session-test",
+                        scenarioId = "startup-coordinator",
+                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        startedAtEpochMillis = 0L,
+                    ),
+                peers = emptyList(),
+                timeline = emptyList(),
+                activePowerModeLabel = "Automatic",
+            )
+        )
+
+    override suspend fun start() {
         startCount += 1
     }
+
+    override suspend fun pause() = Unit
+
+    override suspend fun resume() = Unit
+
+    override suspend fun stop() = Unit
+
+    override suspend fun sendPayload(
+        peerId: String,
+        payloadText: String,
+        priority: ch.trancee.meshlink.api.DeliveryPriority,
+    ) = Unit
+
+    override suspend fun forgetPeer(peerId: String) = Unit
 }

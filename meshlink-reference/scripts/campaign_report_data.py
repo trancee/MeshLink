@@ -215,6 +215,7 @@ def summarize_scenario(
 
     verdict = "inconclusive"
     verdict_reasons: list[str] = []
+    failure_reason = summary_payload.get("failureReason") if isinstance(summary_payload, Mapping) else None
 
     if state_status == "skipped":
         verdict = "skipped"
@@ -245,6 +246,13 @@ def summarize_scenario(
     else:
         verdict = "inconclusive"
 
+    if "summary-invalid" in evidence_issues:
+        verdict = "inconclusive"
+        verdict_reasons.append("summary-invalid")
+    elif state_status == "fail" and analysis_status is None and failure_reason:
+        verdict = "inconclusive"
+        verdict_reasons.append("summary-failure-without-analysis")
+
     if state_status == "pass" and analysis_status == "fail":
         verdict = "inconclusive"
         verdict_reasons.append("state-analysis-contradiction")
@@ -255,10 +263,8 @@ def summarize_scenario(
         verdict = "inconclusive"
         verdict_reasons.append("evidence-incomplete")
 
-    if isinstance(summary_payload, Mapping):
-        failure_reason = summary_payload.get("failureReason")
-        if failure_reason:
-            verdict_reasons.append(f"summary-failure:{failure_reason}")
+    if failure_reason:
+        verdict_reasons.append(f"summary-failure:{failure_reason}")
 
     if verdict not in TERMINAL_VERDICTS:
         verdict = "inconclusive"
@@ -418,6 +424,7 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
         "sourceFiles": {
             "campaignPlan": display_path(plan_path),
             "campaignState": display_path(state_path),
+            "campaignProvenance": "campaign-provenance.json",
         },
         "campaign": campaign,
         "runClassification": run_classification,

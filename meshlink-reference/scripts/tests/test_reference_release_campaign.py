@@ -328,6 +328,31 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         self.assertGreaterEqual(len(provenance["candidateAssignments"]), 2)
         self.assertTrue(provenance["campaignStatus"] in {"planned", "pass", "fail", "skipped", "invalid-environment"})
 
+    def test_run_campaign_keeps_runtime_failures_as_fail_even_when_their_stderr_looks_environmental(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(),
+        )
+        process_runner = ReleaseCampaignProcessRunner(child_returncode=1, child_stderr="device offline")
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "runtime-failure-campaign"
+
+            # Act
+            exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=lambda: manifest,
+                process_runner=process_runner,
+            )
+
+            # Assert
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
+            self.assertEqual(self.load_json(run_root / "campaign-state.json")["status"], "fail")
+            self.assertEqual(self.load_json(run_root / "report-data.json")["campaign"]["status"], "fail")
+            self.assertTrue((run_root / "campaign-provenance.json").exists())
+
     def test_resolve_unused_android_serials_force_stops_non_selected_devices(self) -> None:
         # Arrange
         manifest = self.build_manifest(

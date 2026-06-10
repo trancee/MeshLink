@@ -17,6 +17,45 @@ import campaign_report_data as report_data  # noqa: E402
 
 
 class CampaignReportDataTests(unittest.TestCase):
+    def test_report_data_projects_campaign_provenance_when_present(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory)
+            self.write_json(
+                run_root / "campaign-plan.json",
+                {
+                    "planVersion": 2,
+                    "generatedAt": "2026-05-31T10:00:00+00:00",
+                    "campaignProvenancePath": "campaign-provenance.json",
+                    "sourceFiles": {"campaignPlan": "campaign-plan.json", "campaignState": "campaign-state.json"},
+                    "campaign": {"status": "planned", "runRoot": str(run_root)},
+                    "scenarios": [],
+                    "selection": {"status": "selected"},
+                },
+            )
+            self.write_json(
+                run_root / "campaign-state.json",
+                {
+                    "stateVersion": 2,
+                    "generatedAt": "2026-05-31T10:00:00+00:00",
+                    "campaignProvenancePath": "campaign-provenance.json",
+                    "campaignPlanPath": "campaign-plan.json",
+                    "status": "planned",
+                    "runRoot": str(run_root),
+                    "scenarios": [],
+                },
+            )
+            self.write_json(run_root / "campaign-provenance.json", {"provenanceVersion": 1, "campaignStatus": "planned"})
+
+            # Act
+            report_data.write_report_data(run_root / "report-data.json", report_data.build_report_data(run_root))
+            payload = json.loads((run_root / "report-data.json").read_text(encoding="utf-8"))
+
+            # Assert
+            self.assertTrue(payload["sourceFiles"]["campaignProvenance"].endswith("campaign-provenance.json"))
+            self.assertTrue(payload["sourceFiles"]["campaignPlan"].endswith("campaign-plan.json"))
+            self.assertTrue(payload["sourceFiles"]["campaignState"].endswith("campaign-state.json"))
+
     def write_json(self, path: Path, payload: dict[str, object]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
