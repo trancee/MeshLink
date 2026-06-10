@@ -91,6 +91,7 @@ class ReleaseReviewReportTests(unittest.TestCase):
             "sourceFiles": {
                 "campaignPlan": "campaign-plan.json",
                 "campaignState": "campaign-state.json",
+                "campaignProvenance": "campaign-provenance.json",
             },
             "campaign": {
                 "status": "pass",
@@ -135,6 +136,25 @@ class ReleaseReviewReportTests(unittest.TestCase):
             exit_code = release_review_report.main()
         self.assertEqual(exit_code, 0)
         return run_root / "release-review-report.html"
+
+    def test_render_report_shows_blank_campaign_provenance_when_absent(self) -> None:
+        # Arrange
+        payload = self.build_report_payload(Path("/tmp/campaign-run"))
+        payload["sourceFiles"] = {
+            "campaignPlan": "campaign-plan.json",
+            "campaignState": "campaign-state.json",
+            "campaignProvenance": None,
+        }
+
+        # Act
+        html_text = release_review_report.render_report(payload)
+
+        # Assert
+        self.assertIn("Campaign provenance", html_text)
+        self.assertIn("Campaign plan", html_text)
+        self.assertIn("campaign-plan.json", html_text)
+        self.assertIn("campaign-state.json", html_text)
+        self.assertIn("—", html_text)
 
     def test_main_renders_a_self_contained_offline_report_from_fixture_data(self) -> None:
         # Arrange
@@ -203,6 +223,8 @@ class ReleaseReviewReportTests(unittest.TestCase):
             self.assertIn("Inconclusive count max", html_text)
             self.assertIn("Invalid env count max", html_text)
             self.assertIn("Pass rate min", html_text)
+            self.assertIn("Campaign provenance", html_text)
+            self.assertIn("campaign-provenance.json", html_text)
             self.assertIn("100.0%", html_text)
             self.assertIn("Scenario summaries", html_text)
             self.assertIn("scenario-pass", html_text)

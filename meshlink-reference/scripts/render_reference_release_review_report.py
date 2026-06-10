@@ -119,6 +119,7 @@ def render_source_paths(report_data: Mapping[str, Any]) -> str:
     source_files = report_data.get("sourceFiles") if isinstance(report_data.get("sourceFiles"), Mapping) else {}
     campaign_plan = source_files.get("campaignPlan") if isinstance(source_files, Mapping) else None
     campaign_state = source_files.get("campaignState") if isinstance(source_files, Mapping) else None
+    campaign_provenance = source_files.get("campaignProvenance") if isinstance(source_files, Mapping) else None
     run_root = report_data.get("runRoot")
     return (
         '<section class="panel">'
@@ -127,6 +128,7 @@ def render_source_paths(report_data: Mapping[str, Any]) -> str:
         f'<div><dt>Run root</dt><dd>{escape_text(run_root)}</dd></div>'
         f'<div><dt>Campaign plan</dt><dd>{escape_text(campaign_plan)}</dd></div>'
         f'<div><dt>Campaign state</dt><dd>{escape_text(campaign_state)}</dd></div>'
+        f'<div><dt>Campaign provenance</dt><dd>{escape_text(campaign_provenance)}</dd></div>'
         '</dl>'
         '</section>'
     )
