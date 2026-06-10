@@ -304,6 +304,72 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs.",
         )
 
+    def test_choose_direct_guided_projection_candidate_prefers_mixed_when_ios_is_available(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        manifest["selection"] = {"status": "selected", "selectedAssignmentId": "direct-guided-mixed"}
+        manifest["selectedAssignment"] = {
+            "assignmentId": "direct-guided-mixed",
+            "baseline": "direct-guided",
+            "shape": "mixed",
+            "status": "runnable",
+            "reasons": [
+                {
+                    "code": "mixed-direct-guided-runnable",
+                    "kind": "info",
+                    "message": "Selected the mixed direct-guided fleet.",
+                }
+            ],
+        }
+
+        # Act
+        selected_candidate = release_campaign.choose_direct_guided_projection_candidate(manifest)
+
+        # Assert
+        self.assertIsNotNone(selected_candidate)
+        self.assertEqual(selected_candidate["assignmentId"], "direct-guided-mixed")
+        self.assertEqual(selected_candidate["shape"], "mixed")
+        self.assertEqual(selected_candidate["status"], "runnable")
+        self.assertEqual(selected_candidate["reasons"][0]["code"], "mixed-direct-guided-runnable")
+
+    def test_choose_direct_guided_projection_candidate_falls_back_to_android_only_without_ios(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(),
+        )
+
+        # Act
+        selected_candidate = release_campaign.choose_direct_guided_projection_candidate(manifest)
+
+        # Assert
+        self.assertIsNotNone(selected_candidate)
+        self.assertEqual(selected_candidate["assignmentId"], "direct-guided-android-only")
+        self.assertEqual(selected_candidate["shape"], "android-only")
+        self.assertEqual(selected_candidate["status"], "runnable")
+        self.assertEqual(selected_candidate["reasons"][0]["code"], "android-only-direct-guided-runnable")
+
+    def test_campaign_status_taxonomy_retains_selected_skipped_and_invalid_environment(self) -> None:
+        # Arrange
+        scenarios = [
+            {"status": "selected"},
+            {"status": "skipped"},
+            {"status": "invalid-environment"},
+        ]
+
+        # Act
+        aggregate_status = release_campaign.aggregate_campaign_status(scenarios)
+        initial_status = release_campaign.build_initial_campaign_status(scenarios)
+
+        # Assert
+        self.assertEqual(aggregate_status, "invalid-environment")
+        self.assertEqual(initial_status, "invalid-environment")
+
     def test_campaign_persists_standalone_provenance_before_dispatch(self) -> None:
         # Arrange
         manifest = self.build_manifest(
