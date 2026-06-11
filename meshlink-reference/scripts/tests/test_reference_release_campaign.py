@@ -931,6 +931,45 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
             self.assertTrue((run_root / "report-data.json").exists())
 
+    def test_run_campaign_keeps_wrapper_noise_as_fail_without_an_environment_sentinel(self) -> None:
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"),),
+            android_models={"android-passive": "Pixel 8"},
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        process_runner = ReleaseCampaignProcessRunner(
+            scenario_results={
+                "direct-guided": {
+                    "analysis_returncode": 4,
+                    "analysis_stderr": "xcodebuild build failed: invalid-environment",
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
+                }
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "analysis-wrapper-noise-failure"
+            exit_code = release_campaign.run_campaign(run_root=run_root, build_manifest=lambda: manifest, process_runner=process_runner)
+
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            self.assertEqual(direct_state["status"], "fail")
+            self.assertIn("baseline-analysis-failed", {reason["code"] for reason in direct_state["reasons"]})
+            self.assertNotIn("baseline-analysis-invalid-environment", {reason["code"] for reason in direct_state["reasons"]})
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="red",
+                expected_verdicts=("fail", "skipped"),
+                unexpected_verdicts=("invalid-environment",),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
+            self.assertTrue((run_root / "report-data.json").exists())
+
     def test_run_campaign_recognizes_explicit_invalid_environment_sentinels(self) -> None:
         manifest = self.build_manifest(
             android_rows=(("android-passive", "device"),),

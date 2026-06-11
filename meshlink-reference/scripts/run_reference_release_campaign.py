@@ -20,7 +20,6 @@ EXIT_FAIL = 1
 EXIT_SKIPPED = 2
 EXIT_INVALID_ENVIRONMENT = 3
 INVALID_ENVIRONMENT_MARKERS = (
-    "invalid-environment",
     "environment-sentinel=invalid",
 )
 
