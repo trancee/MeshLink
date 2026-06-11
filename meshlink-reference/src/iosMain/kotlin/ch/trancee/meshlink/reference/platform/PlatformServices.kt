@@ -16,15 +16,23 @@ import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun createPlatformServices(): DefaultPlatformServices {
-    val documentsDirectory = resolveDocumentsDirectory()
+    return createPlatformServices(resolveDocumentsDirectory())
+}
+
+@OptIn(ExperimentalForeignApi::class)
+internal fun createPlatformServices(
+    documentsDirectory: String,
+    fileSystem: FileSystem = FileSystem.SYSTEM,
+    nowProvider: () -> Long = { time(null) * 1000L },
+): DefaultPlatformServices {
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
-                nowProvider = { time(null) * 1000L }
-                documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM)
+                this.nowProvider = nowProvider
+                documentStore = OkioReferenceDocumentStore(documentsDirectory, fileSystem)
             },
     )
 }
