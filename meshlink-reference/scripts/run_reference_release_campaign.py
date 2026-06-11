@@ -224,6 +224,39 @@ def discovery_failure_manifest(run_root: Path, error: Exception) -> dict[str, An
     return manifest
 
 
+def capture_run_root_entries(run_root: Path) -> list[str]:
+    if not run_root.exists() or not run_root.is_dir():
+        return []
+    return sorted(entry.name for entry in run_root.iterdir())
+
+
+def record_run_root_freshness_cleanup(
+    manifest: dict[str, Any],
+    *,
+    run_root: Path,
+    removed_entries: Sequence[str],
+) -> None:
+    if not removed_entries:
+        return
+    campaign = manifest.get("campaign")
+    if isinstance(campaign, dict):
+        happy_path_gate = campaign.setdefault("happyPathGate", {})
+        if isinstance(happy_path_gate, dict):
+            happy_path_gate["freshnessGuard"] = {
+                "status": "cleared",
+                "runRootExisted": True,
+                "removedEntries": list(removed_entries),
+                "removedEntryCount": len(removed_entries),
+            }
+    append_campaign_event(
+        manifest,
+        "campaign-run-root-cleared",
+        runRoot=str(run_root),
+        removedEntries=list(removed_entries),
+        removedEntryCount=len(removed_entries),
+    )
+
+
 def scenario_reason(code: str, kind: str, message: str, **details: Any) -> dict[str, Any]:
     return reference_fleet.reason(code, kind, message, **details).to_dict()
 
@@ -1896,7 +1929,16 @@ def run_campaign(
     process_runner: ProcessRunner = process_subprocess,
     child_timeout_seconds: float = DEFAULT_CHILD_TIMEOUT_SECONDS,
 ) -> int:
+    removed_entries: list[str] = []
     if run_root.exists():
+        if not run_root.is_dir():
+            raise CampaignError(
+                "run-root-not-directory",
+                "invalid-environment",
+                "The retained --run-root path exists but is not a directory.",
+                runRoot=str(run_root),
+            )
+        removed_entries = capture_run_root_entries(run_root)
         shutil.rmtree(run_root)
     run_root.mkdir(parents=True, exist_ok=True)
     try:
@@ -1909,14 +1951,17 @@ def run_campaign(
             )
     except CampaignError as error:
         manifest = discovery_failure_manifest(run_root, error)
+        record_run_root_freshness_cleanup(manifest, run_root=run_root, removed_entries=removed_entries)
         persist_campaign_state(manifest, run_root=run_root)
         return EXIT_INVALID_ENVIRONMENT
     except Exception as error:  # pragma: no cover - defensive for unexpected discovery failures.
         manifest = discovery_failure_manifest(run_root, error)
+        record_run_root_freshness_cleanup(manifest, run_root=run_root, removed_entries=removed_entries)
         persist_campaign_state(manifest, run_root=run_root)
         return EXIT_INVALID_ENVIRONMENT
 
     initialize_campaign_state(manifest, run_root=run_root)
+    record_run_root_freshness_cleanup(manifest, run_root=run_root, removed_entries=removed_entries)
     scenarios = ordered_campaign_scenarios(manifest)
     if not scenarios:
         append_campaign_event(manifest, "campaign-finished", status="invalid-environment")

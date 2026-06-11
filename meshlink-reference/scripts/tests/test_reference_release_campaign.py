@@ -795,6 +795,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             campaign_state = self.load_json(run_root / "campaign-state.json")
             report_data = self.load_json(run_root / "report-data.json")
             report_html = (run_root / "release-review-report.html").read_text(encoding="utf-8")
+            freshness_guard = report_data["campaign"]["happyPathGate"]["freshnessGuard"]
+            self.assertEqual(freshness_guard["status"], "cleared")
+            self.assertEqual(freshness_guard["runRootExisted"], True)
+            self.assertIn("campaign-plan.json", freshness_guard["removedEntries"])
+            self.assertIn("campaign-state.json", freshness_guard["removedEntries"])
+            self.assertIn("campaign-run-root-cleared", {event["event"] for event in campaign_state["eventLog"]})
             direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
             relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
