@@ -1,0 +1,126 @@
+{
+  "reportDataVersion": 1,
+  "generatedAt": "2026-06-11T17:50:57.174278+00:00",
+  "runRoot": "reference_release_campaign.VApxYG",
+  "sourceFiles": {
+    "campaignPlan": "reference_release_campaign.VApxYG/campaign-plan.json",
+    "campaignState": "reference_release_campaign.VApxYG/campaign-state.json",
+    "campaignProvenance": "reference_release_campaign.VApxYG/campaign-provenance.json"
+  },
+  "campaign": {
+    "status": "skipped",
+    "planStatus": "skipped",
+    "happyPathGate": {
+      "status": "green",
+      "firstFailScenarioId": null,
+      "triggeredAt": null,
+      "updatedAt": "2026-06-11T17:50:57.171037+00:00"
+    }
+  },
+  "runClassification": {
+    "status": "complete",
+    "reasons": []
+  },
+  "verdictCounts": {
+    "pass": 0,
+    "fail": 0,
+    "skipped": 2,
+    "inconclusive": 0,
+    "invalid-environment": 0
+  },
+  "gateMath": {
+    "status": "green",
+    "thresholds": {
+      "failureCountMaximum": 0,
+      "inconclusiveCountMaximum": 0,
+      "invalidEnvironmentCountMaximum": 0,
+      "passRateMinimum": 1.0
+    },
+    "totalScenarios": 2,
+    "runnableScenarios": 0,
+    "terminalScenarios": 2,
+    "passRate": null,
+    "failureRate": null,
+    "inconclusiveRate": null
+  },
+  "scenarios": [
+    {
+      "scenarioId": "direct-guided",
+      "order": 1,
+      "baseline": "direct-guided",
+      "assignmentId": "direct-guided-mixed",
+      "assignmentShape": "mixed",
+      "eligibilityStatus": "skipped",
+      "status": "skipped",
+      "initialStatus": "skipped",
+      "verdict": "skipped",
+      "analysisStatus": null,
+      "summaryStatus": null,
+      "completeEvidence": false,
+      "evidenceIssues": [
+        "summary-missing",
+        "analysis-json-missing",
+        "analysis-markdown-missing"
+      ],
+      "artifacts": {
+        "summary": "baseline/direct-guided-mixed/summary.json",
+        "analysisJson": "baseline/direct-guided-mixed/analysis.json",
+        "analysisMarkdown": "baseline/direct-guided-mixed/analysis.md"
+      },
+      "evidence": {
+        "summary": {
+          "path": "reference_release_campaign.VApxYG/baseline/direct-guided-mixed/summary.json",
+          "exists": false
+        },
+        "analysisJson": {
+          "path": "reference_release_campaign.VApxYG/baseline/direct-guided-mixed/analysis.json",
+          "exists": false
+        },
+        "analysisMarkdown": {
+          "path": "reference_release_campaign.VApxYG/baseline/direct-guided-mixed/analysis.md",
+          "exists": false
+        }
+      },
+      "reasons": []
+    },
+    {
+      "scenarioId": "relay-constrained",
+      "order": 2,
+      "baseline": "relay-constrained",
+      "assignmentId": "relay-constrained",
+      "assignmentShape": "mixed",
+      "eligibilityStatus": "skipped",
+      "status": "skipped",
+      "initialStatus": "skipped",
+      "verdict": "skipped",
+      "analysisStatus": null,
+      "summaryStatus": null,
+      "completeEvidence": false,
+      "evidenceIssues": [
+        "summary-missing",
+        "analysis-json-missing",
+        "analysis-markdown-missing"
+      ],
+      "artifacts": {
+        "summary": "scenarios/02-relay-constrained/summary.json",
+        "analysisJson": "scenarios/02-relay-constrained/analysis.json",
+        "analysisMarkdown": "scenarios/02-relay-constrained/analysis.md"
+      },
+      "evidence": {
+        "summary": {
+          "path": "reference_release_campaign.VApxYG/scenarios/02-relay-constrained/summary.json",
+          "exists": false
+        },
+        "analysisJson": {
+          "path": "reference_release_campaign.VApxYG/scenarios/02-relay-constrained/analysis.json",
+          "exists": false
+        },
+        "analysisMarkdown": {
+          "path": "reference_release_campaign.VApxYG/scenarios/02-relay-constrained/analysis.md",
+          "exists": false
+        }
+      },
+      "reasons": []
+    }
+  ]
+}

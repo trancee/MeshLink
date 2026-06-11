@@ -7,7 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class AdvancedControlsViewModelStateTest {
+class AdvancedControlsViewModelStateCommonTest {
     @Test
     fun exposesConfigAndFirstPeerSelection() {
         // Arrange

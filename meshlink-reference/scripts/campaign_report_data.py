@@ -417,6 +417,12 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
         "happyPathGate": dict(state_payload.get("happyPathGate", {})) if isinstance(state_payload, Mapping) else {},
     }
 
+    campaign_provenance_path = None
+    if isinstance(plan_payload, Mapping):
+        campaign_provenance_path = plan_payload.get("campaignProvenancePath")
+    if campaign_provenance_path is None and isinstance(state_payload, Mapping):
+        campaign_provenance_path = state_payload.get("campaignProvenancePath")
+
     report_data = {
         "reportDataVersion": REPORT_DATA_VERSION,
         "generatedAt": iso_timestamp(),
@@ -424,7 +430,7 @@ def build_report_data(run_root: Path) -> dict[str, Any]:
         "sourceFiles": {
             "campaignPlan": display_path(plan_path),
             "campaignState": display_path(state_path),
-            "campaignProvenance": "campaign-provenance.json",
+            "campaignProvenance": display_path(run_root / str(campaign_provenance_path)) if campaign_provenance_path else None,
         },
         "campaign": campaign,
         "runClassification": run_classification,

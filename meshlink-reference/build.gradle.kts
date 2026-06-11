@@ -101,6 +101,8 @@ dokka {
     }
 }
 
+skie { analytics { disableUpload.set(true) } }
+
 compose.resources {
     publicResClass = true
     packageOfResClass = "ch.trancee.meshlink.reference.resources"

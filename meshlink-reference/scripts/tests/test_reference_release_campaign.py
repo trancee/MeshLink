@@ -304,6 +304,72 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             "Selected the Android-only direct-guided fallback because the mixed iOS sender path is not yet supported in live-proof runs.",
         )
 
+    def test_choose_direct_guided_projection_candidate_prefers_mixed_when_ios_is_available(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        manifest["selection"] = {"status": "selected", "selectedAssignmentId": "direct-guided-mixed"}
+        manifest["selectedAssignment"] = {
+            "assignmentId": "direct-guided-mixed",
+            "baseline": "direct-guided",
+            "shape": "mixed",
+            "status": "runnable",
+            "reasons": [
+                {
+                    "code": "mixed-direct-guided-runnable",
+                    "kind": "info",
+                    "message": "Selected the mixed direct-guided fleet.",
+                }
+            ],
+        }
+
+        # Act
+        selected_candidate = release_campaign.choose_direct_guided_projection_candidate(manifest)
+
+        # Assert
+        self.assertIsNotNone(selected_candidate)
+        self.assertEqual(selected_candidate["assignmentId"], "direct-guided-mixed")
+        self.assertEqual(selected_candidate["shape"], "mixed")
+        self.assertEqual(selected_candidate["status"], "runnable")
+        self.assertEqual(selected_candidate["reasons"][0]["code"], "mixed-direct-guided-runnable")
+
+    def test_choose_direct_guided_projection_candidate_falls_back_to_android_only_without_ios(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(),
+        )
+
+        # Act
+        selected_candidate = release_campaign.choose_direct_guided_projection_candidate(manifest)
+
+        # Assert
+        self.assertIsNotNone(selected_candidate)
+        self.assertEqual(selected_candidate["assignmentId"], "direct-guided-android-only")
+        self.assertEqual(selected_candidate["shape"], "android-only")
+        self.assertEqual(selected_candidate["status"], "runnable")
+        self.assertEqual(selected_candidate["reasons"][0]["code"], "android-only-direct-guided-runnable")
+
+    def test_campaign_status_taxonomy_retains_selected_skipped_and_invalid_environment(self) -> None:
+        # Arrange
+        scenarios = [
+            {"status": "selected"},
+            {"status": "skipped"},
+            {"status": "invalid-environment"},
+        ]
+
+        # Act
+        aggregate_status = release_campaign.aggregate_campaign_status(scenarios)
+        initial_status = release_campaign.build_initial_campaign_status(scenarios)
+
+        # Assert
+        self.assertEqual(aggregate_status, "invalid-environment")
+        self.assertEqual(initial_status, "invalid-environment")
+
     def test_campaign_persists_standalone_provenance_before_dispatch(self) -> None:
         # Arrange
         manifest = self.build_manifest(
@@ -729,6 +795,12 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             campaign_state = self.load_json(run_root / "campaign-state.json")
             report_data = self.load_json(run_root / "report-data.json")
             report_html = (run_root / "release-review-report.html").read_text(encoding="utf-8")
+            freshness_guard = report_data["campaign"]["happyPathGate"]["freshnessGuard"]
+            self.assertEqual(freshness_guard["status"], "cleared")
+            self.assertEqual(freshness_guard["runRootExisted"], True)
+            self.assertIn("campaign-plan.json", freshness_guard["removedEntries"])
+            self.assertIn("campaign-state.json", freshness_guard["removedEntries"])
+            self.assertIn("campaign-run-root-cleared", {event["event"] for event in campaign_state["eventLog"]})
             direct_plan = self.scenario_by_id(campaign_plan, "direct-guided")
             relay_plan = self.scenario_by_id(campaign_plan, "relay-constrained")
             direct_state = self.scenario_by_id(campaign_state, "direct-guided")
@@ -846,6 +918,45 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
             self.assertEqual(report_data["verdictCounts"], {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0})
             self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
             self.assertEqual(campaign_state["happyPathGate"]["firstFailScenarioId"], "direct-guided")
+            report_data = self.assert_retained_gate_policy_artifacts(
+                run_root,
+                expected_gate_status="red",
+                expected_verdicts=("fail", "skipped"),
+                unexpected_verdicts=("invalid-environment",),
+            )
+            self.assertEqual(
+                report_data["verdictCounts"],
+                {"pass": 0, "fail": 1, "skipped": 1, "inconclusive": 0, "invalid-environment": 0},
+            )
+            self.assertEqual([scenario["verdict"] for scenario in report_data["scenarios"]], ["fail", "skipped"])
+            self.assertTrue((run_root / "report-data.json").exists())
+
+    def test_run_campaign_keeps_wrapper_noise_as_fail_without_an_environment_sentinel(self) -> None:
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"),),
+            android_models={"android-passive": "Pixel 8"},
+            ios_rows=(("iPhone 15", "iOS 18.0", "Connected", "00008110-000E196E0E92401E"),),
+        )
+        process_runner = ReleaseCampaignProcessRunner(
+            scenario_results={
+                "direct-guided": {
+                    "analysis_returncode": 4,
+                    "analysis_stderr": "xcodebuild build failed: invalid-environment",
+                    "analysis_payload": {"status": "fail", "scenario_type": "relay"},
+                }
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "analysis-wrapper-noise-failure"
+            exit_code = release_campaign.run_campaign(run_root=run_root, build_manifest=lambda: manifest, process_runner=process_runner)
+
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
+            campaign_state = self.load_json(run_root / "campaign-state.json")
+            direct_state = self.scenario_by_id(campaign_state, "direct-guided")
+            self.assertEqual(direct_state["status"], "fail")
+            self.assertIn("baseline-analysis-failed", {reason["code"] for reason in direct_state["reasons"]})
+            self.assertNotIn("baseline-analysis-invalid-environment", {reason["code"] for reason in direct_state["reasons"]})
             report_data = self.assert_retained_gate_policy_artifacts(
                 run_root,
                 expected_gate_status="red",

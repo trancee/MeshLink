@@ -27,7 +27,11 @@ class CampaignReportDataTests(unittest.TestCase):
                     "planVersion": 2,
                     "generatedAt": "2026-05-31T10:00:00+00:00",
                     "campaignProvenancePath": "campaign-provenance.json",
-                    "sourceFiles": {"campaignPlan": "campaign-plan.json", "campaignState": "campaign-state.json"},
+                    "sourceFiles": {
+                        "campaignPlan": "campaign-plan.json",
+                        "campaignState": "campaign-state.json",
+                        "campaignProvenance": "campaign-provenance.json",
+                    },
                     "campaign": {"status": "planned", "runRoot": str(run_root)},
                     "scenarios": [],
                     "selection": {"status": "selected"},
@@ -53,6 +57,38 @@ class CampaignReportDataTests(unittest.TestCase):
 
             # Assert
             self.assertTrue(payload["sourceFiles"]["campaignProvenance"].endswith("campaign-provenance.json"))
+            self.assertTrue(payload["sourceFiles"]["campaignPlan"].endswith("campaign-plan.json"))
+            self.assertTrue(payload["sourceFiles"]["campaignState"].endswith("campaign-state.json"))
+
+    def test_report_data_omits_campaign_provenance_when_absent(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory)
+            self.write_json(
+                run_root / "campaign-plan.json",
+                {
+                    "planVersion": 2,
+                    "generatedAt": "2026-05-31T10:00:00+00:00",
+                    "campaign": {"status": "planned", "runRoot": str(run_root)},
+                    "scenarios": [],
+                    "selection": {"status": "selected"},
+                },
+            )
+            self.write_json(
+                run_root / "campaign-state.json",
+                {
+                    "stateVersion": 2,
+                    "generatedAt": "2026-05-31T10:00:00+00:00",
+                    "status": "pass",
+                    "campaign": {"status": "pass", "runRoot": str(run_root)},
+                },
+            )
+
+            # Act
+            payload = report_data.build_report_data(run_root)
+
+            # Assert
+            self.assertIsNone(payload["sourceFiles"]["campaignProvenance"])
             self.assertTrue(payload["sourceFiles"]["campaignPlan"].endswith("campaign-plan.json"))
             self.assertTrue(payload["sourceFiles"]["campaignState"].endswith("campaign-state.json"))
 

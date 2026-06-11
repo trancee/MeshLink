@@ -1,0 +1,180 @@
+{
+  "planVersion": 2,
+  "scenarioCatalogVersion": 1,
+  "generatedAt": "2026-06-11T17:50:57.170597+00:00",
+  "status": "skipped",
+  "runRoot": "reference_release_campaign.VApxYG",
+  "fleetManifestPath": "fleet-manifest.json",
+  "campaignStatePath": "campaign-state.json",
+  "selection": {
+    "status": "skipped",
+    "selectedAssignmentId": null,
+    "reasons": [
+      {
+        "code": "no-runnable-candidate",
+        "kind": "skip",
+        "message": "No runnable direct baseline was found for the discovered fleet shape."
+      },
+      {
+        "code": "android-passive-required",
+        "kind": "skip",
+        "message": "At least one healthy Android passive device is required for the preferred mixed direct baseline."
+      },
+      {
+        "code": "android-fleet-too-small",
+        "kind": "skip",
+        "message": "At least two Android devices are required for the Android-only direct baseline."
+      }
+    ]
+  },
+  "candidateAssignments": [
+    {
+      "assignmentId": "direct-guided-mixed",
+      "baseline": "direct-guided",
+      "shape": "mixed",
+      "status": "skipped",
+      "runnable": false,
+      "participants": {
+        "sender": {
+          "alias": "ios-iphone-12-mini-c9a494",
+          "platform": "ios",
+          "controlId": "6972CDF5-F3EB-5602-B53B-583BDB6D1AD1",
+          "displayName": "iPhone 12 mini",
+          "state": "available",
+          "available": true
+        },
+        "passive": null
+      },
+      "reasons": [
+        {
+          "code": "android-passive-required",
+          "kind": "skip",
+          "message": "At least one healthy Android passive device is required for the preferred mixed direct baseline."
+        }
+      ]
+    },
+    {
+      "assignmentId": "direct-guided-android-only",
+      "baseline": "direct-guided",
+      "shape": "android-only",
+      "status": "skipped",
+      "runnable": false,
+      "participants": {
+        "sender": null,
+        "passive": null
+      },
+      "reasons": [
+        {
+          "code": "android-fleet-too-small",
+          "kind": "skip",
+          "message": "At least two Android devices are required for the Android-only direct baseline."
+        }
+      ]
+    }
+  ],
+  "selectedBaseline": null,
+  "scenarios": [
+    {
+      "order": 1,
+      "scenarioId": "direct-guided",
+      "baseline": "direct-guided",
+      "assignmentId": "direct-guided-mixed",
+      "assignmentShape": "mixed",
+      "initialStatus": "skipped",
+      "eligibilityStatus": "skipped",
+      "runnable": false,
+      "appId": null,
+      "participants": {
+        "sender": {
+          "alias": "ios-iphone-12-mini-c9a494",
+          "platform": "ios",
+          "controlId": "6972CDF5-F3EB-5602-B53B-583BDB6D1AD1",
+          "displayName": "iPhone 12 mini",
+          "state": "available",
+          "available": true
+        },
+        "passive": null
+      },
+      "reasons": [
+        {
+          "code": "android-passive-required",
+          "kind": "skip",
+          "message": "At least one healthy Android passive device is required for the preferred mixed direct baseline."
+        },
+        {
+          "code": "no-runnable-candidate",
+          "kind": "skip",
+          "message": "No runnable direct baseline was found for the discovered fleet shape."
+        },
+        {
+          "code": "android-fleet-too-small",
+          "kind": "skip",
+          "message": "At least two Android devices are required for the Android-only direct baseline."
+        }
+      ],
+      "runnerScript": "meshlink-reference/scripts/run_headless_reference_live_proof.py",
+      "analysisScript": "meshlink-reference/scripts/analyze_reference_physical_run.py",
+      "runnerCommand": [],
+      "analysisCommand": [],
+      "runDirectory": "baseline/direct-guided-mixed",
+      "artifacts": {
+        "summary": "baseline/direct-guided-mixed/summary.json",
+        "analysisJson": "baseline/direct-guided-mixed/analysis.json",
+        "analysisMarkdown": "baseline/direct-guided-mixed/analysis.md",
+        "runnerStdout": "baseline/direct-guided-mixed/runner.stdout.log",
+        "runnerStderr": "baseline/direct-guided-mixed/runner.stderr.log",
+        "analysisStdout": "baseline/direct-guided-mixed/analysis.stdout.log",
+        "analysisStderr": "baseline/direct-guided-mixed/analysis.stderr.log"
+      }
+    },
+    {
+      "order": 2,
+      "scenarioId": "relay-constrained",
+      "baseline": "relay-constrained",
+      "assignmentId": "relay-constrained",
+      "assignmentShape": "mixed",
+      "initialStatus": "skipped",
+      "eligibilityStatus": "skipped",
+      "runnable": false,
+      "appId": null,
+      "participants": {
+        "sender": {
+          "alias": "ios-iphone-12-mini-c9a494",
+          "platform": "ios",
+          "controlId": "6972CDF5-F3EB-5602-B53B-583BDB6D1AD1",
+          "displayName": "iPhone 12 mini",
+          "state": "available",
+          "available": true
+        },
+        "relay": null,
+        "passive": null
+      },
+      "reasons": [
+        {
+          "code": "relay-android-fleet-too-small",
+          "kind": "skip",
+          "message": "relay-constrained requires two healthy Android devices from the retained fleet manifest."
+        },
+        {
+          "code": "relay-constrained-analysis-invalid-environment",
+          "kind": "info",
+          "message": "relay-constrained retains the explicit invalid-environment sentinel alongside the fleet-size skip reason."
+        }
+      ],
+      "runnerScript": "meshlink-reference/scripts/run_headless_reference_relay_proof.py",
+      "analysisScript": "meshlink-reference/scripts/analyze_reference_physical_run.py",
+      "runnerCommand": [],
+      "analysisCommand": [],
+      "runDirectory": "scenarios/02-relay-constrained",
+      "artifacts": {
+        "summary": "scenarios/02-relay-constrained/summary.json",
+        "analysisJson": "scenarios/02-relay-constrained/analysis.json",
+        "analysisMarkdown": "scenarios/02-relay-constrained/analysis.md",
+        "runnerStdout": "scenarios/02-relay-constrained/runner.stdout.log",
+        "runnerStderr": "scenarios/02-relay-constrained/runner.stderr.log",
+        "analysisStdout": "scenarios/02-relay-constrained/analysis.stdout.log",
+        "analysisStderr": "scenarios/02-relay-constrained/analysis.stderr.log"
+      }
+    }
+  ]
+}

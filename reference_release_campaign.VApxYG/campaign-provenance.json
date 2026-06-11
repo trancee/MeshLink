@@ -1,0 +1,165 @@
+{
+  "provenanceVersion": 1,
+  "generatedAt": "2026-06-11T17:50:57.171536+00:00",
+  "runRoot": "reference_release_campaign.VApxYG",
+  "fleetManifestPath": "fleet-manifest.json",
+  "selection": {
+    "status": "skipped",
+    "selectedAssignmentId": null,
+    "reasons": [
+      {
+        "code": "no-runnable-candidate",
+        "kind": "skip",
+        "message": "No runnable direct baseline was found for the discovered fleet shape."
+      },
+      {
+        "code": "android-passive-required",
+        "kind": "skip",
+        "message": "At least one healthy Android passive device is required for the preferred mixed direct baseline."
+      },
+      {
+        "code": "android-fleet-too-small",
+        "kind": "skip",
+        "message": "At least two Android devices are required for the Android-only direct baseline."
+      }
+    ]
+  },
+  "tooling": {
+    "adb": {
+      "available": true,
+      "status": "ready",
+      "reasons": [],
+      "probeCommand": [
+        "adb",
+        "devices"
+      ],
+      "metadata": {
+        "discoveredCount": 0,
+        "healthyCount": 0
+      }
+    },
+    "devicectl": {
+      "available": true,
+      "status": "ready-with-warnings",
+      "reasons": [
+        {
+          "code": "ios-devicectl-row-malformed",
+          "kind": "invalid-environment",
+          "message": "Ignored a partially parsed iOS device row from Apple discovery output.",
+          "details": {
+            "line": "DEAD990F-998D-5DD4-8878-3DAAA5E65A98.coredevice.local   DEAD990F-998D-5DD4-8878-3DAAA5E65A98   unavailable          iPhone8,4"
+          }
+        }
+      ],
+      "probeCommand": [
+        "xcrun",
+        "devicectl",
+        "list",
+        "devices"
+      ],
+      "metadata": {
+        "discoveredCount": 2,
+        "healthyCount": 2
+      }
+    },
+    "developmentTeam": {
+      "available": true,
+      "status": "ready",
+      "reasons": [
+        {
+          "code": "ios-development-team-resolved",
+          "kind": "info",
+          "message": "Resolved DEVELOPMENT_TEAM from local provisioning assets."
+        }
+      ],
+      "metadata": {
+        "source": "local-provisioning-profile"
+      }
+    }
+  },
+  "devices": [
+    {
+      "alias": "ios-iphone-12-mini-c9a494",
+      "platform": "ios",
+      "controlId": "6972CDF5-F3EB-5602-B53B-583BDB6D1AD1",
+      "displayName": "iPhone 12 mini",
+      "state": "available",
+      "available": true,
+      "capabilities": [
+        "sender"
+      ],
+      "reasons": [],
+      "metadata": {
+        "platform": "iOS"
+      }
+    },
+    {
+      "alias": "ios-iphone-15-3dd711",
+      "platform": "ios",
+      "controlId": "7F5320D7-1D8E-56F5-9D6E-0A6967B25467",
+      "displayName": "iPhone 15",
+      "state": "available",
+      "available": true,
+      "capabilities": [
+        "sender"
+      ],
+      "reasons": [],
+      "metadata": {
+        "platform": "iOS"
+      }
+    }
+  ],
+  "candidateAssignments": [
+    {
+      "assignmentId": "direct-guided-mixed",
+      "baseline": "direct-guided",
+      "shape": "mixed",
+      "status": "skipped",
+      "runnable": false,
+      "reasons": [
+        {
+          "code": "android-passive-required",
+          "kind": "skip",
+          "message": "At least one healthy Android passive device is required for the preferred mixed direct baseline."
+        }
+      ],
+      "participants": {
+        "sender": {
+          "alias": "ios-iphone-12-mini-c9a494",
+          "platform": "ios",
+          "controlId": "6972CDF5-F3EB-5602-B53B-583BDB6D1AD1",
+          "displayName": "iPhone 12 mini",
+          "state": "available",
+          "available": true
+        },
+        "passive": null
+      }
+    },
+    {
+      "assignmentId": "direct-guided-android-only",
+      "baseline": "direct-guided",
+      "shape": "android-only",
+      "status": "skipped",
+      "runnable": false,
+      "reasons": [
+        {
+          "code": "android-fleet-too-small",
+          "kind": "skip",
+          "message": "At least two Android devices are required for the Android-only direct baseline."
+        }
+      ],
+      "participants": {
+        "sender": null,
+        "passive": null
+      }
+    }
+  ],
+  "selectedAssignment": null,
+  "campaignStatus": "skipped",
+  "happyPathGate": {
+    "status": "green",
+    "firstFailScenarioId": null,
+    "triggeredAt": null,
+    "updatedAt": "2026-06-11T17:50:57.171037+00:00"
+  }
+}
