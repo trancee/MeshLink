@@ -61,6 +61,8 @@ dokka {
     }
 }
 
+skie { analytics { disableUpload.set(true) } }
+
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
     functions =
