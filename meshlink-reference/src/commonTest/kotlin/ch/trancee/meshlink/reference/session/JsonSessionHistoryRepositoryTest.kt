@@ -56,6 +56,41 @@ class JsonSessionHistoryRepositoryTest {
         // Assert
         assertNull(retainedSnapshot)
     }
+
+    @Test
+    fun clearAllResetsHistorySessionsAndSnapshots() = runTest {
+        // Arrange
+        val repository =
+            JsonSessionHistoryRepository(documentStore = InMemoryReferenceDocumentStore())
+        repository.retainSnapshot(referenceSnapshot(2))
+        repository.retainSession(referenceSession(sessionId = "session-3", startedAt = 3L))
+
+        // Act
+        val clearedHistory = repository.clearAll()
+        val retainedHistory = repository.loadHistory()
+        val retainedSessions = repository.loadRetainedSessions()
+        val retainedSnapshot = repository.loadRetainedSnapshot("session-2")
+
+        // Assert
+        assertEquals(emptyList(), retainedHistory.sessionIds)
+        assertEquals(emptyList(), retainedSessions)
+        assertNull(retainedSnapshot)
+        assertEquals(clearedHistory, retainedHistory)
+    }
+
+    @Test
+    fun loadHistoryStartsEmptyWhenNothingHasBeenRetained() = runTest {
+        // Arrange
+        val repository =
+            JsonSessionHistoryRepository(documentStore = InMemoryReferenceDocumentStore())
+
+        // Act
+        val history = repository.loadHistory()
+
+        // Assert
+        assertEquals(emptyList(), history.sessionIds)
+        assertNull(history.lastPrunedAtEpochMillis)
+    }
 }
 
 private fun referenceSnapshot(index: Int): ReferenceControllerSnapshot {

@@ -27,4 +27,17 @@ class AutomationStorageSubdirectoryTest {
         // Assert
         assertEquals(List(maliciousInputs.size) { "default" }, actual)
     }
+
+    @Test
+    fun usesCustomDefaultForControlCharactersAndNullInput() {
+        // Arrange
+        val defaultValue = "fallback"
+        val inputs = listOf(null, "session\u0000path", "session\npath")
+
+        // Act
+        val actual = inputs.map { normalizeAutomationStorageSubdirectory(it, defaultValue) }
+
+        // Assert
+        assertEquals(List(inputs.size) { defaultValue }, actual)
+    }
 }
