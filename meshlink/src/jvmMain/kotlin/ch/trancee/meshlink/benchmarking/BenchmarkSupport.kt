@@ -34,8 +34,17 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+private val benchmarkCryptoProvider = JvmCryptoProvider()
+
 @UnstableMeshLinkBenchmarkApi
 public class BenchmarkX25519KeyPair
+public constructor(privateKey: ByteArray, publicKey: ByteArray) {
+    public val privateKey: ByteArray = privateKey.copyOf()
+    public val publicKey: ByteArray = publicKey.copyOf()
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkEd25519KeyPair
 public constructor(privateKey: ByteArray, publicKey: ByteArray) {
     public val privateKey: ByteArray = privateKey.copyOf()
     public val publicKey: ByteArray = publicKey.copyOf()
@@ -49,12 +58,24 @@ public class BenchmarkCryptoProvider public constructor() {
         return delegate.randomBytes(size)
     }
 
+    public fun generateEd25519KeyPair(): BenchmarkEd25519KeyPair {
+        val keyPair = delegate.generateEd25519KeyPair()
+        return BenchmarkEd25519KeyPair(
+            privateKey = keyPair.privateKey,
+            publicKey = keyPair.publicKey,
+        )
+    }
+
     public fun generateX25519KeyPair(): BenchmarkX25519KeyPair {
         val keyPair = delegate.generateX25519KeyPair()
         return BenchmarkX25519KeyPair(
             privateKey = keyPair.privateKey,
             publicKey = keyPair.publicKey,
         )
+    }
+
+    public fun sha256(input: ByteArray): ByteArray {
+        return delegate.sha256(input)
     }
 
     public fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
@@ -303,11 +324,10 @@ public fun createBenchmarkMeshLink(
     bleTransport: BenchmarkBleTransport? = null,
     diagnosticSink: BenchmarkDiagnosticSink? = null,
 ): MeshLink {
-    val provider = JvmCryptoProvider()
     val localIdentity =
         LocalIdentity.fromNoiseIdentity(
-            noiseIdentity = NoiseIdentity.generate(provider = provider),
-            provider = provider,
+            noiseIdentity = NoiseIdentity.generate(provider = benchmarkCryptoProvider),
+            provider = benchmarkCryptoProvider,
             peerId = peerId,
         )
     return MeshEngine.create(
