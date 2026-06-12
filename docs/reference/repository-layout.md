@@ -164,7 +164,6 @@ flowchart LR
 | `docs/tooling` | Build-tooling and migration docs |
 | `docs/rfcs` | Retained protocol, routing, replay, compression, and crypto source material |
 | `specs/001-ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
-| `specs/002-meshlink-reference-app` | Reference-app spec, plan, research, and tasks |
 | `meshlink-reference/README.md` | High-level reference-app overview |
 | `benchmarks/README.md` | Current retained benchmark posture |
 
