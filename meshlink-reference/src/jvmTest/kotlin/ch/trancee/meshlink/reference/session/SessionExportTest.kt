@@ -42,13 +42,31 @@ class SessionExportTest {
 
         val firstSourceFiles = firstReportData["sourceFiles"]!!.jsonObject
         val secondSourceFiles = secondReportData["sourceFiles"]!!.jsonObject
-        assertTrue(firstSourceFiles["campaignPlan"]?.jsonPrimitive?.content?.endsWith("campaign-plan.json") == true)
-        assertTrue(firstSourceFiles["campaignState"]?.jsonPrimitive?.content?.endsWith("campaign-state.json") == true)
         assertTrue(
-            firstSourceFiles["campaignProvenance"]?.jsonPrimitive?.content?.endsWith(provenancePath) == true,
+            firstSourceFiles["campaignPlan"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith("campaign-plan.json") == true
+        )
+        assertTrue(
+            firstSourceFiles["campaignState"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith("campaign-state.json") == true
+        )
+        assertTrue(
+            firstSourceFiles["campaignProvenance"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith(provenancePath) == true
         )
         assertEquals(firstSourceFiles, secondSourceFiles)
-        assertTrue(secondSourceFiles["campaignProvenance"]?.jsonPrimitive?.content?.endsWith(provenancePath) == true)
+        assertTrue(
+            secondSourceFiles["campaignProvenance"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith(provenancePath) == true
+        )
     }
 
     @Test
