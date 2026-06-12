@@ -123,8 +123,8 @@ guessing which page owns which model.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
-- [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.
-- [Release decision](../specs/001-ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
+- [Feature specification](../specs/ble-mesh-sdk/spec.md) — normative product scope and success criteria.
+- [Release decision](../specs/ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
 
 ## Explanation
 

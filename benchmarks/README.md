@@ -4,8 +4,8 @@ Use this page for the current benchmark posture.
 
 The normative targets still live in:
 
-- `specs/001-ble-mesh-sdk/spec.md` — success criteria
-- `specs/001-ble-mesh-sdk/plan.md` — mirrored performance goals
+- `specs/ble-mesh-sdk/spec.md` — success criteria
+- `specs/ble-mesh-sdk/plan.md` — mirrored performance goals
 
 A failing result in this directory is still useful retained evidence, but it
 does not relax the underlying requirement.

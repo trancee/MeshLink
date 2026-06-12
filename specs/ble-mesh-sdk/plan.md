@@ -1,7 +1,7 @@
 # Implementation Plan: MeshLink Offline BLE Mesh SDK
 
 **Branch**: `001-ble-mesh-sdk` | **Date**: 2026-05-12 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-ble-mesh-sdk/spec.md`
+**Input**: Feature specification from `/specs/ble-mesh-sdk/spec.md`
 
 This plan records the build shape, technical constraints, and verification
 posture for the MeshLink SDK work.
@@ -41,7 +41,7 @@ dependencies” request, the runtime ships no additional third-party libraries
 beyond the constitutionally allowed `kotlinx-coroutines-core`; codec, routing,
 and crypto-provider logic remain in-repo. Repository baselines and physical
 proof findings are recorded in `benchmarks/README.md` and
-`specs/001-ble-mesh-sdk/research.md`; the released baseline still carries the
+`specs/ble-mesh-sdk/research.md`; the released baseline still carries the
 historical iOS 64 KiB throughput non-conformance and its documented waiver,
 while the latest future branch now has retained product-path evidence above the
 normative iOS target on both reference peers. Recipient-confirmed MeshLink
@@ -59,7 +59,7 @@ and must stay covered by the retained benchmark evidence.
 **Performance Goals**: ≥80 KB/s Android L2CAP, ≥60 KB/s iOS L2CAP, 50 ms p95 for a 1-hop 256 B message, 8 MB steady-state heap at 8 peers, ≤5% scan duty and maintained connection intervals of `>= 500 ms` in LOW mode, ≤5 s for a 1-hop 256 B message in LOW mode after peer discovery and connection establishment, power-tier output that exposes advertisement interval / maintained-connection interval / max-connections / chunk-budget behavior, <500 ms from `mesh.start()` to first advertisement, 3 s control-plane route convergence for a 10-node topology measured through the canonical virtual transport, <1 µs JVM codec encode/decode
 **Benchmark Evidence Handling**: `benchmarks/README.md` retains observed benchmark and proof-app evidence for reviewer traceability. Those retained baselines do not lower or replace the normative success criteria in `spec.md` or the mirrored performance goals above.
 **Constraints**: Offline-only; no servers or accounts; TOFU trust pinning; 64 KiB release payload limit; configurable in-memory delivery retry deadline; no retry persistence across restart; bounded, jittered exponential backoff for no-route scheduling; immediate retry on route availability; L2CAP-first on the normative product path; discovery uses the fixed `4d455348` + 16-byte payload single-advertisement / no-scan-response contract; the retained GATT prototype is proof-only investigative evidence and does not constitute product-conformance fallback unless the specification is explicitly amended; no additional third-party runtime dependencies; the released baseline still carries the historical iOS ≥60 KB/s non-conformance that required an explicit waiver, while the latest future branch now has retained reference-hardware evidence above the normative threshold on both Samsung and OPPO
-**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, the sealed `MeshLinkException` hierarchy, and the shared `meshLinkConfig` DSL builder; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, LOW-tier maintained connection intervals, and cold-start paths; discovery-advertisement contract validation; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/001-ble-mesh-sdk/research.md`
+**Constitutional Constraints**: `explicitApi()` required; Detekt + ktfmt gates; BCV-tracked public API; 100% line/branch coverage; Power-assert diagnostics; Wycheproof validation; canonical virtual harness for integration tests; Android/iOS parity for API, docs, state, diagnostics, the shared 26-code diagnostic catalog, the sealed `MeshLinkException` hierarchy, and the shared `meshLinkConfig` DSL builder; benchmark evidence for crypto, routing lookup, wire codec, route convergence, transport throughput/latency, steady-state memory, LOW-power duty cycle, LOW-tier maintained connection intervals, and cold-start paths; discovery-advertisement contract validation; all shared logic in `commonMain`; no external crypto library; FlatBuffers wire compatibility plus explicit backward-compatibility validation evidence; runtime dependency budget limited to `kotlinx-coroutines-core`; repository benchmark baselines must stay documented in `benchmarks/README.md` and `specs/ble-mesh-sdk/research.md`
 **Quality Gates**: Work for this feature MUST stay within the repository’s quality-gate workflow: feature-branch development, ktfmt, Detekt, Kover, BCV/API-compatibility, required Android/iOS platform tests, and benchmark evidence before merge. Public API changes MUST include KDoc and API-diff rationale in the same change set; documentation changes MUST preserve Android/iOS parity; YAML or workflow edits MUST add `yamllint`.
 **Applicable Skills**: kotlin-multiplatform, kotlin-gradle-plugin, gradle-build-tool, kotlin-api-guidelines, android-ble, android-bluetooth-sockets, core-bluetooth, kmp-ios-integration, flatbuffers, babel-rfc8966, noise-protocol-framework, tcp-sack-rfc2018, optimize-ble-throughput
 **Scale/Scope**: One shared SDK module, two mobile targets, one public API surface, 8-peer steady-state mesh, 10-node convergence validation topology, 64 KiB maximum v1 payload
@@ -247,7 +247,7 @@ passing evidence on reference hardware.
 ### Documentation (this feature)
 
 ```text
-specs/001-ble-mesh-sdk/
+specs/ble-mesh-sdk/
 ├── plan.md
 ├── research.md
 ├── data-model.md

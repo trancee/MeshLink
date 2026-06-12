@@ -77,9 +77,9 @@ throughput above the normative iOS target on both reference peers.
 
 ## Evidence sources
 
-- `specs/001-ble-mesh-sdk/spec.md`
-- `specs/001-ble-mesh-sdk/plan.md`
-- `specs/001-ble-mesh-sdk/research.md`
+- `specs/ble-mesh-sdk/spec.md`
+- `specs/ble-mesh-sdk/plan.md`
+- `specs/ble-mesh-sdk/research.md`
 - `benchmarks/README.md`
 
 ## Update rule

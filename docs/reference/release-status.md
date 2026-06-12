@@ -64,4 +64,4 @@ The first public release still needs:
 - [Changelog](../../CHANGELOG.md)
 - [Security policy](../../SECURITY.md)
 - [Release runbook](../../RELEASING.md)
-- [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)
+- [Release decision](../../specs/ble-mesh-sdk/release-decision.md)
