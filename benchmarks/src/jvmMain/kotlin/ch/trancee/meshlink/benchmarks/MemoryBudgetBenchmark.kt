@@ -6,11 +6,14 @@ import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.benchmarking.BenchmarkBleTransport as BleTransport
+import ch.trancee.meshlink.benchmarking.BenchmarkCryptoProvider as JvmCryptoProvider
 import ch.trancee.meshlink.benchmarking.BenchmarkDiagnosticSink as DiagnosticSink
+import ch.trancee.meshlink.benchmarking.BenchmarkLocalIdentity
 import ch.trancee.meshlink.benchmarking.BenchmarkOutboundFrame as OutboundFrame
 import ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent as TransportEvent
 import ch.trancee.meshlink.benchmarking.BenchmarkTransportMode as TransportMode
 import ch.trancee.meshlink.benchmarking.BenchmarkTransportSendResult as TransportSendResult
+import ch.trancee.meshlink.benchmarking.createBenchmarkLocalIdentity
 import ch.trancee.meshlink.benchmarking.createBenchmarkMeshLink
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
@@ -18,10 +21,14 @@ import java.util.concurrent.TimeUnit
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.BenchmarkMode
 import kotlinx.benchmark.Blackhole
+import org.openjdk.jmh.annotations.Level
 import kotlinx.benchmark.Mode
 import kotlinx.benchmark.OutputTimeUnit
+import kotlinx.benchmark.Param
 import kotlinx.benchmark.Scope
+import kotlinx.benchmark.Setup
 import kotlinx.benchmark.State
+import kotlinx.benchmark.TearDown
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -33,21 +40,46 @@ import kotlinx.coroutines.withTimeout
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 class MemoryBudgetBenchmark {
-    @Benchmark
-    fun establishEightPeerSteadyState(blackhole: Blackhole): Unit = runBlocking {
-        val scenario = BenchmarkMeshScenario()
+    @Param("1", "8")
+    var peerCount: Int = 8
 
-        try {
-            blackhole.consume(scenario.establishSteadyState())
-        } finally {
+    private val provider = JvmCryptoProvider()
+    private lateinit var scenario: BenchmarkMeshScenario
+
+    @Setup(Level.Invocation)
+    fun prepare(): Unit {
+        val peerIds = List(peerCount) { index -> PeerId("benchmark-peer-$index") }
+        val localIdentities =
+            peerIds.map { peerId ->
+                createBenchmarkLocalIdentity(
+                    noiseIdentity = provider.generateNoiseIdentity(),
+                    peerId = peerId,
+                )
+            }
+        scenario = BenchmarkMeshScenario(peerIds = peerIds, localIdentities = localIdentities)
+    }
+
+    @Benchmark
+    fun establishPeerSteadyState(blackhole: Blackhole): Unit = runBlocking {
+        blackhole.consume(scenario.establishSteadyState())
+    }
+
+    @TearDown(Level.Invocation)
+    fun cleanup(): Unit = runBlocking {
+        if (::scenario.isInitialized) {
             scenario.stop()
         }
     }
 }
 
-private class BenchmarkMeshScenario {
+private class BenchmarkMeshScenario(
+    peerIds: List<PeerId>,
+    localIdentities: List<BenchmarkLocalIdentity>,
+) {
     private val network = BenchmarkVirtualMeshNetwork()
-    private val nodes: List<BenchmarkNode> = List(8) { index -> createNode(index) }
+    private val nodes: List<BenchmarkNode> =
+        peerIds.indices.map { index -> createNode(peerIds[index], localIdentities[index]) }
+    private val expectedDiscoveredPeerEvents: Int = peerIds.size * (peerIds.size - 1)
 
     init {
         nodes.indices.forEach { leftIndex ->
@@ -65,18 +97,17 @@ private class BenchmarkMeshScenario {
         check(runningNodes == nodes.size) {
             "All benchmark peers must reach the running state before allocation profiling"
         }
-        check(discoveredPeers == EXPECTED_DISCOVERED_PEER_EVENTS) {
+        check(discoveredPeers == expectedDiscoveredPeerEvents) {
             "The benchmark mesh must discover every peer before allocation profiling"
         }
         return discoveredPeers
     }
 
-    private suspend fun awaitSteadyState(): Unit =
-        withTimeout(250) {
-            while (!isSteadyStateReached()) {
-                delay(5)
-            }
+    private suspend fun awaitSteadyState(): Unit = withTimeout(250) {
+        while (!isSteadyStateReached()) {
+            delay(5)
         }
+    }
 
     private fun isSteadyStateReached(): Boolean {
         val runningNodes = nodes.count { node -> node.api.state.value == MeshLinkState.Running }
@@ -84,28 +115,23 @@ private class BenchmarkMeshScenario {
             return false
         }
         val discoveredPeers = nodes.sumOf { node -> node.transport.discoveredPeerCount() }
-        return discoveredPeers == EXPECTED_DISCOVERED_PEER_EVENTS
+        return discoveredPeers == expectedDiscoveredPeerEvents
     }
 
     suspend fun stop(): Unit {
         nodes.asReversed().forEach { node -> runCatching { node.api.stop() } }
     }
 
-    private fun createNode(index: Int): BenchmarkNode {
-        val peerId = PeerId("benchmark-peer-$index")
+    private fun createNode(peerId: PeerId, localIdentity: BenchmarkLocalIdentity): BenchmarkNode {
         val transport = BenchmarkVirtualMeshTransport(localPeerId = peerId, network = network)
         val api =
             createBenchmarkMeshLink(
                 config = meshLinkConfig { appId = "benchmark.mesh" },
-                peerId = peerId,
+                localIdentity = localIdentity,
                 bleTransport = transport,
                 diagnosticSink = BenchmarkDiagnosticSink,
             )
         return BenchmarkNode(peerId = peerId, api = api, transport = transport)
-    }
-
-    private companion object {
-        private const val EXPECTED_DISCOVERED_PEER_EVENTS: Int = 56
     }
 }
 
