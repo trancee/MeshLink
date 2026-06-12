@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
@@ -170,7 +171,9 @@ private fun MainActivity.emitDirectProofPowerState(
 }
 
 private fun MainActivity.readAutomationConfig(): AutomationConfig {
-    val automationEnabled = intent?.getBooleanExtra(MainActivity.EXTRA_UI_AUTOMATION, false) == true
+    val automationEnabled =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+            intent?.getBooleanExtra(MainActivity.EXTRA_UI_AUTOMATION, false) == true
     val automationMode = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_MODE)
     val mode = if (automationEnabled) automationMode else null
     return AutomationConfig(
