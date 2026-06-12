@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
@@ -58,7 +59,7 @@ private class BenchmarkMeshScenario {
 
     suspend fun establishSteadyState(): Int {
         nodes.forEach { node -> node.api.start() }
-        delay(250)
+        awaitSteadyState()
         val runningNodes = nodes.count { node -> node.api.state.value == MeshLinkState.Running }
         val discoveredPeers = nodes.sumOf { node -> node.transport.discoveredPeerCount() }
         check(runningNodes == nodes.size) {
@@ -68,6 +69,22 @@ private class BenchmarkMeshScenario {
             "The benchmark mesh must discover every peer before allocation profiling"
         }
         return discoveredPeers
+    }
+
+    private suspend fun awaitSteadyState(): Unit =
+        withTimeout(250) {
+            while (!isSteadyStateReached()) {
+                delay(5)
+            }
+        }
+
+    private fun isSteadyStateReached(): Boolean {
+        val runningNodes = nodes.count { node -> node.api.state.value == MeshLinkState.Running }
+        if (runningNodes != nodes.size) {
+            return false
+        }
+        val discoveredPeers = nodes.sumOf { node -> node.transport.discoveredPeerCount() }
+        return discoveredPeers == EXPECTED_DISCOVERED_PEER_EVENTS
     }
 
     suspend fun stop(): Unit {
