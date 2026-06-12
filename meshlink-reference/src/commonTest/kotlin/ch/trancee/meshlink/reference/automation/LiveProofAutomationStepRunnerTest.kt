@@ -889,6 +889,149 @@ class LiveProofAutomationStepRunnerTest {
         assertTrue(actions.logs.any { log -> log.contains("outcome=") })
     }
 
+    @Test
+    fun senderStepDispatchesRelayScenarioThroughTheRelayRunner() {
+        // Arrange
+        val bootstrapPeerId = "bootstrap-peer-123456"
+        val targetPeerId = "relay-target-abcdef"
+        val bootstrapPeerSuffix = redactedSuffix(bootstrapPeerId)
+        val targetPeerSuffix = redactedSuffix(targetPeerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig =
+            senderAutomationConfig(
+                scenario = ReferenceAutomationScenario.RELAY_CONSTRAINED,
+                requiredPeerCount = 2,
+                targetPeerId = targetPeerId,
+            )
+        val bootstrapSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers =
+                    listOf(
+                        automationTestPeer(
+                            peerId = bootstrapPeerId,
+                            peerSuffix = bootstrapPeerSuffix,
+                        )
+                    ),
+                timeline = listOf(routeAvailableEntry(bootstrapPeerId, bootstrapPeerSuffix)),
+            )
+        val routedSnapshot =
+            automationTestSnapshot(
+                meshStateLabel = "Running",
+                peers =
+                    listOf(
+                        automationTestPeer(
+                            peerId = bootstrapPeerId,
+                            peerSuffix = bootstrapPeerSuffix,
+                        ),
+                        automationTestPeer(peerId = targetPeerId, peerSuffix = targetPeerSuffix),
+                    ),
+                timeline = listOf(routeAvailableEntry(targetPeerId, targetPeerSuffix)),
+            )
+        val completedSnapshot =
+            routedSnapshot.copy(
+                session = routedSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    routedSnapshot.timeline +
+                        deliverySucceededEntry(targetPeerSuffix, entryId = "session-1-2"),
+            )
+
+        // Act
+        runSenderAutomationStep(bootstrapSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(bootstrapSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(routedSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(completedSnapshot, automationConfig, actions, progress)
+
+        // Assert
+        assertEquals(2, actions.sendRequests.size)
+        assertEquals(bootstrapPeerId, actions.sendRequests.first().peerId)
+        assertEquals(targetPeerId, actions.sendRequests.last().peerId)
+        assertTrue(progress.completionLogged)
+        assertTrue(actions.logs.any { log -> log.contains("bootstrap.requested role=sender") })
+        assertTrue(actions.logs.any { log -> log.contains("proof.complete role=sender") })
+    }
+
+    @Test
+    fun senderStepDispatchesPauseResumeScenarioThroughThePauseResumeRunner() {
+        // Arrange
+        val peerId = "peer-abc123"
+        val peerSuffix = redactedSuffix(peerId)
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig =
+            senderAutomationConfig(
+                scenario = ReferenceAutomationScenario.DIRECT_PAUSE_RESUME,
+                targetPeerId = peerId,
+            )
+        val runningSnapshot = senderSnapshot(peerId, peerSuffix)
+        val deliveredSnapshot =
+            runningSnapshot.copy(
+                session = runningSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    runningSnapshot.timeline +
+                        routeAvailableEntry(peerId, peerSuffix, entryId = "session-1-2") +
+                        deliverySucceededEntry(peerSuffix, entryId = "session-1-3"),
+            )
+        val pausedSnapshot =
+            deliveredSnapshot.copy(
+                session =
+                    deliveredSnapshot.session.copy(
+                        lastOutcomeSummary = "PauseResult.Paused",
+                        meshStateLabel = "Paused",
+                    ),
+                timeline =
+                    deliveredSnapshot.timeline +
+                        automationTestEntry(
+                            entryId = "session-1-4",
+                            title = "Mesh paused",
+                            detail = "Paused for proof automation.",
+                            family = TimelineFamily.DIAGNOSTIC,
+                        ),
+            )
+        val resumedSnapshot =
+            deliveredSnapshot.copy(
+                session =
+                    deliveredSnapshot.session.copy(lastOutcomeSummary = "ResumeResult.Resumed"),
+                timeline =
+                    deliveredSnapshot.timeline +
+                        automationTestEntry(
+                            entryId = "session-1-5",
+                            title = "Mesh resumed",
+                            detail = "Resumed after proof pause.",
+                            family = TimelineFamily.DIAGNOSTIC,
+                        ),
+            )
+        val completedSnapshot =
+            deliveredSnapshot.copy(
+                session = deliveredSnapshot.session.copy(lastOutcomeSummary = "SendResult.Sent"),
+                timeline =
+                    deliveredSnapshot.timeline +
+                        deliverySucceededEntry(peerSuffix, entryId = "session-1-6"),
+            )
+
+        // Act
+        runSenderAutomationStep(runningSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(deliveredSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(pausedSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(resumedSnapshot, automationConfig, actions, progress)
+        runSenderAutomationStep(completedSnapshot, automationConfig, actions, progress)
+
+        // Assert
+        assertEquals(2, actions.sendRequests.size)
+        assertEquals(1, actions.meshPauseRequests)
+        assertEquals(1, actions.meshResumeRequests)
+        assertTrue(progress.recoverySendRequested)
+        assertTrue(progress.completionLogged)
+        assertTrue(actions.logs.any { log -> log.contains("pause.requested role=sender") })
+        assertTrue(actions.logs.any { log -> log.contains("resume.requested role=sender") })
+        assertTrue(
+            actions.logs.any { log ->
+                log.contains("proof.complete role=sender") && log.contains("deliveries=2")
+            }
+        )
+    }
+
     private fun senderAutomationConfig(
         scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
         requiredPeerCount: Int = 1,
