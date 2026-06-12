@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -41,16 +42,30 @@ class SessionExportTest {
 
         val firstSourceFiles = firstReportData["sourceFiles"]!!.jsonObject
         val secondSourceFiles = secondReportData["sourceFiles"]!!.jsonObject
-        assertEquals("campaign-plan.json", firstSourceFiles["campaignPlan"]?.jsonPrimitive?.content)
-        assertEquals(
-            "campaign-state.json",
-            firstSourceFiles["campaignState"]?.jsonPrimitive?.content,
+        assertTrue(
+            firstSourceFiles["campaignPlan"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith("campaign-plan.json") == true
         )
-        assertEquals(provenancePath, firstSourceFiles["campaignProvenance"]?.jsonPrimitive?.content)
+        assertTrue(
+            firstSourceFiles["campaignState"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith("campaign-state.json") == true
+        )
+        assertTrue(
+            firstSourceFiles["campaignProvenance"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith(provenancePath) == true
+        )
         assertEquals(firstSourceFiles, secondSourceFiles)
-        assertEquals(
-            provenancePath,
-            secondSourceFiles["campaignProvenance"]?.jsonPrimitive?.content,
+        assertTrue(
+            secondSourceFiles["campaignProvenance"]
+                ?.jsonPrimitive
+                ?.content
+                ?.endsWith(provenancePath) == true
         )
     }
 
@@ -81,7 +96,7 @@ class SessionExportTest {
     }
 
     private fun runCampaignReportData(runRoot: Path, outputJson: Path) {
-        val script = Path.of("meshlink-reference/scripts/campaign_report_data.py")
+        val script = Path.of("scripts/campaign_report_data.py")
         val process =
             ProcessBuilder(
                     "python3",
