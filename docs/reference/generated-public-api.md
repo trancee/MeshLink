@@ -76,8 +76,11 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 |---|---|---|
 | `ch.trancee.meshlink.benchmarking.BenchmarkAdvertisement` | class | `frame`, `targetPeerId` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkBleTransport` | interface | `events`, `pause()`, `resume()`, `send()`, `start()`, `stop()` |
-| `ch.trancee.meshlink.benchmarking.BenchmarkCryptoProvider` | class | `chacha20Poly1305Open()`, `chacha20Poly1305Seal()`, `generateX25519KeyPair()`, `randomBytes()`, `x25519()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkCryptoProvider` | class | `chacha20Poly1305Open()`, `chacha20Poly1305Seal()`, `generateEd25519KeyPair()`, `generateNoiseIdentity()`, `generateX25519KeyPair()`, `randomBytes()`, `sha256()`, `x25519()` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkDiagnosticSink` | interface | `emit()` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkEd25519KeyPair` | class | `privateKey`, `publicKey` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkLocalIdentity` | class | — |
+| `ch.trancee.meshlink.benchmarking.BenchmarkNoiseIdentity` | class | — |
 | `ch.trancee.meshlink.benchmarking.BenchmarkOutboundFrame` | class | `init`, `payload`, `peerId`, `preferredMode` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkRouteCoordinator` | class | `hasRoute()`, `nextHopFor()`, `onPeerConnected()`, `onPeerDisconnected()`, `onRouteDigest()`, `onRouteRetraction()`, `onRouteUpdate()` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent` | abstract class | — |
@@ -102,7 +105,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.benchmarking.BenchmarkWireFrame.TransferChunk` | nested type | `chunkIndex`, `payload`, `transferId` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkX25519KeyPair` | class | `privateKey`, `publicKey` |
 | `ch.trancee.meshlink.benchmarking.UnstableMeshLinkBenchmarkApi` | annotation | — |
-| `top-level declarations` | top-level | `createBenchmarkMeshLink()` |
+| `top-level declarations` | top-level | `createBenchmarkLocalIdentity()`, `createBenchmarkMeshLink()` |
 
 ## Package `ch.trancee.meshlink.config`
 

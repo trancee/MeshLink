@@ -26,6 +26,7 @@ class CryptoBenchmark {
     private lateinit var ciphertext: ByteArray
     private lateinit var alicePrivateKey: ByteArray
     private lateinit var bobPublicKey: ByteArray
+    private lateinit var fingerprintInput: ByteArray
     private var nextEncryptionNonceIndex: Int = 0
 
     @Setup
@@ -39,8 +40,10 @@ class CryptoBenchmark {
         ciphertext = provider.chacha20Poly1305Seal(key, decryptNonce, aad, plaintext)
         val alice = provider.generateX25519KeyPair()
         val bob = provider.generateX25519KeyPair()
+        val ed25519 = provider.generateEd25519KeyPair()
         alicePrivateKey = alice.privateKey
         bobPublicKey = bob.publicKey
+        fingerprintInput = ed25519.publicKey + bob.publicKey
     }
 
     @Benchmark
@@ -56,6 +59,21 @@ class CryptoBenchmark {
     @Benchmark
     fun x25519Agreement(blackhole: Blackhole): Unit {
         blackhole.consume(provider.x25519(alicePrivateKey, bobPublicKey))
+    }
+
+    @Benchmark
+    fun generateEd25519KeyPair(blackhole: Blackhole): Unit {
+        blackhole.consume(provider.generateEd25519KeyPair())
+    }
+
+    @Benchmark
+    fun generateX25519KeyPair(blackhole: Blackhole): Unit {
+        blackhole.consume(provider.generateX25519KeyPair())
+    }
+
+    @Benchmark
+    fun identityFingerprintHash(blackhole: Blackhole): Unit {
+        blackhole.consume(provider.sha256(fingerprintInput))
     }
 
     private fun createEncryptionNonce(index: Int): ByteArray {

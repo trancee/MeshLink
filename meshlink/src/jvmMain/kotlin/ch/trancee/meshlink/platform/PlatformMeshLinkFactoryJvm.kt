@@ -7,13 +7,15 @@ import ch.trancee.meshlink.crypto.JvmCryptoProvider
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 
+private val jvmCryptoProvider = JvmCryptoProvider()
+
 internal actual fun createMeshLink(config: MeshLinkConfig): MeshLink {
     val secureStorage = InMemorySecureStorage()
     val localIdentity =
         loadOrCreateLocalIdentityBlocking(
             appId = config.appId,
             secureStorage = secureStorage,
-            provider = JvmCryptoProvider(),
+            provider = jvmCryptoProvider,
         )
     return MeshEngine.create(
         config = config,
@@ -28,7 +30,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig, bootstrap: MeshLinkBo
         loadOrCreateLocalIdentityBlocking(
             appId = config.appId,
             secureStorage = secureStorage,
-            provider = JvmCryptoProvider(),
+            provider = jvmCryptoProvider,
         )
     return MeshEngine.create(
         config = config,

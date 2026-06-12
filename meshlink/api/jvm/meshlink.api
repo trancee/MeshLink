@@ -356,13 +356,29 @@ public final class ch/trancee/meshlink/benchmarking/BenchmarkCryptoProvider {
 	public fun <init> ()V
 	public final fun chacha20Poly1305Open ([B[B[B[B)[B
 	public final fun chacha20Poly1305Seal ([B[B[B[B)[B
+	public final fun generateEd25519KeyPair ()Lch/trancee/meshlink/benchmarking/BenchmarkEd25519KeyPair;
+	public final fun generateNoiseIdentity ()Lch/trancee/meshlink/benchmarking/BenchmarkNoiseIdentity;
 	public final fun generateX25519KeyPair ()Lch/trancee/meshlink/benchmarking/BenchmarkX25519KeyPair;
 	public final fun randomBytes (I)[B
+	public final fun sha256 ([B)[B
 	public final fun x25519 ([B[B)[B
 }
 
 public abstract interface class ch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink {
 	public abstract fun emit (Lch/trancee/meshlink/diagnostics/DiagnosticEvent;)V
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkEd25519KeyPair {
+	public fun <init> ([B[B)V
+	public final fun getPrivateKey ()[B
+	public final fun getPublicKey ()[B
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkLocalIdentity {
+}
+
+public final class ch/trancee/meshlink/benchmarking/BenchmarkNoiseIdentity {
+	public fun <init> (Lch/trancee/meshlink/benchmarking/BenchmarkEd25519KeyPair;Lch/trancee/meshlink/benchmarking/BenchmarkX25519KeyPair;)V
 }
 
 public final class ch/trancee/meshlink/benchmarking/BenchmarkOutboundFrame {
@@ -385,8 +401,11 @@ public final class ch/trancee/meshlink/benchmarking/BenchmarkRouteCoordinator {
 }
 
 public final class ch/trancee/meshlink/benchmarking/BenchmarkSupportKt {
+	public static final fun createBenchmarkLocalIdentity (Lch/trancee/meshlink/benchmarking/BenchmarkNoiseIdentity;Lch/trancee/meshlink/api/PeerId;)Lch/trancee/meshlink/benchmarking/BenchmarkLocalIdentity;
 	public static final fun createBenchmarkMeshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;)Lch/trancee/meshlink/api/MeshLink;
+	public static final fun createBenchmarkMeshLink (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/benchmarking/BenchmarkLocalIdentity;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;)Lch/trancee/meshlink/api/MeshLink;
 	public static synthetic fun createBenchmarkMeshLink$default (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/api/PeerId;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLink;
+	public static synthetic fun createBenchmarkMeshLink$default (Lch/trancee/meshlink/config/MeshLinkConfig;Lch/trancee/meshlink/benchmarking/BenchmarkLocalIdentity;Lch/trancee/meshlink/benchmarking/BenchmarkBleTransport;Lch/trancee/meshlink/benchmarking/BenchmarkDiagnosticSink;ILjava/lang/Object;)Lch/trancee/meshlink/api/MeshLink;
 }
 
 public abstract class ch/trancee/meshlink/benchmarking/BenchmarkTransportEvent {
