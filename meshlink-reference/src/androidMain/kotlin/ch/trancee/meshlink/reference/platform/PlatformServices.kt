@@ -37,7 +37,10 @@ public fun createAutomationPlatformServices(
     blocked: Boolean,
 ): PlatformServices {
     val clock = { System.currentTimeMillis() }
-    val automationDirectory = "${context.filesDir.absolutePath}/ui-automation/$storageSubdirectory"
+    val safeStorageSubdirectory =
+        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
+    val automationDirectory =
+        "${context.filesDir.absolutePath}/ui-automation/" + safeStorageSubdirectory
     return DefaultPlatformServices(
         platformName = "Android",
         defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
@@ -86,8 +89,10 @@ public fun createLiveAutomationPlatformServices(
     scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 ): PlatformServices {
     val clock = { System.currentTimeMillis() }
+    val safeStorageSubdirectory =
+        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
     val automationDirectory =
-        "${context.filesDir.absolutePath}/live-automation/$storageSubdirectory"
+        "${context.filesDir.absolutePath}/live-automation/" + safeStorageSubdirectory
     val automationAppId = appId
     return DefaultPlatformServices(
         platformName = "Android",
