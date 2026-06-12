@@ -165,4 +165,4 @@ For retained evidence and release posture, use:
 - [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
-- [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)
+- [Release decision](../../specs/ble-mesh-sdk/release-decision.md)

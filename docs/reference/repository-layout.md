@@ -163,9 +163,9 @@ flowchart LR
 | `docs/explanation` | Architecture, rationale, and mental-model docs |
 | `docs/tooling` | Build-tooling and migration docs |
 | `docs/rfcs` | Retained protocol, routing, replay, compression, and crypto source material |
-| `specs/001-ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
-| `specs/002-meshlink-reference-app` | Reference-app spec, plan, research, and tasks |
+| `specs/ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
 | `meshlink-reference/README.md` | High-level reference-app overview |
+| `meshlink-reference/fleet-test-history/` | Retained reference-app fleet history and campaign evidence bundles |
 | `benchmarks/README.md` | Current retained benchmark posture |
 
 ## Related docs

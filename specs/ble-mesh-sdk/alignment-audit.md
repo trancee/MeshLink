@@ -13,11 +13,11 @@ retained-evidence gaps still remain.
 
 This audit compared the codebase against the canonical feature artifacts:
 
-- `specs/001-ble-mesh-sdk/spec.md`
-- `specs/001-ble-mesh-sdk/plan.md`
-- `specs/001-ble-mesh-sdk/tasks.md`
-- `specs/001-ble-mesh-sdk/contracts/meshlink-api.md`
-- `specs/001-ble-mesh-sdk/contracts/discovery-advertisement.md`
+- `specs/ble-mesh-sdk/spec.md`
+- `specs/ble-mesh-sdk/plan.md`
+- `specs/ble-mesh-sdk/tasks.md`
+- `specs/ble-mesh-sdk/contracts/meshlink-api.md`
+- `specs/ble-mesh-sdk/contracts/discovery-advertisement.md`
 - `benchmarks/README.md`
 
 It also inspected these implementation and evidence surfaces:
