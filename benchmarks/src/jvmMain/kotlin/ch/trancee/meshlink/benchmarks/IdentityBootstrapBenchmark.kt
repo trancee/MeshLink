@@ -51,8 +51,6 @@ class IdentityBootstrapBenchmark {
 
     @Benchmark
     fun constructMeshLink(blackhole: Blackhole): Unit {
-        blackhole.consume(
-            createBenchmarkMeshLink(config = config, localIdentity = localIdentity)
-        )
+        blackhole.consume(createBenchmarkMeshLink(config = config, localIdentity = localIdentity))
     }
 }

@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.BenchmarkMode
 import kotlinx.benchmark.Blackhole
-import org.openjdk.jmh.annotations.Level
 import kotlinx.benchmark.Mode
 import kotlinx.benchmark.OutputTimeUnit
 import kotlinx.benchmark.Param
@@ -35,13 +34,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.openjdk.jmh.annotations.Level
 
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 class MemoryBudgetBenchmark {
-    @Param("1", "8")
-    var peerCount: Int = 8
+    @Param("1", "8") var peerCount: Int = 8
 
     private val provider = JvmCryptoProvider()
     private lateinit var scenario: BenchmarkMeshScenario
@@ -49,13 +48,12 @@ class MemoryBudgetBenchmark {
     @Setup(Level.Invocation)
     fun prepare(): Unit {
         val peerIds = List(peerCount) { index -> PeerId("benchmark-peer-$index") }
-        val localIdentities =
-            peerIds.map { peerId ->
-                createBenchmarkLocalIdentity(
-                    noiseIdentity = provider.generateNoiseIdentity(),
-                    peerId = peerId,
-                )
-            }
+        val localIdentities = peerIds.map { peerId ->
+            createBenchmarkLocalIdentity(
+                noiseIdentity = provider.generateNoiseIdentity(),
+                peerId = peerId,
+            )
+        }
         scenario = BenchmarkMeshScenario(peerIds = peerIds, localIdentities = localIdentities)
     }
 
@@ -103,11 +101,12 @@ private class BenchmarkMeshScenario(
         return discoveredPeers
     }
 
-    private suspend fun awaitSteadyState(): Unit = withTimeout(250) {
-        while (!isSteadyStateReached()) {
-            delay(5)
+    private suspend fun awaitSteadyState(): Unit =
+        withTimeout(250) {
+            while (!isSteadyStateReached()) {
+                delay(5)
+            }
         }
-    }
 
     private fun isSteadyStateReached(): Boolean {
         val runningNodes = nodes.count { node -> node.api.state.value == MeshLinkState.Running }
