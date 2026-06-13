@@ -38,8 +38,13 @@ Android crypto nuance:
 
 - Android's official `KeyAgreement` support for `XDH` is API 33+, and official `Cipher` support for `ChaCha20-Poly1305` is API 28+.
 - MeshLink therefore treats X25519/XDH and ChaCha20-Poly1305 on API 26-32 as runtime-capability features, not guaranteed platform APIs.
-- We should prove an in-repo fallback for X25519/XDH and ChaCha20-Poly1305 before claiming a lower Android crypto floor than the platform guarantees.
 - Ed25519 already has an in-repo fallback on Android.
+
+Fallback proof plan:
+
+- add a host-test or probe harness that injects missing X25519/XDH and ChaCha20-Poly1305 capability reports and asserts the failure path is explicit;
+- add a fallback implementation or adapter path for those primitives;
+- run the same probes on API 26-32 and record which path is used before claiming a lower Android crypto floor.
 
 ## Current supported distribution paths
 

@@ -3,6 +3,18 @@
 Use this app when you want to evaluate MeshLink as a product-like experience,
 not just as a proof harness.
 
+## Support floor and crypto note
+
+- Current app floor: Android API 26+, iOS 14.0+
+- Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
+  ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
+- MeshLink therefore treats those Android primitives as runtime-capability
+  features on older API levels; proving an in-repo fallback for them remains an
+  open validation item.
+- Ed25519 already has an in-repo fallback on Android.
+- iOS app surfaces use CryptoKit for the same algorithm contract on supported
+  versions.
+
 ## Who this app is for
 
 The reference app is designed for:

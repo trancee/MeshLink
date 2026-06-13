@@ -10,6 +10,15 @@ Use it when you need:
 - an Android proof peer for manual validation
 - an Android proof fixture for passive transport or benchmark work
 
+## Support floor and crypto note
+
+- Current app floor: Android API 26+
+- Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
+  ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
+- MeshLink currently treats those primitives as runtime-capability features on
+  older Android versions; proving an in-repo fallback for them remains open.
+- Ed25519 already has an in-repo fallback on Android.
+
 ## Choose the right validation surface first
 
 | If you need to... | Use... |
