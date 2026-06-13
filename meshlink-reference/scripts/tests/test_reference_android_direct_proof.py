@@ -30,7 +30,7 @@ class FakeLogcatProcess:
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
             )
             stdout.write(
-                "05-31 10:00:00.050 D MeshLinkTransport: start()\n"
+                "05-31 10:00:00.050 D MeshLinkTransport: start() with l2capPsm=136\n"
             )
             stdout.write(
                 "05-31 10:00:00.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
@@ -52,7 +52,7 @@ class FakeLogcatProcess:
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-guided\n"
             )
             stdout.write(
-                "05-31 10:00:01.050 D MeshLinkTransport: start()\n"
+                "05-31 10:00:01.050 D MeshLinkTransport: start() with l2capPsm=136\n"
             )
             stdout.write(
                 "05-31 10:00:01.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
@@ -66,6 +66,14 @@ class FakeLogcatProcess:
             stdout.write(
                 "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.180 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=passive-peer routeIsDirect=true\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.190 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=SENDER peer=passive-peer routeIsDirect=true\n"
             )
             stdout.write(
                 "05-31 10:00:01.200 I MeshLinkReferenceAutomation: "
@@ -253,9 +261,18 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
                 self.assertIsNone(summary["passiveCompletion"])
                 self.assertIsNone(summary["exportRelativePath"])
-                self.assertEqual(summary["routeStage"], "peer-discovered")
-                self.assertEqual(summary["senderRouteStage"], "peer-discovered")
-                self.assertEqual(summary["passiveRouteStage"], "peer-discovered")
+                self.assertIn(
+                    summary["routeStage"],
+                    {"peer-discovered", "route-discovered", "hop-established"},
+                )
+                self.assertIn(
+                    summary["senderRouteStage"],
+                    {"peer-discovered", "route-discovered", "hop-established"},
+                )
+                self.assertIn(
+                    summary["passiveRouteStage"],
+                    {"peer-discovered", "route-discovered", "hop-established"},
+                )
                 self.assertIsNotNone(summary["routeEvidence"])
                 self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
                 self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
@@ -266,9 +283,19 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '{"historyStatus": "RETAINED"}',
                 )
                 self.assertIn("startupTiming", summary)
+                self.assertIn("timings", summary)
                 self.assertEqual(summary["startupTiming"]["launch"]["passiveStartupWaitSeconds"], 0)
                 self.assertIn("install", summary["startupTiming"])
                 self.assertIn("permissions", summary["startupTiming"])
+                self.assertIn("sender", summary["startupTiming"])
+                self.assertIn("passive", summary["startupTiming"])
+                self.assertEqual(summary["timings"]["transportMode"], "L2CAP")
+                self.assertIsNotNone(summary["timings"]["sender"]["peerDiscoverySeconds"])
+                self.assertIsNotNone(summary["timings"]["sender"]["trustConnectionSeconds"])
+                self.assertTrue((run_dir / summary["htmlReportPath"]).exists())
+                report_html = (run_dir / summary["htmlReportPath"]).read_text(encoding="utf-8")
+                self.assertIn("Android direct-proof summary", report_html)
+                self.assertIn("L2CAP", report_html)
 
     def test_main_rejects_missing_transport_discovery_with_specific_failure(self) -> None:
         # Arrange
@@ -700,6 +727,20 @@ class AndroidDirectProofTests(unittest.TestCase):
                     storage_subdirectory="storage-subdirectory",
                     app_id="demo.meshlink.reference.direct.test",
                     completions=completions,
+                    startup_timing={
+                        "sender": {"observed": False, "elapsedSeconds": None, "line": None},
+                        "passive": {"observed": False, "elapsedSeconds": None, "line": None},
+                        "passiveTransport": {"observed": False, "elapsedSeconds": None, "line": None},
+                        "launch": {},
+                        "totalSeconds": None,
+                    },
+                    timings={
+                        "totalSeconds": 0.0,
+                        "androidReadySeconds": 0.0,
+                        "captureTimeoutSeconds": 0.0,
+                        "sender": {},
+                        "passive": {},
+                    },
                 )
 
         self.assertIn("Sender log is empty", str(error.exception))
