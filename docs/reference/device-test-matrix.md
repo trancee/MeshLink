@@ -72,6 +72,21 @@ fallback-proof work.
 | API 28 | Android 9 emulator | planned | Validate the first officially guaranteed Android `ChaCha20-Poly1305` floor and the runtime-capability boundary. |
 | API 26 | Android 8.0 emulator | planned | Validate the lowest supported transport floor and the fallback path for X25519/XDH. |
 
+### Emulator setup notes
+
+Use Android Studio Device Manager or the Android SDK command-line tools to add
+these AVDs:
+
+```bash
+sdkmanager "system-images;android-26;google_apis;x86_64" "system-images;android-28;google_apis;x86_64"
+avdmanager create avd -n meshlink-api26 -k "system-images;android-26;google_apis;x86_64"
+avdmanager create avd -n meshlink-api28 -k "system-images;android-28;google_apis;x86_64"
+```
+
+- Keep `meshlink-api26` as the lowest transport floor target.
+- Keep `meshlink-api28` as the first official ChaCha20-Poly1305 floor target.
+- Verify each emulator with `adb devices -l` and `adb shell getprop ro.build.version.sdk` before using it in fallback-proof work.
+
 ### How to add a new device
 
 1. Connect the device and run `adb devices -l`.

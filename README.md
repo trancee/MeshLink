@@ -25,7 +25,8 @@ For the current distribution shape and remaining release blockers, use the
 Current mobile support floor: Android API 26+, iOS 14.0+. On Android, X25519/XDH
 and ChaCha20-Poly1305 are runtime-capability features on API 26-32 rather than
 blanket platform guarantees; the detailed crypto note and fallback-proof plan
-live in the release status reference.
+live in the release status reference and in [M011 Android crypto fallback proof
+plan](docs/rfcs/crypto/m011-android-crypto-fallback-proof.md).
 
 Release-facing entry points:
 
