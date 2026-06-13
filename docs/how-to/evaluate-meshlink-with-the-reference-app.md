@@ -41,6 +41,10 @@ You need:
 - an Apple development team available locally if you want to run on a physical
   iPhone
 
+Current supported floor: Android API 26+, iOS 14+. See the release-status
+reference for the why and the full matrix. The crypto contract is unchanged on
+those floors; Android probes required primitives and iOS uses CryptoKit.
+
 If one device is not ready yet, you can still use **Solo exploration** for a
 non-authoritative walkthrough.
 
