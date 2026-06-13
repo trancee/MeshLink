@@ -1,10 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
-import ch.trancee.meshlink.api.MeshLinkException
 import kotlin.test.Test
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.assertIs
 
 class CryptoRuntimeCapabilityTest {
     @Test
@@ -25,7 +23,7 @@ class CryptoRuntimeCapabilityTest {
     }
 
     @Test
-    fun `create fails when the runtime lacks ChaCha20-Poly1305 support`() {
+    fun `create returns fallback provider when the runtime lacks ChaCha20-Poly1305 support`() {
         // Arrange
         val capabilityReport =
             JcaCapabilityReport(
@@ -35,12 +33,9 @@ class CryptoRuntimeCapabilityTest {
             )
 
         // Act
-        val failure =
-            assertFailsWith<MeshLinkException.CryptoFailure> {
-                JcaCryptoProviderFactory.create(capabilityReport = capabilityReport)
-            }
+        val provider = JcaCryptoProviderFactory.create(capabilityReport = capabilityReport)
 
         // Assert
-        assertTrue(failure.message.orEmpty().contains("ChaCha20-Poly1305"))
+        assertIs<AndroidFallbackCryptoProvider>(provider)
     }
 }
