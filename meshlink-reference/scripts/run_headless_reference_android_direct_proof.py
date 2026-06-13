@@ -220,6 +220,29 @@ def extract_sender_failure(log_text: str) -> str | None:
     )
 
 
+def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
+    stage: str | None = None
+    evidence: str | None = None
+    for line in log_text.splitlines():
+        normalized = line.strip()
+        if "peer.discovered role=" in line:
+            stage = "peer-discovered"
+            evidence = normalized
+        if "HOP_SESSION_FAILED" in line:
+            stage = "hop-failed"
+            evidence = normalized
+        elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
+            stage = "route-unavailable"
+            evidence = normalized
+        elif "ROUTE_DISCOVERED" in line or "routeAvailable=true" in line:
+            stage = "route-discovered"
+            evidence = normalized
+        elif "HOP_SESSION_ESTABLISHED" in line:
+            stage = "hop-established"
+            evidence = normalized
+    return stage, evidence
+
+
 def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
     for line in log_text.splitlines():
         if PASSIVE_PROOF_COMPLETE_NEEDLE not in line:
@@ -273,8 +296,24 @@ def transport_failure_reason(run_dir: Path) -> str | None:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     combined_log = sender_log + "\n" + passive_log
-    if "peer.discovered role=PASSIVE" in combined_log or "peer.discovered role=SENDER" in combined_log:
-        return None
+    sender_route_stage, sender_route_evidence = extract_route_observation(sender_log)
+    passive_route_stage, passive_route_evidence = extract_route_observation(passive_log)
+    peer_discovered = (
+        "peer.discovered role=PASSIVE" in combined_log
+        or "peer.discovered role=SENDER" in combined_log
+    )
+    route_stage = sender_route_stage or passive_route_stage
+    if peer_discovered:
+        if route_stage is not None:
+            return (
+                "Android direct proof stalled at route stage "
+                f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+                f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+            )
+        return (
+            "Android direct proof discovered a peer but never emitted a route-stage marker; "
+            "sender stalled before route stabilization"
+        )
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
             "Android transport reached scan/advertise startup but never emitted peer.discovered; "
@@ -614,8 +653,12 @@ def summarize_and_verify(
     history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
     history_json = read_android_app_file(passive_android_serial, history_relative_path)
     (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
+    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
+    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    route_stage = sender_route_stage or passive_route_stage
+    route_evidence = sender_route_evidence or passive_route_evidence
 
-    checks = [('"historyStatus": "RETAINED"', history_json)]
+    checks = [('\"historyStatus\": \"RETAINED\"', history_json)]
     export_json = None
     if export_relative_path is not None:
         export_relative_file = f"live-automation/{storage_subdirectory}/{export_relative_path}"
@@ -644,6 +687,12 @@ def summarize_and_verify(
         "passiveCompletion": passive_completion_line,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "routeStage": route_stage,
+        "routeEvidence": route_evidence,
+        "senderRouteStage": sender_route_stage,
+        "senderRouteEvidence": sender_route_evidence,
+        "passiveRouteStage": passive_route_stage,
+        "passiveRouteEvidence": passive_route_evidence,
         "exportRelativePath": completions.export_relative_path,
         "evidence": evidence_paths(run_dir),
         "captured": captured_evidence(run_dir),
@@ -668,6 +717,10 @@ def failure_summary(
     error_message: str,
     completions: AndroidDirectCompletions,
 ) -> dict[str, Any]:
+    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
+    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    route_stage = sender_route_stage or passive_route_stage
+    route_evidence = sender_route_evidence or passive_route_evidence
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -682,6 +735,12 @@ def failure_summary(
         "senderFailure": completions.sender_failed,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "routeStage": route_stage,
+        "routeEvidence": route_evidence,
+        "senderRouteStage": sender_route_stage,
+        "senderRouteEvidence": sender_route_evidence,
+        "passiveRouteStage": passive_route_stage,
+        "passiveRouteEvidence": passive_route_evidence,
         "exportRelativePath": completions.export_relative_path,
         "failureStage": stage,
         "failureReason": error_message,

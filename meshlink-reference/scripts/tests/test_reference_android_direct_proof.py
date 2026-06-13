@@ -253,6 +253,10 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(summary["senderCompletion"].split(" role=")[1].split()[0], "sender")
                 self.assertIsNone(summary["passiveCompletion"])
                 self.assertIsNone(summary["exportRelativePath"])
+                self.assertEqual(summary["routeStage"], "peer-discovered")
+                self.assertEqual(summary["senderRouteStage"], "peer-discovered")
+                self.assertEqual(summary["passiveRouteStage"], "peer-discovered")
+                self.assertIsNotNone(summary["routeEvidence"])
                 self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
                 self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
                 self.assertTrue((run_dir / "sender_logcat.log").exists())
@@ -299,6 +303,45 @@ class AndroidDirectProofTests(unittest.TestCase):
                 android_direct_proof.transport_failure_reason(run_dir),
                 "Android transport reached scan/advertise startup but never emitted peer.discovered; direct proof cannot proceed without a retained discovery seed",
             )
+
+    def test_transport_failure_reason_reports_route_stall_after_peer_discovery(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "route-stall"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "sender_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=141",
+                        "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true psm=141",
+                        "D MeshLinkTransport: scan started",
+                        "D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
+                        "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=NO_ROUTE_AVAILABLE stage=delivery.noRoute peer=passive-peer detail=NO_ROUTE_AVAILABLE @ delivery.noRoute {peerId=passive-peer, topologyVersion=0, routeAvailable=false}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=141",
+                        "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true psm=141",
+                        "D MeshLinkTransport: scan started",
+                        "D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
+                        "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=sender-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=ROUTE_DISCOVERED stage=transport.handshake.message3.complete.routeAvailable peer=sender-peer detail=ROUTE_DISCOVERED @ transport.handshake.message3.complete.routeAvailable {peerId=sender-peer, topologyVersion=1, routeAvailable=true, routeIsDirect=true}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            reason = android_direct_proof.transport_failure_reason(run_dir)
+            self.assertIsNotNone(reason)
+            self.assertIn("route stage", reason)
+            self.assertIn("sender=route-unavailable", reason)
+            self.assertIn("passive=route-discovered", reason)
 
     def test_main_rejects_duplicate_sender_and_passive_serials_and_records_failure_summary(self) -> None:
         # Arrange / Act
