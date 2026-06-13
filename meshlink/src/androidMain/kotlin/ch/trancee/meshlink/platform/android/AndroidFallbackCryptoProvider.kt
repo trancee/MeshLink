@@ -17,6 +17,10 @@ import javax.crypto.spec.SecretKeySpec
  *
  * Ed25519 continues to use the existing in-repo fallback. X25519 follows RFC 7748, and
  * ChaCha20-Poly1305 follows RFC 8439.
+ *
+ * This provider is a compatibility fallback, not a side-channel-hardened replacement for the
+ * platform primitives. The X25519 path relies on `BigInteger` arithmetic and therefore should be
+ * treated as a pragmatic runtime backstop until a constant-time implementation is introduced.
  */
 internal class AndroidFallbackCryptoProvider : CryptoProvider {
     private val secureRandom: SecureRandom = SecureRandom()

@@ -1,8 +1,10 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.api.MeshLinkException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class AndroidFallbackCryptoProviderTest {
@@ -61,6 +63,53 @@ class AndroidFallbackCryptoProviderTest {
     }
 
     @Test
+    fun `sha256 matches standard vector for abc`() {
+        // Arrange
+        val input = "abc".encodeToByteArray()
+        val expected = hex("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+        // Act
+        val actual = provider.sha256(input)
+
+        // Assert
+        assertContentEquals(expected, actual)
+    }
+
+    @Test
+    fun `hmac sha256 matches standard vector`() {
+        // Arrange
+        val key = "key".encodeToByteArray()
+        val data = "The quick brown fox jumps over the lazy dog".encodeToByteArray()
+        val expected = hex("f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8")
+
+        // Act
+        val actual = provider.hmacSha256(key, data)
+
+        // Assert
+        assertContentEquals(expected, actual)
+    }
+
+    @Test
+    fun `ed25519 matches rfc 8032 test vector 1`() {
+        // Arrange
+        val privateKey = hex("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+        val publicKey = hex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+        val message = byteArrayOf()
+        val expectedSignature =
+            hex(
+                "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+            )
+
+        // Act
+        val actualSignature = provider.ed25519Sign(privateKey, message)
+        val isValid = provider.ed25519Verify(publicKey, message, actualSignature)
+
+        // Assert
+        assertContentEquals(expectedSignature, actualSignature)
+        assertTrue(isValid)
+    }
+
+    @Test
     fun `chacha20 poly1305 round trips`() {
         // Arrange
         val key = ByteArray(32) { index -> (index + 1).toByte() }
@@ -75,6 +124,25 @@ class AndroidFallbackCryptoProviderTest {
         // Assert
         assertTrue(ciphertext.size > plaintext.size)
         assertContentEquals(plaintext, decrypted)
+    }
+
+    @Test
+    fun `chacha20 poly1305 rejects tampered tag`() {
+        // Arrange
+        val key = ByteArray(32) { index -> (index + 1).toByte() }
+        val nonce = ByteArray(12) { index -> (index + 2).toByte() }
+        val aad = byteArrayOf(0x09, 0x08)
+        val plaintext = byteArrayOf(0x01, 0x02, 0x03, 0x04)
+        val ciphertext = provider.chacha20Poly1305Seal(key, nonce, aad, plaintext)
+        val tampered =
+            ciphertext.copyOf().also {
+                it[it.lastIndex] = (it[it.lastIndex].toInt() xor 0x01).toByte()
+            }
+
+        // Act / Assert
+        assertFailsWith<MeshLinkException.CryptoFailure> {
+            provider.chacha20Poly1305Open(key, nonce, aad, tampered)
+        }
     }
 
     private fun hex(value: String): ByteArray {
