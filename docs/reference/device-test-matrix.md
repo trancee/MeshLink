@@ -62,6 +62,16 @@ storage. Bluetooth LE link security also uses AES-CCM under the hood; hardware
 acceleration and vendor keystore behavior can still vary by model and Android
 build.
 
+### Future emulator targets
+
+These are not attached devices yet; they are planned emulator profiles for the
+fallback-proof work.
+
+| Target SDK | Emulator target | Coverage status | Notes |
+|---|---|---|---|
+| API 28 | Android 9 emulator | planned | Validate the first officially guaranteed Android `ChaCha20-Poly1305` floor and the runtime-capability boundary. |
+| API 26 | Android 8.0 emulator | planned | Validate the lowest supported transport floor and the fallback path for X25519/XDH. |
+
 ### How to add a new device
 
 1. Connect the device and run `adb devices -l`.
