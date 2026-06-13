@@ -31,9 +31,15 @@ The repository version currently comes from `VERSION_NAME` in
 Why this floor:
 
 - Android BLE/L2CAP transport is supported on API 26+.
-- MeshLink's Android crypto provider probes for X25519/XDH and ChaCha20-Poly1305 at runtime and fails fast if a device does not expose them; Ed25519 has an in-repo fallback.
 - iOS app surfaces are shipped as SwiftUI app targets with a 14.0 deployment target.
 - The algorithm contract does not change on supported versions: SHA-256, HMAC-SHA256, X25519, Ed25519, and ChaCha20-Poly1305 remain available through the platform bridge or fallback implementation.
+
+Android crypto nuance:
+
+- Android's official `KeyAgreement` support for `XDH` is API 33+, and official `Cipher` support for `ChaCha20-Poly1305` is API 28+.
+- MeshLink therefore treats X25519/XDH and ChaCha20-Poly1305 on API 26-32 as runtime-capability features, not guaranteed platform APIs.
+- We should prove an in-repo fallback for X25519/XDH and ChaCha20-Poly1305 before claiming a lower Android crypto floor than the platform guarantees.
+- Ed25519 already has an in-repo fallback on Android.
 
 ## Current supported distribution paths
 

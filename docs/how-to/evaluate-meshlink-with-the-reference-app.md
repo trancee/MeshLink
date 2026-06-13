@@ -43,7 +43,9 @@ You need:
 
 Current supported floor: Android API 26+, iOS 14+. See the release-status
 reference for the why and the full matrix. The crypto contract is unchanged on
-those floors; Android probes required primitives and iOS uses CryptoKit.
+those floors, but Android's X25519/XDH and ChaCha20-Poly1305 support remains a
+runtime capability check on older API levels rather than an official platform
+promise.
 
 If one device is not ready yet, you can still use **Solo exploration** for a
 non-authoritative walkthrough.

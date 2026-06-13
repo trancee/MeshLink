@@ -68,6 +68,7 @@ MeshLink's current support floor is intentionally lower than the historical 29/1
 - Android BLE/L2CAP transport is supported on API 26+.
 - iOS app surfaces are shipped as SwiftUI app targets with a 14.0 deployment target.
 - The cryptographic algorithm set stays the same; MeshLink does not silently drop SHA-256, HMAC-SHA256, X25519, Ed25519, or ChaCha20-Poly1305 on lower supported versions.
+- On Android, X25519/XDH and ChaCha20-Poly1305 are only officially guaranteed by the platform on newer API levels, so the lower app floor is a transport/runtime floor, not a blanket crypto guarantee.
 
 | Surface | Android SDK | iOS SDK | Notes |
 |---|---|---|---|
