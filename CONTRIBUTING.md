@@ -143,6 +143,13 @@ For `meshlink-reference` changes, prefer the faster reference-app bundle:
 That wrapper runs `:meshlink-reference:localCheck` directly on the current AGP 9
 toolchain.
 
+For the Android direct-proof check path, use the repo-owned unittest runner
+instead of `pytest`:
+
+```bash
+./scripts/check_reference_android_direct_proof.sh
+```
+
 If you touch Gradle, Android plugin wiring, or post-migration module shape, run
 the AGP 9 build-surface bundle. It now includes the verified JVM smoke
 benchmark guard so benchmark regressions do not hide behind a successful Gradle
