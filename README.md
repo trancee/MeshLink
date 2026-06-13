@@ -22,6 +22,11 @@ Swift Package Manager and CocoaPods are not part of that first-release target.
 For the current distribution shape and remaining release blockers, use the
 [release status reference](docs/reference/release-status.md).
 
+Current mobile support floor: Android API 26+, iOS 14.0+. On Android, X25519/XDH
+and ChaCha20-Poly1305 are runtime-capability features on API 26-32 rather than
+blanket platform guarantees; the detailed crypto note and fallback-proof plan
+live in the release status reference.
+
 Release-facing entry points:
 
 - [Release status reference](docs/reference/release-status.md)
