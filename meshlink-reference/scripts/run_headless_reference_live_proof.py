@@ -593,26 +593,30 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
 
     def run_install_once() -> None:
         print(f"==> Installing Android reference app: {shell_join(command)}")
-        install_process = subprocess.Popen(command, env=env, text=True)
-        try:
-            while install_process.poll() is None:
-                time.sleep(0.5)
-            if install_process.returncode != 0:
-                raise subprocess.CalledProcessError(install_process.returncode, command)
-        finally:
-            if install_process.poll() is None:
-                install_process.terminate()
-                try:
-                    install_process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    install_process.kill()
-                    install_process.wait(timeout=5)
+        result = subprocess.run(
+            command,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()
+            stderr_tail = (result.stderr or "").strip()
+            if stdout_tail:
+                print("==> Android install stdout:\n" + stdout_tail)
+            if stderr_tail:
+                print("==> Android install stderr:\n" + stderr_tail)
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                command,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
 
     try:
         run_install_once()
-    except subprocess.CalledProcessError as exc:
-        if exc.returncode != 1:
-            raise
+    except subprocess.CalledProcessError:
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
         )

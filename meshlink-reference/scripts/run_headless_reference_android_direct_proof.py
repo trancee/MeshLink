@@ -705,8 +705,10 @@ def ensure_android_preflight(
         try:
             install_android_app(android_serial, run_dir)
         except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.output or "").strip()
+            detail_suffix = f": {details}" if details else ""
             raise SystemExit(
-                f"Android app install failed for '{android_serial}' with exit code {error.returncode}"
+                f"Android app install failed for '{android_serial}' with exit code {error.returncode}{detail_suffix}"
             ) from error
         timings["installSeconds"] = round(time.monotonic() - install_started_at, 1)
         timings["installReused"] = False

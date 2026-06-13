@@ -14,6 +14,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import run_headless_reference_android_direct_proof as android_direct_proof  # noqa: E402
+import run_headless_reference_live_proof as live_proof  # noqa: E402
 
 
 class FakeLogcatProcess:
@@ -476,6 +477,94 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(summary["status"], "failed")
             self.assertEqual(summary["failureStage"], "preflight")
             self.assertIn("sender-1", summary["failureReason"])
+
+    def test_main_records_install_failure_details_in_summary(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "install-failure"
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(
+                    android_direct_proof,
+                    "install_android_app",
+                    side_effect=subprocess.CalledProcessError(
+                        255,
+                        ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"],
+                        stderr="INSTALL_FAILED_UPDATE_INCOMPATIBLE",
+                    ),
+                ),
+                patch.object(android_direct_proof, "verify_android_runtime_permissions"),
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "sender-1",
+                            "--passive-android-serial",
+                            "passive-1",
+                            "--run-dir",
+                            str(run_dir),
+                        ]
+                    )
+
+            # Assert
+            self.assertIn("INSTALL_FAILED_UPDATE_INCOMPATIBLE", str(error.exception))
+            summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["failureStage"], "preflight")
+            self.assertIn("INSTALL_FAILED_UPDATE_INCOMPATIBLE", summary["failureReason"])
+
+    def test_install_android_app_retries_after_uninstall_and_preserves_retry_evidence(self) -> None:
+        # Arrange
+        call_log: list[list[str]] = []
+
+        def fake_subprocess_run(
+            command: list[str],
+            *,
+            check: bool = False,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env, timeout
+            call_log.append(list(command))
+            if command[:2] == ["adb", "-s"] and command[3] == "uninstall":
+                return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
+            gradle_calls = [c for c in call_log if c[0] == "./gradlew"]
+            if len(gradle_calls) == 1:
+                return subprocess.CompletedProcess(
+                    command,
+                    255,
+                    stdout="first install stdout\n",
+                    stderr="first install stderr\n",
+                )
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="second install stdout\n",
+                stderr="",
+            )
+
+        # Act
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory)
+            with (
+                patch.object(live_proof, "android_apk_path", return_value=Path("/tmp/fake.apk")),
+                patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+                patch.object(live_proof, "sha256_file", return_value="hash"),
+                patch.object(live_proof, "load_android_install_cache", return_value=None),
+                patch.object(live_proof, "write_android_install_cache"),
+                patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
+            ):
+                live_proof.install_android_app("sender-1", run_dir)
+
+        # Assert
+        self.assertEqual(
+            [command[0] for command in call_log],
+            ["./gradlew", "adb", "./gradlew"],
+        )
+        self.assertIn("uninstall", call_log[1])
 
     def test_main_preserves_failure_summary_when_extra_cleanup_fails(self) -> None:
         # Arrange
