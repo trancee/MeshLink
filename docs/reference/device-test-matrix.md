@@ -60,6 +60,16 @@ storage. Bluetooth LE link security also uses AES-CCM under the hood; hardware
 acceleration and vendor keystore behavior can still vary by model and Android
 build.
 
+### Crypto coverage snapshot
+
+| Crypto tier | Attached device(s) | Coverage status | Notes |
+|---|---|---|---|
+| API 26 | none | gap | No attached API 26 device yet; keep this as a target coverage tier. |
+| API 28 | none | gap | No attached API 28 device yet; keep this as a target coverage tier. |
+| API 30 | `851ff431` / OnePlus 6 | runtime-capability | Pre-33 device for exercising the older Android crypto path. |
+| API 33 | `GX6CTR500184` / Gigaset GX6; `ZHBQ95BIG6NVWSUK` / OPPO Reno6 5G | official platform support | Android 13 devices that cover the official XDH and ChaCha20-Poly1305 floor. |
+| API 34+ | `EQUGS85LJNEIO7Z5` / OPPO Reno8 5G; `7XHEIBPBLRJJSKFU` / realme C55; `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` / Nothing Phone (1); `1f1dad34` / Nothing Phone (2) | regression coverage | Newer devices for post-floor regressions and OEM drift checks. |
+
 ### How to add a new device
 
 1. Connect the device and run `adb devices -l`.

@@ -21,6 +21,7 @@ reference-app walkthrough, use
 If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
+Before you pick devices, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, Android versions, Bluetooth versions, RAM, storage, and known quirks.
 That path now includes a validated release-review campaign, retained `report-data.json`, the offline `release-review-report.html` reviewer surface, and the repo-visible fleet-test history report from milestone **M001**. The release-review campaign may fall back to Android-only direct-guided when mixed iOS live-proof is not supported, so use the release-review docs for the exact retained status vocabulary if you are comparing campaign artifacts.
 
 ## Before you start

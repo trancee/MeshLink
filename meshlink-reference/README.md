@@ -103,6 +103,8 @@ Do **not** use it as:
 Use the proof apps and benchmark runner for transport-performance evidence.
 Use the reference app to understand and demonstrate the library as a coherent
 reference experience.
+For the current attached-device fleet and device-specific quirks, see the
+[Device test matrix reference](../docs/reference/device-test-matrix.md).
 
 For exact surface and export vocabulary such as **Supported live session**,
 **Retained session**, **Redacted export**, and **Full-payload export**, use the

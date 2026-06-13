@@ -2,6 +2,7 @@
 
 Use this guide when you need retained physical evidence from the MeshLink
 reference app on real devices.
+Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks.
 
 It focuses on behaviors that simulators and scripted UI tests cannot prove on
 their own:
