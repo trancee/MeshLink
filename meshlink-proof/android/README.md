@@ -22,7 +22,7 @@ Use it when you need:
 
 You need:
 
-- an Android device running API 29 or newer
+- an Android device running API 26 or newer
 - `adb` on your path
 - Bluetooth enabled on the device
 - this repository checked out locally

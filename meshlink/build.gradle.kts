@@ -20,7 +20,7 @@ kotlin {
     android {
         namespace = "ch.trancee.meshlink"
         compileSdk = 36
-        minSdk = 29
+        minSdk = 26
         compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
         withHostTest {}
     }

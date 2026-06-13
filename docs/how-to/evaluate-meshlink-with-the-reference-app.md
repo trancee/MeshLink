@@ -35,8 +35,8 @@ You need:
 
 - this repository checked out locally
 - Xcode for the iOS host project
-- an Android device running API 29+
-- an iPhone running iOS 15+
+- an Android device running API 26+
+- an iPhone running iOS 14+
 - Bluetooth enabled on both devices
 - an Apple development team available locally if you want to run on a physical
   iPhone

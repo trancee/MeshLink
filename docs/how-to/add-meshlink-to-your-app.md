@@ -65,8 +65,8 @@ The supported installation paths today are:
 
 | Host | Requirement |
 |---|---|
-| Android app | Android API 29+ |
-| iOS app | iOS 15+ |
+| Android app | Android API 26+ |
+| iOS app | iOS 14+ |
 | Gradle build | JDK 21 or newer |
 | iPhone device runs | Xcode with local signing access |
 
