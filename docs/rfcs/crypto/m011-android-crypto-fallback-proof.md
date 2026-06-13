@@ -1,13 +1,27 @@
 # M011 Android crypto fallback proof plan
 
-Status: draft design artifact
+Status: implementation shipped; retained validation follow-up still open
 
-This note turns the Android crypto question into an implementation plan.
-The transport/runtime floor is already API 26+ for the app shells, but Android
-still does not officially guarantee the full MeshLink crypto set at that floor.
-The open work is to prove or add in-repo fallback support for X25519/XDH and
-ChaCha20-Poly1305 so MeshLink can justify a lower Android crypto floor without
-overclaiming the platform contract.
+This note started as the Android crypto fallback plan and now records the
+shipped fallback plus the remaining validation posture. The transport/runtime
+floor is already API 26+ for the app shells, but Android still does not
+officially guarantee the full MeshLink crypto set at that floor. The in-repo
+fallback now covers X25519/XDH and ChaCha20-Poly1305, so the remaining work is
+retained runtime proof on the lowest Android tiers without overclaiming the
+platform contract.
+
+## Validation update (2026-06-13)
+
+- Attached Android 9 / SDK 28 hardware (`SM-G390F`) passed
+  `connectedAndroidDeviceTest` against `CryptoRuntimeValidationDeviceTest`.
+- That runtime probe reported `x25519=false`, `ed25519=false`,
+  `chacha=false`, `meshRuntime=false`, and selected
+  `AndroidFallbackCryptoProvider`, which confirms the fallback path on a real
+  API 28-class device.
+- Provisioned `meshlink-api26` and `meshlink-api28` AVDs both crashed before
+  `sys.boot_completed` in the current headless host environment, so API 26
+  emulator proof remains blocked by local emulator stability rather than by the
+  MeshLink runtime or test build.
 
 ## Background
 

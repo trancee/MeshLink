@@ -82,6 +82,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.benchmarking.BenchmarkLocalIdentity` | class | — |
 | `ch.trancee.meshlink.benchmarking.BenchmarkNoiseIdentity` | class | — |
 | `ch.trancee.meshlink.benchmarking.BenchmarkOutboundFrame` | class | `init`, `payload`, `peerId`, `preferredMode` |
+| `ch.trancee.meshlink.benchmarking.BenchmarkPureX25519Provider` | class | `generateX25519KeyPair()`, `x25519()` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkRouteCoordinator` | class | `hasRoute()`, `nextHopFor()`, `onPeerConnected()`, `onPeerDisconnected()`, `onRouteDigest()`, `onRouteRetraction()`, `onRouteUpdate()` |
 | `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent` | abstract class | — |
 | `ch.trancee.meshlink.benchmarking.BenchmarkTransportEvent.FrameReceived` | nested type | `payload`, `peerId` |

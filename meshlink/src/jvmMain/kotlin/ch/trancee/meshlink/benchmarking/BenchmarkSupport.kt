@@ -15,6 +15,7 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.JvmCryptoProvider
 import ch.trancee.meshlink.crypto.NoiseIdentity
+import ch.trancee.meshlink.crypto.PureX25519
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
@@ -146,6 +147,25 @@ public class BenchmarkCryptoProvider public constructor() {
             aad = aad,
             ciphertext = ciphertext,
         )
+    }
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkPureX25519Provider public constructor() {
+    private val random = kotlin.random.Random(0x584635323531394c)
+
+    public fun generateX25519KeyPair(): BenchmarkX25519KeyPair {
+        val privateKey = ByteArray(32).also(random::nextBytes)
+        privateKey[0] = (privateKey[0].toInt() and 248).toByte()
+        privateKey[31] = ((privateKey[31].toInt() and 127) or 64).toByte()
+        return BenchmarkX25519KeyPair(
+            privateKey = privateKey,
+            publicKey = PureX25519.publicKeyFromPrivate(privateKey),
+        )
+    }
+
+    public fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
+        return PureX25519.sharedSecret(privateKey = privateKey, publicKey = publicKey)
     }
 }
 

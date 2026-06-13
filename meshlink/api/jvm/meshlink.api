@@ -389,6 +389,12 @@ public final class ch/trancee/meshlink/benchmarking/BenchmarkOutboundFrame {
 	public final fun getPreferredMode ()Lch/trancee/meshlink/benchmarking/BenchmarkTransportMode;
 }
 
+public final class ch/trancee/meshlink/benchmarking/BenchmarkPureX25519Provider {
+	public fun <init> ()V
+	public final fun generateX25519KeyPair ()Lch/trancee/meshlink/benchmarking/BenchmarkX25519KeyPair;
+	public final fun x25519 ([B[B)[B
+}
+
 public final class ch/trancee/meshlink/benchmarking/BenchmarkRouteCoordinator {
 	public fun <init> (Lch/trancee/meshlink/api/PeerId;)V
 	public final fun hasRoute (Lch/trancee/meshlink/api/PeerId;)Z

@@ -15,9 +15,12 @@ Use it when you need:
 - Current app floor: Android API 26+
 - Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
   ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
-- MeshLink currently treats those primitives as runtime-capability features on
-  older Android versions; proving an in-repo fallback for them remains open.
-- Ed25519 already has an in-repo fallback on Android.
+- MeshLink now has an in-repo fallback for X25519/XDH,
+  ChaCha20-Poly1305, and Ed25519 on Android when the runtime probe cannot rely
+  on platform support.
+- Attached Android 9 / SDK 28 hardware has already validated that fallback
+  selection path; retained API 26 runtime proof still needs a bootable emulator
+  environment or attached API 26-class hardware.
 
 ## Choose the right validation surface first
 
