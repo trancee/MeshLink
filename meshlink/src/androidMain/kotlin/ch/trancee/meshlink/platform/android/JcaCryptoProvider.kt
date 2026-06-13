@@ -4,6 +4,8 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
+import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
+import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
@@ -68,10 +70,14 @@ internal class JcaCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        val keyAgreement = xdhKeyAgreements.value()
-        keyAgreement.init(x25519PrivateKey(privateKey))
-        keyAgreement.doPhase(x25519PublicKey(publicKey), true)
-        return keyAgreement.generateSecret()
+        try {
+            val keyAgreement = xdhKeyAgreements.value()
+            keyAgreement.init(x25519PrivateKey(privateKey))
+            keyAgreement.doPhase(x25519PublicKey(publicKey), true)
+            return requireValidX25519SharedSecret(keyAgreement.generateSecret())
+        } catch (error: GeneralSecurityException) {
+            throw MeshLinkException.CryptoFailure("X25519 key agreement failed", error)
+        }
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {

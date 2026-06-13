@@ -21,6 +21,7 @@ reference-app walkthrough, use
 If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
+Before you pick devices, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, Android versions, Bluetooth versions, RAM, storage, and known quirks. The matrix is sorted by Android SDK highest-first, so the newest-platform devices appear at the top, and when the same hardware appears over USB and wireless ADB the matrix keeps the USB row. The current bench now includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G alongside the existing Nothing, OPPO, realme, Gigaset, and OnePlus devices.
 That path now includes a validated release-review campaign, retained `report-data.json`, the offline `release-review-report.html` reviewer surface, and the repo-visible fleet-test history report from milestone **M001**. The release-review campaign may fall back to Android-only direct-guided when mixed iOS live-proof is not supported, so use the release-review docs for the exact retained status vocabulary if you are comparing campaign artifacts.
 
 ## Before you start
@@ -35,11 +36,17 @@ You need:
 
 - this repository checked out locally
 - Xcode for the iOS host project
-- an Android device running API 29+
-- an iPhone running iOS 15+
+- an Android device running API 26+
+- an iPhone running iOS 14+
 - Bluetooth enabled on both devices
 - an Apple development team available locally if you want to run on a physical
   iPhone
+
+Current supported floor: Android API 26+, iOS 14+. See the release-status
+reference for the why and the full matrix. The crypto contract is unchanged on
+those floors, but Android's X25519/XDH and ChaCha20-Poly1305 support remains a
+runtime capability check on older API levels rather than an official platform
+promise.
 
 If one device is not ready yet, you can still use **Solo exploration** for a
 non-authoritative walkthrough.

@@ -8,7 +8,7 @@ import android.os.PowerManager
 
 internal fun readinessGuidance(): List<String> {
     return listOf(
-        "Confirm Bluetooth is enabled and the Android device is on API 29 or newer.",
+        "Confirm Bluetooth is enabled and the Android device is on API 26 or newer.",
         "Use the debug install path so runtime permissions are granted where the platform allows it.",
         "Keep the device awake during direct proof on aggressive OEM builds, or rely on the live-proof foreground wake-lock mitigation when the reference app starts it; doze can stall BLE discovery.",
         "Keep the device offline and near the peer before starting the guided exchange.",

@@ -20,9 +20,10 @@ kotlin {
     android {
         namespace = "ch.trancee.meshlink"
         compileSdk = 36
-        minSdk = 29
+        minSdk = 26
         compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
         withHostTest {}
+        withDeviceTestBuilder { sourceSetTreeName = "deviceTest" }
     }
     listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
@@ -40,6 +41,11 @@ kotlin {
         commonTest.dependencies { implementation(libs.kotlin.test) }
         jvmTest.dependencies { implementation(libs.kotlin.test) }
         getByName("androidHostTest").dependencies { implementation(libs.kotlin.test) }
+        getByName("androidDeviceTest").dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.androidx.test.ext.junit)
+            implementation(libs.androidx.test.runner)
+        }
         iosTest.dependencies { implementation(libs.kotlin.test) }
     }
 }

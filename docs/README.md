@@ -118,6 +118,7 @@ guessing which page owns which model.
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and Apple bridge APIs.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
 - [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring SDK, contributor, and reference-app terms.
+- [Device test matrix reference](reference/device-test-matrix.md) — the attached Android device fleet, human-readable model names, Bluetooth version, crypto baseline, and update rules.
 - [Release status reference](reference/release-status.md) — the current distribution shape, intended first public release shape, and remaining release blockers.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
@@ -168,4 +169,5 @@ guessing which page owns which model.
 
 - [M009 routing metadata privacy envelope and negotiation contract](rfcs/routing/m009-routing-metadata-privacy.md)
 - [M010 PQ-hybrid candidate matrix and wire-shape feasibility](rfcs/crypto/m010-pq-hybrid-candidate-matrix.md)
+- [M011 Android crypto fallback proof plan](rfcs/crypto/m011-android-crypto-fallback-proof.md)
 - [Crypto vector policy](rfcs/crypto/vector-policy.md)

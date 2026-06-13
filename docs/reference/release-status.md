@@ -20,6 +20,30 @@ The repository currently ships as a source checkout with:
 The repository version currently comes from `VERSION_NAME` in
 `gradle.properties` and remains on a snapshot value during active development.
 
+## Current mobile SDK floor
+
+| Surface | Android | iOS | Notes |
+|---|---|---|---|
+| `:meshlink` SDK | API 26+ | 14.0+ | shared runtime floor |
+| `meshlink-reference` app | API 26+ | 14.0+ | evaluation surface stays in lockstep |
+| `meshlink-proof` app | API 26+ | 14.0+ | proof and fixture surface stays in lockstep |
+
+Why this floor:
+
+- Android BLE/L2CAP transport is supported on API 26+.
+- iOS app surfaces are shipped as SwiftUI app targets with a 14.0 deployment target.
+- The algorithm contract does not change on supported versions: SHA-256, HMAC-SHA256, X25519, Ed25519, and ChaCha20-Poly1305 remain available through the platform bridge or fallback implementation.
+
+Android crypto nuance:
+
+- Android's official `KeyAgreement` support for `XDH` is API 33+, and official `Cipher` support for `ChaCha20-Poly1305` is API 28+.
+- MeshLink therefore treats X25519/XDH and ChaCha20-Poly1305 on API 26-32 as runtime-capability features, not guaranteed platform APIs.
+- Ed25519 already has an in-repo fallback on Android.
+
+Fallback proof plan:
+
+- See [M011 Android crypto fallback proof plan](../rfcs/crypto/m011-android-crypto-fallback-proof.md) for the implementation and validation work needed before claiming a lower Android crypto floor.
+
 ## Current supported distribution paths
 
 Today, supported integration paths are:

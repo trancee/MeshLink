@@ -9,6 +9,14 @@ Use it when you need:
 - a physical iPhone proof peer
 - retained iPhone/Android benchmark evidence with the iPhone app acting as a proof fixture
 
+## Support floor and crypto note
+
+- Current app floor: iOS 14.0+
+- The iOS app uses CryptoKit to keep MeshLink's algorithm contract available on
+  the supported floor.
+- The Android-side X25519/XDH and ChaCha20-Poly1305 fallback question is still
+  open and tracked in the release-status notes.
+
 ## Choose the right validation surface first
 
 | If you need to... | Use... |

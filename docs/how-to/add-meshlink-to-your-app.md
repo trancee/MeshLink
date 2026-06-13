@@ -63,12 +63,27 @@ The supported installation paths today are:
 
 ## 2. Confirm the host requirements first
 
+MeshLink's current support floor is intentionally lower than the historical 29/15 default:
+
+- Android BLE/L2CAP transport is supported on API 26+.
+- iOS app surfaces are shipped as SwiftUI app targets with a 14.0 deployment target.
+- The cryptographic algorithm set stays the same; MeshLink does not silently drop SHA-256, HMAC-SHA256, X25519, Ed25519, or ChaCha20-Poly1305 on lower supported versions.
+- On Android, X25519/XDH and ChaCha20-Poly1305 are only officially guaranteed by the platform on newer API levels, so the lower app floor is a transport/runtime floor, not a blanket crypto guarantee.
+
+| Surface | Android SDK | iOS SDK | Notes |
+|---|---|---|---|
+| `:meshlink` SDK | API 26+ | 14.0+ | shared runtime floor |
+| `meshlink-reference` app | API 26+ | 14.0+ | evaluator and support surface |
+| `meshlink-proof` app | API 26+ | 14.0+ | proof and benchmark surface |
+
 | Host | Requirement |
 |---|---|
-| Android app | Android API 29+ |
-| iOS app | iOS 15+ |
+| Android app | Android API 26+ |
+| iOS app | iOS 14+ |
 | Gradle build | JDK 21 or newer |
 | iPhone device runs | Xcode with local signing access |
+
+MeshLink's Android crypto provider probes for X25519/XDH and ChaCha20-Poly1305 at runtime and fails fast with a clear crypto error if the device does not expose them; Ed25519 has an in-repo fallback path. On iOS, the bridge uses CryptoKit to keep the same algorithm contract on supported versions.
 
 If you only need runtime bootstrap after the library is already wired in, skip
 this guide and go straight to [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).
