@@ -169,4 +169,5 @@ guessing which page owns which model.
 
 - [M009 routing metadata privacy envelope and negotiation contract](rfcs/routing/m009-routing-metadata-privacy.md)
 - [M010 PQ-hybrid candidate matrix and wire-shape feasibility](rfcs/crypto/m010-pq-hybrid-candidate-matrix.md)
+- [M011 Android crypto fallback proof plan](rfcs/crypto/m011-android-crypto-fallback-proof.md)
 - [Crypto vector policy](rfcs/crypto/vector-policy.md)

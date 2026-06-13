@@ -42,9 +42,7 @@ Android crypto nuance:
 
 Fallback proof plan:
 
-- add a host-test or probe harness that injects missing X25519/XDH and ChaCha20-Poly1305 capability reports and asserts the failure path is explicit;
-- add a fallback implementation or adapter path for those primitives;
-- run the same probes on API 26-32 and record which path is used before claiming a lower Android crypto floor.
+- See [M011 Android crypto fallback proof plan](../rfcs/crypto/m011-android-crypto-fallback-proof.md) for the implementation and validation work needed before claiming a lower Android crypto floor.
 
 ## Current supported distribution paths
 
