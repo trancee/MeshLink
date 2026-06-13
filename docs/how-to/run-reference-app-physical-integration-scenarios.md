@@ -2,7 +2,7 @@
 
 Use this guide when you need retained physical evidence from the MeshLink
 reference app on real devices.
-Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks. The matrix is sorted by Android SDK highest-first, so the top rows are the newest-platform devices. The current bench includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G, so use those when you need a fresh Android 14/13 mix in the same physical campaign.
+Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks. The matrix is sorted by Android SDK highest-first, so the top rows are the newest-platform devices, and the Connection column tells you whether a row is the USB device or a wireless alias. The current bench includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G, so use those when you need a fresh Android 14/13 mix in the same physical campaign.
 
 It focuses on behaviors that simulators and scripted UI tests cannot prove on
 their own:
