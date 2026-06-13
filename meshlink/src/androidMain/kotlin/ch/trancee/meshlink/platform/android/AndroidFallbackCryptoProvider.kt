@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
+import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.security.MessageDigest
@@ -17,10 +18,6 @@ import javax.crypto.spec.SecretKeySpec
  *
  * Ed25519 continues to use the existing in-repo fallback. X25519 follows RFC 7748, and
  * ChaCha20-Poly1305 follows RFC 8439.
- *
- * This provider is a compatibility fallback, not a side-channel-hardened replacement for the
- * platform primitives. The X25519 path relies on `BigInteger` arithmetic and therefore should be
- * treated as a pragmatic runtime backstop until a constant-time implementation is introduced.
  */
 internal class AndroidFallbackCryptoProvider : CryptoProvider {
     private val secureRandom: SecureRandom = SecureRandom()
@@ -53,7 +50,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val privateKey = randomBytes(X25519_KEY_SIZE_BYTES)
         clampX25519Scalar(privateKey)
-        val publicKey = x25519(privateKey, X25519_BASE_POINT)
+        val publicKey = X25519Fallback.publicKeyFromPrivate(privateKey)
         return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
@@ -62,15 +59,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        require(privateKey.size == X25519_KEY_SIZE_BYTES) { "X25519 private key must be 32 bytes" }
-        require(publicKey.size == X25519_KEY_SIZE_BYTES) { "X25519 public key must be 32 bytes" }
-
-        val scalar = privateKey.copyOf()
-        clampX25519Scalar(scalar)
-        val uCoordinate = publicKey.copyOf()
-        uCoordinate[31] = (uCoordinate[31].toInt() and 0x7F).toByte()
-
-        return x25519ScalarMult(scalar, uCoordinate)
+        return requireValidX25519SharedSecret(X25519Fallback.sharedSecret(privateKey, publicKey))
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
@@ -127,57 +116,6 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
             throw MeshLinkException.CryptoFailure("ChaCha20-Poly1305 tag verification failed")
         }
         return chacha20Xor(key = key, nonce = nonce, initialCounter = 1, input = encrypted)
-    }
-
-    private fun x25519ScalarMult(k: ByteArray, u: ByteArray): ByteArray {
-        val x1 = littleEndianToBigInteger(u)
-        var x2 = BigInteger.ONE
-        var z2 = BigInteger.ZERO
-        var x3 = x1
-        var z3 = BigInteger.ONE
-        var swap = 0
-
-        for (t in 254 downTo 0) {
-            val kT = (k[t shr 3].toInt() ushr (t and 7)) and 1
-            swap = swap xor kT
-            if (swap == 1) {
-                val tmpX = x2
-                x2 = x3
-                x3 = tmpX
-
-                val tmpZ = z2
-                z2 = z3
-                z3 = tmpZ
-            }
-            swap = kT
-
-            val a = modP(x2 + z2)
-            val aa = modP(a * a)
-            val b = modP(x2 - z2)
-            val bb = modP(b * b)
-            val e = modP(aa - bb)
-            val c = modP(x3 + z3)
-            val d = modP(x3 - z3)
-            val da = modP(d * a)
-            val cb = modP(c * b)
-            x3 = modP((da + cb).pow(2))
-            z3 = modP(x1 * modP(da - cb).pow(2))
-            x2 = modP(aa * bb)
-            z2 = modP(e * modP(aa + X25519_A24 * e))
-        }
-
-        if (swap == 1) {
-            val tmpX = x2
-            x2 = x3
-            x3 = tmpX
-
-            val tmpZ = z2
-            z2 = z3
-            z3 = tmpZ
-        }
-
-        val result = modP(x2 * z2.modPow(X25519_FIELD_PRIME - BigInteger.TWO, X25519_FIELD_PRIME))
-        return bigIntegerToLittleEndian(result, X25519_KEY_SIZE_BYTES)
     }
 
     private fun chacha20Xor(
@@ -357,10 +295,6 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
         return padded.reversedArray()
     }
 
-    private fun modP(value: BigInteger): BigInteger {
-        return value.mod(X25519_FIELD_PRIME)
-    }
-
     private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
         return object : ThreadLocal<T>() {
             override fun initialValue(): T {
@@ -374,10 +308,6 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     }
 
     private companion object {
-        private val X25519_FIELD_PRIME =
-            BigInteger.ONE.shiftLeft(255).subtract(BigInteger.valueOf(19))
-        private val X25519_A24 = BigInteger.valueOf(121665)
-        private val X25519_BASE_POINT = ByteArray(32).also { it[0] = 9 }
         private const val X25519_KEY_SIZE_BYTES = 32
         private const val CHACHA20_KEY_SIZE_BYTES = 32
         private const val CHACHA20_NONCE_SIZE_BYTES = 12

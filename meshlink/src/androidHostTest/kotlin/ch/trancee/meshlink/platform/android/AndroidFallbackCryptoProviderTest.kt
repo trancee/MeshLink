@@ -25,6 +25,20 @@ class AndroidFallbackCryptoProviderTest {
     }
 
     @Test
+    fun `x25519 matches rfc 7748 test vector 2`() {
+        // Arrange
+        val scalar = hex("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d")
+        val uCoordinate = hex("e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493")
+        val expected = hex("95cbde9476e8907d7aade45cb4b873f88b595a68799fa152e6f8f7647aac7957")
+
+        // Act
+        val actual = provider.x25519(scalar, uCoordinate)
+
+        // Assert
+        assertContentEquals(expected, actual)
+    }
+
+    @Test
     fun `x25519 shared secret is symmetric`() {
         // Arrange
         val alice = provider.generateX25519KeyPair()
@@ -38,6 +52,18 @@ class AndroidFallbackCryptoProviderTest {
         assertEquals(32, aliceShared.size)
         assertContentEquals(aliceShared, bobShared)
         assertTrue(aliceShared.any { byte -> byte != 0.toByte() })
+    }
+
+    @Test
+    fun `x25519 rejects all-zero shared secret`() {
+        // Arrange
+        val privateKey = hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+        val lowOrderPublicKey = ByteArray(32)
+
+        // Act / Assert
+        assertFailsWith<MeshLinkException.CryptoFailure> {
+            provider.x25519(privateKey, lowOrderPublicKey)
+        }
     }
 
     @Test
