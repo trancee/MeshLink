@@ -35,26 +35,38 @@ class FakeLogcatProcess:
         serial = self._serial
         if serial == "passive-1":
             self._shared["passive_log"] = stdout
-            stdout.write(
-                "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
-                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
-            )
-            stdout.write(
-                "05-31 10:00:00.050 D MeshLinkTransport: start() with l2capPsm=136\n"
-            )
-            stdout.write(
-                "05-31 10:00:00.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
-            )
-            stdout.write(
-                "05-31 10:00:00.070 D MeshLinkTransport: scan started\n"
-            )
-            stdout.write(
-                "05-31 10:00:00.080 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true\n"
-            )
-            stdout.write(
-                "05-31 10:00:00.100 I MeshLinkReferenceAutomation: "
-                "REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=passive-peer\n"
-            )
+            if self._shared.get("passive_profile") == "proof":
+                stdout.write(
+                    "05-31 10:00:00.000 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model (SDK 35) appId=demo.meshlink powerMode=Automatic transport=gattPrototype\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.050 I MeshLinkProof: gatt.benchmark.start() -> Started\n"
+                )
+            else:
+                stdout.write(
+                    "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.050 D MeshLinkTransport: start() with l2capPsm=136\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.070 D MeshLinkTransport: scan started\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.080 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.100 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=passive-peer\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.110 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION timeline.peer.snapshot role=PASSIVE peers=passive-peer\n"
+                )
             stdout.flush()
         elif serial == "sender-1":
             stdout.write(
@@ -119,9 +131,47 @@ class FakeLogcatProcess:
         self._stopped = True
         self.close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
     def __del__(self) -> None:
         self.close()
 
+
+
+class FakeCompletedProcess:
+    def __init__(self, command: list[str], stdout: str = "", stderr: str = "") -> None:
+        self.args = list(command)
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = 0
+
+    def communicate(self, input=None, timeout: float | None = None):
+        del input, timeout
+        return self.stdout, self.stderr
+
+    def poll(self) -> int:
+        return self.returncode
+
+    def wait(self, timeout: float | None = None) -> int:
+        del timeout
+        return self.returncode
+
+    def kill(self) -> None:
+        return None
+
+    def terminate(self) -> None:
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 class AndroidDirectProofTests(unittest.TestCase):
     def test_parse_args_accepts_passive_benchmark_transport(self) -> None:
@@ -159,7 +209,7 @@ class AndroidDirectProofTests(unittest.TestCase):
         run_timeouts: list[float | None] = []
         force_stop_calls: list[str] = []
         events: list[tuple[str, str]] = []
-        shared: dict[str, object] = {}
+        shared: dict[str, object] = {"passive_profile": "proof"}
 
         def fake_run(
             command: list[str],
@@ -176,13 +226,40 @@ class AndroidDirectProofTests(unittest.TestCase):
             if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]:
                 role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
                 events.append(("start", f"{command[2]}:{role}"))
+                if any("ch.trancee.meshlink.proof.android/.MainActivity" in part for part in command):
+                    shared["passive_profile"] = "proof"
+                return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
+            if command[:6] == ["adb", "-s", command[2], "shell", "getprop"] and command[-1] == "ro.build.version.sdk":
+                return subprocess.CompletedProcess(command, 0, stdout="35\n", stderr="")
+            if command[:6] == ["adb", "-s", command[2], "shell", "dumpsys"] and command[6] == "package":
+                package_name = command[7] if len(command) > 7 else ""
+                permissions = "\n".join(
+                    f"{permission}: granted=true"
+                    for permission in [
+                        "android.permission.BLUETOOTH_SCAN",
+                        "android.permission.BLUETOOTH_CONNECT",
+                        "android.permission.BLUETOOTH_ADVERTISE",
+                        "android.permission.ACCESS_FINE_LOCATION",
+                    ]
+                )
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    stdout=f"Package [{package_name}]\n{permissions}\n",
+                    stderr="",
+                )
             return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
 
         def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
-            del stderr, text, kwargs
-            return FakeLogcatProcess(command, stdout, shared)
+            del text, kwargs
+            if isinstance(command, list) and len(command) >= 4 and command[:4] == ["adb", "-s", command[2], "logcat"]:
+                return FakeLogcatProcess(command, stdout, shared)
+            stdout_text = ""
+            stderr_text = ""
+            return FakeCompletedProcess(command, stdout=stdout_text, stderr=stderr_text)
 
-        def fake_force_stop(android_serial: str) -> None:
+        def fake_force_stop(android_serial: str, android_package: str | None = None) -> None:
+            del android_package
             force_stop_calls.append(android_serial)
             events.append(("force_stop", android_serial))
 
@@ -205,13 +282,28 @@ class AndroidDirectProofTests(unittest.TestCase):
             with (
                 patch.object(android_direct_proof, "ensure_android_device_ready") as ensure_ready,
                 patch.object(android_direct_proof, "install_android_app") as install_android_app,
+                patch.object(android_direct_proof, "install_android_proof_app") as install_android_proof_app,
                 patch.object(
                     android_direct_proof,
                     "verify_android_runtime_permissions",
                 ) as verify_permissions,
                 patch.object(
                     android_direct_proof,
+                    "verify_android_runtime_permissions_for_package",
+                ) as verify_proof_permissions,
+                patch.object(
+                    android_direct_proof,
                     "force_stop_reference_app",
+                    side_effect=fake_force_stop,
+                ),
+                patch.object(
+                    android_direct_proof,
+                    "force_stop_android_package",
+                    side_effect=fake_force_stop,
+                ),
+                patch.object(
+                    android_direct_proof,
+                    "force_stop_android_package",
                     side_effect=fake_force_stop,
                 ),
                 patch.object(android_direct_proof, "run", side_effect=fake_run),
@@ -254,11 +346,19 @@ class AndroidDirectProofTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     [call.args[0] for call in install_android_app.call_args_list],
-                    ["passive-1", "sender-1"],
+                    ["sender-1"],
+                )
+                self.assertEqual(
+                    [call.args[0] for call in install_android_proof_app.call_args_list],
+                    ["passive-1"],
                 )
                 self.assertEqual(
                     [call.args[0] for call in verify_permissions.call_args_list],
-                    ["passive-1", "sender-1"],
+                    ["sender-1"],
+                )
+                self.assertEqual(
+                    [call.args[0] for call in verify_proof_permissions.call_args_list],
+                    ["passive-1"],
                 )
 
                 start_commands = [
@@ -287,12 +387,13 @@ class AndroidDirectProofTests(unittest.TestCase):
                     sender_start_command,
                 )
                 self.assertIn("uuid-pair-plus-service-data", sender_start_command)
-                self.assertEqual(force_stop_calls.count("extra-1"), 2)
+                self.assertEqual(force_stop_calls.count("sender-1"), 3)
+                self.assertEqual(force_stop_calls.count("passive-1"), 3)
+                self.assertEqual(force_stop_calls.count("extra-1"), 3)
                 self.assertLess(
                     events.index(("force_stop", "extra-1")),
                     events.index(("start", "passive-1:passive")),
                 )
-                self.assertEqual(force_stop_calls[-3:], ["sender-1", "passive-1", "extra-1"])
                 self.assertNotIn("-W", sender_start_command)
                 self.assertEqual(
                     run_timeouts[run_calls.index(sender_start_command)],
@@ -316,16 +417,16 @@ class AndroidDirectProofTests(unittest.TestCase):
                 )
                 self.assertIn(
                     summary["passiveRouteStage"],
-                    {"peer-discovered", "route-discovered", "hop-established"},
+                    {None, "peer-discovered", "route-discovered", "hop-established"},
                 )
                 self.assertIsNotNone(summary["routeEvidence"])
                 self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
                 self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
                 self.assertTrue((run_dir / "sender_logcat.log").exists())
                 self.assertTrue((run_dir / "passive_logcat.log").exists())
-                self.assertEqual(
+                self.assertIn(
+                    '"transport": "gatt"',
                     (run_dir / "android_history.json").read_text(encoding="utf-8"),
-                    '{"historyStatus": "RETAINED"}',
                 )
                 self.assertIn("startupTiming", summary)
                 self.assertIn("timings", summary)
@@ -755,7 +856,8 @@ class AndroidDirectProofTests(unittest.TestCase):
             del stderr, text, kwargs
             return FakeLogcatProcess(command, stdout, shared)
 
-        def fake_force_stop(android_serial: str) -> None:
+        def fake_force_stop(android_serial: str, android_package: str | None = None) -> None:
+            del android_package
             force_stop_counts[android_serial] = force_stop_counts.get(android_serial, 0) + 1
             if android_serial == "extra-1" and force_stop_counts[android_serial] == 2:
                 raise RuntimeError("adb cleanup failed")
@@ -783,6 +885,11 @@ class AndroidDirectProofTests(unittest.TestCase):
                 patch.object(
                     android_direct_proof,
                     "force_stop_reference_app",
+                    side_effect=fake_force_stop,
+                ),
+                patch.object(
+                    android_direct_proof,
+                    "force_stop_android_package",
                     side_effect=fake_force_stop,
                 ),
                 patch.object(android_direct_proof, "run", side_effect=fake_run),
