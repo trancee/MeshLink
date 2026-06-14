@@ -390,6 +390,21 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertIn("Known quirks / test notes", header_columns)
         self.assertEqual(parsed_rows, sorted(parsed_rows, key=lambda item: (-item[0], item[1].lower())))
 
+    def test_matrix_reference_links_to_the_row_refresh_procedure(self) -> None:
+        # Arrange
+        matrix_reference = Path("docs/reference/device-test-matrix.md")
+        how_to = Path("docs/how-to/run-reference-app-physical-integration-scenarios.md")
+
+        # Act
+        matrix_text = matrix_reference.read_text(encoding="utf-8")
+        how_to_text = how_to.read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn("How to run the reference-app physical integration scenarios", matrix_text)
+        self.assertIn("When you refresh a row", how_to_text)
+        self.assertIn("quirks column", how_to_text)
+        self.assertIn("GSMArena", how_to_text)
+
     def test_subprocess_runner_rejects_shell_style_string_commands(self) -> None:
         # Arrange / Act / Assert
         with self.assertRaises(TypeError):

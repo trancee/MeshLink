@@ -41,6 +41,8 @@ nearest marketed tier used in the table.
   quirks column.
 - When you add a device, copy an existing row and update all fields in the same
   order so the table stays consistent.
+- For the row-refresh procedure, see the maintainer checklist in
+  [How to run the reference-app physical integration scenarios](../how-to/run-reference-app-physical-integration-scenarios.md).
 - Re-run `adb devices -l`, `getprop`, `MemTotal`, and `df /storage/emulated/0`
   before replacing an existing row.
 
