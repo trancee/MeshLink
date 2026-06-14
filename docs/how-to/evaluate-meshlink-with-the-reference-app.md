@@ -12,9 +12,13 @@ By the end of this guide you should be able to:
 - retain one session and export one redacted artifact
 - decide whether to stay in the reference app or switch to the proof apps or
   live-proof harness
+- find the canonical direct-proof result digest when you need the latest 45s
+  rerun summary
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).
+If you want the canonical direct-proof rerun summary, use
+[Android direct-proof matrix result](../reference/android-direct-proof-matrix-result.md).
 If you want the minimal SDK tutorial shape instead of the product-like
 reference-app walkthrough, use
 [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).

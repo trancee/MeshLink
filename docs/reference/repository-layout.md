@@ -143,6 +143,7 @@ flowchart LR
 | `meshlink-reference/scripts/run_headless_reference_relay_proof.py` | Runs the constrained relay proof for the reference app |
 | `meshlink-reference/scripts/run_headless_reference_physical_matrix.py` | Runs the broader physical reference-app matrix |
 | `meshlink-reference/scripts/analyze_reference_physical_run.py` | Summarizes a retained physical reference-app run |
+| `docs/reference/android-direct-proof-matrix-result.md` | Retains the canonical summary of the latest direct-proof matrix rerun |
 | `benchmarks/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
 
 ## Contributor workflow scaffolding

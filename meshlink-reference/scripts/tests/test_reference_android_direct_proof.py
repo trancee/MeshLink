@@ -983,10 +983,14 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Arrange
         digest_path = Path("docs/reference/android-direct-proof-matrix-result.md")
         guide_path = Path("docs/how-to/run-reference-app-physical-integration-scenarios.md")
+        evaluation_path = Path("docs/how-to/evaluate-meshlink-with-the-reference-app.md")
+        layout_path = Path("docs/reference/repository-layout.md")
 
         # Act
         digest_text = digest_path.read_text(encoding="utf-8")
         guide_text = guide_path.read_text(encoding="utf-8")
+        evaluation_text = evaluation_path.read_text(encoding="utf-8")
+        layout_text = layout_path.read_text(encoding="utf-8")
 
         # Assert
         self.assertIn("1 / 7", digest_text)
@@ -1001,6 +1005,10 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIn("preflight", guide_text)
         self.assertIn("capture", guide_text)
         self.assertIn("proof.complete", guide_text)
+        self.assertIn("Android direct-proof matrix result", evaluation_text)
+        self.assertIn("direct-proof result digest", evaluation_text)
+        self.assertIn("direct-proof matrix rerun", layout_text)
+        self.assertIn("Retains the canonical summary", layout_text)
 
 
 if __name__ == "__main__":
