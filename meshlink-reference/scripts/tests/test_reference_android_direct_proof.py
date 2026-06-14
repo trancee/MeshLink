@@ -68,6 +68,23 @@ class FakeLogcatProcess:
                     "REFERENCE_AUTOMATION timeline.peer.snapshot role=PASSIVE peers=passive-peer\n"
                 )
             stdout.flush()
+        elif serial == "sender-1" and self._shared.get("sender_profile") == "proof":
+            stdout.write(
+                "05-31 10:00:01.000 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model (SDK 35) appId=demo.meshlink powerMode=Automatic transport=gattNotifyPrototype\n"
+            )
+            stdout.write("05-31 10:00:01.020 I MeshLinkProof: gatt.notify.start() -> Started\n")
+            stdout.write(
+                "05-31 10:00:01.120 I MeshLinkProof: GATT notify benchmark discovered service; reading app hash\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.220 I MeshLinkProof: GATT notify benchmark notifications enabled\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.320 I MeshLinkProof: GATT notify benchmark start token=abcdef0123456789 bytes=256 elapsedMs=300\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.420 I MeshLinkProof: BENCHMARK transport bytes=256 elapsedMs=400 throughputKBps=0.62 result=Sent\n"
+            )
         elif serial == "sender-1":
             stdout.write(
                 "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
@@ -238,8 +255,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             run_timeouts.append(timeout)
             if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]:
                 if any("ch.trancee.meshlink.proof.android/.MainActivity" in part for part in command):
-                    role = "passive"
-                    shared["passive_profile"] = "proof"
+                    if command[2] == "passive-1":
+                        role = "passive"
+                        shared["passive_profile"] = "proof"
+                    else:
+                        role = "sender"
+                        shared["sender_profile"] = "proof"
                 else:
                     role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
                 events.append(("start", f"{command[2]}:{role}"))
@@ -359,21 +380,15 @@ class AndroidDirectProofTests(unittest.TestCase):
                     [call.args[0] for call in ensure_ready.call_args_list],
                     ["passive-1", "sender-1", "extra-1"],
                 )
+                self.assertEqual([call.args[0] for call in install_android_app.call_args_list], [])
                 self.assertEqual(
-                    [call.args[0] for call in install_android_app.call_args_list],
-                    ["sender-1"],
+                    sorted(call.args[0] for call in install_android_proof_app.call_args_list),
+                    ["passive-1", "sender-1"],
                 )
+                self.assertEqual([call.args[0] for call in verify_permissions.call_args_list], [])
                 self.assertEqual(
-                    [call.args[0] for call in install_android_proof_app.call_args_list],
-                    ["passive-1"],
-                )
-                self.assertEqual(
-                    [call.args[0] for call in verify_permissions.call_args_list],
-                    ["sender-1"],
-                )
-                self.assertEqual(
-                    [call.args[0] for call in verify_proof_permissions.call_args_list],
-                    ["passive-1"],
+                    sorted(call.args[0] for call in verify_proof_permissions.call_args_list),
+                    ["passive-1", "sender-1"],
                 )
 
                 start_commands = [
@@ -384,24 +399,23 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(start_commands[0][2], "passive-1")
                 self.assertEqual(start_commands[1][2], "sender-1")
                 self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_commands[0])
-                self.assertIn("sender", start_commands[1])
+                self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_commands[1])
                 self.assertNotIn("direct-guided", start_commands[0])
-                self.assertIn("direct-guided", start_commands[1])
+                self.assertNotIn("direct-guided", start_commands[1])
                 self.assertIn("meshlink.appId", start_commands[0])
                 self.assertIn("gatt", start_commands[0])
                 self.assertIn("meshlink.disableAutoSend", start_commands[0])
-                self.assertIn("true", start_commands[0])
-                self.assertNotIn("meshlink.benchmarkTransport", start_commands[1])
+                self.assertIn("meshlink.appId", start_commands[1])
+                self.assertIn("gatt-notify", start_commands[1])
+                self.assertIn("meshlink.disableAutoSend", start_commands[1])
+                self.assertIn("true", start_commands[1])
                 sender_start_command = next(
                     command
                     for command in run_calls
                     if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
                 )
-                self.assertIn(
-                    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
-                    sender_start_command,
-                )
-                self.assertIn("uuid-pair-plus-service-data", sender_start_command)
+                self.assertIn("meshlink.benchmarkTransport", sender_start_command)
+                self.assertIn("gatt-notify", sender_start_command)
                 self.assertEqual(force_stop_calls.count("sender-1"), 3)
                 self.assertEqual(force_stop_calls.count("passive-1"), 3)
                 self.assertEqual(force_stop_calls.count("extra-1"), 3)
