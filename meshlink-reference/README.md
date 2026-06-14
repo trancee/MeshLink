@@ -9,8 +9,8 @@ not just as a proof harness.
 - Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
   ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
 - MeshLink therefore treats those Android primitives as runtime-capability
-  features on older API levels; proving an in-repo fallback for them remains an
-  open validation item.
+  features on older API levels; the in-repo fallback is shipped, and retained
+  validation on the lowest Android tiers is tracked in the M011 proof plan.
 - Ed25519 already has an in-repo fallback on Android.
 - iOS app surfaces use CryptoKit for the same algorithm contract on supported
   versions.

@@ -42,7 +42,8 @@ Android crypto nuance:
 
 Fallback proof plan:
 
-- See [M011 Android crypto fallback proof plan](../rfcs/crypto/m011-android-crypto-fallback-proof.md) for the implementation and validation work needed before claiming a lower Android crypto floor.
+- See [M011 Android crypto fallback proof plan](../rfcs/crypto/m011-android-crypto-fallback-proof.md) for the shipped fallback plus the retained validation posture before claiming a lower Android crypto floor.
+- The current validation update records an Android 9 / SDK 28 hardware pass and notes that API 26 emulator proof is still blocked by local emulator stability.
 
 ## Current supported distribution paths
 
