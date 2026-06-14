@@ -86,6 +86,7 @@ public fun createLiveAutomationPlatformServices(
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
+    benchmarkTransport: String = "meshlink",
     scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 ): PlatformServices {
     val clock = { System.currentTimeMillis() }
@@ -114,6 +115,7 @@ public fun createLiveAutomationPlatformServices(
                         requiredPeerCount = requiredPeerCount,
                         targetPeerIndex = targetPeerIndex,
                         targetPeerId = targetPeerId,
+                        benchmarkTransport = benchmarkTransport,
                         scenario = scenario,
                     )
                 powerMitigationStatus =

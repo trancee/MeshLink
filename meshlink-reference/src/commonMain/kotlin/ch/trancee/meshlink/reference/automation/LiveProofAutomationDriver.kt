@@ -93,6 +93,9 @@ internal class LiveProofAutomationDriver(
         ) {
             return
         }
+        if (config.benchmarkTransport != "meshlink") {
+            return
+        }
         val meshState = timelineUiState.liveSnapshot.session.meshStateLabel
         if (!meshState.contains("Running")) {
             return

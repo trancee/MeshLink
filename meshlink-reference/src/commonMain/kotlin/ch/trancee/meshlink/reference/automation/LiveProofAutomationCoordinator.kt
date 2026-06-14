@@ -50,6 +50,7 @@ internal class LiveProofAutomationCoordinator(
             "REFERENCE_AUTOMATION started " +
                 "mode=${automationConfig.mode} " +
                 "role=${automationConfig.role} " +
+                "benchmarkTransport=${automationConfig.benchmarkTransport} " +
                 "scenario=${automationConfig.scenario.wireValue()} " +
                 "appId=${automationConfig.appId} " +
                 "storage=${automationConfig.storageSubdirectory}"

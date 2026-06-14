@@ -13,6 +13,7 @@ internal data class AutomationConfig(
     val requiredPeerCount: Int,
     val targetPeerIndex: Int,
     val targetPeerId: String?,
+    val benchmarkTransport: String,
     val scenario: ReferenceAutomationScenario,
     val blocked: Boolean,
     val advertisementCarrier: DiscoveryAdvertisementCarrier,

@@ -9,6 +9,7 @@ public data class ReferenceAutomationConfig(
     public val requiredPeerCount: Int = 1,
     public val targetPeerIndex: Int = 0,
     public val targetPeerId: String? = null,
+    public val benchmarkTransport: String = "meshlink",
     public val scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
 )
 
