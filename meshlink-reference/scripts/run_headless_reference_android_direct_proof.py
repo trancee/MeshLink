@@ -215,6 +215,18 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     sender_timings = timings.get("sender", {}) or {}
     passive_timings = timings.get("passive", {}) or {}
     status = payload.get("status")
+    total_seconds = payload.get("totalSeconds") if payload.get("totalSeconds") is not None else timings.get("totalSeconds")
+    capture_timeout_seconds = (
+        payload.get("captureTimeoutSeconds")
+        if payload.get("captureTimeoutSeconds") is not None
+        else timings.get("captureTimeoutSeconds")
+    )
+    android_ready_seconds = (
+        payload.get("androidReadySeconds")
+        if payload.get("androidReadySeconds") is not None
+        else timings.get("androidReadySeconds")
+    )
+    transport_mode = payload.get("transportMode") or timings.get("transportMode") or sender_timings.get("transportMode") or passive_timings.get("transportMode")
     badge_class = "pass" if status == "passed" else "fail"
     raw_timings_json = esc(json.dumps(timings, indent=2, sort_keys=True))
     raw_startup_json = esc(json.dumps(startup_timing, indent=2, sort_keys=True))
@@ -256,9 +268,9 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Sender", payload.get("senderSerial")),
                 ("Passive", payload.get("passiveSerial")),
                 ("Route stage", payload.get("routeStage")),
-                ("Transport mode", payload.get("transportMode")),
-                ("Total time", fmt_seconds(timings.get("totalSeconds"))),
-                ("Capture timeout", fmt_seconds(timings.get("captureTimeoutSeconds"))),
+                ("Transport mode", transport_mode),
+                ("Total time", fmt_seconds(total_seconds)),
+                ("Capture timeout", fmt_seconds(capture_timeout_seconds)),
             ],
         ),
         "<section><h2>Startup timing</h2><table>",
@@ -276,7 +288,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         kv_table(
             "Transport",
             [
-                ("Transport mode", timings.get("transportMode")),
+                ("Transport mode", transport_mode),
                 ("Transport evidence", transport_evidence),
                 ("Sender transport", sender_timings.get("transportMode")),
                 ("Passive transport", passive_timings.get("transportMode")),
@@ -716,6 +728,8 @@ def ensure_android_preflight(
         install_started_at = time.monotonic()
         try:
             install_android_app(android_serial, run_dir)
+        except TimeoutError as error:
+            raise SystemExit(str(error)) from error
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.output or "").strip()
             detail_suffix = f": {details}" if details else ""

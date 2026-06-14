@@ -573,7 +573,7 @@ def write_android_install_cache(run_dir: Path, android_serial: str, payload: dic
     android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def install_android_app(android_serial: str, run_dir: Path | None = None) -> None:
+def install_android_app(android_serial: str, run_dir: Path | None = None, *, install_timeout_seconds: float = 60.0) -> None:
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = android_serial
     cache_run_dir = run_dir or Path("/tmp")
@@ -599,6 +599,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
             text=True,
             capture_output=True,
             check=False,
+            timeout=install_timeout_seconds,
         )
         if result.returncode != 0:
             stdout_tail = (result.stdout or "").strip()
@@ -616,6 +617,13 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
 
     try:
         run_install_once()
+    except subprocess.TimeoutExpired as error:
+        print(
+            f"==> Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        )
+        raise TimeoutError(
+            f"Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        ) from error
     except subprocess.CalledProcessError:
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
