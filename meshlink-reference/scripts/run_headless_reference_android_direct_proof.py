@@ -48,7 +48,7 @@ ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
 ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
 ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
-ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS = 120.0
+ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS = 240.0
 
 
 def android_proof_install_timeout_seconds(android_serial: str) -> float:
@@ -61,10 +61,6 @@ def android_proof_install_timeout_seconds(android_serial: str) -> float:
 
 def is_wireless_android_serial(android_serial: str) -> bool:
     return "_adb-tls-connect._tcp" in android_serial
-
-
-def sender_uses_proof_app(passive_benchmark_transport: str) -> bool:
-    return passive_benchmark_transport == "gatt"
 
 
 POST_RESULT_IDLE_SECONDS = 2.0
@@ -392,20 +388,7 @@ def extract_discovered_peer_id(log_text: str) -> str | None:
     return None
 
 
-def sender_uses_proof_log(log_text: str) -> bool:
-    return "gatt.notify.start() -> Started" in log_text or "transport=gattNotifyPrototype" in log_text
-
-
 def extract_sender_completion(log_text: str) -> str | None:
-    if sender_uses_proof_log(log_text):
-        return next(
-            (
-                line.strip()
-                for line in log_text.splitlines()
-                if "BENCHMARK transport bytes=" in line and "result=" in line
-            ),
-            None,
-        )
     return next(
         (line.strip() for line in log_text.splitlines() if SENDER_PROOF_COMPLETE_NEEDLE in line),
         None,
@@ -413,18 +396,6 @@ def extract_sender_completion(log_text: str) -> str | None:
 
 
 def extract_sender_failure(log_text: str) -> str | None:
-    if sender_uses_proof_log(log_text):
-        return next(
-            (
-                line.strip()
-                for line in log_text.splitlines()
-                if "gatt.notify.start() failed:" in line
-                    or "BENCHMARK transport warmupFailed=" in line
-                    or "result=ReceiptTimeout" in line
-                    or "result=NotSent" in line
-            ),
-            None,
-        )
     return next(
         (line.strip() for line in log_text.splitlines() if SENDER_PROOF_FAILED_NEEDLE in line),
         None,
@@ -581,62 +552,33 @@ def build_timing_snapshot(
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
 
-    if sender_uses_proof_log(sender_log):
-        sender_startup_line, sender_startup_seconds = extract_marker_timing(
-            sender_log,
-            (
-                "gatt.notify.start() -> Started",
-                "transport=gattNotifyPrototype",
-            ),
-        )
-        sender_peer_line, sender_peer_seconds = extract_marker_timing(
-            sender_log,
-            ("GATT notify benchmark discovered service",),
-            after_seconds=sender_startup_seconds,
-        )
-        sender_trust_line, sender_trust_seconds = extract_marker_timing(
-            sender_log,
-            ("GATT notify benchmark notifications enabled",),
-            after_seconds=sender_peer_seconds or sender_startup_seconds,
-        )
-        sender_send_line, sender_send_seconds = extract_marker_timing(
-            sender_log,
-            ("GATT notify benchmark start token=",),
-            after_seconds=sender_trust_seconds or sender_peer_seconds or sender_startup_seconds,
-        )
-        sender_complete_line, sender_complete_seconds = extract_marker_timing(
-            sender_log,
-            ("BENCHMARK transport bytes=",),
-            after_seconds=sender_send_seconds or sender_trust_seconds or sender_peer_seconds or sender_startup_seconds,
-        )
-    else:
-        sender_startup_line, sender_startup_seconds = extract_marker_timing(
-            sender_log,
-            (
-                "startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
-                "started mode=LIVE_PROOF role=SENDER",
-            ),
-        )
-        sender_peer_line, sender_peer_seconds = extract_marker_timing(
-            sender_log,
-            ("peer.discovered role=SENDER",),
-            after_seconds=sender_startup_seconds,
-        )
-        sender_trust_line, sender_trust_seconds = extract_marker_timing(
-            sender_log,
-            ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
-            after_seconds=sender_peer_seconds or sender_startup_seconds,
-        )
-        sender_send_line, sender_send_seconds = extract_marker_timing(
-            sender_log,
-            ("send.requested role=sender",),
-            after_seconds=sender_peer_seconds or sender_startup_seconds,
-        )
-        sender_complete_line, sender_complete_seconds = extract_marker_timing(
-            sender_log,
-            (SENDER_PROOF_COMPLETE_NEEDLE,),
-            after_seconds=sender_send_seconds or sender_startup_seconds,
-        )
+    sender_startup_line, sender_startup_seconds = extract_marker_timing(
+        sender_log,
+        (
+            "startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
+            "started mode=LIVE_PROOF role=SENDER",
+        ),
+    )
+    sender_peer_line, sender_peer_seconds = extract_marker_timing(
+        sender_log,
+        ("peer.discovered role=SENDER",),
+        after_seconds=sender_startup_seconds,
+    )
+    sender_trust_line, sender_trust_seconds = extract_marker_timing(
+        sender_log,
+        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        after_seconds=sender_peer_seconds or sender_startup_seconds,
+    )
+    sender_send_line, sender_send_seconds = extract_marker_timing(
+        sender_log,
+        ("send.requested role=sender",),
+        after_seconds=sender_peer_seconds or sender_startup_seconds,
+    )
+    sender_complete_line, sender_complete_seconds = extract_marker_timing(
+        sender_log,
+        (SENDER_PROOF_COMPLETE_NEEDLE,),
+        after_seconds=sender_send_seconds or sender_startup_seconds,
+    )
     passive_startup_line, passive_startup_seconds = extract_marker_timing(
         passive_log,
         (
@@ -1230,20 +1172,13 @@ def verify_sender_log(log_path: Path) -> str:
     log_text = read_text(log_path)
     if not log_text.strip():
         raise SystemExit("Sender log is empty; cannot trust Android-only direct proof completion")
-    if sender_uses_proof_log(log_text):
-        required_markers = [
-            "MeshLink proof app ready on",
-            "gatt.notify.start() -> Started",
-        ]
-    else:
-        required_markers = SENDER_REQUIRED_LOG_MARKERS
-    for marker in required_markers:
+    for marker in SENDER_REQUIRED_LOG_MARKERS:
         if marker not in log_text:
             raise SystemExit(f"Expected sender log to contain '{marker}'")
     completion_line = extract_sender_completion(log_text)
     if completion_line is None:
-        raise SystemExit("Missing sender completion line in sender log")
-    if SENDER_PROOF_FAILED_NEEDLE in log_text or "gatt.notify.start() failed:" in log_text:
+        raise SystemExit("Missing sender proof.complete line in sender log")
+    if SENDER_PROOF_FAILED_NEEDLE in log_text:
         raise SystemExit("Sender log contains proof.failed")
     return completion_line
 
@@ -1453,11 +1388,6 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         stage = "preflight"
-        sender_uses_proof_transport = sender_uses_proof_app(args.passive_benchmark_transport)
-        sender_android_package = ANDROID_PROOF_PACKAGE if sender_uses_proof_transport else ANDROID_PACKAGE
-        sender_android_activity = ANDROID_PROOF_ACTIVITY if sender_uses_proof_transport else ANDROID_ACTIVITY
-        sender_install_profile = "proof" if sender_uses_proof_transport else "reference"
-        sender_benchmark_transport = "gatt-notify" if sender_uses_proof_transport else "meshlink"
         with ThreadPoolExecutor(max_workers=2) as executor:
             passive_future = executor.submit(
                 ensure_android_preflight,
@@ -1471,7 +1401,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.sender_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
-                install_profile=sender_install_profile,
+                install_profile="reference",
             )
             passive_preflight = passive_future.result()
             sender_preflight = sender_future.result()
@@ -1570,23 +1500,17 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                target_peer_id=discovered_peer_id if not sender_uses_proof_transport else None,
+                target_peer_id=discovered_peer_id,
                 advertisement_carrier=(
                     "uuid-pair-plus-service-data"
                     if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
                     else args.advertisement_carrier
                 ),
-                benchmark_transport=sender_benchmark_transport,
-                android_activity=sender_android_activity,
-                android_package=sender_android_package,
             )
             print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
-            sender_startup_marker = (
-                "gatt.notify.start() -> Started" if sender_uses_proof_transport else "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER"
-            )
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
-                sender_startup_marker,
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
                 args.android_ready_seconds,
             )
             startup_timing["sender"] = sender_startup_observation
