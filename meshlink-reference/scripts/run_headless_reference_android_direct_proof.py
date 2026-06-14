@@ -47,6 +47,22 @@ ANDROID_PROOF_PACKAGE = "ch.trancee.meshlink.proof.android"
 ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
 ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
+ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
+ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS = 120.0
+
+
+def android_proof_install_timeout_seconds(android_serial: str) -> float:
+    return (
+        ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS
+        if is_wireless_android_serial(android_serial)
+        else ANDROID_USB_INSTALL_TIMEOUT_SECONDS
+    )
+
+
+def is_wireless_android_serial(android_serial: str) -> bool:
+    return "_adb-tls-connect._tcp" in android_serial
+
+
 POST_RESULT_IDLE_SECONDS = 2.0
 POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
 LOGCAT_TIMESTAMP_PATTERN = re.compile(
@@ -753,7 +769,11 @@ def ensure_android_preflight(
         install_started_at = time.monotonic()
         try:
             if install_profile == "proof":
-                install_android_proof_app(android_serial, run_dir)
+                install_android_proof_app(
+                    android_serial,
+                    run_dir,
+                    install_timeout_seconds=android_proof_install_timeout_seconds(android_serial),
+                )
             else:
                 install_android_app(android_serial, run_dir)
         except TimeoutError as error:

@@ -203,6 +203,19 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(peer_id, "passive-peer-123456")
 
+    def test_android_proof_install_timeout_differs_for_wireless_and_usb_serials(self) -> None:
+        # Arrange / Act / Assert
+        self.assertEqual(
+            android_direct_proof.android_proof_install_timeout_seconds(
+                "adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp"
+            ),
+            android_direct_proof.ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            android_direct_proof.android_proof_install_timeout_seconds("emulator-5554"),
+            android_direct_proof.ANDROID_USB_INSTALL_TIMEOUT_SECONDS,
+        )
+
     def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
         # Arrange
         run_calls: list[list[str]] = []
