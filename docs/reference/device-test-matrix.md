@@ -1,6 +1,6 @@
 # Device test matrix reference
 
-Last verified: 2026-06-13
+Last verified: 2026-06-14
 
 This page tracks the Android devices currently attached to the MeshLink test
 bench and the device facts that matter for validation.
@@ -61,7 +61,6 @@ nearest marketed tier used in the table.
 | Google Pixel 4a | Google | sunfish | Android 13 / SDK 33 | 6 GB | 128 GB | 5.0 | 5.81" | Snapdragon 730G | Pixel UI / stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Older Pixel baseline with a smaller display and older Bluetooth stack; good for legacy Android 13 behavior and tighter UI layouts. | [GSMArena](https://www.gsmarena.com/google_pixel_4a-10123.php) |
 | OnePlus Nord 2 5G | OnePlus | DN2103 | Android 13 / SDK 33 | 12 GB | 256 GB | 5.2 | 6.43" | Dimensity 1200 | OxygenOS 13 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Good mid-cycle OnePlus comparison point against the older OnePlus 6; verify upgrade-state and Bluetooth behavior on OxygenOS 13. | [GSMArena](https://www.gsmarena.com/oneplus_nord_2_5g-10960.php) |
 | OPPO A57s | OPPO | CPH2385 | Android 13 / SDK 33 | 4 GB | 128 GB | 5.3 | 6.56" | Helio G35 | ColorOS 13.1.1 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Budget OPPO baseline on a newer Android 13 build than launch; useful for low-RAM and ColorOS power-management checks. | [GSMArena](https://www.gsmarena.com/oppo_a57s-11835.php) |
-| OPPO Reno6 5G | OPPO | CPH2251 | Android 13 / SDK 33 | 8 GB | 128 GB | 5.2 | 6.43" | Dimensity 900 | ColorOS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Current build is newer than the launch spec, so update-path behavior matters; compare against Reno8 for ColorOS differences. | [GSMArena](https://www.gsmarena.com/oppo_reno6_5g-10932.php) |
 | Huawei Nova 9 | HUAWEI | NAM-LX9 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.2 | 6.57" | Snapdragon 778G 4G | HarmonyOS 2.0 / EMUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Huawei/EMUI baseline with no Google Play Services on the public spec page; useful for Huawei-specific app install and service dependency checks. | [GSMArena](https://www.gsmarena.com/huawei_nova_9-11121.php) |
 | OnePlus 7T | OnePlus | HD1901 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.0 | 6.55" | Snapdragon 855+ | OxygenOS 12.1 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Mid-generation OnePlus baseline with Android 12 and no card slot; useful for comparing OnePlus upgrade behavior against the older OnePlus 6 and the Nord 2. | [GSMArena](https://www.gsmarena.com/oneplus_7t-9816.php) |
 | OnePlus 6 | OnePlus | ONEPLUS A6003 | Android 11 / SDK 30 | 8 GB | 128 GB | 5.0 | 6.28" | Snapdragon 845 | OxygenOS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Oldest API/device in the set and `nosdcard`; validate legacy storage, permission, and older Bluetooth-stack behavior. | [GSMArena](https://www.gsmarena.com/oneplus_6-9109.php) |
