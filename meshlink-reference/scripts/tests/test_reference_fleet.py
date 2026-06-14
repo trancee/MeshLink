@@ -405,6 +405,22 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertIn("quirks column", how_to_text)
         self.assertIn("GSMArena", how_to_text)
 
+    def test_release_review_docs_explain_warning_grade_fleet_metadata(self) -> None:
+        # Arrange
+        how_to = Path("docs/how-to/run-reference-app-physical-integration-scenarios.md")
+        readme = Path("meshlink-reference/README.md")
+
+        # Act
+        how_to_text = how_to.read_text(encoding="utf-8")
+        readme_text = readme.read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn("ready-with-warnings", how_to_text)
+        self.assertIn("tolerated warning state", how_to_text)
+        self.assertIn("ready-with-warnings", readme_text)
+        self.assertIn("tolerated discovery warning", readme_text)
+        self.assertIn("successful release-review run", readme_text)
+
     def test_subprocess_runner_rejects_shell_style_string_commands(self) -> None:
         # Arrange / Act / Assert
         with self.assertRaises(TypeError):

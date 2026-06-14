@@ -211,6 +211,10 @@ Use the distinction this way:
   a simple fleet-shape skip. Examples: missing `adb`, missing `devicectl`, an
   unresolved `DEVELOPMENT_TEAM`, or discovered devices that are present but not
   healthy enough to satisfy the planned roles.
+- `ready-with-warnings` means the fleet was still good enough to run the
+  campaign, but one or more retained discovery rows had non-blocking problems.
+  Treat it as a tolerated warning state, not as a failed campaign, and look at
+  the retained manifest warnings for the exact row-level cause.
 - `fail` means a scenario was executed, but the retained `summary.json`,
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
   Generic wrapper noise such as `xcodebuild` or `build failed` does not upgrade
