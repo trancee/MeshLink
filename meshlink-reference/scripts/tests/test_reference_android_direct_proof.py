@@ -17,13 +17,22 @@ import run_headless_reference_android_direct_proof as android_direct_proof  # no
 import run_headless_reference_live_proof as live_proof  # noqa: E402
 
 
+def _close_stream(stream: object | None) -> None:
+    if stream is None:
+        return
+    close = getattr(stream, "close", None)
+    if callable(close) and not getattr(stream, "closed", False):
+        close()
+
+
 class FakeLogcatProcess:
     def __init__(self, command: list[str], stdout, shared: dict[str, object]) -> None:
         self.command = list(command)
         self._stdout = stdout
         self._shared = shared
+        self._serial = command[2]
         self._stopped = False
-        serial = command[2]
+        serial = self._serial
         if serial == "passive-1":
             self._shared["passive_log"] = stdout
             stdout.write(
@@ -87,19 +96,31 @@ class FakeLogcatProcess:
             stdout.flush()
             passive_log = self._shared["passive_log"]
             passive_log.flush()
+            stdout.close()
+
+    def close(self) -> None:
+        _close_stream(self._stdout)
+        if self._serial != "passive-1":
+            _close_stream(self._shared.get("passive_log"))
 
     def poll(self) -> int | None:
         return None if not self._stopped else 0
 
     def terminate(self) -> None:
         self._stopped = True
+        self.close()
 
     def wait(self, timeout: float | None = None) -> int:
         self._stopped = True
+        self.close()
         return 0
 
     def kill(self) -> None:
         self._stopped = True
+        self.close()
+
+    def __del__(self) -> None:
+        self.close()
 
 
 class AndroidDirectProofTests(unittest.TestCase):
@@ -312,8 +333,9 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.command = list(command)
                 self._stdout = stdout
                 self._shared = shared
+                self._serial = command[2]
                 self._stopped = False
-                serial = command[2]
+                serial = self._serial
                 if serial == "GX6CTR500184":
                     shared["passive_log"] = stdout
                     stdout.write("06-13 23:51:15.900 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n")
@@ -326,20 +348,32 @@ class AndroidDirectProofTests(unittest.TestCase):
                     stdout.write("06-13 23:51:16.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n")
                     stdout.write("06-13 23:51:16.070 D MeshLinkTransport: scan started\n")
                     stdout.flush()
+                    stdout.close()
+
+            def close(self) -> None:
+                _close_stream(self._stdout)
+                if self._serial != "GX6CTR500184":
+                    _close_stream(self._shared.get("passive_log"))
 
             def poll(self) -> int | None:
                 return None if not self._stopped else 0
 
             def terminate(self) -> None:
                 self._stopped = True
+                self.close()
 
             def wait(self, timeout: float | None = None) -> int:
                 del timeout
                 self._stopped = True
+                self.close()
                 return 0
 
             def kill(self) -> None:
                 self._stopped = True
+                self.close()
+
+            def __del__(self) -> None:
+                self.close()
 
         def fake_run(
             command: list[str],
