@@ -347,6 +347,19 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertEqual(persisted["selection"], manifest["selection"])
         self.assertEqual(persisted["candidateAssignments"], manifest["candidateAssignments"])
 
+    def test_device_matrix_reference_pins_capture_sources_and_rounding_contract(self) -> None:
+        # Arrange
+        matrix_reference = Path("docs/reference/device-test-matrix.md")
+
+        # Act
+        text = matrix_reference.read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn("/proc/meminfo", text)
+        self.assertIn("/storage/emulated/0", text)
+        self.assertIn("rounded from the attached device-reported totals", text)
+        self.assertIn("marketed tier", text)
+
     def test_subprocess_runner_rejects_shell_style_string_commands(self) -> None:
         # Arrange / Act / Assert
         with self.assertRaises(TypeError):

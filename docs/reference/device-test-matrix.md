@@ -11,8 +11,8 @@ Use it when you need to:
 - compare OEM behavior across Android versions and SDK levels
 - add a new device to the fleet using the same reporting shape
 
-Memory and storage values are rounded from the device-reported totals to the
-nearest marketed tier.
+Memory and storage values are rounded from the attached device-reported totals to the
+nearest marketed tier used in the table.
 
 ## Source of truth
 
@@ -20,8 +20,8 @@ nearest marketed tier.
 - Serials are used only during maintenance; the published table omits them. When the same hardware appears over USB and wireless ADB, keep the USB row and drop the alias row.
 - `adb shell getprop ...` for brand, manufacturer, model, Android version,
   SDK, and build details
-- `adb shell cat /proc/meminfo` for RAM
-- `adb shell df /storage/emulated/0` for internal storage size
+- `adb shell cat /proc/meminfo` for RAM on the attached device
+- `adb shell df /storage/emulated/0` for internal storage size on the attached device
 - GSMArena or vendor spec pages for the human-readable device name, screen,
   chipset, and Bluetooth version
 
