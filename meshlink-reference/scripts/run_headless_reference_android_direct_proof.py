@@ -51,6 +51,8 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
+ANDROID_EXTRA_BENCHMARK_TRANSPORT = "meshlink.benchmarkTransport"
+ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
 PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passive"
@@ -156,6 +158,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Android advertisement carrier to use for direct proof. Keep the default UUID pair "
             "unless you are isolating discovery-carrier behavior on a specific device."
+        ),
+    )
+    parser.add_argument(
+        "--passive-benchmark-transport",
+        choices=("meshlink", "gatt", "gatt-notify"),
+        default="meshlink",
+        help=(
+            "Passive Android benchmark transport to launch on the passive peer. Use gatt to "
+            "exercise the Android GATT prototype control path while keeping the sender on MeshLink."
         ),
     )
     parser.add_argument("--skip-android-install", action="store_true")
@@ -847,6 +858,7 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
+    benchmark_transport: str = "meshlink",
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_reference_app(android_serial)
@@ -888,6 +900,9 @@ def start_android_role_app(
         ANDROID_EXTRA_SCENARIO,
         DIRECT_GUIDED_SCENARIO,
     ]
+    if benchmark_transport != "meshlink":
+        command.extend(["--es", ANDROID_EXTRA_BENCHMARK_TRANSPORT, benchmark_transport])
+        command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
     if target_peer_id:
         command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
     command.extend(
@@ -1205,6 +1220,7 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
+                benchmark_transport=args.passive_benchmark_transport,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
