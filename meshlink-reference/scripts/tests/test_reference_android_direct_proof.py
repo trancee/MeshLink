@@ -945,6 +945,29 @@ class AndroidDirectProofTests(unittest.TestCase):
 
         self.assertIn("Sender log is empty", str(error.exception))
 
+    def test_direct_proof_result_digest_and_guide_text_stay_aligned(self) -> None:
+        # Arrange
+        digest_path = Path("docs/reference/android-direct-proof-matrix-result.md")
+        guide_path = Path("docs/how-to/run-reference-app-physical-integration-scenarios.md")
+
+        # Act
+        digest_text = digest_path.read_text(encoding="utf-8")
+        guide_text = guide_path.read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn("1 / 7", digest_text)
+        self.assertIn("preflight", digest_text)
+        self.assertIn("capture", digest_text)
+        self.assertIn("RMX3710", digest_text)
+        self.assertIn("A063", digest_text)
+        self.assertIn("45s", digest_text)
+        self.assertIn("proof.complete", digest_text)
+        self.assertIn("Android direct-proof matrix result", guide_text)
+        self.assertIn("45s", guide_text)
+        self.assertIn("preflight", guide_text)
+        self.assertIn("capture", guide_text)
+        self.assertIn("proof.complete", guide_text)
+
 
 if __name__ == "__main__":
     unittest.main()

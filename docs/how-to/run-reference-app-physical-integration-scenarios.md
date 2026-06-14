@@ -12,7 +12,7 @@ Before selecting hardware, check the [Device test matrix reference](../reference
 
 The current bench includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G, so use those when you need a fresh Android 14/13 mix in the same physical campaign.
 
-When reading the Android direct-proof matrix report, use the row/column table to see the observed sender→passive outcome, the passing-pairs table to spot the few recovered combinations, and the per-device failure-reason table to tell install problems apart from launch, route, or capture stalls. The compact `matrix-report.md` is the PR-friendly summary; the HTML report and `matrix-results.json` carry the same evidence in more detail. Treat the failure bucket as the primary signal and the raw log tails as evidence for the bucket.
+When reading the Android direct-proof matrix report, use the row/column table to see the observed sender→passive outcome, the passing-pairs table to spot the few recovered combinations, and the per-device failure-reason table to tell install problems apart from launch, route, or capture stalls. The compact `matrix-report.md` is the PR-friendly summary; the HTML report and `matrix-results.json` carry the same evidence in more detail. Treat the failure bucket as the primary signal and the raw log tails as evidence for the bucket. For the canonical summary of the observed 45s rerun, see [Android direct-proof matrix result](../reference/android-direct-proof-matrix-result.md).
 
 It focuses on behaviors that simulators and scripted UI tests cannot prove on
 their own:
@@ -134,7 +134,10 @@ On this host, the Android direct-proof contract now treats sender
 `proof.complete` as mandatory but accepts passive retained evidence without a
 passive `proof.complete` line. The passive role still has a best-effort
 completion log when it appears, but retained history/export evidence is the
-supported gate for a passed direct-guided run.
+supported gate for a passed direct-guided run. When the result matrix is read
+after a rerun, treat preflight failures as readiness problems and capture
+failures as route-stability or proof-completion problems; the canonical 45s
+summary lives in the result digest linked above.
 
 ### Direct proof checklist
 
