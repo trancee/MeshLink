@@ -201,6 +201,51 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def render_compact_report(results: list[dict[str, Any]]) -> str:
+    passing_pairs = [
+        f"| {row['senderModel']} | {row['passiveModel']} | passed |"
+        for row in results
+        if row["final"]["status"] == "passed"
+    ]
+    failure_counts: dict[str, dict[str, int]] = {}
+    for row in results:
+        device = row["senderModel"]
+        final = row["final"]
+        reason = final.get("failureReason") or ""
+        stage = final.get("failureStage") or "passed"
+        if final["status"] == "passed":
+            bucket = "passed"
+        elif stage == "preflight" or "install" in reason.lower():
+            bucket = "preflight/install"
+        elif stage == "launch" or "launch" in reason.lower():
+            bucket = "launch timeout"
+        else:
+            bucket = "capture/route stall"
+        failure_counts.setdefault(device, {})
+        failure_counts[device][bucket] = failure_counts[device].get(bucket, 0) + 1
+    top_failure_rows = []
+    for device, buckets in failure_counts.items():
+        top_bucket = max(buckets.items(), key=lambda item: item[1])
+        top_failure_rows.append(f"| {device} | {top_bucket[0]} | {top_bucket[1]} |")
+    report = [
+        "# Android direct-proof matrix report",
+        "",
+        "## Passing pairs",
+        "",
+        "| Sender | Passive | Result |",
+        "|---|---|---|",
+        *passing_pairs,
+        "",
+        "## Most common failure reason per device",
+        "",
+        "| Device | Most common failure reason | Count |",
+        "|---|---|---|",
+        *top_failure_rows,
+        "",
+    ]
+    return "\n".join(report)
+
+
 def load_progress(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -292,7 +337,10 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
 
+    compact_report_path = run_root / "matrix-report.md"
+    compact_report_path.write_text(render_compact_report(results), encoding="utf-8")
     print(f"==> Wrote {results_path}", flush=True)
+    print(f"==> Wrote {compact_report_path}", flush=True)
     return 0
 
 
