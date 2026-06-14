@@ -300,6 +300,110 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("Android direct-proof summary", report_html)
                 self.assertIn("L2CAP", report_html)
 
+    def test_main_prefers_service_data_for_known_flaky_pairs(self) -> None:
+        # Arrange
+        run_calls: list[list[str]] = []
+
+        class KnownPairLogcatProcess:
+            def __init__(self, command: list[str], stdout, shared: dict[str, object]) -> None:
+                self.command = list(command)
+                self._stdout = stdout
+                self._shared = shared
+                self._stopped = False
+                serial = command[2]
+                if serial == "GX6CTR500184":
+                    shared["passive_log"] = stdout
+                    stdout.write("06-13 23:51:15.900 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n")
+                    stdout.write("06-13 23:51:16.100 D MeshLinkTransport: start() with l2capPsm=136\n")
+                    stdout.write("06-13 23:51:16.200 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true\n")
+                    stdout.flush()
+                elif serial == "1f1dad34":
+                    stdout.write("06-13 23:51:16.000 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-guided\n")
+                    stdout.write("06-13 23:51:16.050 D MeshLinkTransport: start() with l2capPsm=136\n")
+                    stdout.write("06-13 23:51:16.060 D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true\n")
+                    stdout.write("06-13 23:51:16.070 D MeshLinkTransport: scan started\n")
+                    stdout.flush()
+
+            def poll(self) -> int | None:
+                return None if not self._stopped else 0
+
+            def terminate(self) -> None:
+                self._stopped = True
+
+            def wait(self, timeout: float | None = None) -> int:
+                del timeout
+                self._stopped = True
+                return 0
+
+            def kill(self) -> None:
+                self._stopped = True
+
+        def fake_run(
+            command: list[str],
+            *,
+            check: bool = True,
+            capture_output: bool = False,
+            text: bool = True,
+            env: dict[str, str] | None = None,
+            timeout: float | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            del check, capture_output, text, env, timeout
+            run_calls.append(list(command))
+            if command[:3] == ["adb", "devices", "-l"]:
+                return subprocess.CompletedProcess(command, 0, stdout="List of devices attached\n1f1dad34 device\nGX6CTR500184 device\n", stderr="")
+            if command[:6] == ["adb", "-s", "1f1dad34", "shell", "am", "start"]:
+                return subprocess.CompletedProcess(command, 0, stdout="Starting: Intent\n", stderr="")
+            if command[:5] == ["adb", "-s", "1f1dad34", "shell", "run-as"]:
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+            if command[:5] == ["adb", "-s", "GX6CTR500184", "shell", "run-as"]:
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+            if command[:3] == ["adb", "-s", "1f1dad34"] and command[3] == "uninstall":
+                return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
+            if command[:3] == ["adb", "-s", "GX6CTR500184"] and command[3] == "uninstall":
+                return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        def fake_popen(command: list[str], stdout, stderr, text: bool):
+            del stderr, text
+            return KnownPairLogcatProcess(command, stdout, shared)
+
+        shared: dict[str, object] = {}
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "service-data-preference"
+            with (
+                patch.object(android_direct_proof, "ensure_android_device_ready"),
+                patch.object(android_direct_proof, "install_android_app"),
+                patch.object(android_direct_proof, "verify_android_runtime_permissions"),
+                patch.object(android_direct_proof, "force_stop_reference_app"),
+                patch.object(android_direct_proof, "wait_for_android_completions"),
+                patch.object(android_direct_proof, "wait_for_passive_export_completion"),
+                patch.object(android_direct_proof, "cleanup_android_direct_run"),
+                patch.object(android_direct_proof, "run", side_effect=fake_run),
+                patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+            ):
+                with self.assertRaises(SystemExit):
+                    android_direct_proof.main(
+                        [
+                            "--sender-android-serial",
+                            "1f1dad34",
+                            "--passive-android-serial",
+                            "GX6CTR500184",
+                            "--run-dir",
+                            str(run_dir),
+                            "--capture-timeout-seconds",
+                            "1",
+                            "--android-ready-seconds",
+                            "0",
+                        ]
+                    )
+
+        sender_start_commands = [
+            command
+            for command in run_calls
+            if command[:6] == ["adb", "-s", "1f1dad34", "shell", "am", "start"]
+        ]
+        self.assertTrue(sender_start_commands)
+        self.assertIn("uuid-pair-plus-service-data", sender_start_commands[0])
     def test_main_rejects_missing_transport_discovery_with_specific_failure(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:

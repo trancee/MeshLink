@@ -375,6 +375,18 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
     return stage, evidence
 
 
+def should_prefer_service_data(sender_android_serial: str, passive_android_serial: str) -> bool:
+    flaky_pairs = {
+        frozenset({"1f1dad34", "GX6CTR500184"}),
+        frozenset({"1f1dad34", "EQUGS85LJNEIO7Z5"}),
+        frozenset({"42004386e43c8589", "GX6CTR500184"}),
+        frozenset({"42004386e43c8589", "EQUGS85LJNEIO7Z5"}),
+    }
+    return frozenset({sender_android_serial, passive_android_serial}) in flaky_pairs
+
+
+
+
 def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
     for line in log_text.splitlines():
         if PASSIVE_PROOF_COMPLETE_NEEDLE not in line:
@@ -1223,7 +1235,11 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=discovered_peer_id,
-                advertisement_carrier=args.advertisement_carrier,
+                advertisement_carrier=(
+                    "uuid-pair-plus-service-data"
+                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                    else args.advertisement_carrier
+                ),
             )
             print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             sender_startup_observation = wait_for_log_marker_observation(
