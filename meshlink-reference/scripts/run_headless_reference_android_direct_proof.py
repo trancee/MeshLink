@@ -499,6 +499,8 @@ def extract_marker_timing(
 
 def extract_transport_mode(log_text: str) -> tuple[str | None, str | None]:
     for line in log_text.splitlines():
+        if "transport=gattPrototype" in line or "gatt.benchmark.start() -> Started" in line:
+            return "GATT", line.strip()
         if "mode=L2CAP" in line:
             return "L2CAP", line.strip()
         if "mode=GATT" in line:
@@ -574,8 +576,8 @@ def build_timing_snapshot(
     )
     sender_transport_mode, sender_transport_evidence = extract_transport_mode(sender_log)
     passive_transport_mode, passive_transport_evidence = extract_transport_mode(passive_log)
-    transport_mode = sender_transport_mode or passive_transport_mode
-    transport_evidence = sender_transport_evidence or passive_transport_evidence
+    transport_mode = passive_transport_mode or sender_transport_mode
+    transport_evidence = passive_transport_evidence or sender_transport_evidence
 
     def delta_seconds(start_seconds: float | None, end_seconds: float | None) -> float | None:
         if start_seconds is None or end_seconds is None:
@@ -854,7 +856,7 @@ def install_android_proof_app(
     android_serial: str,
     run_dir: Path | None = None,
     *,
-    install_timeout_seconds: float = 60.0,
+    install_timeout_seconds: float = 120.0,
 ) -> None:
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = android_serial

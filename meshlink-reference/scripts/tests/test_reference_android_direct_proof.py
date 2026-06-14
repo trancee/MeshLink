@@ -224,10 +224,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             run_calls.append(list(command))
             run_timeouts.append(timeout)
             if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]:
-                role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
-                events.append(("start", f"{command[2]}:{role}"))
                 if any("ch.trancee.meshlink.proof.android/.MainActivity" in part for part in command):
+                    role = "passive"
                     shared["passive_profile"] = "proof"
+                else:
+                    role = command[command.index(android_direct_proof.ANDROID_EXTRA_ROLE) + 1]
+                events.append(("start", f"{command[2]}:{role}"))
                 return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
             if command[:6] == ["adb", "-s", command[2], "shell", "getprop"] and command[-1] == "ro.build.version.sdk":
                 return subprocess.CompletedProcess(command, 0, stdout="35\n", stderr="")
@@ -368,11 +370,11 @@ class AndroidDirectProofTests(unittest.TestCase):
                 ]
                 self.assertEqual(start_commands[0][2], "passive-1")
                 self.assertEqual(start_commands[1][2], "sender-1")
-                self.assertIn("passive", start_commands[0])
+                self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_commands[0])
                 self.assertIn("sender", start_commands[1])
-                self.assertIn("direct-guided", start_commands[0])
+                self.assertNotIn("direct-guided", start_commands[0])
                 self.assertIn("direct-guided", start_commands[1])
-                self.assertIn("meshlink.benchmarkTransport", start_commands[0])
+                self.assertIn("meshlink.appId", start_commands[0])
                 self.assertIn("gatt", start_commands[0])
                 self.assertIn("meshlink.disableAutoSend", start_commands[0])
                 self.assertIn("true", start_commands[0])
@@ -435,7 +437,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("permissions", summary["startupTiming"])
                 self.assertIn("sender", summary["startupTiming"])
                 self.assertIn("passive", summary["startupTiming"])
-                self.assertEqual(summary["timings"]["transportMode"], "L2CAP")
+                self.assertEqual(summary["timings"]["transportMode"], "GATT")
                 self.assertIsNotNone(summary["timings"]["sender"]["peerDiscoverySeconds"])
                 self.assertIsNotNone(summary["timings"]["sender"]["trustConnectionSeconds"])
                 self.assertEqual(summary["htmlReportPath"], "summary.html")
@@ -446,7 +448,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertTrue((run_dir / summary["htmlReportPath"]).exists())
                 report_html = (run_dir / summary["htmlReportPath"]).read_text(encoding="utf-8")
                 self.assertIn("Android direct-proof summary", report_html)
-                self.assertIn("L2CAP", report_html)
+                self.assertIn("GATT", report_html)
 
     def test_main_prefers_service_data_for_known_flaky_pairs(self) -> None:
         # Arrange
