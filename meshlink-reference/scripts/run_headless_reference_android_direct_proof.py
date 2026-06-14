@@ -198,7 +198,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         return f"<section><h2>{esc(title)}</h2><table>{body}</table></section>"
 
     def timing_rows(stage: str, data: dict[str, Any]) -> str:
-        message_latency = data.get('sendLatencySeconds') if stage == 'Sender' else data.get('receiptSeconds')
+        message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
         return "".join(
             [
                 f"<tr><th>{esc(stage)} startup wait</th><td>{fmt_seconds(data.get('startupWaitSeconds'))}</td></tr>",
@@ -1048,6 +1048,7 @@ def summarize_and_verify(
         "passiveRouteEvidence": passive_route_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
+        "htmlReportPath": "summary.html",
         "exportRelativePath": completions.export_relative_path,
         "evidence": evidence_paths(run_dir),
         "captured": captured_evidence(run_dir),
@@ -1100,6 +1101,7 @@ def failure_summary(
         "passiveRouteEvidence": passive_route_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
+        "htmlReportPath": "summary.html",
         "exportRelativePath": completions.export_relative_path,
         "failureStage": stage,
         "failureReason": error_message,

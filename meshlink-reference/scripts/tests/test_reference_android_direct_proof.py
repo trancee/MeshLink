@@ -293,6 +293,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(summary["timings"]["transportMode"], "L2CAP")
                 self.assertIsNotNone(summary["timings"]["sender"]["peerDiscoverySeconds"])
                 self.assertIsNotNone(summary["timings"]["sender"]["trustConnectionSeconds"])
+                self.assertEqual(summary["htmlReportPath"], "summary.html")
+                self.assertIn("summary.html", (run_dir / "summary.html").read_text(encoding="utf-8"))
                 self.assertTrue((run_dir / summary["htmlReportPath"]).exists())
                 report_html = (run_dir / summary["htmlReportPath"]).read_text(encoding="utf-8")
                 self.assertIn("Android direct-proof summary", report_html)
@@ -477,6 +479,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(summary["status"], "failed")
             self.assertEqual(summary["failureStage"], "preflight")
             self.assertIn("sender-1", summary["failureReason"])
+            self.assertEqual(summary["htmlReportPath"], "summary.html")
 
     def test_main_records_install_failure_details_in_summary(self) -> None:
         # Arrange
@@ -513,6 +516,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(summary["status"], "failed")
             self.assertEqual(summary["failureStage"], "preflight")
             self.assertIn("INSTALL_FAILED_UPDATE_INCOMPATIBLE", summary["failureReason"])
+            self.assertEqual(summary["htmlReportPath"], "summary.html")
 
     def test_install_android_app_retries_after_uninstall_and_preserves_retry_evidence(self) -> None:
         # Arrange
