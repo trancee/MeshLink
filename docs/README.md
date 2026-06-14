@@ -45,9 +45,10 @@ If you are not sure where to start, use one of these short paths.
 
 1. [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md)
 2. [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md)
-3. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
-4. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
-5. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+3. [Android direct-proof matrix result](reference/android-direct-proof-matrix-result.md) — read the canonical 45s rerun summary before digging into raw direct-proof artifacts.
+4. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
+5. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
+6. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
 6. [Benchmark and validation baselines](../benchmarks/README.md)
 
 ### Proof fixtures and retained benchmarks
@@ -169,5 +170,5 @@ guessing which page owns which model.
 
 - [M009 routing metadata privacy envelope and negotiation contract](rfcs/routing/m009-routing-metadata-privacy.md)
 - [M010 PQ-hybrid candidate matrix and wire-shape feasibility](rfcs/crypto/m010-pq-hybrid-candidate-matrix.md)
-- [M011 Android crypto fallback proof plan](rfcs/crypto/m011-android-crypto-fallback-proof.md)
+- [M011 Android crypto fallback proof plan](rfcs/crypto/m011-android-crypto-fallback-proof.md) — shipped fallback plus retained validation posture
 - [Crypto vector policy](rfcs/crypto/vector-policy.md)

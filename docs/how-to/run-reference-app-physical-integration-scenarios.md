@@ -2,7 +2,17 @@
 
 Use this guide when you need retained physical evidence from the MeshLink
 reference app on real devices.
-Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks. The matrix is sorted by Android SDK highest-first, so the top rows are the newest-platform devices, and when the same hardware appears over USB and wireless ADB the matrix keeps the USB row. The current bench includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G, so use those when you need a fresh Android 14/13 mix in the same physical campaign.
+Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks. The matrix is sorted by Android SDK highest-first, so the top rows are the newest-platform devices, and when the same hardware appears over USB and wireless ADB the matrix keeps the USB row. When you refresh a row, follow this checklist:
+
+1. Copy an existing row in the same order.
+2. Keep the SDK-descending and name-secondary sort.
+3. Refresh the row from `adb devices -l`, `getprop`, `MemTotal`, and `df /storage/emulated/0`.
+4. Put update-path or OEM-power-management notes in the quirks column.
+5. Link the most specific GSMArena or vendor page in the final column.
+
+The current bench includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G, so use those when you need a fresh Android 14/13 mix in the same physical campaign.
+
+When reading the Android direct-proof matrix report, use the row/column table to see the observed sender→passive outcome, the passing-pairs table to spot the few recovered combinations, and the per-device failure-reason table to tell install problems apart from launch, route, or capture stalls. The compact `matrix-report.md` is the PR-friendly summary; the HTML report and `matrix-results.json` carry the same evidence in more detail. Treat the failure bucket as the primary signal and the raw log tails as evidence for the bucket. For the canonical summary of the observed 45s rerun, see [Android direct-proof matrix result](../reference/android-direct-proof-matrix-result.md).
 
 It focuses on behaviors that simulators and scripted UI tests cannot prove on
 their own:
@@ -124,7 +134,10 @@ On this host, the Android direct-proof contract now treats sender
 `proof.complete` as mandatory but accepts passive retained evidence without a
 passive `proof.complete` line. The passive role still has a best-effort
 completion log when it appears, but retained history/export evidence is the
-supported gate for a passed direct-guided run.
+supported gate for a passed direct-guided run. When the result matrix is read
+after a rerun, treat preflight failures as readiness problems and capture
+failures as route-stability or proof-completion problems; the canonical 45s
+summary lives in the result digest linked above.
 
 ### Direct proof checklist
 
@@ -198,6 +211,10 @@ Use the distinction this way:
   a simple fleet-shape skip. Examples: missing `adb`, missing `devicectl`, an
   unresolved `DEVELOPMENT_TEAM`, or discovered devices that are present but not
   healthy enough to satisfy the planned roles.
+- `ready-with-warnings` means the fleet was still good enough to run the
+  campaign, but one or more retained discovery rows had non-blocking problems.
+  Treat it as a tolerated warning state, not as a failed campaign, and look at
+  the retained manifest warnings for the exact row-level cause.
 - `fail` means a scenario was executed, but the retained `summary.json`,
   `analysis.json`, or `analysis.md` evidence did not support a passing result.
   Generic wrapper noise such as `xcodebuild` or `build failed` does not upgrade

@@ -9,8 +9,8 @@ not just as a proof harness.
 - Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
   ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
 - MeshLink therefore treats those Android primitives as runtime-capability
-  features on older API levels; proving an in-repo fallback for them remains an
-  open validation item.
+  features on older API levels; the in-repo fallback is shipped, and retained
+  validation on the lowest Android tiers is tracked in the M011 proof plan.
 - Ed25519 already has an in-repo fallback on Android.
 - iOS app surfaces use CryptoKit for the same algorithm contract on supported
   versions.
@@ -147,7 +147,7 @@ If an executed scenario finishes anything other than `pass`,
 `firstFailScenarioId`, and still keeps later runnable scenario evidence for
 review.
 
-Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) for prerequisites, honest `skipped` versus `invalid-environment` outcomes, retained artifact layout, the `campaign-state.json` inspection flow, and the lower-level explicit runners used for manual direct, relay, and matrix investigations. The release campaign treats generic wrapper text such as `xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits an explicit environment sentinel. Keep the exact status vocabulary in mind: selection uses `selected` / `skipped` / `invalid-environment`, while execution uses `pass` / `fail` / `skipped` / `invalid-environment`.
+Use [How to run the reference-app physical integration scenarios](../docs/how-to/run-reference-app-physical-integration-scenarios.md) for prerequisites, honest `skipped` versus `invalid-environment` outcomes, retained artifact layout, the `campaign-state.json` inspection flow, and the lower-level explicit runners used for manual direct, relay, and matrix investigations. The release campaign treats generic wrapper text such as `xcodebuild` or `build failed` as a real `fail` unless the child/analyzer emits an explicit environment sentinel. Keep the exact status vocabulary in mind: selection uses `selected` / `skipped` / `invalid-environment`, while execution uses `pass` / `fail` / `skipped` / `invalid-environment`. A fleet manifest status such as `ready-with-warnings` is a tolerated discovery warning, not a campaign failure; it can still coexist with a successful release-review run.
 
 ## Before you debug the app
 

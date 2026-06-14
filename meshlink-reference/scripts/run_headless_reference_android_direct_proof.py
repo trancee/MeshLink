@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import subprocess
@@ -41,6 +42,9 @@ DIRECT_GUIDED_SCENARIO = "direct-guided"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
 POST_RESULT_IDLE_SECONDS = 2.0
 POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
+LOGCAT_TIMESTAMP_PATTERN = re.compile(
+    r"^(?P<month>\d{2})-(?P<day>\d{2}) (?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?:\.(?P<millis>\d{3}))?"
+)
 SENDER_LOGCAT_NAME = "sender_logcat.log"
 PASSIVE_LOGCAT_NAME = "passive_logcat.log"
 SENDER_START_NAME = "sender_start.txt"
@@ -127,7 +131,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--capture-timeout-seconds",
         type=float,
-        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 60.0),
+        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 45.0),
         help="Hard timeout for both Android roles to reach proof completion",
     )
     parser.add_argument(
@@ -178,8 +182,136 @@ def captured_evidence(run_dir: Path) -> dict[str, bool]:
     }
 
 
+def render_summary_html(payload: dict[str, Any]) -> str:
+    def esc(value: Any) -> str:
+        return html.escape("—" if value is None else str(value))
+
+    def fmt_seconds(value: Any) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, (int, float)):
+            return f"{value:.3f}s"
+        return esc(value)
+
+    def kv_table(title: str, rows: list[tuple[str, Any]]) -> str:
+        body = "".join(f"<tr><th>{esc(label)}</th><td>{esc(value)}</td></tr>" for label, value in rows)
+        return f"<section><h2>{esc(title)}</h2><table>{body}</table></section>"
+
+    def timing_rows(stage: str, data: dict[str, Any]) -> str:
+        message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
+        return "".join(
+            [
+                f"<tr><th>{esc(stage)} startup wait</th><td>{fmt_seconds(data.get('startupWaitSeconds'))}</td></tr>",
+                f"<tr><th>{esc(stage)} peer discovery</th><td>{fmt_seconds(data.get('peerDiscoverySeconds'))}</td></tr>",
+                f"<tr><th>{esc(stage)} trust connection</th><td>{fmt_seconds(data.get('trustConnectionSeconds'))}</td></tr>",
+                f"<tr><th>{esc(stage)} message latency</th><td>{fmt_seconds(message_latency)}</td></tr>",
+                f"<tr><th>{esc(stage)} completion</th><td>{fmt_seconds(data.get('sendCompletionSeconds') or data.get('receiptSeconds'))}</td></tr>",
+                f"<tr><th>{esc(stage)} transport</th><td>{esc(data.get('transportMode'))}</td></tr>",
+            ]
+        )
+
+    startup_timing = payload.get("startupTiming", {}) or {}
+    timings = payload.get("timings", {}) or {}
+    sender_timings = timings.get("sender", {}) or {}
+    passive_timings = timings.get("passive", {}) or {}
+    status = payload.get("status")
+    badge_class = "pass" if status == "passed" else "fail"
+    raw_timings_json = esc(json.dumps(timings, indent=2, sort_keys=True))
+    raw_startup_json = esc(json.dumps(startup_timing, indent=2, sort_keys=True))
+
+    sender_completion = payload.get("senderCompletion")
+    passive_completion = payload.get("passiveCompletion")
+    route_evidence = payload.get("routeEvidence")
+    transport_evidence = payload.get("transportEvidence")
+
+    html_parts = [
+        "<!doctype html>",
+        "<html lang=\"en\">",
+        "<head>",
+        "<meta charset=\"utf-8\" />",
+        f"<title>Android direct-proof summary — {esc(payload.get('appId'))}</title>",
+        "<style>",
+        "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;line-height:1.45;color:#111}",
+        "h1,h2{margin:0 0 12px}",
+        ".badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}",
+        ".pass{background:#d1fae5;color:#065f46}.fail{background:#fee2e2;color:#991b1b}",
+        "table{border-collapse:collapse;width:100%;margin:12px 0 24px}",
+        "th,td{border:1px solid #d1d5db;padding:8px 10px;vertical-align:top;text-align:left}",
+        "th{background:#f9fafb;width:280px}",
+        "code,pre{background:#f3f4f6;border-radius:8px;padding:12px;overflow:auto}",
+        "pre{white-space:pre-wrap;word-break:break-word}",
+        ".grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}",
+        ".muted{color:#6b7280}",
+        "</style>",
+        "</head>",
+        "<body>",
+        f"<h1>Android direct-proof summary <span class=\"badge {badge_class}\">{esc(status)}</span></h1>",
+        f"<p class=\"muted\">App ID: {esc(payload.get('appId'))} · Scenario: {esc(payload.get('scenario'))} · Report: {esc(payload.get('htmlReportPath'))}</p>",
+        kv_table(
+            "Overview",
+            [
+                ("Status", status),
+                ("Failure stage", payload.get("failureStage")),
+                ("Failure reason", payload.get("failureReason")),
+                ("Sender", payload.get("senderSerial")),
+                ("Passive", payload.get("passiveSerial")),
+                ("Route stage", payload.get("routeStage")),
+                ("Transport mode", payload.get("transportMode")),
+                ("Total time", fmt_seconds(timings.get("totalSeconds"))),
+                ("Capture timeout", fmt_seconds(timings.get("captureTimeoutSeconds"))),
+            ],
+        ),
+        "<section><h2>Startup timing</h2><table>",
+        f"<tr><th>Sender startup wait</th><td>{fmt_seconds((startup_timing.get('sender') or {}).get('elapsedSeconds'))}</td></tr>",
+        f"<tr><th>Passive startup wait</th><td>{fmt_seconds((startup_timing.get('passive') or {}).get('elapsedSeconds'))}</td></tr>",
+        f"<tr><th>Passive transport wait</th><td>{fmt_seconds((startup_timing.get('passiveTransport') or {}).get('elapsedSeconds'))}</td></tr>",
+        f"<tr><th>Configured passive wait</th><td>{fmt_seconds((startup_timing.get('launch') or {}).get('passiveStartupWaitSeconds'))}</td></tr>",
+        f"<tr><th>Configured transport wait</th><td>{fmt_seconds((startup_timing.get('launch') or {}).get('passiveTransportWaitSeconds'))}</td></tr>",
+        f"<tr><th>Configured idle wait</th><td>{fmt_seconds((startup_timing.get('launch') or {}).get('postResultIdleSeconds'))}</td></tr>",
+        "</table></section>",
+        "<section><h2>Interaction timing</h2><table>",
+        timing_rows("Sender", sender_timings),
+        timing_rows("Passive", passive_timings),
+        "</table></section>",
+        kv_table(
+            "Transport",
+            [
+                ("Transport mode", timings.get("transportMode")),
+                ("Transport evidence", transport_evidence),
+                ("Sender transport", sender_timings.get("transportMode")),
+                ("Passive transport", passive_timings.get("transportMode")),
+                ("Sender transport evidence", sender_timings.get("transportEvidence")),
+                ("Passive transport evidence", passive_timings.get("transportEvidence")),
+            ],
+        ),
+        kv_table(
+            "Evidence",
+            [
+                ("Sender logcat", payload.get("evidence", {}).get("senderLogcat")),
+                ("Passive logcat", payload.get("evidence", {}).get("passiveLogcat")),
+                ("Sender start", payload.get("evidence", {}).get("senderStart")),
+                ("Passive start", payload.get("evidence", {}).get("passiveStart")),
+                ("Android history", payload.get("evidence", {}).get("androidHistory")),
+                ("Android export", payload.get("evidence", {}).get("androidExport")),
+            ],
+        ),
+        "<section><h2>Completion lines</h2>",
+        f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
+        f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
+        f"<h3>Route evidence</h3><pre>{esc(route_evidence)}</pre>",
+        "</section>",
+        f"<details><summary>Raw startup timing JSON</summary><pre>{raw_startup_json}</pre></details>",
+        f"<details><summary>Raw timing JSON</summary><pre>{raw_timings_json}</pre></details>",
+        "</body></html>",
+    ]
+    return "\n".join(html_parts)
+
+
 def write_summary(run_dir: Path, payload: dict[str, Any]) -> None:
+    payload = dict(payload)
+    payload.setdefault("htmlReportPath", "summary.html")
     (run_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (run_dir / payload["htmlReportPath"]).write_text(render_summary_html(payload), encoding="utf-8")
 
 
 def read_text(path: Path) -> str:
@@ -218,6 +350,41 @@ def extract_sender_failure(log_text: str) -> str | None:
         (line.strip() for line in log_text.splitlines() if SENDER_PROOF_FAILED_NEEDLE in line),
         None,
     )
+
+
+def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
+    stage: str | None = None
+    evidence: str | None = None
+    for line in log_text.splitlines():
+        normalized = line.strip()
+        if "peer.discovered role=" in line:
+            stage = "peer-discovered"
+            evidence = normalized
+        if "HOP_SESSION_FAILED" in line:
+            stage = "hop-failed"
+            evidence = normalized
+        elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
+            stage = "route-unavailable"
+            evidence = normalized
+        elif "ROUTE_DISCOVERED" in line or "routeAvailable=true" in line:
+            stage = "route-discovered"
+            evidence = normalized
+        elif "HOP_SESSION_ESTABLISHED" in line:
+            stage = "hop-established"
+            evidence = normalized
+    return stage, evidence
+
+
+def should_prefer_service_data(sender_android_serial: str, passive_android_serial: str) -> bool:
+    flaky_pairs = {
+        frozenset({"1f1dad34", "GX6CTR500184"}),
+        frozenset({"1f1dad34", "EQUGS85LJNEIO7Z5"}),
+        frozenset({"42004386e43c8589", "GX6CTR500184"}),
+        frozenset({"42004386e43c8589", "EQUGS85LJNEIO7Z5"}),
+    }
+    return frozenset({sender_android_serial, passive_android_serial}) in flaky_pairs
+
+
 
 
 def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
@@ -269,12 +436,216 @@ def collect_android_completions_best_effort(run_dir: Path) -> AndroidDirectCompl
     )
 
 
+def parse_logcat_timestamp_seconds(line: str) -> float | None:
+    match = LOGCAT_TIMESTAMP_PATTERN.match(line)
+    if match is None:
+        return None
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    second = int(match.group("second"))
+    millis = int(match.group("millis") or 0)
+    return float(hour * 3600 + minute * 60 + second) + (millis / 1000.0)
+
+
+def extract_marker_timing(
+    log_text: str,
+    markers: tuple[str, ...],
+    *,
+    after_seconds: float | None = None,
+) -> tuple[str | None, float | None]:
+    for line in log_text.splitlines():
+        if not any(marker in line for marker in markers):
+            continue
+        timestamp_seconds = parse_logcat_timestamp_seconds(line)
+        if after_seconds is not None and timestamp_seconds is not None and timestamp_seconds < after_seconds:
+            continue
+        return line.strip(), timestamp_seconds
+    return None, None
+
+
+def extract_transport_mode(log_text: str) -> tuple[str | None, str | None]:
+    for line in log_text.splitlines():
+        if "mode=L2CAP" in line:
+            return "L2CAP", line.strip()
+        if "mode=GATT" in line:
+            return "GATT", line.strip()
+    for line in log_text.splitlines():
+        match = re.search(r"\bl2capPsm=(\d+)\b", line)
+        if match is None:
+            continue
+        transport_mode = "GATT" if int(match.group(1)) == 0 else "L2CAP"
+        return transport_mode, line.strip()
+    return None, None
+
+
+def build_timing_snapshot(
+    *,
+    run_dir: Path,
+    startup_timing: dict[str, Any],
+    total_seconds: float,
+    android_ready_seconds: float,
+    capture_timeout_seconds: float,
+) -> dict[str, Any]:
+    sender_log = read_text(sender_log_path(run_dir))
+    passive_log = read_text(passive_log_path(run_dir))
+
+    sender_startup_line, sender_startup_seconds = extract_marker_timing(
+        sender_log,
+        (
+            "startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
+            "started mode=LIVE_PROOF role=SENDER",
+        ),
+    )
+    passive_startup_line, passive_startup_seconds = extract_marker_timing(
+        passive_log,
+        (
+            "startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
+            "started mode=LIVE_PROOF role=PASSIVE",
+        ),
+    )
+    sender_peer_line, sender_peer_seconds = extract_marker_timing(
+        sender_log,
+        ("peer.discovered role=SENDER",),
+        after_seconds=sender_startup_seconds,
+    )
+    passive_peer_line, passive_peer_seconds = extract_marker_timing(
+        passive_log,
+        ("peer.discovered role=PASSIVE",),
+        after_seconds=passive_startup_seconds,
+    )
+    sender_trust_line, sender_trust_seconds = extract_marker_timing(
+        sender_log,
+        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        after_seconds=sender_peer_seconds or sender_startup_seconds,
+    )
+    passive_trust_line, passive_trust_seconds = extract_marker_timing(
+        passive_log,
+        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        after_seconds=passive_peer_seconds or passive_startup_seconds,
+    )
+    sender_send_line, sender_send_seconds = extract_marker_timing(
+        sender_log,
+        ("send.requested role=sender",),
+        after_seconds=sender_peer_seconds or sender_startup_seconds,
+    )
+    sender_complete_line, sender_complete_seconds = extract_marker_timing(
+        sender_log,
+        (SENDER_PROOF_COMPLETE_NEEDLE,),
+        after_seconds=sender_send_seconds or sender_startup_seconds,
+    )
+    passive_complete_line, passive_complete_seconds = extract_marker_timing(
+        passive_log,
+        (PASSIVE_PROOF_COMPLETE_NEEDLE,),
+        after_seconds=passive_trust_seconds or passive_startup_seconds,
+    )
+    sender_transport_mode, sender_transport_evidence = extract_transport_mode(sender_log)
+    passive_transport_mode, passive_transport_evidence = extract_transport_mode(passive_log)
+    transport_mode = sender_transport_mode or passive_transport_mode
+    transport_evidence = sender_transport_evidence or passive_transport_evidence
+
+    def delta_seconds(start_seconds: float | None, end_seconds: float | None) -> float | None:
+        if start_seconds is None or end_seconds is None:
+            return None
+        if end_seconds < start_seconds:
+            return None
+        return round(end_seconds - start_seconds, 3)
+
+    def role_timing(
+        *,
+        startup_seconds: float | None,
+        startup_line: str | None,
+        peer_seconds: float | None,
+        peer_line: str | None,
+        trust_seconds: float | None,
+        trust_line: str | None,
+        send_seconds: float | None,
+        send_line: str | None,
+        complete_seconds: float | None,
+        complete_line: str | None,
+        transport_mode: str | None,
+        transport_evidence: str | None,
+        startup_observation: dict[str, Any],
+        receipt_label: str,
+    ) -> dict[str, Any]:
+        return {
+            "startupWaitSeconds": startup_observation.get("elapsedSeconds"),
+            "startupObserved": startup_observation.get("observed"),
+            "startupMarker": startup_line,
+            "peerDiscoverySeconds": delta_seconds(startup_seconds, peer_seconds),
+            "peerDiscoveryMarker": peer_line,
+            "trustConnectionSeconds": delta_seconds(peer_seconds or startup_seconds, trust_seconds),
+            "trustConnectionMarker": trust_line,
+            "sendLatencySeconds": delta_seconds(send_seconds, complete_seconds),
+            receipt_label: delta_seconds(startup_seconds, complete_seconds),
+            "sendRequestMarker": send_line,
+            "completionMarker": complete_line,
+            "transportMode": transport_mode,
+            "transportEvidence": transport_evidence,
+        }
+
+    return {
+        "totalSeconds": round(total_seconds, 1),
+        "androidReadySeconds": android_ready_seconds,
+        "captureTimeoutSeconds": capture_timeout_seconds,
+        "transportMode": transport_mode,
+        "transportEvidence": transport_evidence,
+        "sender": role_timing(
+            startup_seconds=sender_startup_seconds,
+            startup_line=sender_startup_line,
+            peer_seconds=sender_peer_seconds,
+            peer_line=sender_peer_line,
+            trust_seconds=sender_trust_seconds,
+            trust_line=sender_trust_line,
+            send_seconds=sender_send_seconds,
+            send_line=sender_send_line,
+            complete_seconds=sender_complete_seconds,
+            complete_line=sender_complete_line,
+            transport_mode=sender_transport_mode,
+            transport_evidence=sender_transport_evidence,
+            startup_observation=startup_timing.get("sender", {}),
+            receipt_label="sendCompletionSeconds",
+        ),
+        "passive": role_timing(
+            startup_seconds=passive_startup_seconds,
+            startup_line=passive_startup_line,
+            peer_seconds=passive_peer_seconds,
+            peer_line=passive_peer_line,
+            trust_seconds=passive_trust_seconds,
+            trust_line=passive_trust_line,
+            send_seconds=passive_peer_seconds,
+            send_line=passive_peer_line,
+            complete_seconds=passive_complete_seconds,
+            complete_line=passive_complete_line,
+            transport_mode=passive_transport_mode,
+            transport_evidence=passive_transport_evidence,
+            startup_observation=startup_timing.get("passive", {}),
+            receipt_label="receiptSeconds",
+        ),
+    }
+
+
 def transport_failure_reason(run_dir: Path) -> str | None:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     combined_log = sender_log + "\n" + passive_log
-    if "peer.discovered role=PASSIVE" in combined_log or "peer.discovered role=SENDER" in combined_log:
-        return None
+    sender_route_stage, sender_route_evidence = extract_route_observation(sender_log)
+    passive_route_stage, passive_route_evidence = extract_route_observation(passive_log)
+    peer_discovered = (
+        "peer.discovered role=PASSIVE" in combined_log
+        or "peer.discovered role=SENDER" in combined_log
+    )
+    route_stage = sender_route_stage or passive_route_stage
+    if peer_discovered:
+        if route_stage is not None:
+            return (
+                "Android direct proof stalled at route stage "
+                f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+                f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+            )
+        return (
+            "Android direct proof discovered a peer but never emitted a route-stage marker; "
+            "sender stalled before route stabilization"
+        )
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
             "Android transport reached scan/advertise startup but never emitted peer.discovered; "
@@ -346,8 +717,10 @@ def ensure_android_preflight(
         try:
             install_android_app(android_serial, run_dir)
         except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.output or "").strip()
+            detail_suffix = f": {details}" if details else ""
             raise SystemExit(
-                f"Android app install failed for '{android_serial}' with exit code {error.returncode}"
+                f"Android app install failed for '{android_serial}' with exit code {error.returncode}{detail_suffix}"
             ) from error
         timings["installSeconds"] = round(time.monotonic() - install_started_at, 1)
         timings["installReused"] = False
@@ -550,13 +923,42 @@ def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str |
     return extract_discovered_peer_id(read_text(log_path))
 
 
-def wait_for_log_marker(log_path: Path, marker: str, timeout_seconds: float) -> bool:
-    deadline = time.monotonic() + timeout_seconds
+def wait_for_log_marker_observation(
+    log_path: Path,
+    marker: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds
+    alternate_marker = marker.replace("startup stage=activity.onCreate", "started")
     while time.monotonic() < deadline:
-        if marker in read_text(log_path):
-            return True
+        log_text = read_text(log_path)
+        for line in log_text.splitlines():
+            if marker in line or alternate_marker in line:
+                return {
+                    "observed": True,
+                    "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                    "line": line.strip(),
+                }
         time.sleep(0.25)
-    return marker in read_text(log_path)
+    log_text = read_text(log_path)
+    matched_line = next(
+        (
+            line.strip()
+            for line in log_text.splitlines()
+            if marker in line or alternate_marker in line
+        ),
+        None,
+    )
+    return {
+        "observed": matched_line is not None,
+        "elapsedSeconds": round(time.monotonic() - started_at, 1),
+        "line": matched_line,
+    }
+
+
+def wait_for_log_marker(log_path: Path, marker: str, timeout_seconds: float) -> bool:
+    return wait_for_log_marker_observation(log_path, marker, timeout_seconds)["observed"]
 
 
 def wait_for_passive_export_completion(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
@@ -603,6 +1005,8 @@ def summarize_and_verify(
     storage_subdirectory: str,
     app_id: str,
     completions: AndroidDirectCompletions,
+    startup_timing: dict[str, Any],
+    timings: dict[str, Any],
 ) -> dict[str, Any]:
     sender_completion_line = verify_sender_log(sender_log_path(run_dir))
     passive_completion_line = verify_passive_log(passive_log_path(run_dir))
@@ -614,8 +1018,12 @@ def summarize_and_verify(
     history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
     history_json = read_android_app_file(passive_android_serial, history_relative_path)
     (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
+    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
+    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    route_stage = sender_route_stage or passive_route_stage
+    route_evidence = sender_route_evidence or passive_route_evidence
 
-    checks = [('"historyStatus": "RETAINED"', history_json)]
+    checks = [('\"historyStatus\": \"RETAINED\"', history_json)]
     export_json = None
     if export_relative_path is not None:
         export_relative_file = f"live-automation/{storage_subdirectory}/{export_relative_path}"
@@ -644,6 +1052,15 @@ def summarize_and_verify(
         "passiveCompletion": passive_completion_line,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "routeStage": route_stage,
+        "routeEvidence": route_evidence,
+        "senderRouteStage": sender_route_stage,
+        "senderRouteEvidence": sender_route_evidence,
+        "passiveRouteStage": passive_route_stage,
+        "passiveRouteEvidence": passive_route_evidence,
+        "startupTiming": startup_timing,
+        "timings": timings,
+        "htmlReportPath": "summary.html",
         "exportRelativePath": completions.export_relative_path,
         "evidence": evidence_paths(run_dir),
         "captured": captured_evidence(run_dir),
@@ -667,7 +1084,13 @@ def failure_summary(
     stage: str,
     error_message: str,
     completions: AndroidDirectCompletions,
+    startup_timing: dict[str, Any],
+    timings: dict[str, Any],
 ) -> dict[str, Any]:
+    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
+    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    route_stage = sender_route_stage or passive_route_stage
+    route_evidence = sender_route_evidence or passive_route_evidence
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -682,6 +1105,15 @@ def failure_summary(
         "senderFailure": completions.sender_failed,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "routeStage": route_stage,
+        "routeEvidence": route_evidence,
+        "senderRouteStage": sender_route_stage,
+        "senderRouteEvidence": sender_route_evidence,
+        "passiveRouteStage": passive_route_stage,
+        "passiveRouteEvidence": passive_route_evidence,
+        "startupTiming": startup_timing,
+        "timings": timings,
+        "htmlReportPath": "summary.html",
         "exportRelativePath": completions.export_relative_path,
         "failureStage": stage,
         "failureReason": error_message,
@@ -709,6 +1141,17 @@ def main(argv: list[str] | None = None) -> int:
         export_relative_path=None,
         sender_failed=None,
     )
+    startup_timing: dict[str, Any] = {
+        "sender": {"observed": False, "elapsedSeconds": None, "line": None},
+        "passive": {"observed": False, "elapsedSeconds": None, "line": None},
+        "passiveTransport": {"observed": False, "elapsedSeconds": None, "line": None},
+        "launch": {
+            "passiveStartupWaitSeconds": args.android_ready_seconds,
+            "passiveTransportWaitSeconds": args.android_ready_seconds,
+            "postResultIdleSeconds": POST_RESULT_IDLE_SECONDS,
+        },
+        "totalSeconds": None,
+    }
 
     try:
         validate_serial_configuration(
@@ -754,12 +1197,13 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
             )
-            passive_ready = wait_for_log_marker(
+            passive_startup_observation = wait_for_log_marker_observation(
                 passive_marker_path,
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
                 args.android_ready_seconds,
             )
-            if not passive_ready:
+            startup_timing["passive"] = passive_startup_observation
+            if not passive_startup_observation["observed"]:
                 print(
                     f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
                 )
@@ -767,12 +1211,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.android_ready_seconds,
                 min(args.capture_timeout_seconds * 0.3, 20.0),
             )
-            passive_transport_ready = wait_for_log_marker(
+            startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
+            passive_transport_observation = wait_for_log_marker_observation(
                 passive_marker_path,
                 "advertising started",
                 passive_transport_timeout_seconds,
             )
-            if not passive_transport_ready:
+            startup_timing["passiveTransport"] = passive_transport_observation
+            if not passive_transport_observation["observed"]:
                 raise SystemExit(
                     f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                 )
@@ -789,9 +1235,23 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=discovered_peer_id,
-                advertisement_carrier=args.advertisement_carrier,
+                advertisement_carrier=(
+                    "uuid-pair-plus-service-data"
+                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                    else args.advertisement_carrier
+                ),
             )
             print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+            sender_startup_observation = wait_for_log_marker_observation(
+                sender_log_path(run_dir),
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
+                args.android_ready_seconds,
+            )
+            startup_timing["sender"] = sender_startup_observation
+            if not sender_startup_observation["observed"]:
+                print(
+                    f"==> Android sender startup marker not observed after {args.android_ready_seconds} seconds"
+                )
             stage = "capture"
             completions = wait_for_android_completions(
                 run_dir,
@@ -819,6 +1279,15 @@ def main(argv: list[str] | None = None) -> int:
                 raise
 
         stage = "summary"
+        total_seconds = round(time.monotonic() - run_started_at, 1)
+        startup_timing["totalSeconds"] = total_seconds
+        timings = build_timing_snapshot(
+            run_dir=run_dir,
+            startup_timing=startup_timing,
+            total_seconds=total_seconds,
+            android_ready_seconds=args.android_ready_seconds,
+            capture_timeout_seconds=args.capture_timeout_seconds,
+        )
         summary = summarize_and_verify(
             sender_android_serial=args.sender_android_serial,
             passive_android_serial=args.passive_android_serial,
@@ -826,36 +1295,59 @@ def main(argv: list[str] | None = None) -> int:
             storage_subdirectory=storage_subdirectory,
             app_id=app_id,
             completions=completions,
+            startup_timing=startup_timing,
+            timings=timings,
         )
         summary["discoveredPeerId"] = discovered_peer_id
-        summary["timings"] = {
-            "totalSeconds": round(time.monotonic() - run_started_at, 1),
-            "androidReadySeconds": args.android_ready_seconds,
-            "captureTimeoutSeconds": args.capture_timeout_seconds,
-            "senderInstallReused": sender_preflight.get("installReused", False),
-            "passiveInstallReused": passive_preflight.get("installReused", False),
-        }
-        summary["startupTiming"] = {
-            "install": {
-                "senderSeconds": sender_preflight.get("installSeconds"),
-                "passiveSeconds": passive_preflight.get("installSeconds"),
-                "senderReused": sender_preflight.get("installReused", False),
-                "passiveReused": passive_preflight.get("installReused", False),
-            },
-            "permissions": {
-                "senderSeconds": sender_preflight.get("permissionsSeconds"),
-                "passiveSeconds": passive_preflight.get("permissionsSeconds"),
-            },
-            "launch": {
-                "passiveStartupWaitSeconds": args.android_ready_seconds,
+        summary["timings"].update(
+            {
+                "totalSeconds": total_seconds,
+                "androidReadySeconds": args.android_ready_seconds,
                 "captureTimeoutSeconds": args.capture_timeout_seconds,
-            },
-            "totalSeconds": round(time.monotonic() - run_started_at, 1),
-        }
+                "senderInstallReused": sender_preflight.get("installReused", False),
+                "passiveInstallReused": passive_preflight.get("installReused", False),
+            }
+        )
+        summary["startupTiming"].update(
+            {
+                "install": {
+                    "senderSeconds": sender_preflight.get("installSeconds"),
+                    "passiveSeconds": passive_preflight.get("installSeconds"),
+                    "senderReused": sender_preflight.get("installReused", False),
+                    "passiveReused": passive_preflight.get("installReused", False),
+                },
+                "permissions": {
+                    "senderSeconds": sender_preflight.get("permissionsSeconds"),
+                    "passiveSeconds": passive_preflight.get("permissionsSeconds"),
+                    "senderReused": sender_preflight.get("permissionsReused", False),
+                    "passiveReused": passive_preflight.get("permissionsReused", False),
+                },
+                "launch": {
+                    "senderSeconds": sender_preflight.get("launchSeconds"),
+                    "passiveSeconds": passive_preflight.get("launchSeconds"),
+                    "senderReused": sender_preflight.get("launchReused", False),
+                    "passiveReused": passive_preflight.get("launchReused", False),
+                    "passiveStartupWaitSeconds": args.android_ready_seconds,
+                    "passiveTransportWaitSeconds": startup_timing.get("launch", {}).get(
+                        "passiveTransportWaitSeconds"
+                    ),
+                    "postResultIdleSeconds": POST_RESULT_IDLE_SECONDS,
+                },
+            }
+        )
         write_summary(run_dir, summary)
         print("==> Android discovery seed:", discovered_peer_id or "none")
         return 0
     except SystemExit as error:
+        total_seconds = round(time.monotonic() - run_started_at, 1)
+        startup_timing["totalSeconds"] = total_seconds
+        timings = build_timing_snapshot(
+            run_dir=run_dir,
+            startup_timing=startup_timing,
+            total_seconds=total_seconds,
+            android_ready_seconds=args.android_ready_seconds,
+            capture_timeout_seconds=args.capture_timeout_seconds,
+        )
         failure = failure_summary(
             run_dir=run_dir,
             sender_android_serial=args.sender_android_serial,
@@ -865,15 +1357,21 @@ def main(argv: list[str] | None = None) -> int:
             stage=stage,
             error_message=str(error),
             completions=collect_android_completions_best_effort(run_dir),
+            startup_timing=startup_timing,
+            timings=timings,
         )
-        failure["timings"] = {
-            "totalSeconds": round(time.monotonic() - run_started_at, 1),
-            "androidReadySeconds": args.android_ready_seconds,
-            "captureTimeoutSeconds": args.capture_timeout_seconds,
-        }
         write_summary(run_dir, failure)
         raise
     except Exception as error:
+        total_seconds = round(time.monotonic() - run_started_at, 1)
+        startup_timing["totalSeconds"] = total_seconds
+        timings = build_timing_snapshot(
+            run_dir=run_dir,
+            startup_timing=startup_timing,
+            total_seconds=total_seconds,
+            android_ready_seconds=args.android_ready_seconds,
+            capture_timeout_seconds=args.capture_timeout_seconds,
+        )
         failure = failure_summary(
             run_dir=run_dir,
             sender_android_serial=args.sender_android_serial,
@@ -883,12 +1381,9 @@ def main(argv: list[str] | None = None) -> int:
             stage=stage,
             error_message=str(error),
             completions=collect_android_completions_best_effort(run_dir),
+            startup_timing=startup_timing,
+            timings=timings,
         )
-        failure["timings"] = {
-            "totalSeconds": round(time.monotonic() - run_started_at, 1),
-            "androidReadySeconds": args.android_ready_seconds,
-            "captureTimeoutSeconds": args.capture_timeout_seconds,
-        }
         write_summary(run_dir, failure)
         raise
 
