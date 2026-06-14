@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -359,6 +360,35 @@ class ReferenceFleetTests(unittest.TestCase):
         self.assertIn("/storage/emulated/0", text)
         self.assertIn("rounded from the attached device-reported totals", text)
         self.assertIn("marketed tier", text)
+
+    def test_device_matrix_reference_keeps_sorted_rows_and_quirks_column(self) -> None:
+        # Arrange
+        matrix_reference = Path("docs/reference/device-test-matrix.md")
+        text = matrix_reference.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        header_index = next(
+            index for index, line in enumerate(lines) if line.startswith("| Human-readable device |")
+        )
+
+        # Act
+        header_columns = [column.strip() for column in lines[header_index].strip("|").split("|")]
+        rows: list[list[str]] = []
+        for line in lines[header_index + 2 :]:
+            if not line.startswith("|"):
+                break
+            columns = [column.strip() for column in line.strip("|").split("|")]
+            if len(columns) >= len(header_columns):
+                rows.append(columns)
+
+        parsed_rows: list[tuple[int, str]] = []
+        for row in rows:
+            sdk_match = re.search(r"SDK (\d+)", row[3])
+            self.assertIsNotNone(sdk_match)
+            parsed_rows.append((int(sdk_match.group(1)), row[0]))
+
+        # Assert
+        self.assertIn("Known quirks / test notes", header_columns)
+        self.assertEqual(parsed_rows, sorted(parsed_rows, key=lambda item: (-item[0], item[1].lower())))
 
     def test_subprocess_runner_rejects_shell_style_string_commands(self) -> None:
         # Arrange / Act / Assert
