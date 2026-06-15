@@ -1,6 +1,6 @@
 # Android direct-proof matrix result
 
-Last verified: 2026-06-14
+Last verified: 2026-06-15
 
 This page captures the observed Android direct-proof matrix result from the
 132-pair fail-fast sweep across the attached Android fleet.
@@ -66,3 +66,16 @@ This page captures the observed Android direct-proof matrix result from the
 - Treat capture as a route-stability or proof-completion failure.
 - Prioritize the zero-pass devices for startup, permission, and pairing-path debugging.
 - Use the 45s cap as the expected fast-fail boundary when comparing future reruns.
+
+## 2026-06-15 attached-fleet rerun
+
+The latest attached-fleet sweep completed all 30 directed pairs and landed in the
+same failure-only shape as the previous baseline, but with a smaller 6-device
+matrix.
+
+- **0 / 30** pairings passed end-to-end
+- **30 / 30** pairings failed
+- **18** pairings failed in preflight
+- **12** pairings failed in launch
+- The sweep checkpoint was written under `/tmp/meshlink_android_matrix_20260615T191228/`
+- The pass set remains empty, so this rerun did not surface a successful GATT or L2CAP combination on the current attached fleet
