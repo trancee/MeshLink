@@ -299,7 +299,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '"fullPayloadIncluded": false, '
                     '"operatorOptInRecorded": false}'
                 )
-            if relative_path.endswith("direct-proof-probe/gatt-started.txt"):
+            if relative_path.endswith("direct-proof-probe/gatt-start.txt"):
                 return "role=PASSIVE benchmarkTransport=gatt"
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
@@ -902,7 +902,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '"fullPayloadIncluded": false, '
                     '"operatorOptInRecorded": false}'
                 )
-            if relative_path.endswith("direct-proof-probe/gatt-started.txt"):
+            if relative_path.endswith("direct-proof-probe/gatt-start.txt"):
                 return "role=PASSIVE benchmarkTransport=gatt"
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
@@ -1241,6 +1241,27 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIn("meshlink.disableAutoSend", start_command)
         self.assertIn("true", start_command)
         self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_command)
+
+    def test_verify_passive_log_accepts_gatt_primary_marker(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "passive_logcat.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        "06-15 08:55:30.882 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided",
+                        "06-15 08:55:30.902 I MeshLinkProof: GATT benchmark advertising started",
+                        "06-15 08:55:31.157 I MeshLinkProof: gatt.notify.start() -> Started",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act
+            completion_line = android_direct_proof.verify_passive_log(log_path, passive_transport="gatt")
+
+        # Assert
+        self.assertIsNone(completion_line)
 
 
 if __name__ == "__main__":

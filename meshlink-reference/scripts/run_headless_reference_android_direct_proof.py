@@ -1520,7 +1520,7 @@ def main(argv: list[str] | None = None) -> int:
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
                 passive_transport_observation = wait_for_android_app_file_marker(
                     args.passive_android_serial,
-                    "direct-proof-probe/gatt-started.txt",
+                    "direct-proof-probe/gatt-start.txt",
                     "role=PASSIVE benchmarkTransport=gatt",
                     passive_transport_timeout_seconds,
                 )
@@ -1555,7 +1555,7 @@ def main(argv: list[str] | None = None) -> int:
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
                 passive_transport_observation = wait_for_android_app_file_marker(
                     args.passive_android_serial,
-                    "direct-proof-probe/gatt-started.txt",
+                    "direct-proof-probe/gatt-start.txt",
                     "role=PASSIVE benchmarkTransport=gatt",
                     passive_transport_timeout_seconds,
                 )
