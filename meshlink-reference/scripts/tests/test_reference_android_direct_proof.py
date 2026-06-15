@@ -37,10 +37,17 @@ class FakeLogcatProcess:
             self._shared["passive_log"] = stdout
             if self._shared.get("passive_profile") == "proof":
                 stdout.write(
+                    "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                )
+                stdout.write(
                     "05-31 10:00:00.000 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model (SDK 35) appId=demo.meshlink powerMode=Automatic transport=gattPrototype\n"
                 )
                 stdout.write(
                     "05-31 10:00:00.050 I MeshLinkProof: gatt.benchmark.start() -> Started\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.100 I MeshLinkProof: GATT benchmark advertising started\n"
                 )
             else:
                 stdout.write(
@@ -292,6 +299,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '"fullPayloadIncluded": false, '
                     '"operatorOptInRecorded": false}'
                 )
+            if relative_path.endswith("direct-proof-probe/gatt-started.txt"):
+                return "role=PASSIVE benchmarkTransport=gatt"
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -387,15 +396,15 @@ class AndroidDirectProofTests(unittest.TestCase):
                 ]
                 self.assertEqual(start_commands[0][2], "passive-1")
                 self.assertEqual(start_commands[1][2], "sender-1")
-                self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_commands[0])
+                self.assertIn("ch.trancee.meshlink.reference/.MainActivity", start_commands[0])
                 self.assertIn("sender", start_commands[1])
-                self.assertNotIn("direct-guided", start_commands[0])
+                self.assertIn("direct-guided", start_commands[0])
                 self.assertIn("direct-guided", start_commands[1])
-                self.assertIn("meshlink.appId", start_commands[0])
-                self.assertIn("gatt", start_commands[0])
+                self.assertIn("ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID", start_commands[0])
+                self.assertIn("ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT", start_commands[0])
                 self.assertIn("meshlink.disableAutoSend", start_commands[0])
                 self.assertIn("true", start_commands[0])
-                self.assertIn("meshlink.primaryTransport", start_commands[0])
+                self.assertNotIn("meshlink.primaryTransport", start_commands[0])
                 self.assertNotIn("meshlink.primaryTransport", start_commands[1])
                 self.assertNotIn("meshlink.benchmarkTransport", start_commands[1])
                 sender_start_command = next(
@@ -893,6 +902,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                     '"fullPayloadIncluded": false, '
                     '"operatorOptInRecorded": false}'
                 )
+            if relative_path.endswith("direct-proof-probe/gatt-started.txt"):
+                return "role=PASSIVE benchmarkTransport=gatt"
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
