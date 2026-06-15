@@ -105,44 +105,48 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
             self.assertIn("launch", summary["startupTiming"])
             self.assertEqual(summary["startupTiming"]["launch"]["postResultIdleSeconds"], 0)
 
-    def test_install_android_app_runs_without_play_protect_prompt_handling(self) -> None:
+    def test_install_android_app_disables_play_protect_before_deploy(self) -> None:
         # Arrange
-        poll_calls = 0
+        run_commands: list[list[str]] = []
+        install_commands: list[list[str]] = []
 
-        class FakeProcess:
-            def __init__(self) -> None:
-                self.returncode = None
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            run_commands.append(list(command))
+            return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
 
-            def poll(self) -> int | None:
-                nonlocal poll_calls
-                poll_calls += 1
-                if poll_calls < 3:
-                    return None
-                self.returncode = 0
-                return 0
-
-            def terminate(self) -> None:
-                self.returncode = 0
-
-            def wait(self, timeout: float | None = None) -> int:
-                del timeout
-                self.returncode = 0
-                return 0
-
-            def kill(self) -> None:
-                self.returncode = 0
+        def fake_subprocess_run(command: list[str], **kwargs):
+            del kwargs
+            install_commands.append(list(command))
+            return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
 
         with (
             patch.object(live_proof, "android_apk_path", return_value=None),
             patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
-            patch.object(live_proof.subprocess, "Popen", return_value=FakeProcess()),
+            patch.object(live_proof, "run", side_effect=fake_run),
+            patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
             patch.object(live_proof.time, "sleep", return_value=None),
         ):
             # Act
             live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
 
         # Assert
-        self.assertGreaterEqual(poll_calls, 3)
+        self.assertIn(
+            [
+                "adb",
+                "-s",
+                "nokia-x20",
+                "shell",
+                "settings",
+                "put",
+                "global",
+                "package_verifier_user_consent",
+                "-1",
+            ],
+            run_commands,
+        )
+        self.assertTrue(install_commands)
+        self.assertTrue(any(command[:2] == ["./gradlew", ":meshlink-reference:installDebug"] for command in install_commands))
 
 
 class ReferencePhysicalMatrixScriptTests(unittest.TestCase):

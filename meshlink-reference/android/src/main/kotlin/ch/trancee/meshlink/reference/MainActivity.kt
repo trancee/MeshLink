@@ -1,3 +1,5 @@
+@file:Suppress("LongMethod", "TooManyFunctions", "MaxLineLength", "TooGenericExceptionCaught")
+
 package ch.trancee.meshlink.reference
 
 import android.content.Context
@@ -7,6 +9,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
 import android.view.WindowManager
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
@@ -14,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
 import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
+import ch.trancee.meshlink.proof.android.ProofGattBenchmarkServer
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceStartupCoordinator
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
@@ -28,6 +32,8 @@ public class MainActivity : ComponentActivity() {
     private var activePlatformServices: PlatformServices? = null
     private var directProofEnabled: Boolean = false
     private var startupCoordinator: ReferenceStartupCoordinator? = null
+    private var directProofGattNotifyBridge: ch.trancee.meshlink.proof.android.ReferenceDirectProofGattNotifyBridge? = null
+    private var directProofGattBenchmarkServer: ProofGattBenchmarkServer? = null
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
@@ -50,6 +56,80 @@ public class MainActivity : ComponentActivity() {
         if (directProofEnabled) {
             emitStartupMarker(platformServices)
             emitDirectProofPowerState(platformServices, "onCreate", directProofEnabled)
+            Log.i(
+                "MeshLinkReferenceAutomation",
+                "REFERENCE_AUTOMATION directProof.transport role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
+            )
+            writeDirectProofProbeMarker(
+                "onCreate.txt",
+                "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} directProofEnabled=$directProofEnabled\n",
+            )
+            val passiveGattRequested =
+                automationConfig.role == ReferenceAutomationRole.PASSIVE &&
+                    automationConfig.benchmarkTransport == "gatt"
+            Log.i(
+                "MeshLinkReferenceAutomation",
+                "REFERENCE_AUTOMATION gatt.server.evaluate role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} passiveGattRequested=$passiveGattRequested",
+            )
+            writeDirectProofProbeMarker(
+                "gatt-evaluate.txt",
+                "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} passiveGattRequested=$passiveGattRequested\n",
+            )
+            if (passiveGattRequested) {
+                try {
+                    val bluetoothManager =
+                        applicationContext.getSystemService(android.bluetooth.BluetoothManager::class.java)
+                            ?: error("BluetoothManager is unavailable")
+                    val bluetoothAdvertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
+                    Log.i(
+                        "MeshLinkReferenceAutomation",
+                        "REFERENCE_AUTOMATION gatt.server.start role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
+                    )
+                    writeDirectProofProbeMarker(
+                        "gatt-start.txt",
+                        "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}\n",
+                    )
+                    directProofGattBenchmarkServer =
+                        ProofGattBenchmarkServer(
+                            context = applicationContext,
+                            bluetoothManager = bluetoothManager,
+                            advertiser = bluetoothAdvertiser,
+                            logger = { message -> Log.i("MeshLinkReferenceAutomation", message) },
+                            appId = automationConfig.appId,
+                        )
+                            .also { server ->
+                                server.start()
+                                Log.i(
+                                    "MeshLinkReferenceAutomation",
+                                    "REFERENCE_AUTOMATION gatt.server.started role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
+                                )
+                                writeDirectProofProbeMarker(
+                                    "gatt-started.txt",
+                                    "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}\n",
+                                )
+                            }
+                } catch (throwable: Throwable) {
+                    writeDirectProofProbeMarker(
+                        "gatt-failed.txt",
+                        "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} error=${throwable::class.java.name}: ${throwable.message}\n",
+                    )
+                    Log.e(
+                        "MeshLinkReferenceAutomation",
+                        "REFERENCE_AUTOMATION gatt.server.failed role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
+                        throwable,
+                    )
+                }
+            } else if (
+                automationConfig.role == ReferenceAutomationRole.SENDER &&
+                    automationConfig.benchmarkTransport == "gatt-notify"
+            ) {
+                directProofGattNotifyBridge =
+                    ch.trancee.meshlink.proof.android.ReferenceDirectProofGattNotifyBridge(
+                        context = applicationContext,
+                        appId = automationConfig.appId,
+                    )
+                        .also { bridge -> bridge.start() }
+            }
             startupCoordinator?.startLiveProofIfNeeded()
         }
         setContent { ReferenceApp(platformServices = platformServices) }
@@ -88,14 +168,19 @@ public class MainActivity : ComponentActivity() {
             emitDirectProofPowerState(activePlatformServices, "onDestroy", directProofEnabled)
         }
         releaseScreenOn()
+        directProofGattBenchmarkServer?.stop()
+        directProofGattBenchmarkServer = null
+        directProofGattNotifyBridge?.stop()
+        directProofGattNotifyBridge = null
         stopDirectProofPowerService()
         super.onDestroy()
     }
 
     public companion object {
-        private const val TAG = "MeshLinkReference"
         public const val EXTRA_UI_AUTOMATION: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION"
+        public const val EXTRA_UI_AUTOMATION_BENCHMARK_TRANSPORT: String =
+            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
         public const val EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_STORAGE_SUBDIRECTORY"
         public const val EXTRA_UI_AUTOMATION_BLOCKED: String =
@@ -124,6 +209,22 @@ public class MainActivity : ComponentActivity() {
 
 }
 
+private fun MainActivity.writeDirectProofProbeMarker(name: String, content: String) {
+    runCatching {
+        val dir = File(applicationContext.filesDir, "direct-proof-probe")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        File(dir, name).writeText(content)
+    }.onFailure { throwable ->
+        Log.e(
+            "MeshLinkReferenceAutomation",
+            "REFERENCE_AUTOMATION probe.write.failed name=$name",
+            throwable,
+        )
+    }
+}
+
 private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
     return when {
         this.equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
@@ -132,50 +233,19 @@ private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
     }
 }
 
-private const val TAG = "MeshLinkReference"
-
-private fun MainActivity.startDirectProofPowerService() {
-    ContextCompat.startForegroundService(this, DirectProofPowerService.start(this))
-}
-
-private fun MainActivity.stopDirectProofPowerService() {
-    stopService(DirectProofPowerService.start(this))
-}
-
-private fun MainActivity.keepScreenOn() {
-    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-}
-
-private fun MainActivity.releaseScreenOn() {
-    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-}
-
-private fun MainActivity.logActivityStage(stage: String, directProofEnabled: Boolean) {
-    Log.i(
-        TAG,
-        "REFERENCE_AUTOMATION activity.stage=$stage directProof=$directProofEnabled " +
-            "screenOn=${isDeviceInteractive()}",
-    )
-}
-
-private fun MainActivity.emitDirectProofPowerState(
-    platformServices: PlatformServices?,
-    stage: String,
-    directProofEnabled: Boolean,
-) {
-    if (platformServices == null) return
-    platformServices.emitAutomationLog(
-        "REFERENCE_AUTOMATION power.state stage=$stage interactive=${isDeviceInteractive()} " +
-            "powerSaveMode=${isPowerSaveMode()} directProof=$directProofEnabled",
-    )
-}
-
 private fun MainActivity.readAutomationConfig(): AutomationConfig {
     val automationEnabled =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
             intent?.getBooleanExtra(MainActivity.EXTRA_UI_AUTOMATION, false) == true
     val automationMode = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_MODE)
     val mode = if (automationEnabled) automationMode else null
+    val benchmarkTransport =
+        intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_BENCHMARK_TRANSPORT)
+            ?: "meshlink"
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)} benchmarkTransport=$benchmarkTransport",
+    )
     return AutomationConfig(
         enabled = automationEnabled,
         mode = mode,
@@ -189,6 +259,7 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
         requiredPeerCount = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
         targetPeerIndex = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
         targetPeerId = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
+        benchmarkTransport = benchmarkTransport,
         scenario =
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_SCENARIO)
                 .toReferenceAutomationScenario(),
@@ -197,42 +268,5 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER)
                 .toDiscoveryAdvertisementCarrier(),
     )
-}
-
-private fun MainActivity.configureDiscoveryCarrier(
-    advertisementCarrier: DiscoveryAdvertisementCarrier,
-    directProofEnabled: Boolean,
-) {
-    AndroidDiscoveryAdvertisementConfig.carrier =
-        if (directProofEnabled) {
-            advertisementCarrier
-        } else {
-            DiscoveryAdvertisementCarrier.UUID_PAIR
-        }
-}
-
-private fun MainActivity.createPlatformServicesForAutomation(
-    automationConfig: AutomationConfig,
-): PlatformServices {
-    return when {
-        automationConfig.enabled && automationConfig.mode == MainActivity.AUTOMATION_MODE_LIVE_PROOF ->
-            createLiveAutomationPlatformServices(
-                context = applicationContext,
-                storageSubdirectory = automationConfig.storageSubdirectory,
-                appId = automationConfig.appId,
-                role = automationConfig.role,
-                requiredPeerCount = automationConfig.requiredPeerCount,
-                targetPeerIndex = automationConfig.targetPeerIndex,
-                targetPeerId = automationConfig.targetPeerId,
-                scenario = automationConfig.scenario,
-            )
-        automationConfig.enabled ->
-            createAutomationPlatformServices(
-                context = applicationContext,
-                storageSubdirectory = automationConfig.storageSubdirectory,
-                blocked = automationConfig.blocked,
-            )
-        else -> createPlatformServices(applicationContext)
-    }
 }
 

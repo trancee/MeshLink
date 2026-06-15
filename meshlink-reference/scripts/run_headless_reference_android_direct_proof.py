@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
 import subprocess
 import time
@@ -21,12 +22,15 @@ from run_headless_reference_live_proof import (
     ANDROID_EXTRA_SCENARIO,
     ANDROID_EXTRA_STORAGE,
     ANDROID_EXTRA_UI_AUTOMATION,
+    ANDROID_PACKAGE,
     ANDROID_PROOF_COMPLETE_PATTERN,
     AUTOMATION_MODE_LIVE_PROOF,
     BackgroundProcess,
     DEFAULT_ANDROID_READY_SECONDS,
     DEFAULT_CAPTURE_TIMEOUT_SECONDS,
     android_logcat_tags,
+    android_runtime_permissions,
+    android_sdk_int,
     ensure_android_device_ready,
     force_stop_reference_app,
     install_android_app,
@@ -39,7 +43,26 @@ from run_headless_reference_live_proof import (
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
+ANDROID_PROOF_PACKAGE = "ch.trancee.meshlink.proof.android"
+ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
+ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
+ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
+ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS = 240.0
+
+
+def android_proof_install_timeout_seconds(android_serial: str) -> float:
+    return (
+        ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS
+        if is_wireless_android_serial(android_serial)
+        else ANDROID_USB_INSTALL_TIMEOUT_SECONDS
+    )
+
+
+def is_wireless_android_serial(android_serial: str) -> bool:
+    return "_adb-tls-connect._tcp" in android_serial
+
+
 POST_RESULT_IDLE_SECONDS = 2.0
 POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
 LOGCAT_TIMESTAMP_PATTERN = re.compile(
@@ -51,6 +74,11 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
+ANDROID_EXTRA_BENCHMARK_TRANSPORT = "meshlink.benchmarkTransport"
+ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT = (
+    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
+)
+ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
 PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passive"
@@ -63,6 +91,10 @@ SENDER_REQUIRED_LOG_MARKERS = [
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
+]
+PASSIVE_PROOF_REQUIRED_LOG_MARKERS = [
+    "MeshLink proof app ready on",
+    "gatt.benchmark.start() -> Started",
 ]
 TRANSPORT_REQUIRED_MARKERS = [
     "D MeshLinkTransport: start()",
@@ -158,6 +190,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "unless you are isolating discovery-carrier behavior on a specific device."
         ),
     )
+    parser.add_argument(
+        "--passive-benchmark-transport",
+        choices=("meshlink", "gatt", "gatt-notify"),
+        default="meshlink",
+        help=(
+            "Passive Android benchmark transport to launch on the passive peer. Use gatt to "
+            "exercise the Android GATT prototype control path while keeping the sender on MeshLink."
+        ),
+    )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
 
@@ -215,6 +256,18 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     sender_timings = timings.get("sender", {}) or {}
     passive_timings = timings.get("passive", {}) or {}
     status = payload.get("status")
+    total_seconds = payload.get("totalSeconds") if payload.get("totalSeconds") is not None else timings.get("totalSeconds")
+    capture_timeout_seconds = (
+        payload.get("captureTimeoutSeconds")
+        if payload.get("captureTimeoutSeconds") is not None
+        else timings.get("captureTimeoutSeconds")
+    )
+    android_ready_seconds = (
+        payload.get("androidReadySeconds")
+        if payload.get("androidReadySeconds") is not None
+        else timings.get("androidReadySeconds")
+    )
+    transport_mode = payload.get("transportMode") or timings.get("transportMode") or sender_timings.get("transportMode") or passive_timings.get("transportMode")
     badge_class = "pass" if status == "passed" else "fail"
     raw_timings_json = esc(json.dumps(timings, indent=2, sort_keys=True))
     raw_startup_json = esc(json.dumps(startup_timing, indent=2, sort_keys=True))
@@ -256,9 +309,9 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Sender", payload.get("senderSerial")),
                 ("Passive", payload.get("passiveSerial")),
                 ("Route stage", payload.get("routeStage")),
-                ("Transport mode", payload.get("transportMode")),
-                ("Total time", fmt_seconds(timings.get("totalSeconds"))),
-                ("Capture timeout", fmt_seconds(timings.get("captureTimeoutSeconds"))),
+                ("Transport mode", transport_mode),
+                ("Total time", fmt_seconds(total_seconds)),
+                ("Capture timeout", fmt_seconds(capture_timeout_seconds)),
             ],
         ),
         "<section><h2>Startup timing</h2><table>",
@@ -276,7 +329,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         kv_table(
             "Transport",
             [
-                ("Transport mode", timings.get("transportMode")),
+                ("Transport mode", transport_mode),
                 ("Transport evidence", transport_evidence),
                 ("Sender transport", sender_timings.get("transportMode")),
                 ("Passive transport", passive_timings.get("transportMode")),
@@ -357,7 +410,7 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
     evidence: str | None = None
     for line in log_text.splitlines():
         normalized = line.strip()
-        if "peer.discovered role=" in line:
+        if "peer.discovered role=" in line or "GATT notify benchmark discovered service" in line:
             stage = "peer-discovered"
             evidence = normalized
         if "HOP_SESSION_FAILED" in line:
@@ -366,8 +419,14 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
             stage = "route-unavailable"
             evidence = normalized
+        elif "GATT notify benchmark notifications enabled" in line:
+            stage = "route-discovered"
+            evidence = normalized
         elif "ROUTE_DISCOVERED" in line or "routeAvailable=true" in line:
             stage = "route-discovered"
+            evidence = normalized
+        elif "GATT notify benchmark start token=" in line:
+            stage = "hop-established"
             evidence = normalized
         elif "HOP_SESSION_ESTABLISHED" in line:
             stage = "hop-established"
@@ -464,7 +523,39 @@ def extract_marker_timing(
 
 
 def extract_transport_mode(log_text: str) -> tuple[str | None, str | None]:
+    def transport_mode_from_label(raw_label: str) -> str | None:
+        label = raw_label.strip().lower()
+        if label in {"meshlink", "l2cap"}:
+            return "L2CAP"
+        if label in {
+            "gatt",
+            "gattprototype",
+            "gatt-prototype",
+            "gattnotify",
+            "gattnotifyprototype",
+            "gatt-notify",
+            "gatt-notify-prototype",
+        }:
+            return "GATT"
+        return None
+
     for line in log_text.splitlines():
+        match = re.search(r"\bprimaryTransport=([A-Za-z0-9\-]+)\b", line)
+        if match is not None:
+            transport_mode = transport_mode_from_label(match.group(1))
+            if transport_mode is not None:
+                return transport_mode, line.strip()
+    for line in log_text.splitlines():
+        if (
+            "transport=gattPrototype" in line
+            or "gatt.benchmark.start() -> Started" in line
+            or "GATT benchmark completed" in line
+            or "GATT benchmark server opening" in line
+            or "gatt.start() -> Started" in line
+            or "transport=gattNotifyPrototype" in line
+            or "gatt.notify.start() -> Started" in line
+        ):
+            return "GATT", line.strip()
         if "mode=L2CAP" in line:
             return "L2CAP", line.strip()
         if "mode=GATT" in line:
@@ -496,32 +587,15 @@ def build_timing_snapshot(
             "started mode=LIVE_PROOF role=SENDER",
         ),
     )
-    passive_startup_line, passive_startup_seconds = extract_marker_timing(
-        passive_log,
-        (
-            "startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
-            "started mode=LIVE_PROOF role=PASSIVE",
-        ),
-    )
     sender_peer_line, sender_peer_seconds = extract_marker_timing(
         sender_log,
         ("peer.discovered role=SENDER",),
         after_seconds=sender_startup_seconds,
     )
-    passive_peer_line, passive_peer_seconds = extract_marker_timing(
-        passive_log,
-        ("peer.discovered role=PASSIVE",),
-        after_seconds=passive_startup_seconds,
-    )
     sender_trust_line, sender_trust_seconds = extract_marker_timing(
         sender_log,
         ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
         after_seconds=sender_peer_seconds or sender_startup_seconds,
-    )
-    passive_trust_line, passive_trust_seconds = extract_marker_timing(
-        passive_log,
-        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
-        after_seconds=passive_peer_seconds or passive_startup_seconds,
     )
     sender_send_line, sender_send_seconds = extract_marker_timing(
         sender_log,
@@ -533,6 +607,28 @@ def build_timing_snapshot(
         (SENDER_PROOF_COMPLETE_NEEDLE,),
         after_seconds=sender_send_seconds or sender_startup_seconds,
     )
+    passive_startup_line, passive_startup_seconds = extract_marker_timing(
+        passive_log,
+        (
+            "startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
+            "started mode=LIVE_PROOF role=PASSIVE",
+        ),
+    )
+    passive_peer_line, passive_peer_seconds = extract_marker_timing(
+        passive_log,
+        ("peer.discovered role=PASSIVE",),
+        after_seconds=passive_startup_seconds,
+    )
+    passive_trust_line, passive_trust_seconds = extract_marker_timing(
+        passive_log,
+        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        after_seconds=passive_peer_seconds or passive_startup_seconds,
+    )
+    passive_complete_line, passive_complete_seconds = extract_marker_timing(
+        passive_log,
+        (PASSIVE_PROOF_COMPLETE_NEEDLE,),
+        after_seconds=passive_trust_seconds or passive_startup_seconds,
+    )
     passive_complete_line, passive_complete_seconds = extract_marker_timing(
         passive_log,
         (PASSIVE_PROOF_COMPLETE_NEEDLE,),
@@ -540,8 +636,8 @@ def build_timing_snapshot(
     )
     sender_transport_mode, sender_transport_evidence = extract_transport_mode(sender_log)
     passive_transport_mode, passive_transport_evidence = extract_transport_mode(passive_log)
-    transport_mode = sender_transport_mode or passive_transport_mode
-    transport_evidence = sender_transport_evidence or passive_transport_evidence
+    transport_mode = passive_transport_mode or sender_transport_mode
+    transport_evidence = passive_transport_evidence or sender_transport_evidence
 
     def delta_seconds(start_seconds: float | None, end_seconds: float | None) -> float | None:
         if start_seconds is None or end_seconds is None:
@@ -709,13 +805,23 @@ def ensure_android_preflight(
     *,
     skip_android_install: bool,
     run_dir: Path,
+    install_profile: str = "reference",
 ) -> dict[str, float | bool]:
     timings: dict[str, float | bool] = {}
     ensure_android_device_ready(android_serial)
     if not skip_android_install:
         install_started_at = time.monotonic()
         try:
-            install_android_app(android_serial, run_dir)
+            if install_profile == "proof":
+                install_android_proof_app(
+                    android_serial,
+                    run_dir,
+                    install_timeout_seconds=android_proof_install_timeout_seconds(android_serial),
+                )
+            else:
+                install_android_app(android_serial, run_dir)
+        except TimeoutError as error:
+            raise SystemExit(str(error)) from error
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.output or "").strip()
             detail_suffix = f": {details}" if details else ""
@@ -728,7 +834,10 @@ def ensure_android_preflight(
         timings["installReused"] = True
     permissions_started_at = time.monotonic()
     try:
-        verify_android_runtime_permissions(android_serial)
+        if install_profile == "proof":
+            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+        else:
+            verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
         raise SystemExit(
             f"Android runtime-permission verification failed for '{android_serial}': {error}"
@@ -778,11 +887,95 @@ def ensure_extra_force_stop_devices_ready(extra_force_stop_serials: list[str]) -
         ensure_android_device_ready(extra_serial)
 
 
+def force_stop_android_package(android_serial: str, android_package: str) -> None:
+    run(["adb", "-s", android_serial, "shell", "am", "force-stop", android_package], check=False)
+
+
+def verify_android_runtime_permissions_for_package(android_serial: str, android_package: str) -> None:
+    result = run(["adb", "-s", android_serial, "shell", "dumpsys", "package", android_package], capture_output=True)
+    package_dump = result.stdout
+    required_permissions = [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+    ]
+    if android_sdk_int(android_serial) < 31:
+        required_permissions.append("android.permission.ACCESS_FINE_LOCATION")
+    missing_permissions = []
+    for permission in required_permissions:
+        if f"{permission}: granted=true" not in package_dump:
+            missing_permissions.append(permission)
+    if missing_permissions:
+        raise SystemExit(
+            "Android runtime permissions are not granted after installDebug: "
+            + ", ".join(missing_permissions)
+        )
+    print(
+        "==> Verified Android runtime permissions: "
+        + ", ".join(permission.split('.')[-1] for permission in android_runtime_permissions(android_serial))
+    )
+
+
+def install_android_proof_app(
+    android_serial: str,
+    run_dir: Path | None = None,
+    *,
+    install_timeout_seconds: float = 120.0,
+) -> None:
+    env = os.environ.copy()
+    env["ANDROID_SERIAL"] = android_serial
+    cache_run_dir = run_dir or Path("/tmp")
+    del cache_run_dir
+    command = ["./gradlew", ANDROID_PROOF_INSTALL_TASK, "--console=plain"]
+
+    def run_install_once() -> None:
+        print(f"==> Installing Android proof app: {shell_join(command)}")
+        result = subprocess.run(
+            command,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=install_timeout_seconds,
+        )
+        print("==> Android install stdout:")
+        print(result.stdout.rstrip() or "(empty)")
+        print("==> Android install stderr:")
+        print(result.stderr.rstrip() or "(empty)")
+
+    try:
+        run_install_once()
+    except (TimeoutError, subprocess.TimeoutExpired) as error:
+        raise TimeoutError(
+            f"Android install timed out after {install_timeout_seconds} seconds while installing proof app"
+        ) from error
+    except subprocess.CalledProcessError as error:
+        details = (error.stderr or error.stdout or "").strip()
+        detail_suffix = f": {details}" if details else ""
+        print("==> Android install failed; retrying once after uninstalling the existing package")
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PROOF_PACKAGE], capture_output=True)
+        print("==> Android uninstall result:", uninstall_result.stdout.strip() or uninstall_result.stderr.strip() or "(empty)")
+        try:
+            run_install_once()
+        except (TimeoutError, subprocess.TimeoutExpired) as retry_error:
+            raise TimeoutError(
+                f"Android install timed out after {install_timeout_seconds} seconds while installing proof app"
+            ) from retry_error
+        except subprocess.CalledProcessError as retry_error:
+            retry_details = (retry_error.stderr or retry_error.stdout or "").strip()
+            retry_suffix = f": {retry_details}" if retry_details else ""
+            raise SystemExit(
+                f"Android proof app install failed for '{android_serial}' with exit code {retry_error.returncode}{retry_suffix}"
+            ) from retry_error
+
+    verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+
+
 def force_stop_extra_peers(extra_force_stop_serials: list[str]) -> None:
     failures: list[str] = []
     for extra_serial in extra_force_stop_serials:
         try:
-            force_stop_reference_app(extra_serial)
+            force_stop_android_package(extra_serial, ANDROID_PACKAGE)
         except Exception as error:
             failures.append(f"{extra_serial}: {error}")
     if failures:
@@ -813,10 +1006,11 @@ def cleanup_android_direct_run(
         passive_android_serial,
         *extra_force_stop_serials,
     ]:
-        try:
-            force_stop_reference_app(android_serial)
-        except Exception as error:
-            failures.append(f"{android_serial}: {error}")
+        for android_package in (ANDROID_PACKAGE, ANDROID_PROOF_PACKAGE):
+            try:
+                force_stop_android_package(android_serial, android_package)
+            except Exception as error:
+                failures.append(f"{android_serial}:{android_package}: {error}")
 
     if failures:
         raise SystemExit("Android direct cleanup failed: " + "; ".join(failures))
@@ -833,57 +1027,92 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
+    primary_transport: str = "meshlink",
+    benchmark_transport: str = "meshlink",
+    android_activity: str = ANDROID_ACTIVITY,
+    android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
-    force_stop_reference_app(android_serial)
+    force_stop_android_package(android_serial, android_package)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / role_artifacts.logcat_name
     logcat_file = logcat_path.open("w", encoding="utf-8")
+    logcat_tags = android_logcat_tags(android_transport_logcat)
+    if android_package == ANDROID_PROOF_PACKAGE:
+        logcat_tags = ["MeshLinkProof:I", *logcat_tags]
     logcat_process = subprocess.Popen(
-        ["adb", "-s", android_serial, "logcat", *android_logcat_tags(android_transport_logcat)],
+        ["adb", "-s", android_serial, "logcat", *logcat_tags],
         stdout=logcat_file,
         stderr=subprocess.STDOUT,
         text=True,
     )
     process = BackgroundProcess(logcat_process, cleanup_actions=[logcat_file.close])
-    command = [
-        "adb",
-        "-s",
-        android_serial,
-        "shell",
-        "am",
-        "start",
-        "-n",
-        ANDROID_ACTIVITY,
-        "--ez",
-        ANDROID_EXTRA_UI_AUTOMATION,
-        "true",
-        "--es",
-        ANDROID_EXTRA_MODE,
-        AUTOMATION_MODE_LIVE_PROOF,
-        "--es",
-        ANDROID_EXTRA_STORAGE,
-        storage_subdirectory,
-        "--es",
-        ANDROID_EXTRA_APP_ID,
-        app_id,
-        "--es",
-        ANDROID_EXTRA_ROLE,
-        role,
-        "--es",
-        ANDROID_EXTRA_SCENARIO,
-        DIRECT_GUIDED_SCENARIO,
-    ]
-    if target_peer_id:
-        command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
-    command.extend(
-        [
+    if android_package == ANDROID_PROOF_PACKAGE:
+        command = [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "am",
+            "start",
+            "-n",
+            android_activity,
             "--es",
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
-            advertisement_carrier,
+            "meshlink.appId",
+            app_id,
+            "--ez",
+            "meshlink.disableAutoSend",
+            "true",
+            "--es",
+            "meshlink.primaryTransport",
+            primary_transport,
+            "--es",
+            "meshlink.benchmarkTransport",
+            benchmark_transport,
         ]
-    )
-    print(f"==> Launching {label} Android reference app ({role}): {shell_join(command)}")
+    else:
+        command = [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "am",
+            "start",
+            "-n",
+            android_activity,
+            "--ez",
+            ANDROID_EXTRA_UI_AUTOMATION,
+            "true",
+            "--es",
+            ANDROID_EXTRA_MODE,
+            AUTOMATION_MODE_LIVE_PROOF,
+            "--es",
+            ANDROID_EXTRA_STORAGE,
+            storage_subdirectory,
+            "--es",
+            ANDROID_EXTRA_APP_ID,
+            app_id,
+            "--es",
+            ANDROID_EXTRA_ROLE,
+            role,
+            "--es",
+            ANDROID_EXTRA_SCENARIO,
+            DIRECT_GUIDED_SCENARIO,
+        ]
+        if benchmark_transport != "meshlink":
+            command.extend(["--es", ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT, benchmark_transport])
+            command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
+        if target_peer_id:
+            command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
+        command.extend(
+            [
+                "--es",
+                "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
+                advertisement_carrier,
+            ]
+        )
+    app_label = "proof" if android_package == ANDROID_PROOF_PACKAGE else "reference"
+    print(f"==> Launching {label} Android {app_label} app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
     try:
         start_output = run(
@@ -961,6 +1190,37 @@ def wait_for_log_marker(log_path: Path, marker: str, timeout_seconds: float) -> 
     return wait_for_log_marker_observation(log_path, marker, timeout_seconds)["observed"]
 
 
+def wait_for_android_app_file_marker(
+    android_serial: str,
+    relative_path: str,
+    marker: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            file_text = read_android_app_file(android_serial, relative_path)
+        except subprocess.CalledProcessError:
+            file_text = ""
+        if marker in file_text:
+            return {
+                "observed": True,
+                "elapsedSeconds": round(time.monotonic() - started_at, 1),
+                "line": marker,
+            }
+        time.sleep(0.25)
+    try:
+        file_text = read_android_app_file(android_serial, relative_path)
+    except subprocess.CalledProcessError:
+        file_text = ""
+    return {
+        "observed": marker in file_text,
+        "elapsedSeconds": round(time.monotonic() - started_at, 1),
+        "line": marker if marker in file_text else None,
+    }
+
+
 def wait_for_passive_export_completion(run_dir: Path, timeout_seconds: float) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -986,15 +1246,29 @@ def verify_sender_log(log_path: Path) -> str:
     return completion_line
 
 
-def verify_passive_log(log_path: Path) -> str | None:
+def verify_passive_log(log_path: Path, *, passive_transport: str = "meshlink") -> str | None:
     log_text = read_text(log_path)
     if not log_text.strip():
         raise SystemExit("Passive log is empty; cannot trust Android-only retained export evidence")
-    for marker in PASSIVE_REQUIRED_LOG_MARKERS:
+    if passive_transport == "meshlink":
+        for marker in PASSIVE_REQUIRED_LOG_MARKERS:
+            if marker not in log_text:
+                raise SystemExit(f"Expected passive log to contain '{marker}'")
+        completion_line, _export_relative_path = extract_passive_completion(log_text)
+        return completion_line
+    if passive_transport == "gatt":
+        required_markers = [
+            "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
+            "GATT benchmark advertising started",
+        ]
+        for marker in required_markers:
+            if marker not in log_text:
+                raise SystemExit(f"Expected passive GATT log to contain '{marker}'")
+        return None
+    for marker in PASSIVE_PROOF_REQUIRED_LOG_MARKERS:
         if marker not in log_text:
-            raise SystemExit(f"Expected passive log to contain '{marker}'")
-    completion_line, _export_relative_path = extract_passive_completion(log_text)
-    return completion_line
+            raise SystemExit(f"Expected proof-app passive log to contain '{marker}'")
+    return None
 
 
 def summarize_and_verify(
@@ -1007,17 +1281,42 @@ def summarize_and_verify(
     completions: AndroidDirectCompletions,
     startup_timing: dict[str, Any],
     timings: dict[str, Any],
+    passive_transport: str = "meshlink",
 ) -> dict[str, Any]:
     sender_completion_line = verify_sender_log(sender_log_path(run_dir))
-    passive_completion_line = verify_passive_log(passive_log_path(run_dir))
-    if completions.export_relative_path is None:
-        export_relative_path = infer_passive_export_path(passive_log_path(run_dir))
-    else:
-        export_relative_path = completions.export_relative_path
+    passive_completion_line = verify_passive_log(passive_log_path(run_dir), passive_transport=passive_transport)
+    if passive_transport == "meshlink":
+        if completions.export_relative_path is None:
+            export_relative_path = infer_passive_export_path(passive_log_path(run_dir))
+        else:
+            export_relative_path = completions.export_relative_path
 
-    history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
-    history_json = read_android_app_file(passive_android_serial, history_relative_path)
-    (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
+        history_relative_path = f"live-automation/{storage_subdirectory}/reference/history.json"
+        history_json = read_android_app_file(passive_android_serial, history_relative_path)
+        (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
+    else:
+        export_relative_path = None
+        history_json = json.dumps(
+            {
+                "transport": passive_transport,
+                "appId": app_id,
+                "note": "proof-app passive retained evidence is log-only",
+            },
+            indent=2,
+        )
+        export_json = json.dumps(
+            {
+                "defaultMode": "redacted-preview",
+                "fullPayloadIncluded": False,
+                "operatorOptInRecorded": False,
+                "transport": passive_transport,
+                "note": "proof-app passive export not available",
+            },
+            indent=2,
+        )
+        (run_dir / ANDROID_HISTORY_NAME).write_text(history_json, encoding="utf-8")
+        (run_dir / ANDROID_EXPORT_NAME).write_text(export_json, encoding="utf-8")
+
     sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
     passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
     route_stage = sender_route_stage or passive_route_stage
@@ -1167,12 +1466,14 @@ def main(argv: list[str] | None = None) -> int:
                 args.passive_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
+                install_profile=("proof" if args.passive_benchmark_transport != "meshlink" else "reference"),
             )
             sender_future = executor.submit(
                 ensure_android_preflight,
                 args.sender_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
+                install_profile="reference",
             )
             passive_preflight = passive_future.result()
             sender_preflight = sender_future.result()
@@ -1182,6 +1483,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
+            passive_transport_is_meshlink = args.passive_benchmark_transport == "meshlink"
+            passive_uses_proof_app = args.passive_benchmark_transport == "gatt-notify"
             passive_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.passive_android_serial,
@@ -1191,40 +1494,83 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
+                primary_transport=
+                    args.passive_benchmark_transport if passive_uses_proof_app else "meshlink",
+                benchmark_transport=args.passive_benchmark_transport,
+                android_activity=ANDROID_PROOF_ACTIVITY if passive_uses_proof_app else ANDROID_ACTIVITY,
+                android_package=ANDROID_PROOF_PACKAGE if passive_uses_proof_app else ANDROID_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
-            print(
-                f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
-            )
-            passive_startup_observation = wait_for_log_marker_observation(
-                passive_marker_path,
-                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
-                args.android_ready_seconds,
-            )
-            startup_timing["passive"] = passive_startup_observation
-            if not passive_startup_observation["observed"]:
+            if passive_transport_is_meshlink:
                 print(
-                    f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
+                    f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
                 )
-            passive_transport_timeout_seconds = max(
-                args.android_ready_seconds,
-                min(args.capture_timeout_seconds * 0.3, 20.0),
-            )
-            startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
-            passive_transport_observation = wait_for_log_marker_observation(
-                passive_marker_path,
-                "advertising started",
-                passive_transport_timeout_seconds,
-            )
-            startup_timing["passiveTransport"] = passive_transport_observation
-            if not passive_transport_observation["observed"]:
-                raise SystemExit(
-                    f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
+                passive_startup_observation = wait_for_log_marker_observation(
+                    passive_marker_path,
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
+                    args.android_ready_seconds,
                 )
-            discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
-                passive_marker_path,
-                discovery_wait_seconds,
+                startup_timing["passive"] = passive_startup_observation
+                if not passive_startup_observation["observed"]:
+                    print(
+                        f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
+                    )
+                passive_transport_timeout_seconds = max(
+                    args.android_ready_seconds,
+                    min(args.capture_timeout_seconds * 0.3, 20.0),
+                )
+                startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
+                passive_transport_observation = wait_for_android_app_file_marker(
+                    args.passive_android_serial,
+                    "direct-proof-probe/gatt-start.txt",
+                    "role=PASSIVE benchmarkTransport=gatt",
+                    passive_transport_timeout_seconds,
+                )
+                startup_timing["passiveTransport"] = passive_transport_observation
+                if not passive_transport_observation["observed"]:
+                    raise SystemExit(
+                        f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
+                    )
+                discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
+                    passive_marker_path,
+                    discovery_wait_seconds,
+                )
+            else:
+                discovered_peer_id = discovered_peer_id or args.target_peer_id
+                print(
+                    f"==> Waiting up to {args.android_ready_seconds} seconds for Android proof-app ready marker"
+                )
+                passive_startup_observation = wait_for_log_marker_observation(
+                    passive_marker_path,
+                    "MeshLink proof app ready on",
+                    args.android_ready_seconds,
+                )
+                startup_timing["passive"] = passive_startup_observation
+                if not passive_startup_observation["observed"]:
+                    print(
+                        f"==> Android proof-app ready marker not observed after {args.android_ready_seconds} seconds; continuing with GATT transport wait"
+                    )
+                passive_transport_timeout_seconds = max(
+                    args.android_ready_seconds,
+                    min(args.capture_timeout_seconds * 0.3, 20.0),
+                )
+                startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
+                passive_transport_observation = wait_for_android_app_file_marker(
+                    args.passive_android_serial,
+                    "direct-proof-probe/gatt-start.txt",
+                    "role=PASSIVE benchmarkTransport=gatt",
+                    passive_transport_timeout_seconds,
+                )
+                startup_timing["passiveTransport"] = passive_transport_observation
+                if not passive_transport_observation["observed"]:
+                    raise SystemExit(
+                        f"Android proof-app transport did not start within {passive_transport_timeout_seconds} seconds"
+                    )
+            sender_benchmark_transport = (
+                "gatt-notify"
+                if args.passive_benchmark_transport != "meshlink"
+                else "meshlink"
             )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
@@ -1234,6 +1580,8 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
+                primary_transport="meshlink",
+                benchmark_transport=sender_benchmark_transport,
                 target_peer_id=discovered_peer_id,
                 advertisement_carrier=(
                     "uuid-pair-plus-service-data"
@@ -1297,6 +1645,7 @@ def main(argv: list[str] | None = None) -> int:
             completions=completions,
             startup_timing=startup_timing,
             timings=timings,
+            passive_transport=args.passive_benchmark_transport,
         )
         summary["discoveredPeerId"] = discovered_peer_id
         summary["timings"].update(

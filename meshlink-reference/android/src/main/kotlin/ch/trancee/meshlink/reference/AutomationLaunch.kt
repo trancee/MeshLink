@@ -13,6 +13,7 @@ public data class AutomationLaunch(
     val role: ReferenceAutomationRole,
     val scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
     val targetPeerId: String? = null,
+    val benchmarkTransport: String = "meshlink",
     val advertisementCarrier: DiscoveryAdvertisementCarrier =
         DiscoveryAdvertisementCarrier.UUID_PAIR,
 )
@@ -43,6 +44,10 @@ public fun liveAutomationIntent(context: Context, automationLaunch: AutomationLa
         putExtra(MainActivity.EXTRA_UI_AUTOMATION_APP_ID, automationLaunch.appId)
         putExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE, automationLaunch.role.name.lowercase())
         putExtra(MainActivity.EXTRA_UI_AUTOMATION_SCENARIO, automationLaunch.scenario.wireValue())
+        putExtra(
+            MainActivity.EXTRA_UI_AUTOMATION_BENCHMARK_TRANSPORT,
+            automationLaunch.benchmarkTransport,
+        )
         putExtra(
             MainActivity.EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER,
             automationLaunch.advertisementCarrier.name,

@@ -196,6 +196,26 @@ def shell_join(command: Iterable[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
+ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
+
+
+def disable_android_play_protect(android_serial: str) -> None:
+    run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "settings",
+            "put",
+            "global",
+            "package_verifier_user_consent",
+            ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED,
+        ],
+        capture_output=True,
+    )
+
+
 def timestamp() -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
@@ -573,7 +593,7 @@ def write_android_install_cache(run_dir: Path, android_serial: str, payload: dic
     android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def install_android_app(android_serial: str, run_dir: Path | None = None) -> None:
+def install_android_app(android_serial: str, run_dir: Path | None = None, *, install_timeout_seconds: float = 60.0) -> None:
     env = os.environ.copy()
     env["ANDROID_SERIAL"] = android_serial
     cache_run_dir = run_dir or Path("/tmp")
@@ -592,6 +612,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
     command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
 
     def run_install_once() -> None:
+        disable_android_play_protect(android_serial)
         print(f"==> Installing Android reference app: {shell_join(command)}")
         result = subprocess.run(
             command,
@@ -599,6 +620,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
             text=True,
             capture_output=True,
             check=False,
+            timeout=install_timeout_seconds,
         )
         if result.returncode != 0:
             stdout_tail = (result.stdout or "").strip()
@@ -616,6 +638,13 @@ def install_android_app(android_serial: str, run_dir: Path | None = None) -> Non
 
     try:
         run_install_once()
+    except subprocess.TimeoutExpired as error:
+        print(
+            f"==> Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        )
+        raise TimeoutError(
+            f"Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        ) from error
     except subprocess.CalledProcessError:
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
@@ -656,7 +685,6 @@ def android_runtime_permissions(android_serial: str) -> list[str]:
             "android.permission.BLUETOOTH_SCAN",
             "android.permission.BLUETOOTH_CONNECT",
             "android.permission.BLUETOOTH_ADVERTISE",
-            "android.permission.ACCESS_FINE_LOCATION",
         ]
         if android_sdk_int(android_serial) >= 31
         else ["android.permission.ACCESS_FINE_LOCATION"]

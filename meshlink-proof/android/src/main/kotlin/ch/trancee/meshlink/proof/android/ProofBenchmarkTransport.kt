@@ -8,6 +8,14 @@ internal enum class ProofBenchmarkTransport {
     GattNotifyPrototype,
 }
 
+internal fun ProofBenchmarkTransport.logLabel(): String {
+    return when (this) {
+        ProofBenchmarkTransport.MeshLink -> "meshlink"
+        ProofBenchmarkTransport.GattPrototype -> "gattPrototype"
+        ProofBenchmarkTransport.GattNotifyPrototype -> "gattNotifyPrototype"
+    }
+}
+
 internal fun parseProofBenchmarkTransport(rawValue: String?): ProofBenchmarkTransport {
     return when (rawValue?.lowercase(Locale.US)) {
         "gatt", "gattprototype", "gatt-prototype" -> ProofBenchmarkTransport.GattPrototype

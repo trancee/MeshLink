@@ -12,6 +12,7 @@ internal data class ProofLaunchConfig(
     val benchmarkIsCharging: Boolean? = null,
     val benchmarkColdStart: Boolean = false,
     val disableAutoSend: Boolean = false,
+    val primaryTransport: ProofBenchmarkTransport = ProofBenchmarkTransport.MeshLink,
     val benchmarkTransport: ProofBenchmarkTransport = ProofBenchmarkTransport.MeshLink,
 ) {
     val powerModeLabel: String
@@ -26,6 +27,7 @@ internal data class ProofLaunchConfig(
         private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
         private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
         private const val EXTRA_DISABLE_AUTO_SEND: String = "meshlink.disableAutoSend"
+        private const val EXTRA_PRIMARY_TRANSPORT: String = "meshlink.primaryTransport"
         private const val EXTRA_BENCHMARK_TRANSPORT: String = "meshlink.benchmarkTransport"
 
         fun fromIntent(intent: Intent?): ProofLaunchConfig {
@@ -46,6 +48,8 @@ internal data class ProofLaunchConfig(
                     intent?.getBooleanExtra(EXTRA_BENCHMARK_COLD_START, false) ?: false,
                 disableAutoSend =
                     intent?.getBooleanExtra(EXTRA_DISABLE_AUTO_SEND, false) ?: false,
+                primaryTransport =
+                    parseProofBenchmarkTransport(intent?.getStringExtra(EXTRA_PRIMARY_TRANSPORT)),
                 benchmarkTransport =
                     parseProofBenchmarkTransport(intent?.getStringExtra(EXTRA_BENCHMARK_TRANSPORT)),
             )

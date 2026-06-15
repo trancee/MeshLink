@@ -38,16 +38,44 @@ class ReferenceStartupCoordinatorTest {
             }
         )
     }
+
+    @Test
+    fun startLiveProofSkipsMeshStartForNonMeshlinkBenchmarkTransport() {
+        // Arrange
+        val controller = RecordingReferenceMeshLinkController()
+        val services =
+            referenceStartupPlatformServices(controller = controller, benchmarkTransport = "gatt")
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher())
+        val coordinator = ReferenceStartupCoordinator(platformServices = services, scope = scope)
+
+        // Act
+        coordinator.startLiveProofIfNeeded()
+
+        // Assert
+        assertEquals(0, controller.startCount)
+        assertTrue(
+            services.automationLogs.any { log ->
+                log.contains("REFERENCE_AUTOMATION startup.coordinator.skipped") &&
+                    log.contains("benchmarkTransport=gatt") &&
+                    log.contains("reason=non-meshlink-benchmark-transport")
+            }
+        )
+    }
 }
 
 private fun referenceStartupPlatformServices(
-    controller: RecordingReferenceMeshLinkController
+    controller: RecordingReferenceMeshLinkController,
+    benchmarkTransport: String = "meshlink",
 ): RecordingStartupPlatformServices {
-    return RecordingStartupPlatformServices(meshLinkController = controller)
+    return RecordingStartupPlatformServices(
+        meshLinkController = controller,
+        benchmarkTransport = benchmarkTransport,
+    )
 }
 
 private class RecordingStartupPlatformServices(
-    override val meshLinkController: RecordingReferenceMeshLinkController
+    override val meshLinkController: RecordingReferenceMeshLinkController,
+    benchmarkTransport: String,
 ) : PlatformServices {
     override val platformName: String = "Test"
     override val defaultAuthorityMode: ReferenceAuthorityMode = ReferenceAuthorityMode.LIVE
@@ -59,6 +87,7 @@ private class RecordingStartupPlatformServices(
             role = ReferenceAutomationRole.PASSIVE,
             appId = "demo.meshlink.reference.test",
             storageSubdirectory = "startup-coordinator-tests",
+            benchmarkTransport = benchmarkTransport,
         )
     override val powerMitigationStatus: String? = null
     override val documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()

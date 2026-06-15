@@ -87,15 +87,19 @@ internal object MeshLinkProofRuntime {
             if (
                 currentLaunchConfig != resolvedLaunchConfig ||
                     (
-                        resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink &&
+                        resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink &&
                             meshLink == null
+                        ) ||
+                    (
+                        resolvedLaunchConfig.primaryTransport != ProofBenchmarkTransport.MeshLink &&
+                            meshLink != null
                         )
             ) {
                 this.launchConfig = resolvedLaunchConfig
                 gattBenchmarkServer?.stop()
                 gattNotifyBenchmarkClient?.stop()
                 meshLink =
-                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
                         ch.trancee.meshlink.api.meshLink(
                             config = meshLinkConfig {
                                 appId = resolvedLaunchConfig.appId
@@ -128,7 +132,7 @@ internal object MeshLinkProofRuntime {
                 synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
                 localAdvertisementKeyHash =
-                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
                         computeLocalAdvertisementKeyHash(
                             context = appContext!!,
                             appId = resolvedLaunchConfig.appId,
@@ -138,23 +142,19 @@ internal object MeshLinkProofRuntime {
                     }
                 localAdvertisementKeyHashHex = localAdvertisementKeyHash?.toLowerHexString()
                 clearPersistedLogs()
-                val transportLabel =
-                    when (resolvedLaunchConfig.benchmarkTransport) {
-                        ProofBenchmarkTransport.MeshLink -> "meshlink"
-                        ProofBenchmarkTransport.GattPrototype -> "gattPrototype"
-                        ProofBenchmarkTransport.GattNotifyPrototype -> "gattNotifyPrototype"
-                    }
+                val primaryTransportLabel = resolvedLaunchConfig.primaryTransport.logLabel()
+                val benchmarkTransportLabel = resolvedLaunchConfig.benchmarkTransport.logLabel()
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} transport=$transportLabel$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} primaryTransport=$primaryTransportLabel benchmarkTransport=$benchmarkTransportLabel$keyHashSuffix",
                 )
             }
         }
     }
 
     fun start(): Job {
-        when (launchConfig.benchmarkTransport) {
+        when (launchConfig.primaryTransport) {
             ProofBenchmarkTransport.GattPrototype -> {
                 return scope.launch {
                     val startedAtNanos = SystemClock.elapsedRealtimeNanos()
@@ -275,7 +275,7 @@ internal object MeshLinkProofRuntime {
     }
 
     fun stop(): Job {
-        return when (launchConfig.benchmarkTransport) {
+        return when (launchConfig.primaryTransport) {
             ProofBenchmarkTransport.GattPrototype -> {
                 scope.launch {
                     val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }

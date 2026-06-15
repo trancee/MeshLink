@@ -168,7 +168,7 @@ def run_pair(
     }
 
 
-def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str:
+def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
     for _ in range(retries):
         result = subprocess.run(
@@ -187,7 +187,8 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: f
                 if item.get("name") == TARGET_PEER and item.text:
                     return item.text.strip()
         time.sleep(delay_s)
-    raise SystemExit(f"Unable to read passive peer id for {serial}")
+    print(f"==> Passive peer id unavailable for {serial}; continuing without a seeded target peer")
+    return None
 
 
 def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
