@@ -1,3 +1,5 @@
+@file:Suppress("ReturnCount", "MagicNumber", "MaxLineLength")
+
 package ch.trancee.meshlink.proof.android
 
 import android.annotation.SuppressLint
@@ -76,7 +78,9 @@ internal class ProofGattNotifyBenchmarkClient(
                     val requestedMtu = gatt.requestMtu(517)
                     if (!requestedMtu) {
                         servicesDiscoveryStarted = true
-                        gatt.discoverServices()
+                        if (!gatt.safeDiscoverServices(logger)) {
+                            finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
+                        }
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     finishIfNeeded("GATT_DISCONNECTED")
@@ -89,7 +93,9 @@ internal class ProofGattNotifyBenchmarkClient(
                     return
                 }
                 servicesDiscoveryStarted = true
-                gatt.discoverServices()
+                if (!gatt.safeDiscoverServices(logger)) {
+                    finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
+                }
             }
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -251,7 +257,10 @@ internal class ProofGattNotifyBenchmarkClient(
             )
         val settings =
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
-        scanner?.startScan(filters, settings, scanCallback)
+        if (!scanner.safeStartScan(filters, settings, scanCallback, logger)) {
+            finishIfNeeded("SCAN_PERMISSION_DENIED")
+            return
+        }
         mainHandler.postDelayed(scanTimeoutRunnable, 15_000L)
     }
 
@@ -265,12 +274,16 @@ internal class ProofGattNotifyBenchmarkClient(
             return
         }
         mainHandler.removeCallbacks(scanTimeoutRunnable)
-        scanner?.stopScan(scanCallback)
+        scanner.safeStopScan(logger, scanCallback)
         logger(
             "GATT notify benchmark discovered device=${result.device.address} rssi=${result.rssi}"
         )
         stateDidChange("Connecting(GATT notify benchmark)")
-        gatt = result.device.connectGatt(context, false, gattCallback)
+        gatt = result.device.safeConnectGatt(context, false, gattCallback, logger)
+        if (gatt == null) {
+            finishIfNeeded("GATT_CONNECT_PERMISSION_DENIED")
+            return
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -284,9 +297,15 @@ internal class ProofGattNotifyBenchmarkClient(
             finishIfNeeded("CCCD_MISSING")
             return
         }
-        gatt.setCharacteristicNotification(notifyCharacteristic, true)
+        if (!gatt.safeSetCharacteristicNotification(notifyCharacteristic, true, logger)) {
+            finishIfNeeded("NOTIFY_PERMISSION_DENIED")
+            return
+        }
         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        gatt.writeDescriptor(cccd)
+        if (!gatt.safeWriteDescriptor(cccd, logger)) {
+            finishIfNeeded("NOTIFY_DESCRIPTOR_WRITE_PERMISSION_DENIED")
+            return
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -299,7 +318,7 @@ internal class ProofGattNotifyBenchmarkClient(
         pendingAckWrite = PendingAckWrite(tokenHex = transfer.tokenHex, totalBytes = transfer.totalBytes)
         ackCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         ackCharacteristic.value = value
-        val enqueued = gatt.writeCharacteristic(ackCharacteristic)
+        val enqueued = gatt.safeWriteCharacteristic(ackCharacteristic, logger)
         if (!enqueued) {
             pendingAckWrite = null
             logger(
@@ -311,9 +330,9 @@ internal class ProofGattNotifyBenchmarkClient(
 
     private fun stopInternal(updateStateToStopped: Boolean) {
         mainHandler.removeCallbacks(scanTimeoutRunnable)
-        scanner?.stopScan(scanCallback)
+        scanner.safeStopScan(logger, scanCallback)
         scanner = null
-        gatt?.close()
+        gatt.safeClose(logger)
         gatt = null
         notifyCharacteristic = null
         ackCharacteristic = null

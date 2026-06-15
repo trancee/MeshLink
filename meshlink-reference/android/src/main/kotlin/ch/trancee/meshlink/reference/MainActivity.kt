@@ -1,3 +1,5 @@
+@file:Suppress("LongMethod", "TooManyFunctions", "MaxLineLength", "TooGenericExceptionCaught")
+
 package ch.trancee.meshlink.reference
 
 import android.content.Context
@@ -175,7 +177,6 @@ public class MainActivity : ComponentActivity() {
     }
 
     public companion object {
-        private const val TAG = "MeshLinkReference"
         public const val EXTRA_UI_AUTOMATION: String =
             "ch.trancee.meshlink.reference.extra.UI_AUTOMATION"
         public const val EXTRA_UI_AUTOMATION_BENCHMARK_TRANSPORT: String =
@@ -232,44 +233,6 @@ private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
     }
 }
 
-private const val TAG = "MeshLinkReference"
-
-private fun MainActivity.startDirectProofPowerService() {
-    ContextCompat.startForegroundService(this, DirectProofPowerService.start(this))
-}
-
-private fun MainActivity.stopDirectProofPowerService() {
-    stopService(DirectProofPowerService.start(this))
-}
-
-private fun MainActivity.keepScreenOn() {
-    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-}
-
-private fun MainActivity.releaseScreenOn() {
-    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-}
-
-private fun MainActivity.logActivityStage(stage: String, directProofEnabled: Boolean) {
-    Log.i(
-        TAG,
-        "REFERENCE_AUTOMATION activity.stage=$stage directProof=$directProofEnabled " +
-            "screenOn=${isDeviceInteractive()}",
-    )
-}
-
-private fun MainActivity.emitDirectProofPowerState(
-    platformServices: PlatformServices?,
-    stage: String,
-    directProofEnabled: Boolean,
-) {
-    if (platformServices == null) return
-    platformServices.emitAutomationLog(
-        "REFERENCE_AUTOMATION power.state stage=$stage interactive=${isDeviceInteractive()} " +
-            "powerSaveMode=${isPowerSaveMode()} directProof=$directProofEnabled",
-    )
-}
-
 private fun MainActivity.readAutomationConfig(): AutomationConfig {
     val automationEnabled =
         (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
@@ -305,43 +268,5 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER)
                 .toDiscoveryAdvertisementCarrier(),
     )
-}
-
-private fun MainActivity.configureDiscoveryCarrier(
-    advertisementCarrier: DiscoveryAdvertisementCarrier,
-    directProofEnabled: Boolean,
-) {
-    AndroidDiscoveryAdvertisementConfig.carrier =
-        if (directProofEnabled) {
-            advertisementCarrier
-        } else {
-            DiscoveryAdvertisementCarrier.UUID_PAIR
-        }
-}
-
-private fun MainActivity.createPlatformServicesForAutomation(
-    automationConfig: AutomationConfig,
-): PlatformServices {
-    return when {
-        automationConfig.enabled && automationConfig.mode == MainActivity.AUTOMATION_MODE_LIVE_PROOF ->
-            createLiveAutomationPlatformServices(
-                context = applicationContext,
-                storageSubdirectory = automationConfig.storageSubdirectory,
-                appId = automationConfig.appId,
-                role = automationConfig.role,
-                requiredPeerCount = automationConfig.requiredPeerCount,
-                targetPeerIndex = automationConfig.targetPeerIndex,
-                targetPeerId = automationConfig.targetPeerId,
-                benchmarkTransport = automationConfig.benchmarkTransport,
-                scenario = automationConfig.scenario,
-            )
-        automationConfig.enabled ->
-            createAutomationPlatformServices(
-                context = applicationContext,
-                storageSubdirectory = automationConfig.storageSubdirectory,
-                blocked = automationConfig.blocked,
-            )
-        else -> createPlatformServices(applicationContext)
-    }
 }
 

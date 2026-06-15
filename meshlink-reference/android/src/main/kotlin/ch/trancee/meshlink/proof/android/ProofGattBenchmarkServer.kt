@@ -1,3 +1,5 @@
+@file:Suppress("ReturnCount", "MagicNumber", "MaxLineLength")
+
 package ch.trancee.meshlink.proof.android
 
 import android.annotation.SuppressLint

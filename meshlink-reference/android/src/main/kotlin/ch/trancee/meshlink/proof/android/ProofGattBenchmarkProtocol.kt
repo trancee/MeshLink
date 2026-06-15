@@ -1,3 +1,5 @@
+@file:Suppress("ReturnCount", "MagicNumber")
+
 package ch.trancee.meshlink.proof.android
 
 import java.nio.ByteBuffer
@@ -36,7 +38,7 @@ internal object ProofGattBenchmarkProtocol {
     }
 
     internal fun encodeAck(tokenHex: String, totalBytes: Int): ByteArray {
-        val tokenBytes = tokenHex.decodeHexToken() ?: error("Invalid benchmark token: $tokenHex")
+        val tokenBytes = tokenHex.decodeHexTokenBytes() ?: error("Invalid benchmark token: $tokenHex")
         return ByteBuffer.allocate(ACK_FRAME_BYTES)
             .order(ByteOrder.BIG_ENDIAN)
             .put(ACK_FRAME_TYPE)
@@ -105,23 +107,6 @@ internal object ProofGattBenchmarkProtocol {
         return hash
     }
 
-    private fun String.decodeHexToken(): ByteArray? {
-        if (length != TOKEN_BYTES * 2) {
-            return null
-        }
-        val bytes = ByteArray(TOKEN_BYTES)
-        for (index in bytes.indices) {
-            val value = substring(index * 2, index * 2 + 2).toIntOrNull(16) ?: return null
-            bytes[index] = value.toByte()
-        }
-        return bytes
-    }
-
-    private fun ByteArray.toHexToken(): String {
-        return joinToString(separator = "") { byte ->
-            (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
-        }
-    }
 
     internal sealed interface WriteFrame
 

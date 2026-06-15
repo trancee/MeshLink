@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "ReturnCount", "MagicNumber", "MaxLineLength", "UnusedPrivateProperty")
+
 package ch.trancee.meshlink.proof.android
 
 import android.bluetooth.BluetoothGatt
@@ -77,7 +79,9 @@ internal class ProofGattBenchmarkClient(
                 }
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     stateDidChange("Configuring(GATT benchmark)")
-                    gatt.discoverServices()
+                    if (!gatt.safeDiscoverServices(logger)) {
+                        finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
+                    }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     finishIfNeeded("GATT_DISCONNECTED")
                 }
@@ -177,18 +181,14 @@ internal class ProofGattBenchmarkClient(
                     return
                 }
                 val ack = ProofGattBenchmarkProtocol.decodeAckFrame(characteristic.value)
-                val tokenHex = transferTokenHex
-                if (
-                    ack == null ||
-                        tokenHex == null ||
-                        ack.tokenHex != tokenHex ||
-                        ack.totalBytes != payload.size
-                ) {
+                val tokenHex = transferTokenHex ?: return
+                if (!benchmarkAckMatches(ack, tokenHex, payload.size)) {
                     finishIfNeeded("ACK_MISMATCH")
                     return
                 }
                 logger(
-                    "BENCHMARK receipt send(${tokenHex.takeLast(6)}) -> Sent token=$tokenHex bytes=${payload.size} attempt=1"
+                    "BENCHMARK receipt send(${tokenHex.takeLast(6)}) -> Sent " +
+                        "token=$tokenHex bytes=${payload.size} attempt=1"
                 )
                 logger("GATT benchmark completed token=$tokenHex bytes=${payload.size}")
                 finished = true
@@ -222,7 +222,10 @@ internal class ProofGattBenchmarkClient(
             )
         val settings =
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
-        scanner?.startScan(filters, settings, scanCallback)
+        if (!scanner.safeStartScan(filters, settings, scanCallback, logger)) {
+            finishIfNeeded("SCAN_PERMISSION_DENIED")
+            return
+        }
         mainHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT_MILLIS)
     }
 
@@ -236,12 +239,16 @@ internal class ProofGattBenchmarkClient(
             return
         }
         mainHandler.removeCallbacks(scanTimeoutRunnable)
-        scanner?.stopScan(scanCallback)
+        scanner.safeStopScan(logger, scanCallback)
         logger(
             "GATT benchmark discovered device=${result.device.address} rssi=${result.rssi}"
         )
         stateDidChange("Connecting(GATT benchmark)")
-        gatt = result.device.connectGatt(context, false, gattCallback)
+        gatt = result.device.safeConnectGatt(context, false, gattCallback, logger)
+        if (gatt == null) {
+            finishIfNeeded("GATT_CONNECT_PERMISSION_DENIED")
+            return
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -255,9 +262,15 @@ internal class ProofGattBenchmarkClient(
             finishIfNeeded("CCCD_MISSING")
             return
         }
-        gatt.setCharacteristicNotification(ackCharacteristic, true)
+        if (!gatt.safeSetCharacteristicNotification(ackCharacteristic, true, logger)) {
+            finishIfNeeded("ACK_NOTIFICATION_PERMISSION_DENIED")
+            return
+        }
         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        gatt.writeDescriptor(cccd)
+        if (!gatt.safeWriteDescriptor(cccd, logger)) {
+            finishIfNeeded("ACK_DESCRIPTOR_WRITE_PERMISSION_DENIED")
+            return
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -274,7 +287,7 @@ internal class ProofGattBenchmarkClient(
         logger("GATT benchmark start token=${tokenHex} bytes=${payload.size} chunks=${payloadChunks.size}")
         writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         writeCharacteristic.value = encodeStartFrame(tokenHex, payload.size)
-        val enqueued = gatt.writeCharacteristic(writeCharacteristic)
+        val enqueued = gatt.safeWriteCharacteristic(writeCharacteristic, logger)
         if (!enqueued) {
             pendingWritePhase = PendingWritePhase.NONE
             finishIfNeeded("WRITE_ENQUEUE_FAILED")
@@ -298,15 +311,18 @@ internal class ProofGattBenchmarkClient(
             finishIfNeeded("CHUNK_MISSING")
             return
         }
-        logger("GATT benchmark data token=${tokenHex} chunk=${nextChunkIndex + 1}/${payloadChunks.size} bytes=${chunk.size}")
+        logger(
+            "GATT benchmark data token=${tokenHex} chunk=${nextChunkIndex + 1}/${payloadChunks.size} bytes=${chunk.size}"
+        )
         writeCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         writeCharacteristic.value = encodeDataFrame(tokenHex, chunk)
-        val enqueued = gatt.writeCharacteristic(writeCharacteristic)
+        val enqueued = gatt.safeWriteCharacteristic(writeCharacteristic, logger)
         if (!enqueued) {
             if (dataWriteRetryCount < 10) {
                 dataWriteRetryCount += 1
                 logger(
-                    "GATT benchmark data enqueue retry token=${tokenHex} chunk=${nextChunkIndex + 1}/${payloadChunks.size} attempt=$dataWriteRetryCount"
+                    "GATT benchmark data enqueue retry token=${tokenHex} " +
+                        "chunk=${nextChunkIndex + 1}/${payloadChunks.size} attempt=$dataWriteRetryCount"
                 )
                 mainHandler.postDelayed({ sendDataFrame(gatt) }, 100)
             } else {
@@ -320,9 +336,9 @@ internal class ProofGattBenchmarkClient(
 
     private fun stopInternal(updateStateToStopped: Boolean) {
         mainHandler.removeCallbacks(scanTimeoutRunnable)
-        scanner?.stopScan(scanCallback)
+        scanner.safeStopScan(logger, scanCallback)
         scanner = null
-        gatt?.close()
+        gatt.safeClose(logger)
         gatt = null
         writeCharacteristic = null
         ackCharacteristic = null
@@ -353,7 +369,7 @@ internal class ProofGattBenchmarkClient(
     private val startNanos: Long = SystemClock.elapsedRealtimeNanos()
 
     private fun encodeStartFrame(tokenHex: String, totalBytes: Int): ByteArray {
-        val tokenBytes = tokenHex.decodeHexToken() ?: error("Invalid benchmark token: $tokenHex")
+        val tokenBytes = tokenHex.decodeHexTokenBytes() ?: error("Invalid benchmark token: $tokenHex")
         return ByteBuffer.allocate(1 + tokenBytes.size + Int.SIZE_BYTES)
             .order(ByteOrder.BIG_ENDIAN)
             .put(0x01.toByte())
@@ -363,44 +379,13 @@ internal class ProofGattBenchmarkClient(
     }
 
     private fun encodeDataFrame(tokenHex: String, chunk: ByteArray): ByteArray {
-        val tokenBytes = tokenHex.decodeHexToken() ?: error("Invalid benchmark token: $tokenHex")
+        val tokenBytes = tokenHex.decodeHexTokenBytes() ?: error("Invalid benchmark token: $tokenHex")
         return ByteBuffer.allocate(1 + tokenBytes.size + chunk.size)
             .order(ByteOrder.BIG_ENDIAN)
             .put(0x02.toByte())
             .put(tokenBytes)
             .put(chunk)
             .array()
-    }
-
-    private fun String.decodeHexToken(): ByteArray? {
-        if (length != 16 || length % 2 != 0) {
-            return null
-        }
-        val bytes = ByteArray(length / 2)
-        for (index in bytes.indices) {
-            val charIndex = index * 2
-            val hi = Character.digit(this[charIndex], 16)
-            val lo = Character.digit(this[charIndex + 1], 16)
-            if (hi < 0 || lo < 0) {
-                return null
-            }
-            bytes[index] = ((hi shl 4) or lo).toByte()
-        }
-        return bytes
-    }
-
-    private fun ByteArray.chunkedBytes(chunkSize: Int): List<ByteArray> {
-        if (isEmpty()) {
-            return listOf(ByteArray(0))
-        }
-        val chunks = mutableListOf<ByteArray>()
-        var offset = 0
-        while (offset < size) {
-            val end = minOf(offset + chunkSize, size)
-            chunks += copyOfRange(offset, end)
-            offset = end
-        }
-        return chunks
     }
 
     private enum class PendingWritePhase {

@@ -1,3 +1,5 @@
+@file:Suppress("MaxLineLength")
+
 package ch.trancee.meshlink.proof.android
 
 import android.bluetooth.BluetoothManager
