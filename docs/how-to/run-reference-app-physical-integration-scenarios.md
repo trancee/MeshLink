@@ -4,6 +4,8 @@ Use this guide when you need retained physical evidence from the MeshLink
 reference app on real devices.
 Before selecting hardware, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, RAM, storage, Bluetooth version, and known quirks. The matrix is sorted by Android SDK highest-first, so the top rows are the newest-platform devices, and when the same hardware appears over USB and wireless ADB the matrix keeps the USB row. When you refresh a row, follow this checklist:
 
+If a proof-app run is expected to exercise GATT, confirm Bluetooth is enabled before launch. The proof app now fails fast when BluetoothManager or BluetoothAdapter is unavailable, so Bluetooth-off devices show a clear preflight diagnostic instead of reaching the opaque GATT server null path.
+
 1. Copy an existing row in the same order.
 2. Keep the SDK-descending and name-secondary sort.
 3. Refresh the row from `adb devices -l`, `getprop`, `MemTotal`, and `df /storage/emulated/0`.
