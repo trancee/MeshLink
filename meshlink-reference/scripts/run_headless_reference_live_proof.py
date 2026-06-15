@@ -196,6 +196,26 @@ def shell_join(command: Iterable[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
+ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
+
+
+def disable_android_play_protect(android_serial: str) -> None:
+    run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "settings",
+            "put",
+            "global",
+            "package_verifier_user_consent",
+            ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED,
+        ],
+        capture_output=True,
+    )
+
+
 def timestamp() -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
@@ -592,6 +612,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
     command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
 
     def run_install_once() -> None:
+        disable_android_play_protect(android_serial)
         print(f"==> Installing Android reference app: {shell_join(command)}")
         result = subprocess.run(
             command,
