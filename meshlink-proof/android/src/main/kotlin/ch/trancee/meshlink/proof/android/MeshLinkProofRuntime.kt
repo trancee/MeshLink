@@ -87,15 +87,19 @@ internal object MeshLinkProofRuntime {
             if (
                 currentLaunchConfig != resolvedLaunchConfig ||
                     (
-                        resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink &&
+                        resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink &&
                             meshLink == null
+                        ) ||
+                    (
+                        resolvedLaunchConfig.primaryTransport != ProofBenchmarkTransport.MeshLink &&
+                            meshLink != null
                         )
             ) {
                 this.launchConfig = resolvedLaunchConfig
                 gattBenchmarkServer?.stop()
                 gattNotifyBenchmarkClient?.stop()
                 meshLink =
-                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
                         ch.trancee.meshlink.api.meshLink(
                             config = meshLinkConfig {
                                 appId = resolvedLaunchConfig.appId
@@ -128,7 +132,7 @@ internal object MeshLinkProofRuntime {
                 synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
                 localAdvertisementKeyHash =
-                    if (resolvedLaunchConfig.benchmarkTransport == ProofBenchmarkTransport.MeshLink) {
+                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
                         computeLocalAdvertisementKeyHash(
                             context = appContext!!,
                             appId = resolvedLaunchConfig.appId,
@@ -150,7 +154,7 @@ internal object MeshLinkProofRuntime {
     }
 
     fun start(): Job {
-        when (launchConfig.benchmarkTransport) {
+        when (launchConfig.primaryTransport) {
             ProofBenchmarkTransport.GattPrototype -> {
                 return scope.launch {
                     val startedAtNanos = SystemClock.elapsedRealtimeNanos()
@@ -271,7 +275,7 @@ internal object MeshLinkProofRuntime {
     }
 
     fun stop(): Job {
-        return when (launchConfig.benchmarkTransport) {
+        return when (launchConfig.primaryTransport) {
             ProofBenchmarkTransport.GattPrototype -> {
                 scope.launch {
                     val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }

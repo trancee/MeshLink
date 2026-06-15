@@ -1196,6 +1196,51 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertEqual(gatt_result[0], "GATT")
         self.assertEqual(meshlink_result[0], "L2CAP")
 
+    def test_start_android_role_app_passes_primary_transport_to_proof_app(self) -> None:
+        # Arrange
+        run_calls: list[list[str]] = []
+        shared: dict[str, object] = {}
+        logcat_stdout = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            run_calls.append(list(command))
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout or logcat_stdout, shared)
+
+        with (
+            patch.object(android_direct_proof, "force_stop_android_package"),
+            patch.object(android_direct_proof, "run", side_effect=fake_run),
+            patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+        ):
+            # Act
+            android_direct_proof.start_android_role_app(
+                run_dir=Path("/tmp"),
+                android_serial="passive-1",
+                label="passive",
+                role="passive",
+                app_id="demo.meshlink.reference.direct.test",
+                storage_subdirectory="storage",
+                android_transport_logcat=False,
+                advertisement_carrier="uuid-pair-plus-service-data",
+                primary_transport="gattNotifyPrototype",
+                benchmark_transport="gatt-notify",
+                android_activity=android_direct_proof.ANDROID_PROOF_ACTIVITY,
+                android_package=android_direct_proof.ANDROID_PROOF_PACKAGE,
+            )
+
+        # Assert
+        start_command = next(command for command in run_calls if command[:6] == ["adb", "-s", "passive-1", "shell", "am", "start"])
+        self.assertIn("meshlink.primaryTransport", start_command)
+        self.assertIn("gattNotifyPrototype", start_command)
+        self.assertIn("meshlink.benchmarkTransport", start_command)
+        self.assertIn("gatt-notify", start_command)
+        self.assertIn("meshlink.disableAutoSend", start_command)
+        self.assertIn("true", start_command)
+
 
 if __name__ == "__main__":
     unittest.main()

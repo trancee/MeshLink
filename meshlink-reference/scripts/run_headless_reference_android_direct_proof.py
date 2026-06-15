@@ -1491,7 +1491,8 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
-                primary_transport="meshlink",
+                primary_transport=
+                    args.passive_benchmark_transport if passive_uses_proof_app else "meshlink",
                 benchmark_transport=args.passive_benchmark_transport,
                 android_activity=ANDROID_PROOF_ACTIVITY if passive_uses_proof_app else ANDROID_ACTIVITY,
                 android_package=ANDROID_PROOF_PACKAGE if passive_uses_proof_app else ANDROID_PACKAGE,
