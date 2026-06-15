@@ -169,7 +169,7 @@ internal class ProofGattBenchmarkClient(
                 }
             }
 
-            @Suppress("DEPRECATION")
+            @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
             override fun onCharacteristicChanged(
                 gatt: BluetoothGatt,
                 characteristic: BluetoothGattCharacteristic,

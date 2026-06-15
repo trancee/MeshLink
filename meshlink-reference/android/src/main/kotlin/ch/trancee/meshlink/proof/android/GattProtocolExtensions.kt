@@ -123,6 +123,7 @@ internal fun BluetoothGatt.safeSetCharacteristicNotification(
     }
 }
 
+@Suppress("DEPRECATION")
 internal fun BluetoothGatt.safeWriteDescriptor(
     descriptor: BluetoothGattDescriptor,
     logger: (String) -> Unit,
@@ -136,6 +137,7 @@ internal fun BluetoothGatt.safeWriteDescriptor(
     }
 }
 
+@Suppress("DEPRECATION")
 internal fun BluetoothGatt.safeWriteCharacteristic(
     characteristic: BluetoothGattCharacteristic,
     logger: (String) -> Unit,
