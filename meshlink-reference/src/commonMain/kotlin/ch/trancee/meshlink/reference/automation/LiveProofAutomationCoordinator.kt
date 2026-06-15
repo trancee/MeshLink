@@ -97,6 +97,7 @@ internal class LiveProofAutomationCoordinator(
                 meshStartRequested = progress.meshStartRequested,
                 snapshot = snapshot,
                 readinessBlockers = readinessBlockers,
+                benchmarkTransport = automationConfig.benchmarkTransport,
             )
         if (!shouldRequest) {
             actions.emitAutomationLog(

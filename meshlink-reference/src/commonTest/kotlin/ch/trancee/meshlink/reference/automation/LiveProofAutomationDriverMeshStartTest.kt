@@ -47,4 +47,41 @@ class LiveProofAutomationDriverMeshStartTest {
             }
         )
     }
+
+    @Test
+    fun driverSkipsMeshStartForGattNotifyLiveProofSender() {
+        // Arrange
+        val automationConfig =
+            ReferenceAutomationConfig(
+                mode = ReferenceAutomationMode.LIVE_PROOF,
+                role = ReferenceAutomationRole.SENDER,
+                appId = "demo.meshlink.reference.test",
+                storageSubdirectory = "driver-gatt-notify",
+                benchmarkTransport = "gatt-notify",
+            )
+        val timelineUiStateFlow =
+            MutableStateFlow(
+                TechnicalTimelineUiState(
+                    liveSnapshot =
+                        automationTestSnapshot(
+                            meshStateLabel = "Uninitialized",
+                            timeline = emptyList(),
+                        )
+                )
+            )
+        val actions = RecordingLiveProofAutomationActions()
+        val driver =
+            LiveProofAutomationDriver(
+                automationConfig = automationConfig,
+                timelineUiStateFlow = timelineUiStateFlow,
+                actions = actions,
+            )
+
+        // Act
+        driver.handle(timelineUiStateFlow.value)
+
+        // Assert
+        assertEquals(0, actions.meshStartRequests)
+        assertTrue(actions.logs.none { log -> log.contains("mesh.start.requested") })
+    }
 }

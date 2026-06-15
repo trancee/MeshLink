@@ -554,9 +554,15 @@ class AndroidDirectProofTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
-        def fake_popen(command: list[str], stdout, stderr, text: bool):
-            del stderr, text
+        def fake_popen(command: list[str], stdout, stderr, text: bool = True, **kwargs):
+            del stderr, text, kwargs
             return KnownPairLogcatProcess(command, stdout, shared)
+
+        def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
+            del android_serial
+            if relative_path == "direct-proof-probe/gatt-start.txt":
+                return "role=PASSIVE benchmarkTransport=gatt"
+            return "{}"
 
         shared: dict[str, object] = {}
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -571,6 +577,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 patch.object(android_direct_proof, "cleanup_android_direct_run"),
                 patch.object(android_direct_proof, "run", side_effect=fake_run),
                 patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(android_direct_proof, "read_android_app_file", side_effect=fake_read_android_app_file),
             ):
                 with self.assertRaises(SystemExit):
                     android_direct_proof.main(
@@ -861,9 +868,9 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(
             [command[0] for command in call_log],
-            ["./gradlew", "adb", "./gradlew"],
+            ["adb", "./gradlew", "adb", "adb", "./gradlew"],
         )
-        self.assertIn("uninstall", call_log[1])
+        self.assertTrue(any("uninstall" in command for command in call_log))
 
     def test_main_preserves_failure_summary_when_extra_cleanup_fails(self) -> None:
         # Arrange
@@ -988,6 +995,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             del stderr, text, kwargs
             return FakeLogcatProcess(command, stdout, shared)
 
+        def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
+            del android_serial
+            if relative_path == "direct-proof-probe/gatt-start.txt":
+                return "role=PASSIVE benchmarkTransport=gatt"
+            return "{}"
+
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory) / "sender-launch-timeout"
 
@@ -999,7 +1012,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 patch.object(android_direct_proof, "force_stop_reference_app"),
                 patch.object(android_direct_proof, "run", side_effect=fake_run),
                 patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
-                patch.object(android_direct_proof, "read_android_app_file", return_value="{}"),
+                patch.object(android_direct_proof, "read_android_app_file", side_effect=fake_read_android_app_file),
                 patch.object(android_direct_proof.time, "sleep", return_value=None),
             ):
                 with self.assertRaises(SystemExit) as error:

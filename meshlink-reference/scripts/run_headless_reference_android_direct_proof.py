@@ -549,6 +549,9 @@ def extract_transport_mode(log_text: str) -> tuple[str | None, str | None]:
         if (
             "transport=gattPrototype" in line
             or "gatt.benchmark.start() -> Started" in line
+            or "GATT benchmark completed" in line
+            or "GATT benchmark server opening" in line
+            or "gatt.start() -> Started" in line
             or "transport=gattNotifyPrototype" in line
             or "gatt.notify.start() -> Started" in line
         ):

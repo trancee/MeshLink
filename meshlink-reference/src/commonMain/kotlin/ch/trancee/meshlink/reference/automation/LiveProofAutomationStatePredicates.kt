@@ -6,8 +6,10 @@ internal fun shouldRequestLiveProofMeshStart(
     meshStartRequested: Boolean,
     snapshot: ReferenceControllerSnapshot,
     readinessBlockers: List<String>,
+    benchmarkTransport: String,
 ): Boolean {
-    return !meshStartRequested &&
+    return benchmarkTransport == "meshlink" &&
+        !meshStartRequested &&
         !hasMeshEnteredLifecycle(snapshot.session.meshStateLabel) &&
         readinessBlockers.isEmpty()
 }

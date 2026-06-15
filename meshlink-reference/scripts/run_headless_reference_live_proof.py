@@ -685,7 +685,6 @@ def android_runtime_permissions(android_serial: str) -> list[str]:
             "android.permission.BLUETOOTH_SCAN",
             "android.permission.BLUETOOTH_CONNECT",
             "android.permission.BLUETOOTH_ADVERTISE",
-            "android.permission.ACCESS_FINE_LOCATION",
         ]
         if android_sdk_int(android_serial) >= 31
         else ["android.permission.ACCESS_FINE_LOCATION"]

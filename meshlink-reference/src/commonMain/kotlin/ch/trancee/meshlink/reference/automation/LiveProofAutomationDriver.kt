@@ -49,7 +49,11 @@ internal class LiveProofAutomationDriver(
                 "snapshotPeers=${timelineUiState.liveSnapshot.peers.size} " +
                 "timelineEntries=${timelineUiState.liveSnapshot.timeline.size}"
         )
-        if (config.role == ReferenceAutomationRole.SENDER && !progress.meshStartRequested) {
+        if (
+            config.role == ReferenceAutomationRole.SENDER &&
+                config.benchmarkTransport == "meshlink" &&
+                !progress.meshStartRequested
+        ) {
             actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION mesh.start.requested role=${config.role} meshState=${timelineUiState.liveSnapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
             )

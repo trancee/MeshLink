@@ -53,6 +53,27 @@ class LiveProofAutomationStepRunnerTest {
     }
 
     @Test
+    fun senderStepRunnerSkipsMeshStartForGattNotifyLiveProof() {
+        // Arrange
+        val actions = RecordingLiveProofAutomationActions()
+        val progress = LiveProofAutomationProgress()
+        val automationConfig = senderAutomationConfig(benchmarkTransport = "gatt-notify")
+        val snapshot = automationTestSnapshot(meshStateLabel = "Uninitialized")
+
+        // Act
+        runSenderAutomationStep(
+            snapshot = snapshot,
+            automationConfig = automationConfig,
+            actions = actions,
+            progress = progress,
+        )
+
+        // Assert
+        assertEquals(0, actions.meshStartRequests)
+        assertTrue(actions.logs.none { log -> log.contains("mesh.start.requested") })
+    }
+
+    @Test
     fun requestSenderPayloadRecordsPlanMetadataAndUsesTheExpectedPayload() {
         // Arrange
         val targetPeer = AutoSendTargetPeer(peerId = "relay-target-abcdef", peerSuffix = "abcdef")
@@ -1036,6 +1057,7 @@ class LiveProofAutomationStepRunnerTest {
         scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
         requiredPeerCount: Int = 1,
         targetPeerId: String? = null,
+        benchmarkTransport: String = "meshlink",
     ): ReferenceAutomationConfig {
         return ReferenceAutomationConfig(
             mode = ReferenceAutomationMode.LIVE_PROOF,
@@ -1044,6 +1066,7 @@ class LiveProofAutomationStepRunnerTest {
             storageSubdirectory = "sender-tests",
             requiredPeerCount = requiredPeerCount,
             targetPeerId = targetPeerId,
+            benchmarkTransport = benchmarkTransport,
             scenario = scenario,
         )
     }
