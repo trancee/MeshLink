@@ -14,7 +14,7 @@ By the end of this guide you should be able to:
   live-proof harness
 - find the canonical direct-proof result digest when you need the latest 45s
   rerun summary
-- recognize the proof-app Bluetooth preflight guard that fails fast when Bluetooth is off or unavailable before a GATT run can start
+- recognize the proof-app Bluetooth preflight guard that fails fast when Bluetooth is off or unavailable before a GATT run can start, and surfaces that state in the UI as well as the logs
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).

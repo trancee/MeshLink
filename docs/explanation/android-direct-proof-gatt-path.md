@@ -17,7 +17,7 @@ So the current behavior is:
 - GATT is active as a passive benchmark/control surface
 - MeshLink/L2CAP still carries the direct-proof transport that the summary reports
 - the latest attached-fleet rerun split into clear preflight/install and launch clusters, but still produced no pass on either transport path
-- the proof app now fails fast when Bluetooth is off or the manager/adapter is unavailable, so the GATT launch signal is now explicit instead of an opaque null-server crash
+- the proof app now fails fast when Bluetooth is off or the manager/adapter is unavailable, and that failure is surfaced in the UI state as well as logs, so the GATT launch signal is now explicit instead of an opaque null-server crash
 
 ## Evidence from the passing run
 
