@@ -138,16 +138,12 @@ internal object MeshLinkProofRuntime {
                     }
                 localAdvertisementKeyHashHex = localAdvertisementKeyHash?.toLowerHexString()
                 clearPersistedLogs()
-                val transportLabel =
-                    when (resolvedLaunchConfig.benchmarkTransport) {
-                        ProofBenchmarkTransport.MeshLink -> "meshlink"
-                        ProofBenchmarkTransport.GattPrototype -> "gattPrototype"
-                        ProofBenchmarkTransport.GattNotifyPrototype -> "gattNotifyPrototype"
-                    }
+                val primaryTransportLabel = resolvedLaunchConfig.primaryTransport.logLabel()
+                val benchmarkTransportLabel = resolvedLaunchConfig.benchmarkTransport.logLabel()
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} transport=$transportLabel$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} primaryTransport=$primaryTransportLabel benchmarkTransport=$benchmarkTransportLabel$keyHashSuffix",
                 )
             }
         }

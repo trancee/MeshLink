@@ -523,6 +523,28 @@ def extract_marker_timing(
 
 
 def extract_transport_mode(log_text: str) -> tuple[str | None, str | None]:
+    def transport_mode_from_label(raw_label: str) -> str | None:
+        label = raw_label.strip().lower()
+        if label in {"meshlink", "l2cap"}:
+            return "L2CAP"
+        if label in {
+            "gatt",
+            "gattprototype",
+            "gatt-prototype",
+            "gattnotify",
+            "gattnotifyprototype",
+            "gatt-notify",
+            "gatt-notify-prototype",
+        }:
+            return "GATT"
+        return None
+
+    for line in log_text.splitlines():
+        match = re.search(r"\bprimaryTransport=([A-Za-z0-9\-]+)\b", line)
+        if match is not None:
+            transport_mode = transport_mode_from_label(match.group(1))
+            if transport_mode is not None:
+                return transport_mode, line.strip()
     for line in log_text.splitlines():
         if (
             "transport=gattPrototype" in line
