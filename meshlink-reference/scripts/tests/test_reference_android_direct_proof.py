@@ -1240,6 +1240,7 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIn("gatt-notify", start_command)
         self.assertIn("meshlink.disableAutoSend", start_command)
         self.assertIn("true", start_command)
+        self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_command)
 
 
 if __name__ == "__main__":
