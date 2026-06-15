@@ -55,6 +55,9 @@ This page captures the observed Android direct-proof matrix result from the
 - Every successful pairing used **L2CAP**.
 - **GATT** did not produce any passes.
 - The pass set clustered around Nothing Phone (2), OPPO Reno8 5G, motorola edge 30 fusion, OnePlus Nord 2 5G, Realme C55, Gigaset GX6, Samsung Galaxy Z Flip4, and Nothing Phone (1).
+- See also:
+  - `docs/explanation/android-direct-proof-gatt-path.md` for the retained-transport interpretation
+  - `docs/explanation/android-direct-proof-gatt-transport-refactor-plan.md` for the app-side transport refactor plan
 
 ## How to read the result
 
