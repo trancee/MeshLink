@@ -35,13 +35,13 @@ internal class MeshEngineRoutingSupport(
         removalCode: DiagnosticCode = DiagnosticCode.ROUTE_RETRACTED,
         metadata: Map<String, String> = emptyMap(),
     ): Unit {
-        dispatchRoutingAdvertisements(mutation.advertisements)
         emitRouteSelectionDiagnostics(
             changes = mutation.routeChanges,
             stage = stage,
             removalCode = removalCode,
             metadata = metadata,
         )
+        dispatchRoutingAdvertisements(mutation.advertisements)
     }
 
     fun peerRouteMetadata(
