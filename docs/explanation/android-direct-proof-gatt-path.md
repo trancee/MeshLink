@@ -16,6 +16,7 @@ In the successful retained run on CPH2359:
 So the current behavior is:
 - GATT is active as a passive benchmark/control surface
 - MeshLink/L2CAP still carries the direct-proof transport that the summary reports
+- the latest attached-fleet rerun split into clear preflight/install and launch clusters, but still produced no pass on either transport path
 
 ## Evidence from the passing run
 

@@ -3,6 +3,7 @@
 Last verified: 2026-06-15
 
 This task list breaks the GATT transport work into the smallest code changes that preserve current MeshLink-primary behavior while making the primary transport contract explicit.
+The latest attached-fleet rerun showed that startup triage comes first: preflight/install and launch clusters are still hiding the transport signal, so the validation order is now triage, then transport contract work, then a targeted rerun.
 
 ## Tasks
 

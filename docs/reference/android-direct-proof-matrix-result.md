@@ -22,6 +22,8 @@ This page captures the observed Android direct-proof matrix result from the
 - **66** pairings failed in capture because `proof.complete` never arrived before timeout
 - Install warm-up surfaced two device-specific issues before the matrix began: **Mi Note 3** install/uninstall failure and **OnePlus 7T** install timeout
 - Every successful pairing used **L2CAP**; **GATT** produced no passes
+- The latest attached-fleet rerun split the remaining failures into reproducible preflight/install and launch clusters, but still produced no pass on either transport path
+- The next transport work needs to fix the app-side primary-transport contract before the retained summary can report a true GATT-primary pass
 
 ## Timing summary
 
