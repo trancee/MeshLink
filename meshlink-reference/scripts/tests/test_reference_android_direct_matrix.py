@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,37 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
         self.assertFalse(args.resume)
         self.assertEqual(args.android_ready_seconds, android_direct_matrix.DEFAULT_ANDROID_READY_SECONDS)
         self.assertEqual(args.capture_timeout_seconds, android_direct_matrix.DEFAULT_CAPTURE_TIMEOUT_SECONDS)
+
+    def test_run_pair_reports_timeout_without_blocking_following_pairs(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "pair"
+
+            with patch.object(
+                android_direct_matrix.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(cmd=["python"], timeout=1.5, output="install boom", stderr="stderr tail"),
+            ):
+                # Act
+                result = android_direct_matrix.run_pair(
+                    sender="1f1dad34",
+                    passive="2ASVB21B09005117",
+                    app_id="demo.meshlink.reference.android-direct.a065_nam_lx9",
+                    run_dir=run_dir,
+                    target_peer_id=None,
+                    capture_timeout=30.0,
+                    android_ready_seconds=6.0,
+                    pair_timeout_seconds=1.5,
+                    skip_install=False,
+                )
+
+            # Assert
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["failureStage"], "preflight")
+            self.assertTrue(result["timedOut"])
+            self.assertEqual(result["exitCode"], 124)
+            self.assertEqual(result["timings"]["pairTimeoutSeconds"], 1.5)
+            self.assertIn("install boom", result["stdoutTail"])
 
     def test_main_writes_progress_and_skips_completed_pairs_on_resume(self) -> None:
         # Arrange

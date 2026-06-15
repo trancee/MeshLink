@@ -17,6 +17,7 @@ PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_d
 TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 DEFAULT_ANDROID_READY_SECONDS = 6.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
+DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
@@ -86,6 +87,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Proof completion timeout per pair",
     )
     parser.add_argument(
+        "--pair-timeout-seconds",
+        type=float,
+        default=DEFAULT_PAIR_TIMEOUT_SECONDS,
+        help="Outer timeout per pair so a hung proof script cannot stall the whole sweep",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume from the last checkpoint if the run root already contains progress",
@@ -112,6 +119,7 @@ def run_pair(
     target_peer_id: str | None,
     capture_timeout: float,
     android_ready_seconds: float,
+    pair_timeout_seconds: float,
     skip_install: bool,
 ) -> dict[str, Any]:
     command = [
@@ -139,7 +147,33 @@ def run_pair(
 
     print(f"==> Running: {shell_join(command)}", flush=True)
     started_at = time.monotonic()
-    completed = subprocess.run(command, capture_output=True, text=True)
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=pair_timeout_seconds)
+    except subprocess.TimeoutExpired as error:
+        elapsed = round(time.monotonic() - started_at, 1)
+        stdout_value = getattr(error, "stdout", None) or getattr(error, "output", None) or ""
+        stderr_value = getattr(error, "stderr", None) or ""
+        stdout_tail = stdout_value.strip()[-1000:] if isinstance(stdout_value, str) else ""
+        stderr_tail = stderr_value.strip()[-1000:] if isinstance(stderr_value, str) else ""
+        stage = "preflight" if not skip_install else "capture"
+        reason = f"{stage} timed out after {pair_timeout_seconds:.1f}s"
+        return {
+            "status": "failed",
+            "failureStage": stage,
+            "failureReason": reason,
+            "routeStage": None,
+            "routeEvidence": None,
+            "senderRouteStage": None,
+            "passiveRouteStage": None,
+            "timings": {"totalSeconds": elapsed, "pairTimeoutSeconds": pair_timeout_seconds},
+            "htmlReportPath": None,
+            "stdoutTail": stdout_tail,
+            "stderrTail": stderr_tail,
+            "elapsedSeconds": elapsed,
+            "exitCode": 124,
+            "timedOut": True,
+            "timeoutSeconds": pair_timeout_seconds,
+        }
     elapsed = round(time.monotonic() - started_at, 1)
     summary_path = run_dir / "summary.json"
     summary: dict[str, Any]
@@ -290,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
             target_peer_id=None,
             capture_timeout=args.capture_timeout_seconds,
             android_ready_seconds=args.android_ready_seconds,
+            pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
         )
         target_peer_id = read_passive_peer_id(pair["passive"], app_id)
@@ -301,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
             target_peer_id=target_peer_id,
             capture_timeout=args.capture_timeout_seconds,
             android_ready_seconds=args.android_ready_seconds,
+            pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=True,
         )
         row = {
