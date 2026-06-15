@@ -395,6 +395,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("gatt", start_commands[0])
                 self.assertIn("meshlink.disableAutoSend", start_commands[0])
                 self.assertIn("true", start_commands[0])
+                self.assertIn("meshlink.primaryTransport", start_commands[0])
+                self.assertNotIn("meshlink.primaryTransport", start_commands[1])
                 self.assertNotIn("meshlink.benchmarkTransport", start_commands[1])
                 sender_start_command = next(
                     command
@@ -1160,6 +1162,28 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIn("direct-proof result digest", evaluation_text)
         self.assertIn("direct-proof matrix rerun", layout_text)
         self.assertIn("Retains the canonical summary", layout_text)
+
+    def test_extract_transport_mode_prefers_primary_transport_marker(self) -> None:
+        # Arrange
+        l2cap_log = "06-15 08:55:31.157 I MeshLinkReferenceAutomation: start() with l2capPsm=201\n"
+        gatt_primary_log = (
+            "06-15 08:55:30.882 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model "
+            "(SDK 34) appId=test primaryTransport=gattPrototype benchmarkTransport=meshlink\n"
+        )
+        meshlink_primary_log = (
+            "06-15 08:55:30.882 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model "
+            "(SDK 34) appId=test primaryTransport=meshlink benchmarkTransport=gattPrototype\n"
+        )
+
+        # Act
+        l2cap_result = android_direct_proof.extract_transport_mode(l2cap_log)
+        gatt_result = android_direct_proof.extract_transport_mode(gatt_primary_log)
+        meshlink_result = android_direct_proof.extract_transport_mode(meshlink_primary_log)
+
+        # Assert
+        self.assertEqual(l2cap_result[0], "L2CAP")
+        self.assertEqual(gatt_result[0], "GATT")
+        self.assertEqual(meshlink_result[0], "L2CAP")
 
 
 if __name__ == "__main__":

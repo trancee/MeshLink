@@ -6,17 +6,17 @@ This task list breaks the GATT transport work into the smallest code changes tha
 
 ## Tasks
 
-- [ ] **Task 1: Add an explicit primary transport contract to the proof app**
+- [x] **Task 1: Add an explicit primary transport contract to the proof app**
   - Add a `meshlink.primaryTransport` launch extra to `ProofLaunchConfig`.
   - Log the primary transport separately from `meshlink.benchmarkTransport` so the runtime emits one stable marker for the transport that should own the retained summary.
   - Keep the default as MeshLink so existing direct-proof runs behave the same.
 
-- [ ] **Task 2: Prefer the primary transport marker in direct-proof summary parsing**
+- [x] **Task 2: Prefer the primary transport marker in direct-proof summary parsing**
   - Update `extract_transport_mode()` in `run_headless_reference_android_direct_proof.py` to look for the new primary-transport marker first.
   - Preserve the current fallback order so older logs still resolve from GATT/L2CAP evidence.
   - Keep the HTML report stable for current MeshLink-primary runs.
 
-- [ ] **Task 3: Verify both interpretations remain distinguishable**
+- [x] **Task 3: Verify both interpretations remain distinguishable**
   - Run a MeshLink-primary direct-proof case and confirm the summary still reports `L2CAP`.
   - Confirm a passive GATT fixture still logs its benchmark start separately from the primary transport marker.
   - Use the passing run and one failed run as regression evidence for report parsing.
