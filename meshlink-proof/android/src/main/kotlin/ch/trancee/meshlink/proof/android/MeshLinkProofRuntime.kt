@@ -154,6 +154,15 @@ internal object MeshLinkProofRuntime {
     }
 
     fun start(): Job {
+        val context = appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
+        val bluetoothReadiness = ProofBluetoothContract.inspect(context)
+        if (!bluetoothReadiness.ready) {
+            return scope.launch {
+                runtimeStateText = "Error(Bluetooth unavailable)"
+                appendLog("Bluetooth preflight failed; ${bluetoothReadiness.reason}")
+                updatesFlow.tryEmit(Unit)
+            }
+        }
         when (launchConfig.primaryTransport) {
             ProofBenchmarkTransport.GattPrototype -> {
                 return scope.launch {
