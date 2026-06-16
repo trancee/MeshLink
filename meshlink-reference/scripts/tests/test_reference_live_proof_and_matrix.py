@@ -79,6 +79,11 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 )
                 return FakeProcess()
 
+            def fake_start_ios_app_via_devicectl(*args, **kwargs):
+                del args, kwargs
+                (run_dir / "iphone_console.log").parent.mkdir(parents=True, exist_ok=True)
+                return FakeProcess()
+
             with (
                 patch.object(sys, "argv", argv),
                 patch.object(live_proof, "ensure_android_device_ready"),
@@ -88,6 +93,7 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 patch.object(live_proof, "install_ios_app"),
                 patch.object(live_proof, "build_ios_app", return_value=Path("/tmp/fake.app")),
                 patch.object(live_proof, "start_android_app", side_effect=fake_start_android_app),
+                patch.object(live_proof, "start_ios_app_via_devicectl", side_effect=fake_start_ios_app_via_devicectl),
                 patch.object(live_proof, "wait_for_android_completion", return_value=("android complete", "exports/session-redacted.json")),
                 patch.object(live_proof, "wait_for_ios_sender_result"),
                 patch.object(live_proof, "verify_ios_sender_log", return_value="ios complete"),
