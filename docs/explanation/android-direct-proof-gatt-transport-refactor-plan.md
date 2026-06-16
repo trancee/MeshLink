@@ -3,11 +3,12 @@
 Last verified: 2026-06-15
 
 This plan turns the observed transport split into an implementation sequence.
-It is intentionally app-side first: the runner already passes `meshlink.benchmarkTransport`, but that extra only starts the passive proof-app GATT fixture. It does not make GATT the primary transport carried by the retained direct-proof summary.
+It is intentionally app-side first, but the latest attached-fleet rerun adds an explicit startup-triage step before the transport contract work: the sweep now splits cleanly into preflight/install and launch clusters, and those need to be separated by device family before the GATT-primary pass can be validated.
+The runner already passes `meshlink.benchmarkTransport`, but that extra only starts the passive proof-app GATT fixture. It does not make GATT the primary transport carried by the retained direct-proof summary.
 
 ## Goal
 
-Make the transport choice explicit enough that the passive proof app can run in one of two clear modes:
+Make the transport choice explicit enough that the passive proof app can run in one of two clear modes after startup triage isolates the remaining device-family blockers:
 
 1. **MeshLink-primary direct proof**
    - current behavior

@@ -58,7 +58,7 @@ class MainActivity : Activity() {
         }
         if (ProofPermissionContract.isRequestGranted(grantResults)) {
             MeshLinkProofRuntime.appendLog("Bluetooth permissions granted")
-            MeshLinkProofRuntime.start()
+            startIfBluetoothReady()
         } else {
             MeshLinkProofRuntime.appendLog(
                 "Bluetooth permissions denied; MeshLink transport will stay idle"
@@ -127,11 +127,22 @@ class MainActivity : Activity() {
     private fun ensurePermissionsAndStart(): Unit {
         val missingPermissions = ProofPermissionContract.missingPermissions(this)
         if (missingPermissions.isEmpty()) {
-            MeshLinkProofRuntime.start()
+            startIfBluetoothReady()
         } else {
             requestPermissions(
                 missingPermissions.toTypedArray(),
                 ProofPermissionContract.REQUEST_PERMISSIONS_CODE,
+            )
+        }
+    }
+
+    private fun startIfBluetoothReady(): Unit {
+        val bluetoothReadiness = ProofBluetoothContract.inspect(this)
+        if (bluetoothReadiness.ready) {
+            MeshLinkProofRuntime.start()
+        } else {
+            MeshLinkProofRuntime.appendLog(
+                "Bluetooth preflight blocked; ${bluetoothReadiness.reason}"
             )
         }
     }

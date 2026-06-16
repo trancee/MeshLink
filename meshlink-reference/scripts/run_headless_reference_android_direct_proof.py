@@ -1484,7 +1484,7 @@ def main(argv: list[str] | None = None) -> int:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
             passive_transport_is_meshlink = args.passive_benchmark_transport == "meshlink"
-            passive_uses_proof_app = args.passive_benchmark_transport == "gatt-notify"
+            passive_uses_proof_app = args.passive_benchmark_transport in {"gatt", "gatt-notify"}
             passive_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.passive_android_serial,

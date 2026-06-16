@@ -61,6 +61,26 @@ A common failure mode is to look only at `messages`. That works until something
 fails and nobody can explain whether the problem was discovery, trust,
 routing, power policy, or delivery.
 
+## Validate platform readiness before transport start
+
+On Android, Bluetooth readiness is part of the app contract, not just a UI
+permission flow. Before starting any proof or transport path, check all three:
+
+- `BluetoothManager` is available
+- `BluetoothAdapter` is available
+- Bluetooth is enabled
+
+Why this matters:
+
+- it turns opaque `BluetoothGattServer is unavailable` crashes into a clear
+  preflight diagnostic
+- Bluetooth-off devices should fail fast in the app state as well as logs
+- transport debugging stays focused on transport, not on a missing platform
+  prerequisite
+
+If Bluetooth readiness is missing, surface that failure visibly and stop before
+starting transport-specific work.
+
 ## Model delivery honestly
 
 `SendResult.Sent` means MeshLink completed the delivery path it owns.

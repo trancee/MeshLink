@@ -1,6 +1,6 @@
 # Android direct-proof matrix result
 
-Last verified: 2026-06-14
+Last verified: 2026-06-15
 
 This page captures the observed Android direct-proof matrix result from the
 132-pair fail-fast sweep across the attached Android fleet.
@@ -22,6 +22,9 @@ This page captures the observed Android direct-proof matrix result from the
 - **66** pairings failed in capture because `proof.complete` never arrived before timeout
 - Install warm-up surfaced two device-specific issues before the matrix began: **Mi Note 3** install/uninstall failure and **OnePlus 7T** install timeout
 - Every successful pairing used **L2CAP**; **GATT** produced no passes
+- The latest attached-fleet rerun split the remaining failures into reproducible preflight/install and launch clusters, but still produced no pass on either transport path
+- The proof app now fails fast when Bluetooth is off or the manager/adapter is unavailable, and it surfaces that reason in the UI state as well as logs, so the next GATT issue is a visible device preflight problem instead of an opaque `BluetoothGattServer is unavailable` crash
+- The next transport work needs to fix the app-side primary-transport contract before the retained summary can report a true GATT-primary pass
 
 ## Timing summary
 
@@ -66,3 +69,16 @@ This page captures the observed Android direct-proof matrix result from the
 - Treat capture as a route-stability or proof-completion failure.
 - Prioritize the zero-pass devices for startup, permission, and pairing-path debugging.
 - Use the 45s cap as the expected fast-fail boundary when comparing future reruns.
+
+## 2026-06-15 attached-fleet rerun
+
+The latest attached-fleet sweep completed all 30 directed pairs and landed in the
+same failure-only shape as the previous baseline, but with a smaller 6-device
+matrix.
+
+- **0 / 30** pairings passed end-to-end
+- **30 / 30** pairings failed
+- **18** pairings failed in preflight
+- **12** pairings failed in launch
+- The sweep checkpoint was written under `/tmp/meshlink_android_matrix_20260615T191228/`
+- The pass set remains empty, so this rerun did not surface a successful GATT or L2CAP combination on the current attached fleet
