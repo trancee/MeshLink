@@ -52,8 +52,8 @@ Today, supported integration paths are:
 - direct Gradle source integration for Android or shared Kotlin code
 - composite-build substitution for a separate Gradle host app
 - a Gradle-built Apple framework linked by Xcode for iOS
-- a root-level SwiftPM local checkout package (`Package.swift`)
-- a root-level SwiftPM binary-target release template (`Package.release.swift`)
+- a root-level SwiftPM local checkout package (`Package.swift` at the repository root)
+- a root-level SwiftPM binary-target release template (`Package.release.swift` at the repository root)
 
 There is not yet a published Maven Central artifact.
 
