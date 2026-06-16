@@ -14,7 +14,7 @@ The intended first public release shape is:
 
 - a published `:meshlink` artifact for Gradle consumers
 - the existing generated Apple framework path for iOS Xcode hosts
-- no Swift Package Manager package yet
+- Swift Package Manager support for both checkout and release binary targets
 - no CocoaPods pod yet
 
 Artifact publication is not yet wired into this repository. That means the
