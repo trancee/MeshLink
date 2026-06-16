@@ -201,7 +201,27 @@ ANDROID_WRITE_SECURE_SETTINGS_PERMISSION = "android.permission.WRITE_SECURE_SETT
 ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
 
 
-def grant_android_shell_secure_settings(android_serial: str) -> None:
+def android_shell_has_secure_settings(android_serial: str) -> bool:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "dumpsys",
+            "package",
+            ANDROID_SHELL_PACKAGE,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    output = result.stdout or ""
+    return f"{ANDROID_WRITE_SECURE_SETTINGS_PERMISSION}: granted=true" in output
+
+
+def grant_android_shell_secure_settings(android_serial: str) -> bool:
     result = run(
         [
             "adb",
@@ -216,22 +236,32 @@ def grant_android_shell_secure_settings(android_serial: str) -> None:
         capture_output=True,
         check=False,
     )
-    if result.returncode != 0:
-        stdout_tail = (result.stdout or "").strip()
-        stderr_tail = (result.stderr or "").strip()
-        detail_parts = [f"exit code {result.returncode}"]
-        if stdout_tail:
-            detail_parts.append(f"stdout: {stdout_tail}")
-        if stderr_tail:
-            detail_parts.append(f"stderr: {stderr_tail}")
-        print(
-            "==> Android secure settings grant step did not report success; continuing with install: "
-            + " | ".join(detail_parts)
-        )
+    if result.returncode == 0:
+        return True
+    stdout_tail = (result.stdout or "").strip()
+    stderr_tail = (result.stderr or "").strip()
+    detail_parts = [f"exit code {result.returncode}"]
+    if stdout_tail:
+        detail_parts.append(f"stdout: {stdout_tail}")
+    if stderr_tail:
+        detail_parts.append(f"stderr: {stderr_tail}")
+    print(
+        "==> Android secure settings grant was not accepted on this build; continuing without it: "
+        + " | ".join(detail_parts)
+    )
+    return False
 
 
 def disable_android_play_protect(android_serial: str) -> None:
-    grant_android_shell_secure_settings(android_serial)
+    if android_shell_has_secure_settings(android_serial):
+        print(
+            "==> Android shell already has WRITE_SECURE_SETTINGS; skipping secure-settings grant"
+        )
+    else:
+        print(
+            "==> Android shell is missing WRITE_SECURE_SETTINGS; attempting best-effort adb grant"
+        )
+        grant_android_shell_secure_settings(android_serial)
     result = run(
         [
             "adb",
