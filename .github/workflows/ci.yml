@@ -100,3 +100,31 @@ jobs:
             build/reports/**
             meshlink/build/reports/**
             **/test-results/**
+
+  meshlink-swiftpm-macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build SwiftPM packaging artifact
+        run: ./scripts/spm/package-meshlink-xcframework.sh
+
+      - name: Upload SwiftPM packaging outputs
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: meshlink-swiftpm-reports
+          if-no-files-found: ignore
+          path: |
+            meshlink/build/swiftpm/**
+            meshlink/build/XCFrameworks/**
