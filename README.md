@@ -17,7 +17,7 @@ MeshLink has not cut a public stable release yet.
 Today, the repository is still source-distributed from a local checkout. The
 intended first public release shape is a published `:meshlink` artifact for
 Gradle consumers while iOS can use the generated Apple framework path or the
-SwiftPM package at the repository root.
+root-level SwiftPM package.
 
 For the current distribution shape and remaining release blockers, use the
 [release status reference](docs/reference/release-status.md).
