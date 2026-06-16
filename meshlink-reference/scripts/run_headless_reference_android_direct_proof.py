@@ -1282,6 +1282,8 @@ def verify_passive_log(log_path: Path, *, passive_transport: str = "meshlink") -
             if marker not in log_text:
                 raise SystemExit(f"Expected passive log to contain '{marker}'")
         completion_line, _export_relative_path = extract_passive_completion(log_text)
+        if completion_line is None:
+            raise SystemExit("Missing passive proof.complete line in passive log")
         return completion_line
     if passive_transport == "gatt":
         required_markers = [

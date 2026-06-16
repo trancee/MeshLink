@@ -1332,6 +1332,27 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertIsNone(completion_line)
 
+    def test_verify_passive_log_requires_retained_completion_for_meshlink(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "passive_logcat.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        "06-15 08:55:30.882 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided",
+                        "06-15 08:55:30.902 I MeshLinkProof: MeshLink proof app ready on realme",
+                        "06-15 08:55:31.157 I MeshLinkProof: gatt.notify.start() -> Started",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            with self.assertRaises(SystemExit) as context:
+                android_direct_proof.verify_passive_log(log_path, passive_transport="meshlink")
+
+        self.assertIn("Missing passive proof.complete line", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
