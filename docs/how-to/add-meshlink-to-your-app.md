@@ -19,6 +19,7 @@ Use it when you need to:
 | already shares the MeshLink Gradle build | depend on `project(":meshlink")` directly |
 | lives in a separate Gradle repo | use a composite build with dependency substitution |
 | is a native iOS Xcode app | call `:meshlink:embedAndSignAppleFrameworkForXcode` from an Xcode pre-build script |
+| wants SwiftPM integration | use the root-level `Package.swift` for local checkout development or `Package.release.swift` for the release binary target |
 
 ## Installation flow at a glance
 
@@ -53,13 +54,17 @@ blockers.
 This repository does **not** yet publish:
 
 - a Maven Central artifact
-- a Swift Package Manager package
-- a CocoaPods pod
+
+Swift Package Manager support is available from the repository root via:
+
+- `Package.swift` for local checkout integration
+- `Package.release.swift` as the release binary-target template
 
 The supported installation paths today are:
 
 - Gradle source integration for Android or shared Kotlin code
 - a Gradle-built Apple framework linked by Xcode for iOS
+- a SwiftPM package at the repository root for local checkout or binary-target use
 
 ## 2. Confirm the host requirements first
 

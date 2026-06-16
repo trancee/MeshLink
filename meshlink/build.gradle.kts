@@ -2,6 +2,7 @@ import io.gitlab.arturbosch.detekt.Detekt
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -16,6 +17,7 @@ plugins {
 
 kotlin {
     explicitApi()
+    val meshLinkXCFramework = XCFramework("MeshLink")
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
     android {
         namespace = "ch.trancee.meshlink"
@@ -30,6 +32,7 @@ kotlin {
             baseName = "MeshLink"
             isStatic = true
             binaryOption("bundleId", "ch.trancee.meshlink")
+            meshLinkXCFramework.add(this)
         }
     }
     applyDefaultHierarchyTemplate()

@@ -78,6 +78,8 @@ flowchart LR
 | `:meshlink-reference` | Kotlin Multiplatform library | `:meshlink` | Shared reference-app shell, screens, session model, export logic, and automation support |
 | `:meshlink-reference:android` | Android application module | `:meshlink-reference` | Android host application for the shared reference-app shell |
 | `meshlink-reference/ios` | Native Xcode project | exported `MeshLinkReference` framework from `:meshlink-reference` | iOS host application, signing, simulator, device, and UI-test workflows |
+| `Package.swift` | Swift Package manifest | `meshlink/build/swiftpm/MeshLink.xcframework` | SwiftPM local checkout package for Xcode and `swift package` consumers |
+| `Package.release.swift` | Swift Package manifest template | published XCFramework ZIP artifact | SwiftPM release binary-target packaging |
 | `:meshlink-proof:android` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
 | `meshlink-proof/ios` | Native Xcode project | exported `MeshLink` framework from `:meshlink` | iOS proof and benchmark surface for physical validation |
 | `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |

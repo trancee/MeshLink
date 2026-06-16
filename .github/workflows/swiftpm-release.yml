@@ -1,0 +1,42 @@
+name: swiftpm-release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+concurrency:
+  group: swiftpm-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  package-swiftpm-release:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build SwiftPM release artifacts
+        run: ./scripts/spm/package-meshlink-xcframework.sh
+
+      - name: Upload SwiftPM release assets
+        uses: softprops/action-gh-release@v2.2.1
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            meshlink/build/swiftpm/MeshLink.xcframework.zip
+            meshlink/build/swiftpm/MeshLink.xcframework.checksum

@@ -52,9 +52,10 @@ Today, supported integration paths are:
 - direct Gradle source integration for Android or shared Kotlin code
 - composite-build substitution for a separate Gradle host app
 - a Gradle-built Apple framework linked by Xcode for iOS
+- a root-level SwiftPM local checkout package (`Package.swift` at the repository root)
+- a root-level SwiftPM binary-target release template (`Package.release.swift` at the repository root)
 
-There is not yet a published Maven Central artifact, Swift Package Manager
-package, or CocoaPods pod.
+There is not yet a published Maven Central artifact.
 
 ## Intended first public release shape
 
@@ -62,8 +63,7 @@ The planned first public release shape is:
 
 - publish `:meshlink` for Gradle consumers
 - keep the generated Apple framework path for iOS Xcode hosts
-- continue without Swift Package Manager for the first release
-- continue without CocoaPods for the first release
+- ship Swift Package Manager support alongside the iOS framework path
 
 ## Release-readiness work already in place
 
@@ -71,6 +71,7 @@ The repository now has:
 
 - a maintained CI workflow for the core MeshLink SDK verification bundle
 - a `release-please` workflow and manifest configuration for cumulative release PRs, tags, and next-snapshot bumps
+- a SwiftPM release workflow that packages the XCFramework zip and checksum for published GitHub releases
 - a changelog for release-facing notes
 - a security policy for private vulnerability reporting
 - a maintainer release runbook
