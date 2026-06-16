@@ -72,8 +72,11 @@ public class ReferenceDirectProofGattNotifyBridge(
             state.startsWith("Connecting(") -> {
                 Log.i(BRIDGE_LOG_TAG, "REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge")
             }
+            state.startsWith("Configuring(") -> {
+                Log.i(BRIDGE_LOG_TAG, "REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge")
+            }
             state.startsWith("Receiving(") -> {
-                Log.i(BRIDGE_LOG_TAG, "REFERENCE_AUTOMATION send.requested role=sender")
+                Log.i(BRIDGE_LOG_TAG, "REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=SENDER peer=gatt-notify-bridge")
             }
             state.startsWith("Completed(") -> {
                 Log.i(BRIDGE_LOG_TAG, "REFERENCE_AUTOMATION proof.complete role=sender")
