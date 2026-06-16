@@ -5,6 +5,12 @@ import org.gradle.api.Project
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.wrapper.Wrapper
 
+buildscript {
+    dependencies {
+        classpath("org.slf4j:slf4j-nop:1.7.30")
+    }
+}
+
 private fun isAgpDependencyResolutionWarningListener(listener: Any): Boolean {
     if (listener::class.java.name.startsWith("com.android.build.gradle.internal.DependencyResolutionChecksKt$")) {
         return true
