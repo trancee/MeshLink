@@ -1,12 +1,12 @@
 # How to use MeshLink from Swift
 
 This guide shows you how to call MeshLink from Swift through the generated
-`MeshLink` Apple framework or the SwiftPM binary package.
+`MeshLink` Apple framework or the root-level SwiftPM package.
 
 Use it when:
 
 - your app code is Swift, not shared Kotlin UI or business logic
-- your Xcode target already links the generated `MeshLink` framework or the SwiftPM package
+- your Xcode target already links the generated `MeshLink` framework or the root-level SwiftPM package
 - you want the Swift-facing startup, lifecycle, flow-collection, and send
   patterns
 

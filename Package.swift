@@ -12,7 +12,7 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "MeshLink",
-            path: "../meshlink/build/swiftpm/MeshLink.xcframework"
+            path: "meshlink/build/swiftpm/MeshLink.xcframework"
         ),
     ]
 )
