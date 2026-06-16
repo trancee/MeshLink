@@ -146,6 +146,19 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 "-s",
                 "nokia-x20",
                 "shell",
+                "pm",
+                "grant",
+                "com.android.shell",
+                "android.permission.WRITE_SECURE_SETTINGS",
+            ],
+            run_commands,
+        )
+        self.assertIn(
+            [
+                "adb",
+                "-s",
+                "nokia-x20",
+                "shell",
                 "settings",
                 "put",
                 "global",
@@ -153,6 +166,33 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 "-1",
             ],
             run_commands,
+        )
+        self.assertLess(
+            run_commands.index(
+                [
+                    "adb",
+                    "-s",
+                    "nokia-x20",
+                    "shell",
+                    "pm",
+                    "grant",
+                    "com.android.shell",
+                    "android.permission.WRITE_SECURE_SETTINGS",
+                ]
+            ),
+            run_commands.index(
+                [
+                    "adb",
+                    "-s",
+                    "nokia-x20",
+                    "shell",
+                    "settings",
+                    "put",
+                    "global",
+                    "package_verifier_user_consent",
+                    "-1",
+                ]
+            ),
         )
         self.assertIn(
             ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_SCAN"],

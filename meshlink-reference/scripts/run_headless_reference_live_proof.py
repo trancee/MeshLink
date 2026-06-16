@@ -196,10 +196,42 @@ def shell_join(command: Iterable[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
+ANDROID_SHELL_PACKAGE = "com.android.shell"
+ANDROID_WRITE_SECURE_SETTINGS_PERMISSION = "android.permission.WRITE_SECURE_SETTINGS"
 ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
 
 
+def grant_android_shell_secure_settings(android_serial: str) -> None:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "pm",
+            "grant",
+            ANDROID_SHELL_PACKAGE,
+            ANDROID_WRITE_SECURE_SETTINGS_PERMISSION,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stdout_tail = (result.stdout or "").strip()
+        stderr_tail = (result.stderr or "").strip()
+        detail_parts = [f"exit code {result.returncode}"]
+        if stdout_tail:
+            detail_parts.append(f"stdout: {stdout_tail}")
+        if stderr_tail:
+            detail_parts.append(f"stderr: {stderr_tail}")
+        print(
+            "==> Android secure settings grant step did not report success; continuing with install: "
+            + " | ".join(detail_parts)
+        )
+
+
 def disable_android_play_protect(android_serial: str) -> None:
+    grant_android_shell_secure_settings(android_serial)
     result = run(
         [
             "adb",
