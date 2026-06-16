@@ -104,10 +104,12 @@ TRANSPORT_REQUIRED_MARKERS = [
 ]
 @dataclass
 class AndroidDirectCompletions:
-    sender_completion: str | None
-    passive_completion: str | None
-    export_relative_path: str | None
-    sender_failed: str | None
+    sender_completion: str | None = None
+    passive_completion: str | None = None
+    export_relative_path: str | None = None
+    sender_failed: str | None = None
+    startup_state: str | None = None
+    startup_evidence: str | None = None
 
 
 @dataclass(frozen=True)
@@ -306,6 +308,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Status", status),
                 ("Failure stage", payload.get("failureStage")),
                 ("Failure reason", payload.get("failureReason")),
+                ("Startup state", payload.get("startupState")),
+                ("Startup evidence", payload.get("startupStateEvidence")),
                 ("Sender", payload.get("senderSerial")),
                 ("Passive", payload.get("passiveSerial")),
                 ("Route stage", payload.get("routeStage")),
@@ -405,6 +409,17 @@ def extract_sender_failure(log_text: str) -> str | None:
     )
 
 
+def extract_startup_state(log_text: str) -> tuple[str | None, str | None]:
+    for line in log_text.splitlines():
+        if "startup-state=" not in line:
+            continue
+        match = re.search(r"startup-state=([a-z-]+)", line)
+        if match is None:
+            continue
+        return match.group(1), line.strip()
+    return None, None
+
+
 def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
     stage: str | None = None
     evidence: str | None = None
@@ -467,11 +482,16 @@ def collect_android_completions(run_dir: Path) -> AndroidDirectCompletions:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     passive_completion, export_relative_path = extract_passive_completion(passive_log)
+    startup_state, startup_evidence = extract_startup_state(passive_log)
+    if startup_state is None:
+        startup_state, startup_evidence = extract_startup_state(sender_log)
     return AndroidDirectCompletions(
         sender_completion=extract_sender_completion(sender_log),
         passive_completion=passive_completion,
         export_relative_path=export_relative_path,
         sender_failed=extract_sender_failure(sender_log),
+        startup_state=startup_state,
+        startup_evidence=startup_evidence,
     )
 
 
@@ -487,11 +507,16 @@ def collect_android_completions_best_effort(run_dir: Path) -> AndroidDirectCompl
         match = ANDROID_PROOF_COMPLETE_PATTERN.search(line)
         export_relative_path = match.group("export") if match is not None else None
         break
+    startup_state, startup_evidence = extract_startup_state(passive_log)
+    if startup_state is None:
+        startup_state, startup_evidence = extract_startup_state(sender_log)
     return AndroidDirectCompletions(
         sender_completion=extract_sender_completion(sender_log),
         passive_completion=passive_completion,
         export_relative_path=export_relative_path,
         sender_failed=extract_sender_failure(sender_log),
+        startup_state=startup_state,
+        startup_evidence=startup_evidence,
     )
 
 
@@ -1351,6 +1376,8 @@ def summarize_and_verify(
         "passiveCompletion": passive_completion_line,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "startupState": completions.startup_state,
+        "startupStateEvidence": completions.startup_evidence,
         "routeStage": route_stage,
         "routeEvidence": route_evidence,
         "senderRouteStage": sender_route_stage,
@@ -1404,6 +1431,8 @@ def failure_summary(
         "senderFailure": completions.sender_failed,
         "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "startupState": completions.startup_state,
+        "startupStateEvidence": completions.startup_evidence,
         "routeStage": route_stage,
         "routeEvidence": route_evidence,
         "senderRouteStage": sender_route_stage,

@@ -698,6 +698,38 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(summary["failureStage"], "input-validation")
             self.assertIn("same-device", summary["failureReason"])
 
+    def test_extract_startup_state_reads_explicit_log_marker(self) -> None:
+        startup_state, startup_evidence = android_direct_proof.extract_startup_state(
+            "MeshLink proof app ready\nBluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off\n"
+        )
+
+        self.assertEqual(startup_state, "bluetooth-disabled")
+        self.assertEqual(
+            startup_evidence,
+            "Bluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off",
+        )
+
+    def test_render_summary_html_includes_startup_state(self) -> None:
+        html = android_direct_proof.render_summary_html(
+            {
+                "status": "failed",
+                "appId": "demo.meshlink",
+                "scenario": "direct-guided",
+                "htmlReportPath": "summary.html",
+                "failureStage": "startup",
+                "failureReason": "Bluetooth unavailable",
+                "startupState": "bluetooth-disabled",
+                "startupStateEvidence": "Bluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off",
+                "senderSerial": "sender-1",
+                "passiveSerial": "passive-1",
+                "routeStage": None,
+                "timings": {},
+            }
+        )
+
+        self.assertIn("startup-state=bluetooth-disabled", html)
+        self.assertIn("Bluetooth unavailable", html)
+
     def test_main_rejects_extra_force_stop_serial_that_reuses_a_role_device(self) -> None:
         # Arrange / Act
         with tempfile.TemporaryDirectory() as temporary_directory:

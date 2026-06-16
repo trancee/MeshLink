@@ -16,6 +16,7 @@ class ProofBluetoothContractTest {
             )
 
         assertTrue(readiness.ready)
+        assertEquals(ProofBluetoothContract.StartupState.Ready, readiness.startupState)
         assertEquals(null, readiness.reason)
     }
 
@@ -29,6 +30,7 @@ class ProofBluetoothContractTest {
             )
 
         assertFalse(readiness.ready)
+        assertEquals(ProofBluetoothContract.StartupState.ManagerUnavailable, readiness.startupState)
         assertEquals("BluetoothManager is unavailable", readiness.reason)
     }
 
@@ -42,6 +44,23 @@ class ProofBluetoothContractTest {
             )
 
         assertFalse(readiness.ready)
+        assertEquals(ProofBluetoothContract.StartupState.Disabled, readiness.startupState)
         assertEquals("Bluetooth is turned off", readiness.reason)
+    }
+
+    @Test
+    fun evaluate_reports_missing_adapter_with_explicit_startup_state() {
+        val readiness =
+            ProofBluetoothContract.evaluate(
+                bluetoothManagerAvailable = true,
+                bluetoothAdapterAvailable = false,
+                bluetoothEnabled = false,
+            )
+
+        assertFalse(readiness.ready)
+        assertEquals(ProofBluetoothContract.StartupState.AdapterUnavailable, readiness.startupState)
+        assertEquals("BluetoothAdapter is unavailable", readiness.reason)
+        assertEquals("Error(startup-state=bluetooth-adapter-unavailable)", readiness.startupState.renderStateLabel())
+        assertEquals("startup-state=bluetooth-adapter-unavailable", readiness.startupState.renderLogLabel())
     }
 }

@@ -44,7 +44,16 @@ start() with l2capPsm=201
 REFERENCE_AUTOMATION proof.complete role=passive inbound=true ...
 ```
 
-That means the retained summary is correctly describing the actual carried transport, not just the requested benchmark fixture.
+## Failure-path evidence
+
+Targeted replay: `nam_lx9_gatt_replay`
+- sender: `09071JEC215801` / Pixel 4a / Android 13
+- passive: `2ASVB21B09005117` / NAM-LX9 / Android 12
+- status: `FAILED`
+- retained startup state: `bluetooth-disabled`
+- passive log marker: `Bluetooth preflight blocked; startup-state=bluetooth-disabled; Bluetooth is turned off`
+
+That means the retained summary is correctly describing the actual carried transport when the run succeeds, and the failure path now makes the Bluetooth-off startup boundary explicit instead of collapsing into a generic GATT crash.
 
 ## Sender/reference-app trace
 

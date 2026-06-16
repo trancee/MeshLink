@@ -158,8 +158,10 @@ internal object MeshLinkProofRuntime {
         val bluetoothReadiness = ProofBluetoothContract.inspect(context)
         if (!bluetoothReadiness.ready) {
             return scope.launch {
-                runtimeStateText = "Error(${bluetoothReadiness.reason ?: "Bluetooth unavailable"})"
-                appendLog("Bluetooth preflight failed; ${bluetoothReadiness.reason}")
+                runtimeStateText = bluetoothReadiness.startupState.renderStateLabel()
+                appendLog(
+                    "Bluetooth preflight failed; ${bluetoothReadiness.startupState.renderLogLabel()}; ${bluetoothReadiness.reason}"
+                )
                 updatesFlow.tryEmit(Unit)
             }
         }
