@@ -471,6 +471,12 @@ class MeshRoutingIntegrationTest {
         prewarmRoute(sender = sender, recipient = recipient)
         harness.unlinkPeers(sender, recipient)
         testDelay(100)
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_EXPIRED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = false,
+        )
 
         // Act
         val sendResult = sender.meshLink.send(recipient.peerId, payload)
