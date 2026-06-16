@@ -14,12 +14,12 @@ The intended first public release shape is:
 
 - a published `:meshlink` artifact for Gradle consumers
 - the existing generated Apple framework path for iOS Xcode hosts
-- Swift Package Manager support for both checkout and release binary targets
-- SwiftPM support at the repository root for checkout and release binary targets
+- Swift Package Manager support at the repository root for checkout and release binary targets
 
-Artifact publication is not yet wired into this repository. That means the
-repository can now automate release PRs, tags, GitHub releases, and next-
-snapshot bumps, but publishing the SDK artifact remains a separate follow-up.
+Artifact publication is partially wired into this repository. The release
+workflow now packages the SwiftPM XCFramework zip and checksum on published
+GitHub releases, while the Maven/Gradle SDK publication and signing steps remain
+separate follow-up work.
 
 ## Release automation
 
