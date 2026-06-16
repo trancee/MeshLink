@@ -10,7 +10,7 @@ zip_path="$artifact_dir/$xcframework_name.zip"
 checksum_path="$artifact_dir/$xcframework_name.checksum"
 
 cd "$repo_root"
-./gradlew :meshlink:assembleXCFramework
+./gradlew :meshlink:assembleMeshLinkReleaseXCFramework
 
 rm -rf "$artifact_dir"
 mkdir -p "$artifact_dir"

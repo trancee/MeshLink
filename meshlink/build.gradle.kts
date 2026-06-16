@@ -17,7 +17,7 @@ plugins {
 
 kotlin {
     explicitApi()
-    val meshLinkXCFramework = XCFramework()
+    val meshLinkXCFramework = XCFramework("MeshLink")
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
     android {
         namespace = "ch.trancee.meshlink"
