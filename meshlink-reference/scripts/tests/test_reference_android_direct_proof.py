@@ -878,7 +878,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             del check, capture_output, text, env, timeout
             call_log.append(list(command))
             if command[:2] == ["adb", "-s"] and command[3] == "uninstall":
-                return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
+                return subprocess.CompletedProcess(command, 1, stdout="", stderr="Unknown package: ch.trancee.meshlink.reference")
             gradle_calls = [c for c in call_log if c[0] == "./gradlew"]
             if len(gradle_calls) == 1:
                 return subprocess.CompletedProcess(

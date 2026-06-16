@@ -200,7 +200,7 @@ ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
 
 
 def disable_android_play_protect(android_serial: str) -> None:
-    run(
+    result = run(
         [
             "adb",
             "-s",
@@ -213,7 +213,20 @@ def disable_android_play_protect(android_serial: str) -> None:
             ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED,
         ],
         capture_output=True,
+        check=False,
     )
+    if result.returncode != 0:
+        stdout_tail = (result.stdout or "").strip()
+        stderr_tail = (result.stderr or "").strip()
+        detail_parts = [f"exit code {result.returncode}"]
+        if stdout_tail:
+            detail_parts.append(f"stdout: {stdout_tail}")
+        if stderr_tail:
+            detail_parts.append(f"stderr: {stderr_tail}")
+        print(
+            "==> Android Play Protect disable step did not report success; continuing with install: "
+            + " | ".join(detail_parts)
+        )
 
 
 def timestamp() -> str:
@@ -649,7 +662,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
         )
-        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True)
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True, check=False)
         uninstall_stdout = (uninstall_result.stdout or "").strip()
         uninstall_stderr = (uninstall_result.stderr or "").strip()
         print(

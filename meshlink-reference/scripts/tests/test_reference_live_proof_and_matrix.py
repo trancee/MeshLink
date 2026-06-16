@@ -124,6 +124,8 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
         def fake_subprocess_run(command: list[str], **kwargs):
             del kwargs
             install_commands.append(list(command))
+            if command[:2] == ["adb", "-s"] and command[3:8] == ["shell", "settings", "put", "global", "package_verifier_user_consent"]:
+                return __import__("subprocess").CompletedProcess(command, 1, stdout="", stderr="SecurityException: WRITE_SECURE_SETTINGS denied")
             return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
 
         with (
