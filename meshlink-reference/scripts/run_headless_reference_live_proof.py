@@ -710,6 +710,7 @@ def grant_android_runtime_permissions(android_serial: str, android_package: str 
         result = run(
             ["adb", "-s", android_serial, "shell", "pm", "grant", android_package, permission],
             capture_output=True,
+            check=False,
         )
         if result.returncode != 0:
             stdout_tail = (result.stdout or "").strip()
