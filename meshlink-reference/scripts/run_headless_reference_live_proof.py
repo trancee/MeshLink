@@ -658,6 +658,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
             + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
         )
         run_install_once()
+    grant_android_runtime_permissions(android_serial)
     apk_path = android_apk_path()
     if apk_path is not None:
         write_android_install_cache(
@@ -689,6 +690,26 @@ def android_runtime_permissions(android_serial: str) -> list[str]:
         if android_sdk_int(android_serial) >= 31
         else ["android.permission.ACCESS_FINE_LOCATION"]
     )
+
+
+def grant_android_runtime_permissions(android_serial: str, android_package: str = ANDROID_PACKAGE) -> None:
+    for permission in android_runtime_permissions(android_serial):
+        result = run(
+            ["adb", "-s", android_serial, "shell", "pm", "grant", android_package, permission],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()
+            stderr_tail = (result.stderr or "").strip()
+            detail_parts = [f"exit code {result.returncode}"]
+            if stdout_tail:
+                detail_parts.append(f"stdout: {stdout_tail}")
+            if stderr_tail:
+                detail_parts.append(f"stderr: {stderr_tail}")
+            print(
+                "==> Android runtime permission grant did not report success for "
+                f"{android_package} {permission}: " + " | ".join(detail_parts)
+            )
 
 
 def verify_android_runtime_permissions(android_serial: str) -> None:

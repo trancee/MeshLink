@@ -123,6 +123,7 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
         with (
             patch.object(live_proof, "android_apk_path", return_value=None),
             patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+            patch.object(live_proof, "android_sdk_int", return_value=33),
             patch.object(live_proof, "run", side_effect=fake_run),
             patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
             patch.object(live_proof.time, "sleep", return_value=None),
@@ -143,6 +144,18 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 "package_verifier_user_consent",
                 "-1",
             ],
+            run_commands,
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_SCAN"],
+            run_commands,
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_CONNECT"],
+            run_commands,
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_ADVERTISE"],
             run_commands,
         )
         self.assertTrue(install_commands)
