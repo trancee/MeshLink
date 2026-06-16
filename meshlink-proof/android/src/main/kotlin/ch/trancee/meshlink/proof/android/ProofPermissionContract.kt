@@ -35,8 +35,36 @@ internal object ProofPermissionContract {
 }
 
 internal object ProofBluetoothContract {
+    internal enum class StartupState(
+        val label: String,
+        val reason: String?,
+    ) {
+        Ready("ready", null),
+        ManagerUnavailable("bluetooth-manager-unavailable", "BluetoothManager is unavailable"),
+        AdapterUnavailable("bluetooth-adapter-unavailable", "BluetoothAdapter is unavailable"),
+        Disabled("bluetooth-disabled", "Bluetooth is turned off"),
+
+        ;
+
+        val isReady: Boolean
+            get() = this == Ready
+
+        fun renderStateLabel(): String {
+            return if (isReady) {
+                "Ready"
+            } else {
+                "Error(startup-state=$label)"
+            }
+        }
+
+        fun renderLogLabel(): String {
+            return "startup-state=$label"
+        }
+    }
+
     internal data class Readiness(
         val ready: Boolean,
+        val startupState: StartupState,
         val reason: String?,
     )
 
@@ -46,15 +74,15 @@ internal object ProofBluetoothContract {
         bluetoothEnabled: Boolean,
     ): Readiness {
         if (!bluetoothManagerAvailable) {
-            return Readiness(false, "BluetoothManager is unavailable")
+            return Readiness(false, StartupState.ManagerUnavailable, StartupState.ManagerUnavailable.reason)
         }
         if (!bluetoothAdapterAvailable) {
-            return Readiness(false, "BluetoothAdapter is unavailable")
+            return Readiness(false, StartupState.AdapterUnavailable, StartupState.AdapterUnavailable.reason)
         }
         if (!bluetoothEnabled) {
-            return Readiness(false, "Bluetooth is turned off")
+            return Readiness(false, StartupState.Disabled, StartupState.Disabled.reason)
         }
-        return Readiness(true, null)
+        return Readiness(true, StartupState.Ready, null)
     }
 
     fun inspect(context: Context): Readiness {

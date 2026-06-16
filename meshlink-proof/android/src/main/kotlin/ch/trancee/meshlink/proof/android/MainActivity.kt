@@ -142,7 +142,7 @@ class MainActivity : Activity() {
             MeshLinkProofRuntime.start()
         } else {
             MeshLinkProofRuntime.appendLog(
-                "Bluetooth preflight blocked; ${bluetoothReadiness.reason}"
+                "Bluetooth preflight blocked; ${bluetoothReadiness.startupState.renderLogLabel()}; ${bluetoothReadiness.reason}"
             )
         }
     }

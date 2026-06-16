@@ -17,6 +17,9 @@ import run_headless_reference_android_direct_proof as android_direct_proof  # no
 import run_headless_reference_live_proof as live_proof  # noqa: E402
 
 
+ACTIVE_FAKE_LOGCAT_PROCESSES: list[object] = []
+
+
 def _close_stream(stream: object | None) -> None:
     if stream is None:
         return
@@ -32,6 +35,7 @@ class FakeLogcatProcess:
         self._shared = shared
         self._serial = command[2]
         self._stopped = False
+        ACTIVE_FAKE_LOGCAT_PROCESSES.append(self)
         serial = self._serial
         if serial == "passive-1":
             self._shared["passive_log"] = stdout
@@ -119,8 +123,7 @@ class FakeLogcatProcess:
 
     def close(self) -> None:
         _close_stream(self._stdout)
-        if self._serial != "passive-1":
-            _close_stream(self._shared.get("passive_log"))
+        _close_stream(self._shared.get("passive_log"))
 
     def poll(self) -> int | None:
         return None if not self._stopped else 0
@@ -181,6 +184,13 @@ class FakeCompletedProcess:
         return False
 
 class AndroidDirectProofTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        while ACTIVE_FAKE_LOGCAT_PROCESSES:
+            process = ACTIVE_FAKE_LOGCAT_PROCESSES.pop()
+            close = getattr(process, "close", None)
+            if callable(close):
+                close()
+
     def test_parse_args_accepts_passive_benchmark_transport(self) -> None:
         # Arrange / Act
         args = android_direct_proof.parse_args(
@@ -489,6 +499,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self._shared = shared
                 self._serial = command[2]
                 self._stopped = False
+                ACTIVE_FAKE_LOGCAT_PROCESSES.append(self)
                 serial = self._serial
                 if serial == "GX6CTR500184":
                     shared["passive_log"] = stdout
@@ -506,8 +517,7 @@ class AndroidDirectProofTests(unittest.TestCase):
 
             def close(self) -> None:
                 _close_stream(self._stdout)
-                if self._serial != "GX6CTR500184":
-                    _close_stream(self._shared.get("passive_log"))
+                _close_stream(self._shared.get("passive_log"))
 
             def poll(self) -> int | None:
                 return None if not self._stopped else 0
@@ -697,6 +707,38 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(summary["status"], "failed")
             self.assertEqual(summary["failureStage"], "input-validation")
             self.assertIn("same-device", summary["failureReason"])
+
+    def test_extract_startup_state_reads_explicit_log_marker(self) -> None:
+        startup_state, startup_evidence = android_direct_proof.extract_startup_state(
+            "MeshLink proof app ready\nBluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off\n"
+        )
+
+        self.assertEqual(startup_state, "bluetooth-disabled")
+        self.assertEqual(
+            startup_evidence,
+            "Bluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off",
+        )
+
+    def test_render_summary_html_includes_startup_state(self) -> None:
+        html = android_direct_proof.render_summary_html(
+            {
+                "status": "failed",
+                "appId": "demo.meshlink",
+                "scenario": "direct-guided",
+                "htmlReportPath": "summary.html",
+                "failureStage": "startup",
+                "failureReason": "Bluetooth unavailable",
+                "startupState": "bluetooth-disabled",
+                "startupStateEvidence": "Bluetooth preflight failed; startup-state=bluetooth-disabled; Bluetooth is turned off",
+                "senderSerial": "sender-1",
+                "passiveSerial": "passive-1",
+                "routeStage": None,
+                "timings": {},
+            }
+        )
+
+        self.assertIn("startup-state=bluetooth-disabled", html)
+        self.assertIn("Bluetooth unavailable", html)
 
     def test_main_rejects_extra_force_stop_serial_that_reuses_a_role_device(self) -> None:
         # Arrange / Act

@@ -1,6 +1,6 @@
 # Android direct-proof matrix result
 
-Last verified: 2026-06-15
+Last verified: 2026-06-16
 
 This page captures the observed Android direct-proof matrix result from the
 132-pair fail-fast sweep across the attached Android fleet.
@@ -23,7 +23,8 @@ This page captures the observed Android direct-proof matrix result from the
 - Install warm-up surfaced two device-specific issues before the matrix began: **Mi Note 3** install/uninstall failure and **OnePlus 7T** install timeout
 - Every successful pairing used **L2CAP**; **GATT** produced no passes
 - The latest attached-fleet rerun split the remaining failures into reproducible preflight/install and launch clusters, but still produced no pass on either transport path
-- The proof app now fails fast when Bluetooth is off or the manager/adapter is unavailable, and it surfaces that reason in the UI state as well as logs, so the next GATT issue is a visible device preflight problem instead of an opaque `BluetoothGattServer is unavailable` crash
+- The targeted NAM-LX9 replay preserved `startupState: bluetooth-disabled` in the retained summary, so the remaining failure is now classified as an explicit Bluetooth-off startup boundary instead of an opaque `BluetoothGattServer is unavailable` crash
+- The proof app now fails fast when Bluetooth is off or the manager/adapter is unavailable, and it surfaces that reason in the UI state as well as logs, so the next GATT issue is a visible startup-state problem instead of an opaque transport crash
 - The next transport work needs to fix the app-side primary-transport contract before the retained summary can report a true GATT-primary pass
 
 ## Timing summary

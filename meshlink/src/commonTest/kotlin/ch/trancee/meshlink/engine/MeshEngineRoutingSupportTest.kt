@@ -164,10 +164,20 @@ class MeshEngineRoutingSupportTest {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val remoteIdentity = LocalIdentity.fromAppId("routing-remote")
-            val fixture = routingSupportFixture(localPeerId = localIdentity.peerId)
+            val observerIdentity = LocalIdentity.fromAppId("routing-observer")
+            val runtimeSurface = MeshEngineRuntimeSurface().also { it.beginHardRun() }
+            val fixture =
+                routingSupportFixture(
+                    localPeerId = localIdentity.peerId,
+                    runtimeSurface = runtimeSurface,
+                )
             fixture.routeCoordinator.onPeerConnected(
                 peerId = remoteIdentity.peerId,
                 trustRecord = trustRecordFor(remoteIdentity),
+            )
+            fixture.routeCoordinator.onPeerConnected(
+                peerId = observerIdentity.peerId,
+                trustRecord = trustRecordFor(observerIdentity),
             )
             val mutation = fixture.routeCoordinator.onPeerDisconnected(remoteIdentity.peerId)
 
@@ -187,6 +197,19 @@ class MeshEngineRoutingSupportTest {
             assertEquals(DiagnosticReason.ROUTE_CHANGE, diagnostic.reason)
             assertEquals("retracted", diagnostic.metadata["routeChange"])
             assertEquals(remoteIdentity.peerId.value, diagnostic.metadata["removedByPeerId"])
+            val diagnosticEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("diagnostic:") }
+            val advertisementEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("advertisement:") }
+            assertTrue(diagnosticEventIndex >= 0, "Expected route diagnostics to be recorded")
+            assertTrue(
+                advertisementEventIndex >= 0,
+                "Expected routing advertisements to be recorded",
+            )
+            assertTrue(
+                diagnosticEventIndex < advertisementEventIndex,
+                "Expected diagnostics before advertisements, but saw ${fixture.eventLog}",
+            )
         }
 }
 
