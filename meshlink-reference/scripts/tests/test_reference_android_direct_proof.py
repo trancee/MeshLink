@@ -17,6 +17,9 @@ import run_headless_reference_android_direct_proof as android_direct_proof  # no
 import run_headless_reference_live_proof as live_proof  # noqa: E402
 
 
+ACTIVE_FAKE_LOGCAT_PROCESSES: list[object] = []
+
+
 def _close_stream(stream: object | None) -> None:
     if stream is None:
         return
@@ -32,6 +35,7 @@ class FakeLogcatProcess:
         self._shared = shared
         self._serial = command[2]
         self._stopped = False
+        ACTIVE_FAKE_LOGCAT_PROCESSES.append(self)
         serial = self._serial
         if serial == "passive-1":
             self._shared["passive_log"] = stdout
@@ -119,8 +123,7 @@ class FakeLogcatProcess:
 
     def close(self) -> None:
         _close_stream(self._stdout)
-        if self._serial != "passive-1":
-            _close_stream(self._shared.get("passive_log"))
+        _close_stream(self._shared.get("passive_log"))
 
     def poll(self) -> int | None:
         return None if not self._stopped else 0
@@ -181,6 +184,13 @@ class FakeCompletedProcess:
         return False
 
 class AndroidDirectProofTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        while ACTIVE_FAKE_LOGCAT_PROCESSES:
+            process = ACTIVE_FAKE_LOGCAT_PROCESSES.pop()
+            close = getattr(process, "close", None)
+            if callable(close):
+                close()
+
     def test_parse_args_accepts_passive_benchmark_transport(self) -> None:
         # Arrange / Act
         args = android_direct_proof.parse_args(
@@ -489,6 +499,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self._shared = shared
                 self._serial = command[2]
                 self._stopped = False
+                ACTIVE_FAKE_LOGCAT_PROCESSES.append(self)
                 serial = self._serial
                 if serial == "GX6CTR500184":
                     shared["passive_log"] = stdout
@@ -506,8 +517,7 @@ class AndroidDirectProofTests(unittest.TestCase):
 
             def close(self) -> None:
                 _close_stream(self._stdout)
-                if self._serial != "GX6CTR500184":
-                    _close_stream(self._shared.get("passive_log"))
+                _close_stream(self._shared.get("passive_log"))
 
             def poll(self) -> int | None:
                 return None if not self._stopped else 0
