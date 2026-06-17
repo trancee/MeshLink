@@ -3,7 +3,8 @@
 Last verified: 2026-06-16
 
 This page captures the observed Android direct-proof matrix result from the
-132-pair fail-fast sweep across the attached Android fleet.
+132-pair fail-fast sweep across the attached Android fleet. It preserves the
+canonical 45s fail-fast rerun summary that downstream docs and checks point to.
 
 ## Scope
 
