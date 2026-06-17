@@ -262,8 +262,8 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
     )
     link.readLoopJob?.cancel()
     closeQuietly(link)
-    if (retryRequested && retryPeer != null) {
-        scheduleL2capReconnect(retryPeer)
+    if (retryRequested) {
+        scheduleL2capReconnect(requireNotNull(retryPeer))
         return
     }
     if (gattSideLinks.hasReadyLink(hintPeer)) {
