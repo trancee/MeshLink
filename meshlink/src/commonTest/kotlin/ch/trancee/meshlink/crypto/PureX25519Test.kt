@@ -22,6 +22,24 @@ class PureX25519Test {
     }
 
     @Test
+    fun `x25519 ignores the high bit of a noncanonical public key`() {
+        // Arrange
+        val privateKey = hex("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d")
+        val canonicalPublicKey = hex("e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493")
+        val nonCanonicalPublicKey =
+            canonicalPublicKey.copyOf().also {
+                it[it.lastIndex] = (it[it.lastIndex].toInt() or 0x80).toByte()
+            }
+
+        // Act
+        val canonicalSharedSecret = PureX25519.sharedSecret(privateKey, canonicalPublicKey)
+        val nonCanonicalSharedSecret = PureX25519.sharedSecret(privateKey, nonCanonicalPublicKey)
+
+        // Assert
+        assertContentEquals(canonicalSharedSecret, nonCanonicalSharedSecret)
+    }
+
+    @Test
     fun `shared secret matches rfc 7748 vector 2`() {
         // Arrange
         val privateKey = hex("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d")
