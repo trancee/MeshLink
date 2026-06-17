@@ -45,11 +45,11 @@ Rows not listed above are retained as regression-tracked evidence only.
 
 X25519 provider comparison from the 2026-06-17 benchmark refresh is retained in `benchmarks/build/reports/benchmarks/main/2026-06-17T23.04.11.896144882/jvm.json`:
 
-- JCA/JVM keypair: 101.601 us/op
-- Pure fallback keypair: 338.214 us/op
-- JCA/JVM agreement: 115.999 us/op
-- Pure fallback agreement: 339.983 us/op
-- The in-place ladder rewrite reduced the pure-path cost materially, but the JCA/provider-backed path remains the preferred fast path.
+- JCA/JVM keypair: 100.461 us/op
+- Pure fallback keypair: 300.400 us/op
+- JCA/JVM agreement: 100.808 us/op
+- Pure fallback agreement: 315.987 us/op
+- The in-place ladder rewrite and the specialized `a24` multiply reduced the pure-path cost materially, but the JCA/provider-backed path remains the preferred fast path.
 
 Fresh JVM integration evidence from `MemoryBudgetIntegrationTest` retained:
 

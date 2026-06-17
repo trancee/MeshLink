@@ -22,6 +22,25 @@ class PureX25519Test {
     }
 
     @Test
+    fun `x25519 clamps the private scalar bits before multiplication`() {
+        // Arrange
+        val unclampedPrivateKey =
+            hex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449a7f")
+        val clampedPrivateKey = unclampedPrivateKey.copyOf().also {
+            it[0] = (it[0].toInt() and 248).toByte()
+            it[31] = ((it[31].toInt() and 127) or 64).toByte()
+        }
+        val publicKey = ByteArray(32).also { it[0] = 9 }
+
+        // Act
+        val unclampedSharedSecret = PureX25519.sharedSecret(unclampedPrivateKey, publicKey)
+        val clampedSharedSecret = PureX25519.sharedSecret(clampedPrivateKey, publicKey)
+
+        // Assert
+        assertContentEquals(clampedSharedSecret, unclampedSharedSecret)
+    }
+
+    @Test
     fun `x25519 ignores the high bit of a noncanonical public key`() {
         // Arrange
         val privateKey = hex("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d")

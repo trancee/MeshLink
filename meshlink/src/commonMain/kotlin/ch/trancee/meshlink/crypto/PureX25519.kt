@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.crypto
 
 internal object PureX25519 {
-    private val a24 = longArrayOf(0xdb41, 0x0001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     private val basePoint = ByteArray(32).also { it[0] = 9 }
 
     fun publicKeyFromPrivate(privateKey: ByteArray): ByteArray {
@@ -49,7 +48,7 @@ internal object PureX25519 {
             subtractInto(a, a, c)
             squareInto(b, a, product)
             subtractInto(c, d, g)
-            multiplyInto(a, c, a24, product)
+            multiplyByA24Into(a, c, product)
             addInto(a, a, d)
             multiplyInto(c, c, a, product)
             multiplyInto(a, d, g, product)
@@ -98,6 +97,26 @@ internal object PureX25519 {
         }
         for (i in 0 until 15) {
             product[i] += 38L * product[i + 16]
+        }
+        for (index in 0 until 16) {
+            dest[index] = product[index]
+        }
+        carry25519(dest)
+        carry25519(dest)
+    }
+
+    private fun multiplyByA24Into(dest: LongArray, value: LongArray, product: LongArray) {
+        for (index in 0 until 31) {
+            product[index] = 0L
+        }
+        for (index in 0 until 16) {
+            product[index] += value[index] * 0xdb41L
+            if (index + 1 < 31) {
+                product[index + 1] += value[index]
+            }
+        }
+        for (index in 0 until 15) {
+            product[index] += 38L * product[index + 16]
         }
         for (index in 0 until 16) {
             dest[index] = product[index]
