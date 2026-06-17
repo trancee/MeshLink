@@ -69,6 +69,17 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
     connectJob.start()
 }
 
+internal fun BleTransportAdapter.scheduleL2capReconnect(peer: DiscoveredPeer): Unit {
+    coroutineScope.launch {
+        delay(L2CAP_RECONNECT_BACKOFF_MS)
+        val retryPeer = peerRegistry.peer(peer.hintPeerId.value) ?: return@launch
+        log(
+            "retrying L2CAP connect for ${retryPeer.hintPeerId.value.takeLast(6)} after transient close"
+        )
+        connectIfNeeded(retryPeer)
+    }
+}
+
 internal fun BleTransportAdapter.promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
     val mappedTemporaryHint = peerBindings.temporaryHintForAddress(address) ?: return
     when (
@@ -226,6 +237,7 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     l2capServerSocket = null
     val hintIds = linkRegistry.activeHintIdsSnapshot()
     hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
+    l2capReconnectGuard.clear()
     gattSideLinks.stopAll()
     inboundFrameQueue?.close()
     inboundFrameQueue = null
@@ -238,12 +250,22 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
 
 internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit {
     val link = linkRegistry.removeActiveLink(hintPeer) ?: return
+    val retryPeer = peerRegistry.peer(hintPeer)
+    val retryRequested =
+        retryPeer != null &&
+            !hasPendingConnect(hintPeer) &&
+            !gattSideLinks.hasReadyLink(hintPeer) &&
+            l2capReconnectGuard.shouldRetry(hintPeerIdValue = hintPeer, reason = reason)
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, false)
     log(
-        "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${peerRegistry.peer(hintPeer) != null} pendingConnect=${hasPendingConnect(hintPeer)}"
+        "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${retryPeer != null} pendingConnect=${hasPendingConnect(hintPeer)} retryRequested=$retryRequested"
     )
     link.readLoopJob?.cancel()
     closeQuietly(link)
+    if (retryRequested && retryPeer != null) {
+        scheduleL2capReconnect(retryPeer)
+        return
+    }
     if (gattSideLinks.hasReadyLink(hintPeer)) {
         log(
             "retaining peer ${hintPeer.takeLast(6)} after L2CAP close because the GATT side link is still active"
@@ -257,6 +279,7 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
 
 private const val ZERO_BYTE_READ_BACKOFF_MS: Long = 5L
 private const val MAX_CONSECUTIVE_ZERO_BYTE_READS: Int = 3
+private const val L2CAP_RECONNECT_BACKOFF_MS: Long = 500L
 
 internal class L2capLink(
     internal var peerHintId: PeerId,

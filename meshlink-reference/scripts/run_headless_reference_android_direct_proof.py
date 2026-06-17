@@ -33,6 +33,7 @@ from run_headless_reference_live_proof import (
     android_sdk_int,
     ensure_android_device_ready,
     force_stop_reference_app,
+    grant_android_runtime_permissions,
     install_android_app,
     read_android_app_file,
     run,
@@ -993,6 +994,7 @@ def install_android_proof_app(
                 f"Android proof app install failed for '{android_serial}' with exit code {retry_error.returncode}{retry_suffix}"
             ) from retry_error
 
+    grant_android_runtime_permissions(android_serial, ANDROID_PROOF_PACKAGE)
     verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
 
 
@@ -1280,6 +1282,8 @@ def verify_passive_log(log_path: Path, *, passive_transport: str = "meshlink") -
             if marker not in log_text:
                 raise SystemExit(f"Expected passive log to contain '{marker}'")
         completion_line, _export_relative_path = extract_passive_completion(log_text)
+        if completion_line is None:
+            raise SystemExit("Missing passive proof.complete line in passive log")
         return completion_line
     if passive_transport == "gatt":
         required_markers = [
@@ -1550,10 +1554,9 @@ def main(argv: list[str] | None = None) -> int:
                     min(args.capture_timeout_seconds * 0.3, 20.0),
                 )
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
-                passive_transport_observation = wait_for_android_app_file_marker(
-                    args.passive_android_serial,
-                    "direct-proof-probe/gatt-start.txt",
-                    "role=PASSIVE benchmarkTransport=gatt",
+                passive_transport_observation = wait_for_log_marker_observation(
+                    passive_marker_path,
+                    "advertising started mode=2 tx=3 connectable=true",
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
@@ -1585,10 +1588,14 @@ def main(argv: list[str] | None = None) -> int:
                     min(args.capture_timeout_seconds * 0.3, 20.0),
                 )
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
-                passive_transport_observation = wait_for_android_app_file_marker(
-                    args.passive_android_serial,
-                    "direct-proof-probe/gatt-start.txt",
-                    "role=PASSIVE benchmarkTransport=gatt",
+                passive_transport_start_marker = (
+                    "gatt.notify.start() -> Started"
+                    if args.passive_benchmark_transport == "gatt-notify"
+                    else "gatt.benchmark.start() -> Started"
+                )
+                passive_transport_observation = wait_for_log_marker_observation(
+                    passive_marker_path,
+                    passive_transport_start_marker,
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation

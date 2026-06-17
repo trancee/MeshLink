@@ -55,6 +55,11 @@ wake-lock mitigation during live-proof automation; if discovery still stalls,
 check both permissions and battery optimization / screen-awake state before
 assuming it is a pure transport failure.
 
+Important remark: if `adb install` fails with `INSTALL_FAILED_USER_RESTRICTED`
+or `Install canceled by user`, open **Developer options** on the Android device
+and explicitly enable **Install via USB**. On the Mi Note 3 this is the first
+thing to verify before chasing MeshLink startup or transport bugs.
+
 After changing Android permissions:
 
 1. force-stop or relaunch the app

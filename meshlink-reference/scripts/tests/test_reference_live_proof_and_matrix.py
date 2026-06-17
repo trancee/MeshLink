@@ -79,6 +79,11 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 )
                 return FakeProcess()
 
+            def fake_start_ios_app_via_devicectl(*args, **kwargs):
+                del args, kwargs
+                (run_dir / "iphone_console.log").parent.mkdir(parents=True, exist_ok=True)
+                return FakeProcess()
+
             with (
                 patch.object(sys, "argv", argv),
                 patch.object(live_proof, "ensure_android_device_ready"),
@@ -88,6 +93,7 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
                 patch.object(live_proof, "install_ios_app"),
                 patch.object(live_proof, "build_ios_app", return_value=Path("/tmp/fake.app")),
                 patch.object(live_proof, "start_android_app", side_effect=fake_start_android_app),
+                patch.object(live_proof, "start_ios_app_via_devicectl", side_effect=fake_start_ios_app_via_devicectl),
                 patch.object(live_proof, "wait_for_android_completion", return_value=("android complete", "exports/session-redacted.json")),
                 patch.object(live_proof, "wait_for_ios_sender_result"),
                 patch.object(live_proof, "verify_ios_sender_log", return_value="ios complete"),
@@ -118,11 +124,14 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
         def fake_subprocess_run(command: list[str], **kwargs):
             del kwargs
             install_commands.append(list(command))
+            if command[:2] == ["adb", "-s"] and command[3:8] == ["shell", "settings", "put", "global", "package_verifier_user_consent"]:
+                return __import__("subprocess").CompletedProcess(command, 1, stdout="", stderr="SecurityException: WRITE_SECURE_SETTINGS denied")
             return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
 
         with (
             patch.object(live_proof, "android_apk_path", return_value=None),
             patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+            patch.object(live_proof, "android_sdk_int", return_value=33),
             patch.object(live_proof, "run", side_effect=fake_run),
             patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
             patch.object(live_proof.time, "sleep", return_value=None),
@@ -131,6 +140,126 @@ class ReferenceLiveProofScriptTests(unittest.TestCase):
             live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
 
         # Assert
+        self.assertIn(
+            [
+                "adb",
+                "-s",
+                "nokia-x20",
+                "shell",
+                "pm",
+                "grant",
+                "com.android.shell",
+                "android.permission.WRITE_SECURE_SETTINGS",
+            ],
+            run_commands,
+        )
+        self.assertIn(
+            [
+                "adb",
+                "-s",
+                "nokia-x20",
+                "shell",
+                "settings",
+                "put",
+                "global",
+                "package_verifier_user_consent",
+                "-1",
+            ],
+            run_commands,
+        )
+        self.assertLess(
+            run_commands.index(
+                [
+                    "adb",
+                    "-s",
+                    "nokia-x20",
+                    "shell",
+                    "pm",
+                    "grant",
+                    "com.android.shell",
+                    "android.permission.WRITE_SECURE_SETTINGS",
+                ]
+            ),
+            run_commands.index(
+                [
+                    "adb",
+                    "-s",
+                    "nokia-x20",
+                    "shell",
+                    "settings",
+                    "put",
+                    "global",
+                    "package_verifier_user_consent",
+                    "-1",
+                ]
+            ),
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_SCAN"],
+            run_commands,
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_CONNECT"],
+            run_commands,
+        )
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_ADVERTISE"],
+            run_commands,
+        )
+        self.assertTrue(install_commands)
+        self.assertTrue(any(command[:2] == ["./gradlew", ":meshlink-reference:installDebug"] for command in install_commands))
+
+    def test_install_android_app_skips_secure_settings_grant_when_already_present(self) -> None:
+        # Arrange
+        run_commands: list[list[str]] = []
+        install_commands: list[list[str]] = []
+
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            run_commands.append(list(command))
+            if command[:2] == ["adb", "-s"] and command[3:6] == ["shell", "dumpsys", "package"] and command[6] == "com.android.shell":
+                return __import__("subprocess").CompletedProcess(
+                    command,
+                    0,
+                    stdout="      android.permission.WRITE_SECURE_SETTINGS: granted=true\n",
+                    stderr="",
+                )
+            return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
+
+        def fake_subprocess_run(command: list[str], **kwargs):
+            del kwargs
+            install_commands.append(list(command))
+            return __import__("subprocess").CompletedProcess(command, 0, stdout="", stderr="")
+
+        with (
+            patch.object(live_proof, "android_apk_path", return_value=None),
+            patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
+            patch.object(live_proof, "android_sdk_int", return_value=33),
+            patch.object(live_proof, "run", side_effect=fake_run),
+            patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
+            patch.object(live_proof.time, "sleep", return_value=None),
+        ):
+            # Act
+            live_proof.install_android_app("nokia-x20", Path("/tmp/run"))
+
+        # Assert
+        self.assertIn(
+            ["adb", "-s", "nokia-x20", "shell", "dumpsys", "package", "com.android.shell"],
+            run_commands,
+        )
+        self.assertNotIn(
+            [
+                "adb",
+                "-s",
+                "nokia-x20",
+                "shell",
+                "pm",
+                "grant",
+                "com.android.shell",
+                "android.permission.WRITE_SECURE_SETTINGS",
+            ],
+            run_commands,
+        )
         self.assertIn(
             [
                 "adb",

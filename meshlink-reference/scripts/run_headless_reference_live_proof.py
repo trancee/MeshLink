@@ -196,11 +196,73 @@ def shell_join(command: Iterable[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
+ANDROID_SHELL_PACKAGE = "com.android.shell"
+ANDROID_WRITE_SECURE_SETTINGS_PERMISSION = "android.permission.WRITE_SECURE_SETTINGS"
 ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
 
 
+def android_shell_has_secure_settings(android_serial: str) -> bool:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "dumpsys",
+            "package",
+            ANDROID_SHELL_PACKAGE,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    output = result.stdout or ""
+    return f"{ANDROID_WRITE_SECURE_SETTINGS_PERMISSION}: granted=true" in output
+
+
+def grant_android_shell_secure_settings(android_serial: str) -> bool:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "pm",
+            "grant",
+            ANDROID_SHELL_PACKAGE,
+            ANDROID_WRITE_SECURE_SETTINGS_PERMISSION,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    stdout_tail = (result.stdout or "").strip()
+    stderr_tail = (result.stderr or "").strip()
+    detail_parts = [f"exit code {result.returncode}"]
+    if stdout_tail:
+        detail_parts.append(f"stdout: {stdout_tail}")
+    if stderr_tail:
+        detail_parts.append(f"stderr: {stderr_tail}")
+    print(
+        "==> Android secure settings grant was not accepted on this build; continuing without it: "
+        + " | ".join(detail_parts)
+    )
+    return False
+
+
 def disable_android_play_protect(android_serial: str) -> None:
-    run(
+    if android_shell_has_secure_settings(android_serial):
+        print(
+            "==> Android shell already has WRITE_SECURE_SETTINGS; skipping secure-settings grant"
+        )
+    else:
+        print(
+            "==> Android shell is missing WRITE_SECURE_SETTINGS; attempting best-effort adb grant"
+        )
+        grant_android_shell_secure_settings(android_serial)
+    result = run(
         [
             "adb",
             "-s",
@@ -213,7 +275,20 @@ def disable_android_play_protect(android_serial: str) -> None:
             ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED,
         ],
         capture_output=True,
+        check=False,
     )
+    if result.returncode != 0:
+        stdout_tail = (result.stdout or "").strip()
+        stderr_tail = (result.stderr or "").strip()
+        detail_parts = [f"exit code {result.returncode}"]
+        if stdout_tail:
+            detail_parts.append(f"stdout: {stdout_tail}")
+        if stderr_tail:
+            detail_parts.append(f"stderr: {stderr_tail}")
+        print(
+            "==> Android Play Protect disable step did not report success; continuing with install: "
+            + " | ".join(detail_parts)
+        )
 
 
 def timestamp() -> str:
@@ -649,7 +724,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
         )
-        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True)
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True, check=False)
         uninstall_stdout = (uninstall_result.stdout or "").strip()
         uninstall_stderr = (uninstall_result.stderr or "").strip()
         print(
@@ -658,6 +733,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
             + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
         )
         run_install_once()
+    grant_android_runtime_permissions(android_serial)
     apk_path = android_apk_path()
     if apk_path is not None:
         write_android_install_cache(
@@ -689,6 +765,27 @@ def android_runtime_permissions(android_serial: str) -> list[str]:
         if android_sdk_int(android_serial) >= 31
         else ["android.permission.ACCESS_FINE_LOCATION"]
     )
+
+
+def grant_android_runtime_permissions(android_serial: str, android_package: str = ANDROID_PACKAGE) -> None:
+    for permission in android_runtime_permissions(android_serial):
+        result = run(
+            ["adb", "-s", android_serial, "shell", "pm", "grant", android_package, permission],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()
+            stderr_tail = (result.stderr or "").strip()
+            detail_parts = [f"exit code {result.returncode}"]
+            if stdout_tail:
+                detail_parts.append(f"stdout: {stdout_tail}")
+            if stderr_tail:
+                detail_parts.append(f"stderr: {stderr_tail}")
+            print(
+                "==> Android runtime permission grant did not report success for "
+                f"{android_package} {permission}: " + " | ".join(detail_parts)
+            )
 
 
 def verify_android_runtime_permissions(android_serial: str) -> None:

@@ -1,6 +1,6 @@
 # Device test matrix reference
 
-Last verified: 2026-06-14
+Last verified: 2026-06-17
 
 This page tracks the Android devices currently attached to the MeshLink test
 bench and the device facts that matter for validation.
@@ -50,31 +50,46 @@ nearest marketed tier used in the table.
 
 | Human-readable device | Brand | Model code | Android / SDK | Memory (RAM) | Storage | Bluetooth | Screen | Chipset | OEM skin | Supported crypto primitives | Known quirks / test notes | GSMArena |
 |---|---|---|---|---:|---:|---:|---|---|---|---|---|---|
-| Nothing Phone (2) | Nothing | A065 | Android 16 / SDK 36 | 12 GB | 256 GB | 5.3 | 6.7" | Snapdragon 8+ Gen 1 | Nothing OS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Newest platform in the set; verify permission, background, and Bluetooth behavior on Android 16 specifically. | [GSMArena](https://www.gsmarena.com/nothing_phone_(2)-12386.php) |
+| Nothing Phone (2) | Nothing | A065 | Android 16 / SDK 36 | 12 GB | 256 GB | 5.3 | 6.7" | Snapdragon 8+ Gen 1 | Nothing OS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519 | Newest platform in the set; verify permission, background, and Bluetooth behavior on Android 16 specifically. | [GSMArena](https://www.gsmarena.com/nothing_phone_(2)-12386.php) |
 | Samsung Galaxy Z Flip4 | Samsung | SM-F721B | Android 16 / SDK 36 | 8 GB | 256 GB | 5.2 | 6.7" | Snapdragon 8+ Gen 1 | One UI 8 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Foldable form factor and an upgraded Android 16 stack make this the device to use for folded vs unfolded, cover-screen, and Samsung power-management checks. | [GSMArena](https://www.gsmarena.com/samsung_galaxy_z_flip4-11538.php) |
 | Nothing Phone (1) | Nothing | A063 | Android 15 / SDK 35 | 8 GB | 256 GB | 5.2 | 6.55" | Snapdragon 778G+ | Nothing OS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Same vendor family as Phone (2) but on Android 15; useful for comparing Nothing-specific behavior across major platform releases. | [GSMArena](https://www.gsmarena.com/nothing_phone_(1)-11636.php) |
 | Realme C55 | realme | RMX3710 | Android 15 / SDK 35 | 8 GB | 256 GB | 5.2 | 6.72" | Helio G88 | realme UI | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | realme UI can be aggressive with background and battery limits; verify reconnects, foreground service survival, and notification delivery. | [GSMArena](https://www.gsmarena.com/realme_c55-12159.php) |
-| Motorola Edge 30 Fusion | motorola | motorola edge 30 fusion | Android 14 / SDK 34 | 8 GB | 128 GB | 5.2 | 6.55" | Snapdragon 888+ 5G | My UX / near-stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Motorola power management can be assertive; verify background work, BLE reconnects, and app wake-up after screen-off. | [GSMArena](https://www.gsmarena.com/motorola_edge_30_fusion-11851.php) |
-| Nokia X20 | Nokia | Nokia X20 | Android 14 / SDK 34 | 6 GB | 128 GB | 5.0 | 6.67" | Snapdragon 480 5G | Android One / near-stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Android One-style baseline with fewer OEM layers; useful for comparing near-stock behavior on the Android 14 upgrade path. | [GSMArena](https://www.gsmarena.com/nokia_x20-10838.php) |
-| OPPO Reno8 5G | OPPO | CPH2359 | Android 14 / SDK 34 | 8 GB | 256 GB | 5.3 | 6.43" | Dimensity 1300 | ColorOS 14 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | ColorOS power management can affect background work; compare against Reno6 to spot OEM drift. | [GSMArena](https://www.gsmarena.com/oppo_reno8-11684.php) |
-| Gigaset GX6 | Gigaset | E940-2849-00 | Android 13 / SDK 33 | 6 GB | 128 GB | 5.2 | 6.6" | Dimensity 900 | Gigaset UI / near-stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Rugged and uncommon OEM stack; verify pairing persistence, reconnect behavior, and idle wake-up. | [GSMArena search](https://www.gsmarena.com/results.php3?sQuickSearch=yes&sName=Gigaset%20GX6) |
-| Google Pixel 4a | Google | sunfish | Android 13 / SDK 33 | 6 GB | 128 GB | 5.0 | 5.81" | Snapdragon 730G | Pixel UI / stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Older Pixel baseline with a smaller display and older Bluetooth stack; good for legacy Android 13 behavior and tighter UI layouts. | [GSMArena](https://www.gsmarena.com/google_pixel_4a-10123.php) |
+| Motorola Edge 30 Fusion | motorola | motorola edge 30 fusion | Android 14 / SDK 34 | 8 GB | 128 GB | 5.2 | 6.55" | Snapdragon 888+ 5G | My UX / near-stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519 | Motorola power management can be assertive; verify background work, BLE reconnects, and app wake-up after screen-off. | [GSMArena](https://www.gsmarena.com/motorola_edge_30_fusion-11851.php) |
+| Nokia X20 | Nokia | Nokia X20 | Android 14 / SDK 34 | 6 GB | 128 GB | 5.0 | 6.67" | Snapdragon 480 5G | Android One / near-stock Android | — | Android One-style baseline with fewer OEM layers; useful for comparing near-stock behavior on the Android 14 upgrade path. | [GSMArena](https://www.gsmarena.com/nokia_x20-10838.php) |
+| OPPO Reno8 5G | OPPO | CPH2359 | Android 14 / SDK 34 | 8 GB | 256 GB | 5.3 | 6.43" | Dimensity 1300 | ColorOS 14 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519 | ColorOS power management can affect background work; compare against Reno6 to spot OEM drift. | [GSMArena](https://www.gsmarena.com/oppo_reno8-11684.php) |
+| Gigaset GX6 | Gigaset | E940-2849-00 | Android 13 / SDK 33 | 6 GB | 128 GB | 5.2 | 6.6" | Dimensity 900 | Gigaset UI / near-stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519 | Rugged and uncommon OEM stack; verify pairing persistence, reconnect behavior, and idle wake-up. | [GSMArena search](https://www.gsmarena.com/results.php3?sQuickSearch=yes&sName=Gigaset%20GX6) |
+| Google Pixel 4a | Google | sunfish | Android 13 / SDK 33 | 6 GB | 128 GB | 5.0 | 5.81" | Snapdragon 730G | Pixel UI / stock Android | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519 | Older Pixel baseline with a smaller display and older Bluetooth stack; good for legacy Android 13 behavior and tighter UI layouts. | [GSMArena](https://www.gsmarena.com/google_pixel_4a-10123.php) |
 | OnePlus Nord 2 5G | OnePlus | DN2103 | Android 13 / SDK 33 | 12 GB | 256 GB | 5.2 | 6.43" | Dimensity 1200 | OxygenOS 13 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Good mid-cycle OnePlus comparison point against the older OnePlus 6; verify upgrade-state and Bluetooth behavior on OxygenOS 13. | [GSMArena](https://www.gsmarena.com/oneplus_nord_2_5g-10960.php) |
 | OPPO A57s | OPPO | CPH2385 | Android 13 / SDK 33 | 4 GB | 128 GB | 5.3 | 6.56" | Helio G35 | ColorOS 13.1.1 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Budget OPPO baseline on a newer Android 13 build than launch; useful for low-RAM and ColorOS power-management checks. | [GSMArena](https://www.gsmarena.com/oppo_a57s-11835.php) |
 | Huawei Nova 9 | HUAWEI | NAM-LX9 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.2 | 6.57" | Snapdragon 778G 4G | HarmonyOS 2.0 / EMUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Huawei/EMUI baseline with no Google Play Services on the public spec page; useful for Huawei-specific app install and service dependency checks. Bluetooth was off during the 2026-06-15 targeted GATT-primary triage, so the proof app now fails fast at Bluetooth preflight instead of reaching the opaque GATT server null path. | [GSMArena](https://www.gsmarena.com/huawei_nova_9-11121.php) |
 | OnePlus 7T | OnePlus | HD1901 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.0 | 6.55" | Snapdragon 855+ | OxygenOS 12.1 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Mid-generation OnePlus baseline with Android 12 and no card slot; useful for comparing OnePlus upgrade behavior against the older OnePlus 6 and the Nord 2. | [GSMArena](https://www.gsmarena.com/oneplus_7t-9816.php) |
-| OnePlus 6 | OnePlus | ONEPLUS A6003 | Android 11 / SDK 30 | 8 GB | 128 GB | 5.0 | 6.28" | Snapdragon 845 | OxygenOS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Oldest API/device in the set and `nosdcard`; validate legacy storage, permission, and older Bluetooth-stack behavior. | [GSMArena](https://www.gsmarena.com/oneplus_6-9109.php) |
-| Xiaomi Pocophone F1 | Xiaomi | POCOPHONE F1 | Android 10 / SDK 29 | 6 GB | 64 GB | 5.0 | 6.18" | Snapdragon 845 | MIUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Oldest Android version in the set; useful for legacy app compatibility and MIUI-specific behavior. | [GSMArena](https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php) |
-| Samsung Galaxy XCover 4 | Samsung | SM-G390F | Android 9 / SDK 28 | 2 GB | 16 GB | 4.2 | 5.0" | Exynos 7570 Quad | Samsung Experience | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Older rugged Samsung baseline with low RAM, Android 9, and a dedicated microSD slot; good for legacy Bluetooth and storage-path checks. | [GSMArena](https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php) |
-| Xiaomi Mi Note 3 | Xiaomi | Mi Note 3 | Android 9 / SDK 28 | 6 GB | 64 GB/128 GB | 5.0 | 5.5" | Snapdragon 660 | MIUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Historical row retained from an earlier attached device; Android 9 was observed on the installed build, and the handset detached before re-querying memory/storage, so the storage variant remains unpinned. | [GSMArena](https://www.gsmarena.com/xiaomi_mi_note_3-8707.php) |
+| OnePlus 6 | OnePlus | ONEPLUS A6003 | Android 11 / SDK 30 | 8 GB | 128 GB | 5.0 | 6.28" | Snapdragon 845 | OxygenOS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Oldest API/device in the set and `nosdcard`; validate legacy storage, permission, and older Bluetooth-stack behavior. | [GSMArena](https://www.gsmarena.com/oneplus_6-9109.php) |
+| Xiaomi Pocophone F1 | Xiaomi | POCOPHONE F1 | Android 10 / SDK 29 | 6 GB | 64 GB | 5.0 | 6.18" | Snapdragon 845 | MIUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Oldest Android version in the set; useful for legacy app compatibility and MIUI-specific behavior. | [GSMArena](https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php) |
+| Samsung Galaxy XCover 4 | Samsung | SM-G390F | Android 9 / SDK 28 | 2 GB | 16 GB | 4.2 | 5.0" | Exynos 7570 Quad | Samsung Experience | AES-GCM; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Older rugged Samsung baseline with low RAM, Android 9, and a dedicated microSD slot; good for legacy Bluetooth and storage-path checks. | [GSMArena](https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php) |
+| Xiaomi Mi Note 3 | Xiaomi | Mi Note 3 | Android 9 / SDK 28 | 6 GB | 64 GB/128 GB | 5.0 | 5.5" | Snapdragon 660 | MIUI 12 | — | Historical row retained from an earlier attached device; Android 9 was observed on the installed build, and the handset detached before re-querying memory/storage, so the storage variant remains unpinned. This device also hit `INSTALL_FAILED_USER_RESTRICTED` during adb install in the direct-proof sweep; before debugging transport issues, explicitly enable **Developer options > Install via USB** or follow the Xiaomi/Redmi USB authorization recovery note below. | [GSMArena](https://www.gsmarena.com/xiaomi_mi_note_3-8707.php) |
+
+### Xiaomi / Redmi USB authorization recovery
+
+If adb install returns `INSTALL_FAILED_USER_RESTRICTED` on a Xiaomi or Redmi phone, clear MIUI's cached permission UI handlers first, reboot the device, then reset USB debugging trust before retrying the install.
+
+```bash
+adb shell pm clear com.miui.securitycenter
+adb shell pm clear com.android.systemui
+adb reboot
+```
+
+After the reboot, on the device go to **Settings → Additional Settings → Developer Options → Revoke USB debugging authorizations**, disconnect the USB cable, reconnect it, and accept the trust prompt with **Always allow from this computer** and **Allow**. Then try the install again:
+
+```bash
+adb install -r app-debug.apk
+```
 
 ### Notes on the crypto column
 
-The crypto column lists the baseline app-layer primitives that should be
-validated on every device. It is not a guarantee of hardware-backed key
-storage. Bluetooth LE link security also uses AES-CCM under the hood; hardware
-acceleration and vendor keystore behavior can still vary by model and Android
-build.
+The crypto column lists only primitives the device supports natively. It is
+not a guarantee of hardware-backed key storage. Bluetooth LE link security also
+uses AES-CCM under the hood; hardware acceleration and vendor keystore behavior
+can still vary by model and Android build.
 
 ### Emulator validation follow-up
 

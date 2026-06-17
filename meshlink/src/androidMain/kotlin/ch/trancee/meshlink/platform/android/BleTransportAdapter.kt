@@ -12,6 +12,7 @@ import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.L2capReconnectGuard
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
@@ -58,6 +59,7 @@ internal class BleTransportAdapter(
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
     internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
+    internal val l2capReconnectGuard = L2capReconnectGuard()
     internal val gattSideLinks =
         GattSideLinkCoordinator(
             dependencies =

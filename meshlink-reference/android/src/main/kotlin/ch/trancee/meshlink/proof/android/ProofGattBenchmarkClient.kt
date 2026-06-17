@@ -24,6 +24,9 @@ import java.util.UUID
 
 private const val BENCHMARK_CLIENT_LOG_TAG = "MeshLinkReferenceAutomation"
 private const val SCAN_TIMEOUT_MILLIS: Long = 15_000L
+private const val SERVICE_DISCOVERY_INITIAL_DELAY_MILLIS: Long = 500L
+private const val SERVICE_DISCOVERY_RETRY_MILLIS: Long = 2_000L
+private const val MAX_SERVICE_DISCOVERY_ATTEMPTS: Int = 3
 private const val MAX_DATA_CHUNK_BYTES: Int = 11
 
 internal class ProofGattBenchmarkClient(
@@ -48,9 +51,52 @@ internal class ProofGattBenchmarkClient(
     private var nextChunkIndex: Int = 0
     private var pendingWritePhase: PendingWritePhase = PendingWritePhase.NONE
     private var dataWriteRetryCount: Int = 0
+    private var serviceDiscoveryAttemptCount: Int = 0
+    private var serviceDiscoveryReconnectCount: Int = 0
+    private var connectInFlight: Boolean = false
+    private var matchedDevice: android.bluetooth.BluetoothDevice? = null
 
     private val scanTimeoutRunnable = Runnable {
         finishIfNeeded("SCAN_TIMEOUT")
+    }
+
+    private val serviceDiscoveryRetryRunnable: Runnable = Runnable {
+        if (finished || writeCharacteristic != null || gatt == null) {
+            return@Runnable
+        }
+        if (serviceDiscoveryAttemptCount >= MAX_SERVICE_DISCOVERY_ATTEMPTS) {
+            if (serviceDiscoveryReconnectCount < 1 && matchedDevice != null) {
+                serviceDiscoveryReconnectCount += 1
+                logger(
+                    "GATT benchmark service discovery reconnect attempt=$serviceDiscoveryReconnectCount"
+                )
+                gatt.safeClose(logger)
+                gatt = matchedDevice!!.safeConnectGatt(context, false, gattCallback, logger)
+                if (gatt == null) {
+                    finishIfNeeded("GATT_CONNECT_PERMISSION_DENIED")
+                    return@Runnable
+                }
+                serviceDiscoveryAttemptCount = 1
+                gatt!!.safeRefresh(logger)
+                if (!gatt!!.safeDiscoverServices(logger)) {
+                    finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
+                    return@Runnable
+                }
+                mainHandler.postDelayed(serviceDiscoveryRetryRunnable, SERVICE_DISCOVERY_RETRY_MILLIS)
+                return@Runnable
+            }
+            finishIfNeeded("SERVICE_DISCOVERY_TIMEOUT")
+            return@Runnable
+        }
+        serviceDiscoveryAttemptCount += 1
+        logger(
+            "GATT benchmark service discovery retry attempt=$serviceDiscoveryAttemptCount"
+        )
+        if (!gatt!!.safeDiscoverServices(logger)) {
+            finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
+        } else {
+            mainHandler.postDelayed(serviceDiscoveryRetryRunnable, SERVICE_DISCOVERY_RETRY_MILLIS)
+        }
     }
 
     private val scanCallback =
@@ -79,9 +125,12 @@ internal class ProofGattBenchmarkClient(
                 }
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     stateDidChange("Configuring(GATT benchmark)")
-                    if (!gatt.safeDiscoverServices(logger)) {
-                        finishIfNeeded("SERVICE_DISCOVERY_PERMISSION_DENIED")
-                    }
+                    serviceDiscoveryAttemptCount = 0
+                    gatt.safeRefresh(logger)
+                    mainHandler.postDelayed(
+                        serviceDiscoveryRetryRunnable,
+                        SERVICE_DISCOVERY_INITIAL_DELAY_MILLIS,
+                    )
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     finishIfNeeded("GATT_DISCONNECTED")
                 }
@@ -91,6 +140,7 @@ internal class ProofGattBenchmarkClient(
                 if (finished) {
                     return
                 }
+                mainHandler.removeCallbacks(serviceDiscoveryRetryRunnable)
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     finishIfNeeded("SERVICE_DISCOVERY_FAILED")
                     return
@@ -235,10 +285,13 @@ internal class ProofGattBenchmarkClient(
     }
 
     private fun handleScanResult(result: ScanResult) {
-        if (finished) {
+        if (finished || connectInFlight) {
             return
         }
+        connectInFlight = true
+        matchedDevice = result.device
         mainHandler.removeCallbacks(scanTimeoutRunnable)
+        mainHandler.removeCallbacks(serviceDiscoveryRetryRunnable)
         scanner.safeStopScan(logger, scanCallback)
         logger(
             "GATT benchmark discovered device=${result.device.address} rssi=${result.rssi}"
@@ -246,6 +299,7 @@ internal class ProofGattBenchmarkClient(
         stateDidChange("Connecting(GATT benchmark)")
         gatt = result.device.safeConnectGatt(context, false, gattCallback, logger)
         if (gatt == null) {
+            connectInFlight = false
             finishIfNeeded("GATT_CONNECT_PERMISSION_DENIED")
             return
         }
@@ -336,10 +390,15 @@ internal class ProofGattBenchmarkClient(
 
     private fun stopInternal(updateStateToStopped: Boolean) {
         mainHandler.removeCallbacks(scanTimeoutRunnable)
+        mainHandler.removeCallbacks(serviceDiscoveryRetryRunnable)
         scanner.safeStopScan(logger, scanCallback)
         scanner = null
         gatt.safeClose(logger)
         gatt = null
+        connectInFlight = false
+        serviceDiscoveryAttemptCount = 0
+        serviceDiscoveryReconnectCount = 0
+        matchedDevice = null
         writeCharacteristic = null
         ackCharacteristic = null
         transferTokenHex = null

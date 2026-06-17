@@ -878,7 +878,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             del check, capture_output, text, env, timeout
             call_log.append(list(command))
             if command[:2] == ["adb", "-s"] and command[3] == "uninstall":
-                return subprocess.CompletedProcess(command, 0, stdout="Success\n", stderr="")
+                return subprocess.CompletedProcess(command, 1, stdout="", stderr="Unknown package: ch.trancee.meshlink.reference")
             gradle_calls = [c for c in call_log if c[0] == "./gradlew"]
             if len(gradle_calls) == 1:
                 return subprocess.CompletedProcess(
@@ -901,6 +901,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 patch.object(live_proof, "android_apk_path", return_value=Path("/tmp/fake.apk")),
                 patch.object(live_proof, "launcher_source_fingerprint", return_value="fingerprint"),
                 patch.object(live_proof, "sha256_file", return_value="hash"),
+                patch.object(live_proof, "android_sdk_int", return_value=33),
                 patch.object(live_proof, "load_android_install_cache", return_value=None),
                 patch.object(live_proof, "write_android_install_cache"),
                 patch.object(live_proof.subprocess, "run", side_effect=fake_subprocess_run),
@@ -908,10 +909,23 @@ class AndroidDirectProofTests(unittest.TestCase):
                 live_proof.install_android_app("sender-1", run_dir)
 
         # Assert
-        self.assertEqual(
-            [command[0] for command in call_log],
-            ["adb", "./gradlew", "adb", "adb", "./gradlew"],
+        self.assertIn(
+            ["adb", "-s", "sender-1", "shell", "settings", "put", "global", "package_verifier_user_consent", "-1"],
+            call_log,
         )
+        self.assertIn(
+            ["adb", "-s", "sender-1", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_SCAN"],
+            call_log,
+        )
+        self.assertIn(
+            ["adb", "-s", "sender-1", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_CONNECT"],
+            call_log,
+        )
+        self.assertIn(
+            ["adb", "-s", "sender-1", "shell", "pm", "grant", "ch.trancee.meshlink.reference", "android.permission.BLUETOOTH_ADVERTISE"],
+            call_log,
+        )
+        self.assertTrue(any(command[:2] == ["./gradlew", ":meshlink-reference:installDebug"] for command in call_log))
         self.assertTrue(any("uninstall" in command for command in call_log))
 
     def test_main_preserves_failure_summary_when_extra_cleanup_fails(self) -> None:
@@ -1317,6 +1331,27 @@ class AndroidDirectProofTests(unittest.TestCase):
 
         # Assert
         self.assertIsNone(completion_line)
+
+    def test_verify_passive_log_requires_retained_completion_for_meshlink(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "passive_logcat.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        "06-15 08:55:30.882 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided",
+                        "06-15 08:55:30.902 I MeshLinkProof: MeshLink proof app ready on realme",
+                        "06-15 08:55:31.157 I MeshLinkProof: gatt.notify.start() -> Started",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            with self.assertRaises(SystemExit) as context:
+                android_direct_proof.verify_passive_log(log_path, passive_transport="meshlink")
+
+        self.assertIn("Missing passive proof.complete line", str(context.exception))
 
 
 if __name__ == "__main__":

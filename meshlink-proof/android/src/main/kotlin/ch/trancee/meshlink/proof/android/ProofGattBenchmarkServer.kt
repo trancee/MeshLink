@@ -66,6 +66,11 @@ internal class ProofGattBenchmarkServer(
                 logger(
                     "GATT benchmark connection addr=${device.address} status=$status state=$stateLabel"
                 )
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    logger(ProofDirectProofMarkers.passivePeerDiscovered(device.address))
+                    logger("REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=${device.address}")
+                    logger("REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=${device.address}")
+                }
                 if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     subscribedDeviceAddresses.remove(device.address)
                     if (activeTransfer?.deviceAddress == device.address) {
@@ -144,6 +149,9 @@ internal class ProofGattBenchmarkServer(
                         offset != 0 -> BluetoothGatt.GATT_INVALID_OFFSET
                         value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) -> {
                             subscribedDeviceAddresses += device.address
+                            logger(
+                                "REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=${device.address}"
+                            )
                             BluetoothGatt.GATT_SUCCESS
                         }
                         value.contentEquals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) -> {
@@ -308,6 +316,15 @@ internal class ProofGattBenchmarkServer(
             logger(
                 "GATT benchmark receipt notify addr=${device.address} token=${transfer.tokenHex} status=$status"
             )
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                logger(
+                    ProofDirectProofMarkers.passiveProofComplete(
+                        peer = device.address,
+                        tokenHex = transfer.tokenHex,
+                        totalBytes = transfer.totalBytes,
+                    )
+                )
+            }
         } else {
             @Suppress("DEPRECATION")
             characteristic.value = value
@@ -316,6 +333,15 @@ internal class ProofGattBenchmarkServer(
             logger(
                 "GATT benchmark receipt notify addr=${device.address} token=${transfer.tokenHex} status=$notified"
             )
+            if (notified) {
+                logger(
+                    ProofDirectProofMarkers.passiveProofComplete(
+                        peer = device.address,
+                        tokenHex = transfer.tokenHex,
+                        totalBytes = transfer.totalBytes,
+                    )
+                )
+            }
         }
     }
 
