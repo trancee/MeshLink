@@ -7,7 +7,7 @@ import org.gradle.api.tasks.wrapper.Wrapper
 
 buildscript {
     dependencies {
-        classpath("org.slf4j:slf4j-nop:1.7.30")
+        classpath("org.slf4j:slf4j-nop:2.0.18")
     }
 }
 
