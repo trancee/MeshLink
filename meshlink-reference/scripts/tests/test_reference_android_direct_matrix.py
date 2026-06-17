@@ -160,13 +160,13 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "matrix"
             run_root.mkdir(parents=True, exist_ok=True)
-            calls: list[tuple[str, str, bool]] = []
+            calls: list[tuple[str, str, bool, str]] = []
 
             def fake_adb_devices() -> list[str]:
                 return ["1f1dad34", "2ASVB21B09005117"]
 
             def fake_run_pair(**kwargs):
-                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"]))
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs["passive_benchmark_transport"]))
                 return {
                     "status": "passed",
                     "failureStage": None,
@@ -198,14 +198,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             # Assert
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
             self.assertEqual(len(results), 1)
-            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False), ("1f1dad34", "2ASVB21B09005117", True)])
+            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False, "meshlink"), ("1f1dad34", "2ASVB21B09005117", True, "meshlink")])
 
     def test_main_filters_pairs_below_api_floor(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "matrix"
             run_root.mkdir(parents=True, exist_ok=True)
-            calls: list[tuple[str, str, bool]] = []
+            calls: list[tuple[str, str, bool, str]] = []
 
             def fake_adb_devices() -> list[str]:
                 return ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"]
@@ -218,7 +218,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 }.get(serial)
 
             def fake_run_pair(**kwargs):
-                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"]))
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs["passive_benchmark_transport"]))
                 return {
                     "status": "passed",
                     "failureStage": None,
@@ -245,7 +245,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
                 android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
             ):
-                android_direct_matrix.main(["--run-root", str(run_root), "--min-android-api-level", "33"])
+                android_direct_matrix.main([
+                    "--run-root",
+                    str(run_root),
+                    "--sender-passive-limit",
+                    "2",
+                    "--min-android-api-level",
+                    "33",
+                ])
 
             # Assert
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
@@ -253,10 +260,10 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(
                 calls,
                 [
-                    ("1f1dad34", "2ASVB21B09005117", False),
-                    ("1f1dad34", "2ASVB21B09005117", True),
-                    ("2ASVB21B09005117", "1f1dad34", False),
-                    ("2ASVB21B09005117", "1f1dad34", True),
+                    ("1f1dad34", "2ASVB21B09005117", False, "meshlink"),
+                    ("1f1dad34", "2ASVB21B09005117", True, "meshlink"),
+                    ("1f1dad34", "42004386e43c8589", False, "gatt"),
+                    ("1f1dad34", "42004386e43c8589", True, "gatt"),
                 ],
             )
 

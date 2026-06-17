@@ -20,6 +20,8 @@ DEFAULT_ANDROID_READY_SECONDS = 20.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
+DEFAULT_FALLBACK_TRANSPORT = "gatt"
+DEFAULT_PRIMARY_TRANSPORT = "meshlink"
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
@@ -98,7 +100,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--min-android-api-level",
         type=int,
         default=DEFAULT_MIN_ANDROID_API_LEVEL,
-        help="Minimum Android API level required for a directed pair to run",
+        help="Android API level below which a directed pair falls back to GATT transport",
     )
     parser.add_argument(
         "--resume",
@@ -138,36 +140,23 @@ def adb_device_api_level(serial: str) -> int | None:
         return None
 
 
-def filter_supported_pairs(
-    pairs: list[dict[str, str]],
+def select_pair_transport(
+    sender_api_level: int | None,
+    passive_api_level: int | None,
     *,
-    min_android_api_level: int,
-) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
-    supported: list[dict[str, str]] = []
-    skipped: list[dict[str, Any]] = []
-    for pair in pairs:
-        sender_api = adb_device_api_level(pair["sender"])
-        passive_api = adb_device_api_level(pair["passive"])
-        if sender_api is None or passive_api is None:
-            supported.append(pair)
-            continue
-        if sender_api >= min_android_api_level and passive_api >= min_android_api_level:
-            supported.append(pair)
-            continue
-        skipped.append(
-            {
-                "label": pair["label"],
-                "sender": pair["sender"],
-                "passive": pair["passive"],
-                "senderApiLevel": sender_api,
-                "passiveApiLevel": passive_api,
-                "reason": (
-                    f"requires Android API {min_android_api_level}+ for direct proof, "
-                    f"got sender={sender_api} passive={passive_api}"
-                ),
-            }
-        )
-    return supported, skipped
+    fallback_android_api_level: int,
+) -> tuple[str, dict[str, Any] | None]:
+    if sender_api_level is None or passive_api_level is None:
+        return DEFAULT_PRIMARY_TRANSPORT, None
+    if sender_api_level < fallback_android_api_level or passive_api_level < fallback_android_api_level:
+        return DEFAULT_FALLBACK_TRANSPORT, {
+            "senderApiLevel": sender_api_level,
+            "passiveApiLevel": passive_api_level,
+            "reason": (
+                f"android API below {fallback_android_api_level}; using {DEFAULT_FALLBACK_TRANSPORT.upper()} fallback"
+            ),
+        }
+    return DEFAULT_PRIMARY_TRANSPORT, None
 
 
 def run_pair(
@@ -181,6 +170,7 @@ def run_pair(
     android_ready_seconds: float,
     pair_timeout_seconds: float,
     skip_install: bool,
+    passive_benchmark_transport: str = DEFAULT_PRIMARY_TRANSPORT,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -200,6 +190,8 @@ def run_pair(
         "--advertisement-carrier",
         "uuid-pair-plus-service-data",
     ]
+    if passive_benchmark_transport != DEFAULT_PRIMARY_TRANSPORT:
+        command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
     if skip_install:
         command.append("--skip-android-install")
     if target_peer_id is not None:
@@ -351,21 +343,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     devices = set(adb_devices())
     available_pairs = [pair for pair in PAIRS if pair["sender"] in devices and pair["passive"] in devices]
-    available_pairs, skipped_pairs = filter_supported_pairs(
-        available_pairs,
-        min_android_api_level=args.min_android_api_level,
-    )
-    for pair in skipped_pairs:
-        print(
-            "==> Skipping incompatible pair "
-            f"{pair['label']}: {pair['reason']}",
-            flush=True,
-        )
     if args.sender_passive_limit is not None:
         available_pairs = available_pairs[: args.sender_passive_limit]
     if not available_pairs:
-        if skipped_pairs:
-            raise SystemExit("No compatible directed Android pairs are available after API filtering")
         raise SystemExit("No directed Android pairs are available")
 
     run_root = Path(args.run_root or f"/tmp/meshlink_android_matrix_{timestamp()}")
@@ -387,6 +367,21 @@ def main(argv: list[str] | None = None) -> int:
         initial_dir.mkdir(parents=True, exist_ok=True)
         final_dir.mkdir(parents=True, exist_ok=True)
 
+        sender_api_level = adb_device_api_level(pair["sender"])
+        passive_api_level = adb_device_api_level(pair["passive"])
+        passive_benchmark_transport, fallback_reason = select_pair_transport(
+            sender_api_level,
+            passive_api_level,
+            fallback_android_api_level=args.min_android_api_level,
+        )
+        if fallback_reason is not None:
+            print(
+                "==> Pair "
+                f"{pair['label']} uses {passive_benchmark_transport.upper()} fallback: {fallback_reason['reason']} "
+                f"(senderApiLevel={fallback_reason['senderApiLevel']} passiveApiLevel={fallback_reason['passiveApiLevel']})",
+                flush=True,
+            )
+
         print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
         initial = run_pair(
             sender=pair["sender"],
@@ -398,6 +393,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
         target_peer_id = read_passive_peer_id(pair["passive"], app_id)
         final = run_pair(
@@ -410,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=True,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
         row = {
             "label": pair["label"],

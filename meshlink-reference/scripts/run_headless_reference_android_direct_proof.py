@@ -467,9 +467,8 @@ def extract_passive_completion(log_text: str) -> tuple[str | None, str | None]:
         if PASSIVE_PROOF_COMPLETE_NEEDLE not in line:
             continue
         match = ANDROID_PROOF_COMPLETE_PATTERN.search(line)
-        if match is None:
-            raise SystemExit("Passive proof.complete line is missing export path")
-        return line.strip(), match.group("export")
+        export_relative_path = match.group("export") if match is not None else None
+        return line.strip(), export_relative_path
     return None, None
 
 
@@ -920,13 +919,7 @@ def force_stop_android_package(android_serial: str, android_package: str) -> Non
 def verify_android_runtime_permissions_for_package(android_serial: str, android_package: str) -> None:
     result = run(["adb", "-s", android_serial, "shell", "dumpsys", "package", android_package], capture_output=True)
     package_dump = result.stdout
-    required_permissions = [
-        "android.permission.BLUETOOTH_SCAN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_ADVERTISE",
-    ]
-    if android_sdk_int(android_serial) < 31:
-        required_permissions.append("android.permission.ACCESS_FINE_LOCATION")
+    required_permissions = android_runtime_permissions(android_serial)
     missing_permissions = []
     for permission in required_permissions:
         if f"{permission}: granted=true" not in package_dump:
@@ -1286,14 +1279,21 @@ def verify_passive_log(log_path: Path, *, passive_transport: str = "meshlink") -
             raise SystemExit("Missing passive proof.complete line in passive log")
         return completion_line
     if passive_transport == "gatt":
-        required_markers = [
-            "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
+        proof_app_markers = [
+            "MeshLink proof app ready on",
+            "gatt.benchmark.start() -> Started",
             "GATT benchmark advertising started",
         ]
-        for marker in required_markers:
-            if marker not in log_text:
-                raise SystemExit(f"Expected passive GATT log to contain '{marker}'")
-        return None
+        bridge_markers = [
+            "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
+            "GATT benchmark advertising started",
+            "gatt.notify.start() -> Started",
+        ]
+        if all(marker in log_text for marker in proof_app_markers) or all(marker in log_text for marker in bridge_markers):
+            return None
+        raise SystemExit(
+            "Expected passive GATT log to contain either the proof-app or bridge startup markers"
+        )
     for marker in PASSIVE_PROOF_REQUIRED_LOG_MARKERS:
         if marker not in log_text:
             raise SystemExit(f"Expected proof-app passive log to contain '{marker}'")
