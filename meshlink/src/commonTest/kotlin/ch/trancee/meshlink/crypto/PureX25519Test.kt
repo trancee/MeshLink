@@ -22,6 +22,26 @@ class PureX25519Test {
     }
 
     @Test
+    fun `public key from clamped private skips redundant clamping`() {
+        // Arrange
+        val privateKey = hex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4")
+        val clampedPrivateKey = privateKey.copyOf().also {
+            it[0] = (it[0].toInt() and 248).toByte()
+            it[31] = ((it[31].toInt() and 127) or 64).toByte()
+        }
+        val basePoint = ByteArray(32).also { it[0] = 9 }
+
+        // Act
+        val trustedPublicKey = PureX25519.publicKeyFromClampedPrivate(clampedPrivateKey)
+        val referencePublicKey = PureX25519.publicKeyFromPrivate(clampedPrivateKey)
+        val sharedSecret = PureX25519.sharedSecret(clampedPrivateKey, basePoint)
+
+        // Assert
+        assertContentEquals(referencePublicKey, trustedPublicKey)
+        assertContentEquals(sharedSecret, trustedPublicKey)
+    }
+
+    @Test
     fun `x25519 clamps the private scalar bits before multiplication`() {
         // Arrange
         val unclampedPrivateKey =

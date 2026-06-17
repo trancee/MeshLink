@@ -40,10 +40,10 @@ Rows not listed above are retained as regression-tracked evidence only.
 | Wire decode message | 0.083 us/op | Meets the codec target |
 | Wire encode transfer chunk | 0.210 us/op | Meets the codec target |
 | Wire decode transfer chunk | 0.083 us/op | Meets the codec target |
-| X25519 keypair, JCA/JVM provider | 100.461 us/op | Baseline retained result for the platform-backed provider. |
-| X25519 keypair, pure fallback provider | 300.400 us/op | About 3.0x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
-| X25519 agreement, JCA/JVM provider | 100.808 us/op | Baseline retained result for the platform-backed provider. |
-| X25519 agreement, pure fallback provider | 315.987 us/op | About 3.1x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
+| X25519 keypair, JCA/JVM provider | 108.309 us/op | Baseline retained result for the platform-backed provider. |
+| X25519 keypair, pure fallback provider | 305.921 us/op | About 2.8x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
+| X25519 agreement, JCA/JVM provider | 104.856 us/op | Baseline retained result for the platform-backed provider. |
+| X25519 agreement, pure fallback provider | 327.678 us/op | About 3.1x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
 | 8-peer steady-state memory budget | 3,993,216 retained bytes | Meets the memory target |
 
 ### Physical mobile evidence

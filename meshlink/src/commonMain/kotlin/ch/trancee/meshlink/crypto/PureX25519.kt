@@ -11,13 +11,24 @@ internal object PureX25519 {
         return scalarMult(privateKey = privateKey, publicKey = publicKey)
     }
 
+    fun publicKeyFromClampedPrivate(privateKey: ByteArray): ByteArray {
+        return scalarMultWithClampedScalar(privateKey = privateKey, publicKey = basePoint)
+    }
+
     private fun scalarMult(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
         require(privateKey.size == X25519_KEY_SIZE_BYTES) { "X25519 private key must be 32 bytes" }
         require(publicKey.size == X25519_KEY_SIZE_BYTES) { "X25519 public key must be 32 bytes" }
 
         val scalar = privateKey.copyOf()
         clampScalar(scalar)
+        return scalarMultWithClampedScalar(privateKey = scalar, publicKey = publicKey)
+    }
 
+    private fun scalarMultWithClampedScalar(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
+        require(privateKey.size == X25519_KEY_SIZE_BYTES) { "X25519 private key must be 32 bytes" }
+        require(publicKey.size == X25519_KEY_SIZE_BYTES) { "X25519 public key must be 32 bytes" }
+
+        val scalar = privateKey
         val x1 = unpack25519(publicKey)
         var a = LongArray(16)
         var b = x1.copyOf()

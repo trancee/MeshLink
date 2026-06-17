@@ -51,7 +51,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val privateKey = randomBytes(X25519_KEY_SIZE_BYTES)
         clampX25519Scalar(privateKey)
-        val publicKey = PureX25519.publicKeyFromPrivate(privateKey)
+        val publicKey = PureX25519.publicKeyFromClampedPrivate(privateKey)
         return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
