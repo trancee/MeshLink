@@ -132,8 +132,10 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
-                android_direct_matrix, "run_pair", side_effect=fake_run_pair
-            ), patch.object(android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id):
+                android_direct_matrix, "adb_device_api_level", side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial)
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
                 exit_code = android_direct_matrix.main(["--run-root", str(run_root), "--resume"])
 
             # Assert
@@ -187,14 +189,76 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
-                android_direct_matrix, "run_pair", side_effect=fake_run_pair
-            ), patch.object(android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id):
+                android_direct_matrix, "adb_device_api_level", side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial)
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
                 android_direct_matrix.main(["--run-root", str(run_root), "--sender-passive-limit", "1"])
 
             # Assert
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
             self.assertEqual(len(results), 1)
             self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False), ("1f1dad34", "2ASVB21B09005117", True)])
+
+    def test_main_filters_pairs_below_api_floor(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "matrix"
+            run_root.mkdir(parents=True, exist_ok=True)
+            calls: list[tuple[str, str, bool]] = []
+
+            def fake_adb_devices() -> list[str]:
+                return ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"]
+
+            def fake_api_level(serial: str) -> int | None:
+                return {
+                    "1f1dad34": 36,
+                    "2ASVB21B09005117": 36,
+                    "42004386e43c8589": 28,
+                }.get(serial)
+
+            def fake_run_pair(**kwargs):
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"]))
+                return {
+                    "status": "passed",
+                    "failureStage": None,
+                    "failureReason": None,
+                    "routeStage": "route-discovered",
+                    "routeEvidence": "evidence",
+                    "senderRouteStage": "route-discovered",
+                    "passiveRouteStage": "route-discovered",
+                    "timings": {"totalSeconds": 1.0},
+                    "htmlReportPath": "summary.html",
+                    "stdoutTail": "",
+                    "stderrTail": "",
+                    "elapsedSeconds": 1.0,
+                    "exitCode": 0,
+                }
+
+            def fake_read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str:
+                del serial, app_id, retries, delay_s
+                return "peer-123"
+
+            # Act
+            with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_api_level", side_effect=fake_api_level
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
+                android_direct_matrix.main(["--run-root", str(run_root), "--min-android-api-level", "33"])
+
+            # Assert
+            results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(results), 2)
+            self.assertEqual(
+                calls,
+                [
+                    ("1f1dad34", "2ASVB21B09005117", False),
+                    ("1f1dad34", "2ASVB21B09005117", True),
+                    ("2ASVB21B09005117", "1f1dad34", False),
+                    ("2ASVB21B09005117", "1f1dad34", True),
+                ],
+            )
 
 
 if __name__ == "__main__":

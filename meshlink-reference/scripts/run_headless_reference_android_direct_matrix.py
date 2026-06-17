@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,10 @@ from run_headless_reference_live_proof import shell_join, timestamp
 
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
 TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
-DEFAULT_ANDROID_READY_SECONDS = 6.0
+DEFAULT_ANDROID_READY_SECONDS = 20.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
+DEFAULT_MIN_ANDROID_API_LEVEL = 33
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
@@ -93,6 +95,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Outer timeout per pair so a hung proof script cannot stall the whole sweep",
     )
     parser.add_argument(
+        "--min-android-api-level",
+        type=int,
+        default=DEFAULT_MIN_ANDROID_API_LEVEL,
+        help="Minimum Android API level required for a directed pair to run",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume from the last checkpoint if the run root already contains progress",
@@ -108,6 +116,58 @@ def adb_devices() -> list[str]:
         if len(parts) >= 2 and parts[1] == "device":
             devices.append(parts[0])
     return devices
+
+
+@lru_cache(maxsize=None)
+def adb_device_api_level(serial: str) -> int | None:
+    try:
+        result = subprocess.run(
+            ["adb", "-s", serial, "shell", "getprop", "ro.build.version.sdk"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    raw_value = result.stdout.strip()
+    if not raw_value:
+        return None
+    try:
+        return int(raw_value)
+    except ValueError:
+        return None
+
+
+def filter_supported_pairs(
+    pairs: list[dict[str, str]],
+    *,
+    min_android_api_level: int,
+) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    supported: list[dict[str, str]] = []
+    skipped: list[dict[str, Any]] = []
+    for pair in pairs:
+        sender_api = adb_device_api_level(pair["sender"])
+        passive_api = adb_device_api_level(pair["passive"])
+        if sender_api is None or passive_api is None:
+            supported.append(pair)
+            continue
+        if sender_api >= min_android_api_level and passive_api >= min_android_api_level:
+            supported.append(pair)
+            continue
+        skipped.append(
+            {
+                "label": pair["label"],
+                "sender": pair["sender"],
+                "passive": pair["passive"],
+                "senderApiLevel": sender_api,
+                "passiveApiLevel": passive_api,
+                "reason": (
+                    f"requires Android API {min_android_api_level}+ for direct proof, "
+                    f"got sender={sender_api} passive={passive_api}"
+                ),
+            }
+        )
+    return supported, skipped
 
 
 def run_pair(
@@ -291,9 +351,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     devices = set(adb_devices())
     available_pairs = [pair for pair in PAIRS if pair["sender"] in devices and pair["passive"] in devices]
+    available_pairs, skipped_pairs = filter_supported_pairs(
+        available_pairs,
+        min_android_api_level=args.min_android_api_level,
+    )
+    for pair in skipped_pairs:
+        print(
+            "==> Skipping incompatible pair "
+            f"{pair['label']}: {pair['reason']}",
+            flush=True,
+        )
     if args.sender_passive_limit is not None:
         available_pairs = available_pairs[: args.sender_passive_limit]
     if not available_pairs:
+        if skipped_pairs:
+            raise SystemExit("No compatible directed Android pairs are available after API filtering")
         raise SystemExit("No directed Android pairs are available")
 
     run_root = Path(args.run_root or f"/tmp/meshlink_android_matrix_{timestamp()}")
