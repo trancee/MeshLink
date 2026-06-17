@@ -3,6 +3,7 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
+import ch.trancee.meshlink.crypto.PureX25519
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
 import java.io.ByteArrayOutputStream
@@ -50,7 +51,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val privateKey = randomBytes(X25519_KEY_SIZE_BYTES)
         clampX25519Scalar(privateKey)
-        val publicKey = X25519Fallback.publicKeyFromPrivate(privateKey)
+        val publicKey = PureX25519.publicKeyFromPrivate(privateKey)
         return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
@@ -59,7 +60,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        return requireValidX25519SharedSecret(X25519Fallback.sharedSecret(privateKey, publicKey))
+        return requireValidX25519SharedSecret(PureX25519.sharedSecret(privateKey, publicKey))
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
