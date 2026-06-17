@@ -649,6 +649,14 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_wireless_android_serial(android_serial: str) -> bool:
+    return "_adb-tls-connect._tcp" in android_serial
+
+
+def android_install_timeout_seconds(android_serial: str) -> float:
+    return 240.0 if is_wireless_android_serial(android_serial) else 60.0
+
+
 def android_install_cache_path(run_dir: Path, android_serial: str) -> Path:
     safe_serial = re.sub(r"[^A-Za-z0-9._-]", "_", android_serial)
     return run_dir / f".android-install-cache-{safe_serial}.json"
@@ -668,8 +676,9 @@ def write_android_install_cache(run_dir: Path, android_serial: str, payload: dic
     android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def install_android_app(android_serial: str, run_dir: Path | None = None, *, install_timeout_seconds: float = 60.0) -> None:
+def install_android_app(android_serial: str, run_dir: Path | None = None, *, install_timeout_seconds: float | None = None) -> None:
     env = os.environ.copy()
+    install_timeout_seconds = install_timeout_seconds or android_install_timeout_seconds(android_serial)
     env["ANDROID_SERIAL"] = android_serial
     cache_run_dir = run_dir or Path("/tmp")
     source_fingerprint = launcher_source_fingerprint()
@@ -684,7 +693,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
         ):
             print("==> Reusing Android reference app install; APK fingerprint unchanged")
             return
-    command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
+    command = ["./gradlew", ":meshlink-reference:installDebug", "--no-build-cache", "--console=plain"]
 
     def run_install_once() -> None:
         disable_android_play_protect(android_serial)

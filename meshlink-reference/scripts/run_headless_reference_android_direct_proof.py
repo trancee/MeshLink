@@ -952,7 +952,7 @@ def install_android_proof_app(
     env["ANDROID_SERIAL"] = android_serial
     cache_run_dir = run_dir or Path("/tmp")
     del cache_run_dir
-    command = ["./gradlew", ANDROID_PROOF_INSTALL_TASK, "--console=plain"]
+    command = ["./gradlew", ANDROID_PROOF_INSTALL_TASK, "--no-build-cache", "--console=plain"]
 
     def run_install_once() -> None:
         print(f"==> Installing Android proof app: {shell_join(command)}")
