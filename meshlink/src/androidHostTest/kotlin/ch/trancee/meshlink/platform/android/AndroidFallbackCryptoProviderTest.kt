@@ -168,6 +168,23 @@ class AndroidFallbackCryptoProviderTest {
     }
 
     @Test
+    fun `chacha20 poly1305 handles empty aad and plaintext`() {
+        // Arrange
+        val key = ByteArray(32) { index -> (index + 1).toByte() }
+        val nonce = ByteArray(12) { index -> (index + 2).toByte() }
+        val aad = byteArrayOf()
+        val plaintext = byteArrayOf()
+
+        // Act
+        val ciphertext = provider.chacha20Poly1305Seal(key, nonce, aad, plaintext)
+        val decrypted = provider.chacha20Poly1305Open(key, nonce, aad, ciphertext)
+
+        // Assert
+        assertEquals(16, ciphertext.size)
+        assertContentEquals(plaintext, decrypted)
+    }
+
+    @Test
     fun `chacha20 poly1305 rejects tampered tag`() {
         // Arrange
         val key = ByteArray(32) { index -> (index + 1).toByte() }
