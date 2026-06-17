@@ -67,6 +67,18 @@ internal fun BluetoothGatt.safeDiscoverServices(logger: (String) -> Unit): Boole
     }
 }
 
+internal fun BluetoothGatt.safeRefresh(logger: (String) -> Unit): Boolean {
+    return runCatching {
+            val method = javaClass.getMethod("refresh")
+            method.isAccessible = true
+            method.invoke(this) as Boolean
+        }
+        .getOrElse { error ->
+            logger("GATT cache refresh unavailable: ${error.javaClass.simpleName}: ${error.message.orEmpty()}")
+            false
+        }
+}
+
 internal fun BluetoothLeScanner?.safeStartScan(
     filters: List<ScanFilter>,
     settings: ScanSettings,
