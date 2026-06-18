@@ -1,0 +1,202 @@
+# Pair 30 — e940_cph2359
+
+## Setup
+
+- Sender: E940-2849-00 (GX6CTR500184)
+- Passive: CPH2359 (EQUGS85LJNEIO7Z5)
+- Sender API level: 33
+- Passive API level: 34
+- Transport: MESHLINK
+- Fleet inventory: `/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T144214/fleet.md`
+- Pair report path: `/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T144214/30_e940_cph2359_report.md`
+- Peer lookup time: —
+- Initial run dir: `/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T144214/30_e940_cph2359_initial`
+- Final run dir: `—`
+
+## Result
+
+- Initial status: failed (capture) in 63.5s
+- Final status: skipped (capture) in 63.5s
+- Target peer id: not resolved
+- Initial HTML report: `summary.html`
+- Final HTML report: `summary.html`
+- Initial summary JSON: `/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T144214/30_e940_cph2359_initial/summary.json`
+- Final summary JSON: `—`
+
+## Troubleshooting references
+
+| Initial artifact | Path | Captured |
+|---|---|---|
+| Initial senderLogcat | `sender_logcat.log` | yes |
+| Initial passiveLogcat | `passive_logcat.log` | yes |
+| Initial senderStart | `sender_start.txt` | yes |
+| Initial passiveStart | `passive_start.txt` | yes |
+| Initial androidHistory | `android_history.json` | no |
+| Initial androidExport | `android_export.json` | no |
+| Final artifact | Path | Captured |
+|---|---|---|
+| Final senderLogcat | `—` | no |
+| Final passiveLogcat | `—` | no |
+| Final senderStart | `—` | no |
+| Final passiveStart | `—` | no |
+| Final androidHistory | `—` | no |
+| Final androidExport | `—` | no |
+
+## Device quirks and issues
+
+- Transport used for the pair: MESHLINK
+- Initial run failure: Android direct proof stalled at route stage sender=route-unavailable passive=none; senderEvidence=06-18 15:03:30.760 28886 28939 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRYING peer=e58aa8 detail=DELIVERY_RETRYING @ delivery.retrying {peerId=dfd98f43a35ebf6957e58aa8, topologyVersion=0, routeAvailable=false, attempt=2} passiveEvidence=n/a
+- Final run failure: Android direct proof stalled at route stage sender=route-unavailable passive=none; senderEvidence=06-18 15:03:30.760 28886 28939 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRYING peer=e58aa8 detail=DELIVERY_RETRYING @ delivery.retrying {peerId=dfd98f43a35ebf6957e58aa8, topologyVersion=0, routeAvailable=false, attempt=2} passiveEvidence=n/a
+
+## Startup timing
+
+Initial startupTiming
+
+```json
+{
+  "launch": {
+    "passiveStartupWaitSeconds": 20.0,
+    "passiveTransportWaitSeconds": 20.0,
+    "postResultIdleSeconds": 2.0
+  },
+  "passive": {
+    "elapsedSeconds": 0.8,
+    "line": "06-18 15:02:43.337 13734 13734 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "observed": true
+  },
+  "passiveTransport": {
+    "elapsedSeconds": 0.8,
+    "line": "06-18 15:02:44.133 13734 13734 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true",
+    "observed": true
+  },
+  "sender": {
+    "elapsedSeconds": 0.8,
+    "line": "06-18 15:03:22.877 28886 28886 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "observed": true
+  },
+  "totalSeconds": 63.4
+}
+```
+
+Initial timings
+
+```json
+{
+  "androidReadySeconds": 20.0,
+  "captureTimeoutSeconds": 30.0,
+  "passive": {
+    "completionMarker": null,
+    "peerDiscoveryMarker": null,
+    "peerDiscoverySeconds": null,
+    "receiptSeconds": null,
+    "sendLatencySeconds": null,
+    "sendRequestMarker": null,
+    "startupMarker": "06-18 15:02:43.337 13734 13734 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "startupObserved": true,
+    "startupWaitSeconds": 0.8,
+    "transportEvidence": "06-18 15:02:43.418 13734 13734 I MeshLinkReferenceAutomation: start() with l2capPsm=144",
+    "transportMode": "L2CAP",
+    "trustConnectionMarker": null,
+    "trustConnectionSeconds": null
+  },
+  "sender": {
+    "completionMarker": null,
+    "peerDiscoveryMarker": "06-18 15:03:23.839 28886 28909 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=e58aa8",
+    "peerDiscoverySeconds": 0.962,
+    "sendCompletionSeconds": null,
+    "sendLatencySeconds": null,
+    "sendRequestMarker": "06-18 15:03:23.840 28886 28909 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION send.requested role=sender phase=primary peer=e58aa8 priority=NORMAL bytes=23 payload=guided-hello targetIndex=0 requiredPeerCount=1 targetPeerId=auto",
+    "startupMarker": "06-18 15:03:22.877 28886 28886 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "startupObserved": true,
+    "startupWaitSeconds": 0.8,
+    "transportEvidence": "06-18 15:03:23.828 28886 28886 I MeshLinkReferenceAutomation: scan found e58aa8 mode=L2CAP psm=145 platform=ANDROID addr=56:6E:F0:61:5B:78",
+    "transportMode": "L2CAP",
+    "trustConnectionMarker": null,
+    "trustConnectionSeconds": null
+  },
+  "totalSeconds": 63.4,
+  "transportEvidence": "06-18 15:02:43.418 13734 13734 I MeshLinkReferenceAutomation: start() with l2capPsm=144",
+  "transportMode": "L2CAP"
+}
+```
+
+Final startupTiming
+
+```json
+{}
+```
+
+Final timings
+
+```json
+{
+  "androidReadySeconds": 20.0,
+  "captureTimeoutSeconds": 30.0,
+  "passive": {
+    "completionMarker": null,
+    "peerDiscoveryMarker": null,
+    "peerDiscoverySeconds": null,
+    "receiptSeconds": null,
+    "sendLatencySeconds": null,
+    "sendRequestMarker": null,
+    "startupMarker": "06-18 15:02:43.337 13734 13734 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "startupObserved": true,
+    "startupWaitSeconds": 0.8,
+    "transportEvidence": "06-18 15:02:43.418 13734 13734 I MeshLinkReferenceAutomation: start() with l2capPsm=144",
+    "transportMode": "L2CAP",
+    "trustConnectionMarker": null,
+    "trustConnectionSeconds": null
+  },
+  "sender": {
+    "completionMarker": null,
+    "peerDiscoveryMarker": "06-18 15:03:23.839 28886 28909 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=e58aa8",
+    "peerDiscoverySeconds": 0.962,
+    "sendCompletionSeconds": null,
+    "sendLatencySeconds": null,
+    "sendRequestMarker": "06-18 15:03:23.840 28886 28909 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION send.requested role=sender phase=primary peer=e58aa8 priority=NORMAL bytes=23 payload=guided-hello targetIndex=0 requiredPeerCount=1 targetPeerId=auto",
+    "startupMarker": "06-18 15:03:22.877 28886 28886 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.e940_cph2359 storage=30_e940_cph2359_initial",
+    "startupObserved": true,
+    "startupWaitSeconds": 0.8,
+    "transportEvidence": "06-18 15:03:23.828 28886 28886 I MeshLinkReferenceAutomation: scan found e58aa8 mode=L2CAP psm=145 platform=ANDROID addr=56:6E:F0:61:5B:78",
+    "transportMode": "L2CAP",
+    "trustConnectionMarker": null,
+    "trustConnectionSeconds": null
+  },
+  "totalSeconds": 63.4,
+  "transportEvidence": "06-18 15:02:43.418 13734 13734 I MeshLinkReferenceAutomation: start() with l2capPsm=144",
+  "transportMode": "L2CAP"
+}
+```
+
+Captured evidence map
+
+```json
+{
+  "final": {},
+  "initial": {
+    "androidExport": false,
+    "androidHistory": false,
+    "passiveLogcat": true,
+    "passiveStart": true,
+    "senderLogcat": true,
+    "senderStart": true
+  }
+}
+```
+
+## Mermaid sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant Matrix
+    participant Sender as E940-2849-00
+    participant Passive as CPH2359
+    note over Matrix: transport MESHLINK
+    note over Matrix: fleet inventory fleet.md
+    note over Matrix: pair report 30_e940_cph2359_report.md
+    Matrix->>Sender: initial run (63.5s)
+    note over Sender: failed (capture)
+    alt initial failed
+        note over Matrix: fail-fast stop after initial failure
+    end
+```

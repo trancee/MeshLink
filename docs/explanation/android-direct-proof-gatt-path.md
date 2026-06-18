@@ -6,7 +6,7 @@ This note records what the Android direct-proof runs showed about the passive GA
 
 ## Short version
 
-Launching the passive proof app with `meshlink.benchmarkTransport=gatt` starts the proof-app GATT server. On the older low-API fallback pairs, that GATT path can now be the retained primary transport and the summary can report `timings.transportMode = GATT`.
+Launching the passive proof app with `meshlink.benchmarkTransport=gatt` starts the proof-app GATT server. The latest attached-fleet rerun also confirmed the sender contract fix: for passive GATT fallback runs, the sender stays on `meshlink` instead of being switched to `gatt-notify`, and the low-API xcover bundle now shows `benchmarkTransport=meshlink` on the sender plus `start() with l2capPsm=227` in the retained transport path. On the older low-API fallback pairs, that GATT path can now be the retained primary transport and the summary can report `timings.transportMode = GATT`.
 
 In the successful retained run on CPH2359:
 - the passive proof app logged `gatt.server.start` / `gatt.server.started`
@@ -58,7 +58,7 @@ That means the retained summary is correctly describing the actual carried trans
 
 ## Sender/reference-app trace
 
-The relevant sender/reference-app path is split across the proof app launch config and the runtime bootstrap:
+The relevant sender/reference-app path is split across the proof app launch config and the runtime bootstrap, and the runner must keep the sender on MeshLink for passive `gatt` fallback runs:
 
 ### 1. Launch config reads the benchmark transport extra
 
@@ -138,9 +138,12 @@ For the current branch, the safe reading is:
 
 - Passing run summary: `/tmp/meshlink-direct-proof.fan2g1/summary.html`
 - Passing run JSON: `/tmp/meshlink-direct-proof.fan2g1/summary.json`
+- Latest fleet rerun matrix report: `reports/android-direct-proof-fleet/runs/20260618T144214/matrix-report.md`
+- Low-API xcover sender logcat: `reports/android-direct-proof-fleet/runs/20260618T144214/02_a065_xcover_initial/sender_logcat.log`
+- Low-API xcover summary JSON: `reports/android-direct-proof-fleet/runs/20260618T144214/02_a065_xcover_initial/summary.json`
 - Failed run summary: `/tmp/meshlink-direct-proof.QgIbA1/summary.html`
 - Failed run JSON: `/tmp/meshlink-direct-proof.QgIbA1/summary.json`
 
 ## Reader takeaway
 
-If you are debugging direct-proof transport behavior, treat `meshlink.benchmarkTransport=gatt` as a fixture selector, not as proof that the carried transport switched away from L2CAP. To make GATT the primary transport, the app startup contract has to change, not just the runner arguments.
+If you are debugging direct-proof transport behavior, treat `meshlink.benchmarkTransport=gatt` as a fixture selector, not as proof that the carried transport switched away from L2CAP. The sender-side contract fix is already in the runner, but the fleet bundle still shows capture stalls in later phases, so making GATT the primary transport still requires a deliberate app/startup contract change rather than a runner-only flag.
