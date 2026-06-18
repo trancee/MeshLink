@@ -66,9 +66,11 @@ Right now, only Ed25519 satisfies option 1.
 
 ## Implementation plan
 
+> Note: these tests live under `androidHostTest`, which is the host-side Android KMP test source set; `androidTest` remains reserved for instrumented app/device tests.
+
 ### Task 1 — Make the runtime boundary explicit in tests
 
-Strengthen the Android host tests so the crypto boundary is clear and repeatable.
+Strengthen the host-side Android tests so the crypto boundary is clear and repeatable.
 
 Files to touch:
 
