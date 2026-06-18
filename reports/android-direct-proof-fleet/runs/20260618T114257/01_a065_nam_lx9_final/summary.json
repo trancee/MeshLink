@@ -1,0 +1,119 @@
+{
+  "status": "passed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.a065_nam_lx9",
+  "storageSubdirectory": "01_a065_nam_lx9_final",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "1f1dad34",
+  "passiveSerial": "2ASVB21B09005117",
+  "senderCompletion": "06-18 11:44:31.856 15326 15339 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+  "passiveCompletion": null,
+  "senderPowerState": "06-18 11:44:30.074 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "route-discovered",
+  "routeEvidence": "06-18 11:44:30.721 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+  "senderRouteStage": "route-discovered",
+  "senderRouteEvidence": "06-18 11:44:30.721 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+  "passiveRouteStage": "route-discovered",
+  "passiveRouteEvidence": "06-18 11:44:31.228 17954 17974 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=52:15:AC:2B:DF:78",
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 0.5,
+      "line": "06-18 11:44:30.043 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.5,
+      "line": "06-18 11:44:28.853 17954 17954 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 11:44:28.891 17954 17985 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "senderSeconds": null,
+      "passiveSeconds": null,
+      "senderReused": false,
+      "passiveReused": false,
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 18.0,
+    "install": {
+      "senderSeconds": null,
+      "passiveSeconds": null,
+      "senderReused": true,
+      "passiveReused": true
+    },
+    "permissions": {
+      "senderSeconds": 0.1,
+      "passiveSeconds": 0.2,
+      "senderReused": false,
+      "passiveReused": false
+    }
+  },
+  "timings": {
+    "totalSeconds": 18.0,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 11:44:28.853 17954 17954 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 0.5,
+      "startupObserved": true,
+      "startupMarker": "06-18 11:44:30.043 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final",
+      "peerDiscoverySeconds": 0.435,
+      "peerDiscoveryMarker": "06-18 11:44:30.478 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+      "trustConnectionSeconds": 0.243,
+      "trustConnectionMarker": "06-18 11:44:30.721 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": 1.813,
+      "sendRequestMarker": null,
+      "completionMarker": "06-18 11:44:31.856 15326 15339 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:44:30.052 15326 15326 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.5,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": "06-18 11:44:30.404 17954 17974 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=52:15:AC:2B:DF:78",
+      "trustConnectionSeconds": 0.001,
+      "trustConnectionMarker": "06-18 11:44:30.405 17954 17974 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=52:15:AC:2B:DF:78",
+      "sendLatencySeconds": 1.111,
+      "receiptSeconds": null,
+      "sendRequestMarker": "06-18 11:44:30.404 17954 17974 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=52:15:AC:2B:DF:78",
+      "completionMarker": "06-18 11:44:31.515 17954 17974 I MeshLinkProof: REFERENCE_AUTOMATION proof.complete role=passive peer=52:15:AC:2B:DF:78 token=54487b8274844eff bytes=51",
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:44:28.853 17954 17954 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "senderInstallReused": true,
+    "passiveInstallReused": true
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": true,
+    "androidExport": true
+  },
+  "discoveredPeerId": null
+}

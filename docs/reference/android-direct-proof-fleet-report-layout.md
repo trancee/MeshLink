@@ -18,4 +18,6 @@ reports/android-direct-proof-fleet/runs/<timestamp>/
 ## Why this exists
 
 Use this sample to understand the expected repository-local report bundle without hunting through generated output.
-It complements [Android direct-proof fleet reports](android-direct-proof-fleet-reports.md), which explains the artifact contents and troubleshooting references.
+It complements [Android direct-proof fleet reports](android-direct-proof-fleet-reports.md), which explains the artifact contents and troubleshooting references,
+[Reports index](../../reports/INDEX.md), which provides the repository-tracked entry point for generated report bundles,
+and the tracked sample run bundle at [20260618T114257](../../reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md).

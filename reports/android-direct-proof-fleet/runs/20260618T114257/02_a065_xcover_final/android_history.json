@@ -1,0 +1,5 @@
+{
+  "transport": "gatt",
+  "appId": "demo.meshlink.reference.android-direct.a065_xcover",
+  "note": "proof-app passive retained evidence is log-only"
+}
