@@ -1,0 +1,119 @@
+{
+  "status": "passed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.a065_xcover",
+  "storageSubdirectory": "02_a065_xcover_final",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "1f1dad34",
+  "passiveSerial": "42004386e43c8589",
+  "senderCompletion": "06-18 11:46:27.911 15875 15891 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+  "passiveCompletion": null,
+  "senderPowerState": "06-18 11:46:26.094 15875 15875 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "route-discovered",
+  "routeEvidence": "06-18 11:46:26.818 15875 15891 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+  "senderRouteStage": "route-discovered",
+  "senderRouteEvidence": "06-18 11:46:26.818 15875 15891 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+  "passiveRouteStage": "route-discovered",
+  "passiveRouteEvidence": "06-18 11:46:26.448 18355 18368 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=7C:9B:EE:F8:58:1D",
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 0.5,
+      "line": "06-18 11:46:26.064 15875 15875 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_xcover storage=02_a065_xcover_final"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 1.3,
+      "line": "06-18 11:46:24.234 18355 18355 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 11:46:24.359 18355 18375 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "senderSeconds": null,
+      "passiveSeconds": null,
+      "senderReused": false,
+      "passiveReused": false,
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 18.8,
+    "install": {
+      "senderSeconds": null,
+      "passiveSeconds": null,
+      "senderReused": true,
+      "passiveReused": true
+    },
+    "permissions": {
+      "senderSeconds": 0.1,
+      "passiveSeconds": 0.2,
+      "senderReused": false,
+      "passiveReused": false
+    }
+  },
+  "timings": {
+    "totalSeconds": 18.8,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 11:46:24.234 18355 18355 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 0.5,
+      "startupObserved": true,
+      "startupMarker": "06-18 11:46:26.064 15875 15875 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_xcover storage=02_a065_xcover_final",
+      "peerDiscoverySeconds": 0.351,
+      "peerDiscoveryMarker": "06-18 11:46:26.415 15875 15875 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+      "trustConnectionSeconds": 0.403,
+      "trustConnectionMarker": "06-18 11:46:26.818 15875 15891 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": 1.847,
+      "sendRequestMarker": null,
+      "completionMarker": "06-18 11:46:27.911 15875 15891 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:46:26.072 15875 15875 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+    },
+    "passive": {
+      "startupWaitSeconds": 1.3,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": "06-18 11:46:25.898 18355 18368 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=7C:9B:EE:F8:58:1D",
+      "trustConnectionSeconds": 0.013,
+      "trustConnectionMarker": "06-18 11:46:25.911 18355 18368 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=7C:9B:EE:F8:58:1D",
+      "sendLatencySeconds": 1.079,
+      "receiptSeconds": null,
+      "sendRequestMarker": "06-18 11:46:25.898 18355 18368 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=7C:9B:EE:F8:58:1D",
+      "completionMarker": "06-18 11:46:26.977 18355 18368 I MeshLinkProof: REFERENCE_AUTOMATION proof.complete role=passive peer=7C:9B:EE:F8:58:1D token=1c01054e65ee4bb3 bytes=50",
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:46:24.234 18355 18355 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "senderInstallReused": true,
+    "passiveInstallReused": true
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": true,
+    "androidExport": true
+  },
+  "discoveredPeerId": null
+}

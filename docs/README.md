@@ -120,6 +120,7 @@ guessing which page owns which model.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
 - [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring SDK, contributor, and reference-app terms.
 - [Device test matrix reference](reference/device-test-matrix.md) — the attached Android device fleet, human-readable model names, Bluetooth version, crypto baseline, and update rules.
+- [Android direct-proof fleet reports](reference/android-direct-proof-fleet-reports.md) — the repository-local report bundle layout, artifact references, and troubleshooting entry points for fleet sweeps.
 - [Release status reference](reference/release-status.md) — the current distribution shape, intended first public release shape, and remaining release blockers.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
