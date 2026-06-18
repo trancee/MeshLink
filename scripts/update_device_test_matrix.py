@@ -167,8 +167,8 @@ def screen_display(static_screen: str, live: dict) -> str:
     return static_screen
 
 
-def links(gsma_url: str, chip_model: str) -> str:
-    ds_url = f"https://www.devicespecifications.com/en/search/{quote(chip_model)}"
+def links(gsma_url: str, device_model: str) -> str:
+    ds_url = f"https://www.devicespecifications.com/en/search/{quote(device_model)}"
     return f"[GSMArena]({gsma_url}) · [DeviceSpecifications]({ds_url})"
 
 
@@ -191,7 +191,7 @@ def build_rows(catalog: list[dict], live_by_model: dict[str, dict]) -> list[dict
                 "bluetooth": item["bluetooth"],
                 "crypto": crypto_chips(item["crypto"]),
                 "build": live.get("build") or item["build"],
-                "links": links(item["gsma_url"], chipset_model),
+                "links": links(item["gsma_url"], item["model"]),
                 "sdk": live["sdk"],
                 "bluetooth_sort": float(item["bluetooth"].split()[0]),
             }
@@ -208,7 +208,7 @@ def build_rows(catalog: list[dict], live_by_model: dict[str, dict]) -> list[dict
                 "bluetooth": item["bluetooth"],
                 "crypto": crypto_chips(item["crypto"]),
                 "build": item["build"],
-                "links": links(item["gsma_url"], item["chipset_model"]),
+                "links": links(item["gsma_url"], item["model"]),
                 "sdk": int(re.search(r"SDK (\d+)", item["android_sdk"]).group(1)),
                 "bluetooth_sort": float(item["bluetooth"].split()[0]),
             }
@@ -269,7 +269,7 @@ def render_markdown(rows: list[dict]) -> str:
         "- Never remove devices from this list; only update an existing row or add a new one.",
         "- Rows are sorted by descending Android SDK, then by Bluetooth standard.",
         "- No serial numbers or ADB transport IDs are published here.",
-        "- The DeviceSpecifications link is a chipset-model lookup, so update the model field before regenerating the table if the chipset changes.",
+        "- The DeviceSpecifications link is a device-model lookup, so update the model field before regenerating the table if the model changes.",
     ]
     return "\n".join(lines) + "\n"
 
