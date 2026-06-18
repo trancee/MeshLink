@@ -1,0 +1,104 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.mi_note3_e940",
+  "storageSubdirectory": "20_mi_note3_e940_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "42c2cf",
+  "passiveSerial": "GX6CTR500184",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-18 11:40:20.577 24286 24286 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "hop-established",
+  "routeEvidence": "06-18 17:40:13.998  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=73:74:02:C3:3F:9C",
+  "senderRouteStage": null,
+  "senderRouteEvidence": null,
+  "passiveRouteStage": "hop-established",
+  "passiveRouteEvidence": "06-18 17:40:13.998  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=73:74:02:C3:3F:9C",
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 2.8,
+      "line": "06-18 11:40:20.282 24286 24286 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.mi_note3_e940 storage=20_mi_note3_e940_initial"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.3,
+      "line": "06-18 17:40:13.911  3243  3243 I MeshLinkProof: MeshLink proof app ready on Gigaset E940-2849-00 (SDK 33) appId=demo.meshlink.reference.android-direct.mi_note3_e940 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 17:40:13.948  3243  3276 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 23.8
+  },
+  "timings": {
+    "totalSeconds": 23.8,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 17:40:13.911  3243  3243 I MeshLinkProof: MeshLink proof app ready on Gigaset E940-2849-00 (SDK 33) appId=demo.meshlink.reference.android-direct.mi_note3_e940 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 2.8,
+      "startupObserved": true,
+      "startupMarker": "06-18 11:40:20.282 24286 24286 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.mi_note3_e940 storage=20_mi_note3_e940_initial",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:40:20.482 24286 24286 I MeshLinkReferenceAutomation: start() with l2capPsm=0"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.3,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": "06-18 17:40:13.943  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=7B:15:35:DF:58:EF",
+      "trustConnectionSeconds": 0.0,
+      "trustConnectionMarker": "06-18 17:40:13.943  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=7B:15:35:DF:58:EF",
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": "06-18 17:40:13.943  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=7B:15:35:DF:58:EF",
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 17:40:13.911  3243  3243 I MeshLinkProof: MeshLink proof app ready on Gigaset E940-2849-00 (SDK 33) appId=demo.meshlink.reference.android-direct.mi_note3_e940 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Android direct proof stalled at route stage sender=none passive=hop-established; senderEvidence=n/a passiveEvidence=06-18 17:40:13.998  3243  3264 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=73:74:02:C3:3F:9C",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}
