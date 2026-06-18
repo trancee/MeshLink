@@ -1,6 +1,6 @@
 # Device test matrix reference
 
-Last verified: 2026-06-17
+Last verified: 2026-06-18
 
 This page tracks the Android devices currently attached to the MeshLink test
 bench and the device facts that matter for validation.
@@ -64,9 +64,11 @@ nearest marketed tier used in the table.
 | Huawei Nova 9 | HUAWEI | NAM-LX9 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.2 | 6.57" | Snapdragon 778G 4G | HarmonyOS 2.0 / EMUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Huawei/EMUI baseline with no Google Play Services on the public spec page; useful for Huawei-specific app install and service dependency checks. Bluetooth was off during the 2026-06-15 targeted GATT-primary triage, so the proof app now fails fast at Bluetooth preflight instead of reaching the opaque GATT server null path. | [GSMArena](https://www.gsmarena.com/huawei_nova_9-11121.php) |
 | OnePlus 7T | OnePlus | HD1901 | Android 12 / SDK 31 | 8 GB | 128 GB | 5.0 | 6.55" | Snapdragon 855+ | OxygenOS 12.1 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256; X25519; Ed25519 | Mid-generation OnePlus baseline with Android 12 and no card slot; useful for comparing OnePlus upgrade behavior against the older OnePlus 6 and the Nord 2. | [GSMArena](https://www.gsmarena.com/oneplus_7t-9816.php) |
 | OnePlus 6 | OnePlus | ONEPLUS A6003 | Android 11 / SDK 30 | 8 GB | 128 GB | 5.0 | 6.28" | Snapdragon 845 | OxygenOS | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Oldest API/device in the set and `nosdcard`; validate legacy storage, permission, and older Bluetooth-stack behavior. | [GSMArena](https://www.gsmarena.com/oneplus_6-9109.php) |
+| OPPO Reno6 5G | OPPO | CPH2251 | Android 11 / SDK 30 | 8 GB | 128 GB | 5.2 | 6.43" | Dimensity 900 | ColorOS 11.3 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | 5G-era ColorOS midrange baseline; useful for battery and background-restriction checks on Android 11. | [GSMArena](https://www.gsmarena.com/oppo_reno6_5g-10932.php) |
 | Xiaomi Pocophone F1 | Xiaomi | POCOPHONE F1 | Android 10 / SDK 29 | 6 GB | 64 GB | 5.0 | 6.18" | Snapdragon 845 | MIUI 12 | AES-GCM; ChaCha20-Poly1305; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Oldest Android version in the set; useful for legacy app compatibility and MIUI-specific behavior. | [GSMArena](https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php) |
 | Samsung Galaxy XCover 4 | Samsung | SM-G390F | Android 9 / SDK 28 | 2 GB | 16 GB | 4.2 | 5.0" | Exynos 7570 Quad | Samsung Experience | AES-GCM; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Older rugged Samsung baseline with low RAM, Android 9, and a dedicated microSD slot; good for legacy Bluetooth and storage-path checks. | [GSMArena](https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php) |
 | Xiaomi Mi Note 3 | Xiaomi | Mi Note 3 | Android 9 / SDK 28 | 6 GB | 64 GB/128 GB | 5.0 | 5.5" | Snapdragon 660 | MIUI 12 | — | Historical row retained from an earlier attached device; Android 9 was observed on the installed build, and the handset detached before re-querying memory/storage, so the storage variant remains unpinned. This device also hit `INSTALL_FAILED_USER_RESTRICTED` during adb install in the direct-proof sweep; before debugging transport issues, explicitly enable **Developer options > Install via USB** or follow the Xiaomi/Redmi USB authorization recovery note below. | [GSMArena](https://www.gsmarena.com/xiaomi_mi_note_3-8707.php) |
+| Huawei P10 Lite | Huawei | WAS-LX1A | Android 7.0 / SDK 24 | 4 GB | 32 GB | 4.2 | 5.2" | Kirin 658 | EMUI 8 | AES-GCM; SHA-256/HMAC-SHA256; RSA-2048; ECDSA P-256 | Legacy Huawei baseline; useful for pre-Android-8 Bluetooth and permission behavior checks. | [GSMArena](https://www.gsmarena.com/huawei_p10_lite-8598.php) |
 
 ### Xiaomi / Redmi USB authorization recovery
 
