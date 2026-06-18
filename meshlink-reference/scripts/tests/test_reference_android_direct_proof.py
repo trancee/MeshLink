@@ -422,10 +422,9 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertNotIn("direct-guided", start_commands[0])
                 self.assertIn("direct-guided", start_commands[1])
                 self.assertIn("meshlink.appId", start_commands[0])
-                self.assertIn("meshlink.primaryTransport", start_commands[0])
-                self.assertIn("meshlink.benchmarkTransport", start_commands[0])
-                self.assertIn("meshlink.disableAutoSend", start_commands[0])
-                self.assertIn("true", start_commands[0])
+                self.assertNotIn("meshlink.primaryTransport", start_commands[0])
+                self.assertNotIn("meshlink.benchmarkTransport", start_commands[0])
+                self.assertNotIn("meshlink.disableAutoSend", start_commands[0])
                 self.assertNotIn("meshlink.primaryTransport", start_commands[1])
                 self.assertNotIn("meshlink.benchmarkTransport", start_commands[1])
                 sender_start_command = next(
@@ -1310,20 +1309,15 @@ class AndroidDirectProofTests(unittest.TestCase):
                 storage_subdirectory="storage",
                 android_transport_logcat=False,
                 advertisement_carrier="uuid-pair-plus-service-data",
-                primary_transport="gattNotifyPrototype",
-                benchmark_transport="gatt-notify",
                 android_activity=android_direct_proof.ANDROID_PROOF_ACTIVITY,
                 android_package=android_direct_proof.ANDROID_PROOF_PACKAGE,
             )
 
         # Assert
         start_command = next(command for command in run_calls if command[:6] == ["adb", "-s", "passive-1", "shell", "am", "start"])
-        self.assertIn("meshlink.primaryTransport", start_command)
-        self.assertIn("gattNotifyPrototype", start_command)
-        self.assertIn("meshlink.benchmarkTransport", start_command)
-        self.assertIn("gatt-notify", start_command)
-        self.assertIn("meshlink.disableAutoSend", start_command)
-        self.assertIn("true", start_command)
+        self.assertNotIn("meshlink.primaryTransport", start_command)
+        self.assertNotIn("meshlink.benchmarkTransport", start_command)
+        self.assertNotIn("meshlink.disableAutoSend", start_command)
         self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_command)
 
     def test_verify_passive_log_accepts_gatt_primary_marker(self) -> None:

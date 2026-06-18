@@ -1047,8 +1047,6 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
-    primary_transport: str = "meshlink",
-    benchmark_transport: str = "meshlink",
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
@@ -1080,15 +1078,6 @@ def start_android_role_app(
             "--es",
             "meshlink.appId",
             app_id,
-            "--ez",
-            "meshlink.disableAutoSend",
-            "true",
-            "--es",
-            "meshlink.primaryTransport",
-            primary_transport,
-            "--es",
-            "meshlink.benchmarkTransport",
-            benchmark_transport,
         ]
     else:
         command = [
@@ -1119,9 +1108,6 @@ def start_android_role_app(
             ANDROID_EXTRA_SCENARIO,
             DIRECT_GUIDED_SCENARIO,
         ]
-        if benchmark_transport != "meshlink":
-            command.extend(["--es", ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT, benchmark_transport])
-            command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
         if target_peer_id:
             command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
         command.extend(
@@ -1499,7 +1485,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.passive_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
-                install_profile=("proof" if args.passive_benchmark_transport != "meshlink" else "reference"),
+                install_profile="proof",
             )
             sender_future = executor.submit(
                 ensure_android_preflight,
@@ -1516,8 +1502,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
-            passive_transport_is_meshlink = args.passive_benchmark_transport == "meshlink"
-            passive_uses_proof_app = args.passive_benchmark_transport in {"gatt", "gatt-notify"}
+            passive_transport_is_meshlink = True
             passive_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.passive_android_serial,
@@ -1527,11 +1512,8 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
-                primary_transport=
-                    args.passive_benchmark_transport if passive_uses_proof_app else "meshlink",
-                benchmark_transport=args.passive_benchmark_transport,
-                android_activity=ANDROID_PROOF_ACTIVITY if passive_uses_proof_app else ANDROID_ACTIVITY,
-                android_package=ANDROID_PROOF_PACKAGE if passive_uses_proof_app else ANDROID_PACKAGE,
+                android_activity=ANDROID_PROOF_ACTIVITY,
+                android_package=ANDROID_PROOF_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
@@ -1603,11 +1585,6 @@ def main(argv: list[str] | None = None) -> int:
                     raise SystemExit(
                         f"Android proof-app transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
-            sender_benchmark_transport = (
-                "gatt-notify"
-                if args.passive_benchmark_transport == "gatt-notify"
-                else "meshlink"
-            )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.sender_android_serial,
@@ -1616,8 +1593,6 @@ def main(argv: list[str] | None = None) -> int:
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                primary_transport="meshlink",
-                benchmark_transport=sender_benchmark_transport,
                 target_peer_id=discovered_peer_id,
                 advertisement_carrier=(
                     "uuid-pair-plus-service-data"

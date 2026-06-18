@@ -56,8 +56,6 @@ internal object MeshLinkProofRuntime {
     private var running: Boolean = false
     private var appContext: Context? = null
     private var runtimeStateText: String = MeshLinkState.Uninitialized.toString()
-    private var gattBenchmarkServer: ProofGattBenchmarkServer? = null
-    private var gattNotifyBenchmarkClient: ProofGattNotifyBenchmarkClient? = null
     private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
@@ -84,38 +82,20 @@ internal object MeshLinkProofRuntime {
             }
             val resolvedLaunchConfig =
                 launchConfig.copy(appId = launchConfig.appId.ifBlank { "demo.meshlink" })
-            if (
-                currentLaunchConfig != resolvedLaunchConfig ||
-                    (
-                        resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink &&
-                            meshLink == null
-                        ) ||
-                    (
-                        resolvedLaunchConfig.primaryTransport != ProofBenchmarkTransport.MeshLink &&
-                            meshLink != null
-                        )
-            ) {
+            if (currentLaunchConfig != resolvedLaunchConfig || meshLink == null) {
                 this.launchConfig = resolvedLaunchConfig
-                gattBenchmarkServer?.stop()
-                gattNotifyBenchmarkClient?.stop()
                 meshLink =
-                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
-                        ch.trancee.meshlink.api.meshLink(
-                            config = meshLinkConfig {
-                                appId = resolvedLaunchConfig.appId
-                                regulatoryRegion = RegulatoryRegion.DEFAULT
-                                powerMode = resolvedLaunchConfig.powerMode
-                                if (resolvedLaunchConfig.disableAutoSend) {
-                                    deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
-                                }
-                            },
-                            bootstrap = meshLinkBootstrap(appContext!!),
-                        )
-                    } else {
-                        null
-                    }
-                gattBenchmarkServer = null
-                gattNotifyBenchmarkClient = null
+                    ch.trancee.meshlink.api.meshLink(
+                        config = meshLinkConfig {
+                            appId = resolvedLaunchConfig.appId
+                            regulatoryRegion = RegulatoryRegion.DEFAULT
+                            powerMode = resolvedLaunchConfig.powerMode
+                            if (resolvedLaunchConfig.benchmarkColdStart) {
+                                deliveryRetryDeadline = PASSIVE_RECEIPT_SEND_DEADLINE
+                            }
+                        },
+                        bootstrap = meshLinkBootstrap(appContext!!),
+                    )
                 currentLaunchConfig = resolvedLaunchConfig
                 collectorsStarted = false
                 running = false
@@ -132,28 +112,23 @@ internal object MeshLinkProofRuntime {
                 synchronized(pendingBenchmarkReceipts) { pendingBenchmarkReceipts.clear() }
                 synchronized(logLines) { logLines.clear() }
                 localAdvertisementKeyHash =
-                    if (resolvedLaunchConfig.primaryTransport == ProofBenchmarkTransport.MeshLink) {
-                        computeLocalAdvertisementKeyHash(
-                            context = appContext!!,
-                            appId = resolvedLaunchConfig.appId,
-                        )
-                    } else {
-                        null
-                    }
+                    computeLocalAdvertisementKeyHash(
+                        context = appContext!!,
+                        appId = resolvedLaunchConfig.appId,
+                    )
                 localAdvertisementKeyHashHex = localAdvertisementKeyHash?.toLowerHexString()
                 clearPersistedLogs()
-                val primaryTransportLabel = resolvedLaunchConfig.primaryTransport.logLabel()
-                val benchmarkTransportLabel = resolvedLaunchConfig.benchmarkTransport.logLabel()
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} primaryTransport=$primaryTransportLabel benchmarkTransport=$benchmarkTransportLabel$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()}$keyHashSuffix",
                 )
             }
         }
     }
 
     fun start(): Job {
+
         val context = appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
         val bluetoothReadiness = ProofBluetoothContract.inspect(context)
         if (!bluetoothReadiness.ready) {
@@ -165,298 +140,90 @@ internal object MeshLinkProofRuntime {
                 updatesFlow.tryEmit(Unit)
             }
         }
-        when (launchConfig.primaryTransport) {
-            ProofBenchmarkTransport.GattPrototype -> {
-                return scope.launch {
-                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
-                    if (!launchConfig.disableAutoSend) {
-                        runtimeStateText = "Error(GATT benchmark)"
-                        appendLog(
-                            "gatt.benchmark.start() failed: Android GATT prototype currently supports passive server mode only; relaunch with meshlink.disableAutoSend=true"
-                        )
-                        updatesFlow.tryEmit(Unit)
-                        return@launch
-                    }
-                    val context =
-                        appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
-                    val bluetoothManager =
-                        context.getSystemService(BluetoothManager::class.java)
-                            ?: error("BluetoothManager is unavailable")
-                    val advertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
-                    val server =
-                        gattBenchmarkServer
-                            ?: ProofGattBenchmarkServer(
-                                context = context,
-                                bluetoothManager = bluetoothManager,
-                                advertiser = advertiser,
-                                logger = ::appendLog,
-                                appId = launchConfig.appId,
-                            )
-                                .also { createdServer ->
-                                    gattBenchmarkServer = createdServer
-                                }
-                    val result = runCatching { server.start() }
-                    result.onSuccess {
-                        running = true
-                        runtimeStateText = "Running(GATT benchmark passive)"
-                        appendLog("gatt.benchmark.start() -> Started")
-                        if (launchConfig.benchmarkColdStart) {
-                            appendLog(
-                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattPrototype"
-                            )
-                        }
-                    }.onFailure { error ->
-                        running = false
-                        runtimeStateText = "Error(GATT benchmark)"
-                        appendLog(
-                            "gatt.benchmark.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                    }
-                    updatesFlow.tryEmit(Unit)
+        ensureCollectors()
+        return scope.launch {
+            val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+            val result = runCatching { requireMeshLink().start() }
+            result.onSuccess { startResult ->
+                appendLog("mesh.start() -> $startResult")
+                if (launchConfig.benchmarkColdStart) {
+                    appendLog(
+                        "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult"
+                    )
                 }
-            }
-            ProofBenchmarkTransport.GattNotifyPrototype -> {
-                return scope.launch {
-                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
-                    val context =
-                        appContext ?: error("MeshLinkProofRuntime.initialize must be called first")
-                    val bluetoothManager =
-                        context.getSystemService(BluetoothManager::class.java)
-                            ?: error("BluetoothManager is unavailable")
-                    val client =
-                        gattNotifyBenchmarkClient
-                            ?: ProofGattNotifyBenchmarkClient(
-                                context = context,
-                                bluetoothManager = bluetoothManager,
-                                logger = ::appendLog,
-                                stateDidChange = { state ->
-                                    runtimeStateText = state
-                                    updatesFlow.tryEmit(Unit)
-                                },
-                                appId = launchConfig.appId,
-                            )
-                                .also { createdClient ->
-                                    gattNotifyBenchmarkClient = createdClient
-                                }
-                    val result = runCatching { client.start() }
-                    result.onSuccess {
-                        running = true
-                        appendLog("gatt.notify.start() -> Started")
-                        if (launchConfig.benchmarkColdStart) {
-                            appendLog(
-                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=Started mode=gattNotifyPrototype"
-                            )
-                        }
-                    }.onFailure { error ->
-                        running = false
-                        runtimeStateText = "Error(GATT notify benchmark)"
-                        appendLog(
-                            "gatt.notify.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                    }
-                    updatesFlow.tryEmit(Unit)
-                }
-            }
-            ProofBenchmarkTransport.MeshLink -> {
-                ensureCollectors()
-                return scope.launch {
-                    val startedAtNanos = SystemClock.elapsedRealtimeNanos()
-                    val result = runCatching { requireMeshLink().start() }
-                    result.onSuccess { startResult ->
-                        appendLog("mesh.start() -> $startResult")
-                        if (launchConfig.benchmarkColdStart) {
-                            appendLog(
-                                "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult",
-                            )
-                        }
-                        applyBenchmarkPowerSnapshot()
-                    }.onFailure { error ->
-                        appendLog(
-                            "mesh.start() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                        if (launchConfig.benchmarkColdStart) {
-                            appendLog(
-                                "BENCHMARK coldStart failed=${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                            )
-                        }
-                    }
-                }
+                applyBenchmarkPowerSnapshot()
+                updatesFlow.tryEmit(Unit)
+            }.onFailure { error ->
+                runtimeStateText = "Error(MeshLink)"
+                appendLog("mesh.start() failed: ${error.message ?: error::class.java.simpleName}")
+                updatesFlow.tryEmit(Unit)
             }
         }
     }
 
     fun stop(): Job {
-        return when (launchConfig.primaryTransport) {
-            ProofBenchmarkTransport.GattPrototype -> {
-                scope.launch {
-                    val result = runCatching { gattBenchmarkServer?.stop() ?: Unit }
-                    result.onSuccess {
-                        running = false
-                        runtimeStateText = MeshLinkState.Stopped.toString()
-                        appendLog("gatt.benchmark.stop() -> Stopped")
-                    }.onFailure { error ->
-                        appendLog(
-                            "gatt.benchmark.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                    }
-                    updatesFlow.tryEmit(Unit)
-                }
+        return scope.launch {
+            synchronized(this@MeshLinkProofRuntime) {
+                running = false
+                runtimeStateText = MeshLinkState.Uninitialized.toString()
             }
-            ProofBenchmarkTransport.GattNotifyPrototype -> {
-                scope.launch {
-                    val result = runCatching { gattNotifyBenchmarkClient?.stop() ?: Unit }
-                    result.onSuccess {
-                        running = false
-                        runtimeStateText = MeshLinkState.Stopped.toString()
-                        appendLog("gatt.notify.stop() -> Stopped")
-                    }.onFailure { error ->
-                        appendLog(
-                            "gatt.notify.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                    }
-                    updatesFlow.tryEmit(Unit)
-                }
+            synchronized(autoSendJobs) {
+                autoSendJobs.values.forEach(Job::cancel)
+                autoSendJobs.clear()
             }
-            ProofBenchmarkTransport.MeshLink -> {
-                scope.launch {
-                    synchronized(passiveReceiptRetryJobs) {
-                        passiveReceiptRetryJobs.values.forEach(Job::cancel)
-                        passiveReceiptRetryJobs.clear()
-                    }
-                    val result = runCatching { requireMeshLink().stop() }
-                    result.onSuccess { stopResult ->
-                        appendLog("mesh.stop() -> $stopResult")
-                    }.onFailure { error ->
-                        appendLog(
-                            "mesh.stop() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                        )
-                    }
-                }
+            synchronized(passiveReceiptRetryJobs) {
+                passiveReceiptRetryJobs.values.forEach(Job::cancel)
+                passiveReceiptRetryJobs.clear()
             }
+            runCatching { meshLink?.stop() }
+            updatesFlow.tryEmit(Unit)
         }
     }
 
     fun sendHelloToFirstPeer(): Job {
-        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
-            appendLog("Send Hello is unavailable in benchmark-only transport mode")
-            return Job()
-        }
         val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull()?.peerId }
         if (peerId == null) {
-            appendLog("No discovered peer is available yet")
-            return Job()
+            appendLog("Hello send skipped: no known peer")
+            return scope.launch { updatesFlow.tryEmit(Unit) }
         }
         return scope.launch {
-            val result = runCatching {
-                requireMeshLink().send(peerId, "hello mesh from ${Build.MODEL}".encodeToByteArray())
-            }
+            val result = runCatching { requireMeshLink().send(peerId, buildHelloPayload()) }
             result.onSuccess { sendResult ->
-                appendLog("mesh.send(${peerId.value.takeLast(6)}) -> $sendResult")
+                appendLog("Hello sent to ${peerId.value.takeLast(6)} -> $sendResult")
             }.onFailure { error ->
-                appendLog(
-                    "mesh.send() failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                )
+                appendLog("Hello send failed to ${peerId.value.takeLast(6)}: ${error.message.orEmpty()}")
             }
+            updatesFlow.tryEmit(Unit)
         }
+    }
+
+    private fun clearPersistedLogs(): Unit {
+        val context = appContext ?: return
+        context.deleteFile(PROOF_LOG_FILE_NAME)
     }
 
     fun appendLog(message: String): Unit {
-        Log.i(TAG, message)
-        val persistedLogs = synchronized(logLines) {
-            logLines += message
+        synchronized(logLines) {
+            logLines.addLast(message)
             while (logLines.size > MAX_LOG_LINES) {
                 logLines.removeFirst()
             }
-            logLines.joinToString(separator = "\n") + "\n"
+            persistLogs(logLines.joinToString(separator = "\n"))
         }
-        persistLogs(persistedLogs)
+        Log.i("MeshLinkReferenceAutomation", message)
         updatesFlow.tryEmit(Unit)
     }
 
-    private fun schedulePassiveBenchmarkReceipt(
-        peerId: PeerId,
-        benchmarkPayload: BenchmarkPayloadEnvelope,
-    ): Unit {
-        val tokenHex = benchmarkPayload.tokenHex
-        val receiptPayload =
-            BenchmarkReceipt(
-                    tokenHex = benchmarkPayload.tokenHex,
-                    totalBytes = benchmarkPayload.totalBytes,
-                )
-                .encode()
-        synchronized(passiveReceiptRetryJobs) {
-            passiveReceiptRetryJobs.remove(tokenHex)?.cancel()
-            passiveReceiptRetryJobs[tokenHex] =
-                scope.launch {
-                    var attempt = 0
-                    val deadlineAtMs = SystemClock.elapsedRealtime() + PASSIVE_RECEIPT_WINDOW_MS
-                    try {
-                        while (SystemClock.elapsedRealtime() < deadlineAtMs) {
-                            val peerKnown =
-                                synchronized(knownPeers) { knownPeers.containsKey(peerId.value) }
-                            if (!peerKnown) {
-                                appendBenchmarkCorrelation(
-                                    role = "passive.receipt.wait",
-                                    tokenHex = tokenHex,
-                                    peerIdValue = peerId.value,
-                                    outcome = "peerUnavailable.attempt${attempt + 1}",
-                                )
-                                delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
-                                continue
-                            }
-                            attempt += 1
-                            val sendResult =
-                                runCatching {
-                                    requireMeshLink().send(
-                                        peerId = peerId,
-                                        payload = receiptPayload,
-                                        priority = DeliveryPriority.HIGH,
-                                    )
-                                }
-                            sendResult
-                                .onSuccess { result ->
-                                    appendLog(
-                                        "BENCHMARK receipt send(${peerId.value.takeLast(6)}) -> $result token=$tokenHex attempt=$attempt",
-                                    )
-                                    appendBenchmarkCorrelation(
-                                        role = "passive.receipt.result",
-                                        tokenHex = tokenHex,
-                                        peerIdValue = peerId.value,
-                                        outcome = "$result.attempt$attempt",
-                                    )
-                                    if (result is SendResult.Sent) {
-                                        return@launch
-                                    }
-                                }
-                                .onFailure { error ->
-                                    appendLog(
-                                        "BENCHMARK receipt failed for ${peerId.value.takeLast(6)}: ${error.javaClass.simpleName}: ${error.message.orEmpty()} token=$tokenHex attempt=$attempt",
-                                    )
-                                    appendBenchmarkCorrelation(
-                                        role = "passive.receipt.error",
-                                        tokenHex = tokenHex,
-                                        peerIdValue = peerId.value,
-                                        outcome = "${error.javaClass.simpleName}:${error.message.orEmpty()}.attempt$attempt",
-                                    )
-                                }
-                            delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
-                        }
-                        appendLog(
-                            "BENCHMARK receipt abandoned token=$tokenHex peer=${peerId.value.takeLast(6)} deadlineMs=$PASSIVE_RECEIPT_WINDOW_MS",
-                        )
-                        appendBenchmarkCorrelation(
-                            role = "passive.receipt.expired",
-                            tokenHex = tokenHex,
-                            peerIdValue = peerId.value,
-                            outcome = "deadlineExpired",
-                        )
-                    } finally {
-                        synchronized(passiveReceiptRetryJobs) {
-                            passiveReceiptRetryJobs.remove(tokenHex)
-                        }
-                    }
-                }
-        }
+    private fun appendDiagnostic(event: DiagnosticEvent): Unit {
+        val metadataSuffix =
+            if (event.metadata.isEmpty()) {
+                ""
+            } else {
+                event.metadata.entries
+                    .sortedBy { entry -> entry.key }
+                    .joinToString(separator = " ", prefix = " ") { (key, value) -> "$key=$value" }
+            }
+        appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
     }
 
     private fun appendBenchmarkCorrelation(
@@ -465,89 +232,9 @@ internal object MeshLinkProofRuntime {
         peerIdValue: String,
         outcome: String,
     ): Unit {
-        val knownPeersSummary =
-            synchronized(knownPeers) {
-                knownPeers.keys.map { peer -> peer.takeLast(6) }.sorted().joinToString(
-                    prefix = "[",
-                    postfix = "]",
-                )
-            }
-        val recentPeerEvents = recentLogSummary(limit = CORRELATION_SUMMARY_LINES) { line ->
-            line.startsWith("Peer ")
-        }
-        val recentDiagnostics = recentLogSummary(limit = CORRELATION_SUMMARY_LINES) { line ->
-            line.startsWith("DIAG ")
-        }
-        val recentRouteTimeline = peerTimelineLogSummary(peerIdValue, CORRELATION_SUMMARY_LINES)
-        val lastTransition = peerTimelineEntries(peerIdValue, limit = 1).lastOrNull() ?: "none"
-        val routeState = peerRouteState(peerIdValue)
-        val peerSuffix = peerIdValue.takeLast(6)
         appendLog(
-            "BENCHMARK correlation role=$role token=$tokenHex peer=$peerSuffix outcome=$outcome state=$runtimeStateText knownPeers=$knownPeersSummary",
+            "REFERENCE_RUNTIME correlation role=$role peer=${peerIdValue.takeLast(6)} token=$tokenHex outcome=$outcome"
         )
-        appendLog("BENCHMARK correlation token=$tokenHex recentPeers=$recentPeerEvents")
-        appendLog("BENCHMARK correlation token=$tokenHex recentDiags=$recentDiagnostics")
-        appendLog(
-            "BENCHMARK correlation token=$tokenHex routeState=$routeState lastTransition=$lastTransition",
-        )
-        appendLog("BENCHMARK correlation token=$tokenHex routeTimeline=$recentRouteTimeline")
-    }
-
-    private fun peerTimelineLogSummary(peerIdValue: String, limit: Int): String {
-        val entries = peerTimelineEntries(peerIdValue = peerIdValue, limit = limit)
-        return entries.joinToString(prefix = "[", postfix = "]", separator = " | ")
-    }
-
-    private fun peerTimelineEntries(peerIdValue: String, limit: Int): List<String> {
-        return synchronized(logLines) {
-            logLines
-                .filter { line -> isPeerTimelineLine(line, peerIdValue) }
-                .takeLast(limit)
-                .map(::summarizeLogLine)
-        }
-    }
-
-    private fun isPeerTimelineLine(line: String, peerIdValue: String): Boolean {
-        return (line.startsWith("Peer ") && line.contains(peerIdValue)) ||
-            (line.startsWith("DIAG ") && line.contains("peerId=$peerIdValue"))
-    }
-
-    private fun peerRouteState(peerIdValue: String): String {
-        val lastRouteDiagnostic =
-            synchronized(logLines) {
-                logLines.lastOrNull { line ->
-                    line.startsWith("DIAG ") &&
-                        line.contains("peerId=$peerIdValue") &&
-                        line.contains("routeAvailable=")
-                }
-            } ?: return "unknown"
-        return when {
-            lastRouteDiagnostic.contains("routeAvailable=true") -> "available"
-            lastRouteDiagnostic.contains("routeAvailable=false") -> "unavailable"
-            else -> "unknown"
-        }
-    }
-
-    private fun recentLogSummary(limit: Int, predicate: (String) -> Boolean): String {
-        val selectedLines =
-            synchronized(logLines) {
-                logLines.filter(predicate).takeLast(limit).map(::summarizeLogLine)
-            }
-        return selectedLines.joinToString(prefix = "[", postfix = "]", separator = " | ")
-    }
-
-    private fun summarizeLogLine(line: String): String {
-        val singleLine = line.replace('\n', ' ').trim()
-        return if (singleLine.length > CORRELATION_SUMMARY_CHARS) {
-            singleLine.take(CORRELATION_SUMMARY_CHARS) + "…"
-        } else {
-            singleLine
-        }
-    }
-
-    private fun clearPersistedLogs(): Unit {
-        val context = appContext ?: return
-        context.deleteFile(PROOF_LOG_FILE_NAME)
     }
 
     private fun persistLogs(contents: String): Unit {
@@ -563,9 +250,6 @@ internal object MeshLinkProofRuntime {
     }
 
     private fun ensureCollectors(): Unit {
-        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
-            return
-        }
         synchronized(this) {
             if (collectorsStarted) {
                 return
@@ -582,9 +266,13 @@ internal object MeshLinkProofRuntime {
             }
         }
         scope.launch {
-            mesh.peerEvents.collectLatest(::handlePeerEvent) }
-        scope.launch { mesh.diagnosticEvents.collectLatest(::handleDiagnosticEvent) }
-        scope.launch { mesh.messages.collectLatest(::handleInboundMessage) }
+            mesh.peerEvents.collectLatest(::handlePeerEvent)
+        }
+        scope.launch {
+            mesh.diagnosticEvents.collectLatest { event ->
+                appendDiagnostic(event)
+            }
+        }
     }
 
     private fun handlePeerEvent(event: PeerEvent): Unit {
@@ -688,6 +376,36 @@ internal object MeshLinkProofRuntime {
         return knownPeer ?: originPeerId
     }
 
+    private fun schedulePassiveBenchmarkReceipt(
+        peerId: PeerId,
+        benchmarkPayload: BenchmarkPayloadEnvelope,
+    ): Unit {
+        val receipt =
+            BenchmarkReceipt(
+                tokenHex = benchmarkPayload.tokenHex,
+                totalBytes = benchmarkPayload.totalBytes,
+            )
+        synchronized(passiveReceiptRetryJobs) {
+            passiveReceiptRetryJobs[peerId.value]?.cancel()
+            passiveReceiptRetryJobs[peerId.value] =
+                scope.launch {
+                    delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
+                    val sendResult = runCatching { requireMeshLink().send(peerId, receipt.encode()) }
+                    sendResult
+                        .onSuccess { result ->
+                            appendLog(
+                                "BENCHMARK receipt sent peer=${peerId.value.takeLast(6)} token=${receipt.tokenHex} result=$result"
+                            )
+                        }
+                        .onFailure { error ->
+                            appendLog(
+                                "BENCHMARK receipt failed peer=${peerId.value.takeLast(6)} token=${receipt.tokenHex}: ${error.message.orEmpty()}"
+                            )
+                        }
+                }
+        }
+    }
+
     private fun rememberKnownPeer(peerId: PeerId, source: String): Unit {
         val inserted =
             synchronized(knownPeers) {
@@ -704,12 +422,6 @@ internal object MeshLinkProofRuntime {
     private fun scheduleAutoHello(peerId: PeerId): Unit {
         synchronized(autoSendJobs) {
             if (autoSendJobs.containsKey(peerId.value)) {
-                return
-            }
-            if (launchConfig.disableAutoSend) {
-                appendLog(
-                    "auto-send skipped for ${peerId.value.takeLast(6)} because passive benchmark mode is enabled"
-                )
                 return
             }
             if (launchConfig.benchmarkPayloadBytes == null && !shouldInitiateHello(peerId)) {
@@ -831,9 +543,6 @@ internal object MeshLinkProofRuntime {
     }
 
     private fun applyBenchmarkPowerSnapshot(): Unit {
-        if (launchConfig.benchmarkTransport != ProofBenchmarkTransport.MeshLink) {
-            return
-        }
         val level = launchConfig.benchmarkBatteryLevel ?: return
         val isCharging = launchConfig.benchmarkIsCharging ?: return
         requireMeshLink().updateBattery(BatterySnapshot(level = level, isCharging = isCharging))

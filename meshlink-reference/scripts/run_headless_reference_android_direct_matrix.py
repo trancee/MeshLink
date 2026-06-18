@@ -199,8 +199,6 @@ def run_pair(
         "--advertisement-carrier",
         "uuid-pair-plus-service-data",
     ]
-    if passive_benchmark_transport != DEFAULT_PRIMARY_TRANSPORT:
-        command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
     if skip_install:
         command.append("--skip-android-install")
     if target_peer_id is not None:
