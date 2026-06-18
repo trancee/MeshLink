@@ -1,0 +1,418 @@
+[
+  {
+    "label": "a065_nam_lx9",
+    "sender": "1f1dad34",
+    "passive": "2ASVB21B09005117",
+    "senderModel": "A065",
+    "passiveModel": "NAM-LX9",
+    "appId": "demo.meshlink.reference.android-direct.a065_nam_lx9",
+    "targetPeerId": null,
+    "initial": {
+      "status": "passed",
+      "failureStage": null,
+      "failureReason": null,
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": "route-discovered",
+      "routeEvidence": "06-18 13:33:00.782 19996 20035 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+      "senderRouteStage": "route-discovered",
+      "senderRouteEvidence": null,
+      "passiveRouteStage": "route-discovered",
+      "passiveRouteEvidence": null,
+      "startupTiming": {
+        "sender": {
+          "observed": true,
+          "elapsedSeconds": 0.5,
+          "line": "06-18 13:32:59.845 19996 19996 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_initial"
+        },
+        "passive": {
+          "observed": true,
+          "elapsedSeconds": 0.5,
+          "line": "06-18 13:32:58.667 20014 20014 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        },
+        "passiveTransport": {
+          "observed": true,
+          "elapsedSeconds": 0.0,
+          "line": "06-18 13:32:58.705 20014 20042 I MeshLinkProof: gatt.benchmark.start() -> Started"
+        },
+        "launch": {
+          "senderSeconds": null,
+          "passiveSeconds": null,
+          "senderReused": false,
+          "passiveReused": false,
+          "passiveStartupWaitSeconds": 20.0,
+          "passiveTransportWaitSeconds": 20.0,
+          "postResultIdleSeconds": 2.0
+        },
+        "totalSeconds": 27.5,
+        "install": {
+          "senderSeconds": 9.0,
+          "passiveSeconds": 7.4,
+          "senderReused": false,
+          "passiveReused": false
+        },
+        "permissions": {
+          "senderSeconds": 0.1,
+          "passiveSeconds": 0.1,
+          "senderReused": false,
+          "passiveReused": false
+        }
+      },
+      "timings": {
+        "totalSeconds": 27.5,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": "GATT",
+        "transportEvidence": "06-18 13:32:58.667 20014 20014 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+        "sender": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": "06-18 13:32:59.845 19996 19996 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_initial",
+          "peerDiscoverySeconds": 0.383,
+          "peerDiscoveryMarker": "06-18 13:33:00.228 19996 19996 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+          "trustConnectionSeconds": 0.554,
+          "trustConnectionMarker": "06-18 13:33:00.782 19996 20035 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": 2.102,
+          "sendRequestMarker": null,
+          "completionMarker": "06-18 13:33:01.947 19996 20035 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:32:59.855 19996 19996 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+        },
+        "passive": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": "06-18 13:33:00.468 20014 20037 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "trustConnectionSeconds": 0.001,
+          "trustConnectionMarker": "06-18 13:33:00.469 20014 20037 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "sendLatencySeconds": 1.145,
+          "receiptSeconds": null,
+          "sendRequestMarker": "06-18 13:33:00.468 20014 20037 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "completionMarker": "06-18 13:33:01.613 20014 20037 I MeshLinkProof: REFERENCE_AUTOMATION proof.complete role=passive peer=66:92:2E:1C:0C:D6 token=7a8c16ffe10c4a17 bytes=51",
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:32:58.667 20014 20014 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        },
+        "senderInstallReused": false,
+        "passiveInstallReused": false
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": {
+        "senderLogcat": "sender_logcat.log",
+        "passiveLogcat": "passive_logcat.log",
+        "senderStart": "sender_start.txt",
+        "passiveStart": "passive_start.txt",
+        "androidHistory": "android_history.json",
+        "androidExport": "android_export.json"
+      },
+      "captured": {
+        "senderLogcat": true,
+        "passiveLogcat": true,
+        "senderStart": true,
+        "passiveStart": true,
+        "androidHistory": true,
+        "androidExport": true
+      },
+      "summaryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_initial/summary.json",
+      "runDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_initial"
+    },
+    "final": {
+      "status": "passed",
+      "failureStage": null,
+      "failureReason": null,
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": "route-discovered",
+      "routeEvidence": "06-18 13:34:22.951 20449 20495 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+      "senderRouteStage": "route-discovered",
+      "senderRouteEvidence": null,
+      "passiveRouteStage": "route-discovered",
+      "passiveRouteEvidence": null,
+      "startupTiming": {
+        "sender": {
+          "observed": true,
+          "elapsedSeconds": 0.5,
+          "line": "06-18 13:34:22.185 20449 20449 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final"
+        },
+        "passive": {
+          "observed": true,
+          "elapsedSeconds": 0.5,
+          "line": "06-18 13:34:20.976 20333 20333 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        },
+        "passiveTransport": {
+          "observed": true,
+          "elapsedSeconds": 0.0,
+          "line": "06-18 13:34:21.013 20333 20366 I MeshLinkProof: gatt.benchmark.start() -> Started"
+        },
+        "launch": {
+          "senderSeconds": null,
+          "passiveSeconds": null,
+          "senderReused": false,
+          "passiveReused": false,
+          "passiveStartupWaitSeconds": 20.0,
+          "passiveTransportWaitSeconds": 20.0,
+          "postResultIdleSeconds": 2.0
+        },
+        "totalSeconds": 18.1,
+        "install": {
+          "senderSeconds": null,
+          "passiveSeconds": null,
+          "senderReused": true,
+          "passiveReused": true
+        },
+        "permissions": {
+          "senderSeconds": 0.1,
+          "passiveSeconds": 0.2,
+          "senderReused": false,
+          "passiveReused": false
+        }
+      },
+      "timings": {
+        "totalSeconds": 18.1,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": "GATT",
+        "transportEvidence": "06-18 13:34:20.976 20333 20333 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+        "sender": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": "06-18 13:34:22.185 20449 20449 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final",
+          "peerDiscoverySeconds": 0.383,
+          "peerDiscoveryMarker": "06-18 13:34:22.568 20449 20449 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+          "trustConnectionSeconds": 0.383,
+          "trustConnectionMarker": "06-18 13:34:22.951 20449 20495 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge",
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": 1.871,
+          "sendRequestMarker": null,
+          "completionMarker": "06-18 13:34:24.056 20449 20495 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender",
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:22.194 20449 20449 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+        },
+        "passive": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": "06-18 13:34:22.640 20333 20354 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "trustConnectionSeconds": 0.001,
+          "trustConnectionMarker": "06-18 13:34:22.641 20333 20354 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "sendLatencySeconds": 1.086,
+          "receiptSeconds": null,
+          "sendRequestMarker": "06-18 13:34:22.640 20333 20354 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=66:92:2E:1C:0C:D6",
+          "completionMarker": "06-18 13:34:23.726 20333 20354 I MeshLinkProof: REFERENCE_AUTOMATION proof.complete role=passive peer=66:92:2E:1C:0C:D6 token=f6740680cf304274 bytes=51",
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:20.976 20333 20333 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.a065_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        },
+        "senderInstallReused": true,
+        "passiveInstallReused": true
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": {
+        "senderLogcat": "sender_logcat.log",
+        "passiveLogcat": "passive_logcat.log",
+        "senderStart": "sender_start.txt",
+        "passiveStart": "passive_start.txt",
+        "androidHistory": "android_history.json",
+        "androidExport": "android_export.json"
+      },
+      "captured": {
+        "senderLogcat": true,
+        "passiveLogcat": true,
+        "senderStart": true,
+        "passiveStart": true,
+        "androidHistory": true,
+        "androidExport": true
+      },
+      "summaryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_final/summary.json",
+      "runDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_final"
+    },
+    "initialRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_initial",
+    "finalRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_final",
+    "pairReportPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/01_a065_nam_lx9_report.md",
+    "fleetJsonPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/fleet.json",
+    "fleetInventoryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/fleet.md",
+    "transportMode": "gatt",
+    "peerLookupSeconds": 63.8,
+    "fallbackReason": {
+      "senderApiLevel": 36,
+      "passiveApiLevel": 31,
+      "reason": "android API below 33; using GATT fallback"
+    },
+    "failFast": true
+  },
+  {
+    "label": "a065_xcover",
+    "sender": "1f1dad34",
+    "passive": "42004386e43c8589",
+    "senderModel": "A065",
+    "passiveModel": "SM-G390F",
+    "appId": "demo.meshlink.reference.android-direct.a065_xcover",
+    "targetPeerId": null,
+    "initial": {
+      "status": "failed",
+      "failureStage": "capture",
+      "failureReason": "Android sender reported proof.failed before retained completion: 06-18 13:34:53.405 20751 20765 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.failed role=sender reason=Error(GATT benchmark)",
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": "peer-discovered",
+      "routeEvidence": "06-18 13:34:53.098 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+      "senderRouteStage": "peer-discovered",
+      "senderRouteEvidence": null,
+      "passiveRouteStage": null,
+      "passiveRouteEvidence": null,
+      "startupTiming": {
+        "sender": {
+          "observed": true,
+          "elapsedSeconds": 0.5,
+          "line": "06-18 13:34:52.601 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_xcover storage=02_a065_xcover_initial"
+        },
+        "passive": {
+          "observed": true,
+          "elapsedSeconds": 1.8,
+          "line": "06-18 13:34:50.592 21893 21893 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        },
+        "passiveTransport": {
+          "observed": true,
+          "elapsedSeconds": 0.3,
+          "line": "06-18 13:34:50.805 21893 22025 I MeshLinkProof: gatt.benchmark.start() -> Started"
+        },
+        "launch": {
+          "passiveStartupWaitSeconds": 20.0,
+          "passiveTransportWaitSeconds": 20.0,
+          "postResultIdleSeconds": 2.0
+        },
+        "totalSeconds": 15.3
+      },
+      "timings": {
+        "totalSeconds": 15.3,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": "GATT",
+        "transportEvidence": "06-18 13:34:50.592 21893 21893 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+        "sender": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": "06-18 13:34:52.601 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_xcover storage=02_a065_xcover_initial",
+          "peerDiscoverySeconds": 0.497,
+          "peerDiscoveryMarker": "06-18 13:34:53.098 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:52.609 20751 20751 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+        },
+        "passive": {
+          "startupWaitSeconds": 1.8,
+          "startupObserved": true,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "receiptSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:50.592 21893 21893 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        }
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": {
+        "senderLogcat": "sender_logcat.log",
+        "passiveLogcat": "passive_logcat.log",
+        "senderStart": "sender_start.txt",
+        "passiveStart": "passive_start.txt",
+        "androidHistory": "android_history.json",
+        "androidExport": "android_export.json"
+      },
+      "captured": {
+        "senderLogcat": true,
+        "passiveLogcat": true,
+        "senderStart": true,
+        "passiveStart": true,
+        "androidHistory": false,
+        "androidExport": false
+      },
+      "summaryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/02_a065_xcover_initial/summary.json",
+      "runDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/02_a065_xcover_initial"
+    },
+    "final": {
+      "status": "skipped",
+      "failureStage": "capture",
+      "failureReason": "Android sender reported proof.failed before retained completion: 06-18 13:34:53.405 20751 20765 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.failed role=sender reason=Error(GATT benchmark)",
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": null,
+      "routeEvidence": null,
+      "senderRouteStage": null,
+      "senderRouteEvidence": null,
+      "passiveRouteStage": null,
+      "passiveRouteEvidence": null,
+      "startupTiming": null,
+      "timings": {
+        "totalSeconds": 15.3,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": "GATT",
+        "transportEvidence": "06-18 13:34:50.592 21893 21893 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+        "sender": {
+          "startupWaitSeconds": 0.5,
+          "startupObserved": true,
+          "startupMarker": "06-18 13:34:52.601 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_xcover storage=02_a065_xcover_initial",
+          "peerDiscoverySeconds": 0.497,
+          "peerDiscoveryMarker": "06-18 13:34:53.098 20751 20751 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge",
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:52.609 20751 20751 I MeshLinkReferenceAutomation: gatt.start() -> Started"
+        },
+        "passive": {
+          "startupWaitSeconds": 1.8,
+          "startupObserved": true,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "receiptSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": "GATT",
+          "transportEvidence": "06-18 13:34:50.592 21893 21893 I MeshLinkProof: MeshLink proof app ready on samsung SM-G390F (SDK 28) appId=demo.meshlink.reference.android-direct.a065_xcover powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+        }
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": null,
+      "captured": null,
+      "summaryPath": null,
+      "runDir": null
+    },
+    "initialRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/02_a065_xcover_initial",
+    "finalRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/02_a065_xcover_final",
+    "pairReportPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/02_a065_xcover_report.md",
+    "fleetJsonPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/fleet.json",
+    "fleetInventoryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260618T133249/fleet.md",
+    "transportMode": "gatt",
+    "peerLookupSeconds": null,
+    "fallbackReason": {
+      "senderApiLevel": 36,
+      "passiveApiLevel": 28,
+      "reason": "android API below 33; using GATT fallback"
+    },
+    "failFast": true
+  }
+]
