@@ -1,19 +1,20 @@
 # Android direct-proof GATT path and retained transport behavior
 
-Last verified: 2026-06-15
+Last verified: 2026-06-18
 
-This note records what the recent Android direct-proof runs showed about the passive GATT benchmark fixture, why the retained summary still reports L2CAP, and what would have to change for GATT to become the primary transport in the retained result.
+This note records what the Android direct-proof runs showed about the passive GATT benchmark fixture, why the retained summary sometimes still reports L2CAP, and when the retained transport can now legitimately report GATT.
 
 ## Short version
 
-Launching the passive proof app with `meshlink.benchmarkTransport=gatt` starts the proof-app GATT server, but it does **not** replace the MeshLink path used by the retained transport summary.
+Launching the passive proof app with `meshlink.benchmarkTransport=gatt` starts the proof-app GATT server. On the older low-API fallback pairs, that GATT path can now be the retained primary transport and the summary can report `timings.transportMode = GATT`.
 
 In the successful retained run on CPH2359:
 - the passive proof app logged `gatt.server.start` / `gatt.server.started`
 - the same run later logged `start() with l2capPsm=201`
 - the summary still reported `timings.transportMode = L2CAP`
 
-So the current behavior is:
+So the current behavior is split:
+rrent behavior is:
 - GATT is active as a passive benchmark/control surface
 - MeshLink/L2CAP still carries the direct-proof transport that the summary reports
 - the latest attached-fleet rerun split into clear preflight/install and launch clusters, but still produced no pass on either transport path

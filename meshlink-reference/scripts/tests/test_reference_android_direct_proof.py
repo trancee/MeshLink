@@ -207,6 +207,17 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(args.passive_benchmark_transport, "gatt")
 
+    def test_verify_permissions_for_low_api_proof_app_accepts_location_only(self) -> None:
+        # Arrange
+        package_dump = "android.permission.ACCESS_FINE_LOCATION: granted=true\n"
+        with patch.object(android_direct_proof, "run", return_value=subprocess.CompletedProcess(["adb"], 0, stdout=package_dump, stderr="")), patch.object(
+            android_direct_proof,
+            "android_runtime_permissions",
+            return_value=["android.permission.ACCESS_FINE_LOCATION"],
+        ):
+            # Act / Assert
+            android_direct_proof.verify_android_runtime_permissions_for_package("passive-1", "ch.trancee.meshlink.proof.android")
+
     def test_extract_discovered_peer_id_reads_passive_peer_discovery_marker(self) -> None:
         # Arrange
         log_text = (
@@ -1099,7 +1110,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertTrue((run_dir / "sender_logcat.log").exists())
             self.assertTrue((run_dir / "passive_logcat.log").exists())
 
-    def test_wait_for_android_completions_rejects_missing_passive_export_path(self) -> None:
+    def test_wait_for_android_completions_allows_passive_completion_without_export_path(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory)
@@ -1114,16 +1125,18 @@ class AndroidDirectProofTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Act / Assert
-            with self.assertRaises(SystemExit) as error:
-                android_direct_proof.wait_for_android_completions(
-                    run_dir,
-                    timeout_seconds=0.1,
-                    sender_android_serial="sender-1",
-                    passive_android_serial="passive-1",
-                )
+            # Act
+            completions = android_direct_proof.wait_for_android_completions(
+                run_dir,
+                timeout_seconds=0.1,
+                sender_android_serial="sender-1",
+                passive_android_serial="passive-1",
+            )
 
-        self.assertIn("missing export path", str(error.exception))
+        # Assert
+        self.assertIsNotNone(completions.sender_completion)
+        self.assertIsNotNone(completions.passive_completion)
+        self.assertIsNone(completions.export_relative_path)
 
     def test_wait_for_android_completions_times_out_when_only_sender_completes(self) -> None:
         # Arrange

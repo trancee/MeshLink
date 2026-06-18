@@ -45,7 +45,7 @@ If you are not sure where to start, use one of these short paths.
 
 1. [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md)
 2. [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md)
-3. [Android direct-proof matrix result](reference/android-direct-proof-matrix-result.md) — read the canonical direct-proof matrix summary before digging into raw direct-proof artifacts.
+3. [Android direct-proof matrix result](reference/android-direct-proof-matrix-result.md) — read the canonical 45s rerun summary before digging into raw direct-proof artifacts.
 4. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
 5. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
 6. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)

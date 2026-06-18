@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,12 @@ from run_headless_reference_live_proof import shell_join, timestamp
 
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
 TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
-DEFAULT_ANDROID_READY_SECONDS = 6.0
+DEFAULT_ANDROID_READY_SECONDS = 20.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
+DEFAULT_MIN_ANDROID_API_LEVEL = 33
+DEFAULT_FALLBACK_TRANSPORT = "gatt"
+DEFAULT_PRIMARY_TRANSPORT = "meshlink"
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
@@ -93,6 +97,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Outer timeout per pair so a hung proof script cannot stall the whole sweep",
     )
     parser.add_argument(
+        "--min-android-api-level",
+        type=int,
+        default=DEFAULT_MIN_ANDROID_API_LEVEL,
+        help="Android API level below which a directed pair falls back to GATT transport",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume from the last checkpoint if the run root already contains progress",
@@ -110,6 +120,45 @@ def adb_devices() -> list[str]:
     return devices
 
 
+@lru_cache(maxsize=None)
+def adb_device_api_level(serial: str) -> int | None:
+    try:
+        result = subprocess.run(
+            ["adb", "-s", serial, "shell", "getprop", "ro.build.version.sdk"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    raw_value = result.stdout.strip()
+    if not raw_value:
+        return None
+    try:
+        return int(raw_value)
+    except ValueError:
+        return None
+
+
+def select_pair_transport(
+    sender_api_level: int | None,
+    passive_api_level: int | None,
+    *,
+    fallback_android_api_level: int,
+) -> tuple[str, dict[str, Any] | None]:
+    if sender_api_level is None or passive_api_level is None:
+        return DEFAULT_PRIMARY_TRANSPORT, None
+    if sender_api_level < fallback_android_api_level or passive_api_level < fallback_android_api_level:
+        return DEFAULT_FALLBACK_TRANSPORT, {
+            "senderApiLevel": sender_api_level,
+            "passiveApiLevel": passive_api_level,
+            "reason": (
+                f"android API below {fallback_android_api_level}; using {DEFAULT_FALLBACK_TRANSPORT.upper()} fallback"
+            ),
+        }
+    return DEFAULT_PRIMARY_TRANSPORT, None
+
+
 def run_pair(
     *,
     sender: str,
@@ -121,6 +170,7 @@ def run_pair(
     android_ready_seconds: float,
     pair_timeout_seconds: float,
     skip_install: bool,
+    passive_benchmark_transport: str = DEFAULT_PRIMARY_TRANSPORT,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -140,6 +190,8 @@ def run_pair(
         "--advertisement-carrier",
         "uuid-pair-plus-service-data",
     ]
+    if passive_benchmark_transport != DEFAULT_PRIMARY_TRANSPORT:
+        command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
     if skip_install:
         command.append("--skip-android-install")
     if target_peer_id is not None:
@@ -315,6 +367,21 @@ def main(argv: list[str] | None = None) -> int:
         initial_dir.mkdir(parents=True, exist_ok=True)
         final_dir.mkdir(parents=True, exist_ok=True)
 
+        sender_api_level = adb_device_api_level(pair["sender"])
+        passive_api_level = adb_device_api_level(pair["passive"])
+        passive_benchmark_transport, fallback_reason = select_pair_transport(
+            sender_api_level,
+            passive_api_level,
+            fallback_android_api_level=args.min_android_api_level,
+        )
+        if fallback_reason is not None:
+            print(
+                "==> Pair "
+                f"{pair['label']} uses {passive_benchmark_transport.upper()} fallback: {fallback_reason['reason']} "
+                f"(senderApiLevel={fallback_reason['senderApiLevel']} passiveApiLevel={fallback_reason['passiveApiLevel']})",
+                flush=True,
+            )
+
         print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
         initial = run_pair(
             sender=pair["sender"],
@@ -326,6 +393,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
         target_peer_id = read_passive_peer_id(pair["passive"], app_id)
         final = run_pair(
@@ -338,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=True,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
         row = {
             "label": pair["label"],
