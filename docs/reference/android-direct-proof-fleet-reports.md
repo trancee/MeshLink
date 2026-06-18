@@ -40,6 +40,13 @@ Per-pair reports should point to the underlying proof artifacts instead of repea
 - `android_history.json`
 - `android_export.json`
 
+## Sample committed bundle layout
+
+A committed copy of the report bundle layout lives in
+`.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/REPORTS.md`.
+That file is the repository-tracked example of what the generated run directory should look like.
+For a shorter tree-only summary, see [Android direct-proof fleet report layout](android-direct-proof-fleet-report-layout.md).
+
 ## Troubleshooting intent
 
 The report should make it easy to answer:
