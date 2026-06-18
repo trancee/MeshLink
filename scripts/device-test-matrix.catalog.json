@@ -21,7 +21,8 @@
       "Ed25519"
     ],
     "build": "B4.1-260414-1749",
-    "gsma_url": "https://www.gsmarena.com/nothing_phone_(2)-12386.php"
+    "gsma_url": "https://www.gsmarena.com/nothing_phone_(2)-12386.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/953d5d33"
   },
   {
     "device": "Samsung Galaxy Z Flip4",
@@ -44,7 +45,8 @@
       "X25519/XDH"
     ],
     "build": "BP2A.250605.031.A3.F721BXXSCIZE1",
-    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_z_flip4-11538.php"
+    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_z_flip4-11538.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/f7c95a2f"
   },
   {
     "device": "Realme C55",
@@ -68,7 +70,8 @@
       "Ed25519"
     ],
     "build": "RMX3710_15.0.0.1410(EX01)",
-    "gsma_url": "https://www.gsmarena.com/realme_c55-12159.php"
+    "gsma_url": "https://www.gsmarena.com/realme_c55-12159.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/c2315c09"
   },
   {
     "device": "Nothing Phone (1)",
@@ -92,7 +95,8 @@
       "Ed25519"
     ],
     "build": "V3.2-260416-1140",
-    "gsma_url": "https://www.gsmarena.com/nothing_phone_(1)-11636.php"
+    "gsma_url": "https://www.gsmarena.com/nothing_phone_(1)-11636.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/1b6a59f5"
   },
   {
     "device": "OPPO Reno8 5G",
@@ -115,7 +119,8 @@
       "X25519/XDH"
     ],
     "build": "CPH2359_14.0.0.2901(EX01)",
-    "gsma_url": "https://www.gsmarena.com/oppo_reno8-11684.php"
+    "gsma_url": "https://www.gsmarena.com/oppo_reno8-11684.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/dca35a0b"
   },
   {
     "device": "Motorola Edge 30 Fusion",
@@ -138,7 +143,8 @@
       "X25519/XDH"
     ],
     "build": "U1SJS34.2-92-10-9",
-    "gsma_url": "https://www.gsmarena.com/motorola_edge_30_fusion-11851.php"
+    "gsma_url": "https://www.gsmarena.com/motorola_edge_30_fusion-11851.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/57665a7c"
   },
   {
     "device": "Nokia X20",
@@ -161,7 +167,8 @@
       "X25519/XDH"
     ],
     "build": "00WW_4_250",
-    "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php"
+    "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/b4555615"
   },
   {
     "device": "Nokia X20",
@@ -184,7 +191,8 @@
       "X25519/XDH"
     ],
     "build": "00WW_4_250",
-    "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php"
+    "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/b4555615"
   },
   {
     "device": "OPPO Reno6 5G",
@@ -208,7 +216,8 @@
       "Ed25519"
     ],
     "build": "CPH2251_13.1.0.615(EX01)",
-    "gsma_url": "https://www.gsmarena.com/oppo_reno6_5g-10932.php"
+    "gsma_url": "https://www.gsmarena.com/oppo_reno6_5g-10932.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/c9e45683"
   },
   {
     "device": "Gigaset GX6",
@@ -231,7 +240,8 @@
       "X25519/XDH"
     ],
     "build": "E940-2849-00_13.0_V12_20250515",
-    "gsma_url": "https://www.gsmarena.com/results.php3?sQuickSearch=yes&sName=Gigaset%20GX6"
+    "gsma_url": "https://www.gsmarena.com/results.php3?sQuickSearch=yes&sName=Gigaset%20GX6",
+    "ds_url": "https://www.devicespecifications.com/en/model/b3dc5aa1"
   },
   {
     "device": "OPPO A57s",
@@ -254,7 +264,8 @@
       "X25519/XDH"
     ],
     "build": "CPH2385_13.1.1.551(EX01)",
-    "gsma_url": "https://www.gsmarena.com/oppo_a57s-11835.php"
+    "gsma_url": "https://www.gsmarena.com/oppo_a57s-11835.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/e5f05a82"
   },
   {
     "device": "OnePlus Nord 2 5G",
@@ -278,7 +289,8 @@
       "Ed25519"
     ],
     "build": "DN2103_11_F.58",
-    "gsma_url": "https://www.gsmarena.com/oneplus_nord_2_5g-10960.php"
+    "gsma_url": "https://www.gsmarena.com/oneplus_nord_2_5g-10960.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/0f6756ce"
   },
   {
     "device": "Huawei Nova 9",
@@ -301,7 +313,8 @@
       "X25519/XDH"
     ],
     "build": "NAM-L29 13.0.0.252(C432E2R1P2)",
-    "gsma_url": "https://www.gsmarena.com/huawei_nova_9-11121.php"
+    "gsma_url": "https://www.gsmarena.com/huawei_nova_9-11121.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/25e15786"
   },
   {
     "device": "OnePlus 7T",
@@ -324,7 +337,8 @@
       "X25519/XDH"
     ],
     "build": "HD1901_11_F.22",
-    "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php"
+    "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f"
   },
   {
     "device": "OnePlus 7T",
@@ -347,7 +361,8 @@
       "X25519/XDH"
     ],
     "build": "HD1901_11_F.22",
-    "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php"
+    "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f"
   },
   {
     "device": "OnePlus 6",
@@ -369,7 +384,8 @@
       "ECDSA"
     ],
     "build": "ONEPLUS A6003_22_211125",
-    "gsma_url": "https://www.gsmarena.com/oneplus_6-9109.php"
+    "gsma_url": "https://www.gsmarena.com/oneplus_6-9109.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/c01c49b8"
   },
   {
     "device": "Xiaomi Pocophone F1",
@@ -391,7 +407,8 @@
       "ECDSA"
     ],
     "build": "QKQ1.190828.002 test-keys",
-    "gsma_url": "https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php"
+    "gsma_url": "https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/56da4bee"
   },
   {
     "device": "Xiaomi Mi Note 3",
@@ -412,7 +429,8 @@
       "ECDSA"
     ],
     "build": "PKQ1.181007.001",
-    "gsma_url": "https://www.gsmarena.com/xiaomi_mi_note_3-8707.php"
+    "gsma_url": "https://www.gsmarena.com/xiaomi_mi_note_3-8707.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/1a3f45a7"
   },
   {
     "device": "Samsung Galaxy XCover 4",
@@ -433,7 +451,8 @@
       "ECDSA"
     ],
     "build": "PPR1.180610.011.G390FXXU6CTG3",
-    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php"
+    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/322441cd"
   },
   {
     "device": "Huawei P10 Lite",
@@ -454,6 +473,7 @@
       "ECDSA"
     ],
     "build": "WAS-LX1A 8.0.0.394(C432)",
-    "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php"
+    "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/8469421f"
   }
 ]
