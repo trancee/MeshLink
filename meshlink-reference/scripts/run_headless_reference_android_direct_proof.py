@@ -1485,7 +1485,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.passive_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
-                install_profile="proof",
+                install_profile="reference",
             )
             sender_future = executor.submit(
                 ensure_android_preflight,
@@ -1512,8 +1512,8 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
-                android_activity=ANDROID_PROOF_ACTIVITY,
-                android_package=ANDROID_PROOF_PACKAGE,
+                android_activity=ANDROID_ACTIVITY,
+                android_package=ANDROID_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
@@ -1570,20 +1570,15 @@ def main(argv: list[str] | None = None) -> int:
                     min(args.capture_timeout_seconds * 0.3, 20.0),
                 )
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
-                passive_transport_start_marker = (
-                    "gatt.notify.start() -> Started"
-                    if args.passive_benchmark_transport == "gatt-notify"
-                    else "gatt.benchmark.start() -> Started"
-                )
                 passive_transport_observation = wait_for_log_marker_observation(
                     passive_marker_path,
-                    passive_transport_start_marker,
+                    "advertising started mode=2 tx=3 connectable=true",
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
-                        f"Android proof-app transport did not start within {passive_transport_timeout_seconds} seconds"
+                        f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
             sender_process = start_android_role_app(
                 run_dir=run_dir,
@@ -1656,7 +1651,7 @@ def main(argv: list[str] | None = None) -> int:
             completions=completions,
             startup_timing=startup_timing,
             timings=timings,
-            passive_transport=args.passive_benchmark_transport,
+            passive_transport="meshlink",
         )
         summary["discoveredPeerId"] = discovered_peer_id
         summary["timings"].update(

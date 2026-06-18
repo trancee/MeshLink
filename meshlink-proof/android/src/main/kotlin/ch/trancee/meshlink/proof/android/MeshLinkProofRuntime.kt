@@ -11,6 +11,7 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
@@ -282,7 +283,7 @@ internal object MeshLinkProofRuntime {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId)
                 }
                 appendLog("Peer found: ${event.peerId.value} (${event.state})")
-                scheduleAutoHello(event.peerId)
+                scheduleAutoHello(event.peerId, event.state, "found")
             }
             is PeerEvent.Lost -> {
                 synchronized(knownPeers) {
@@ -294,7 +295,11 @@ internal object MeshLinkProofRuntime {
                 appendLog("Peer lost: ${event.peerId.value}")
             }
             is PeerEvent.StateChanged -> {
+                synchronized(knownPeers) {
+                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId)
+                }
                 appendLog("Peer state changed: ${event.peerId.value} -> ${event.state}")
+                scheduleAutoHello(event.peerId, event.state, "state-changed")
             }
         }
         updatesFlow.tryEmit(Unit)
@@ -419,7 +424,17 @@ internal object MeshLinkProofRuntime {
         }
     }
 
-    private fun scheduleAutoHello(peerId: PeerId): Unit {
+    private fun scheduleAutoHello(
+        peerId: PeerId,
+        state: PeerConnectionState,
+        source: String,
+    ): Unit {
+        if (state != PeerConnectionState.CONNECTED) {
+            appendLog(
+                "auto-send deferred for ${peerId.value.takeLast(6)} source=$source state=$state"
+            )
+            return
+        }
         synchronized(autoSendJobs) {
             if (autoSendJobs.containsKey(peerId.value)) {
                 return
