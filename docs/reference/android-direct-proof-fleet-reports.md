@@ -45,7 +45,7 @@ Per-pair reports should point to the underlying proof artifacts instead of repea
 A committed copy of the report bundle layout lives in
 `reports/INDEX.md` and `reports/README.md`.
 Those files are the repository-tracked examples of what the generated run directory should look like.
-The first tracked run bundle is [reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md](../../reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md).
+The first tracked run bundle is [reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md](../../reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md), with a concise failure summary at [SUMMARY.md](../../reports/android-direct-proof-fleet/runs/20260618T114257/SUMMARY.md).
 For a shorter tree-only summary, see [Android direct-proof fleet report layout](android-direct-proof-fleet-report-layout.md).
 
 ## Troubleshooting intent

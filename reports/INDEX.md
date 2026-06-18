@@ -13,7 +13,7 @@ reports/android-direct-proof-fleet/runs/<timestamp>/
 
 Latest tracked run:
 
-- [20260618T114257](android-direct-proof-fleet/runs/20260618T114257/INDEX.md)
+- [20260618T114257](android-direct-proof-fleet/runs/20260618T114257/INDEX.md) — [summary](android-direct-proof-fleet/runs/20260618T114257/SUMMARY.md)
 
 Contents of each run:
 

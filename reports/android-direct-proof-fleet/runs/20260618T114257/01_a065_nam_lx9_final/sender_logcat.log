@@ -1,0 +1,73 @@
+--------- beginning of main
+06-18 11:44:30.027 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION readAutomationConfig enabled=true mode=live-proof role=sender benchmarkTransport=gatt-notify
+06-18 11:44:30.043 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final
+06-18 11:44:30.043 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onCreate interactive=true powerSaveMode=false directProof=true
+06-18 11:44:30.043 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION directProof.transport role=SENDER benchmarkTransport=gatt-notify
+06-18 11:44:30.044 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION gatt.server.evaluate role=SENDER benchmarkTransport=gatt-notify passiveGattRequested=false
+06-18 11:44:30.046 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 transport=gatt-benchmark
+06-18 11:44:30.046 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION send.requested role=sender
+06-18 11:44:30.047 15326 15326 I MeshLinkReferenceAutomation: GATT benchmark scanning appId=demo.meshlink.reference.android-direct.a065_nam_lx9
+06-18 11:44:30.047 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION bridge.state Scanning(GATT benchmark)
+06-18 11:44:30.052 15326 15326 I MeshLinkReferenceAutomation: gatt.start() -> Started
+06-18 11:44:30.057 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION live.controller.created surface=main-guided platform=Android appId=demo.meshlink.reference.android-direct.a065_nam_lx9
+06-18 11:44:30.058 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup.coordinator.skipped mode=LIVE_PROOF role=SENDER benchmarkTransport=gatt-notify appId=demo.meshlink.reference.android-direct.a065_nam_lx9 controller=LiveReferenceMeshLinkController reason=non-meshlink-benchmark-transport
+06-18 11:44:30.074 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true
+06-18 11:44:30.164 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION live.controller.created surface=main-guided platform=Android appId=demo.meshlink.reference.android-direct.a065_nam_lx9
+06-18 11:44:30.164 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION supported.controller.created surface=main-guided type=LiveReferenceMeshLinkController
+06-18 11:44:30.169 15326 15359 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION session.controller.start kind=SUPPORTED_LIVE platform=Android
+06-18 11:44:30.169 15326 15359 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION supported.controller.dispatch surface=main-guided type=LiveReferenceMeshLinkController
+06-18 11:44:30.169 15326 15359 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION live.controller.start surface=main-guided platform=Android appId=demo.meshlink.reference.android-direct.a065_nam_lx9
+06-18 11:44:30.203 15326 15359 I MeshLinkReferenceAutomation: startTransport hardware scanner=true advertiser=true carrier=UUID_PAIR
+06-18 11:44:30.207 15326 15359 I MeshLinkReferenceAutomation: start() with l2capPsm=218
+06-18 11:44:30.208 15326 15359 I MeshLinkReferenceAutomation: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true psm=218 carrier=UUID_PAIR
+06-18 11:44:30.208 15326 15359 I MeshLinkReferenceAutomation: scan requested mode=2 carrier=UUID_PAIR
+06-18 11:44:30.213 15326 15359 I MeshLinkReferenceAutomation: scan start invoked carrier=UUID_PAIR
+06-18 11:44:30.213 15326 15359 I MeshLinkReferenceAutomation: scan started
+06-18 11:44:30.213 15326 15359 I MeshLinkReferenceAutomation: advertise requested mode=2 carrier=UUID_PAIR payloadPsm=218
+06-18 11:44:30.215 15326 15359 I MeshLinkReferenceAutomation: advertise start invoked carrier=UUID_PAIR payloadPsm=218
+06-18 11:44:30.215 15326 15359 I MeshLinkReferenceAutomation: advertise requested carrier=UUID_PAIR payloadPsm=218
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION driver.handle role=SENDER mode=LIVE_PROOF snapshotPeers=0 timelineEntries=4
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER benchmarkTransport=gatt-notify scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_nam_lx9 storage=01_a065_nam_lx9_final
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION snapshot role=SENDER peers=0 hasPeers=false meshStartRequested=false peerAnnounced=false announced=true
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peers role=SENDER count=0 suffixes=
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.evaluate role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.skipped role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.waiting role=sender reason=no-peers
+06-18 11:44:30.262 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=no-peers attempt=1 delayMs=5000
+06-18 11:44:30.430 15326 15326 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true
+06-18 11:44:30.478 15326 15326 I MeshLinkReferenceAutomation: GATT benchmark discovered device=7D:21:98:F3:63:4C rssi=-33
+06-18 11:44:30.478 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION bridge.state Connecting(GATT benchmark)
+06-18 11:44:30.478 15326 15326 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=gatt-notify-bridge
+06-18 11:44:30.720 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark connection status=0 state=CONNECTED
+06-18 11:44:30.720 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION bridge.state Configuring(GATT benchmark)
+06-18 11:44:30.721 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=SENDER peer=gatt-notify-bridge
+06-18 11:44:31.223 15326 15326 I MeshLinkReferenceAutomation: GATT benchmark service discovery retry attempt=1
+06-18 11:44:31.521 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark services discovered status=0
+06-18 11:44:31.521 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark characteristics ready write=4d455348-1002-1000-8000-000000000000 ack=4d455348-1003-1000-8000-000000000000
+06-18 11:44:31.545 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark notifications enabled
+06-18 11:44:31.545 15326 15375 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION bridge.state Running(GATT benchmark)
+06-18 11:44:31.545 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark start token=54487b8274844eff bytes=51 chunks=5
+06-18 11:44:31.585 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark data token=54487b8274844eff chunk=1/5 bytes=11
+06-18 11:44:31.610 15326 15375 I MeshLinkReferenceAutomation: GATT benchmark data token=54487b8274844eff chunk=2/5 bytes=11
+06-18 11:44:31.667 15326 15339 I MeshLinkReferenceAutomation: GATT benchmark data token=54487b8274844eff chunk=3/5 bytes=11
+06-18 11:44:31.731 15326 15339 I MeshLinkReferenceAutomation: GATT benchmark data token=54487b8274844eff chunk=4/5 bytes=11
+06-18 11:44:31.789 15326 15339 I MeshLinkReferenceAutomation: GATT benchmark data token=54487b8274844eff chunk=5/5 bytes=7
+06-18 11:44:31.855 15326 15339 I MeshLinkReferenceAutomation: BENCHMARK receipt send(844eff) -> Sent token=54487b8274844eff bytes=51 attempt=1
+06-18 11:44:31.856 15326 15339 I MeshLinkReferenceAutomation: GATT benchmark completed token=54487b8274844eff bytes=51
+06-18 11:44:31.856 15326 15339 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION bridge.state Completed(GATT benchmark)
+06-18 11:44:31.856 15326 15339 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION proof.complete role=sender
+06-18 11:44:35.268 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION driver.handle role=SENDER mode=LIVE_PROOF snapshotPeers=0 timelineEntries=4
+06-18 11:44:35.268 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION snapshot role=SENDER peers=0 hasPeers=false meshStartRequested=false peerAnnounced=false announced=true
+06-18 11:44:35.269 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.evaluate role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:35.269 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.skipped role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:35.270 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=no-peers attempt=2 delayMs=5000
+06-18 11:44:40.275 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION driver.handle role=SENDER mode=LIVE_PROOF snapshotPeers=0 timelineEntries=4
+06-18 11:44:40.275 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION snapshot role=SENDER peers=0 hasPeers=false meshStartRequested=false peerAnnounced=false announced=true
+06-18 11:44:40.276 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.evaluate role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:40.276 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.skipped role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:40.276 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=no-peers attempt=3 delayMs=5000
+06-18 11:44:45.282 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION driver.handle role=SENDER mode=LIVE_PROOF snapshotPeers=0 timelineEntries=4
+06-18 11:44:45.282 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION snapshot role=SENDER peers=0 hasPeers=false meshStartRequested=false peerAnnounced=false announced=true
+06-18 11:44:45.283 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.evaluate role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:45.284 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION mesh.start.skipped role=SENDER meshStartRequested=false meshState=Running readinessBlockers=
+06-18 11:44:45.284 15326 15357 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=no-peers attempt=4 delayMs=5000

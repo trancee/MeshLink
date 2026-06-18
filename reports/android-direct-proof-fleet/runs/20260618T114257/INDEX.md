@@ -8,6 +8,7 @@ This is the first tracked fleet sweep bundle under `reports/android-direct-proof
 - Completed pairs: 3
 - Stopped early: yes
 - Stop reason: `pair a065_mi_note3 failed during capture`
+- Run summary: [SUMMARY.md](SUMMARY.md)
 
 ## Pair reports
 
@@ -23,6 +24,7 @@ This is the first tracked fleet sweep bundle under `reports/android-direct-proof
 - `matrix-report.md`
 - `progress.json`
 - `state.json`
+- `SUMMARY.md`
 - `01_a065_nam_lx9_initial/`
 - `01_a065_nam_lx9_final/`
 - `02_a065_xcover_initial/`
@@ -32,4 +34,5 @@ This is the first tracked fleet sweep bundle under `reports/android-direct-proof
 
 ## Notes
 
-This bundle is intentionally kept in the repository root `reports/` tree so it can be reviewed, diffed, and referenced alongside the code that produced it.
+This bundle is in the repository root `reports/` tree so it can be reviewed, diffed, and referenced alongside the code that produced it.
+The summary above is the first place to look before opening the per-pair report files.

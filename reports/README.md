@@ -3,7 +3,7 @@
 Repository-tracked generated reports live here so fleet runs are easy to find, diff, and review.
 
 Start with [INDEX.md](INDEX.md) for the canonical report locations and links into the docs.
-The currently tracked example run lives at [reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md](android-direct-proof-fleet/runs/20260618T114257/INDEX.md).
+The currently tracked example run lives at [reports/android-direct-proof-fleet/runs/20260618T114257/INDEX.md](android-direct-proof-fleet/runs/20260618T114257/INDEX.md), and its concise summary is [SUMMARY.md](android-direct-proof-fleet/runs/20260618T114257/SUMMARY.md).
 
 ## Android direct-proof fleet reports
 
