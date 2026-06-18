@@ -174,8 +174,32 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                         "failureReason": "route stalled",
                         "senderCompletion": "sender complete",
                         "passiveCompletion": None,
+                        "routeStage": "capture-stalled",
+                        "routeEvidence": "sender_logcat.log: route stalled",
+                        "senderRouteStage": "capture-stalled",
+                        "passiveRouteStage": None,
+                        "startupTiming": {"sender": {"startupWaitSeconds": 3.0}, "passive": {"startupWaitSeconds": 4.0}},
                         "timings": {"totalSeconds": 12.5, "transportMode": "meshlink"},
                         "htmlReportPath": "summary.html",
+                        "exportRelativePath": "android_export.json",
+                        "evidence": {
+                            "senderLogcat": "sender_logcat.log",
+                            "passiveLogcat": "passive_logcat.log",
+                            "senderStart": "sender_start.txt",
+                            "passiveStart": "passive_start.txt",
+                            "androidHistory": "android_history.json",
+                            "androidExport": "android_export.json",
+                        },
+                        "captured": {
+                            "senderLogcat": True,
+                            "passiveLogcat": False,
+                            "senderStart": True,
+                            "passiveStart": True,
+                            "androidHistory": True,
+                            "androidExport": False,
+                        },
+                        "summaryPath": str(run_root / "01_a065_nam_lx9_initial" / "summary.json"),
+                        "runDir": str(run_root / "01_a065_nam_lx9_initial"),
                         "stdoutTail": "",
                         "stderrTail": "",
                         "elapsedSeconds": 12.5,
@@ -187,8 +211,32 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                     "failureReason": None,
                     "senderCompletion": "sender complete",
                     "passiveCompletion": "passive complete",
+                    "routeStage": "route-discovered",
+                    "routeEvidence": "passive_logcat.log: route discovered",
+                    "senderRouteStage": "route-discovered",
+                    "passiveRouteStage": "route-discovered",
+                    "startupTiming": {"sender": {"startupWaitSeconds": 2.0}, "passive": {"startupWaitSeconds": 2.5}},
                     "timings": {"totalSeconds": 4.2, "transportMode": "meshlink"},
                     "htmlReportPath": "summary.html",
+                    "exportRelativePath": "android_export.json",
+                    "evidence": {
+                        "senderLogcat": "sender_logcat.log",
+                        "passiveLogcat": "passive_logcat.log",
+                        "senderStart": "sender_start.txt",
+                        "passiveStart": "passive_start.txt",
+                        "androidHistory": "android_history.json",
+                        "androidExport": "android_export.json",
+                    },
+                    "captured": {
+                        "senderLogcat": True,
+                        "passiveLogcat": True,
+                        "senderStart": True,
+                        "passiveStart": True,
+                        "androidHistory": True,
+                        "androidExport": True,
+                    },
+                    "summaryPath": str(run_root / "01_a065_nam_lx9_final" / "summary.json"),
+                    "runDir": str(run_root / "01_a065_nam_lx9_final"),
                     "stdoutTail": "",
                     "stderrTail": "",
                     "elapsedSeconds": 4.2,
@@ -214,9 +262,15 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertTrue(fleet_json["failFast"])
             self.assertEqual(fleet_json["deviceCount"], 3)
             self.assertEqual([device["serial"] for device in fleet_json["devices"]], ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"])
+            report_text = (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8")
             self.assertTrue((run_root / "01_a065_nam_lx9_report.md").exists())
-            self.assertIn("sequenceDiagram", (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8"))
-            self.assertIn("fail-fast stop after final failure", (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8"))
+            self.assertIn("sequenceDiagram", report_text)
+            self.assertIn("fail-fast stop after final failure", report_text)
+            self.assertIn("sender_logcat.log", report_text)
+            self.assertIn("passive_logcat.log", report_text)
+            self.assertIn("summary.json", report_text)
+            self.assertIn("Startup timing", report_text)
+            self.assertIn("Captured evidence map", report_text)
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0]["final"]["status"], "failed")

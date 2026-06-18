@@ -22,6 +22,7 @@ DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
 DEFAULT_FALLBACK_TRANSPORT = "gatt"
 DEFAULT_PRIMARY_TRANSPORT = "meshlink"
+DEFAULT_MATRIX_RUN_ROOT = Path(".gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs")
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
@@ -225,7 +226,13 @@ def run_pair(
             "senderRouteStage": None,
             "passiveRouteStage": None,
             "timings": {"totalSeconds": elapsed, "pairTimeoutSeconds": pair_timeout_seconds},
+            "startupTiming": {},
             "htmlReportPath": None,
+            "exportRelativePath": None,
+            "evidence": {},
+            "captured": {},
+            "summaryPath": str(run_dir / "summary.json"),
+            "runDir": str(run_dir),
             "stdoutTail": stdout_tail,
             "stderrTail": stderr_tail,
             "elapsedSeconds": elapsed,
@@ -253,7 +260,13 @@ def run_pair(
         "senderRouteStage": summary.get("senderRouteStage"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "timings": summary.get("timings"),
+        "startupTiming": summary.get("startupTiming"),
         "htmlReportPath": summary.get("htmlReportPath"),
+        "exportRelativePath": summary.get("exportRelativePath"),
+        "evidence": summary.get("evidence"),
+        "captured": summary.get("captured"),
+        "summaryPath": str(summary_path),
+        "runDir": str(run_dir),
         "stdoutTail": (completed.stdout or "")[-1000:],
         "stderrTail": (completed.stderr or "")[-1000:],
         "elapsedSeconds": elapsed,
@@ -291,7 +304,20 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "failureReason": summary.get("failureReason"),
         "senderCompletion": summary.get("senderCompletion"),
         "passiveCompletion": summary.get("passiveCompletion"),
+        "routeStage": summary.get("routeStage"),
+        "routeEvidence": summary.get("routeEvidence"),
+        "senderRouteStage": summary.get("senderRouteStage"),
+        "senderRouteEvidence": summary.get("senderRouteEvidence"),
+        "passiveRouteStage": summary.get("passiveRouteStage"),
+        "passiveRouteEvidence": summary.get("passiveRouteEvidence"),
+        "startupTiming": summary.get("startupTiming"),
         "timings": summary.get("timings"),
+        "htmlReportPath": summary.get("htmlReportPath"),
+        "exportRelativePath": summary.get("exportRelativePath"),
+        "evidence": summary.get("evidence"),
+        "captured": summary.get("captured"),
+        "summaryPath": summary.get("summaryPath"),
+        "runDir": summary.get("runDir"),
     }
 
 
@@ -439,30 +465,38 @@ def render_pair_report(
     initial: dict[str, Any],
     final: dict[str, Any],
     fleet_inventory_path: Path,
+    pair_report_path: Path,
 ) -> str:
+    def json_block(title: str, value: Any) -> list[str]:
+        return [title, "", "```json", json.dumps(value, indent=2, sort_keys=True), "```", ""]
+
+    def path_ref(label: str, value: str | None) -> str:
+        return value or "—"
+
+    def evidence_rows(summary: dict[str, Any], stage: str) -> list[str]:
+        evidence = summary.get("evidence") or {}
+        captured = summary.get("captured") or {}
+        rows = [f"| {stage} artifact | Path | Captured |", "|---|---|---|"]
+        for key in ("senderLogcat", "passiveLogcat", "senderStart", "passiveStart", "androidHistory", "androidExport"):
+            rows.append(
+                f"| {stage} {key} | `{evidence.get(key, '—')}` | {'yes' if captured.get(key) else 'no'} |"
+            )
+        return rows
+
     initial_elapsed = format_elapsed_seconds(initial)
     final_elapsed = format_elapsed_seconds(final)
-    peer_lookup_elapsed = (
-        f"{peer_lookup_seconds:.1f}s" if peer_lookup_seconds is not None else "—"
-    )
+    peer_lookup_elapsed = f"{peer_lookup_seconds:.1f}s" if peer_lookup_seconds is not None else "—"
     transport_label = passive_benchmark_transport.upper()
-    quirks = [
-        f"Transport used for the pair: {transport_label}",
-    ]
+    quirks = [f"Transport used for the pair: {transport_label}"]
     if fallback_reason is not None:
         quirks.append(
             "Fallback reason: "
-            f"{fallback_reason['reason']} (senderApiLevel={fallback_reason['senderApiLevel']} "
-            f"passiveApiLevel={fallback_reason['passiveApiLevel']})"
+            f"{fallback_reason['reason']} (senderApiLevel={fallback_reason['senderApiLevel']} passiveApiLevel={fallback_reason['passiveApiLevel']})"
         )
     if sender_api_level is not None and sender_api_level < DEFAULT_MIN_ANDROID_API_LEVEL:
-        quirks.append(
-            f"Sender API level {sender_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}."
-        )
+        quirks.append(f"Sender API level {sender_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
     if passive_api_level is not None and passive_api_level < DEFAULT_MIN_ANDROID_API_LEVEL:
-        quirks.append(
-            f"Passive API level {passive_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}."
-        )
+        quirks.append(f"Passive API level {passive_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
     if initial.get("failureReason"):
         quirks.append(f"Initial run failure: {initial['failureReason']}")
     if final.get("failureReason"):
@@ -470,50 +504,45 @@ def render_pair_report(
     if target_peer_id is not None:
         quirks.append(f"Passive peer id discovered: {target_peer_id}")
 
-    final_status = final.get("status", "skipped")
     initial_passed = initial.get("status") == "passed"
+    final_status = final.get("status", "skipped")
+    diagram_lines = [
+        "```mermaid",
+        "sequenceDiagram",
+        "    participant Matrix",
+        f"    participant Sender as {sender_model}",
+        f"    participant Passive as {passive_model}",
+        f"    note over Matrix: transport {transport_label}",
+        f"    note over Matrix: fleet inventory {fleet_inventory_path.name}",
+        f"    note over Matrix: pair report {pair_report_path.name}",
+        f"    Matrix->>Sender: initial run ({initial_elapsed})",
+        f"    note over Sender: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'})",
+    ]
     if initial_passed:
-        diagram_lines = [
-            "```mermaid",
-            "sequenceDiagram",
-            "    participant Matrix",
-            f"    participant Sender as {sender_model}",
-            f"    participant Passive as {passive_model}",
-            f"    note over Matrix: transport {transport_label}",
-            f"    note over Matrix: fleet inventory {fleet_inventory_path.name}",
-            f"    Matrix->>Sender: initial run ({initial_elapsed})",
-            f"    note over Sender: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'})",
-            "    alt initial passed",
-            f"        Matrix->>Passive: read passive peer id ({peer_lookup_elapsed})",
-            f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
-            f"        Matrix->>Sender: final run ({final_elapsed})",
-            f"        note over Sender: {final_status} ({final.get('failureStage') or 'no failure stage'})",
-            "        alt final passed",
-            "            note over Matrix: pair completed successfully",
-            "        else final failed",
-            "            note over Matrix: fail-fast stop after final failure",
-            "        end",
-            "    else initial failed",
-            "        note over Matrix: fail-fast stop after initial failure",
-            "    end",
-            "```",
-        ]
+        diagram_lines.extend(
+            [
+                "    alt initial passed",
+                f"        Matrix->>Passive: read passive peer id ({peer_lookup_elapsed})",
+                f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
+                f"        Matrix->>Sender: final run ({final_elapsed})",
+                f"        note over Sender: {final_status} ({final.get('failureStage') or 'no failure stage'})",
+                "        alt final passed",
+                "            note over Matrix: pair completed successfully",
+                "        else final failed",
+                "            note over Matrix: fail-fast stop after final failure",
+                "        end",
+                "    else initial failed",
+                "        note over Matrix: fail-fast stop after initial failure",
+                "    end",
+            ]
+        )
     else:
-        diagram_lines = [
-            "```mermaid",
-            "sequenceDiagram",
-            "    participant Matrix",
-            f"    participant Sender as {sender_model}",
-            f"    participant Passive as {passive_model}",
-            f"    note over Matrix: transport {transport_label}",
-            f"    note over Matrix: fleet inventory {fleet_inventory_path.name}",
-            f"    Matrix->>Sender: initial run ({initial_elapsed})",
-            f"    note over Sender: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'})",
+        diagram_lines.extend([
             "    alt initial failed",
             "        note over Matrix: fail-fast stop after initial failure",
             "    end",
-            "```",
-        ]
+        ])
+    diagram_lines.extend(["```", ""])
 
     lines = [
         f"# Pair {index:02d} — {pair['label']}",
@@ -525,23 +554,41 @@ def render_pair_report(
         f"- Sender API level: {sender_api_level if sender_api_level is not None else 'unknown'}",
         f"- Passive API level: {passive_api_level if passive_api_level is not None else 'unknown'}",
         f"- Transport: {transport_label}",
-        f"- Fleet inventory: `{fleet_inventory_path.name}`",
+        f"- Fleet inventory: `{fleet_inventory_path}`",
+        f"- Pair report path: `{pair_report_path}`",
         f"- Peer lookup time: {peer_lookup_elapsed}",
+        f"- Initial run dir: `{path_ref('initial', initial.get('runDir'))}`",
+        f"- Final run dir: `{path_ref('final', final.get('runDir'))}`",
         "",
         "## Result",
         "",
         f"- Initial status: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'}) in {initial_elapsed}",
         f"- Final status: {final_status} ({final.get('failureStage') or 'no failure stage'}) in {final_elapsed}",
         f"- Target peer id: {target_peer_id or 'not resolved'}",
+        f"- Initial HTML report: `{path_ref('initial html', initial.get('htmlReportPath'))}`",
+        f"- Final HTML report: `{path_ref('final html', final.get('htmlReportPath'))}`",
+        f"- Initial summary JSON: `{path_ref('initial summary', initial.get('summaryPath'))}`",
+        f"- Final summary JSON: `{path_ref('final summary', final.get('summaryPath'))}`",
+        "",
+        "## Troubleshooting references",
+        "",
+        *evidence_rows(initial, "Initial"),
+        *evidence_rows(final, "Final"),
         "",
         "## Device quirks and issues",
         "",
         *[f"- {quirk}" for quirk in quirks],
         "",
+        "## Startup timing",
+        "",
+        *json_block("Initial startupTiming", initial.get("startupTiming") or {}),
+        *json_block("Initial timings", initial.get("timings") or {}),
+        *json_block("Final startupTiming", final.get("startupTiming") or {}),
+        *json_block("Final timings", final.get("timings") or {}),
+        *json_block("Captured evidence map", {"initial": initial.get("captured") or {}, "final": final.get("captured") or {}}),
         "## Mermaid sequence diagram",
         "",
         *diagram_lines,
-        "",
     ]
     return "\n".join(lines)
 
@@ -560,7 +607,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.sender_passive_limit is not None:
         available_pairs = available_pairs[: args.sender_passive_limit]
 
-    run_root = Path(args.run_root or f"/tmp/meshlink_android_matrix_{timestamp()}")
+    run_root = Path(args.run_root or str(DEFAULT_MATRIX_RUN_ROOT / timestamp()))
     run_root.mkdir(parents=True, exist_ok=True)
 
     fleet_inventory = build_fleet_inventory(
@@ -669,6 +716,7 @@ def main(argv: list[str] | None = None) -> int:
             "initialRunDir": str(initial_dir),
             "finalRunDir": str(final_dir),
             "pairReportPath": str(run_root / f"{index:02d}_{pair['label']}_report.md"),
+            "fleetJsonPath": str(fleet_json_path),
             "fleetInventoryPath": str(fleet_markdown_path),
             "transportMode": passive_benchmark_transport,
             "peerLookupSeconds": peer_lookup_seconds,
@@ -712,6 +760,7 @@ def main(argv: list[str] | None = None) -> int:
                 initial=initial,
                 final=final,
                 fleet_inventory_path=fleet_markdown_path,
+                pair_report_path=pair_report_path,
             ),
             encoding="utf-8",
         )
@@ -747,8 +796,8 @@ def main(argv: list[str] | None = None) -> int:
 
     compact_report = render_compact_report(results)
     compact_report += "\n\n## Run setup\n\n"
-    compact_report += f"- Fleet inventory: `{fleet_markdown_path.name}`\n"
-    compact_report += f"- Fleet JSON: `{fleet_json_path.name}`\n"
+    compact_report += f"- Fleet inventory: `{fleet_markdown_path}`\n"
+    compact_report += f"- Fleet JSON: `{fleet_json_path}`\n"
     compact_report += f"- Fail-fast: {'enabled' if args.fail_fast else 'disabled'}\n"
     compact_report += f"- Stopped early: {'yes' if stopped_early else 'no'}\n"
     if stop_reason is not None:
