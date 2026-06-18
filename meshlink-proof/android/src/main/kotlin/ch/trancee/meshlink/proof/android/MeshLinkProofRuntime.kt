@@ -18,6 +18,7 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import java.security.MessageDigest
 import java.util.Locale
@@ -43,6 +44,8 @@ internal object MeshLinkProofRuntime {
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
     private val knownPeers: LinkedHashMap<String, KnownPeer> = linkedMapOf()
     private val autoSendJobs: LinkedHashMap<String, Job> = linkedMapOf()
+    private val routeReadyPeers: LinkedHashSet<String> = linkedSetOf()
+    private val pendingAutoSendPeers: LinkedHashSet<String> = linkedSetOf()
     private val passiveReceiptRetryJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val pendingBenchmarkReceipts: LinkedHashMap<String, CompletableDeferred<BenchmarkReceipt>> =
         linkedMapOf()
@@ -102,6 +105,8 @@ internal object MeshLinkProofRuntime {
                 running = false
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
                 synchronized(knownPeers) { knownPeers.clear() }
+                synchronized(routeReadyPeers) { routeReadyPeers.clear() }
+                synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
                 synchronized(autoSendJobs) {
                     autoSendJobs.values.forEach(Job::cancel)
                     autoSendJobs.clear()
@@ -168,6 +173,8 @@ internal object MeshLinkProofRuntime {
                 running = false
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
             }
+            synchronized(routeReadyPeers) { routeReadyPeers.clear() }
+            synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
             synchronized(autoSendJobs) {
                 autoSendJobs.values.forEach(Job::cancel)
                 autoSendJobs.clear()
@@ -188,6 +195,10 @@ internal object MeshLinkProofRuntime {
             return scope.launch { updatesFlow.tryEmit(Unit) }
         }
         return scope.launch {
+            val routeReady = awaitRouteReady(peerId, source = "manual-send")
+            appendLog(
+                "Hello send proceeding for ${peerId.value.takeLast(6)} routeReady=$routeReady"
+            )
             val result = runCatching { requireMeshLink().send(peerId, buildHelloPayload()) }
             result.onSuccess { sendResult ->
                 appendLog("Hello sent to ${peerId.value.takeLast(6)} -> $sendResult")
@@ -225,6 +236,9 @@ internal object MeshLinkProofRuntime {
                     .joinToString(separator = " ", prefix = " ") { (key, value) -> "$key=$value" }
             }
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
+        if (event.code == DiagnosticCode.ROUTE_DISCOVERED || event.code == DiagnosticCode.HOP_SESSION_ESTABLISHED) {
+            markRouteReady(event.peerSuffix, event.code.name)
+        }
     }
 
     private fun appendBenchmarkCorrelation(
@@ -289,6 +303,12 @@ internal object MeshLinkProofRuntime {
                 synchronized(knownPeers) {
                     knownPeers.remove(event.peerId.value)
                 }
+                synchronized(routeReadyPeers) {
+                    routeReadyPeers.remove(event.peerId.value)
+                }
+                synchronized(pendingAutoSendPeers) {
+                    pendingAutoSendPeers.remove(event.peerId.value)
+                }
                 synchronized(autoSendJobs) {
                     autoSendJobs.remove(event.peerId.value)?.cancel()
                 }
@@ -317,6 +337,9 @@ internal object MeshLinkProofRuntime {
                     }
             }
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
+        if (event.code == DiagnosticCode.ROUTE_DISCOVERED || event.code == DiagnosticCode.HOP_SESSION_ESTABLISHED) {
+            markRouteReady(event.peerSuffix, event.code.name)
+        }
     }
 
     private suspend fun handleInboundMessage(message: InboundMessage): Unit {
@@ -435,6 +458,50 @@ internal object MeshLinkProofRuntime {
             )
             return
         }
+        synchronized(pendingAutoSendPeers) {
+            pendingAutoSendPeers.add(peerId.value)
+        }
+        maybeStartAutoHello(peerId, source)
+    }
+
+    private fun markRouteReady(peerSuffix: String?, source: String): Unit {
+        if (peerSuffix == null) {
+            return
+        }
+        val peerId =
+            synchronized(knownPeers) {
+                knownPeers.values.firstOrNull { knownPeer ->
+                    knownPeer.peerId.value.endsWith(peerSuffix)
+                }?.peerId
+            } ?: return
+        synchronized(routeReadyPeers) {
+            routeReadyPeers.add(peerId.value)
+        }
+        appendLog("auto-send route ready for ${peerId.value.takeLast(6)} source=$source")
+        maybeStartAutoHello(peerId, source)
+    }
+
+    private suspend fun awaitRouteReady(peerId: PeerId, source: String): Boolean {
+        if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
+            return true
+        }
+        return withTimeoutOrNull(ROUTE_READY_WAIT_TIMEOUT_MS) {
+            while (true) {
+                if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
+                    return@withTimeoutOrNull true
+                }
+                delay(ROUTE_READY_POLL_INTERVAL_MS)
+            }
+        }.also { result ->
+            if (result != true) {
+                appendLog(
+                    "route ready wait timed out for ${peerId.value.takeLast(6)} source=$source"
+                )
+            }
+        } == true
+    }
+
+    private fun maybeStartAutoHello(peerId: PeerId, source: String): Unit {
         synchronized(autoSendJobs) {
             if (autoSendJobs.containsKey(peerId.value)) {
                 return
@@ -445,8 +512,15 @@ internal object MeshLinkProofRuntime {
                 )
                 return
             }
+            synchronized(pendingAutoSendPeers) {
+                pendingAutoSendPeers.remove(peerId.value)
+            }
             autoSendJobs[peerId.value] =
                 scope.launch {
+                    val routeReady = awaitRouteReady(peerId, source)
+                    appendLog(
+                        "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady"
+                    )
                     if (launchConfig.benchmarkPayloadBytes != null) {
                         val warmupResult =
                             runCatching {
@@ -615,6 +689,8 @@ internal object MeshLinkProofRuntime {
     private const val AUTO_SEND_ATTEMPTS: Int = 6
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
     private const val BENCHMARK_WARMUP_DELAY_MS: Long = 500L
+    private const val ROUTE_READY_POLL_INTERVAL_MS: Long = 50L
+    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 1_500L
     private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
     private const val BENCHMARK_MAGIC: String = "MLBM1000"
     private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
