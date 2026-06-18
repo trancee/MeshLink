@@ -22,6 +22,7 @@ DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
 DEFAULT_FALLBACK_TRANSPORT = "gatt"
 DEFAULT_PRIMARY_TRANSPORT = "meshlink"
+SDK28_GUARDRAIL_LEVEL = 28
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MATRIX_RUN_ROOT = REPO_ROOT / "reports" / "android-direct-proof-fleet" / "runs"
 
@@ -168,6 +169,43 @@ def select_pair_transport(
     return DEFAULT_PRIMARY_TRANSPORT, None
 
 
+def build_sdk28_guardrail_result(
+    *,
+    sender_api_level: int | None,
+    passive_api_level: int | None,
+    capture_timeout: float,
+    android_ready_seconds: float,
+    passive_benchmark_transport: str,
+) -> dict[str, Any]:
+    classified_roles = []
+    if sender_api_level == SDK28_GUARDRAIL_LEVEL:
+        classified_roles.append(f"sender API {sender_api_level}")
+    if passive_api_level == SDK28_GUARDRAIL_LEVEL:
+        classified_roles.append(f"passive API {passive_api_level}")
+    guardrail_reason = (
+        "SDK 28 direct-proof guardrail: "
+        f"{', '.join(classified_roles) or 'matching device'} device(s) are explicitly classified as unsupported before capture"
+    )
+    return {
+        "status": "unsupported",
+        "failureStage": "unsupported",
+        "failureReason": guardrail_reason,
+        "classification": "unsupported",
+        "classificationReason": guardrail_reason,
+        "classificationEvidence": {
+            "senderApiLevel": sender_api_level,
+            "passiveApiLevel": passive_api_level,
+        },
+        "elapsedSeconds": 0.0,
+        "timings": {
+            "totalSeconds": 0.0,
+            "captureTimeoutSeconds": capture_timeout,
+            "androidReadySeconds": android_ready_seconds,
+            "transportMode": passive_benchmark_transport.upper(),
+        },
+    }
+
+
 def run_pair(
     *,
     sender: str,
@@ -272,6 +310,9 @@ def run_pair(
         "stderrTail": (completed.stderr or "")[-1000:],
         "elapsedSeconds": elapsed,
         "exitCode": completed.returncode,
+        "classification": summary.get("classification"),
+        "classificationReason": summary.get("classificationReason"),
+        "classificationEvidence": summary.get("classificationEvidence"),
     }
 
 
@@ -319,6 +360,9 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "captured": summary.get("captured"),
         "summaryPath": summary.get("summaryPath"),
         "runDir": summary.get("runDir"),
+        "classification": summary.get("classification"),
+        "classificationReason": summary.get("classificationReason"),
+        "classificationEvidence": summary.get("classificationEvidence"),
     }
 
 
@@ -328,6 +372,11 @@ def render_compact_report(results: list[dict[str, Any]]) -> str:
         for row in results
         if row["final"]["status"] == "passed"
     ]
+    unsupported_pairs = [
+        f"| {row['senderModel']} | {row['passiveModel']} | unsupported |"
+        for row in results
+        if row["final"]["status"] == "unsupported"
+    ]
     failure_counts: dict[str, dict[str, int]] = {}
     for row in results:
         device = row["senderModel"]
@@ -336,6 +385,8 @@ def render_compact_report(results: list[dict[str, Any]]) -> str:
         stage = final.get("failureStage") or "passed"
         if final["status"] == "passed":
             bucket = "passed"
+        elif final["status"] == "unsupported":
+            bucket = "unsupported/guardrail"
         elif stage == "preflight" or "install" in reason.lower():
             bucket = "preflight/install"
         elif stage == "launch" or "launch" in reason.lower():
@@ -356,6 +407,12 @@ def render_compact_report(results: list[dict[str, Any]]) -> str:
         "| Sender | Passive | Result |",
         "|---|---|---|",
         *passing_pairs,
+        "",
+        "## Unsupported pairs",
+        "",
+        "| Sender | Passive | Result |",
+        "|---|---|---|",
+        *unsupported_pairs,
         "",
         "## Most common failure reason per device",
         "",
@@ -498,6 +555,14 @@ def render_pair_report(
         quirks.append(f"Sender API level {sender_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
     if passive_api_level is not None and passive_api_level < DEFAULT_MIN_ANDROID_API_LEVEL:
         quirks.append(f"Passive API level {passive_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
+    if initial.get("status") == "unsupported" or final.get("status") == "unsupported":
+        guardrail_evidence = initial.get("classificationEvidence") or final.get("classificationEvidence") or {}
+        guardrail_sender_api = guardrail_evidence.get("senderApiLevel", sender_api_level)
+        guardrail_passive_api = guardrail_evidence.get("passiveApiLevel", passive_api_level)
+        quirks.append(
+            "Guardrail: SDK 28 devices are explicitly classified as unsupported before capture "
+            f"(senderApiLevel={guardrail_sender_api} passiveApiLevel={guardrail_passive_api})."
+        )
     if initial.get("failureReason"):
         quirks.append(f"Initial run failure: {initial['failureReason']}")
     if final.get("failureReason"):
@@ -658,51 +723,69 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
 
-        print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
-        initial = run_pair(
-            sender=pair["sender"],
-            passive=pair["passive"],
-            app_id=app_id,
-            run_dir=initial_dir,
-            target_peer_id=None,
-            capture_timeout=args.capture_timeout_seconds,
-            android_ready_seconds=args.android_ready_seconds,
-            pair_timeout_seconds=args.pair_timeout_seconds,
-            skip_install=False,
-            passive_benchmark_transport=passive_benchmark_transport,
-        )
-        target_peer_id = None
-        peer_lookup_seconds = None
-        if initial["status"] == "passed":
-            peer_lookup_started = time.monotonic()
-            target_peer_id = read_passive_peer_id(pair["passive"], app_id)
-            peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
-            final = run_pair(
+        if sender_api_level == SDK28_GUARDRAIL_LEVEL or passive_api_level == SDK28_GUARDRAIL_LEVEL:
+            guardrail_result = build_sdk28_guardrail_result(
+                sender_api_level=sender_api_level,
+                passive_api_level=passive_api_level,
+                capture_timeout=args.capture_timeout_seconds,
+                android_ready_seconds=args.android_ready_seconds,
+                passive_benchmark_transport=passive_benchmark_transport,
+            )
+            print(
+                "==> Pair "
+                f"{index}/{len(available_pairs)} {pair['label']} classified as unsupported: {guardrail_result['failureReason']}",
+                flush=True,
+            )
+            initial = guardrail_result
+            final = dict(guardrail_result)
+            target_peer_id = None
+            peer_lookup_seconds = None
+        else:
+            print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
+            initial = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],
                 app_id=app_id,
-                run_dir=final_dir,
-                target_peer_id=target_peer_id,
+                run_dir=initial_dir,
+                target_peer_id=None,
                 capture_timeout=args.capture_timeout_seconds,
                 android_ready_seconds=args.android_ready_seconds,
                 pair_timeout_seconds=args.pair_timeout_seconds,
-                skip_install=True,
+                skip_install=False,
                 passive_benchmark_transport=passive_benchmark_transport,
             )
-        else:
-            final = {
-                "status": "skipped",
-                "failureStage": initial.get("failureStage"),
-                "failureReason": initial.get("failureReason"),
-                "senderCompletion": initial.get("senderCompletion"),
-                "passiveCompletion": initial.get("passiveCompletion"),
-                "timings": initial.get("timings"),
-                "htmlReportPath": initial.get("htmlReportPath"),
-                "stdoutTail": initial.get("stdoutTail"),
-                "stderrTail": initial.get("stderrTail"),
-                "elapsedSeconds": initial.get("elapsedSeconds"),
-                "exitCode": initial.get("exitCode"),
-            }
+            target_peer_id = None
+            peer_lookup_seconds = None
+            if initial["status"] == "passed":
+                peer_lookup_started = time.monotonic()
+                target_peer_id = read_passive_peer_id(pair["passive"], app_id)
+                peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
+                final = run_pair(
+                    sender=pair["sender"],
+                    passive=pair["passive"],
+                    app_id=app_id,
+                    run_dir=final_dir,
+                    target_peer_id=target_peer_id,
+                    capture_timeout=args.capture_timeout_seconds,
+                    android_ready_seconds=args.android_ready_seconds,
+                    pair_timeout_seconds=args.pair_timeout_seconds,
+                    skip_install=True,
+                    passive_benchmark_transport=passive_benchmark_transport,
+                )
+            else:
+                final = {
+                    "status": "skipped",
+                    "failureStage": initial.get("failureStage"),
+                    "failureReason": initial.get("failureReason"),
+                    "senderCompletion": initial.get("senderCompletion"),
+                    "passiveCompletion": initial.get("passiveCompletion"),
+                    "timings": initial.get("timings"),
+                    "htmlReportPath": initial.get("htmlReportPath"),
+                    "stdoutTail": initial.get("stdoutTail"),
+                    "stderrTail": initial.get("stderrTail"),
+                    "elapsedSeconds": initial.get("elapsedSeconds"),
+                    "exitCode": initial.get("exitCode"),
+                }
 
         row = {
             "label": pair["label"],
