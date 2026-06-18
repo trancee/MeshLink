@@ -145,15 +145,85 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(rows[0]["label"], "a065_nam_lx9")
             self.assertEqual(rows[0]["final"]["status"], "passed")
             self.assertEqual(rows[1]["label"], "nam_lx9_a065")
-            self.assertEqual(rows[1]["final"]["status"], "passed")
-            self.assertEqual(peer_reads, ["1f1dad34:demo.meshlink.reference.android-direct.nam_lx9_a065"])
+            self.assertEqual(rows[1]["initial"]["status"], "failed")
+            self.assertEqual(rows[1]["final"]["status"], "skipped")
+            self.assertEqual(peer_reads, [])
             self.assertEqual(
                 run_calls,
                 [
                     {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "False", "target_peer_id": None},
-                    {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "True", "target_peer_id": "peer-123"},
                 ],
             )
+
+    def test_main_writes_fleet_inventory_and_pair_report_with_fail_fast(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "matrix"
+            run_root.mkdir(parents=True, exist_ok=True)
+            calls: list[tuple[str, str, bool]] = []
+
+            def fake_adb_devices() -> list[str]:
+                return ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"]
+
+            def fake_run_pair(**kwargs):
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"]))
+                if kwargs["skip_install"]:
+                    return {
+                        "status": "failed",
+                        "failureStage": "capture",
+                        "failureReason": "route stalled",
+                        "senderCompletion": "sender complete",
+                        "passiveCompletion": None,
+                        "timings": {"totalSeconds": 12.5, "transportMode": "meshlink"},
+                        "htmlReportPath": "summary.html",
+                        "stdoutTail": "",
+                        "stderrTail": "",
+                        "elapsedSeconds": 12.5,
+                        "exitCode": 1,
+                    }
+                return {
+                    "status": "passed",
+                    "failureStage": None,
+                    "failureReason": None,
+                    "senderCompletion": "sender complete",
+                    "passiveCompletion": "passive complete",
+                    "timings": {"totalSeconds": 4.2, "transportMode": "meshlink"},
+                    "htmlReportPath": "summary.html",
+                    "stdoutTail": "",
+                    "stderrTail": "",
+                    "elapsedSeconds": 4.2,
+                    "exitCode": 0,
+                }
+
+            def fake_read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str:
+                del serial, app_id, retries, delay_s
+                return "peer-123"
+
+            # Act
+            with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix,
+                "adb_device_api_level",
+                side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36, "42004386e43c8589": 36}.get(serial),
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
+                android_direct_matrix.main(["--run-root", str(run_root)])
+
+            # Assert
+            fleet_json = json.loads((run_root / "fleet.json").read_text(encoding="utf-8"))
+            self.assertTrue(fleet_json["failFast"])
+            self.assertEqual(fleet_json["deviceCount"], 3)
+            self.assertEqual([device["serial"] for device in fleet_json["devices"]], ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"])
+            self.assertTrue((run_root / "01_a065_nam_lx9_report.md").exists())
+            self.assertIn("sequenceDiagram", (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8"))
+            self.assertIn("fail-fast stop after final failure", (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8"))
+            results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]["final"]["status"], "failed")
+            state = json.loads((run_root / "state.json").read_text(encoding="utf-8"))
+            self.assertTrue(state["stoppedEarly"])
+            self.assertIn("failed during", state["stopReason"])
+            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False), ("1f1dad34", "2ASVB21B09005117", True)])
 
     def test_main_runs_all_available_directed_pairs_when_not_resuming(self) -> None:
         # Arrange
