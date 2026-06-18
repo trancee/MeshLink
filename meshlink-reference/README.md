@@ -106,6 +106,18 @@ reference experience.
 For the current attached-device fleet and device-specific quirks, see the
 [Device test matrix reference](../docs/reference/device-test-matrix.md).
 
+For direct invocation of the Android direct-proof tests, include both scripts
+paths on `PYTHONPATH` so the shared `support.py` helper resolves:
+
+```bash
+PYTHONPATH=meshlink-reference/scripts/tests:meshlink-reference/scripts \
+  python -m unittest meshlink-reference/scripts/tests/test_reference_android_direct_proof.py \
+    meshlink-reference/scripts/tests/test_reference_android_direct_matrix.py
+```
+
+Prefer `meshlink-reference/scripts/tests/run_reference_android_direct_proof_tests.sh`
+for the direct-proof subset; it sets up discovery from the test directory.
+
 For exact surface and export vocabulary such as **Supported live session**,
 **Retained session**, **Redacted export**, and **Full-payload export**, use the
 [Glossary and acronym reference](../docs/reference/glossary.md).

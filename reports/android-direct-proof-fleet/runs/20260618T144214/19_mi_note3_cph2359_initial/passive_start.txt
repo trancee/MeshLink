@@ -1,0 +1,1 @@
+Starting: Intent { cmp=ch.trancee.meshlink.proof.android/.MainActivity (has extras) }

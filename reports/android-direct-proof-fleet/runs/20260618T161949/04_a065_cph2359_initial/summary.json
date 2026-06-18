@@ -1,0 +1,104 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.a065_cph2359",
+  "storageSubdirectory": "04_a065_cph2359_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "1f1dad34",
+  "passiveSerial": "EQUGS85LJNEIO7Z5",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-18 16:21:22.582 29557 29557 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": "06-18 16:20:44.657 17688 17688 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "route-unavailable",
+  "routeEvidence": "06-18 16:21:32.605 29557 29581 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=92fd1e detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=c8522a3cc82121d84392fd1e, topologyVersion=0, routeAvailable=false, attempt=2}",
+  "senderRouteStage": "route-unavailable",
+  "senderRouteEvidence": "06-18 16:21:32.605 29557 29581 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=92fd1e detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=c8522a3cc82121d84392fd1e, topologyVersion=0, routeAvailable=false, attempt=2}",
+  "passiveRouteStage": null,
+  "passiveRouteEvidence": null,
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 0.5,
+      "line": "06-18 16:21:22.523 29557 29557 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_cph2359 storage=04_a065_cph2359_initial"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.8,
+      "line": "06-18 16:20:44.516 17688 17688 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_cph2359 storage=04_a065_cph2359_initial"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.8,
+      "line": "06-18 16:20:45.325 17688 17688 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 63.4
+  },
+  "timings": {
+    "totalSeconds": 63.4,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "L2CAP",
+    "transportEvidence": "06-18 16:20:44.599 17688 17688 I MeshLinkReferenceAutomation: start() with l2capPsm=146",
+    "sender": {
+      "startupWaitSeconds": 0.5,
+      "startupObserved": true,
+      "startupMarker": "06-18 16:21:22.523 29557 29557 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_cph2359 storage=04_a065_cph2359_initial",
+      "peerDiscoverySeconds": 0.405,
+      "peerDiscoveryMarker": "06-18 16:21:22.928 29557 29591 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=92fd1e",
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": "06-18 16:21:22.928 29557 29591 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION send.requested role=sender phase=primary peer=92fd1e priority=NORMAL bytes=23 payload=guided-hello targetIndex=0 requiredPeerCount=1 targetPeerId=auto",
+      "completionMarker": null,
+      "transportMode": "L2CAP",
+      "transportEvidence": "06-18 16:21:22.925 29557 29557 I MeshLinkReferenceAutomation: scan found 92fd1e mode=L2CAP psm=147 platform=ANDROID addr=70:DD:D3:EA:D4:3F"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.8,
+      "startupObserved": true,
+      "startupMarker": "06-18 16:20:44.516 17688 17688 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.a065_cph2359 storage=04_a065_cph2359_initial",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "L2CAP",
+      "transportEvidence": "06-18 16:20:44.599 17688 17688 I MeshLinkReferenceAutomation: start() with l2capPsm=146"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Android direct proof stalled at route stage sender=route-unavailable passive=none; senderEvidence=06-18 16:21:32.605 29557 29581 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=92fd1e detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=c8522a3cc82121d84392fd1e, topologyVersion=0, routeAvailable=false, attempt=2} passiveEvidence=n/a",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}

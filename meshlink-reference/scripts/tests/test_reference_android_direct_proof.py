@@ -438,6 +438,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                     sender_start_command,
                 )
                 self.assertIn("uuid-pair-plus-service-data", sender_start_command)
+                self.assertNotIn("meshlink.benchmarkTransport", sender_start_command)
+                self.assertNotIn("meshlink.disableAutoSend", sender_start_command)
                 self.assertEqual(force_stop_calls.count("sender-1"), 3)
                 self.assertEqual(force_stop_calls.count("passive-1"), 3)
                 self.assertEqual(force_stop_calls.count("extra-1"), 3)

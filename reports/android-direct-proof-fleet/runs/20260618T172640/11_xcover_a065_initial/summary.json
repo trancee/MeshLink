@@ -1,0 +1,104 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.xcover_a065",
+  "storageSubdirectory": "11_xcover_a065_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "42004386e43c8589",
+  "passiveSerial": "1f1dad34",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-18 17:34:03.677 32238 32238 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": null,
+  "routeEvidence": null,
+  "senderRouteStage": null,
+  "senderRouteEvidence": null,
+  "passiveRouteStage": null,
+  "passiveRouteEvidence": null,
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 9.3,
+      "line": "06-18 17:34:02.849 32238 32238 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.xcover_a065 storage=11_xcover_a065_initial"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.3,
+      "line": "06-18 17:33:53.875  4634  4634 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 17:33:53.889  4634  4678 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 52.7
+  },
+  "timings": {
+    "totalSeconds": 52.7,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 17:33:53.875  4634  4634 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 9.3,
+      "startupObserved": true,
+      "startupMarker": "06-18 17:34:02.849 32238 32238 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.xcover_a065 storage=11_xcover_a065_initial",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 17:34:03.426 32238 32238 I MeshLinkReferenceAutomation: start() with l2capPsm=0"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.3,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 17:33:53.875  4634  4634 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Timed out waiting for proof.complete on Android roles: passive, sender",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}

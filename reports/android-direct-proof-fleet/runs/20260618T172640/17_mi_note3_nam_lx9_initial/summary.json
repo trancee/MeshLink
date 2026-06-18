@@ -1,0 +1,104 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.mi_note3_nam_lx9",
+  "storageSubdirectory": "17_mi_note3_nam_lx9_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "42c2cf",
+  "passiveSerial": "2ASVB21B09005117",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-18 11:38:27.193 23758 23758 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": null,
+  "routeEvidence": null,
+  "senderRouteStage": null,
+  "senderRouteEvidence": null,
+  "passiveRouteStage": null,
+  "passiveRouteEvidence": null,
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 2.8,
+      "line": "06-18 11:38:26.887 23758 23758 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.mi_note3_nam_lx9 storage=17_mi_note3_nam_lx9_initial"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.5,
+      "line": "06-18 17:38:18.579 31006 31006 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.mi_note3_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 17:38:18.618 31006 31036 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 44.4
+  },
+  "timings": {
+    "totalSeconds": 44.4,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 17:38:18.579 31006 31006 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.mi_note3_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 2.8,
+      "startupObserved": true,
+      "startupMarker": "06-18 11:38:26.887 23758 23758 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.mi_note3_nam_lx9 storage=17_mi_note3_nam_lx9_initial",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 11:38:27.089 23758 23758 I MeshLinkReferenceAutomation: start() with l2capPsm=0"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.5,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 17:38:18.579 31006 31006 I MeshLinkProof: MeshLink proof app ready on HUAWEI NAM-LX9 (SDK 31) appId=demo.meshlink.reference.android-direct.mi_note3_nam_lx9 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Timed out waiting for proof.complete on Android roles: passive, sender",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}

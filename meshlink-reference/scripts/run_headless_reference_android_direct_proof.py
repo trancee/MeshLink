@@ -1605,7 +1605,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
             sender_benchmark_transport = (
                 "gatt-notify"
-                if args.passive_benchmark_transport != "meshlink"
+                if args.passive_benchmark_transport == "gatt-notify"
                 else "meshlink"
             )
             sender_process = start_android_role_app(

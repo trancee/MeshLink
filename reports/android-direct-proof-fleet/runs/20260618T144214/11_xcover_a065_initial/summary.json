@@ -1,0 +1,104 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.xcover_a065",
+  "storageSubdirectory": "11_xcover_a065_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "42004386e43c8589",
+  "passiveSerial": "1f1dad34",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-18 14:49:21.564 25059 25059 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "hop-established",
+  "routeEvidence": "06-18 14:49:11.928 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=64:64:04:67:E3:20",
+  "senderRouteStage": null,
+  "senderRouteEvidence": null,
+  "passiveRouteStage": "hop-established",
+  "passiveRouteEvidence": "06-18 14:49:11.928 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=64:64:04:67:E3:20",
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 9.3,
+      "line": "06-18 14:49:20.683 25059 25059 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.xcover_a065 storage=11_xcover_a065_initial"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.3,
+      "line": "06-18 14:49:11.914 24865 24865 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-18 14:49:11.927 24865 24903 I MeshLinkProof: gatt.benchmark.start() -> Started"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 33.2
+  },
+  "timings": {
+    "totalSeconds": 33.2,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": "GATT",
+    "transportEvidence": "06-18 14:49:11.914 24865 24865 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype",
+    "sender": {
+      "startupWaitSeconds": 9.3,
+      "startupObserved": true,
+      "startupMarker": "06-18 14:49:20.683 25059 25059 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.xcover_a065 storage=11_xcover_a065_initial",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 14:49:21.297 25059 25059 I MeshLinkReferenceAutomation: start() with l2capPsm=0"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.3,
+      "startupObserved": true,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": "06-18 14:49:11.926 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=62:A7:4A:C4:F9:02",
+      "trustConnectionSeconds": 0.001,
+      "trustConnectionMarker": "06-18 14:49:11.927 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION ROUTE_DISCOVERED role=PASSIVE peer=62:A7:4A:C4:F9:02",
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": "06-18 14:49:11.926 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=62:A7:4A:C4:F9:02",
+      "completionMarker": null,
+      "transportMode": "GATT",
+      "transportEvidence": "06-18 14:49:11.914 24865 24865 I MeshLinkProof: MeshLink proof app ready on Nothing A065 (SDK 36) appId=demo.meshlink.reference.android-direct.xcover_a065 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Android direct proof stalled at route stage sender=none passive=hop-established; senderEvidence=n/a passiveEvidence=06-18 14:49:11.928 24865 24880 I MeshLinkProof: REFERENCE_AUTOMATION HOP_SESSION_ESTABLISHED role=PASSIVE peer=64:64:04:67:E3:20",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}
