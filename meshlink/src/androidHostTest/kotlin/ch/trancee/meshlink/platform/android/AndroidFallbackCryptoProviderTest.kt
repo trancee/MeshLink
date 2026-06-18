@@ -39,6 +39,21 @@ class AndroidFallbackCryptoProviderTest {
     }
 
     @Test
+    fun `generate x25519 key pair clamps the scalar bits`() {
+        // Arrange
+        val keyPair = provider.generateX25519KeyPair()
+
+        // Act
+        val privateKey = keyPair.privateKey
+
+        // Assert
+        assertEquals(32, privateKey.size)
+        assertEquals(0, privateKey[0].toInt() and 0x07)
+        assertEquals(0, privateKey[31].toInt() and 0x80)
+        assertTrue(privateKey[31].toInt() and 0x40 != 0)
+    }
+
+    @Test
     fun `x25519 shared secret is symmetric`() {
         // Arrange
         val alice = provider.generateX25519KeyPair()
@@ -149,6 +164,23 @@ class AndroidFallbackCryptoProviderTest {
 
         // Assert
         assertTrue(ciphertext.size > plaintext.size)
+        assertContentEquals(plaintext, decrypted)
+    }
+
+    @Test
+    fun `chacha20 poly1305 handles empty aad and plaintext`() {
+        // Arrange
+        val key = ByteArray(32) { index -> (index + 1).toByte() }
+        val nonce = ByteArray(12) { index -> (index + 2).toByte() }
+        val aad = byteArrayOf()
+        val plaintext = byteArrayOf()
+
+        // Act
+        val ciphertext = provider.chacha20Poly1305Seal(key, nonce, aad, plaintext)
+        val decrypted = provider.chacha20Poly1305Open(key, nonce, aad, ciphertext)
+
+        // Assert
+        assertEquals(16, ciphertext.size)
         assertContentEquals(plaintext, decrypted)
     }
 

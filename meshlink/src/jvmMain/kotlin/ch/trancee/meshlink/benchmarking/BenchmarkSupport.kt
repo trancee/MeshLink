@@ -160,7 +160,7 @@ public class BenchmarkPureX25519Provider public constructor() {
         privateKey[31] = ((privateKey[31].toInt() and 127) or 64).toByte()
         return BenchmarkX25519KeyPair(
             privateKey = privateKey,
-            publicKey = PureX25519.publicKeyFromPrivate(privateKey),
+            publicKey = PureX25519.publicKeyFromClampedPrivate(privateKey),
         )
     }
 

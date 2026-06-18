@@ -3,9 +3,9 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
+import ch.trancee.meshlink.crypto.PureX25519
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
-import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -50,7 +50,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     override fun generateX25519KeyPair(): X25519KeyPair {
         val privateKey = randomBytes(X25519_KEY_SIZE_BYTES)
         clampX25519Scalar(privateKey)
-        val publicKey = X25519Fallback.publicKeyFromPrivate(privateKey)
+        val publicKey = PureX25519.publicKeyFromClampedPrivate(privateKey)
         return X25519KeyPair(privateKey = privateKey, publicKey = publicKey)
     }
 
@@ -59,7 +59,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     }
 
     override fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
-        return requireValidX25519SharedSecret(X25519Fallback.sharedSecret(privateKey, publicKey))
+        return requireValidX25519SharedSecret(PureX25519.sharedSecret(privateKey, publicKey))
     }
 
     override fun ed25519Sign(privateKey: ByteArray, message: ByteArray): ByteArray {
@@ -195,14 +195,25 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
     }
 
     private fun buildAeadAuthData(aad: ByteArray, ciphertext: ByteArray): ByteArray {
-        val out = ByteArrayOutputStream()
-        out.write(aad)
-        out.write(pad16(aad.size))
-        out.write(ciphertext)
-        out.write(pad16(ciphertext.size))
-        out.write(longToLittleEndian(aad.size.toLong()))
-        out.write(longToLittleEndian(ciphertext.size.toLong()))
-        return out.toByteArray()
+        val aadPaddingSize = pad16Size(aad.size)
+        val ciphertextPaddingSize = pad16Size(ciphertext.size)
+        val authData =
+            ByteArray(
+                aad.size +
+                    aadPaddingSize +
+                    ciphertext.size +
+                    ciphertextPaddingSize +
+                    16,
+            )
+        var offset = 0
+        aad.copyInto(authData, destinationOffset = offset)
+        offset += aad.size + aadPaddingSize
+        ciphertext.copyInto(authData, destinationOffset = offset)
+        offset += ciphertext.size + ciphertextPaddingSize
+        longToLittleEndian(aad.size.toLong()).copyInto(authData, destinationOffset = offset)
+        offset += 8
+        longToLittleEndian(ciphertext.size.toLong()).copyInto(authData, destinationOffset = offset)
+        return authData
     }
 
     private fun poly1305Mac(message: ByteArray, oneTimeKey: ByteArray): ByteArray {
@@ -245,9 +256,9 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
         bytes[12] = (bytes[12].toInt() and 252).toByte()
     }
 
-    private fun pad16(length: Int): ByteArray {
+    private fun pad16Size(length: Int): Int {
         val remainder = length % 16
-        return if (remainder == 0) byteArrayOf() else ByteArray(16 - remainder)
+        return if (remainder == 0) 0 else 16 - remainder
     }
 
     private fun longToLittleEndian(value: Long): ByteArray {
