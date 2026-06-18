@@ -22,7 +22,8 @@ DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
 DEFAULT_FALLBACK_TRANSPORT = "gatt"
 DEFAULT_PRIMARY_TRANSPORT = "meshlink"
-DEFAULT_MATRIX_RUN_ROOT = Path(".gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MATRIX_RUN_ROOT = REPO_ROOT / "reports" / "android-direct-proof-fleet" / "runs"
 
 PAIRS = [
     {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},

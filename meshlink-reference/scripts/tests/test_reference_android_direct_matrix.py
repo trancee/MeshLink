@@ -26,6 +26,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
         self.assertEqual(args.android_ready_seconds, android_direct_matrix.DEFAULT_ANDROID_READY_SECONDS)
         self.assertEqual(args.capture_timeout_seconds, android_direct_matrix.DEFAULT_CAPTURE_TIMEOUT_SECONDS)
 
+    def test_default_matrix_reports_land_under_reports_root(self) -> None:
+        # Arrange / Act
+        default_root = android_direct_matrix.DEFAULT_MATRIX_RUN_ROOT
+        expected_root = Path(__file__).resolve().parents[3] / "reports" / "android-direct-proof-fleet" / "runs"
+
+        # Assert
+        self.assertEqual(default_root, expected_root)
+
     def test_run_pair_reports_timeout_without_blocking_following_pairs(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -6,7 +6,7 @@ The Android fleet sweep produces repository-local report bundles so failures can
 
 When `meshlink-reference/scripts/run_headless_reference_android_direct_matrix.py` runs without `--run-root`, it writes into:
 
-`.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs/<timestamp>/`
+`reports/android-direct-proof-fleet/runs/<timestamp>/`
 
 That directory is the canonical report bundle for the sweep.
 
@@ -43,7 +43,7 @@ Per-pair reports should point to the underlying proof artifacts instead of repea
 ## Sample committed bundle layout
 
 A committed copy of the report bundle layout lives in
-`.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/REPORTS.md`.
+`reports/README.md`.
 That file is the repository-tracked example of what the generated run directory should look like.
 For a shorter tree-only summary, see [Android direct-proof fleet report layout](android-direct-proof-fleet-report-layout.md).
 

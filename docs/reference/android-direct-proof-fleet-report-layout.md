@@ -5,7 +5,7 @@ This page is a concise repository-tracked sample of the report bundle shape prod
 ## Sample bundle
 
 ```text
-.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs/<timestamp>/
+reports/android-direct-proof-fleet/runs/<timestamp>/
 ├── fleet.json
 ├── fleet.md
 ├── matrix-results.json

@@ -6,7 +6,7 @@ This workflow keeps the Android fleet sweep reports inside the repository so the
 
 When `meshlink-reference/scripts/run_headless_reference_android_direct_matrix.py` runs without `--run-root`, it writes into:
 
-- `.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs/<timestamp>/`
+- `reports/android-direct-proof-fleet/runs/<timestamp>/`
 
 That directory becomes the canonical report bundle for the sweep.
 
@@ -16,7 +16,7 @@ The example layout below is committed in the repository as the workflow report b
 It shows the shape the generated run directory should follow.
 
 ```text
-.gsd/workflows/bugfixes/260618-2-run-the-complete-android-fleet-with-all/runs/<timestamp>/
+reports/android-direct-proof-fleet/runs/<timestamp>/
 ├── fleet.json
 ├── fleet.md
 ├── matrix-results.json
