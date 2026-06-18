@@ -95,7 +95,7 @@ flowchart LR
 | `iosMain` | iOS factory actuals, CoreBluetooth bridge glue, iOS secure storage, and iOS crypto provider glue |
 | `jvmMain` | JVM factory actuals and JVM-side crypto or storage used by tests and benchmarks |
 | `commonTest` | Shared protocol, routing, transfer, crypto, and public-surface tests |
-| `androidHostTest` | Android-specific library tests |
+| `androidHostTest` | Host-side Android library tests |
 | `iosTest` | iOS-specific library tests |
 | `jvmTest` | Fast shared-library and codec tests on the JVM |
 
@@ -107,7 +107,7 @@ flowchart LR
 | `androidMain` | Android platform-services factories, Android readiness guidance, and Android-specific host glue for the shared shell |
 | `iosMain` | iOS platform-services factories and UIKit entry points for the shared shell |
 | `commonTest` | Shared session-model, store, and UI-state tests |
-| `androidHostTest` | Android-specific shared-module tests |
+| `androidHostTest` | Host-side Android shared-module tests |
 | `iosTest` | iOS-specific shared-module tests |
 | `androidInstrumentedTest` | Shared-module Android instrumented tests |
 | `android/src/main` | Android activity host and automation intent entry points |
