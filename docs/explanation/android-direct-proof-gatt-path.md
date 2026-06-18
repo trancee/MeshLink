@@ -146,4 +146,4 @@ For the current branch, the safe reading is:
 
 ## Reader takeaway
 
-If you are debugging direct-proof transport behavior, treat `meshlink.benchmarkTransport=gatt` as a fixture selector, not as proof that the carried transport switched away from L2CAP. The sender-side contract fix is already in the runner, and the current matrix rerun also classifies SDK 28 pairs as unsupported before capture so they no longer read as ambiguous stalls. The fleet bundle still shows capture stalls in later phases for the remaining pairs, so making GATT the primary transport still requires a deliberate app/startup contract change rather than a runner-only flag.
+If you are debugging direct-proof transport behavior, treat `meshlink.benchmarkTransport=gatt` as a fixture selector, not as proof that the carried transport switched away from L2CAP. The sender-side contract fix is already in the runner, but the fleet bundle still shows capture stalls in later phases, so making GATT the primary transport still requires a deliberate app/startup contract change rather than a runner-only flag.

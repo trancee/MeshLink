@@ -6,10 +6,6 @@ This page captures the observed Android direct-proof matrix result from the
 132-pair fail-fast sweep across the attached Android fleet. It preserves the
 canonical 45s fail-fast rerun summary that downstream docs and checks point to.
 
-The current rerun bundle that demonstrates the unsupported guardrail is
-`reports/android-direct-proof-fleet/runs/20260618T144214/`; its matrix report
-separates `unsupported/guardrail` from ordinary `capture/route stall` failures.
-
 ## Scope
 
 - 45s capture window
@@ -17,7 +13,6 @@ separates `unsupported/guardrail` from ordinary `capture/route stall` failures.
 - fail-fast behavior retained
 - sender `proof.complete` remains the hard success gate
 - passive retained evidence is best-effort, not required for success
-- SDK 28 direct-proof pairs are now explicitly classified as unsupported before capture so they do not collapse into ambiguous capture stalls
 
 ## Result summary
 
