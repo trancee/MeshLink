@@ -70,7 +70,8 @@ class LiveReferenceSessionProjectorPeerEventsTest {
         assertEquals("Inbound message received", snapshot.session.lastOutcomeSummary)
         assertEquals(TEST_PEER_ID, snapshot.session.selectedPeerId)
         assertEquals("Inbound 16 bytes", snapshot.peers.single().lastDeliveryOutcome)
-        assertEquals(1, runtimeLogs.size)
-        assertTrue(runtimeLogs.single().contains("origin=$TEST_PEER_ID"))
+        assertEquals(2, runtimeLogs.size)
+        assertTrue(runtimeLogs.any { it.contains("origin=$TEST_PEER_ID") })
+        assertTrue(runtimeLogs.any { it.contains("inbound.selected peer=$TEST_PEER_ID") })
     }
 }

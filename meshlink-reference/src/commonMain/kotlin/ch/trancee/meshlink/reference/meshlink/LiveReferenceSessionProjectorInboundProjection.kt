@@ -35,6 +35,16 @@ internal fun recordProjectedInboundMessage(
         lastOutcomeSummary = "Inbound message received",
         selectedPeerId = message.originPeerId.value,
     )
+    val peerTrustLabel =
+        stateStore.currentSnapshot.peers
+            .firstOrNull { it.peerId == message.originPeerId.value }
+            ?.trustState
+            ?.name ?: "missing"
+    runtimeLogger(
+        "REFERENCE_RUNTIME inbound.selected peer=${message.originPeerId.value} " +
+            "sessionSelected=${stateStore.currentSnapshot.session.selectedPeerId} " +
+            "peerTrust=$peerTrustLabel"
+    )
     stateStore.updatePeers { peers ->
         peers.map { peer ->
             if (peer.peerId == message.originPeerId.value) {
