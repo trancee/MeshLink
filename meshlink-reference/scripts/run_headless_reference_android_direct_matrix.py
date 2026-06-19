@@ -288,7 +288,7 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: f
             except ET.ParseError:
                 time.sleep(delay_s)
                 continue
-            for item in root.findall(".//map/string"):
+            for item in root.findall(".//string"):
                 if item.get("name") == TARGET_PEER and item.text:
                     return item.text.strip()
         time.sleep(delay_s)

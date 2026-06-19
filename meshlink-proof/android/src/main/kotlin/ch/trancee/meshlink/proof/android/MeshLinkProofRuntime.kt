@@ -417,6 +417,12 @@ internal object MeshLinkProofRuntime {
             passiveReceiptRetryJobs[peerId.value]?.cancel()
             passiveReceiptRetryJobs[peerId.value] =
                 scope.launch {
+                    val routeReady = awaitRouteReady(peerId, source = "passive-receipt")
+                    if (!routeReady) {
+                        appendLog(
+                            "BENCHMARK receipt deferred peer=${peerId.value.takeLast(6)} token=${receipt.tokenHex} routeReady=false"
+                        )
+                    }
                     delay(PASSIVE_RECEIPT_RETRY_DELAY_MS)
                     val sendResult = runCatching { requireMeshLink().send(peerId, receipt.encode()) }
                     sendResult

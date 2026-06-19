@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,7 @@ DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
 ANDROID_PROOF_PACKAGE = "ch.trancee.meshlink.proof.android"
 ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
+TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
 ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
@@ -1148,6 +1150,28 @@ def start_android_role_app(
     return process
 
 
+def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+    relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
+    for _ in range(retries):
+        try:
+            xml_text = read_android_app_file(android_serial, relative_path)
+        except subprocess.CalledProcessError:
+            time.sleep(delay_s)
+            continue
+        if "x25519-public" in xml_text:
+            try:
+                root = ET.fromstring(xml_text)
+            except ET.ParseError:
+                time.sleep(delay_s)
+                continue
+            for item in root.findall(".//string"):
+                if item.get("name") == TARGET_PEER and item.text:
+                    return item.text.strip()
+        time.sleep(delay_s)
+    print(f"==> Passive peer id unavailable for {android_serial}; continuing without a seeded target peer")
+    return None
+
+
 def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -1546,9 +1570,17 @@ def main(argv: list[str] | None = None) -> int:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
-                discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
-                    passive_marker_path,
-                    discovery_wait_seconds,
+                discovered_peer_id = (
+                    discovered_peer_id
+                    or read_passive_peer_id(
+                        args.passive_android_serial,
+                        app_id,
+                        retries=max(1, int(discovery_wait_seconds)),
+                    )
+                    or wait_for_discovered_peer_id(
+                        passive_marker_path,
+                        discovery_wait_seconds,
+                    )
                 )
             else:
                 discovered_peer_id = discovered_peer_id or args.target_peer_id

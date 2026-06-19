@@ -236,6 +236,24 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(peer_id, "passive-peer-123456")
 
+    def test_read_passive_peer_id_reads_target_peer_from_shared_prefs(self) -> None:
+        # Arrange
+        xml_text = (
+            "<map>"
+            "<string name=\"ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID\">"
+            "passive-peer-123456"
+            "</string>"
+            "<string name=\"x25519-public\">present</string>"
+            "</map>"
+        )
+        with patch.object(android_direct_proof, "read_android_app_file", return_value=xml_text) as read_mock:
+            # Act
+            peer_id = android_direct_proof.read_passive_peer_id("passive-1", "app-123", retries=1, delay_s=0)
+
+        # Assert
+        self.assertEqual(peer_id, "passive-peer-123456")
+        read_mock.assert_called_once_with("passive-1", "../shared_prefs/meshlink-app-123.xml")
+
     def test_android_proof_install_timeout_differs_for_wireless_and_usb_serials(self) -> None:
         # Arrange / Act / Assert
         self.assertEqual(
@@ -324,6 +342,11 @@ class AndroidDirectProofTests(unittest.TestCase):
                 )
             if relative_path.endswith("direct-proof-probe/gatt-start.txt"):
                 return "role=PASSIVE benchmarkTransport=gatt"
+            if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
+                return (
+                    '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
+                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                )
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -590,6 +613,11 @@ class AndroidDirectProofTests(unittest.TestCase):
             del android_serial
             if relative_path == "direct-proof-probe/gatt-start.txt":
                 return "role=PASSIVE benchmarkTransport=gatt"
+            if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
+                return (
+                    '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
+                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                )
             return "{}"
 
         shared: dict[str, object] = {}
@@ -985,6 +1013,11 @@ class AndroidDirectProofTests(unittest.TestCase):
                 )
             if relative_path.endswith("direct-proof-probe/gatt-start.txt"):
                 return "role=PASSIVE benchmarkTransport=gatt"
+            if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
+                return (
+                    '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
+                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                )
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1073,6 +1106,11 @@ class AndroidDirectProofTests(unittest.TestCase):
             del android_serial
             if relative_path == "direct-proof-probe/gatt-start.txt":
                 return "role=PASSIVE benchmarkTransport=gatt"
+            if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
+                return (
+                    '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
+                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                )
             return "{}"
 
         with tempfile.TemporaryDirectory() as temporary_directory:
