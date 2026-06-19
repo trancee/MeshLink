@@ -348,6 +348,7 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
             bucket = "capture/route stall"
         failure_counts.setdefault(device, {})
         failure_counts[device][bucket] = failure_counts[device].get(bucket, 0) + 1
+
     top_failure_rows = []
     bucket_totals: dict[str, int] = {}
     for device, buckets in failure_counts.items():
@@ -356,6 +357,12 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         for bucket, count in buckets.items():
             bucket_totals[bucket] = bucket_totals.get(bucket, 0) + count
     top_failure_bucket = max(bucket_totals.items(), key=lambda item: item[1])[0] if bucket_totals else "—"
+    top_failure_explanation = {
+        "preflight/install": "preflight or install problems prevented the directed pair from entering the proof path",
+        "launch timeout": "launch timeouts blocked the pair before route establishment",
+        "capture/route stall": "capture and route progression stalled before the proof flow completed",
+        "passed": "all processed pairs passed",
+    }.get(top_failure_bucket, top_failure_bucket)
 
     completed_pairs = len(results)
     passing_count = sum(1 for row in results if row["final"]["status"] == "passed")
@@ -397,11 +404,13 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"    note over Matrix: runRoot={run_root or '—'} · fleet={Path(fleet_inventory_path).name if fleet_inventory_path else '—'}",
         "    rect rgba(245, 247, 250, 0.55)",
         f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
-        f"        Matrix->>Sweep: execute directed pairs ({completed_pairs} completed)",
-        f"        note over Fleet,Sweep: passing={passing_count} · failing={failing_count}",
+        f"        Matrix->>Sweep: prepare directed sweep ({completed_pairs} completed)",
+        f"        Fleet-->>Matrix: inventory ready ({passing_count} passing · {failing_count} failing)",
+        f"        note over Fleet,Sweep: failure bucket so far = {top_failure_bucket}",
         "    end",
         "    rect rgba(236, 253, 245, 0.55)",
-        "        Sweep->>Sweep: bucket outcomes",
+        f"        Sweep->>Sweep: execute pair lane across {completed_pairs} completed pairs",
+        "        Sweep->>Sweep: classify outcomes by failure stage",
         f"        note over Sweep: top failure bucket = {top_failure_bucket}",
         "        alt at least one passing pair",
         f"            Sweep-->>Matrix: {passing_count} passing pairs recorded",
@@ -412,10 +421,11 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    rect rgba(254, 242, 242, 0.55)",
         "        alt stopped early",
         f"            Sweep->>Stop: {stop_reason or 'failure threshold reached'}",
+        f"            note over Stop: failure explanation: {top_failure_explanation}",
         "        else sweep completed",
         "            Sweep->>Stop: all processed pairs recorded",
+        f"            note over Stop: failure explanation: {top_failure_explanation}",
         "        end",
-        "        note over Stop: next step = inspect failure buckets and route evidence",
         "    end",
         "```",
         "",
