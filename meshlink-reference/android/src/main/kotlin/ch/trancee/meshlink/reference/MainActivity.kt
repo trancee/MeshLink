@@ -17,7 +17,6 @@ import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
 import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
-import ch.trancee.meshlink.proof.android.ProofGattBenchmarkServer
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceStartupCoordinator
 import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
@@ -32,8 +31,6 @@ public class MainActivity : ComponentActivity() {
     private var activePlatformServices: PlatformServices? = null
     private var directProofEnabled: Boolean = false
     private var startupCoordinator: ReferenceStartupCoordinator? = null
-    private var directProofGattNotifyBridge: ch.trancee.meshlink.proof.android.ReferenceDirectProofGattNotifyBridge? = null
-    private var directProofGattBenchmarkServer: ProofGattBenchmarkServer? = null
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
@@ -64,72 +61,6 @@ public class MainActivity : ComponentActivity() {
                 "onCreate.txt",
                 "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} directProofEnabled=$directProofEnabled\n",
             )
-            val passiveGattRequested =
-                automationConfig.role == ReferenceAutomationRole.PASSIVE
-            Log.i(
-                "MeshLinkReferenceAutomation",
-                "REFERENCE_AUTOMATION gatt.server.evaluate role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} passiveGattRequested=$passiveGattRequested",
-            )
-            writeDirectProofProbeMarker(
-                "gatt-evaluate.txt",
-                "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} passiveGattRequested=$passiveGattRequested\n",
-            )
-            if (passiveGattRequested) {
-                try {
-                    val bluetoothManager =
-                        applicationContext.getSystemService(android.bluetooth.BluetoothManager::class.java)
-                            ?: error("BluetoothManager is unavailable")
-                    val bluetoothAdvertiser = bluetoothManager.adapter?.bluetoothLeAdvertiser
-                    Log.i(
-                        "MeshLinkReferenceAutomation",
-                        "REFERENCE_AUTOMATION gatt.server.start role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
-                    )
-                    writeDirectProofProbeMarker(
-                        "gatt-start.txt",
-                        "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}\n",
-                    )
-                    directProofGattBenchmarkServer =
-                        ProofGattBenchmarkServer(
-                            context = applicationContext,
-                            bluetoothManager = bluetoothManager,
-                            advertiser = bluetoothAdvertiser,
-                            logger = { message -> Log.i("MeshLinkReferenceAutomation", message) },
-                            appId = automationConfig.appId,
-                        )
-                            .also { server ->
-                                server.start()
-                                Log.i(
-                                    "MeshLinkReferenceAutomation",
-                                    "REFERENCE_AUTOMATION gatt.server.started role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
-                                )
-                                writeDirectProofProbeMarker(
-                                    "gatt-started.txt",
-                                    "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}\n",
-                                )
-                            }
-                } catch (throwable: Throwable) {
-                    writeDirectProofProbeMarker(
-                        "gatt-failed.txt",
-                        "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} error=${throwable::class.java.name}: ${throwable.message}\n",
-                    )
-                    Log.e(
-                        "MeshLinkReferenceAutomation",
-                        "REFERENCE_AUTOMATION gatt.server.failed role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
-                        throwable,
-                    )
-                }
-            } else if (
-                automationConfig.role == ReferenceAutomationRole.SENDER &&
-                    automationConfig.benchmarkTransport == "gatt-notify"
-            ) {
-                directProofGattNotifyBridge =
-                    ch.trancee.meshlink.proof.android.ReferenceDirectProofGattNotifyBridge(
-                        context = applicationContext,
-                        appId = automationConfig.appId,
-                    )
-                        .also { bridge -> bridge.start() }
-            }
-            startupCoordinator?.startLiveProofIfNeeded()
         }
         setContent { ReferenceApp(platformServices = platformServices) }
     }
@@ -167,10 +98,6 @@ public class MainActivity : ComponentActivity() {
             emitDirectProofPowerState(activePlatformServices, "onDestroy", directProofEnabled)
         }
         releaseScreenOn()
-        directProofGattBenchmarkServer?.stop()
-        directProofGattBenchmarkServer = null
-        directProofGattNotifyBridge?.stop()
-        directProofGattNotifyBridge = null
         stopDirectProofPowerService()
         super.onDestroy()
     }
