@@ -782,10 +782,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         target_peer_id = None
         peer_lookup_seconds = None
-        if initial["status"] == "passed":
+        if initial["status"] == "passed" or not args.resume:
             peer_lookup_started = time.monotonic()
             target_peer_id = read_passive_peer_id(pair["passive"], app_id)
             peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
+        if initial["status"] == "passed" or (not args.resume and target_peer_id is not None):
             final = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],
