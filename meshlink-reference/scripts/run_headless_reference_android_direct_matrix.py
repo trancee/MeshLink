@@ -579,6 +579,28 @@ def render_pair_report(
 
     initial_passed = initial.get("status") == "passed"
     final_status = final.get("status", "skipped")
+    def failure_explanation(summary: dict[str, Any]) -> str:
+        stage = summary.get("failureStage") or "unknown stage"
+        reason = summary.get("failureReason") or "no failure reason recorded"
+        route_stage = summary.get("routeStage") or "not observed"
+        if summary.get("status") == "passed":
+            return "pair completed successfully"
+        if stage == "summary":
+            return (
+                f"route reached {route_stage} but the passive side never emitted proof.complete; "
+                f"reason={reason}"
+            )
+        if "route-unavailable" in reason and "hop-failed" in reason:
+            return (
+                "sender waited for route availability while the passive side reported HOP_SESSION_FAILED; "
+                f"reason={reason}"
+            )
+        if "route-unavailable" in reason:
+            return f"sender never observed a stable route; reason={reason}"
+        if "hop-failed" in reason:
+            return f"passive side reported HOP_SESSION_FAILED before route stabilization; reason={reason}"
+        return f"failureStage={stage}; reason={reason}"
+
     diagram_lines = [
         "```mermaid",
         "sequenceDiagram",
@@ -588,19 +610,21 @@ def render_pair_report(
         f"    participant Passive as {passive_model}",
         f"    note over Matrix: transport {transport_label} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
         "    rect rgba(245, 247, 250, 0.55)",
-        f"        Matrix->>Sender: launch initial run ({initial_elapsed})",
+        f"        Matrix->>Sender: install and preflight initial run ({initial_elapsed})",
+        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
         f"        Matrix->>Passive: launch passive companion ({initial_elapsed})",
+        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
         f"        Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
         f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
-        f"        note over Sender,Passive: startup={initial.get('status', 'unknown')} · stage={initial.get('failureStage') or 'no failure stage'}",
+        f"        note over Sender,Passive: initial startup={initial.get('status', 'unknown')} · stage={initial.get('failureStage') or 'no failure stage'}",
         "    end",
     ]
     if initial_passed:
         diagram_lines.extend(
             [
                 "    rect rgba(236, 253, 245, 0.55)",
-                "        Matrix->>Sender: launch final run with seeded peer",
-                f"        note over Sender: {final_status} ({final.get('failureStage') or 'no failure stage'})",
+                f"        Matrix->>Sender: seed final run with peer id ({peer_lookup_elapsed})",
+                f"        Sender-->>Matrix: final startup ready ({final_elapsed})",
                 "        Sender->>Passive: discovery and route establishment",
                 f"        note over Sender,Passive: routeStage={final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
                 "        Sender->>Passive: send guided payload",
@@ -610,7 +634,7 @@ def render_pair_report(
                 "            note over Matrix: pair completed successfully",
                 "        else final failed",
                 "            rect rgba(254, 242, 242, 0.55)",
-                "                note over Matrix: record failure and continue until the cap is reached",
+                f"                note over Matrix: failure explanation: {failure_explanation(final)}",
                 "            end",
                 "        end",
                 "    end",
@@ -619,7 +643,7 @@ def render_pair_report(
     else:
         diagram_lines.extend([
             "    rect rgba(254, 242, 242, 0.55)",
-            "        note over Matrix: record failure and continue until the cap is reached",
+            f"        note over Matrix: failure explanation: {failure_explanation(initial)}",
             "    end",
         ])
     diagram_lines.extend(["```", ""])
