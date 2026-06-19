@@ -198,10 +198,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--passive-benchmark-transport",
         choices=("meshlink", "gatt", "gatt-notify"),
-        default="meshlink",
+        default=None,
         help=(
-            "Passive Android benchmark transport to launch on the passive peer. Use gatt to "
-            "exercise the Android GATT prototype control path while keeping the sender on MeshLink."
+            "Optional passive Android benchmark transport override for manual diagnosis. "
+            "Leave unset so the library chooses the transport automatically."
         ),
     )
     parser.add_argument("--skip-android-install", action="store_true")
@@ -282,6 +282,53 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     route_evidence = payload.get("routeEvidence")
     transport_evidence = payload.get("transportEvidence")
 
+    execution_timeline_html = ""
+    if any(
+        value is not None
+        for value in (
+            (startup_timing.get("sender") or {}).get("elapsedSeconds"),
+            (startup_timing.get("passive") or {}).get("elapsedSeconds"),
+            (startup_timing.get("passiveTransport") or {}).get("elapsedSeconds"),
+            sender_timings.get("peerDiscoverySeconds"),
+            passive_timings.get("peerDiscoverySeconds"),
+            sender_timings.get("trustConnectionSeconds"),
+            passive_timings.get("trustConnectionSeconds"),
+            sender_timings.get("sendLatencySeconds"),
+            passive_timings.get("sendLatencySeconds"),
+            passive_timings.get("receiptSeconds"),
+            sender_timings.get("sendCompletionSeconds"),
+        )
+    ):
+        execution_timeline_html = "\n".join(
+            [
+                "<section><h2>Execution timeline</h2><table>",
+                "<tr><th>Step</th><th>Sender</th><th>Passive</th><th>Evidence / note</th></tr>",
+                f"<tr><th>App launch</th><td>{fmt_seconds((startup_timing.get('sender') or {}).get('elapsedSeconds'))}</td><td>{fmt_seconds((startup_timing.get('passive') or {}).get('elapsedSeconds'))}</td><td>{esc((startup_timing.get('sender') or {}).get('line') or (startup_timing.get('passive') or {}).get('line') or 'launch markers')}</td></tr>",
+                f"<tr><th>Transport start</th><td>{fmt_seconds((startup_timing.get('passiveTransport') or {}).get('elapsedSeconds'))}</td><td>{fmt_seconds((startup_timing.get('passiveTransport') or {}).get('elapsedSeconds'))}</td><td>{esc((startup_timing.get('passiveTransport') or {}).get('line') or transport_evidence or 'transport marker')}</td></tr>",
+                f"<tr><th>Peer discovery</th><td>{fmt_seconds(sender_timings.get('peerDiscoverySeconds'))}</td><td>{fmt_seconds(passive_timings.get('peerDiscoverySeconds'))}</td><td>{esc(sender_timings.get('peerDiscoveryMarker') or passive_timings.get('peerDiscoveryMarker') or 'peer discovered')}</td></tr>",
+                f"<tr><th>Trust connection</th><td>{fmt_seconds(sender_timings.get('trustConnectionSeconds'))}</td><td>{fmt_seconds(passive_timings.get('trustConnectionSeconds'))}</td><td>{esc(sender_timings.get('trustConnectionMarker') or passive_timings.get('trustConnectionMarker') or route_evidence or 'trust established')}</td></tr>",
+                f"<tr><th>Message exchange</th><td>{fmt_seconds(sender_timings.get('sendLatencySeconds'))}</td><td>{fmt_seconds(passive_timings.get('sendLatencySeconds') or passive_timings.get('receiptSeconds'))}</td><td>{esc(sender_timings.get('sendRequestMarker') or passive_timings.get('sendRequestMarker') or 'message sent and acknowledged')}</td></tr>",
+                f"<tr><th>Completion / close</th><td>{fmt_seconds(sender_timings.get('sendCompletionSeconds'))}</td><td>{fmt_seconds(passive_timings.get('sendCompletionSeconds') or passive_timings.get('receiptSeconds') or passive_timings.get('sendLatencySeconds'))}</td><td>{esc(sender_completion or passive_completion or 'connection closed')}</td></tr>",
+                "</table></section>",
+            ]
+        )
+
+    failure_diagnostics_html = ""
+    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
+        failure_diagnostics_html = kv_table(
+            "Failure diagnostics",
+            [
+                ("Failure stage", payload.get("failureStage")),
+                ("Failure reason", payload.get("failureReason")),
+                ("Startup state", payload.get("startupState")),
+                ("Startup evidence", payload.get("startupStateEvidence")),
+                ("Route stage", payload.get("routeStage")),
+                ("Route evidence", route_evidence),
+                ("Sender completion", sender_completion),
+                ("Passive completion", passive_completion),
+            ],
+        )
+
     html_parts = [
         "<!doctype html>",
         "<html lang=\"en\">",
@@ -344,6 +391,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Passive transport evidence", passive_timings.get("transportEvidence")),
             ],
         ),
+        execution_timeline_html,
+        failure_diagnostics_html,
         kv_table(
             "Evidence",
             [
@@ -1386,6 +1435,9 @@ def summarize_and_verify(
         if '"fullPayload":' in export_json:
             raise SystemExit("Redacted export unexpectedly included fullPayload")
 
+    transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
+    transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
+
     summary = {
         "status": "passed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1407,6 +1459,8 @@ def summarize_and_verify(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "transportMode": transport_mode,
+        "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
         "htmlReportPath": "summary.html",
@@ -1440,6 +1494,8 @@ def failure_summary(
     passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
     route_stage = sender_route_stage or passive_route_stage
     route_evidence = sender_route_evidence or passive_route_evidence
+    transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
+    transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1462,6 +1518,8 @@ def failure_summary(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "transportMode": transport_mode,
+        "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
         "htmlReportPath": "summary.html",

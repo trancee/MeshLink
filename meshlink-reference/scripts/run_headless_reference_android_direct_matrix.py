@@ -110,12 +110,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Resume from the last checkpoint if the run root already contains progress",
     )
     parser.add_argument(
-        "--continue-on-failure",
-        dest="fail_fast",
-        action="store_false",
-        help="Keep running later pairs after a failure instead of stopping at the first failure",
+        "--fail-fast",
+        action="store_true",
+        help="Stop immediately after the first failed pair",
     )
-    parser.set_defaults(fail_fast=True)
+    parser.add_argument(
+        "--max-failures",
+        type=int,
+        default=5,
+        help="Stop the sweep once failures exceed this threshold when fail-fast is disabled",
+    )
+    parser.set_defaults(fail_fast=False)
     return parser.parse_args(argv)
 
 
@@ -179,7 +184,6 @@ def run_pair(
     android_ready_seconds: float,
     pair_timeout_seconds: float,
     skip_install: bool,
-    passive_benchmark_transport: str = DEFAULT_PRIMARY_TRANSPORT,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -201,7 +205,6 @@ def run_pair(
     ]
     if skip_install:
         command.append("--skip-android-install")
-    command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
     if target_peer_id is not None:
         command.extend(["--target-peer-id", target_peer_id])
 
@@ -310,6 +313,8 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "senderRouteEvidence": summary.get("senderRouteEvidence"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "passiveRouteEvidence": summary.get("passiveRouteEvidence"),
+        "transportMode": summary.get("transportMode") or (summary.get("timings") or {}).get("transportMode"),
+        "transportEvidence": summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence"),
         "startupTiming": summary.get("startupTiming"),
         "timings": summary.get("timings"),
         "htmlReportPath": summary.get("htmlReportPath"),
@@ -386,6 +391,7 @@ def build_fleet_inventory(
     attached_devices: list[str],
     available_pairs: list[dict[str, str]],
     fail_fast: bool,
+    max_failures: int,
 ) -> dict[str, Any]:
     devices = [
         {
@@ -398,6 +404,7 @@ def build_fleet_inventory(
     return {
         "capturedAt": timestamp(),
         "failFast": fail_fast,
+        "maxFailures": max_failures,
         "deviceCount": len(devices),
         "pairCount": len(available_pairs),
         "devices": devices,
@@ -458,8 +465,6 @@ def render_pair_report(
     passive_model: str,
     sender_api_level: int | None,
     passive_api_level: int | None,
-    passive_benchmark_transport: str,
-    fallback_reason: dict[str, Any] | None,
     target_peer_id: str | None,
     peer_lookup_seconds: float | None,
     initial: dict[str, Any],
@@ -486,17 +491,15 @@ def render_pair_report(
     initial_elapsed = format_elapsed_seconds(initial)
     final_elapsed = format_elapsed_seconds(final)
     peer_lookup_elapsed = f"{peer_lookup_seconds:.1f}s" if peer_lookup_seconds is not None else "—"
-    transport_label = passive_benchmark_transport.upper()
-    quirks = [f"Transport used for the pair: {transport_label}"]
-    if fallback_reason is not None:
-        quirks.append(
-            "Fallback reason: "
-            f"{fallback_reason['reason']} (senderApiLevel={fallback_reason['senderApiLevel']} passiveApiLevel={fallback_reason['passiveApiLevel']})"
-        )
-    if sender_api_level is not None and sender_api_level < DEFAULT_MIN_ANDROID_API_LEVEL:
-        quirks.append(f"Sender API level {sender_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
-    if passive_api_level is not None and passive_api_level < DEFAULT_MIN_ANDROID_API_LEVEL:
-        quirks.append(f"Passive API level {passive_api_level} is below the floor {DEFAULT_MIN_ANDROID_API_LEVEL}.")
+    transport_label = final.get("transportMode") or initial.get("transportMode") or "unknown"
+    transport_evidence = final.get("transportEvidence") or initial.get("transportEvidence")
+    quirks = [f"Transport chosen by library: {transport_label}"]
+    if transport_evidence:
+        quirks.append(f"Transport evidence: {transport_evidence}")
+    if sender_api_level is not None:
+        quirks.append(f"Sender API level: {sender_api_level}")
+    if passive_api_level is not None:
+        quirks.append(f"Passive API level: {passive_api_level}")
     if initial.get("failureReason"):
         quirks.append(f"Initial run failure: {initial['failureReason']}")
     if final.get("failureReason"):
@@ -529,17 +532,17 @@ def render_pair_report(
                 "        alt final passed",
                 "            note over Matrix: pair completed successfully",
                 "        else final failed",
-                "            note over Matrix: fail-fast stop after final failure",
+                "            note over Matrix: record failure and continue until the cap is reached",
                 "        end",
                 "    else initial failed",
-                "        note over Matrix: fail-fast stop after initial failure",
+                "        note over Matrix: record failure and continue until the cap is reached",
                 "    end",
             ]
         )
     else:
         diagram_lines.extend([
             "    alt initial failed",
-            "        note over Matrix: fail-fast stop after initial failure",
+            "        note over Matrix: record failure and continue until the cap is reached",
             "    end",
         ])
     diagram_lines.extend(["```", ""])
@@ -614,6 +617,7 @@ def main(argv: list[str] | None = None) -> int:
         attached_devices=attached_devices,
         available_pairs=available_pairs,
         fail_fast=args.fail_fast,
+        max_failures=args.max_failures,
     )
     fleet_json_path = run_root / "fleet.json"
     fleet_markdown_path = run_root / "fleet.md"
@@ -631,6 +635,7 @@ def main(argv: list[str] | None = None) -> int:
     completed = {(row["sender"], row["passive"]) for row in results}
     stopped_early = False
     stop_reason: str | None = None
+    failure_count = sum(1 for row in results if row.get("final", {}).get("status") != "passed" or row.get("initial", {}).get("status") != "passed")
 
     for index, pair in enumerate(available_pairs, 1):
         if (pair["sender"], pair["passive"]) in completed:
@@ -644,16 +649,11 @@ def main(argv: list[str] | None = None) -> int:
 
         sender_api_level = adb_device_api_level(pair["sender"])
         passive_api_level = adb_device_api_level(pair["passive"])
-        passive_benchmark_transport, fallback_reason = select_pair_transport(
-            sender_api_level,
-            passive_api_level,
-            fallback_android_api_level=args.min_android_api_level,
-        )
-        if fallback_reason is not None:
+        if sender_api_level is not None and passive_api_level is not None:
             print(
                 "==> Pair "
-                f"{pair['label']} uses {passive_benchmark_transport.upper()} fallback: {fallback_reason['reason']} "
-                f"(senderApiLevel={fallback_reason['senderApiLevel']} passiveApiLevel={fallback_reason['passiveApiLevel']})",
+                f"{pair['label']} library transport selection will be reported from device logs "
+                f"(senderApiLevel={sender_api_level} passiveApiLevel={passive_api_level})",
                 flush=True,
             )
 
@@ -668,7 +668,6 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
-            passive_benchmark_transport=passive_benchmark_transport,
         )
         target_peer_id = None
         peer_lookup_seconds = None
@@ -686,7 +685,6 @@ def main(argv: list[str] | None = None) -> int:
                 android_ready_seconds=args.android_ready_seconds,
                 pair_timeout_seconds=args.pair_timeout_seconds,
                 skip_install=True,
-                passive_benchmark_transport=passive_benchmark_transport,
             )
         else:
             final = {
@@ -718,10 +716,11 @@ def main(argv: list[str] | None = None) -> int:
             "pairReportPath": str(run_root / f"{index:02d}_{pair['label']}_report.md"),
             "fleetJsonPath": str(fleet_json_path),
             "fleetInventoryPath": str(fleet_markdown_path),
-            "transportMode": passive_benchmark_transport,
+            "transportMode": initial.get("transportMode") or final.get("transportMode") or "unknown",
+            "transportEvidence": initial.get("transportEvidence") or final.get("transportEvidence"),
             "peerLookupSeconds": peer_lookup_seconds,
-            "fallbackReason": fallback_reason,
             "failFast": args.fail_fast,
+            "maxFailures": args.max_failures,
         }
         results.append(row)
         completed.add((pair["sender"], pair["passive"]))
@@ -737,6 +736,7 @@ def main(argv: list[str] | None = None) -> int:
                     "pendingPairs": len(available_pairs) - len(results),
                     "lastPair": pair,
                     "failFast": args.fail_fast,
+                    "maxFailures": args.max_failures,
                     "stoppedEarly": stopped_early,
                     "stopReason": stop_reason,
                 },
@@ -753,8 +753,6 @@ def main(argv: list[str] | None = None) -> int:
                 passive_model=row["passiveModel"],
                 sender_api_level=sender_api_level,
                 passive_api_level=passive_api_level,
-                passive_benchmark_transport=passive_benchmark_transport,
-                fallback_reason=fallback_reason,
                 target_peer_id=target_peer_id,
                 peer_lookup_seconds=peer_lookup_seconds,
                 initial=initial,
@@ -769,10 +767,19 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
 
-        if args.fail_fast and (initial["status"] != "passed" or final["status"] != "passed"):
+        pair_failed = initial["status"] != "passed" or final["status"] != "passed"
+        if pair_failed:
+            failure_count += 1
+        if args.fail_fast and pair_failed:
             stopped_early = True
             stop_reason = (
                 f"pair {pair['label']} failed during {initial['failureStage'] or final['failureStage'] or 'unknown stage'}"
+            )
+            break
+        if not args.fail_fast and failure_count > args.max_failures:
+            stopped_early = True
+            stop_reason = (
+                f"failure count {failure_count} exceeded max-failures={args.max_failures}; investigate the recorded failures before continuing"
             )
             break
 

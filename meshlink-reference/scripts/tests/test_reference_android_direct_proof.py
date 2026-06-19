@@ -196,7 +196,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             if callable(close):
                 close()
 
-    def test_parse_args_accepts_passive_benchmark_transport(self) -> None:
+    def test_parse_args_defaults_passive_benchmark_transport_to_none(self) -> None:
         # Arrange / Act
         args = android_direct_proof.parse_args(
             [
@@ -204,13 +204,11 @@ class AndroidDirectProofTests(unittest.TestCase):
                 "sender-1",
                 "--passive-android-serial",
                 "passive-1",
-                "--passive-benchmark-transport",
-                "gatt",
             ]
         )
 
         # Assert
-        self.assertEqual(args.passive_benchmark_transport, "gatt")
+        self.assertIsNone(args.passive_benchmark_transport)
 
     def test_verify_permissions_for_low_api_proof_app_accepts_location_only(self) -> None:
         # Arrange
@@ -517,8 +515,10 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertEqual(summary["htmlReportPath"], "summary.html")
                 report_html = (run_dir / "summary.html").read_text(encoding="utf-8")
                 self.assertIn("Android direct-proof summary", report_html)
+                self.assertIn("Execution timeline", report_html)
                 self.assertIn("timing", report_html.lower())
                 self.assertIn("route", report_html.lower())
+                self.assertIn("Transport", report_html)
                 self.assertTrue((run_dir / summary["htmlReportPath"]).exists())
                 report_html = (run_dir / summary["htmlReportPath"]).read_text(encoding="utf-8")
                 self.assertIn("Android direct-proof summary", report_html)
@@ -785,6 +785,7 @@ class AndroidDirectProofTests(unittest.TestCase):
 
         self.assertIn("startup-state=bluetooth-disabled", html)
         self.assertIn("Bluetooth unavailable", html)
+        self.assertIn("Failure diagnostics", html)
 
     def test_main_rejects_extra_force_stop_serial_that_reuses_a_role_device(self) -> None:
         # Arrange / Act
@@ -1270,10 +1271,11 @@ class AndroidDirectProofTests(unittest.TestCase):
 
     def test_direct_proof_result_digest_and_guide_text_stay_aligned(self) -> None:
         # Arrange
-        digest_path = Path("docs/reference/android-direct-proof-matrix-result.md")
-        guide_path = Path("docs/how-to/run-reference-app-physical-integration-scenarios.md")
-        evaluation_path = Path("docs/how-to/evaluate-meshlink-with-the-reference-app.md")
-        layout_path = Path("docs/reference/repository-layout.md")
+        repo_root = Path(__file__).resolve().parents[3]
+        digest_path = repo_root / "docs/reference/android-direct-proof-matrix-result.md"
+        guide_path = repo_root / "docs/how-to/run-reference-app-physical-integration-scenarios.md"
+        evaluation_path = repo_root / "docs/how-to/evaluate-meshlink-with-the-reference-app.md"
+        layout_path = repo_root / "docs/reference/repository-layout.md"
 
         # Act
         digest_text = digest_path.read_text(encoding="utf-8")
@@ -1367,22 +1369,21 @@ class AndroidDirectProofTests(unittest.TestCase):
         finally:
             logcat_stdout.close()
 
-    def test_start_android_role_app_passes_benchmark_transport_to_reference_app(self) -> None:
+    def test_start_android_role_app_omits_benchmark_transport_override_by_default(self) -> None:
         # Arrange
         run_calls: list[list[str]] = []
         shared: dict[str, object] = {}
-        logcat_stdout = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
 
         def fake_run(command: list[str], **kwargs):
             del kwargs
             run_calls.append(list(command))
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
-        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
-            del stderr, text, kwargs
-            return FakeLogcatProcess(command, stdout or logcat_stdout, shared)
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as logcat_stdout:
+            def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+                del stderr, text, kwargs
+                return FakeLogcatProcess(command, stdout or logcat_stdout, shared)
 
-        try:
             with (
                 patch.object(android_direct_proof, "force_stop_android_package"),
                 patch.object(android_direct_proof, "run", side_effect=fake_run),
@@ -1397,16 +1398,13 @@ class AndroidDirectProofTests(unittest.TestCase):
                     app_id="demo.meshlink.reference.direct.test",
                     storage_subdirectory="storage",
                     android_transport_logcat=False,
-                    benchmark_transport="gatt",
                     advertisement_carrier="uuid-pair-plus-service-data",
                 )
 
-            # Assert
-            start_command = next(command for command in run_calls if command[:6] == ["adb", "-s", "passive-1", "shell", "am", "start"])
-            self.assertIn("ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT", start_command)
-            self.assertIn("gatt", start_command)
-        finally:
-            logcat_stdout.close()
+        # Assert
+        start_command = next(command for command in run_calls if command[:6] == ["adb", "-s", "passive-1", "shell", "am", "start"])
+        self.assertNotIn("ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT", start_command)
+        self.assertNotIn("gatt", start_command)
 
     def test_verify_passive_log_accepts_gatt_primary_marker(self) -> None:
         # Arrange
