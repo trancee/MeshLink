@@ -326,7 +326,7 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def render_compact_report(results: list[dict[str, Any]]) -> str:
+def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any] | None = None) -> str:
     passing_pairs = [
         f"| {row['senderModel']} | {row['passiveModel']} | passed |"
         for row in results
@@ -349,11 +349,75 @@ def render_compact_report(results: list[dict[str, Any]]) -> str:
         failure_counts.setdefault(device, {})
         failure_counts[device][bucket] = failure_counts[device].get(bucket, 0) + 1
     top_failure_rows = []
+    bucket_totals: dict[str, int] = {}
     for device, buckets in failure_counts.items():
         top_bucket = max(buckets.items(), key=lambda item: item[1])
         top_failure_rows.append(f"| {device} | {top_bucket[0]} | {top_bucket[1]} |")
+        for bucket, count in buckets.items():
+            bucket_totals[bucket] = bucket_totals.get(bucket, 0) + count
+    top_failure_bucket = max(bucket_totals.items(), key=lambda item: item[1])[0] if bucket_totals else "—"
+
+    completed_pairs = len(results)
+    passing_count = sum(1 for row in results if row["final"]["status"] == "passed")
+    failing_count = completed_pairs - passing_count
+    fail_fast = bool(state.get("failFast")) if state is not None else False
+    max_failures = state.get("maxFailures") if state is not None else None
+    stopped_early = bool(state.get("stoppedEarly")) if state is not None else False
+    stop_reason = state.get("stopReason") if state is not None else None
+    total_pairs = state.get("totalPairs") if state is not None else None
+    pending_pairs = state.get("pendingPairs") if state is not None else None
+    fleet_inventory_path = state.get("fleetInventoryPath") if state is not None else None
+    run_root = state.get("runRoot") if state is not None else None
+
     report = [
-        "# Android direct-proof matrix report",
+        "# Android direct-proof matrix",
+        "",
+        "## Overview",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Completed pairs | {completed_pairs} |",
+        f"| Passing pairs | {passing_count} |",
+        f"| Failing pairs | {failing_count} |",
+        f"| Pending pairs | {pending_pairs if pending_pairs is not None else '—'} |",
+        f"| Fail-fast | {'enabled' if fail_fast else 'disabled'} |",
+        f"| Max failures | {max_failures if max_failures is not None else '—'} |",
+        f"| Stopped early | {'yes' if stopped_early else 'no'} |",
+        f"| Stop reason | {stop_reason or '—'} |",
+        "",
+        "## Mermaid overview",
+        "",
+        "```mermaid",
+        "sequenceDiagram",
+        "    autonumber",
+        "    participant Matrix",
+        "    participant Fleet",
+        "    participant Sweep",
+        "    participant Stop",
+        f"    note over Matrix: runRoot={run_root or '—'} · fleet={Path(fleet_inventory_path).name if fleet_inventory_path else '—'}",
+        "    rect rgba(245, 247, 250, 0.55)",
+        f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
+        f"        Matrix->>Sweep: execute directed pairs ({completed_pairs} completed)",
+        f"        note over Fleet,Sweep: passing={passing_count} · failing={failing_count}",
+        "    end",
+        "    rect rgba(236, 253, 245, 0.55)",
+        "        Sweep->>Sweep: bucket outcomes",
+        f"        note over Sweep: top failure bucket = {top_failure_bucket}",
+        "        alt at least one passing pair",
+        f"            Sweep-->>Matrix: {passing_count} passing pairs recorded",
+        "        else no passing pairs",
+        "            Sweep-->>Matrix: no successful pairs",
+        "        end",
+        "    end",
+        "    rect rgba(254, 242, 242, 0.55)",
+        "        alt stopped early",
+        f"            Sweep->>Stop: {stop_reason or 'failure threshold reached'}",
+        "        else sweep completed",
+        "            Sweep->>Stop: all processed pairs recorded",
+        "        end",
+        "        note over Stop: next step = inspect failure buckets and route evidence",
+        "    end",
+        "```",
         "",
         "## Passing pairs",
         "",
@@ -814,7 +878,7 @@ def main(argv: list[str] | None = None) -> int:
         encoding="utf-8",
     )
 
-    compact_report = render_compact_report(results)
+    compact_report = render_compact_report(results, state=json.loads(state_path.read_text(encoding="utf-8")))
     compact_report += "\n\n## Run setup\n\n"
     compact_report += f"- Fleet inventory: `{fleet_markdown_path}`\n"
     compact_report += f"- Fleet JSON: `{fleet_json_path}`\n"
