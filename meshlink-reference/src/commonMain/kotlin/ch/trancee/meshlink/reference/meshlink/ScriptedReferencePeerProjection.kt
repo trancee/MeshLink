@@ -75,6 +75,15 @@ internal fun promoteScriptedPeerTrust(
         ReferenceTimelineEvent(
             family = TimelineFamily.DIAGNOSTIC,
             severity = TimelineSeverity.SUCCESS,
+            title = "Trust promotion requested",
+            detail = "Promoted scripted peer $scriptedPeerSuffix after inbound exchange.",
+            peerSuffix = scriptedPeerSuffix,
+        )
+    )
+    stateStore.appendEvent(
+        ReferenceTimelineEvent(
+            family = TimelineFamily.DIAGNOSTIC,
+            severity = TimelineSeverity.SUCCESS,
             title = "Trust established",
             detail = "The scripted peer $scriptedPeerSuffix is now treated as trusted.",
             peerSuffix = scriptedPeerSuffix,

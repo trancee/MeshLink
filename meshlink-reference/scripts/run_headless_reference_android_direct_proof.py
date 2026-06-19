@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,7 @@ DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.android-direct"
 DIRECT_GUIDED_SCENARIO = "direct-guided"
 ANDROID_PROOF_PACKAGE = "ch.trancee.meshlink.proof.android"
 ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
+TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
 ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
@@ -75,7 +77,7 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
-ANDROID_EXTRA_BENCHMARK_TRANSPORT = "meshlink.benchmarkTransport"
+ANDROID_EXTRA_BENCHMARK_TRANSPORT = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
 ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT = (
     "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
 )
@@ -196,10 +198,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--passive-benchmark-transport",
         choices=("meshlink", "gatt", "gatt-notify"),
-        default="meshlink",
+        default=None,
         help=(
-            "Passive Android benchmark transport to launch on the passive peer. Use gatt to "
-            "exercise the Android GATT prototype control path while keeping the sender on MeshLink."
+            "Optional passive Android benchmark transport override for manual diagnosis. "
+            "Leave unset so the library chooses the transport automatically."
         ),
     )
     parser.add_argument("--skip-android-install", action="store_true")
@@ -280,6 +282,53 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     route_evidence = payload.get("routeEvidence")
     transport_evidence = payload.get("transportEvidence")
 
+    execution_timeline_html = ""
+    if any(
+        value is not None
+        for value in (
+            (startup_timing.get("sender") or {}).get("elapsedSeconds"),
+            (startup_timing.get("passive") or {}).get("elapsedSeconds"),
+            (startup_timing.get("passiveTransport") or {}).get("elapsedSeconds"),
+            sender_timings.get("peerDiscoverySeconds"),
+            passive_timings.get("peerDiscoverySeconds"),
+            sender_timings.get("trustConnectionSeconds"),
+            passive_timings.get("trustConnectionSeconds"),
+            sender_timings.get("sendLatencySeconds"),
+            passive_timings.get("sendLatencySeconds"),
+            passive_timings.get("receiptSeconds"),
+            sender_timings.get("sendCompletionSeconds"),
+        )
+    ):
+        execution_timeline_html = "\n".join(
+            [
+                "<section><h2>Execution timeline</h2><table>",
+                "<tr><th>Step</th><th>Sender</th><th>Passive</th><th>Evidence / note</th></tr>",
+                f"<tr><th>App launch</th><td>{fmt_seconds((startup_timing.get('sender') or {}).get('elapsedSeconds'))}</td><td>{fmt_seconds((startup_timing.get('passive') or {}).get('elapsedSeconds'))}</td><td>{esc((startup_timing.get('sender') or {}).get('line') or (startup_timing.get('passive') or {}).get('line') or 'launch markers')}</td></tr>",
+                f"<tr><th>Transport start</th><td>{fmt_seconds((startup_timing.get('passiveTransport') or {}).get('elapsedSeconds'))}</td><td>{fmt_seconds((startup_timing.get('passiveTransport') or {}).get('elapsedSeconds'))}</td><td>{esc((startup_timing.get('passiveTransport') or {}).get('line') or transport_evidence or 'transport marker')}</td></tr>",
+                f"<tr><th>Peer discovery</th><td>{fmt_seconds(sender_timings.get('peerDiscoverySeconds'))}</td><td>{fmt_seconds(passive_timings.get('peerDiscoverySeconds'))}</td><td>{esc(sender_timings.get('peerDiscoveryMarker') or passive_timings.get('peerDiscoveryMarker') or 'peer discovered')}</td></tr>",
+                f"<tr><th>Trust connection</th><td>{fmt_seconds(sender_timings.get('trustConnectionSeconds'))}</td><td>{fmt_seconds(passive_timings.get('trustConnectionSeconds'))}</td><td>{esc(sender_timings.get('trustConnectionMarker') or passive_timings.get('trustConnectionMarker') or route_evidence or 'trust established')}</td></tr>",
+                f"<tr><th>Message exchange</th><td>{fmt_seconds(sender_timings.get('sendLatencySeconds'))}</td><td>{fmt_seconds(passive_timings.get('sendLatencySeconds') or passive_timings.get('receiptSeconds'))}</td><td>{esc(sender_timings.get('sendRequestMarker') or passive_timings.get('sendRequestMarker') or 'message sent and acknowledged')}</td></tr>",
+                f"<tr><th>Completion / close</th><td>{fmt_seconds(sender_timings.get('sendCompletionSeconds'))}</td><td>{fmt_seconds(passive_timings.get('sendCompletionSeconds') or passive_timings.get('receiptSeconds') or passive_timings.get('sendLatencySeconds'))}</td><td>{esc(sender_completion or passive_completion or 'connection closed')}</td></tr>",
+                "</table></section>",
+            ]
+        )
+
+    failure_diagnostics_html = ""
+    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
+        failure_diagnostics_html = kv_table(
+            "Failure diagnostics",
+            [
+                ("Failure stage", payload.get("failureStage")),
+                ("Failure reason", payload.get("failureReason")),
+                ("Startup state", payload.get("startupState")),
+                ("Startup evidence", payload.get("startupStateEvidence")),
+                ("Route stage", payload.get("routeStage")),
+                ("Route evidence", route_evidence),
+                ("Sender completion", sender_completion),
+                ("Passive completion", passive_completion),
+            ],
+        )
+
     html_parts = [
         "<!doctype html>",
         "<html lang=\"en\">",
@@ -342,6 +391,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Passive transport evidence", passive_timings.get("transportEvidence")),
             ],
         ),
+        execution_timeline_html,
+        failure_diagnostics_html,
         kv_table(
             "Evidence",
             [
@@ -1047,8 +1098,7 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
-    primary_transport: str = "meshlink",
-    benchmark_transport: str = "meshlink",
+    benchmark_transport: str | None = None,
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
@@ -1080,15 +1130,6 @@ def start_android_role_app(
             "--es",
             "meshlink.appId",
             app_id,
-            "--ez",
-            "meshlink.disableAutoSend",
-            "true",
-            "--es",
-            "meshlink.primaryTransport",
-            primary_transport,
-            "--es",
-            "meshlink.benchmarkTransport",
-            benchmark_transport,
         ]
     else:
         command = [
@@ -1119,9 +1160,6 @@ def start_android_role_app(
             ANDROID_EXTRA_SCENARIO,
             DIRECT_GUIDED_SCENARIO,
         ]
-        if benchmark_transport != "meshlink":
-            command.extend(["--es", ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT, benchmark_transport])
-            command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
         if target_peer_id:
             command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
         command.extend(
@@ -1131,6 +1169,14 @@ def start_android_role_app(
                 advertisement_carrier,
             ]
         )
+        if benchmark_transport is not None:
+            command.extend(
+                [
+                    "--es",
+                    ANDROID_EXTRA_BENCHMARK_TRANSPORT,
+                    benchmark_transport,
+                ]
+            )
     app_label = "proof" if android_package == ANDROID_PROOF_PACKAGE else "reference"
     print(f"==> Launching {label} Android {app_label} app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
@@ -1160,6 +1206,28 @@ def start_android_role_app(
         encoding="utf-8",
     )
     return process
+
+
+def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+    relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
+    for _ in range(retries):
+        try:
+            xml_text = read_android_app_file(android_serial, relative_path)
+        except subprocess.CalledProcessError:
+            time.sleep(delay_s)
+            continue
+        if "x25519-public" in xml_text:
+            try:
+                root = ET.fromstring(xml_text)
+            except ET.ParseError:
+                time.sleep(delay_s)
+                continue
+            for item in root.findall(".//string"):
+                if item.get("name") == TARGET_PEER and item.text:
+                    return item.text.strip()
+        time.sleep(delay_s)
+    print(f"==> Passive peer id unavailable for {android_serial}; continuing without a seeded target peer")
+    return None
 
 
 def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
@@ -1367,6 +1435,9 @@ def summarize_and_verify(
         if '"fullPayload":' in export_json:
             raise SystemExit("Redacted export unexpectedly included fullPayload")
 
+    transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
+    transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
+
     summary = {
         "status": "passed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1388,6 +1459,8 @@ def summarize_and_verify(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "transportMode": transport_mode,
+        "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
         "htmlReportPath": "summary.html",
@@ -1421,6 +1494,8 @@ def failure_summary(
     passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
     route_stage = sender_route_stage or passive_route_stage
     route_evidence = sender_route_evidence or passive_route_evidence
+    transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
+    transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1443,6 +1518,8 @@ def failure_summary(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "transportMode": transport_mode,
+        "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
         "timings": timings,
         "htmlReportPath": "summary.html",
@@ -1499,7 +1576,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.passive_android_serial,
                 skip_android_install=args.skip_android_install,
                 run_dir=run_dir,
-                install_profile=("proof" if args.passive_benchmark_transport != "meshlink" else "reference"),
+                install_profile="reference",
             )
             sender_future = executor.submit(
                 ensure_android_preflight,
@@ -1516,8 +1593,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
-            passive_transport_is_meshlink = args.passive_benchmark_transport == "meshlink"
-            passive_uses_proof_app = args.passive_benchmark_transport in {"gatt", "gatt-notify"}
+            passive_transport_is_meshlink = True
             passive_process = start_android_role_app(
                 run_dir=run_dir,
                 android_serial=args.passive_android_serial,
@@ -1527,14 +1603,29 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
-                primary_transport=
-                    args.passive_benchmark_transport if passive_uses_proof_app else "meshlink",
                 benchmark_transport=args.passive_benchmark_transport,
-                android_activity=ANDROID_PROOF_ACTIVITY if passive_uses_proof_app else ANDROID_ACTIVITY,
-                android_package=ANDROID_PROOF_PACKAGE if passive_uses_proof_app else ANDROID_PACKAGE,
+                android_activity=ANDROID_ACTIVITY,
+                android_package=ANDROID_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
+            if sender_process is None:
+                sender_process = start_android_role_app(
+                    run_dir=run_dir,
+                    android_serial=args.sender_android_serial,
+                    label="sender",
+                    role="sender",
+                    app_id=app_id,
+                    storage_subdirectory=storage_subdirectory,
+                    android_transport_logcat=args.android_transport_logcat,
+                    target_peer_id=discovered_peer_id,
+                    advertisement_carrier=(
+                        "uuid-pair-plus-service-data"
+                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                        else args.advertisement_carrier
+                    ),
+                )
+                print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             if passive_transport_is_meshlink:
                 print(
                     f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
@@ -1549,6 +1640,23 @@ def main(argv: list[str] | None = None) -> int:
                     print(
                         f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
                     )
+                if sender_process is None:
+                    sender_process = start_android_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.sender_android_serial,
+                        label="sender",
+                        role="sender",
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=discovered_peer_id,
+                        advertisement_carrier=(
+                            "uuid-pair-plus-service-data"
+                            if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                            else args.advertisement_carrier
+                        ),
+                    )
+                    print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
                 passive_transport_timeout_seconds = max(
                     args.android_ready_seconds,
                     min(args.capture_timeout_seconds * 0.3, 20.0),
@@ -1564,9 +1672,17 @@ def main(argv: list[str] | None = None) -> int:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
-                discovered_peer_id = discovered_peer_id or wait_for_discovered_peer_id(
-                    passive_marker_path,
-                    discovery_wait_seconds,
+                discovered_peer_id = (
+                    discovered_peer_id
+                    or read_passive_peer_id(
+                        args.passive_android_serial,
+                        app_id,
+                        retries=max(1, int(discovery_wait_seconds)),
+                    )
+                    or wait_for_discovered_peer_id(
+                        passive_marker_path,
+                        discovery_wait_seconds,
+                    )
                 )
             else:
                 discovered_peer_id = discovered_peer_id or args.target_peer_id
@@ -1588,44 +1704,33 @@ def main(argv: list[str] | None = None) -> int:
                     min(args.capture_timeout_seconds * 0.3, 20.0),
                 )
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
-                passive_transport_start_marker = (
-                    "gatt.notify.start() -> Started"
-                    if args.passive_benchmark_transport == "gatt-notify"
-                    else "gatt.benchmark.start() -> Started"
-                )
                 passive_transport_observation = wait_for_log_marker_observation(
                     passive_marker_path,
-                    passive_transport_start_marker,
+                    "advertising started mode=2 tx=3 connectable=true",
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
-                        f"Android proof-app transport did not start within {passive_transport_timeout_seconds} seconds"
+                        f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
-            sender_benchmark_transport = (
-                "gatt-notify"
-                if args.passive_benchmark_transport == "gatt-notify"
-                else "meshlink"
-            )
-            sender_process = start_android_role_app(
-                run_dir=run_dir,
-                android_serial=args.sender_android_serial,
-                label="sender",
-                role="sender",
-                app_id=app_id,
-                storage_subdirectory=storage_subdirectory,
-                android_transport_logcat=args.android_transport_logcat,
-                primary_transport="meshlink",
-                benchmark_transport=sender_benchmark_transport,
-                target_peer_id=discovered_peer_id,
-                advertisement_carrier=(
-                    "uuid-pair-plus-service-data"
-                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                    else args.advertisement_carrier
-                ),
-            )
-            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+            if sender_process is None:
+                sender_process = start_android_role_app(
+                    run_dir=run_dir,
+                    android_serial=args.sender_android_serial,
+                    label="sender",
+                    role="sender",
+                    app_id=app_id,
+                    storage_subdirectory=storage_subdirectory,
+                    android_transport_logcat=args.android_transport_logcat,
+                    target_peer_id=discovered_peer_id,
+                    advertisement_carrier=(
+                        "uuid-pair-plus-service-data"
+                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                        else args.advertisement_carrier
+                    ),
+                )
+                print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
@@ -1681,7 +1786,7 @@ def main(argv: list[str] | None = None) -> int:
             completions=completions,
             startup_timing=startup_timing,
             timings=timings,
-            passive_transport=args.passive_benchmark_transport,
+            passive_transport="meshlink",
         )
         summary["discoveredPeerId"] = discovered_peer_id
         summary["timings"].update(

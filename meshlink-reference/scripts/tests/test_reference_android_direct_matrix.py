@@ -23,6 +23,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
         # Assert
         self.assertFalse(args.resume)
+        self.assertFalse(args.fail_fast)
+        self.assertEqual(args.max_failures, 5)
         self.assertEqual(args.android_ready_seconds, android_direct_matrix.DEFAULT_ANDROID_READY_SECONDS)
         self.assertEqual(args.capture_timeout_seconds, android_direct_matrix.DEFAULT_CAPTURE_TIMEOUT_SECONDS)
 
@@ -43,7 +45,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 android_direct_matrix.subprocess,
                 "run",
                 side_effect=subprocess.TimeoutExpired(cmd=["python"], timeout=1.5, output="install boom", stderr="stderr tail"),
-            ):
+            ) as mock_run:
                 # Act
                 result = android_direct_matrix.run_pair(
                     sender="1f1dad34",
@@ -64,6 +66,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(result["exitCode"], 124)
             self.assertEqual(result["timings"]["pairTimeoutSeconds"], 1.5)
             self.assertIn("install boom", result["stdoutTail"])
+            self.assertNotIn("--passive-benchmark-transport", mock_run.call_args.args[0])
 
     def test_main_writes_progress_and_skips_completed_pairs_on_resume(self) -> None:
         # Arrange
@@ -267,38 +270,67 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Assert
             fleet_json = json.loads((run_root / "fleet.json").read_text(encoding="utf-8"))
-            self.assertTrue(fleet_json["failFast"])
+            self.assertFalse(fleet_json["failFast"])
+            self.assertEqual(fleet_json["maxFailures"], 5)
             self.assertEqual(fleet_json["deviceCount"], 3)
             self.assertEqual([device["serial"] for device in fleet_json["devices"]], ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"])
-            report_text = (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8")
+            matrix_report_text = (run_root / "matrix-report.md").read_text(encoding="utf-8")
+            self.assertTrue((run_root / "matrix-report.md").exists())
+            self.assertIn("Overview", matrix_report_text)
+            self.assertIn("Mermaid overview", matrix_report_text)
+            self.assertIn("sequenceDiagram", matrix_report_text)
+            self.assertIn("autonumber", matrix_report_text)
+            self.assertIn("participant Fleet", matrix_report_text)
+            self.assertIn("participant Sweep", matrix_report_text)
+            self.assertIn("participant Stop", matrix_report_text)
+            self.assertIn("prepare directed sweep", matrix_report_text)
+            self.assertIn("execute pair lane across", matrix_report_text)
+            self.assertIn("classify outcomes by failure stage", matrix_report_text)
+            self.assertIn("rect rgba(245, 247, 250, 0.55)", matrix_report_text)
+            self.assertIn("rect rgba(236, 253, 245, 0.55)", matrix_report_text)
+            self.assertIn("rect rgba(254, 242, 242, 0.55)", matrix_report_text)
+            self.assertIn("top failure bucket =", matrix_report_text)
+            self.assertIn("failure explanation:", matrix_report_text)
+            self.assertIn("Stopped early", matrix_report_text)
+            self.assertIn("Most common failure reason per device", matrix_report_text)
+            self.assertIn("fleet.md", matrix_report_text)
+            self.assertIn("fleet.json", matrix_report_text)
+            pair_report_text = (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8")
             self.assertTrue((run_root / "01_a065_nam_lx9_report.md").exists())
-            self.assertIn("sequenceDiagram", report_text)
-            self.assertIn("fail-fast stop after final failure", report_text)
-            self.assertIn("sender_logcat.log", report_text)
-            self.assertIn("passive_logcat.log", report_text)
-            self.assertIn("summary.json", report_text)
-            self.assertIn("Startup timing", report_text)
-            self.assertIn("Captured evidence map", report_text)
+            self.assertIn("Transport: meshlink", pair_report_text)
+            self.assertIn("install and preflight initial run", pair_report_text)
+            self.assertIn("startup markers observed", pair_report_text)
+            self.assertIn("wait for passive peer id", pair_report_text)
+            self.assertIn("seed final run with peer id", pair_report_text)
+            self.assertIn("discovery and route establishment", pair_report_text)
+            self.assertIn("send guided payload", pair_report_text)
+            self.assertIn("failure explanation:", pair_report_text)
+            self.assertIn("sender_logcat.log", pair_report_text)
+            self.assertIn("passive_logcat.log", pair_report_text)
+            self.assertIn("summary.json", pair_report_text)
+            self.assertIn("Startup timing", pair_report_text)
+            self.assertIn("Captured evidence map", pair_report_text)
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(results), 1)
+            self.assertEqual(len(results), 6)
             self.assertEqual(results[0]["final"]["status"], "failed")
             state = json.loads((run_root / "state.json").read_text(encoding="utf-8"))
             self.assertTrue(state["stoppedEarly"])
-            self.assertIn("failed during", state["stopReason"])
-            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False), ("1f1dad34", "2ASVB21B09005117", True)])
+            self.assertIn("failure count 6 exceeded max-failures=5", state["stopReason"])
+            self.assertEqual(len(calls), 12)
+            self.assertEqual(calls[:2], [("1f1dad34", "2ASVB21B09005117", False), ("1f1dad34", "2ASVB21B09005117", True)])
 
     def test_main_runs_all_available_directed_pairs_when_not_resuming(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "matrix"
             run_root.mkdir(parents=True, exist_ok=True)
-            calls: list[tuple[str, str, bool, str]] = []
+            calls: list[tuple[str, str, bool, str | None]] = []
 
             def fake_adb_devices() -> list[str]:
                 return ["1f1dad34", "2ASVB21B09005117"]
 
             def fake_run_pair(**kwargs):
-                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs["passive_benchmark_transport"]))
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs.get("target_peer_id")))
                 return {
                     "status": "passed",
                     "failureStage": None,
@@ -330,14 +362,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             # Assert
             results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
             self.assertEqual(len(results), 1)
-            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False, "meshlink"), ("1f1dad34", "2ASVB21B09005117", True, "meshlink")])
+            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False, None), ("1f1dad34", "2ASVB21B09005117", True, "peer-123")])
 
     def test_main_filters_pairs_below_api_floor(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "matrix"
             run_root.mkdir(parents=True, exist_ok=True)
-            calls: list[tuple[str, str, bool, str]] = []
+            calls: list[tuple[str, str, bool, str | None]] = []
 
             def fake_adb_devices() -> list[str]:
                 return ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"]
@@ -350,7 +382,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 }.get(serial)
 
             def fake_run_pair(**kwargs):
-                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs["passive_benchmark_transport"]))
+                calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"], kwargs.get("target_peer_id")))
                 return {
                     "status": "passed",
                     "failureStage": None,
@@ -392,10 +424,10 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(
                 calls,
                 [
-                    ("1f1dad34", "2ASVB21B09005117", False, "meshlink"),
-                    ("1f1dad34", "2ASVB21B09005117", True, "meshlink"),
-                    ("1f1dad34", "42004386e43c8589", False, "gatt"),
-                    ("1f1dad34", "42004386e43c8589", True, "gatt"),
+                    ("1f1dad34", "2ASVB21B09005117", False, None),
+                    ("1f1dad34", "2ASVB21B09005117", True, "peer-123"),
+                    ("1f1dad34", "42004386e43c8589", False, None),
+                    ("1f1dad34", "42004386e43c8589", True, "peer-123"),
                 ],
             )
 

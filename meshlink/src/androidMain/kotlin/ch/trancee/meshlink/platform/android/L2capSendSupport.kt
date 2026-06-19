@@ -62,18 +62,21 @@ internal suspend fun sendViaL2capWhenReady(
     return directLink.send(frame)
 }
 
+private const val L2CAP_CONNECT_WAIT_ATTEMPTS: Int = 80
+private const val L2CAP_CONNECT_WAIT_DELAY_MILLIS: Long = 25
+
 private suspend fun waitForConnectAndSend(
     frame: OutboundFrame,
     context: L2capSendContext,
     dependencies: L2capSendDependencies,
 ): TransportSendResult {
-    repeat(20) { attempt ->
+    repeat(L2CAP_CONNECT_WAIT_ATTEMPTS) { attempt ->
         val link = dependencies.currentLink()
         if (link != null) {
             return link.send(frame)
         }
-        if (attempt < 19) {
-            delay(25.milliseconds)
+        if (attempt < L2CAP_CONNECT_WAIT_ATTEMPTS - 1) {
+            delay(L2CAP_CONNECT_WAIT_DELAY_MILLIS.milliseconds)
         }
     }
     return TransportSendResult.Dropped("Android BLE L2CAP connection is not ready")

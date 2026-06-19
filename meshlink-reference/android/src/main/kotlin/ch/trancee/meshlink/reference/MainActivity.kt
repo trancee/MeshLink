@@ -65,8 +65,7 @@ public class MainActivity : ComponentActivity() {
                 "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} directProofEnabled=$directProofEnabled\n",
             )
             val passiveGattRequested =
-                automationConfig.role == ReferenceAutomationRole.PASSIVE &&
-                    automationConfig.benchmarkTransport == "gatt"
+                automationConfig.role == ReferenceAutomationRole.PASSIVE
             Log.i(
                 "MeshLinkReferenceAutomation",
                 "REFERENCE_AUTOMATION gatt.server.evaluate role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} passiveGattRequested=$passiveGattRequested",

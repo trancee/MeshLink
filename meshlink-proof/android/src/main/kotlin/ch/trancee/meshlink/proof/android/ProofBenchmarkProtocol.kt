@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.proof.android
 
+import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerId
 
 internal const val PROOF_BENCHMARK_MAGIC: String = "MLBM1000"
@@ -95,10 +96,18 @@ internal data class ProofSnapshot(
 internal class KnownPeer private constructor(
     val peerId: PeerId,
     val peerBytes: ByteArray?,
+    val connectionState: PeerConnectionState,
 ) {
     companion object {
-        fun from(peerId: PeerId): KnownPeer {
-            return KnownPeer(peerId = peerId, peerBytes = peerId.value.toBytes())
+        fun from(
+            peerId: PeerId,
+            connectionState: PeerConnectionState = PeerConnectionState.CONNECTED,
+        ): KnownPeer {
+            return KnownPeer(
+                peerId = peerId,
+                peerBytes = peerId.value.toBytes(),
+                connectionState = connectionState,
+            )
         }
     }
 }
