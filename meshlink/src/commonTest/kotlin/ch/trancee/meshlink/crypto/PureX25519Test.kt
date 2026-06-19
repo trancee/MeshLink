@@ -25,10 +25,11 @@ class PureX25519Test {
     fun `public key from clamped private skips redundant clamping`() {
         // Arrange
         val privateKey = hex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4")
-        val clampedPrivateKey = privateKey.copyOf().also {
-            it[0] = (it[0].toInt() and 248).toByte()
-            it[31] = ((it[31].toInt() and 127) or 64).toByte()
-        }
+        val clampedPrivateKey =
+            privateKey.copyOf().also {
+                it[0] = (it[0].toInt() and 248).toByte()
+                it[31] = ((it[31].toInt() and 127) or 64).toByte()
+            }
         val basePoint = ByteArray(32).also { it[0] = 9 }
 
         // Act
@@ -46,10 +47,11 @@ class PureX25519Test {
         // Arrange
         val unclampedPrivateKey =
             hex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449a7f")
-        val clampedPrivateKey = unclampedPrivateKey.copyOf().also {
-            it[0] = (it[0].toInt() and 248).toByte()
-            it[31] = ((it[31].toInt() and 127) or 64).toByte()
-        }
+        val clampedPrivateKey =
+            unclampedPrivateKey.copyOf().also {
+                it[0] = (it[0].toInt() and 248).toByte()
+                it[31] = ((it[31].toInt() and 127) or 64).toByte()
+            }
         val publicKey = ByteArray(32).also { it[0] = 9 }
 
         // Act
@@ -64,7 +66,8 @@ class PureX25519Test {
     fun `x25519 ignores the high bit of a noncanonical public key`() {
         // Arrange
         val privateKey = hex("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d")
-        val canonicalPublicKey = hex("e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493")
+        val canonicalPublicKey =
+            hex("e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493")
         val nonCanonicalPublicKey =
             canonicalPublicKey.copyOf().also {
                 it[it.lastIndex] = (it[it.lastIndex].toInt() or 0x80).toByte()

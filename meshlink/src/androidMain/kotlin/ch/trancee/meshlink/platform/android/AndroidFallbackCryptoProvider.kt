@@ -198,13 +198,7 @@ internal class AndroidFallbackCryptoProvider : CryptoProvider {
         val aadPaddingSize = pad16Size(aad.size)
         val ciphertextPaddingSize = pad16Size(ciphertext.size)
         val authData =
-            ByteArray(
-                aad.size +
-                    aadPaddingSize +
-                    ciphertext.size +
-                    ciphertextPaddingSize +
-                    16,
-            )
+            ByteArray(aad.size + aadPaddingSize + ciphertext.size + ciphertextPaddingSize + 16)
         var offset = 0
         aad.copyInto(authData, destinationOffset = offset)
         offset += aad.size + aadPaddingSize
