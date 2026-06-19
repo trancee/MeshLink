@@ -294,7 +294,7 @@ internal object MeshLinkProofRuntime {
         when (event) {
             is PeerEvent.Found -> {
                 synchronized(knownPeers) {
-                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId)
+                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog("Peer found: ${event.peerId.value} (${event.state})")
                 scheduleAutoHello(event.peerId, event.state, "found")
@@ -316,7 +316,7 @@ internal object MeshLinkProofRuntime {
             }
             is PeerEvent.StateChanged -> {
                 synchronized(knownPeers) {
-                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId)
+                    knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog("Peer state changed: ${event.peerId.value} -> ${event.state}")
                 scheduleAutoHello(event.peerId, event.state, "state-changed")
@@ -524,8 +524,21 @@ internal object MeshLinkProofRuntime {
             autoSendJobs[peerId.value] =
                 scope.launch {
                     val routeReady = awaitRouteReady(peerId, source)
+                    val connected =
+                        synchronized(knownPeers) {
+                            knownPeers[peerId.value]?.connectionState == PeerConnectionState.CONNECTED
+                        }
+                    if (!connected) {
+                        appendLog(
+                            "auto-send deferred for ${peerId.value.takeLast(6)} source=$source connected=false routeReady=$routeReady"
+                        )
+                        synchronized(autoSendJobs) {
+                            autoSendJobs.remove(peerId.value)
+                        }
+                        return@launch
+                    }
                     appendLog(
-                        "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady"
+                        "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected"
                     )
                     if (launchConfig.benchmarkPayloadBytes != null) {
                         val warmupResult =
