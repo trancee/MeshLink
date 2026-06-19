@@ -1,6 +1,0 @@
---------- beginning of main
---------- beginning of system
-06-18 05:46:56.995 10554 10554 I MeshLinkProof: MeshLink proof app ready on Xiaomi Mi Note 3 (SDK 28) appId=demo.meshlink.reference.android-direct.a065_mi_note3 powerMode=Automatic primaryTransport=gattPrototype benchmarkTransport=gattPrototype
-06-18 05:46:57.056 10554 10633 I MeshLinkProof: GATT benchmark server opening
-06-18 05:46:57.062 10554 10633 I MeshLinkProof: gatt.benchmark.start() -> Started
-06-18 05:46:57.232 10554 10554 I MeshLinkProof: GATT benchmark advertising started service=4d455348-1001-1000-8000-000000000000
