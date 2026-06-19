@@ -1555,6 +1555,23 @@ def main(argv: list[str] | None = None) -> int:
                     print(
                         f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
                     )
+                if sender_process is None:
+                    sender_process = start_android_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.sender_android_serial,
+                        label="sender",
+                        role="sender",
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=discovered_peer_id,
+                        advertisement_carrier=(
+                            "uuid-pair-plus-service-data"
+                            if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                            else args.advertisement_carrier
+                        ),
+                    )
+                    print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
                 passive_transport_timeout_seconds = max(
                     args.android_ready_seconds,
                     min(args.capture_timeout_seconds * 0.3, 20.0),
@@ -1612,22 +1629,23 @@ def main(argv: list[str] | None = None) -> int:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
-            sender_process = start_android_role_app(
-                run_dir=run_dir,
-                android_serial=args.sender_android_serial,
-                label="sender",
-                role="sender",
-                app_id=app_id,
-                storage_subdirectory=storage_subdirectory,
-                android_transport_logcat=args.android_transport_logcat,
-                target_peer_id=discovered_peer_id,
-                advertisement_carrier=(
-                    "uuid-pair-plus-service-data"
-                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                    else args.advertisement_carrier
-                ),
-            )
-            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+            if sender_process is None:
+                sender_process = start_android_role_app(
+                    run_dir=run_dir,
+                    android_serial=args.sender_android_serial,
+                    label="sender",
+                    role="sender",
+                    app_id=app_id,
+                    storage_subdirectory=storage_subdirectory,
+                    android_transport_logcat=args.android_transport_logcat,
+                    target_peer_id=discovered_peer_id,
+                    advertisement_carrier=(
+                        "uuid-pair-plus-service-data"
+                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                        else args.advertisement_carrier
+                    ),
+                )
+                print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
