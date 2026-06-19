@@ -1184,6 +1184,30 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIsNotNone(completions.passive_completion)
         self.assertIsNone(completions.export_relative_path)
 
+    def test_verify_passive_log_accepts_receipt_sent_marker_before_proof_complete(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "passive_logcat.log"
+            log_path.write_text(
+                "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION BENCHMARK receipt sent peer=peer-123 token=deadbeef result=Sent\n"
+                "05-31 10:00:01.150 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=passive peer=peer-123 token=deadbeef bytes=128\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            completion_line = android_direct_proof.verify_passive_log(log_path, passive_transport="meshlink")
+
+        # Assert
+        self.assertEqual(
+            completion_line,
+            "05-31 10:00:01.150 I MeshLinkReferenceAutomation: "
+            "REFERENCE_AUTOMATION proof.complete role=passive peer=peer-123 token=deadbeef bytes=128",
+        )
+
     def test_wait_for_android_completions_times_out_when_only_sender_completes(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
