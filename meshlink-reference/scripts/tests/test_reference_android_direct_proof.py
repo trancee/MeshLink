@@ -1364,6 +1364,44 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertNotIn("meshlink.disableAutoSend", start_command)
         self.assertIn("ch.trancee.meshlink.proof.android/.MainActivity", start_command)
 
+    def test_start_android_role_app_passes_benchmark_transport_to_reference_app(self) -> None:
+        # Arrange
+        run_calls: list[list[str]] = []
+        shared: dict[str, object] = {}
+        logcat_stdout = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            run_calls.append(list(command))
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
+            del stderr, text, kwargs
+            return FakeLogcatProcess(command, stdout or logcat_stdout, shared)
+
+        with (
+            patch.object(android_direct_proof, "force_stop_android_package"),
+            patch.object(android_direct_proof, "run", side_effect=fake_run),
+            patch.object(android_direct_proof.subprocess, "Popen", side_effect=fake_popen),
+        ):
+            # Act
+            android_direct_proof.start_android_role_app(
+                run_dir=Path("/tmp"),
+                android_serial="passive-1",
+                label="passive",
+                role="passive",
+                app_id="demo.meshlink.reference.direct.test",
+                storage_subdirectory="storage",
+                android_transport_logcat=False,
+                benchmark_transport="gatt",
+                advertisement_carrier="uuid-pair-plus-service-data",
+            )
+
+        # Assert
+        start_command = next(command for command in run_calls if command[:6] == ["adb", "-s", "passive-1", "shell", "am", "start"])
+        self.assertIn("ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT", start_command)
+        self.assertIn("gatt", start_command)
+
     def test_verify_passive_log_accepts_gatt_primary_marker(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:

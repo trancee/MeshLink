@@ -115,6 +115,7 @@ class ScanResultSupportTest {
                 transportMode = TransportMode.GATT,
                 localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
                 remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = true,
                 shouldInitiateL2cap = true,
                 gattSideLinkReady = false,
             )
@@ -123,6 +124,7 @@ class ScanResultSupportTest {
                 transportMode = TransportMode.L2CAP,
                 localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
                 remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = true,
                 shouldInitiateL2cap = false,
                 gattSideLinkReady = false,
             )
@@ -131,14 +133,25 @@ class ScanResultSupportTest {
                 transportMode = TransportMode.L2CAP,
                 localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
                 remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                localL2capClientSocketsSupported = true,
                 shouldInitiateL2cap = true,
                 gattSideLinkReady = true,
+            )
+        val unsupportedSdkResult =
+            shouldConnectAfterDiscovery(
+                transportMode = TransportMode.L2CAP,
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = false,
+                shouldInitiateL2cap = true,
+                gattSideLinkReady = false,
             )
         val eligibleResult =
             shouldConnectAfterDiscovery(
                 transportMode = TransportMode.L2CAP,
                 localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
                 remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = true,
                 shouldInitiateL2cap = true,
                 gattSideLinkReady = false,
             )
@@ -147,7 +160,19 @@ class ScanResultSupportTest {
         assertEquals(false, gattOnlyResult)
         assertEquals(false, waitingForInboundResult)
         assertEquals(false, mixedPlatformReadyResult)
+        assertEquals(false, unsupportedSdkResult)
         assertEquals(true, eligibleResult)
+    }
+
+    @Test
+    fun supportsL2capClientSocketsRejectsPreApi34(): Unit {
+        // Arrange / Act
+        val api28Supported = supportsL2capClientSockets(sdkInt = 28)
+        val api34Supported = supportsL2capClientSockets(sdkInt = 34)
+
+        // Assert
+        assertEquals(false, api28Supported)
+        assertEquals(true, api34Supported)
     }
 }
 

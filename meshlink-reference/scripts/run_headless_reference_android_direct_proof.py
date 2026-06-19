@@ -77,7 +77,7 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
-ANDROID_EXTRA_BENCHMARK_TRANSPORT = "meshlink.benchmarkTransport"
+ANDROID_EXTRA_BENCHMARK_TRANSPORT = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
 ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT = (
     "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
 )
@@ -1049,6 +1049,7 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
+    benchmark_transport: str | None = None,
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
@@ -1119,6 +1120,14 @@ def start_android_role_app(
                 advertisement_carrier,
             ]
         )
+        if benchmark_transport is not None:
+            command.extend(
+                [
+                    "--es",
+                    ANDROID_EXTRA_BENCHMARK_TRANSPORT,
+                    benchmark_transport,
+                ]
+            )
     app_label = "proof" if android_package == ANDROID_PROOF_PACKAGE else "reference"
     print(f"==> Launching {label} Android {app_label} app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
@@ -1536,6 +1545,7 @@ def main(argv: list[str] | None = None) -> int:
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
                 advertisement_carrier=args.advertisement_carrier,
+                benchmark_transport=args.passive_benchmark_transport,
                 android_activity=ANDROID_ACTIVITY,
                 android_package=ANDROID_PACKAGE,
             )

@@ -201,6 +201,7 @@ def run_pair(
     ]
     if skip_install:
         command.append("--skip-android-install")
+    command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
     if target_peer_id is not None:
         command.extend(["--target-peer-id", target_peer_id])
 

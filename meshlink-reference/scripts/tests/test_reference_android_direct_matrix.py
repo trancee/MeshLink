@@ -43,7 +43,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 android_direct_matrix.subprocess,
                 "run",
                 side_effect=subprocess.TimeoutExpired(cmd=["python"], timeout=1.5, output="install boom", stderr="stderr tail"),
-            ):
+            ) as mock_run:
                 # Act
                 result = android_direct_matrix.run_pair(
                     sender="1f1dad34",
@@ -55,6 +55,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                     android_ready_seconds=6.0,
                     pair_timeout_seconds=1.5,
                     skip_install=False,
+                    passive_benchmark_transport="gatt",
                 )
 
             # Assert
@@ -64,6 +65,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(result["exitCode"], 124)
             self.assertEqual(result["timings"]["pairTimeoutSeconds"], 1.5)
             self.assertIn("install boom", result["stdoutTail"])
+            self.assertIn("--passive-benchmark-transport", mock_run.call_args.args[0])
+            self.assertIn("gatt", mock_run.call_args.args[0])
 
     def test_main_writes_progress_and_skips_completed_pairs_on_resume(self) -> None:
         # Arrange
