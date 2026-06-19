@@ -488,11 +488,17 @@ def render_pair_report(
             )
         return rows
 
+    def observed_transport(summary: dict[str, Any]) -> str | None:
+        return summary.get("transportMode") or (summary.get("timings") or {}).get("transportMode")
+
+    def observed_transport_evidence(summary: dict[str, Any]) -> str | None:
+        return summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence")
+
     initial_elapsed = format_elapsed_seconds(initial)
     final_elapsed = format_elapsed_seconds(final)
     peer_lookup_elapsed = f"{peer_lookup_seconds:.1f}s" if peer_lookup_seconds is not None else "—"
-    transport_label = final.get("transportMode") or initial.get("transportMode") or "unknown"
-    transport_evidence = final.get("transportEvidence") or initial.get("transportEvidence")
+    transport_label = observed_transport(final) or observed_transport(initial) or "unknown"
+    transport_evidence = observed_transport_evidence(final) or observed_transport_evidence(initial)
     quirks = [f"Transport chosen by library: {transport_label}"]
     if transport_evidence:
         quirks.append(f"Transport evidence: {transport_evidence}")
