@@ -1731,6 +1731,11 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+            if discovered_peer_id is None:
+                raise SystemExit(
+                    "Android peer-resolution gate failed: passive peer id was not resolved before the route phase"
+                )
+            print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
