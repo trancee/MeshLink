@@ -63,12 +63,16 @@ class LiveReferenceSessionProjectorPeerEventsTest {
 
         // Assert
         val snapshot = stateStore.currentSnapshot
-        val timelineEntry = snapshot.timeline.last()
-        assertEquals("Inbound message", timelineEntry.title)
-        assertEquals(TEST_PEER_SUFFIX, timelineEntry.peerSuffix)
-        assertEquals("hello from relay", timelineEntry.fullPayload)
+        val inboundTimelineEntry = snapshot.timeline.first { it.title == "Inbound message" }
+        val trustTimelineEntry = snapshot.timeline.last()
+        assertEquals("Inbound message", inboundTimelineEntry.title)
+        assertEquals(TEST_PEER_SUFFIX, inboundTimelineEntry.peerSuffix)
+        assertEquals("hello from relay", inboundTimelineEntry.fullPayload)
+        assertEquals("Trust established", trustTimelineEntry.title)
+        assertEquals(TEST_PEER_SUFFIX, trustTimelineEntry.peerSuffix)
         assertEquals("Inbound message received", snapshot.session.lastOutcomeSummary)
         assertEquals(TEST_PEER_ID, snapshot.session.selectedPeerId)
+        assertEquals(PeerTrustState.TRUSTED, snapshot.peers.single().trustState)
         assertEquals("Inbound 16 bytes", snapshot.peers.single().lastDeliveryOutcome)
         assertEquals(2, runtimeLogs.size)
         assertTrue(runtimeLogs.any { it.contains("origin=$TEST_PEER_ID") })

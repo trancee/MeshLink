@@ -35,6 +35,11 @@ internal fun recordProjectedInboundMessage(
         lastOutcomeSummary = "Inbound message received",
         selectedPeerId = message.originPeerId.value,
     )
+    promoteScriptedPeerTrust(
+        stateStore = stateStore,
+        scriptedPeerId = message.originPeerId.value,
+        scriptedPeerSuffix = redactedSuffix(message.originPeerId.value),
+    )
     val peerTrustLabel =
         stateStore.currentSnapshot.peers
             .firstOrNull { it.peerId == message.originPeerId.value }
