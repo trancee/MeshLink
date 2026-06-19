@@ -522,23 +522,22 @@ def render_pair_report(
         "    participant Matrix",
         f"    participant Sender as {sender_model}",
         f"    participant Passive as {passive_model}",
-        f"    note over Matrix: transport {transport_label}",
-        f"    note over Matrix: fleet inventory {fleet_inventory_path.name}",
-        f"    note over Matrix: pair report {pair_report_path.name}",
-        f"    Matrix->>Sender: launch initial run ({initial_elapsed})",
-        f"    note over Sender: startup {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'})",
-        f"    Matrix->>Passive: launch passive companion ({initial_elapsed})",
-        f"    note over Passive: startup {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'})",
-        f"    Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
-        f"    note over Matrix: target peer {target_peer_id or 'not resolved'}",
+        f"    note over Matrix: transport {transport_label} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
+        "    rect rgba(245, 247, 250, 0.55)",
+        f"        Matrix->>Sender: launch initial run ({initial_elapsed})",
+        f"        Matrix->>Passive: launch passive companion ({initial_elapsed})",
+        f"        Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
+        f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
+        f"        note over Sender,Passive: startup={initial.get('status', 'unknown')} · stage={initial.get('failureStage') or 'no failure stage'}",
+        "    end",
     ]
     if initial_passed:
         diagram_lines.extend(
             [
-                "    alt initial passed",
+                "    rect rgba(236, 253, 245, 0.55)",
                 "        Matrix->>Sender: launch final run with seeded peer",
                 f"        note over Sender: {final_status} ({final.get('failureStage') or 'no failure stage'})",
-                "        Sender->>Passive: discovery / route establishment",
+                "        Sender->>Passive: discovery and route establishment",
                 f"        note over Sender,Passive: routeStage={final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
                 "        Sender->>Passive: send guided payload",
                 f"        note over Sender: sender completion in {final_elapsed}",
@@ -546,16 +545,16 @@ def render_pair_report(
                 "        alt final passed",
                 "            note over Matrix: pair completed successfully",
                 "        else final failed",
-                "            note over Matrix: record failure and continue until the cap is reached",
+                "            rect rgba(254, 242, 242, 0.55)",
+                "                note over Matrix: record failure and continue until the cap is reached",
+                "            end",
                 "        end",
-                "    else initial failed",
-                "        note over Matrix: record failure and continue until the cap is reached",
                 "    end",
             ]
         )
     else:
         diagram_lines.extend([
-            "    alt initial failed",
+            "    rect rgba(254, 242, 242, 0.55)",
             "        note over Matrix: record failure and continue until the cap is reached",
             "    end",
         ])
