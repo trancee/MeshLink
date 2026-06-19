@@ -24,7 +24,10 @@ internal object PureX25519 {
         return scalarMultWithClampedScalar(privateKey = scalar, publicKey = publicKey)
     }
 
-    private fun scalarMultWithClampedScalar(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
+    private fun scalarMultWithClampedScalar(
+        privateKey: ByteArray,
+        publicKey: ByteArray,
+    ): ByteArray {
         require(privateKey.size == X25519_KEY_SIZE_BYTES) { "X25519 private key must be 32 bytes" }
         require(publicKey.size == X25519_KEY_SIZE_BYTES) { "X25519 public key must be 32 bytes" }
 
@@ -96,7 +99,12 @@ internal object PureX25519 {
         multiplyInto(dest, value, value, product)
     }
 
-    private fun multiplyInto(dest: LongArray, left: LongArray, right: LongArray, product: LongArray) {
+    private fun multiplyInto(
+        dest: LongArray,
+        left: LongArray,
+        right: LongArray,
+        product: LongArray,
+    ) {
         for (index in 0 until 31) {
             product[index] = 0L
         }
