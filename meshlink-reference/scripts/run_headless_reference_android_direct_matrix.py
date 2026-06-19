@@ -589,27 +589,30 @@ def render_pair_report(
 
     initial_passed = initial.get("status") == "passed"
     final_status = final.get("status", "skipped")
+    def mermaid_safe(text: Any) -> str:
+        return str(text).replace("\n", " ").replace(";", " · ")
+
     def failure_explanation(summary: dict[str, Any]) -> str:
-        stage = summary.get("failureStage") or "unknown stage"
-        reason = summary.get("failureReason") or "no failure reason recorded"
-        route_stage = summary.get("routeStage") or "not observed"
+        stage = mermaid_safe(summary.get("failureStage") or "unknown stage")
+        reason = mermaid_safe(summary.get("failureReason") or "no failure reason recorded")
+        route_stage = mermaid_safe(summary.get("routeStage") or "not observed")
         if summary.get("status") == "passed":
             return "pair completed successfully"
         if stage == "summary":
             return (
-                f"route reached {route_stage} but the passive side never emitted proof.complete; "
+                f"route reached {route_stage} but the passive side never emitted proof.complete · "
                 f"reason={reason}"
             )
         if "route-unavailable" in reason and "hop-failed" in reason:
             return (
-                "sender waited for route availability while the passive side reported HOP_SESSION_FAILED; "
+                "sender waited for route availability while the passive side reported HOP_SESSION_FAILED · "
                 f"reason={reason}"
             )
         if "route-unavailable" in reason:
-            return f"sender never observed a stable route; reason={reason}"
+            return f"sender never observed a stable route · reason={reason}"
         if "hop-failed" in reason:
-            return f"passive side reported HOP_SESSION_FAILED before route stabilization; reason={reason}"
-        return f"failureStage={stage}; reason={reason}"
+            return f"passive side reported HOP_SESSION_FAILED before route stabilization · reason={reason}"
+        return f"failureStage={stage} · reason={reason}"
 
     diagram_lines = [
         "```mermaid",
