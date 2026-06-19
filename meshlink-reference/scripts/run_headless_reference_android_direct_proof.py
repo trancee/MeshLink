@@ -1541,6 +1541,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
+            if sender_process is None:
+                sender_process = start_android_role_app(
+                    run_dir=run_dir,
+                    android_serial=args.sender_android_serial,
+                    label="sender",
+                    role="sender",
+                    app_id=app_id,
+                    storage_subdirectory=storage_subdirectory,
+                    android_transport_logcat=args.android_transport_logcat,
+                    target_peer_id=discovered_peer_id,
+                    advertisement_carrier=(
+                        "uuid-pair-plus-service-data"
+                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                        else args.advertisement_carrier
+                    ),
+                )
+                print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             if passive_transport_is_meshlink:
                 print(
                     f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
