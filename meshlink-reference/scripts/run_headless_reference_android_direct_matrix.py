@@ -30,7 +30,6 @@ def mermaid_text(value: Any, *, max_len: int = 120) -> str:
     return text or "—"
 
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
-TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 DEFAULT_ANDROID_READY_SECONDS = 20.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
@@ -292,8 +291,21 @@ def run_pair(
     }
 
 
+PEER_ID_PATTERN = re.compile(r"\bpeer=([A-Za-z0-9._:-]+)\b")
+
+
+def extract_peer_id_from_evidence(evidence: str | None) -> str | None:
+    if not evidence:
+        return None
+    match = PEER_ID_PATTERN.search(evidence)
+    if match is None:
+        return None
+    return match.group(1)
+
+
 def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
+    identity_key = f"identity:{app_id}:x25519-public"
     for _ in range(retries):
         result = subprocess.run(
             ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", xml_path],
@@ -308,7 +320,10 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: f
                 time.sleep(delay_s)
                 continue
             for item in root.findall(".//string"):
-                if item.get("name") == TARGET_PEER and item.text:
+                if item.get("name") == identity_key and item.text:
+                    return item.text.strip()
+            for item in root.findall(".//string"):
+                if item.get("name", "").endswith(":x25519-public") and item.text:
                     return item.text.strip()
         time.sleep(delay_s)
     print(f"==> Passive peer id unavailable for {serial}; continuing without a seeded target peer")
@@ -858,11 +873,21 @@ def main(argv: list[str] | None = None) -> int:
         if initial["status"] == "passed" or not args.resume:
             peer_lookup_started = time.monotonic()
             target_peer_id = read_passive_peer_id(pair["passive"], app_id)
+            if target_peer_id is None:
+                target_peer_id = (
+                    extract_peer_id_from_evidence(initial.get("passiveRouteEvidence"))
+                    or extract_peer_id_from_evidence(initial.get("routeEvidence"))
+                )
             peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
         if initial["status"] == "passed" or not args.resume:
             if target_peer_id is None:
                 print(
                     "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"==> Seeded final pass from discovered peer {target_peer_id}",
                     flush=True,
                 )
             final = run_pair(
