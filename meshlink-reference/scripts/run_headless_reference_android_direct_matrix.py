@@ -859,7 +859,12 @@ def main(argv: list[str] | None = None) -> int:
             peer_lookup_started = time.monotonic()
             target_peer_id = read_passive_peer_id(pair["passive"], app_id)
             peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
-        if initial["status"] == "passed" or (not args.resume and target_peer_id is not None):
+        if initial["status"] == "passed" or not args.resume:
+            if target_peer_id is None:
+                print(
+                    "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
+                    flush=True,
+                )
             final = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],
