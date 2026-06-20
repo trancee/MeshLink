@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import subprocess
 import sys
 import tempfile
@@ -264,6 +265,41 @@ class AndroidDirectProofTests(unittest.TestCase):
             android_direct_proof.android_proof_install_timeout_seconds("emulator-5554"),
             android_direct_proof.ANDROID_USB_INSTALL_TIMEOUT_SECONDS,
         )
+
+    def test_launch_android_role_apps_starts_both_devices_before_either_returns(self) -> None:
+        # Arrange
+        started: list[str] = []
+        gate = threading.Event()
+
+        def fake_start_android_role_app(**kwargs: object) -> str:
+            role = str(kwargs["role"])
+            started.append(role)
+            if len(started) >= 2:
+                gate.set()
+            if not gate.wait(1.0):
+                raise AssertionError("parallel launch did not start both roles")
+            return f"{role}-process"
+
+        with patch.object(android_direct_proof, "start_android_role_app", side_effect=fake_start_android_role_app):
+            # Act
+            passive_process, sender_process = android_direct_proof.launch_android_role_apps(
+                run_dir=Path("/tmp/direct-proof-test"),
+                sender_android_serial="sender-1",
+                passive_android_serial="passive-1",
+                app_id="demo.meshlink.reference.android-direct.test",
+                storage_subdirectory="direct-proof-test",
+                android_transport_logcat=False,
+                target_peer_id="peer-123",
+                passive_advertisement_carrier="uuid-pair",
+                passive_benchmark_transport=None,
+                sender_advertisement_carrier="uuid-pair-plus-service-data",
+            )
+
+        # Assert
+        self.assertEqual(passive_process, "passive-process")
+        self.assertEqual(sender_process, "sender-process")
+        self.assertEqual(set(started), {"passive", "sender"})
+        self.assertEqual(len(started), 2)
 
     def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
         # Arrange

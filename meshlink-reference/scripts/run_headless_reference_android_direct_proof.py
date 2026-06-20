@@ -1230,6 +1230,50 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
     return None
 
 
+
+
+def launch_android_role_apps(
+    *,
+    run_dir: Path,
+    sender_android_serial: str,
+    passive_android_serial: str,
+    app_id: str,
+    storage_subdirectory: str,
+    android_transport_logcat: bool,
+    target_peer_id: str | None,
+    passive_advertisement_carrier: str,
+    passive_benchmark_transport: str | None,
+    sender_advertisement_carrier: str,
+) -> tuple[BackgroundProcess, BackgroundProcess]:
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        passive_future = executor.submit(
+            start_android_role_app,
+            run_dir=run_dir,
+            android_serial=passive_android_serial,
+            label="passive",
+            role="passive",
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            android_transport_logcat=android_transport_logcat,
+            advertisement_carrier=passive_advertisement_carrier,
+            benchmark_transport=passive_benchmark_transport,
+            android_activity=ANDROID_ACTIVITY,
+            android_package=ANDROID_PACKAGE,
+        )
+        sender_future = executor.submit(
+            start_android_role_app,
+            run_dir=run_dir,
+            android_serial=sender_android_serial,
+            label="sender",
+            role="sender",
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            android_transport_logcat=android_transport_logcat,
+            target_peer_id=target_peer_id,
+            advertisement_carrier=sender_advertisement_carrier,
+        )
+        return passive_future.result(), sender_future.result()
+
 def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -1594,38 +1638,26 @@ def main(argv: list[str] | None = None) -> int:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
             passive_transport_is_meshlink = True
-            passive_process = start_android_role_app(
+            passive_process, sender_process = launch_android_role_apps(
                 run_dir=run_dir,
-                android_serial=args.passive_android_serial,
-                label="passive",
-                role="passive",
+                sender_android_serial=args.sender_android_serial,
+                passive_android_serial=args.passive_android_serial,
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                advertisement_carrier=args.advertisement_carrier,
-                benchmark_transport=args.passive_benchmark_transport,
-                android_activity=ANDROID_ACTIVITY,
-                android_package=ANDROID_PACKAGE,
+                target_peer_id=discovered_peer_id,
+                passive_advertisement_carrier=args.advertisement_carrier,
+                passive_benchmark_transport=args.passive_benchmark_transport,
+                sender_advertisement_carrier=(
+                    "uuid-pair-plus-service-data"
+                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                    else args.advertisement_carrier
+                ),
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
+            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
-            if sender_process is None:
-                sender_process = start_android_role_app(
-                    run_dir=run_dir,
-                    android_serial=args.sender_android_serial,
-                    label="sender",
-                    role="sender",
-                    app_id=app_id,
-                    storage_subdirectory=storage_subdirectory,
-                    android_transport_logcat=args.android_transport_logcat,
-                    target_peer_id=discovered_peer_id,
-                    advertisement_carrier=(
-                        "uuid-pair-plus-service-data"
-                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                        else args.advertisement_carrier
-                    ),
-                )
-                print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+            sender_marker_path = sender_log_path(run_dir)
             if passive_transport_is_meshlink:
                 print(
                     f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker"
