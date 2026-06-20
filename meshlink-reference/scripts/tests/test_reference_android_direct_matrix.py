@@ -167,6 +167,76 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 ],
             )
 
+    def test_main_skips_final_pass_when_discovery_evidence_is_missing(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "matrix"
+            run_root.mkdir(parents=True, exist_ok=True)
+
+            def fake_adb_devices() -> list[str]:
+                return ["1f1dad34", "2ASVB21B09005117"]
+
+            run_calls: list[dict[str, str | None]] = []
+            peer_reads: list[str] = []
+
+            def fake_run_pair(**kwargs):
+                run_calls.append(
+                    {
+                        "sender": kwargs["sender"],
+                        "passive": kwargs["passive"],
+                        "skip_install": str(kwargs["skip_install"]),
+                        "target_peer_id": kwargs["target_peer_id"],
+                    }
+                )
+                if kwargs["skip_install"]:
+                    raise AssertionError("final pass should be skipped without discovery evidence")
+                return {
+                    "status": "failed",
+                    "failureStage": "capture",
+                    "failureReason": "route",
+                    "routeStage": "peer-discovered",
+                    "routeEvidence": None,
+                    "senderRouteStage": "peer-discovered",
+                    "senderRouteEvidence": None,
+                    "passiveRouteStage": "peer-discovered",
+                    "passiveRouteEvidence": None,
+                    "timings": {"totalSeconds": 1.0},
+                    "htmlReportPath": "summary.html",
+                    "stdoutTail": "",
+                    "stderrTail": "",
+                    "elapsedSeconds": 1.0,
+                    "exitCode": 1,
+                }
+
+            def fake_read_passive_peer_id(serial: str, app_id: str) -> str | None:
+                peer_reads.append(f"{serial}:{app_id}")
+                return None
+
+            # Act
+            with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix,
+                "adb_device_api_level",
+                side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial),
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
+                exit_code = android_direct_matrix.main(["--run-root", str(run_root)])
+
+            # Assert
+            self.assertEqual(exit_code, 0)
+            rows = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["initial"]["status"], "failed")
+            self.assertEqual(rows[0]["final"]["status"], "skipped")
+            self.assertIsNone(rows[0]["targetPeerId"])
+            self.assertEqual(peer_reads, ["2ASVB21B09005117:demo.meshlink.reference.android-direct.a065_nam_lx9"])
+            self.assertEqual(
+                run_calls,
+                [
+                    {"sender": "1f1dad34", "passive": "2ASVB21B09005117", "skip_install": "False", "target_peer_id": None},
+                ],
+            )
+
     def test_main_writes_fleet_inventory_and_pair_report_with_fail_fast(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
