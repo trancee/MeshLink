@@ -870,26 +870,25 @@ def main(argv: list[str] | None = None) -> int:
         )
         target_peer_id = None
         peer_lookup_seconds = None
-        if initial["status"] == "passed" or not args.resume:
-            peer_lookup_started = time.monotonic()
-            target_peer_id = read_passive_peer_id(pair["passive"], app_id)
-            if target_peer_id is None:
-                target_peer_id = (
-                    extract_peer_id_from_evidence(initial.get("passiveRouteEvidence"))
-                    or extract_peer_id_from_evidence(initial.get("routeEvidence"))
-                )
-            peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
-        if initial["status"] == "passed" or not args.resume:
-            if target_peer_id is None:
-                print(
-                    "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
-                    flush=True,
-                )
-            else:
-                print(
-                    f"==> Seeded final pass from discovered peer {target_peer_id}",
-                    flush=True,
-                )
+        peer_lookup_started = time.monotonic()
+        target_peer_id = read_passive_peer_id(pair["passive"], app_id)
+        if target_peer_id is None:
+            target_peer_id = (
+                extract_peer_id_from_evidence(initial.get("passiveRouteEvidence"))
+                or extract_peer_id_from_evidence(initial.get("routeEvidence"))
+            )
+        peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
+        if target_peer_id is None:
+            print(
+                "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
+                flush=True,
+            )
+        else:
+            print(
+                f"==> Seeded final pass from discovered peer {target_peer_id}",
+                flush=True,
+            )
+        if target_peer_id is not None or not args.resume:
             final = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],
@@ -913,7 +912,8 @@ def main(argv: list[str] | None = None) -> int:
                 "stdoutTail": initial.get("stdoutTail"),
                 "stderrTail": initial.get("stderrTail"),
                 "elapsedSeconds": initial.get("elapsedSeconds"),
-                "exitCode": initial.get("exitCode"),
+                "runDir": str(final_dir),
+                "summaryPath": None,
             }
 
         row = {

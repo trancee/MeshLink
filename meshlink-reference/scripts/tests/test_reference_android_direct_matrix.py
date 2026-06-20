@@ -390,6 +390,86 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(len(results), 1)
             self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False, None), ("1f1dad34", "2ASVB21B09005117", True, "peer-123")])
 
+    def test_main_runs_final_pass_even_when_initial_discovery_fails(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_root = Path(temporary_directory) / "matrix"
+            run_root.mkdir(parents=True, exist_ok=True)
+            calls: list[tuple[str, str, bool, str | None]] = []
+
+            def fake_adb_devices() -> list[str]:
+                return ["1f1dad34", "2ASVB21B09005117"]
+
+            def fake_run_pair(
+                *,
+                sender: str,
+                passive: str,
+                app_id: str,
+                run_dir: Path,
+                target_peer_id: str | None,
+                capture_timeout: float,
+                android_ready_seconds: float,
+                pair_timeout_seconds: float,
+                skip_install: bool,
+            ) -> dict[str, object]:
+                del app_id, run_dir, capture_timeout, android_ready_seconds, pair_timeout_seconds
+                calls.append((sender, passive, skip_install, target_peer_id))
+                if not skip_install:
+                    return {
+                        "status": "failed",
+                        "failureStage": "capture",
+                        "failureReason": "initial discovery stalled",
+                        "senderCompletion": None,
+                        "passiveCompletion": None,
+                        "routeStage": "peer-discovered",
+                        "routeEvidence": "passive peer discovered",
+                        "senderRouteStage": None,
+                        "passiveRouteStage": "peer-discovered",
+                        "timings": {"totalSeconds": 1.0},
+                        "htmlReportPath": "summary.html",
+                        "stdoutTail": "",
+                        "stderrTail": "",
+                        "elapsedSeconds": 1.0,
+                        "exitCode": 1,
+                    }
+                return {
+                    "status": "passed",
+                    "failureStage": None,
+                    "failureReason": None,
+                    "senderCompletion": "sender complete",
+                    "passiveCompletion": "passive complete",
+                    "routeStage": "route-discovered",
+                    "routeEvidence": "passive peer discovered",
+                    "senderRouteStage": "route-discovered",
+                    "passiveRouteStage": "route-discovered",
+                    "timings": {"totalSeconds": 1.0},
+                    "htmlReportPath": "summary.html",
+                    "stdoutTail": "",
+                    "stderrTail": "",
+                    "elapsedSeconds": 1.0,
+                    "exitCode": 0,
+                }
+
+            def fake_read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str:
+                del serial, app_id, retries, delay_s
+                return "peer-123"
+
+            with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix,
+                "adb_device_api_level",
+                side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial),
+            ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
+                android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
+            ):
+                android_direct_matrix.main(["--run-root", str(run_root), "--sender-passive-limit", "1"])
+
+            # Assert
+            results = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]["initial"]["status"], "failed")
+            self.assertEqual(results[0]["final"]["status"], "passed")
+            self.assertEqual(calls, [("1f1dad34", "2ASVB21B09005117", False, None), ("1f1dad34", "2ASVB21B09005117", True, "peer-123")])
+
     def test_main_filters_pairs_below_api_floor(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
