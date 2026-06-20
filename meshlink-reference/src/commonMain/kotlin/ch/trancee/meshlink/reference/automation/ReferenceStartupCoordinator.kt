@@ -22,12 +22,6 @@ public class ReferenceStartupCoordinator(
         if (config.mode != ReferenceAutomationMode.LIVE_PROOF) {
             return
         }
-        if (!config.benchmarkTransport.equals("meshlink", ignoreCase = true)) {
-            platformServices.emitAutomationLog(
-                "REFERENCE_AUTOMATION startup.coordinator.skipped mode=${config.mode} role=${config.role} appId=${config.appId} benchmarkTransport=${config.benchmarkTransport} reason=non-meshlink-benchmark-transport"
-            )
-            return
-        }
         if (liveProofStartupRequested) {
             return
         }

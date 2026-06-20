@@ -6,6 +6,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -108,7 +109,7 @@ internal class MeshEngineSessionSupport(
                     peerId,
                     DirectWireFrame.HandshakeMessage1(message1),
                     "handshake.message1",
-                    null,
+                    TransportMode.GATT,
                 )
             if (result !is TransportSendResult.Dropped || !result.isTransientLinkNotReady()) {
                 return result

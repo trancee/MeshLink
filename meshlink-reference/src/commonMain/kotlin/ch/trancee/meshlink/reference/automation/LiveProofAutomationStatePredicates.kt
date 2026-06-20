@@ -6,12 +6,10 @@ internal fun shouldRequestLiveProofMeshStart(
     meshStartRequested: Boolean,
     snapshot: ReferenceControllerSnapshot,
     readinessBlockers: List<String>,
-    benchmarkTransport: String = "meshlink",
 ): Boolean {
     return !meshStartRequested &&
         !hasMeshEnteredLifecycle(snapshot.session.meshStateLabel) &&
-        readinessBlockers.isEmpty() &&
-        benchmarkTransport.equals("meshlink", ignoreCase = true)
+        readinessBlockers.isEmpty()
 }
 
 internal fun shouldRequestPauseForPauseResume(
