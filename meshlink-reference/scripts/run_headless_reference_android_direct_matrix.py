@@ -589,6 +589,12 @@ def render_pair_report(
 
     initial_passed = initial.get("status") == "passed"
     final_status = final.get("status", "skipped")
+    sender_startup = (initial.get("startupTiming") or {}).get("sender") or {}
+    passive_startup = (initial.get("startupTiming") or {}).get("passive") or {}
+    sender_startup_elapsed = sender_startup.get("elapsedSeconds", "—")
+    passive_startup_elapsed = passive_startup.get("elapsedSeconds", "—")
+    sender_startup_transport = sender_startup.get("transportMode") or transport_label
+    passive_startup_transport = passive_startup.get("transportMode") or transport_label
     diagram_lines = [
         "```mermaid",
         "sequenceDiagram",
@@ -596,87 +602,22 @@ def render_pair_report(
         "    participant Matrix",
         f"    participant Sender as {sender_model}",
         f"    participant Passive as {passive_model}",
-        f"    note over Matrix: transport {transport_label} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
+        f"    note over Matrix: sender transport {sender_startup_transport} · passive transport {passive_startup_transport} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
+        "    par install and preflight",
+        f"        Matrix->>Sender: install and preflight sender initial run ({sender_startup_elapsed})",
+        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'}) · transport {sender_startup_transport}",
+        "    and install and preflight",
+        f"        Matrix->>Passive: install and preflight passive initial run ({passive_startup_elapsed})",
+        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'}) · transport {passive_startup_transport}",
+        "    end",
         "    rect rgba(245, 247, 250, 0.55)",
-        f"        Matrix->>Sender: install and preflight initial run ({initial_elapsed})",
-        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
-        f"        Matrix->>Passive: launch passive companion ({initial_elapsed})",
-        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
         f"        Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
         f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
-        f"        note over Sender,Passive: initial startup={initial.get('status', 'unknown')} · stage={initial.get('failureStage') or 'no failure stage'}",
+        f"        note over Sender,Passive: initial startup={initial.get('status')} · stage={initial.get('failureStage') or 'unknown'}",
         "    end",
+        "```",
     ]
-    if initial_passed:
-        diagram_lines.extend(
-            [
-                "    rect rgba(236, 253, 245, 0.55)",
-                f"        Matrix->>Sender: seed final run with peer id ({peer_lookup_elapsed})",
-                f"        Sender-->>Matrix: final startup ready ({final_elapsed})",
-                "        Sender->>Passive: discovery and route establishment",
-                f"        note over Sender,Passive: routeStage={final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
-                "        Sender->>Passive: send guided payload",
-                f"        note over Sender: sender completion in {final_elapsed}",
-                f"        note over Passive: passive completion {final.get('passiveCompletion') or initial.get('passiveCompletion') or 'not observed'}",
-                "        alt final passed",
-                "            note over Matrix: pair completed successfully",
-                "        else final failed",
-                "            rect rgba(254, 242, 242, 0.55)",
-                f"                note over Matrix: failure explanation: {failure_explanation(final)}",
-                "            end",
-                "        end",
-                "    end",
-            ]
-        )
-    diagram_lines.extend(["```", ""])
 
-    lines = [
-        f"# Pair {index:02d} — {pair['label']}",
-        "",
-        "## Setup",
-        "",
-        f"- Sender: {sender_model} ({pair['sender']})",
-        f"- Passive: {passive_model} ({pair['passive']})",
-        f"- Sender API level: {sender_api_level if sender_api_level is not None else 'unknown'}",
-        f"- Passive API level: {passive_api_level if passive_api_level is not None else 'unknown'}",
-        f"- Transport: {transport_label}",
-        f"- Fleet inventory: `{fleet_inventory_path}`",
-        f"- Pair report path: `{pair_report_path}`",
-        f"- Peer lookup time: {peer_lookup_elapsed}",
-        f"- Initial run dir: `{path_ref('initial', initial.get('runDir'))}`",
-        f"- Final run dir: `{path_ref('final', final.get('runDir'))}`",
-        "",
-        "## Result",
-        "",
-        f"- Initial status: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'}) in {initial_elapsed}",
-        f"- Final status: {final_status} ({final.get('failureStage') or 'no failure stage'}) in {final_elapsed}",
-        f"- Target peer id: {target_peer_id or 'not resolved'}",
-        f"- Initial HTML report: `{path_ref('initial html', initial.get('htmlReportPath'))}`",
-        f"- Final HTML report: `{path_ref('final html', final.get('htmlReportPath'))}`",
-        f"- Initial summary JSON: `{path_ref('initial summary', initial.get('summaryPath'))}`",
-        f"- Final summary JSON: `{path_ref('final summary', final.get('summaryPath'))}`",
-        "",
-        "## Troubleshooting references",
-        "",
-        *evidence_rows(initial, "Initial"),
-        *evidence_rows(final, "Final"),
-        "",
-        "## Device quirks and issues",
-        "",
-        *[f"- {quirk}" for quirk in quirks],
-        "",
-        "## Startup timing",
-        "",
-        *json_block("Initial startupTiming", initial.get("startupTiming") or {}),
-        *json_block("Initial timings", initial.get("timings") or {}),
-        *json_block("Final startupTiming", final.get("startupTiming") or {}),
-        *json_block("Final timings", final.get("timings") or {}),
-        *json_block("Captured evidence map", {"initial": initial.get("captured") or {}, "final": final.get("captured") or {}}),
-        "## Mermaid sequence diagram",
-        "",
-        *diagram_lines,
-    ]
-    return "\n".join(lines)
 
 
 def load_progress(path: Path) -> list[dict[str, Any]]:
