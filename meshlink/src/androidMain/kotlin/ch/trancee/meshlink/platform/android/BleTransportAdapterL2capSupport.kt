@@ -40,12 +40,7 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
                         "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${device.address}"
                     )
                     val socket =
-                        L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm) {
-                            error ->
-                            log(
-                                "explicit insecure L2CAP client socket fallback for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
-                            )
-                        }
+                        L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm)
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
                     peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)

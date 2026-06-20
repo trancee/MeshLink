@@ -51,8 +51,8 @@ internal class LiveProofAutomationDriver(
         )
         if (
             config.role == ReferenceAutomationRole.SENDER &&
-                config.benchmarkTransport == "meshlink" &&
-                !progress.meshStartRequested
+                !progress.meshStartRequested &&
+                config.benchmarkTransport.equals("meshlink", ignoreCase = true)
         ) {
             actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION mesh.start.requested role=${config.role} meshState=${timelineUiState.liveSnapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
@@ -95,9 +95,6 @@ internal class LiveProofAutomationDriver(
             config.mode != ReferenceAutomationMode.LIVE_PROOF ||
                 config.role != ReferenceAutomationRole.SENDER
         ) {
-            return
-        }
-        if (config.benchmarkTransport != "meshlink") {
             return
         }
         val meshState = timelineUiState.liveSnapshot.session.meshStateLabel

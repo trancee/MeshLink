@@ -31,21 +31,21 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             throw androidPermissionDenied(exception)
         }
 
+    val l2capServerSupported = supportsL2capServerSockets()
     log(
-        "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+        "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported"
     )
     val serverSocket =
-        runCatching {
-                L2capSocketFactory.listenInsecure(adapter) { error ->
-                    log(
-                        "explicit insecure L2CAP server socket fallback: ${error.message.orEmpty()}"
-                    )
+        if (l2capServerSupported) {
+            runCatching { L2capSocketFactory.listenInsecure(adapter) }
+                .onFailure { error ->
+                    log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
                 }
-            }
-            .onFailure { error ->
-                log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
-            }
-            .getOrNull()
+                .getOrNull()
+        } else {
+            log("L2CAP server socket unavailable: runtime capability probe returned false")
+            null
+        }
     l2capServerSocket = serverSocket
     discoveryLifecycle.updateL2capPsm((serverSocket?.psm ?: 0).toUByte())
     log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")

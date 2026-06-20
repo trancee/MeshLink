@@ -55,11 +55,11 @@ public class MainActivity : ComponentActivity() {
             emitDirectProofPowerState(platformServices, "onCreate", directProofEnabled)
             Log.i(
                 "MeshLinkReferenceAutomation",
-                "REFERENCE_AUTOMATION directProof.transport role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport}",
+                "REFERENCE_AUTOMATION directProof.transport role=${automationConfig.role}",
             )
             writeDirectProofProbeMarker(
                 "onCreate.txt",
-                "role=${automationConfig.role} benchmarkTransport=${automationConfig.benchmarkTransport} directProofEnabled=$directProofEnabled\n",
+                "role=${automationConfig.role} directProofEnabled=$directProofEnabled\n",
             )
         }
         setContent { ReferenceApp(platformServices = platformServices) }
@@ -165,12 +165,9 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
             intent?.getBooleanExtra(MainActivity.EXTRA_UI_AUTOMATION, false) == true
     val automationMode = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_MODE)
     val mode = if (automationEnabled) automationMode else null
-    val benchmarkTransport =
-        intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_BENCHMARK_TRANSPORT)
-            ?: "meshlink"
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)} benchmarkTransport=$benchmarkTransport",
+        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)}",
     )
     return AutomationConfig(
         enabled = automationEnabled,
@@ -185,7 +182,6 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
         requiredPeerCount = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
         targetPeerIndex = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
         targetPeerId = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
-        benchmarkTransport = benchmarkTransport,
         scenario =
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_SCENARIO)
                 .toReferenceAutomationScenario(),

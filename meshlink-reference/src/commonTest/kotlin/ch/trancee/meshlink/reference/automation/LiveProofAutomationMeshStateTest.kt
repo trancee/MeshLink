@@ -49,7 +49,6 @@ class LiveProofAutomationMeshStateTest {
                 meshStartRequested = false,
                 snapshot = snapshot,
                 readinessBlockers = emptyList(),
-                benchmarkTransport = "meshlink",
             )
         val blockedByState =
             shouldRequestLiveProofMeshStart(
@@ -57,14 +56,12 @@ class LiveProofAutomationMeshStateTest {
                 snapshot =
                     snapshot.copy(session = snapshot.session.copy(meshStateLabel = "Running")),
                 readinessBlockers = emptyList(),
-                benchmarkTransport = "meshlink",
             )
         val blockedByReadiness =
             shouldRequestLiveProofMeshStart(
                 meshStartRequested = false,
                 snapshot = snapshot,
                 readinessBlockers = listOf("Enable Bluetooth"),
-                benchmarkTransport = "meshlink",
             )
         val blockedByTransport =
             shouldRequestLiveProofMeshStart(
