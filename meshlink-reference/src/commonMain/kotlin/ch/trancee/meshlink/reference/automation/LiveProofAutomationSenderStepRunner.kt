@@ -8,7 +8,10 @@ internal fun runSenderAutomationStep(
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {
-    if (automationConfig.benchmarkTransport == "meshlink" && !progress.meshStartRequested) {
+    if (
+        !progress.meshStartRequested &&
+            automationConfig.benchmarkTransport.equals("meshlink", ignoreCase = true)
+    ) {
         actions.emitAutomationLog(
             "REFERENCE_AUTOMATION mesh.start.requested role=${automationConfig.role} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
         )

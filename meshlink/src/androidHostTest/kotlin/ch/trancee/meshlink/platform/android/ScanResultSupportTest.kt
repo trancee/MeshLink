@@ -165,14 +165,25 @@ class ScanResultSupportTest {
     }
 
     @Test
-    fun supportsL2capClientSocketsRejectsPreApi34(): Unit {
+    fun supportsL2capClientSocketsUsesSdkCondition(): Unit {
         // Arrange / Act
-        val api28Supported = supportsL2capClientSockets(sdkInt = 28)
-        val api34Supported = supportsL2capClientSockets(sdkInt = 34)
+        val unsupportedResult = supportsL2capClientSockets(sdkInt = 33)
+        val supportedResult = supportsL2capClientSockets(sdkInt = 34)
 
         // Assert
-        assertEquals(false, api28Supported)
-        assertEquals(true, api34Supported)
+        assertEquals(false, unsupportedResult)
+        assertEquals(true, supportedResult)
+    }
+
+    @Test
+    fun supportsL2capServerSocketsUsesSdkCondition(): Unit {
+        // Arrange / Act
+        val unsupportedResult = supportsL2capServerSockets(sdkInt = 33)
+        val supportedResult = supportsL2capServerSockets(sdkInt = 34)
+
+        // Assert
+        assertEquals(false, unsupportedResult)
+        assertEquals(true, supportedResult)
     }
 }
 

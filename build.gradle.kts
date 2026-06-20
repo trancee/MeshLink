@@ -112,7 +112,6 @@ apiValidation {
 
 dependencies {
     kover(project(":meshlink"))
-    kover(project(":meshlink-reference"))
 }
 
 kover {
@@ -136,24 +135,24 @@ kover {
     }
 }
 
-val checkGeneratedPublicApiReference by
-    tasks.registering(Exec::class) {
+val checkGeneratedPublicApiReference =
+    tasks.register<Exec>("checkGeneratedPublicApiReference") {
         group = "verification"
         description = "Fails if docs/reference/generated-public-api.md is out of sync with the API dump."
         workingDir = rootDir
         commandLine("python3", "scripts/check_generated_public_api_reference.py")
     }
 
-val checkMarkdownLinks by
-    tasks.registering(Exec::class) {
+val checkMarkdownLinks =
+    tasks.register<Exec>("checkMarkdownLinks") {
         group = "verification"
         description = "Fails if repository markdown files contain broken relative links."
         workingDir = rootDir
         commandLine("python3", "scripts/check_markdown_links.py")
     }
 
-val checkAgp9Invariants by
-    tasks.registering(Exec::class) {
+val checkAgp9Invariants =
+    tasks.register<Exec>("checkAgp9Invariants") {
         group = "verification"
         description =
             "Fails if the post-migration AGP 9 module shape, plugin wiring, or compatibility tasks drift."
@@ -161,8 +160,8 @@ val checkAgp9Invariants by
         commandLine("python3", "scripts/check_agp9_invariants.py")
     }
 
-val codeqlJavaKotlinBuild by
-    tasks.registering {
+val codeqlJavaKotlinBuild =
+    tasks.register("codeqlJavaKotlinBuild") {
         group = "verification"
         description =
             "Builds the repository subset CodeQL needs for Java/Kotlin analysis without duplicating the workflow task graph."
@@ -177,8 +176,8 @@ val codeqlJavaKotlinBuild by
         )
     }
 
-val cleanJvmSmokeBenchmarkReports by
-    tasks.registering(Delete::class) {
+val cleanJvmSmokeBenchmarkReports =
+    tasks.register<Delete>("cleanJvmSmokeBenchmarkReports") {
         group = "verification"
         description = "Deletes stale JVM smoke benchmark reports before the next verified smoke run."
         delete(layout.projectDirectory.dir("benchmarks/build/reports/benchmarks/smoke"))
@@ -190,8 +189,8 @@ project(":benchmarks").tasks.configureEach {
     }
 }
 
-val checkJvmSmokeBenchmarkReport by
-    tasks.registering(Exec::class) {
+val checkJvmSmokeBenchmarkReport =
+    tasks.register<Exec>("checkJvmSmokeBenchmarkReport") {
         group = "verification"
         description =
             "Fails if the latest JVM smoke benchmark report is missing any declared benchmark results."
@@ -200,22 +199,22 @@ val checkJvmSmokeBenchmarkReport by
         commandLine("python3", "scripts/check_jvm_smoke_benchmark_report.py")
     }
 
-val verifyJvmSmokeBenchmarks by
-    tasks.registering {
+val verifyJvmSmokeBenchmarks =
+    tasks.register("verifyJvmSmokeBenchmarks") {
         group = "verification"
         description = "Runs the JVM smoke benchmark suite and verifies that every declared benchmark completed."
         dependsOn(checkJvmSmokeBenchmarkReport)
     }
 
-val verifyDocs by
-    tasks.registering {
+val verifyDocs =
+    tasks.register("verifyDocs") {
         group = "verification"
         description = "Runs the repository documentation verification checks."
         dependsOn(checkGeneratedPublicApiReference, checkMarkdownLinks)
     }
 
-val dokkaGenerateAllHtml by
-    tasks.registering {
+val dokkaGenerateAllHtml =
+    tasks.register("dokkaGenerateAllHtml") {
         group = "documentation"
         description =
             "Generates Dokka HTML for the SDK and the shared reference-app module."

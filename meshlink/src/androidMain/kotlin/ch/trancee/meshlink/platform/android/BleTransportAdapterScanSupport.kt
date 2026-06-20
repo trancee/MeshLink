@@ -66,7 +66,7 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             transportMode = discovery.transportMode,
             localPlatformFamily = currentDiscoveryPayload.platformFamily,
             remotePlatformFamily = resolvedPeer.platformFamily,
-            localL2capClientSocketsSupported = Build.VERSION.SDK_INT >= 34,
+            localL2capClientSocketsSupported = supportsL2capClientSockets(),
             shouldInitiateL2cap =
                 shouldInitiateL2cap(discovery.payload.keyHash, discovery.payload.platformFamily),
             gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),

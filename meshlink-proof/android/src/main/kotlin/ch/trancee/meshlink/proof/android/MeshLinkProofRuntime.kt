@@ -430,6 +430,13 @@ internal object MeshLinkProofRuntime {
                             appendLog(
                                 "BENCHMARK receipt sent peer=${peerId.value.takeLast(6)} token=${receipt.tokenHex} result=$result"
                             )
+                            appendLog(
+                                ProofDirectProofMarkers.passiveProofComplete(
+                                    peer = peerId.value,
+                                    tokenHex = receipt.tokenHex,
+                                    totalBytes = receipt.totalBytes,
+                                )
+                            )
                         }
                         .onFailure { error ->
                             appendLog(

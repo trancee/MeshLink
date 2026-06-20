@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import subprocess
 import sys
 import tempfile
@@ -264,6 +265,41 @@ class AndroidDirectProofTests(unittest.TestCase):
             android_direct_proof.android_proof_install_timeout_seconds("emulator-5554"),
             android_direct_proof.ANDROID_USB_INSTALL_TIMEOUT_SECONDS,
         )
+
+    def test_launch_android_role_apps_starts_both_devices_before_either_returns(self) -> None:
+        # Arrange
+        started: list[str] = []
+        gate = threading.Event()
+
+        def fake_start_android_role_app(**kwargs: object) -> str:
+            role = str(kwargs["role"])
+            started.append(role)
+            if len(started) >= 2:
+                gate.set()
+            if not gate.wait(1.0):
+                raise AssertionError("parallel launch did not start both roles")
+            return f"{role}-process"
+
+        with patch.object(android_direct_proof, "start_android_role_app", side_effect=fake_start_android_role_app):
+            # Act
+            passive_process, sender_process = android_direct_proof.launch_android_role_apps(
+                run_dir=Path("/tmp/direct-proof-test"),
+                sender_android_serial="sender-1",
+                passive_android_serial="passive-1",
+                app_id="demo.meshlink.reference.android-direct.test",
+                storage_subdirectory="direct-proof-test",
+                android_transport_logcat=False,
+                target_peer_id="peer-123",
+                passive_advertisement_carrier="uuid-pair",
+                passive_benchmark_transport=None,
+                sender_advertisement_carrier="uuid-pair-plus-service-data",
+            )
+
+        # Assert
+        self.assertEqual(passive_process, "passive-process")
+        self.assertEqual(sender_process, "sender-process")
+        self.assertEqual(set(started), {"passive", "sender"})
+        self.assertEqual(len(started), 2)
 
     def test_main_runs_android_only_direct_flow_for_three_device_fleet_and_writes_retained_artifacts(self) -> None:
         # Arrange
@@ -1183,6 +1219,30 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIsNotNone(completions.sender_completion)
         self.assertIsNotNone(completions.passive_completion)
         self.assertIsNone(completions.export_relative_path)
+
+    def test_verify_passive_log_accepts_receipt_sent_marker_before_proof_complete(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "passive_logcat.log"
+            log_path.write_text(
+                "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION BENCHMARK receipt sent peer=peer-123 token=deadbeef result=Sent\n"
+                "05-31 10:00:01.150 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=passive peer=peer-123 token=deadbeef bytes=128\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            completion_line = android_direct_proof.verify_passive_log(log_path, passive_transport="meshlink")
+
+        # Assert
+        self.assertEqual(
+            completion_line,
+            "05-31 10:00:01.150 I MeshLinkReferenceAutomation: "
+            "REFERENCE_AUTOMATION proof.complete role=passive peer=peer-123 token=deadbeef bytes=128",
+        )
 
     def test_wait_for_android_completions_times_out_when_only_sender_completes(self) -> None:
         # Arrange

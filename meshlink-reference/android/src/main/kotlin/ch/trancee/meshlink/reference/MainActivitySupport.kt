@@ -72,7 +72,6 @@ internal fun MainActivity.createPlatformServicesForAutomation(
                 requiredPeerCount = automationConfig.requiredPeerCount,
                 targetPeerIndex = automationConfig.targetPeerIndex,
                 targetPeerId = automationConfig.targetPeerId,
-                benchmarkTransport = automationConfig.benchmarkTransport,
                 scenario = automationConfig.scenario,
             )
         automationConfig.enabled ->

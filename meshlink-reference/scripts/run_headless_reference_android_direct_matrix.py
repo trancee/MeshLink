@@ -4,18 +4,32 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from run_headless_reference_live_proof import shell_join, timestamp
 
+
+def mermaid_text(value: Any, *, max_len: int = 120) -> str:
+    text = "—" if value is None else str(value)
+    text = re.sub(r"\s+", " ", text.replace("\r", " "))
+    text = text.strip()
+    text = text.replace("`", "'")
+    text = text.replace("{", "(").replace("}", ")")
+    text = text.replace("[", "(").replace("]", ")")
+    text = text.replace("<", "&lt;").replace(">", "&gt;")
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text or "—"
+
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
-TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 DEFAULT_ANDROID_READY_SECONDS = 20.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 30.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 300.0
@@ -277,8 +291,21 @@ def run_pair(
     }
 
 
+PEER_ID_PATTERN = re.compile(r"\bpeer=([A-Za-z0-9._:-]+)\b")
+
+
+def extract_peer_id_from_evidence(evidence: str | None) -> str | None:
+    if not evidence:
+        return None
+    match = PEER_ID_PATTERN.search(evidence)
+    if match is None:
+        return None
+    return match.group(1)
+
+
 def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
+    identity_key = f"identity:{app_id}:x25519-public"
     for _ in range(retries):
         result = subprocess.run(
             ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", xml_path],
@@ -293,7 +320,10 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: f
                 time.sleep(delay_s)
                 continue
             for item in root.findall(".//string"):
-                if item.get("name") == TARGET_PEER and item.text:
+                if item.get("name") == identity_key and item.text:
+                    return item.text.strip()
+            for item in root.findall(".//string"):
+                if item.get("name", "").endswith(":x25519-public") and item.text:
                     return item.text.strip()
         time.sleep(delay_s)
     print(f"==> Passive peer id unavailable for {serial}; continuing without a seeded target peer")
@@ -401,17 +431,17 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    participant Fleet",
         "    participant Sweep",
         "    participant Stop",
-        f"    note over Matrix: runRoot={run_root or '—'} · fleet={Path(fleet_inventory_path).name if fleet_inventory_path else '—'}",
-        "    rect rgba(245, 247, 250, 0.55)",
+        f"    note over Matrix: runRoot={mermaid_text(run_root or '—', max_len=40)} · fleet={mermaid_text(Path(fleet_inventory_path).name if fleet_inventory_path else '—', max_len=40)}",
+        "    rect rgba(30, 64, 175, 0.40)",
         f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
         f"        Matrix->>Sweep: prepare directed sweep ({completed_pairs} completed)",
         f"        Fleet-->>Matrix: inventory ready ({passing_count} passing · {failing_count} failing)",
-        f"        note over Fleet,Sweep: failure bucket so far = {top_failure_bucket}",
+        f"        note over Fleet,Sweep: failure bucket so far = {mermaid_text(top_failure_bucket, max_len=40)}",
         "    end",
         "    rect rgba(236, 253, 245, 0.55)",
         f"        Sweep->>Sweep: execute pair lane across {completed_pairs} completed pairs",
         "        Sweep->>Sweep: classify outcomes by failure stage",
-        f"        note over Sweep: top failure bucket = {top_failure_bucket}",
+        f"        note over Sweep: top failure bucket = {mermaid_text(top_failure_bucket, max_len=40)}",
         "        alt at least one passing pair",
         f"            Sweep-->>Matrix: {passing_count} passing pairs recorded",
         "        else no passing pairs",
@@ -420,11 +450,11 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    end",
         "    rect rgba(254, 242, 242, 0.55)",
         "        alt stopped early",
-        f"            Sweep->>Stop: {stop_reason or 'failure threshold reached'}",
-        f"            note over Stop: failure explanation: {top_failure_explanation}",
+        "            Sweep->>Stop: stopped early",
+        f"            note over Stop: failure summary recorded in report",
         "        else sweep completed",
         "            Sweep->>Stop: all processed pairs recorded",
-        f"            note over Stop: failure explanation: {top_failure_explanation}",
+        f"            note over Stop: failure summary recorded in report",
         "        end",
         "    end",
         "```",
@@ -458,6 +488,28 @@ def format_elapsed_seconds(summary: dict[str, Any] | None) -> str:
         return f"{float(elapsed):.1f}s"
     except (TypeError, ValueError):
         return str(elapsed)
+
+
+def format_elapsed_from_markers(
+    start_line: str | None,
+    end_line: str | None,
+    *,
+    fallback_seconds: Any = None,
+) -> str:
+    if start_line and end_line and len(start_line) >= 18 and len(end_line) >= 18:
+        try:
+            start = datetime.strptime(start_line[:18], "%m-%d %H:%M:%S.%f")
+            end = datetime.strptime(end_line[:18], "%m-%d %H:%M:%S.%f")
+            if end >= start:
+                return f"{(end - start).total_seconds():.1f}s"
+        except ValueError:
+            pass
+    if fallback_seconds is None:
+        return "—"
+    try:
+        return f"{float(fallback_seconds):.1f}s"
+    except (TypeError, ValueError):
+        return str(fallback_seconds)
 
 
 def build_fleet_inventory(
@@ -549,9 +601,6 @@ def render_pair_report(
     def json_block(title: str, value: Any) -> list[str]:
         return [title, "", "```json", json.dumps(value, indent=2, sort_keys=True), "```", ""]
 
-    def path_ref(label: str, value: str | None) -> str:
-        return value or "—"
-
     def evidence_rows(summary: dict[str, Any], stage: str) -> list[str]:
         evidence = summary.get("evidence") or {}
         captured = summary.get("captured") or {}
@@ -567,6 +616,26 @@ def render_pair_report(
 
     def observed_transport_evidence(summary: dict[str, Any]) -> str | None:
         return summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence")
+
+    def startup_transport_mode(
+        summary: dict[str, Any], log_key: str, fallback_transport: str | None = None
+    ) -> tuple[str | None, str | None, str | None]:
+        run_dir = summary.get("runDir")
+        evidence = summary.get("evidence") or {}
+        log_name = evidence.get(log_key)
+        if run_dir and log_name:
+            log_path = Path(run_dir) / log_name
+            if log_path.exists():
+                for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if "start() with l2capPsm=" in line:
+                        try:
+                            psm = int(line.split("start() with l2capPsm=", 1)[1].split()[0])
+                        except (IndexError, ValueError):
+                            continue
+                        return ("L2CAP" if psm > 0 else "GATT", "start()" if psm == 0 else line, line)
+                    if "gatt.benchmark.start() -> Started" in line or "gatt.notify.start() -> Started" in line:
+                        return ("GATT", line, line)
+        return (fallback_transport, None, None)
 
     initial_elapsed = format_elapsed_seconds(initial)
     final_elapsed = format_elapsed_seconds(final)
@@ -587,79 +656,42 @@ def render_pair_report(
     if target_peer_id is not None:
         quirks.append(f"Passive peer id discovered: {target_peer_id}")
 
-    initial_passed = initial.get("status") == "passed"
-    final_status = final.get("status", "skipped")
-    def failure_explanation(summary: dict[str, Any]) -> str:
-        stage = summary.get("failureStage") or "unknown stage"
-        reason = summary.get("failureReason") or "no failure reason recorded"
-        route_stage = summary.get("routeStage") or "not observed"
-        if summary.get("status") == "passed":
-            return "pair completed successfully"
-        if stage == "summary":
-            return (
-                f"route reached {route_stage} but the passive side never emitted proof.complete; "
-                f"reason={reason}"
-            )
-        if "route-unavailable" in reason and "hop-failed" in reason:
-            return (
-                "sender waited for route availability while the passive side reported HOP_SESSION_FAILED; "
-                f"reason={reason}"
-            )
-        if "route-unavailable" in reason:
-            return f"sender never observed a stable route; reason={reason}"
-        if "hop-failed" in reason:
-            return f"passive side reported HOP_SESSION_FAILED before route stabilization; reason={reason}"
-        return f"failureStage={stage}; reason={reason}"
+    startup_timing = initial.get("startupTiming") or {}
+    sender_startup = startup_timing.get("sender") or {}
+    passive_startup = startup_timing.get("passive") or {}
+    sender_install = startup_timing.get("install") or {}
 
-    diagram_lines = [
-        "```mermaid",
-        "sequenceDiagram",
-        "    autonumber",
-        "    participant Matrix",
-        f"    participant Sender as {sender_model}",
-        f"    participant Passive as {passive_model}",
-        f"    note over Matrix: transport {transport_label} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
-        "    rect rgba(245, 247, 250, 0.55)",
-        f"        Matrix->>Sender: install and preflight initial run ({initial_elapsed})",
-        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
-        f"        Matrix->>Passive: launch passive companion ({initial_elapsed})",
-        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})",
-        f"        Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
-        f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
-        f"        note over Sender,Passive: initial startup={initial.get('status', 'unknown')} · stage={initial.get('failureStage') or 'no failure stage'}",
-        "    end",
-    ]
-    if initial_passed:
-        diagram_lines.extend(
-            [
-                "    rect rgba(236, 253, 245, 0.55)",
-                f"        Matrix->>Sender: seed final run with peer id ({peer_lookup_elapsed})",
-                f"        Sender-->>Matrix: final startup ready ({final_elapsed})",
-                "        Sender->>Passive: discovery and route establishment",
-                f"        note over Sender,Passive: routeStage={final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
-                "        Sender->>Passive: send guided payload",
-                f"        note over Sender: sender completion in {final_elapsed}",
-                f"        note over Passive: passive completion {final.get('passiveCompletion') or initial.get('passiveCompletion') or 'not observed'}",
-                "        alt final passed",
-                "            note over Matrix: pair completed successfully",
-                "        else final failed",
-                "            rect rgba(254, 242, 242, 0.55)",
-                f"                note over Matrix: failure explanation: {failure_explanation(final)}",
-                "            end",
-                "        end",
-                "    end",
-            ]
-        )
-    else:
-        diagram_lines.extend([
-            "    rect rgba(254, 242, 242, 0.55)",
-            f"        note over Matrix: failure explanation: {failure_explanation(initial)}",
-            "    end",
-        ])
-    diagram_lines.extend(["```", ""])
+    sender_startup_transport, sender_startup_transport_evidence, sender_startup_transport_raw = startup_transport_mode(
+        initial, "senderLogcat", fallback_transport=transport_label
+    )
+    passive_startup_transport, passive_startup_transport_evidence, passive_startup_transport_raw = startup_transport_mode(
+        initial, "passiveLogcat", fallback_transport=transport_label
+    )
+    sender_startup_elapsed = format_elapsed_from_markers(
+        sender_startup.get("line"),
+        sender_startup_transport_raw,
+        fallback_seconds=sender_install.get("senderSeconds"),
+    )
+    passive_startup_elapsed = format_elapsed_from_markers(
+        passive_startup.get("line"),
+        passive_startup_transport_raw,
+        fallback_seconds=sender_install.get("passiveSeconds"),
+    )
+
+    sender_connection = "🔌 USB"
+    passive_connection = "🔌 USB"
+
+    intro = (
+        f"Pair {index:02d} ({pair['label']}) is a {initial.get('status')} initial run over {sender_model} → {passive_model}. "
+        f"The sender started {sender_startup_transport or 'unknown'} transport, the passive side started {passive_startup_transport or 'unknown'} transport, and the pair stalled at {final.get('failureStage') or initial.get('failureStage') or 'unknown'} before route establishment."
+    )
 
     lines = [
         f"# Pair {index:02d} — {pair['label']}",
+        "",
+        "## Introduction",
+        "",
+        intro,
         "",
         "## Setup",
         "",
@@ -667,46 +699,102 @@ def render_pair_report(
         f"- Passive: {passive_model} ({pair['passive']})",
         f"- Sender API level: {sender_api_level if sender_api_level is not None else 'unknown'}",
         f"- Passive API level: {passive_api_level if passive_api_level is not None else 'unknown'}",
-        f"- Transport: {transport_label}",
-        f"- Fleet inventory: `{fleet_inventory_path}`",
+        f"- Sender connection: {sender_connection}",
+        f"- Passive connection: {passive_connection}",
+        f"- Matrix transport summary: `{transport_label}`",
         f"- Pair report path: `{pair_report_path}`",
+        f"- Fleet inventory: `{fleet_inventory_path}`",
         f"- Peer lookup time: {peer_lookup_elapsed}",
-        f"- Initial run dir: `{path_ref('initial', initial.get('runDir'))}`",
-        f"- Final run dir: `{path_ref('final', final.get('runDir'))}`",
+        f"- Initial run dir: `{initial.get('runDir') or initial.get('summaryPath') or '—'}`",
+        f"- Final run dir: `{final.get('runDir') or '—'}`",
+        f"- Target peer id: {target_peer_id or 'not resolved'}",
         "",
         "## Result",
         "",
-        f"- Initial status: {initial.get('status', 'unknown')} ({initial.get('failureStage') or 'no failure stage'}) in {initial_elapsed}",
-        f"- Final status: {final_status} ({final.get('failureStage') or 'no failure stage'}) in {final_elapsed}",
-        f"- Target peer id: {target_peer_id or 'not resolved'}",
-        f"- Initial HTML report: `{path_ref('initial html', initial.get('htmlReportPath'))}`",
-        f"- Final HTML report: `{path_ref('final html', final.get('htmlReportPath'))}`",
-        f"- Initial summary JSON: `{path_ref('initial summary', initial.get('summaryPath'))}`",
-        f"- Final summary JSON: `{path_ref('final summary', final.get('summaryPath'))}`",
+        f"- Initial status: {initial.get('status')} ({initial.get('failureStage') or '—'}) in {initial.get('timings', {}).get('totalSeconds') or initial.get('elapsedSeconds') or '—'}s",
+        f"- Final status: {final.get('status')} ({final.get('failureStage') or '—'}) in {final.get('timings', {}).get('totalSeconds') or final.get('elapsedSeconds') or '—'}s",
+        f"- Initial failure reason: {initial.get('failureReason') or 'None.'}",
+        f"- Final failure reason: {final.get('failureReason') or 'None.'}",
+        f"- Route stage: {final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
+        f"- Route evidence: {final.get('routeEvidence') or initial.get('routeEvidence') or '—'}",
         "",
-        "## Troubleshooting references",
+        "## Transport evidence",
         "",
-        *evidence_rows(initial, "Initial"),
-        *evidence_rows(final, "Final"),
+        f"- Sender transport mode: `{sender_startup_transport or transport_label}`",
+        f"  - `{sender_startup_transport_evidence or sender_startup_transport_raw or 'start()'}`",
+        f"  - Startup marker: `{sender_startup.get('line') or '—'}`",
+        f"  - Elapsed: {sender_startup_elapsed}",
+        f"- Passive transport mode: `{passive_startup_transport or transport_label}`",
+        f"  - `{passive_startup_transport_evidence or passive_startup_transport_raw or 'start()'}`",
+        f"  - Startup marker: `{passive_startup.get('line') or '—'}`",
+        f"  - Elapsed: {passive_startup_elapsed}",
+        "- `scan found ...` lines remain peer-discovery evidence only and are not used as transport source.",
         "",
-        "## Device quirks and issues",
+        "## Mermaid sequence diagram",
         "",
-        *[f"- {quirk}" for quirk in quirks],
+        "```mermaid",
+        "sequenceDiagram",
+        "    autonumber",
+        "    participant Matrix",
+        f"    participant Sender as {sender_model}",
+        f"    participant Passive as {passive_model}",
+        f"    Matrix->>Sender: sender transport start ({sender_startup_elapsed})",
+        f"    Sender-->>Matrix: transport start recorded ({sender_startup_elapsed})",
+        f"    Matrix->>Passive: passive transport start ({passive_startup_elapsed})",
+        f"    Passive-->>Matrix: transport start recorded ({passive_startup_elapsed})",
+        f"    Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
+        f"    Sender->>Passive: discovery and route establishment ({final_elapsed if final.get('status') != 'skipped' else '—'})",
+        f"    Sender->>Passive: send guided payload ({final_elapsed if final.get('status') != 'skipped' else '—'})",
+        f"    Matrix-->>Matrix: failure summary recorded in report ({final_elapsed})",
+        "```",
+        "",
+        "## Mermaid timeline",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        f"    A[Sender transport start<br/>{sender_startup_elapsed}] --> B[Passive transport start<br/>{passive_startup_elapsed}]",
+        f"    B --> C[Wait for passive peer id<br/>{peer_lookup_elapsed}]",
+        f"    C --> D[Discovery and route establishment<br/>{final_elapsed if final.get('status') != 'skipped' else '—'}]",
+        f"    D --> E[Send guided payload<br/>{final_elapsed if final.get('status') != 'skipped' else '—'}]",
+        "    E --> F[Failure explanation<br/>see Result section]",
+        "```",
+        "",
+        "## Connections",
+        "",
+        f"- Sender: {sender_connection}",
+        f"- Passive: {passive_connection}",
+        "",
+        "## Evidence summary",
+        "",
+        f"- Sender startup marker: `{sender_startup.get('line') or '—'}`",
+        f"- Passive startup marker: `{passive_startup.get('line') or '—'}`",
+        f"- Route evidence: {final.get('routeEvidence') or initial.get('routeEvidence') or '—'}",
+        f"- Passive route evidence: {final.get('passiveRouteEvidence') or initial.get('passiveRouteEvidence') or '—'}",
+        "",
+    ]
+    lines.extend(evidence_rows(initial, 'Initial'))
+    lines.extend([
         "",
         "## Startup timing",
         "",
-        *json_block("Initial startupTiming", initial.get("startupTiming") or {}),
-        *json_block("Initial timings", initial.get("timings") or {}),
-        *json_block("Final startupTiming", final.get("startupTiming") or {}),
-        *json_block("Final timings", final.get("timings") or {}),
-        *json_block("Captured evidence map", {"initial": initial.get("captured") or {}, "final": final.get("captured") or {}}),
-        "## Mermaid sequence diagram",
+        "```json",
+        json.dumps(initial.get('startupTiming') or {}, indent=2, sort_keys=True),
+        "```",
         "",
-        *diagram_lines,
-    ]
+        "## Captured evidence map",
+        "",
+        "```json",
+        json.dumps({'initial': initial.get('captured') or {}, 'final': final.get('captured') or {}}, indent=2, sort_keys=True),
+        "```",
+        "",
+        "## Evidence files",
+        "",
+        "- sender_logcat.log",
+        "- passive_logcat.log",
+        "- summary.json",
+        "",
+    ])
     return "\n".join(lines)
-
-
 def load_progress(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -782,10 +870,25 @@ def main(argv: list[str] | None = None) -> int:
         )
         target_peer_id = None
         peer_lookup_seconds = None
-        if initial["status"] == "passed":
-            peer_lookup_started = time.monotonic()
-            target_peer_id = read_passive_peer_id(pair["passive"], app_id)
-            peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
+        peer_lookup_started = time.monotonic()
+        target_peer_id = read_passive_peer_id(pair["passive"], app_id)
+        if target_peer_id is None:
+            target_peer_id = (
+                extract_peer_id_from_evidence(initial.get("passiveRouteEvidence"))
+                or extract_peer_id_from_evidence(initial.get("routeEvidence"))
+            )
+        peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
+        if target_peer_id is None:
+            print(
+                "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
+                flush=True,
+            )
+        else:
+            print(
+                f"==> Seeded final pass from discovered peer {target_peer_id}",
+                flush=True,
+            )
+        if target_peer_id is not None or not args.resume:
             final = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],
@@ -809,7 +912,8 @@ def main(argv: list[str] | None = None) -> int:
                 "stdoutTail": initial.get("stdoutTail"),
                 "stderrTail": initial.get("stderrTail"),
                 "elapsedSeconds": initial.get("elapsedSeconds"),
-                "exitCode": initial.get("exitCode"),
+                "runDir": str(final_dir),
+                "summaryPath": None,
             }
 
         row = {

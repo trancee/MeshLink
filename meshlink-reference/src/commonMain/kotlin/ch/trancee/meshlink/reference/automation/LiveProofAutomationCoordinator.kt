@@ -50,7 +50,6 @@ internal class LiveProofAutomationCoordinator(
             "REFERENCE_AUTOMATION started " +
                 "mode=${automationConfig.mode} " +
                 "role=${automationConfig.role} " +
-                "benchmarkTransport=${automationConfig.benchmarkTransport} " +
                 "scenario=${automationConfig.scenario.wireValue()} " +
                 "appId=${automationConfig.appId} " +
                 "storage=${automationConfig.storageSubdirectory}"
@@ -101,7 +100,7 @@ internal class LiveProofAutomationCoordinator(
             )
         if (!shouldRequest) {
             actions.emitAutomationLog(
-                "REFERENCE_AUTOMATION mesh.start.skipped role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
+                "REFERENCE_AUTOMATION mesh.start.skipped role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} benchmarkTransport=${automationConfig.benchmarkTransport} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
             )
             return
         }

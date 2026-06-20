@@ -1,5 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+private val BENCHMARK_ANNOTATION = "ch.trancee.meshlink.proof.android.ProofBenchmarkTest"
+private val RUN_PROOF_BENCHMARKS = providers.gradleProperty("meshlinkProofRunBenchmarks").map { it.toBoolean() }.orElse(false)
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -15,6 +18,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        if (RUN_PROOF_BENCHMARKS.get()) {
+            testInstrumentationRunnerArguments["annotation"] = BENCHMARK_ANNOTATION
+        } else {
+            testInstrumentationRunnerArguments["notAnnotation"] = BENCHMARK_ANNOTATION
+        }
     }
 
     compileOptions {
@@ -39,4 +47,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+}
+
+tasks.matching { it.name == "connectedDebugAndroidTest" }.configureEach {
+    enabled = RUN_PROOF_BENCHMARKS.get()
 }

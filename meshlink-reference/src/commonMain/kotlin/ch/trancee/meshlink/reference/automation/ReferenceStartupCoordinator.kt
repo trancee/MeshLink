@@ -22,23 +22,23 @@ public class ReferenceStartupCoordinator(
         if (config.mode != ReferenceAutomationMode.LIVE_PROOF) {
             return
         }
+        if (!config.benchmarkTransport.equals("meshlink", ignoreCase = true)) {
+            platformServices.emitAutomationLog(
+                "REFERENCE_AUTOMATION startup.coordinator.skipped mode=${config.mode} role=${config.role} appId=${config.appId} benchmarkTransport=${config.benchmarkTransport} reason=non-meshlink-benchmark-transport"
+            )
+            return
+        }
         if (liveProofStartupRequested) {
             return
         }
 
         liveProofStartupRequested = true
-        if (config.benchmarkTransport != "meshlink") {
-            platformServices.emitAutomationLog(
-                "REFERENCE_AUTOMATION startup.coordinator.skipped mode=${config.mode} role=${config.role} benchmarkTransport=${config.benchmarkTransport} appId=${config.appId} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()} reason=non-meshlink-benchmark-transport"
-            )
-            return
-        }
         platformServices.emitAutomationLog(
-            "REFERENCE_AUTOMATION startup.coordinator.requested mode=${config.mode} role=${config.role} benchmarkTransport=${config.benchmarkTransport} appId=${config.appId} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
+            "REFERENCE_AUTOMATION startup.coordinator.requested mode=${config.mode} role=${config.role} appId=${config.appId} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
         )
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             platformServices.emitAutomationLog(
-                "REFERENCE_AUTOMATION startup.coordinator.dispatch mode=${config.mode} role=${config.role} benchmarkTransport=${config.benchmarkTransport} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
+                "REFERENCE_AUTOMATION startup.coordinator.dispatch mode=${config.mode} role=${config.role} controller=${platformServices.meshLinkController::class.simpleName.orEmpty()}"
             )
             platformServices.meshLinkController.start()
         }

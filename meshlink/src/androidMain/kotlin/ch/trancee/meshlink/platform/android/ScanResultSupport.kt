@@ -17,8 +17,22 @@ internal constructor(
 )
 
 internal fun supportsL2capClientSockets(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
-    return sdkInt >= 34
+    return sdkInt >= L2capSupportedSdkInt
 }
+
+internal fun supportsL2capClientSockets(clientSocketSupported: Boolean): Boolean {
+    return clientSocketSupported
+}
+
+internal fun supportsL2capServerSockets(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= L2capSupportedSdkInt
+}
+
+internal fun supportsL2capServerSockets(serverSocketSupported: Boolean): Boolean {
+    return serverSocketSupported
+}
+
+private const val L2capSupportedSdkInt: Int = 34
 
 internal fun parseDiscoveryScanResultOrNull(
     serviceUuids: List<String>?,

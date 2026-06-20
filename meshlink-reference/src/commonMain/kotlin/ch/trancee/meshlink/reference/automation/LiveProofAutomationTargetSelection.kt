@@ -25,9 +25,7 @@ internal fun autoSendTargetPeer(
     targetPeerId: String? = null,
 ): AutoSendTargetPeer? {
     if (targetPeerId != null) {
-        return targetPeerId
-            .takeIf { hasAvailableRouteForPeer(snapshot, it) }
-            ?.let { AutoSendTargetPeer(peerId = it, peerSuffix = redactedSuffix(it)) }
+        return AutoSendTargetPeer(peerId = targetPeerId, peerSuffix = redactedSuffix(targetPeerId))
     }
     val selectedPeer =
         snapshot.peers
