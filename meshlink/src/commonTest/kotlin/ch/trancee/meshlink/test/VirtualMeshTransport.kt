@@ -83,7 +83,7 @@ internal class VirtualMeshTransport(
             return TransportSendResult.Dropped("virtual transport is not started")
         }
         val mode = snapshot.discoveredPeerModes[frame.peerId.value]
-        if (mode != TransportMode.L2CAP) {
+        if (mode != TransportMode.L2CAP && mode != TransportMode.GATT) {
             return TransportSendResult.Dropped("recipient transport is unavailable")
         }
         mutableState.update { state ->

@@ -6,7 +6,6 @@ public data class ReferenceAutomationConfig(
     public val role: ReferenceAutomationRole,
     public val appId: String,
     public val storageSubdirectory: String,
-    public val benchmarkTransport: String = "meshlink",
     public val requiredPeerCount: Int = 1,
     public val targetPeerIndex: Int = 0,
     public val targetPeerId: String? = null,

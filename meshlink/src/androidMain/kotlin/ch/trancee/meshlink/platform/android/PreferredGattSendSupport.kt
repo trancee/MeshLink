@@ -35,7 +35,7 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
     dependencies: PreferredGattSendDependencies,
 ): TransportSendResult? {
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    if (directFrame !is DirectWireFrame.Data) {
+    if (directFrame == null) {
         return null
     }
 

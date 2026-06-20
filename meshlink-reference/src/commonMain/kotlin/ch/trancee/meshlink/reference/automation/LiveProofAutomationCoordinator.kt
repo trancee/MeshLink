@@ -96,11 +96,10 @@ internal class LiveProofAutomationCoordinator(
                 meshStartRequested = progress.meshStartRequested,
                 snapshot = snapshot,
                 readinessBlockers = readinessBlockers,
-                benchmarkTransport = automationConfig.benchmarkTransport,
             )
         if (!shouldRequest) {
             actions.emitAutomationLog(
-                "REFERENCE_AUTOMATION mesh.start.skipped role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} benchmarkTransport=${automationConfig.benchmarkTransport} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
+                "REFERENCE_AUTOMATION mesh.start.skipped role=${automationConfig.role} meshStartRequested=${progress.meshStartRequested} meshState=${snapshot.session.meshStateLabel} readinessBlockers=${readinessBlockers.joinToString(separator = "|")}"
             )
             return
         }
