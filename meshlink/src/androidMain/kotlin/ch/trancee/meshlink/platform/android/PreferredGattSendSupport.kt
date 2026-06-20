@@ -13,6 +13,7 @@ internal constructor(
     internal val hintPeerId: PeerId,
     internal val localPlatformFamily: BleDiscoveryPlatformFamily,
     internal val remotePlatformFamily: BleDiscoveryPlatformFamily,
+    internal val localL2capClientSocketsSupported: Boolean,
 )
 
 internal interface PreferredGattSendClient {
@@ -44,6 +45,7 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
             localPlatformFamily = context.localPlatformFamily,
             remotePlatformFamily = context.remotePlatformFamily,
             preferredMode = frame.preferredMode,
+            localL2capClientSocketsSupported = context.localL2capClientSocketsSupported,
         )
     if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
         return null

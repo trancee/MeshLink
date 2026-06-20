@@ -426,6 +426,24 @@ class BleDiscoveryContractTest {
     }
 
     @Test
+    fun `android peers without l2cap client sockets fall back to gatt side links`() {
+        // Arrange
+        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
+
+        // Act
+        val actual =
+            resolveGattDataBearerMode(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                preferredMode = null,
+                localL2capClientSocketsSupported = false,
+            )
+
+        // Assert
+        assertEquals(expected, actual)
+    }
+
+    @Test
     fun `mixed platform peers skip discovery driven l2cap reconnects while gatt is ready`() {
         // Arrange
         val expected = false
