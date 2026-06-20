@@ -652,9 +652,51 @@ def render_pair_report(
         f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
         f"        note over Sender,Passive: initial startup={initial.get('status')} · stage={initial.get('failureStage') or 'unknown'}",
         "    end",
-        "```",
     ]
-
+    if final_status != "skipped":
+        diagram_lines.extend(
+            [
+                "    rect rgba(30, 64, 175, 0.40)",
+                f"        Matrix->>Sender: seed final run with peer id ({peer_lookup_elapsed})",
+                f"        Sender-->>Matrix: final startup ready ({final_elapsed})",
+                "        Sender->>Passive: discovery and route establishment",
+                f"        note over Sender,Passive: routeStage={final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
+                "        Sender->>Passive: send guided payload",
+                f"        note over Sender: sender completion in {final_elapsed}",
+                f"        note over Passive: passive completion {final.get('passiveCompletion') or initial.get('passiveCompletion') or 'not observed'}",
+                "        alt final passed",
+                f"            note over Matrix: final status passed ({final.get('failureReason') or 'no failure'})",
+                "        else final failed",
+                f"            note over Matrix: final status {final_status} ({final.get('failureReason') or 'no failure reason recorded'})",
+                f"            note over Matrix: failure explanation: {final.get('failureReason') or initial.get('failureReason') or 'no failure reason recorded'}",
+                "        end",
+                "    end",
+            ]
+        )
+    diagram_lines.append("```")
+    diagram_lines.extend(
+        [
+            "",
+            "## Startup timing",
+            "",
+            "```json",
+            json.dumps(initial.get("startupTiming") or {}, indent=2, sort_keys=True),
+            "```",
+            "",
+            "## Captured evidence map",
+            "",
+            "```json",
+            json.dumps({"initial": initial.get("captured") or {}, "final": final.get("captured") or {}}, indent=2, sort_keys=True),
+            "```",
+            "",
+            "## Evidence files",
+            "",
+            "- sender_logcat.log",
+            "- passive_logcat.log",
+            "- summary.json",
+        ]
+    )
+    return "\n".join(diagram_lines)
 
 
 def load_progress(path: Path) -> list[dict[str, Any]]:
