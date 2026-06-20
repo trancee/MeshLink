@@ -155,12 +155,13 @@ one giant activity file.
 ## 5. Run Android-side instrumented proof benchmarks
 
 The Android proof app also ships instrumented benchmark coverage under
-`androidTest`.
+`androidTest`. The default connected Android test task excludes those benchmark
+classes so the normal attached-device sweep stays fast.
 
-Run the attached-device suite with:
+Run the benchmark-only suite with:
 
 ```bash
-./gradlew :meshlink-proof:android:connectedDebugAndroidTest
+./gradlew :meshlink-proof:android:connectedDebugAndroidTest -PmeshlinkProofRunBenchmarks=true
 ```
 
 Use physical devices for meaningful transport and power evidence.
