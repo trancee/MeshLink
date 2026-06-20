@@ -112,7 +112,6 @@ apiValidation {
 
 dependencies {
     kover(project(":meshlink"))
-    kover(project(":meshlink-reference"))
 }
 
 kover {

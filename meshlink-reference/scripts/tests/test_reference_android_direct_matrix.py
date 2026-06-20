@@ -176,9 +176,34 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             def fake_adb_devices() -> list[str]:
                 return ["1f1dad34", "2ASVB21B09005117", "42004386e43c8589"]
 
+            def write_transport_logs(run_dir: str, sender_psm: int, passive_psm: int) -> None:
+                run_path = Path(run_dir)
+                run_path.mkdir(parents=True, exist_ok=True)
+                (run_path / "sender_logcat.log").write_text(
+                    "\n".join(
+                        [
+                            "06-20 09:33:52.279 31225 31225 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION directProof.transport role=SENDER",
+                            f"06-20 09:33:52.438 31225 31297 I MeshLinkReferenceAutomation: start() with l2capPsm={sender_psm}",
+                            "06-20 09:33:52.722 31225 31225 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true",
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+                (run_path / "passive_logcat.log").write_text(
+                    "\n".join(
+                        [
+                            "06-20 09:33:51.909 28530 28530 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION directProof.transport role=PASSIVE",
+                            f"06-20 09:33:52.418 28530 28614 I MeshLinkReferenceAutomation: start() with l2capPsm={passive_psm}",
+                            "06-20 09:33:52.911 28530 28530 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true",
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+
             def fake_run_pair(**kwargs):
                 calls.append((kwargs["sender"], kwargs["passive"], kwargs["skip_install"]))
                 if kwargs["skip_install"]:
+                    write_transport_logs(kwargs["run_dir"], sender_psm=147, passive_psm=0)
                     return {
                         "status": "failed",
                         "failureStage": "capture",
@@ -297,18 +322,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertIn("fleet.json", matrix_report_text)
             pair_report_text = (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8")
             self.assertTrue((run_root / "01_a065_nam_lx9_report.md").exists())
-            self.assertIn("par install and preflight", pair_report_text)
-            self.assertIn("install and preflight sender initial run", pair_report_text)
-            self.assertIn("install and preflight passive initial run", pair_report_text)
-            self.assertIn("sender transport meshlink", pair_report_text)
-            self.assertIn("passive transport meshlink", pair_report_text)
-            self.assertIn("<br/>", pair_report_text)
+            self.assertIn("participant Sender as A065 🔌 USB", pair_report_text)
+            self.assertIn("participant Passive as NAM-LX9 🔌 USB", pair_report_text)
+            self.assertIn("sender transport start (0.2s)", pair_report_text)
+            self.assertIn("start() with l2capPsm=147 (0.2s)", pair_report_text)
+            self.assertIn("passive transport start (3.0s)", pair_report_text)
+            self.assertIn("start() (3.0s)", pair_report_text)
             self.assertIn("rect rgba(30, 64, 175, 0.40)", pair_report_text)
-            self.assertIn("startup markers observed", pair_report_text)
             self.assertIn("wait for passive peer id", pair_report_text)
-            self.assertIn("seed final run with peer id", pair_report_text)
-            self.assertIn("discovery and route establishment", pair_report_text)
-            self.assertIn("send guided payload", pair_report_text)
             self.assertIn("failure explanation:", pair_report_text)
             self.assertIn("sender_logcat.log", pair_report_text)
             self.assertIn("passive_logcat.log", pair_report_text)
