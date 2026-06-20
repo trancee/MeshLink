@@ -158,7 +158,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(rows[1]["label"], "nam_lx9_a065")
             self.assertEqual(rows[1]["initial"]["status"], "failed")
             self.assertEqual(rows[1]["final"]["status"], "passed")
-            self.assertEqual(peer_reads, ["2ASVB21B09005117:demo.meshlink.reference.android-direct.nam_lx9_a065"])
+            self.assertEqual(peer_reads, ["1f1dad34:demo.meshlink.reference.android-direct.nam_lx9_a065"])
             self.assertEqual(
                 run_calls,
                 [
@@ -225,15 +225,25 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             # Assert
             self.assertEqual(exit_code, 0)
             rows = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(rows), 1)
+            self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["initial"]["status"], "failed")
             self.assertEqual(rows[0]["final"]["status"], "skipped")
             self.assertIsNone(rows[0]["targetPeerId"])
-            self.assertEqual(peer_reads, ["2ASVB21B09005117:demo.meshlink.reference.android-direct.a065_nam_lx9"])
+            self.assertEqual(rows[1]["initial"]["status"], "failed")
+            self.assertEqual(rows[1]["final"]["status"], "skipped")
+            self.assertIsNone(rows[1]["targetPeerId"])
+            self.assertEqual(
+                peer_reads,
+                [
+                    "2ASVB21B09005117:demo.meshlink.reference.android-direct.a065_nam_lx9",
+                    "1f1dad34:demo.meshlink.reference.android-direct.nam_lx9_a065",
+                ],
+            )
             self.assertEqual(
                 run_calls,
                 [
                     {"sender": "1f1dad34", "passive": "2ASVB21B09005117", "skip_install": "False", "target_peer_id": None},
+                    {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "False", "target_peer_id": None},
                 ],
             )
 
