@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -402,7 +403,7 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    participant Sweep",
         "    participant Stop",
         f"    note over Matrix: runRoot={run_root or '—'} · fleet={Path(fleet_inventory_path).name if fleet_inventory_path else '—'}",
-        "    rect rgba(245, 247, 250, 0.55)",
+        "    rect rgba(30, 64, 175, 0.40)",
         f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
         f"        Matrix->>Sweep: prepare directed sweep ({completed_pairs} completed)",
         f"        Fleet-->>Matrix: inventory ready ({passing_count} passing · {failing_count} failing)",
@@ -458,6 +459,28 @@ def format_elapsed_seconds(summary: dict[str, Any] | None) -> str:
         return f"{float(elapsed):.1f}s"
     except (TypeError, ValueError):
         return str(elapsed)
+
+
+def format_elapsed_from_markers(
+    start_line: str | None,
+    end_line: str | None,
+    *,
+    fallback_seconds: Any = None,
+) -> str:
+    if start_line and end_line and len(start_line) >= 18 and len(end_line) >= 18:
+        try:
+            start = datetime.strptime(start_line[:18], "%m-%d %H:%M:%S.%f")
+            end = datetime.strptime(end_line[:18], "%m-%d %H:%M:%S.%f")
+            if end >= start:
+                return f"{(end - start).total_seconds():.1f}s"
+        except ValueError:
+            pass
+    if fallback_seconds is None:
+        return "—"
+    try:
+        return f"{float(fallback_seconds):.1f}s"
+    except (TypeError, ValueError):
+        return str(fallback_seconds)
 
 
 def build_fleet_inventory(
@@ -589,10 +612,24 @@ def render_pair_report(
 
     initial_passed = initial.get("status") == "passed"
     final_status = final.get("status", "skipped")
-    sender_startup = (initial.get("startupTiming") or {}).get("sender") or {}
-    passive_startup = (initial.get("startupTiming") or {}).get("passive") or {}
-    sender_startup_elapsed = sender_startup.get("elapsedSeconds", "—")
-    passive_startup_elapsed = passive_startup.get("elapsedSeconds", "—")
+    startup_timing = initial.get("startupTiming") or {}
+    sender_startup = startup_timing.get("sender") or {}
+    passive_startup = startup_timing.get("passive") or {}
+    sender_install = startup_timing.get("install") or {}
+    sender_startup_elapsed = format_elapsed_from_markers(
+        sender_startup.get("startupMarker"),
+        sender_startup.get("transportEvidence"),
+        fallback_seconds=sender_install.get("senderSeconds")
+        or sender_startup.get("startupWaitSeconds")
+        or sender_startup.get("elapsedSeconds"),
+    )
+    passive_startup_elapsed = format_elapsed_from_markers(
+        passive_startup.get("startupMarker"),
+        passive_startup.get("transportEvidence"),
+        fallback_seconds=sender_install.get("passiveSeconds")
+        or passive_startup.get("startupWaitSeconds")
+        or passive_startup.get("elapsedSeconds"),
+    )
     sender_startup_transport = sender_startup.get("transportMode") or transport_label
     passive_startup_transport = passive_startup.get("transportMode") or transport_label
     diagram_lines = [
@@ -602,15 +639,15 @@ def render_pair_report(
         "    participant Matrix",
         f"    participant Sender as {sender_model}",
         f"    participant Passive as {passive_model}",
-        f"    note over Matrix: sender transport {sender_startup_transport} · passive transport {passive_startup_transport} · fleet {fleet_inventory_path.name} · report {pair_report_path.name}",
+        f"    note over Matrix: sender transport {sender_startup_transport}<br/>passive transport {passive_startup_transport}<br/>fleet {fleet_inventory_path.name}<br/>report {pair_report_path.name}",
         "    par install and preflight",
         f"        Matrix->>Sender: install and preflight sender initial run ({sender_startup_elapsed})",
-        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'}) · transport {sender_startup_transport}",
+        f"        Sender-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('sender', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})<br/>transport {sender_startup_transport}",
         "    and install and preflight",
         f"        Matrix->>Passive: install and preflight passive initial run ({passive_startup_elapsed})",
-        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'}) · transport {passive_startup_transport}",
+        f"        Passive-->>Matrix: startup markers observed ({initial.get('startupTiming', {}).get('passive', {}).get('elapsedSeconds', '—') if initial.get('startupTiming') else '—'})<br/>transport {passive_startup_transport}",
         "    end",
-        "    rect rgba(245, 247, 250, 0.55)",
+        "    rect rgba(30, 64, 175, 0.40)",
         f"        Matrix->>Matrix: wait for passive peer id ({peer_lookup_elapsed})",
         f"        note over Matrix: target peer {target_peer_id or 'not resolved'}",
         f"        note over Sender,Passive: initial startup={initial.get('status')} · stage={initial.get('failureStage') or 'unknown'}",

@@ -303,6 +303,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertIn("install and preflight passive initial run", pair_report_text)
             self.assertIn("sender transport meshlink", pair_report_text)
             self.assertIn("passive transport meshlink", pair_report_text)
+            self.assertIn("<br/>", pair_report_text)
+            self.assertIn("rect rgba(30, 64, 175, 0.40)", pair_report_text)
             self.assertIn("startup markers observed", pair_report_text)
             self.assertIn("wait for passive peer id", pair_report_text)
             self.assertIn("seed final run with peer id", pair_report_text)
