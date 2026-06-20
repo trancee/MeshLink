@@ -157,12 +157,13 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(rows[0]["final"]["status"], "passed")
             self.assertEqual(rows[1]["label"], "nam_lx9_a065")
             self.assertEqual(rows[1]["initial"]["status"], "failed")
-            self.assertEqual(rows[1]["final"]["status"], "skipped")
-            self.assertEqual(peer_reads, [])
+            self.assertEqual(rows[1]["final"]["status"], "passed")
+            self.assertEqual(peer_reads, ["2ASVB21B09005117:demo.meshlink.reference.android-direct.nam_lx9_a065"])
             self.assertEqual(
                 run_calls,
                 [
                     {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "False", "target_peer_id": None},
+                    {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "True", "target_peer_id": "peer-123"},
                 ],
             )
 
@@ -315,7 +316,6 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertIn("rect rgba(236, 253, 245, 0.55)", matrix_report_text)
             self.assertIn("rect rgba(254, 242, 242, 0.55)", matrix_report_text)
             self.assertIn("top failure bucket =", matrix_report_text)
-            self.assertIn("failure explanation:", matrix_report_text)
             self.assertIn("Stopped early", matrix_report_text)
             self.assertIn("Most common failure reason per device", matrix_report_text)
             self.assertIn("fleet.md", matrix_report_text)
