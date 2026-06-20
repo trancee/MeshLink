@@ -13,7 +13,7 @@ import kotlinx.coroutines.runBlocking
 
 class PreferredGattSendSupportTest {
     @Test
-    fun sendViaPreferredGattSideLinkOrNullSkipsHandshakeFrames(): Unit = runBlocking {
+    fun sendViaPreferredGattSideLinkOrNullHandlesHandshakeFrames(): Unit = runBlocking {
         // Arrange
         val fixture = PreferredGattSendFixture()
         val frame =
@@ -30,8 +30,8 @@ class PreferredGattSendSupportTest {
             )
 
         // Assert
-        assertNull(result)
-        assertEquals(0, fixture.ensureSideLinkCalls)
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
         assertEquals(0, fixture.restartReasons.size)
     }
 
