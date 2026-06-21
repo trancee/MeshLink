@@ -13,6 +13,14 @@ If you are new here, read in this order:
 3. The FAQ
 4. The file map appendix
 
+## At a glance
+
+| Surface | What it is for | What it proves |
+|---|---|---|
+| Reference app | Human evaluation and operator review | The product-like experience, timeline evidence, and retained history |
+| Proof apps | Transport validation and benchmark runs | Thresholds, retained logs, and real-device evidence |
+| Automation/tests | Reproducible scripted execution | That the same claims can be driven and observed mechanically |
+
 ## The short version
 
 MeshLink has three related surfaces:
@@ -406,8 +414,10 @@ This is the fuller map of the files most often involved in each layer.
 
 | Platform | Main files |
 |---|---|
-| Android reference/proof | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/BenchmarkTestSupport.kt` |
-| iOS reference/proof | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift` |
+| Android proof app | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/ProofLaunchConfig.kt` |
+| Android proof tests | `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/BenchmarkTestSupport.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` |
+| iOS proof app | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift` |
+| iOS proof capture | `meshlink-proof/ios/ProofApp/ProofGattBenchmarkClient.swift`, `meshlink-proof/ios/ProofApp/ProofGattNotifyBenchmarkServer.swift`, `meshlink-proof/ios/ProofApp/ProofTransportLogCapture.swift` |
 | Shared reference runtime | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/LiveReferenceMeshRuntime.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepository.kt` |
 | Shared reference automation | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDriver.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationCoordinator.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDirectSenderStepRunner.kt` |
 
