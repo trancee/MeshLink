@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.MeshLinkState
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineFamily
@@ -9,7 +8,7 @@ import ch.trancee.meshlink.reference.model.TimelineSeverity
 
 internal fun createScriptedReferenceInitialSnapshot(
     platformName: String,
-    authorityMode: ReferenceAuthorityMode,
+    authorityMode: String,
     nowProvider: () -> Long,
     appId: String,
     surfaceOfOrigin: String,

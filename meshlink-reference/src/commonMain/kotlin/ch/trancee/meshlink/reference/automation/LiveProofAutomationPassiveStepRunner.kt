@@ -12,9 +12,9 @@ internal fun runPassiveAutomationStep(
     progress: LiveProofAutomationProgress,
 ): Unit {
     when (automationConfig.scenario) {
-        ReferenceAutomationScenario.DIRECT_FULL_EXPORT ->
+        AUTOMATION_SCENARIO_DIRECT_FULL_EXPORT ->
             runPassiveFullExportAutomationStep(snapshot, timelineUiState, actions, progress)
-        ReferenceAutomationScenario.DIRECT_TRUST_RESET_RECOVERY ->
+        AUTOMATION_SCENARIO_DIRECT_TRUST_RESET_RECOVERY ->
             runPassiveBaselineAutomationStep(
                 snapshot = snapshot,
                 timelineUiState = timelineUiState,
@@ -22,7 +22,7 @@ internal fun runPassiveAutomationStep(
                 progress = progress,
                 requiredInboundCount = REQUIRED_RECOVERY_INBOUND_COUNT,
             )
-        ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER ->
+        AUTOMATION_SCENARIO_DIRECT_LARGE_TRANSFER ->
             runPassiveBaselineAutomationStep(
                 snapshot = snapshot,
                 timelineUiState = timelineUiState,
@@ -31,7 +31,7 @@ internal fun runPassiveAutomationStep(
                 requiredInboundCount = 1,
                 requiredLargestInboundBytes = largeTransferPayloadBytes(actions.platformName),
             )
-        ReferenceAutomationScenario.DIRECT_PAUSE_RESUME ->
+        AUTOMATION_SCENARIO_DIRECT_PAUSE_RESUME ->
             runPassiveBaselineAutomationStep(
                 snapshot = snapshot,
                 timelineUiState = timelineUiState,
@@ -39,11 +39,11 @@ internal fun runPassiveAutomationStep(
                 progress = progress,
                 requiredInboundCount = REQUIRED_PAUSE_RESUME_INBOUND_COUNT,
             )
-        ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY,
-        ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY,
-        ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY,
-        ReferenceAutomationScenario.RELAY_CONSTRAINED,
-        ReferenceAutomationScenario.DIRECT_GUIDED ->
+        AUTOMATION_SCENARIO_DIRECT_RESTART_RECOVERY,
+        AUTOMATION_SCENARIO_DIRECT_ISOLATION_RECOVERY,
+        AUTOMATION_SCENARIO_DIRECT_ROUTE_BREAK_RECOVERY,
+        AUTOMATION_SCENARIO_RELAY_CONSTRAINED,
+        AUTOMATION_SCENARIO_DIRECT_GUIDED ->
             runPassiveBaselineAutomationStep(
                 snapshot = snapshot,
                 timelineUiState = timelineUiState,

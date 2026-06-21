@@ -17,10 +17,11 @@ internal fun referenceScenarioTitle(scenarioId: String): String {
     }
 }
 
-internal fun referenceAuthorityLabel(authorityMode: ReferenceAuthorityMode): String {
+internal fun referenceAuthorityLabel(authorityMode: String): String {
     return when (authorityMode) {
-        ReferenceAuthorityMode.LIVE -> "Live"
-        ReferenceAuthorityMode.SOLO -> "Solo"
+        REFERENCE_AUTHORITY_MODE_LIVE -> "Live"
+        REFERENCE_AUTHORITY_MODE_SOLO -> "Solo"
+        else -> enumLabel(authorityMode)
     }
 }
 

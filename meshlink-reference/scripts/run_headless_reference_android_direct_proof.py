@@ -1223,7 +1223,8 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
                 time.sleep(delay_s)
                 continue
             for item in root.findall(".//string"):
-                if item.get("name") == TARGET_PEER and item.text:
+                name = item.get("name") or ""
+                if item.text and (name == TARGET_PEER or name.endswith(":x25519-public")):
                     return item.text.strip()
         time.sleep(delay_s)
     print(f"==> Passive peer id unavailable for {android_serial}; continuing without a seeded target peer")
@@ -1244,35 +1245,22 @@ def launch_android_role_apps(
     passive_advertisement_carrier: str,
     passive_benchmark_transport: str | None,
     sender_advertisement_carrier: str,
-) -> tuple[BackgroundProcess, BackgroundProcess]:
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        passive_future = executor.submit(
-            start_android_role_app,
-            run_dir=run_dir,
-            android_serial=passive_android_serial,
-            label="passive",
-            role="passive",
-            app_id=app_id,
-            storage_subdirectory=storage_subdirectory,
-            android_transport_logcat=android_transport_logcat,
-            advertisement_carrier=passive_advertisement_carrier,
-            benchmark_transport=passive_benchmark_transport,
-            android_activity=ANDROID_ACTIVITY,
-            android_package=ANDROID_PACKAGE,
-        )
-        sender_future = executor.submit(
-            start_android_role_app,
-            run_dir=run_dir,
-            android_serial=sender_android_serial,
-            label="sender",
-            role="sender",
-            app_id=app_id,
-            storage_subdirectory=storage_subdirectory,
-            android_transport_logcat=android_transport_logcat,
-            target_peer_id=target_peer_id,
-            advertisement_carrier=sender_advertisement_carrier,
-        )
-        return passive_future.result(), sender_future.result()
+) -> tuple[BackgroundProcess, BackgroundProcess | None]:
+    passive_process = start_android_role_app(
+        run_dir=run_dir,
+        android_serial=passive_android_serial,
+        label="passive",
+        role="passive",
+        app_id=app_id,
+        storage_subdirectory=storage_subdirectory,
+        android_transport_logcat=android_transport_logcat,
+        target_peer_id=None,
+        advertisement_carrier=passive_advertisement_carrier,
+        benchmark_transport=passive_benchmark_transport,
+        android_activity=ANDROID_ACTIVITY,
+        android_package=ANDROID_PACKAGE,
+    )
+    return passive_process, None
 
 def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
     deadline = time.monotonic() + timeout_seconds
@@ -1672,7 +1660,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(
                         f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with discovery wait"
                     )
-                if sender_process is None:
+                if sender_process is None and discovered_peer_id is not None:
                     sender_process = start_android_role_app(
                         run_dir=run_dir,
                         android_serial=args.sender_android_serial,

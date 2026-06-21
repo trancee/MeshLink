@@ -5,7 +5,7 @@ import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import ch.trancee.meshlink.reference.model.PeerSnapshot
 import ch.trancee.meshlink.reference.model.PeerTrustState
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_SOLO
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
@@ -27,7 +27,7 @@ internal class PreviewReferenceMeshLinkController(
                     ReferenceSession(
                         sessionId = "preview-$platformName",
                         scenarioId = "guided-first-exchange",
-                        authorityMode = ReferenceAuthorityMode.SOLO,
+                        authorityMode = REFERENCE_AUTHORITY_MODE_SOLO,
                         startedAtEpochMillis = nowEpochMillis,
                         meshStateLabel = MeshLinkState.Uninitialized.toString(),
                         configurationSnapshot =

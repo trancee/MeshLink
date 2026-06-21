@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.reference.session
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
@@ -13,7 +12,7 @@ internal fun createStaticReferenceSessionSnapshot(
     nowProvider: () -> Long,
     currentSnapshot: ReferenceControllerSnapshot,
     scenarioId: String,
-    authorityMode: ReferenceAuthorityMode,
+    authorityMode: String,
     surfaceOfOrigin: String,
     title: String,
     detail: String,

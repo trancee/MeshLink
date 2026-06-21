@@ -7,7 +7,6 @@ import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.model.ReferenceHistoryStatus
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineFamily
@@ -18,7 +17,7 @@ import kotlinx.coroutines.launch
 
 internal fun createLiveReferenceInitialSnapshot(
     platformName: String,
-    authorityMode: ReferenceAuthorityMode,
+    authorityMode: String,
     nowProvider: () -> Long,
     appId: String,
     surfaceOfOrigin: String,

@@ -1,11 +1,8 @@
 package ch.trancee.meshlink.reference.platform
 
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import kotlinx.cinterop.ExperimentalForeignApi
 import okio.FileSystem
@@ -27,7 +24,7 @@ internal fun createPlatformServices(
 ): DefaultPlatformServices {
     return DefaultPlatformServices(
         platformName = "iOS",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -46,7 +43,7 @@ internal fun createAutomationPlatformServices(
     val clock = { time(null) * 1000L }
     return DefaultPlatformServices(
         platformName = "iOS",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -63,8 +60,8 @@ internal fun createAutomationPlatformServices(
                 documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
                 automationConfig =
                     ReferenceAutomationConfig(
-                        mode = ReferenceAutomationMode.SCRIPTED_UI,
-                        role = ReferenceAutomationRole.PASSIVE,
+                        mode = "scripted-ui",
+                        role = "passive",
                         appId = "demo.meshlink.reference.automation",
                         storageSubdirectory = storageSubdirectory,
                     )
@@ -72,7 +69,7 @@ internal fun createAutomationPlatformServices(
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
                         platformName = "iOS",
-                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                         nowProvider = clock,
                         surfaceOfOrigin = surfaceOfOrigin,
                     )
@@ -85,11 +82,11 @@ internal fun createAutomationPlatformServices(
 internal fun createLiveAutomationPlatformServices(
     storageSubdirectory: String,
     appId: String,
-    role: ReferenceAutomationRole,
+    role: String,
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
-    scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
+    scenario: String = "direct-guided",
 ): DefaultPlatformServices {
     val baseDirectory = buildString {
         append(resolveDocumentsDirectory())
@@ -101,7 +98,7 @@ internal fun createLiveAutomationPlatformServices(
     val automationAppId = appId
     return DefaultPlatformServices(
         platformName = "iOS",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -110,7 +107,7 @@ internal fun createLiveAutomationPlatformServices(
                 documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
                 automationConfig =
                     ReferenceAutomationConfig(
-                        mode = ReferenceAutomationMode.LIVE_PROOF,
+                        mode = "live-proof",
                         role = role,
                         appId = automationAppId,
                         storageSubdirectory = storageSubdirectory,

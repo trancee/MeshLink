@@ -1,12 +1,11 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.flow.StateFlow
 
 internal class ScriptedReferenceMeshRuntime(
     private val platformName: String,
-    private val authorityMode: ReferenceAuthorityMode,
+    private val authorityMode: String,
     private val nowProvider: () -> Long,
     private val appId: String,
     private val surfaceOfOrigin: String,

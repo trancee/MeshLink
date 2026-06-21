@@ -3,13 +3,7 @@ package ch.trancee.meshlink.reference
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.content.ContextCompat
-import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
-import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.platform.PlatformServices
-import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createPlatformServices
 
 internal fun MainActivity.startDirectProofPowerService() {
     ContextCompat.startForegroundService(this, DirectProofPowerService.start(this))
@@ -48,15 +42,13 @@ internal fun MainActivity.emitDirectProofPowerState(
 }
 
 internal fun MainActivity.configureDiscoveryCarrier(
-    advertisementCarrier: DiscoveryAdvertisementCarrier,
+    advertisementCarrier: String,
     directProofEnabled: Boolean,
 ) {
-    AndroidDiscoveryAdvertisementConfig.carrier =
-        if (directProofEnabled) {
-            advertisementCarrier
-        } else {
-            DiscoveryAdvertisementCarrier.UUID_PAIR
-        }
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION carrier.defer directProof=$directProofEnabled carrier=$advertisementCarrier",
+    )
 }
 
 internal fun MainActivity.createPlatformServicesForAutomation(
@@ -65,14 +57,16 @@ internal fun MainActivity.createPlatformServicesForAutomation(
     return when {
         automationConfig.enabled && automationConfig.mode == MainActivity.AUTOMATION_MODE_LIVE_PROOF ->
             createLiveAutomationPlatformServices(
-                context = applicationContext,
-                storageSubdirectory = automationConfig.storageSubdirectory,
-                appId = automationConfig.appId,
-                role = automationConfig.role,
-                requiredPeerCount = automationConfig.requiredPeerCount,
-                targetPeerIndex = automationConfig.targetPeerIndex,
-                targetPeerId = automationConfig.targetPeerId,
-                scenario = automationConfig.scenario,
+                LiveAutomationPlatformServicesArgs(
+                    context = applicationContext,
+                    storageSubdirectory = automationConfig.storageSubdirectory,
+                    appId = automationConfig.appId,
+                    role = automationConfig.role,
+                    requiredPeerCount = automationConfig.requiredPeerCount,
+                    targetPeerIndex = automationConfig.targetPeerIndex,
+                    targetPeerId = automationConfig.targetPeerId,
+                    scenario = automationConfig.scenario,
+                )
             )
         automationConfig.enabled ->
             createAutomationPlatformServices(

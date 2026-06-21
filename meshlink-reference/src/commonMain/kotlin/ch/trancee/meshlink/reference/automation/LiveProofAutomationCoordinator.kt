@@ -19,9 +19,9 @@ internal class LiveProofAutomationCoordinator(
         requestMeshStartIfNeeded(snapshot)
 
         when (automationConfig.role) {
-            ReferenceAutomationRole.SENDER ->
+            AUTOMATION_ROLE_SENDER ->
                 runSenderAutomationStep(snapshot, automationConfig, actions, progress)
-            ReferenceAutomationRole.PASSIVE ->
+            AUTOMATION_ROLE_PASSIVE ->
                 runPassiveAutomationStep(
                     snapshot = snapshot,
                     timelineUiState = timelineUiState,
@@ -29,7 +29,7 @@ internal class LiveProofAutomationCoordinator(
                     actions = actions,
                     progress = progress,
                 )
-            ReferenceAutomationRole.RELAY -> runRelayAutomationStep(snapshot, actions, progress)
+            AUTOMATION_ROLE_RELAY -> runRelayAutomationStep(snapshot, actions, progress)
         }
     }
 
@@ -50,7 +50,7 @@ internal class LiveProofAutomationCoordinator(
             "REFERENCE_AUTOMATION started " +
                 "mode=${automationConfig.mode} " +
                 "role=${automationConfig.role} " +
-                "scenario=${automationConfig.scenario.wireValue()} " +
+                "scenario=${automationConfig.scenario} " +
                 "appId=${automationConfig.appId} " +
                 "storage=${automationConfig.storageSubdirectory}"
         )

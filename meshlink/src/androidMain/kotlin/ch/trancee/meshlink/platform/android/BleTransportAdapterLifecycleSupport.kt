@@ -2,6 +2,13 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.power.PowerPolicy
 
+internal fun advertisedDiscoveryL2capPsm(
+    serverSocketPsm: Int?,
+    localL2capClientSocketsSupported: Boolean,
+): UByte {
+    return if (!localL2capClientSocketsSupported) 0u else (serverSocketPsm ?: 0).toUByte()
+}
+
 internal suspend fun BleTransportAdapter.startTransport(): Unit {
     ensurePermissionsGranted()
     val bluetoothManager =
@@ -47,7 +54,12 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             null
         }
     l2capServerSocket = serverSocket
-    discoveryLifecycle.updateL2capPsm((serverSocket?.psm ?: 0).toUByte())
+    discoveryLifecycle.updateL2capPsm(
+        advertisedDiscoveryL2capPsm(
+            serverSocketPsm = serverSocket?.psm,
+            localL2capClientSocketsSupported = supportsL2capClientSockets(),
+        )
+    )
     log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
     serverSocket?.let(::launchAcceptLoop)
 

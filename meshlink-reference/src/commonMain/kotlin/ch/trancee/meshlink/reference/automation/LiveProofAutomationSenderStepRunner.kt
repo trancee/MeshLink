@@ -16,33 +16,30 @@ internal fun runSenderAutomationStep(
         progress.meshStartRequested = true
     }
     when (automationConfig.scenario) {
-        ReferenceAutomationScenario.DIRECT_PAUSE_RESUME ->
+        AUTOMATION_SCENARIO_DIRECT_PAUSE_RESUME ->
             runPauseResumeSenderAutomationStep(snapshot, automationConfig, actions, progress)
-        ReferenceAutomationScenario.DIRECT_TRUST_RESET_RECOVERY ->
+        AUTOMATION_SCENARIO_DIRECT_TRUST_RESET_RECOVERY ->
             runTrustResetRecoverySenderAutomationStep(snapshot, automationConfig, actions, progress)
-        ReferenceAutomationScenario.DIRECT_RESTART_RECOVERY,
-        ReferenceAutomationScenario.DIRECT_ISOLATION_RECOVERY,
-        ReferenceAutomationScenario.DIRECT_ROUTE_BREAK_RECOVERY,
-        ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER ->
+        AUTOMATION_SCENARIO_DIRECT_RESTART_RECOVERY,
+        AUTOMATION_SCENARIO_DIRECT_ISOLATION_RECOVERY,
+        AUTOMATION_SCENARIO_DIRECT_ROUTE_BREAK_RECOVERY,
+        AUTOMATION_SCENARIO_DIRECT_LARGE_TRANSFER ->
             runDirectSenderAutomationStep(
                 snapshot = snapshot,
                 automationConfig = automationConfig,
                 actions = actions,
                 progress = progress,
                 payloadPlan =
-                    if (
-                        automationConfig.scenario ==
-                            ReferenceAutomationScenario.DIRECT_LARGE_TRANSFER
-                    ) {
+                    if (automationConfig.scenario == AUTOMATION_SCENARIO_DIRECT_LARGE_TRANSFER) {
                         SenderPayloadPlan.LARGE_TRANSFER
                     } else {
                         SenderPayloadPlan.GUIDED_HELLO
                     },
             )
-        ReferenceAutomationScenario.RELAY_CONSTRAINED ->
+        AUTOMATION_SCENARIO_RELAY_CONSTRAINED ->
             runRelaySenderAutomationStep(snapshot, automationConfig, actions, progress)
-        ReferenceAutomationScenario.DIRECT_FULL_EXPORT,
-        ReferenceAutomationScenario.DIRECT_GUIDED ->
+        AUTOMATION_SCENARIO_DIRECT_FULL_EXPORT,
+        AUTOMATION_SCENARIO_DIRECT_GUIDED ->
             runDirectSenderAutomationStep(
                 snapshot = snapshot,
                 automationConfig = automationConfig,

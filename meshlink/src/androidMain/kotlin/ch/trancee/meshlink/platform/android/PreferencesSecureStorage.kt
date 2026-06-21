@@ -14,10 +14,10 @@ internal class PreferencesSecureStorage(context: Context, appId: String) : Secur
 
     override suspend fun write(key: String, value: ByteArray): Unit {
         val encoded = Base64.getEncoder().encodeToString(value)
-        preferences.edit().putString(key, encoded).apply()
+        preferences.edit().putString(key, encoded).commit()
     }
 
     override suspend fun delete(key: String): Unit {
-        preferences.edit().remove(key).apply()
+        preferences.edit().remove(key).commit()
     }
 }
