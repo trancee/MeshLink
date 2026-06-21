@@ -269,6 +269,35 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertIn("stalled at route stage", reason)
             self.assertIn("passive=hop-failed", reason)
 
+    def test_transport_failure_reason_ignores_route_discovered_success(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION peer.discovered role=sender peer=c6a6f5\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "06-21 13:29:11.912  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC "
+                "title=diagnostic peer=none detail=DiagnosticEvent(code=ROUTE_DISCOVERED, "
+                "severity=INFO, stage=transport.handshake.message3.complete.routeAvailable, "
+                "peerSuffix=5df06e, reason=ROUTE_CHANGE)\n"
+                "06-21 13:29:12.000  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC "
+                "title=diagnostic peer=none detail=DiagnosticEvent(code=DELIVERY_SUCCEEDED, "
+                "severity=INFO, stage=transport.data.deliver, peerSuffix=5df06e, reason=null)\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.transport_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNone(reason)
+
     def test_wait_for_android_completions_fails_fast_on_route_failure(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:

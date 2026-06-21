@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.model.PeerTrustState
 
 internal fun shouldRequestLiveProofMeshStart(
     meshStartRequested: Boolean,
@@ -35,6 +36,13 @@ internal fun shouldRetainPassiveLiveProof(
     hasInboundMessage: Boolean,
 ): Boolean {
     return !retainRequested && hasTrustEstablished && hasInboundMessage
+}
+
+internal fun hasTrustedSelectedPeer(snapshot: ReferenceControllerSnapshot): Boolean {
+    val selectedPeerId = snapshot.session.selectedPeerId ?: return false
+    return snapshot.peers.any { peer ->
+        peer.peerId == selectedPeerId && peer.trustState == PeerTrustState.TRUSTED
+    }
 }
 
 internal fun shouldExportPassiveLiveProof(

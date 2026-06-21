@@ -810,17 +810,19 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
+    route_failure_stages = {"hop-failed", "route-unavailable"}
     if peer_discovered:
-        if route_stage is not None:
+        if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
             return (
                 "Android direct proof stalled at route stage "
                 f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
                 f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
             )
-        return (
-            "Android direct proof discovered a peer but never emitted a route-stage marker; "
-            "sender stalled before route stabilization"
-        )
+        if route_stage is None:
+            return (
+                "Android direct proof discovered a peer but never emitted a route-stage marker; "
+                "sender stalled before route stabilization"
+            )
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
             "Android transport reached scan/advertise startup but never emitted peer.discovered; "
