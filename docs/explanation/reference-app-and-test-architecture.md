@@ -22,14 +22,14 @@ If you are new here, read in this order:
 | clear up wording or intent | The FAQ |
 | find the files behind a layer | The file map appendix |
 
-## README-style excerpt
+## Quick orientation
 
 > MeshLink uses three related surfaces:
 > - the reference app for guided evaluation and operator review
 > - the proof apps for transport validation and benchmark runs
 > - the automation and tests for reproducible scripted execution
 >
-> If you only need the basics, start with the short version and then the choose-your-path matrix.
+> Start with the short version, then the choose-your-path matrix.
 
 ## At a glance
 

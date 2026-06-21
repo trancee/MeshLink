@@ -16,6 +16,13 @@ It is an explanation page. Use the other docs when the job is different:
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
 - reference-app and test boundaries —
   [Reference app and test architecture](reference-app-and-test-architecture.md)
+
+> Quick orientation:
+> - the reference app is the human-facing surface for evaluation and review
+> - the proof apps are the transport-validation surfaces kept separate from it
+> - the repository split keeps SDK, app, and evidence concerns independently testable
+
+## How the repository is organized
 - proof-surface chooser and validation-boundary explanation —
   [About proof validation surfaces](about-proof-validation-surfaces.md)
 

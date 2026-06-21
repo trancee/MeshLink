@@ -17,6 +17,13 @@ It is an explanation page. Use the other docs when the job is different:
 - retained performance thresholds and latest evidence —
   [Benchmark and validation baselines](../../benchmarks/README.md)
 
+> Quick orientation:
+> - the reference app shows the supported evaluation path
+> - the proof apps show physical transport evidence
+> - the retained benchmarks show the current numeric posture
+>
+> If you need the full split and file map, open [Reference app and test architecture](reference-app-and-test-architecture.md).
+
 ## One repository, three different kinds of claim
 
 The repository supports several kinds of validation, but they are not all meant
