@@ -14,6 +14,8 @@ It is an explanation page. Use the other docs when the job is different:
   [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - reference-app evaluation flow —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- reference-app and test boundaries —
+  [Reference app and test architecture](reference-app-and-test-architecture.md)
 - proof-surface chooser and validation-boundary explanation —
   [About proof validation surfaces](about-proof-validation-surfaces.md)
 

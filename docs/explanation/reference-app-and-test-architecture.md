@@ -372,6 +372,53 @@ Use this when deciding what to open first.
 | retain real-device evidence | Physical scenario campaign | It writes audited JSON / HTML artifacts from actual devices |
 | understand how the layers fit | This doc + [About proof validation surfaces](about-proof-validation-surfaces.md) | These explain the architectural split and choice of surface |
 
+## Decision tree
+
+Use this when you are unsure which surface to open.
+
+```mermaid
+flowchart TD
+    Start[What do you want to prove?]
+    Human[Understand the product-like experience]
+    Perf[Prove timing or throughput]
+    Fleet[Retain real-device evidence]
+    Cross[Understand the layered architecture]
+    RefApp[Open the reference app]
+    Proof[Use the proof app + benchmark tests]
+    Campaign[Run the physical scenario campaign]
+    Docs[Read this doc + the proof-surfaces doc]
+
+    Start --> Human --> RefApp
+    Start --> Perf --> Proof
+    Start --> Fleet --> Campaign
+    Start --> Cross --> Docs
+```
+
+## FAQ
+
+### Is the reference app a benchmark harness?
+
+No. The reference app is the product-like evaluation surface. It is meant to
+show guided exchange, runtime controls, timeline evidence, and retained history.
+The proof apps and benchmark runners exist for timing and throughput claims.
+
+### Why are there separate Android and iOS proof hosts?
+
+Because the platform-specific launch and transport seams differ. The proof hosts
+let each platform expose the same claim in the most direct way available on that
+platform while still keeping the normal reference-app experience separate.
+
+### Why do the tests read logs instead of scraping UI text?
+
+Because the asserted claims are timing, throughput, and retained evidence.
+Those are more stable when captured from the app’s retained log or campaign
+artifacts than from transient UI rendering.
+
+### When should I use the physical scenario campaign?
+
+Use it when you need auditable real-device evidence across a device fleet.
+It is the retained, reproducible layer above the app UI and the benchmark tests.
+
 ## Related docs
 
 - [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
