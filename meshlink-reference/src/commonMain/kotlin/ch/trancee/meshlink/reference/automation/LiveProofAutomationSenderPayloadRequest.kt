@@ -4,7 +4,7 @@ internal fun requestSenderPayload(
     phase: String,
     targetPeer: AutoSendTargetPeer,
     payloadPlan: SenderPayloadPlan,
-    automationConfig: ReferenceAutomationConfig,
+    automationConfig: ReferenceAutomationConfigView,
     actions: LiveProofAutomationActions,
 ): Unit {
     val payloadText = payloadPlan.payload(actions.platformName)

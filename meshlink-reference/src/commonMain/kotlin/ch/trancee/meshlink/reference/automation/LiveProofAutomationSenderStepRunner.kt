@@ -4,7 +4,7 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 
 internal fun runSenderAutomationStep(
     snapshot: ReferenceControllerSnapshot,
-    automationConfig: ReferenceAutomationConfig,
+    automationConfig: ReferenceAutomationConfigView,
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {

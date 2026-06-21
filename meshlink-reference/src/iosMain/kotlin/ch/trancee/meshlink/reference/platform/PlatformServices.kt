@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.reference.platform
 
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -58,13 +57,6 @@ internal fun createAutomationPlatformServices(
                     }
                 nowProvider = clock
                 documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = "scripted-ui",
-                        role = "passive",
-                        appId = "demo.meshlink.reference.automation",
-                        storageSubdirectory = storageSubdirectory,
-                    )
                 automationLogger = ::println
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
@@ -105,17 +97,6 @@ internal fun createLiveAutomationPlatformServices(
                 nowProvider = clock
                 this.appId = automationAppId
                 documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = "live-proof",
-                        role = role,
-                        appId = automationAppId,
-                        storageSubdirectory = storageSubdirectory,
-                        requiredPeerCount = requiredPeerCount,
-                        targetPeerIndex = targetPeerIndex,
-                        targetPeerId = targetPeerId,
-                        scenario = scenario,
-                    )
                 automationLogger = ::println
             },
     )

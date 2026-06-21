@@ -6,6 +6,11 @@ This page captures the observed Android direct-proof matrix result from the
 132-pair fail-fast sweep across the attached Android fleet. It preserves the
 canonical 45s fail-fast rerun summary that downstream docs and checks point to.
 
+Current tracked direct-proof fleet evidence is published at
+`reports/android-direct-proof-fleet/runs/20260621T124016/`; the later
+`20260621T153830` rerun is retained as a regression example because it regressed
+back to launch-stage failures.
+
 ## Scope
 
 - 45s capture window

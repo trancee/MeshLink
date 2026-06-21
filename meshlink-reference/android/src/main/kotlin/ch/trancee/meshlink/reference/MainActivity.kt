@@ -15,7 +15,6 @@ import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
-import ch.trancee.meshlink.reference.automation.ReferenceStartupCoordinator
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
@@ -26,7 +25,6 @@ import kotlinx.coroutines.launch
 public class MainActivity : ComponentActivity() {
     private var activePlatformServices: PlatformServices? = null
     private var directProofEnabled: Boolean = false
-    private var startupCoordinator: ReferenceStartupCoordinator? = null
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
@@ -48,14 +46,8 @@ public class MainActivity : ComponentActivity() {
             "REFERENCE_AUTOMATION platform.factory.end directProof=$directProofEnabled",
         )
         activePlatformServices = platformServices
-        startupCoordinator =
-            if (directProofEnabled) {
-                ReferenceStartupCoordinator(platformServices = platformServices, scope = lifecycleScope)
-            } else {
-                null
-            }
         if (directProofEnabled) {
-            emitStartupMarker(platformServices)
+            emitStartupMarker(automationConfig)
             emitDirectProofPowerState(platformServices, "onCreate", directProofEnabled)
             Log.i(
                 "MeshLinkReferenceAutomation",
@@ -66,7 +58,12 @@ public class MainActivity : ComponentActivity() {
                 "role=${automationConfig.role} directProofEnabled=$directProofEnabled\n",
             )
         }
-        setContent { ReferenceApp(platformServices = platformServices) }
+        setContent {
+            ReferenceApp(
+                platformServices = platformServices,
+                automationConfig = automationConfig.toAndroidAutomationConfigView(),
+            )
+        }
     }
 
     override fun onResume() {

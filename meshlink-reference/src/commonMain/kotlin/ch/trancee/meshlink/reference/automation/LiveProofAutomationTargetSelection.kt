@@ -35,6 +35,9 @@ internal fun autoSendTargetPeer(
                     targetPeerIndex < peers.size
             }
             ?.get(targetPeerIndex) ?: return null
+    if (!hasAvailableRouteForPeer(snapshot, selectedPeer.peerId)) {
+        return null
+    }
     return AutoSendTargetPeer(peerId = selectedPeer.peerId, peerSuffix = selectedPeer.peerSuffix)
 }
 
@@ -55,7 +58,6 @@ internal fun hasAvailableRouteForPeerAfterEntry(
     boundaryEntryId: String?,
 ): Boolean {
     var boundaryReached = boundaryEntryId == null
-    var peerDiscovered = false
     return snapshot.timeline.any { entry ->
         if (!boundaryReached) {
             boundaryReached = entry.entryId == boundaryEntryId
@@ -76,13 +78,8 @@ internal fun hasAvailableRouteForPeerAfterEntry(
             ) {
                 return@any true
             }
-            if (
-                entry.detail.contains("peerId=$peerId") && entry.detail.contains("peer.discovered")
-            ) {
-                peerDiscovered = true
-            }
         }
-        peerDiscovered || snapshot.peers.any { it.peerId == peerId }
+        false
     }
 }
 

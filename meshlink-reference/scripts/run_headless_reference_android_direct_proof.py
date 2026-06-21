@@ -100,10 +100,10 @@ PASSIVE_PROOF_REQUIRED_LOG_MARKERS = [
     "gatt.benchmark.start() -> Started",
 ]
 TRANSPORT_REQUIRED_MARKERS = [
-    "D MeshLinkTransport: start()",
-    "D MeshLinkTransport: refreshDiscoveryState started=true suspended=false scanner=true advertiser=true",
-    "D MeshLinkTransport: scan started",
-    "D MeshLinkTransport: advertising started",
+    "start() with l2capPsm=",
+    "refreshDiscoveryState started=true suspended=false scanner=true advertiser=true",
+    "scan started",
+    "advertising started mode=2 tx=3 connectable=true",
 ]
 @dataclass
 class AndroidDirectCompletions:

@@ -54,6 +54,19 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             null
         }
     l2capServerSocket = serverSocket
+    val gattNotifyServer =
+        BluetoothGattNotifyServer(
+            context = context,
+            peerBindings = peerBindings,
+            onFrameReceived = ::enqueueInboundFrame,
+            log = ::log,
+        )
+    gattNotifyServer.start().also { ready ->
+        if (!ready) {
+            log("GATT notify server unavailable: service did not become ready")
+        }
+    }
+    this.gattNotifyServer = gattNotifyServer
     discoveryLifecycle.updateL2capPsm(
         advertisedDiscoveryL2capPsm(
             serverSocketPsm = serverSocket?.psm,

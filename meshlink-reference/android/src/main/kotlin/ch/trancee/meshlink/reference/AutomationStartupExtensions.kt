@@ -1,10 +1,14 @@
 package ch.trancee.meshlink.reference
 
-import ch.trancee.meshlink.reference.automation.startupMarker
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import android.util.Log
 
-internal fun MainActivity.emitStartupMarker(platformServices: PlatformServices) {
-    platformServices.automationConfig?.let { automationConfig ->
-        platformServices.emitAutomationLog(automationConfig.startupMarker())
-    }
+internal fun MainActivity.emitStartupMarker(automationConfig: AutomationConfig) {
+    if (!automationConfig.enabled) return
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION startup stage=activity.onCreate " +
+            "mode=${automationConfig.mode} role=${automationConfig.role} " +
+            "scenario=${automationConfig.scenario} appId=${automationConfig.appId} " +
+            "storage=${automationConfig.storageSubdirectory}",
+    )
 }

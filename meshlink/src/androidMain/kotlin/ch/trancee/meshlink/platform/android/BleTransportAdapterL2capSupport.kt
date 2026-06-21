@@ -228,6 +228,8 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     acceptLoopJob?.cancel()
     acceptLoopJob = null
     linkRegistry.cancelPendingConnects()
+    gattNotifyServer?.close()
+    gattNotifyServer = null
     closeQuietly(l2capServerSocket)
     l2capServerSocket = null
     val hintIds = linkRegistry.activeHintIdsSnapshot()

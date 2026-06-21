@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import ch.trancee.meshlink.reference.advanced.AdvancedControlsViewModel
 import ch.trancee.meshlink.reference.automation.LiveProofAutomationDriver
+import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.platform.PlatformServices
@@ -24,7 +25,8 @@ internal data class ReferenceNavHostDependencies(
 
 @Composable
 internal fun rememberReferenceNavHostDependencies(
-    platformServices: PlatformServices
+    platformServices: PlatformServices,
+    automationConfig: ReferenceAutomationConfigView? = null,
 ): ReferenceNavHostDependencies {
     val historyRepository =
         remember(platformServices.platformName) {
@@ -52,7 +54,10 @@ internal fun rememberReferenceNavHostDependencies(
         }
     val guidedViewModel =
         remember(platformServices.platformName) {
-            GuidedFirstExchangeViewModel(sessionPlatformServices)
+            GuidedFirstExchangeViewModel(
+                platformServices = sessionPlatformServices,
+                automationMode = automationConfig?.mode,
+            )
         }
     val advancedViewModel =
         remember(platformServices.platformName) {
@@ -78,7 +83,7 @@ internal fun rememberReferenceNavHostDependencies(
     val liveProofAutomationDriver =
         remember(platformServices.platformName) {
             LiveProofAutomationDriver(
-                automationConfig = sessionPlatformServices.automationConfig,
+                automationConfig = automationConfig,
                 timelineUiStateFlow = timelineStore.uiState,
                 actions =
                     TimelineStoreLiveProofAutomationActions(

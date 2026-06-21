@@ -18,7 +18,7 @@ private const val SENDER_PEER_WAIT_RETRY_DELAY_MILLIS: Long = 2_000
 private const val SENDER_PEER_WAIT_MAX_RETRIES: Int = 15
 
 internal class LiveProofAutomationDriver(
-    private val automationConfig: ReferenceAutomationConfig?,
+    private val automationConfig: ReferenceAutomationConfigView?,
     private val timelineUiStateFlow: StateFlow<TechnicalTimelineUiState>,
     private val actions: LiveProofAutomationActions,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
