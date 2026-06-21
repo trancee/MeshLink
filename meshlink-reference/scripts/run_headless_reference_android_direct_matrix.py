@@ -880,7 +880,7 @@ def main(argv: list[str] | None = None) -> int:
         peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
         if target_peer_id is None:
             print(
-                "==> Passive peer id unavailable; continuing without a seeded target peer for the final pass",
+                "==> Passive peer id unavailable; skipping the final pass because no valid discovery evidence was captured",
                 flush=True,
             )
         else:
@@ -888,7 +888,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Seeded final pass from discovered peer {target_peer_id}",
                 flush=True,
             )
-        if target_peer_id is not None or not args.resume:
+        if target_peer_id is not None:
             final = run_pair(
                 sender=pair["sender"],
                 passive=pair["passive"],

@@ -3,12 +3,15 @@ package ch.trancee.meshlink.reference.model
 import ch.trancee.meshlink.api.MeshLinkState
 import kotlinx.serialization.Serializable
 
+public const val REFERENCE_AUTHORITY_MODE_LIVE: String = "LIVE"
+public const val REFERENCE_AUTHORITY_MODE_SOLO: String = "SOLO"
+
 /** Captures the visible runtime state of one reference-app session. */
 @Serializable
 public data class ReferenceSession(
     public val sessionId: String,
     public val scenarioId: String,
-    public val authorityMode: ReferenceAuthorityMode,
+    public val authorityMode: String,
     public val startedAtEpochMillis: Long,
     public val endedAtEpochMillis: Long? = null,
     public val meshStateLabel: String = MeshLinkState.Uninitialized.toString(),

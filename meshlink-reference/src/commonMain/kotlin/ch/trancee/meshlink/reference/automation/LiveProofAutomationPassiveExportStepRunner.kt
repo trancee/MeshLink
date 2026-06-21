@@ -10,7 +10,8 @@ internal fun runPassiveFullExportAutomationStep(
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {
-    val trustEstablished = hasTimelineEntry(snapshot, title = "TRUST_ESTABLISHED")
+    val trustEstablished =
+        hasTimelineEntry(snapshot, title = "TRUST_ESTABLISHED") || hasTrustedSelectedPeer(snapshot)
     val inboundCount = timelineEntryCount(snapshot, title = "Inbound message")
     val inboundReady = inboundCount >= 1
     announcePassiveObservationIfNeeded(snapshot = snapshot, actions = actions, progress = progress)

@@ -19,7 +19,7 @@ public class ReferenceStartupCoordinator(
 
     public fun startLiveProofIfNeeded(): Unit {
         val config = platformServices.automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF) {
             return
         }
         if (liveProofStartupRequested) {

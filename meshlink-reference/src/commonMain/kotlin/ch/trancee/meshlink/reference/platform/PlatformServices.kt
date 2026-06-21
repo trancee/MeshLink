@@ -5,14 +5,13 @@ import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.LiveReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 
 /** Shared platform bridge consumed by the app shell. */
 public interface PlatformServices {
     public val platformName: String
-    public val defaultAuthorityMode: ReferenceAuthorityMode
+    public val defaultAuthorityMode: String
     public val readinessGuidance: List<String>
     public val readinessBlockers: List<String>
     public val automationConfig: ReferenceAutomationConfig?
@@ -48,7 +47,7 @@ internal class DefaultPlatformServicesOptions {
 /** Lightweight default implementation used by the reference app entry points. */
 internal class DefaultPlatformServices(
     override val platformName: String,
-    override val defaultAuthorityMode: ReferenceAuthorityMode,
+    override val defaultAuthorityMode: String,
     override val readinessGuidance: List<String>,
     options: DefaultPlatformServicesOptions = DefaultPlatformServicesOptions(),
 ) : PlatformServices {

@@ -13,8 +13,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
-private const val SENDER_PEER_WAIT_RETRY_DELAY_MILLIS: Long = 5_000
-private const val SENDER_PEER_WAIT_MAX_RETRIES: Int = 10
+// Keep sender retries dense enough to fit inside the direct-proof capture budget on slower pairs.
+private const val SENDER_PEER_WAIT_RETRY_DELAY_MILLIS: Long = 2_000
+private const val SENDER_PEER_WAIT_MAX_RETRIES: Int = 15
 
 internal class LiveProofAutomationDriver(
     private val automationConfig: ReferenceAutomationConfig?,
@@ -27,7 +28,7 @@ internal class LiveProofAutomationDriver(
 
     fun start() {
         val config = automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF || collectionJob != null) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF || collectionJob != null) {
             return
         }
 
@@ -40,7 +41,7 @@ internal class LiveProofAutomationDriver(
 
     internal fun handle(timelineUiState: TechnicalTimelineUiState) {
         val config = automationConfig ?: return
-        if (config.mode != ReferenceAutomationMode.LIVE_PROOF) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF) {
             return
         }
 
@@ -49,7 +50,7 @@ internal class LiveProofAutomationDriver(
                 "snapshotPeers=${timelineUiState.liveSnapshot.peers.size} " +
                 "timelineEntries=${timelineUiState.liveSnapshot.timeline.size}"
         )
-        if (config.role == ReferenceAutomationRole.SENDER && !progress.meshStartRequested) {
+        if (config.role == AUTOMATION_ROLE_SENDER && !progress.meshStartRequested) {
             actions.emitAutomationLog(
                 "REFERENCE_AUTOMATION mesh.start.requested role=${config.role} meshState=${timelineUiState.liveSnapshot.session.meshStateLabel} readinessBlockers=${actions.readinessBlockers.joinToString(separator = "|")}"
             )
@@ -71,10 +72,7 @@ internal class LiveProofAutomationDriver(
         timelineUiState: TechnicalTimelineUiState
     ): Unit {
         val config = automationConfig ?: return
-        if (
-            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
-                config.role != ReferenceAutomationRole.SENDER
-        ) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF || config.role != AUTOMATION_ROLE_SENDER) {
             return
         }
         if (timelineUiState.liveSnapshot.peers.isNotEmpty()) {
@@ -87,10 +85,7 @@ internal class LiveProofAutomationDriver(
         timelineUiState: TechnicalTimelineUiState
     ): Unit {
         val config = automationConfig ?: return
-        if (
-            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
-                config.role != ReferenceAutomationRole.SENDER
-        ) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF || config.role != AUTOMATION_ROLE_SENDER) {
             return
         }
         val meshState = timelineUiState.liveSnapshot.session.meshStateLabel
@@ -114,10 +109,7 @@ internal class LiveProofAutomationDriver(
         timelineUiState: TechnicalTimelineUiState
     ): Unit {
         val config = automationConfig ?: return
-        if (
-            config.mode != ReferenceAutomationMode.LIVE_PROOF ||
-                config.role != ReferenceAutomationRole.SENDER
-        ) {
+        if (config.mode != AUTOMATION_MODE_LIVE_PROOF || config.role != AUTOMATION_ROLE_SENDER) {
             return
         }
         if (progress.completionLogged || !progress.sendRequested) {

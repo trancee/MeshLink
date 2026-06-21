@@ -86,6 +86,34 @@ class PreferredGattSendSupportTest {
         }
 
     @Test
+    fun sendViaPreferredGattSideLinkOrNullFallsBackToGattWhenL2capClientSocketsAreUnsupported():
+        Unit = runBlocking {
+        // Arrange
+        val fixture =
+            PreferredGattSendFixture(
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = false,
+            )
+        val frame =
+            OutboundFrame(
+                peerId = fixture.context.hintPeerId,
+                payload = DirectWireFrame.Data(ByteArray(8)).encode(),
+            )
+
+        // Act
+        val result =
+            fixture.run(
+                frame = frame,
+                client = FakePreferredGattSendClient(ready = true, writeResult = true),
+            )
+
+        // Assert
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
+        assertEquals(0, fixture.restartReasons.size)
+    }
+
+    @Test
     fun sendViaPreferredGattSideLinkOrNullFallsBackWhenTheSideLinkIsUnavailable(): Unit =
         runBlocking {
             // Arrange
@@ -185,13 +213,15 @@ class PreferredGattSendSupportTest {
 }
 
 private class PreferredGattSendFixture(
-    remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.IOS
+    remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+    localL2capClientSocketsSupported: Boolean = true,
 ) {
     val context =
         PreferredGattSendContext(
             hintPeerId = PeerId("peer-android"),
             localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
             remotePlatformFamily = remotePlatformFamily,
+            localL2capClientSocketsSupported = localL2capClientSocketsSupported,
         )
     var ensureSideLinkCalls: Int = 0
     val restartReasons: MutableList<String> = mutableListOf()

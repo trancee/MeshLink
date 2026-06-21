@@ -1,0 +1,106 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.20260620T193342",
+  "storageSubdirectory": "cph2359_repro",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "1f1dad34",
+  "passiveSerial": "EQUGS85LJNEIO7Z5",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": "06-20 19:33:51.713  2147  2147 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "passivePowerState": "06-20 19:33:55.422 15687 15687 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION power.state stage=onResume interactive=true powerSaveMode=false directProof=true",
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": "route-unavailable",
+  "routeEvidence": "06-20 19:34:03.301  2147  2190 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=3DHl4= detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=Z4x5NDdUsOE0ScjLYc4vn2XtUn+qi54vb8S48d3DHl4=, topologyVersion=0, routeAvailable=false, attempt=14}",
+  "senderRouteStage": "route-unavailable",
+  "senderRouteEvidence": "06-20 19:34:03.301  2147  2190 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=3DHl4= detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=Z4x5NDdUsOE0ScjLYc4vn2XtUn+qi54vb8S48d3DHl4=, topologyVersion=0, routeAvailable=false, attempt=14}",
+  "passiveRouteStage": null,
+  "passiveRouteEvidence": null,
+  "transportMode": "L2CAP",
+  "transportEvidence": "06-20 19:33:56.839 15687 15737 I MeshLinkReferenceAutomation: start() with l2capPsm=255",
+  "startupTiming": {
+    "sender": {
+      "observed": true,
+      "elapsedSeconds": 0.0,
+      "line": "06-20 19:33:51.695  2147  2147 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.20260620T193342 storage=cph2359_repro"
+    },
+    "passive": {
+      "observed": true,
+      "elapsedSeconds": 0.8,
+      "line": "06-20 19:33:55.382 15687 15687 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.20260620T193342 storage=cph2359_repro"
+    },
+    "passiveTransport": {
+      "observed": true,
+      "elapsedSeconds": 1.5,
+      "line": "06-20 19:33:56.889 15687 15687 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true"
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 8,
+      "passiveTransportWaitSeconds": 13.5,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 22.7
+  },
+  "timings": {
+    "totalSeconds": 22.7,
+    "androidReadySeconds": 8,
+    "captureTimeoutSeconds": 45.0,
+    "transportMode": "L2CAP",
+    "transportEvidence": "06-20 19:33:56.839 15687 15737 I MeshLinkReferenceAutomation: start() with l2capPsm=255",
+    "sender": {
+      "startupWaitSeconds": 0.0,
+      "startupObserved": true,
+      "startupMarker": "06-20 19:33:51.695  2147  2147 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink.reference.android-direct.20260620T193342 storage=cph2359_repro",
+      "peerDiscoverySeconds": 1.705,
+      "peerDiscoveryMarker": "06-20 19:33:53.400  2147  2182 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=95fe51",
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "L2CAP",
+      "transportEvidence": "06-20 19:33:53.389  2147  2147 I MeshLinkReferenceAutomation: scan found 95fe51 mode=L2CAP psm=255 platform=ANDROID addr=64:B5:B9:18:30:FD"
+    },
+    "passive": {
+      "startupWaitSeconds": 0.8,
+      "startupObserved": true,
+      "startupMarker": "06-20 19:33:55.382 15687 15687 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink.reference.android-direct.20260620T193342 storage=cph2359_repro",
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": "L2CAP",
+      "transportEvidence": "06-20 19:33:56.839 15687 15737 I MeshLinkReferenceAutomation: start() with l2capPsm=255"
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "capture",
+  "failureReason": "Android direct proof stalled at route stage sender=route-unavailable passive=none; senderEvidence=06-20 19:34:03.301  2147  2190 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.observed role=sender family=DIAGNOSTIC title=DELIVERY_RETRY_SCHEDULED peer=3DHl4= detail=DELIVERY_RETRY_SCHEDULED @ delivery.retryScheduled {peerId=Z4x5NDdUsOE0ScjLYc4vn2XtUn+qi54vb8S48d3DHl4=, topologyVersion=0, routeAvailable=false, attempt=14} passiveEvidence=n/a",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}

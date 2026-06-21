@@ -12,7 +12,8 @@ internal fun runPassiveBaselineAutomationStep(
     requiredInboundCount: Int = 1,
     requiredLargestInboundBytes: Int? = null,
 ): Unit {
-    val trustEstablished = hasTimelineEntry(snapshot, title = "TRUST_ESTABLISHED")
+    val trustEstablished =
+        hasTimelineEntry(snapshot, title = "TRUST_ESTABLISHED") || hasTrustedSelectedPeer(snapshot)
     val inboundCount = timelineEntryCount(snapshot, title = "Inbound message")
     val largestInboundBytes = largestInboundPayloadBytes(snapshot)
     val inboundReady =

@@ -1,0 +1,106 @@
+{
+  "status": "failed",
+  "scenario": "direct-guided",
+  "appId": "demo.meshlink.reference.android-direct.a065_nam_lx9",
+  "storageSubdirectory": "01_a065_nam_lx9_initial",
+  "senderPlatform": "android",
+  "passivePlatform": "android",
+  "senderSerial": "1f1dad34",
+  "passiveSerial": "2ASVB21B09005117",
+  "senderCompletion": null,
+  "passiveCompletion": null,
+  "senderFailure": null,
+  "senderPowerState": null,
+  "passivePowerState": null,
+  "startupState": null,
+  "startupStateEvidence": null,
+  "routeStage": null,
+  "routeEvidence": null,
+  "senderRouteStage": null,
+  "senderRouteEvidence": null,
+  "passiveRouteStage": null,
+  "passiveRouteEvidence": null,
+  "transportMode": null,
+  "transportEvidence": null,
+  "startupTiming": {
+    "sender": {
+      "observed": false,
+      "elapsedSeconds": null,
+      "line": null
+    },
+    "passive": {
+      "observed": false,
+      "elapsedSeconds": 20.0,
+      "line": null
+    },
+    "passiveTransport": {
+      "observed": false,
+      "elapsedSeconds": 20.0,
+      "line": null
+    },
+    "launch": {
+      "passiveStartupWaitSeconds": 20.0,
+      "passiveTransportWaitSeconds": 20.0,
+      "postResultIdleSeconds": 2.0
+    },
+    "totalSeconds": 57.2
+  },
+  "timings": {
+    "totalSeconds": 57.2,
+    "androidReadySeconds": 20.0,
+    "captureTimeoutSeconds": 30.0,
+    "transportMode": null,
+    "transportEvidence": null,
+    "sender": {
+      "startupWaitSeconds": null,
+      "startupObserved": false,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "sendCompletionSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": null,
+      "transportEvidence": null
+    },
+    "passive": {
+      "startupWaitSeconds": 20.0,
+      "startupObserved": false,
+      "startupMarker": null,
+      "peerDiscoverySeconds": null,
+      "peerDiscoveryMarker": null,
+      "trustConnectionSeconds": null,
+      "trustConnectionMarker": null,
+      "sendLatencySeconds": null,
+      "receiptSeconds": null,
+      "sendRequestMarker": null,
+      "completionMarker": null,
+      "transportMode": null,
+      "transportEvidence": null
+    }
+  },
+  "htmlReportPath": "summary.html",
+  "exportRelativePath": null,
+  "failureStage": "launch",
+  "failureReason": "Android passive transport did not start within 20.0 seconds",
+  "evidence": {
+    "senderLogcat": "sender_logcat.log",
+    "passiveLogcat": "passive_logcat.log",
+    "senderStart": "sender_start.txt",
+    "passiveStart": "passive_start.txt",
+    "androidHistory": "android_history.json",
+    "androidExport": "android_export.json"
+  },
+  "captured": {
+    "senderLogcat": true,
+    "passiveLogcat": true,
+    "senderStart": true,
+    "passiveStart": true,
+    "androidHistory": false,
+    "androidExport": false
+  },
+  "partialEvidenceAvailable": true
+}

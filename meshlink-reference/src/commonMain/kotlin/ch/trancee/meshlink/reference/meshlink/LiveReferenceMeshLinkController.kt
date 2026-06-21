@@ -2,7 +2,6 @@ package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLinkBootstrap
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Live shared controller that wraps the existing MeshLink SDK and emits app-facing state. */
 internal class LiveReferenceMeshLinkController(
     private val platformName: String,
-    private val authorityMode: ReferenceAuthorityMode,
+    private val authorityMode: String,
     private val appId: String,
     private val nowProvider: () -> Long,
     private val surfaceOfOrigin: String = "main-guided",

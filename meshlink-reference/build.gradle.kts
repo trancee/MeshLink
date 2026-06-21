@@ -52,6 +52,7 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.compose.material.icons.extended)
         }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
     }
 }
 

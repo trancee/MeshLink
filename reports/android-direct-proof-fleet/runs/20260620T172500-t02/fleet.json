@@ -1,0 +1,109 @@
+{
+  "capturedAt": "20260620T192943",
+  "failFast": false,
+  "maxFailures": 5,
+  "deviceCount": 14,
+  "pairCount": 4,
+  "devices": [
+    {
+      "serial": "1f1dad34",
+      "model": "A065",
+      "apiLevel": 36
+    },
+    {
+      "serial": "2ASVB21B09005117",
+      "model": "NAM-LX9",
+      "apiLevel": 31
+    },
+    {
+      "serial": "2XJ7N17323004090",
+      "model": "2XJ7N17323004090",
+      "apiLevel": 26
+    },
+    {
+      "serial": "42004386e43c8589",
+      "model": "SM-G390F",
+      "apiLevel": 28
+    },
+    {
+      "serial": "42c2cf",
+      "model": "Mi Note 3",
+      "apiLevel": 28
+    },
+    {
+      "serial": "7XHEIBPBLRJJSKFU",
+      "model": "7XHEIBPBLRJJSKFU",
+      "apiLevel": 35
+    },
+    {
+      "serial": "EQUGS85LJNEIO7Z5",
+      "model": "CPH2359",
+      "apiLevel": 34
+    },
+    {
+      "serial": "GX6CTR500184",
+      "model": "E940-2849-00",
+      "apiLevel": 33
+    },
+    {
+      "serial": "ZHBQ95BIG6NVWSUK",
+      "model": "ZHBQ95BIG6NVWSUK",
+      "apiLevel": 33
+    },
+    {
+      "serial": "ZY22GCD9ST",
+      "model": "ZY22GCD9ST",
+      "apiLevel": 34
+    },
+    {
+      "serial": "e9097611",
+      "model": "e9097611",
+      "apiLevel": 29
+    },
+    {
+      "serial": "adb-851ff431-WMnmYP._adb-tls-connect._tcp",
+      "model": "adb-851ff431-WMnmYP._adb-tls-connect._tcp",
+      "apiLevel": 30
+    },
+    {
+      "serial": "adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp",
+      "model": "adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp",
+      "apiLevel": 33
+    },
+    {
+      "serial": "adb-bb722dcd-7SjtpI._adb-tls-connect._tcp",
+      "model": "adb-bb722dcd-7SjtpI._adb-tls-connect._tcp",
+      "apiLevel": 31
+    }
+  ],
+  "availablePairs": [
+    {
+      "label": "a065_nam_lx9",
+      "sender": "1f1dad34",
+      "passive": "2ASVB21B09005117",
+      "senderModel": "A065",
+      "passiveModel": "NAM-LX9"
+    },
+    {
+      "label": "a065_xcover",
+      "sender": "1f1dad34",
+      "passive": "42004386e43c8589",
+      "senderModel": "A065",
+      "passiveModel": "SM-G390F"
+    },
+    {
+      "label": "a065_mi_note3",
+      "sender": "1f1dad34",
+      "passive": "42c2cf",
+      "senderModel": "A065",
+      "passiveModel": "Mi Note 3"
+    },
+    {
+      "label": "a065_cph2359",
+      "sender": "1f1dad34",
+      "passive": "EQUGS85LJNEIO7Z5",
+      "senderModel": "A065",
+      "passiveModel": "CPH2359"
+    }
+  ]
+}

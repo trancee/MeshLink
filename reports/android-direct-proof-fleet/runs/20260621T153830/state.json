@@ -1,0 +1,183 @@
+{
+  "runRoot": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830",
+  "fleetInventoryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/fleet.md",
+  "totalPairs": 30,
+  "completedPairs": 6,
+  "pendingPairs": 24,
+  "lastPair": {
+    "label": "nam_lx9_a065",
+    "sender": "2ASVB21B09005117",
+    "passive": "1f1dad34",
+    "senderModel": "NAM-LX9",
+    "passiveModel": "A065",
+    "appId": "demo.meshlink.reference.android-direct.nam_lx9_a065",
+    "targetPeerId": null,
+    "initial": {
+      "status": "failed",
+      "failureStage": "launch",
+      "failureReason": "Android passive transport did not start within 20.0 seconds",
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": null,
+      "routeEvidence": null,
+      "senderRouteStage": null,
+      "senderRouteEvidence": null,
+      "passiveRouteStage": null,
+      "passiveRouteEvidence": null,
+      "transportMode": null,
+      "transportEvidence": null,
+      "startupTiming": {
+        "sender": {
+          "observed": false,
+          "elapsedSeconds": null,
+          "line": null
+        },
+        "passive": {
+          "observed": false,
+          "elapsedSeconds": 20.0,
+          "line": null
+        },
+        "passiveTransport": {
+          "observed": false,
+          "elapsedSeconds": 20.0,
+          "line": null
+        },
+        "launch": {
+          "passiveStartupWaitSeconds": 20.0,
+          "passiveTransportWaitSeconds": 20.0,
+          "postResultIdleSeconds": 2.0
+        },
+        "totalSeconds": 50.5
+      },
+      "timings": {
+        "totalSeconds": 50.5,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": null,
+        "transportEvidence": null,
+        "sender": {
+          "startupWaitSeconds": null,
+          "startupObserved": false,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": null,
+          "transportEvidence": null
+        },
+        "passive": {
+          "startupWaitSeconds": 20.0,
+          "startupObserved": false,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "receiptSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": null,
+          "transportEvidence": null
+        }
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": {
+        "senderLogcat": "sender_logcat.log",
+        "passiveLogcat": "passive_logcat.log",
+        "senderStart": "sender_start.txt",
+        "passiveStart": "passive_start.txt",
+        "androidHistory": "android_history.json",
+        "androidExport": "android_export.json"
+      },
+      "captured": {
+        "senderLogcat": true,
+        "passiveLogcat": true,
+        "senderStart": true,
+        "passiveStart": true,
+        "androidHistory": false,
+        "androidExport": false
+      },
+      "summaryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_initial/summary.json",
+      "runDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_initial"
+    },
+    "final": {
+      "status": "skipped",
+      "failureStage": "launch",
+      "failureReason": "Android passive transport did not start within 20.0 seconds",
+      "senderCompletion": null,
+      "passiveCompletion": null,
+      "routeStage": null,
+      "routeEvidence": null,
+      "senderRouteStage": null,
+      "senderRouteEvidence": null,
+      "passiveRouteStage": null,
+      "passiveRouteEvidence": null,
+      "transportMode": null,
+      "transportEvidence": null,
+      "startupTiming": null,
+      "timings": {
+        "totalSeconds": 50.5,
+        "androidReadySeconds": 20.0,
+        "captureTimeoutSeconds": 30.0,
+        "transportMode": null,
+        "transportEvidence": null,
+        "sender": {
+          "startupWaitSeconds": null,
+          "startupObserved": false,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "sendCompletionSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": null,
+          "transportEvidence": null
+        },
+        "passive": {
+          "startupWaitSeconds": 20.0,
+          "startupObserved": false,
+          "startupMarker": null,
+          "peerDiscoverySeconds": null,
+          "peerDiscoveryMarker": null,
+          "trustConnectionSeconds": null,
+          "trustConnectionMarker": null,
+          "sendLatencySeconds": null,
+          "receiptSeconds": null,
+          "sendRequestMarker": null,
+          "completionMarker": null,
+          "transportMode": null,
+          "transportEvidence": null
+        }
+      },
+      "htmlReportPath": "summary.html",
+      "exportRelativePath": null,
+      "evidence": null,
+      "captured": null,
+      "summaryPath": null,
+      "runDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_final"
+    },
+    "initialRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_initial",
+    "finalRunDir": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_final",
+    "pairReportPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/06_nam_lx9_a065_report.md",
+    "fleetJsonPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/fleet.json",
+    "fleetInventoryPath": "/home/phil/Projects/MeshLink/reports/android-direct-proof-fleet/runs/20260621T153830/fleet.md",
+    "transportMode": "unknown",
+    "transportEvidence": null,
+    "peerLookupSeconds": 62.4,
+    "failFast": false,
+    "maxFailures": 5
+  },
+  "failFast": false,
+  "stoppedEarly": true,
+  "stopReason": "failure count 6 exceeded max-failures=5; investigate the recorded failures before continuing"
+}

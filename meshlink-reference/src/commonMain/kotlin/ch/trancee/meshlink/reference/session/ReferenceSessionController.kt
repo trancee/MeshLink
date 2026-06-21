@@ -3,7 +3,8 @@ package ch.trancee.meshlink.reference.session
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_SOLO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,7 +93,7 @@ internal class ReferenceSessionController(
         return startAlternativeSession(
             kind = ReferenceSessionKind.SOLO,
             scenarioId = "solo-exploration",
-            authorityMode = ReferenceAuthorityMode.SOLO,
+            authorityMode = REFERENCE_AUTHORITY_MODE_SOLO,
             surfaceOfOrigin = "solo-exploration",
             title = "Solo exploration opened",
             detail = "Solo exploration is active on $platformName.",
@@ -103,7 +104,7 @@ internal class ReferenceSessionController(
         return startAlternativeSession(
             kind = ReferenceSessionKind.LAB,
             scenarioId = "lab",
-            authorityMode = ReferenceAuthorityMode.LIVE,
+            authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
             surfaceOfOrigin = "lab",
             title = "Lab session opened",
             detail = "The non-normative lab surface is active on $platformName.",
@@ -135,7 +136,7 @@ internal class ReferenceSessionController(
     private suspend fun startAlternativeSession(
         kind: ReferenceSessionKind,
         scenarioId: String,
-        authorityMode: ReferenceAuthorityMode,
+        authorityMode: String,
         surfaceOfOrigin: String,
         title: String,
         detail: String,

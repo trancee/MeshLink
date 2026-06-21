@@ -15,11 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
-import ch.trancee.meshlink.platform.android.AndroidDiscoveryAdvertisementConfig
-import ch.trancee.meshlink.platform.android.DiscoveryAdvertisementCarrier
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
 import ch.trancee.meshlink.reference.automation.ReferenceStartupCoordinator
-import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
@@ -42,7 +38,15 @@ public class MainActivity : ComponentActivity() {
             startDirectProofPowerService()
             keepScreenOn()
         }
+        Log.i(
+            "MeshLinkReferenceAutomation",
+            "REFERENCE_AUTOMATION platform.factory.begin directProof=$directProofEnabled mode=${automationConfig.mode} role=${automationConfig.role}",
+        )
         val platformServices = createPlatformServicesForAutomation(automationConfig)
+        Log.i(
+            "MeshLinkReferenceAutomation",
+            "REFERENCE_AUTOMATION platform.factory.end directProof=$directProofEnabled",
+        )
         activePlatformServices = platformServices
         startupCoordinator =
             if (directProofEnabled) {
@@ -151,13 +155,6 @@ private fun MainActivity.writeDirectProofProbeMarker(name: String, content: Stri
     }
 }
 
-private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
-    return when {
-        this.equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
-        this.equals("relay", ignoreCase = true) -> ReferenceAutomationRole.RELAY
-        else -> ReferenceAutomationRole.PASSIVE
-    }
-}
 
 private fun MainActivity.readAutomationConfig(): AutomationConfig {
     val automationEnabled =
@@ -167,7 +164,7 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
     val mode = if (automationEnabled) automationMode else null
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)}",
+        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)} targetPeerId=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_ID)}",
     )
     return AutomationConfig(
         enabled = automationEnabled,
@@ -178,17 +175,17 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
         appId =
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_APP_ID)
                 ?: MainActivity.DEFAULT_LIVE_AUTOMATION_APP_ID,
-        role = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE).toReferenceAutomationRole(),
+        role = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE) ?: "passive",
         requiredPeerCount = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
         targetPeerIndex = intent?.getIntExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
         targetPeerId = intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
         scenario =
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_SCENARIO)
-                .toReferenceAutomationScenario(),
+                ?: "direct-guided",
         blocked = intent?.getBooleanExtra(MainActivity.EXTRA_UI_AUTOMATION_BLOCKED, false) == true,
         advertisementCarrier =
             intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ADVERTISEMENT_CARRIER)
-                .toDiscoveryAdvertisementCarrier(),
+                ?: "UUID_PAIR",
     )
 }
 
