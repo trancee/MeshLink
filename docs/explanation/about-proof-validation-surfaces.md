@@ -112,6 +112,7 @@ or move to the reference app.
 
 - [MeshLink documentation map](../README.md)
 - [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- [Reference app and test architecture](reference-app-and-test-architecture.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)

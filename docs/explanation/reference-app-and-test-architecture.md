@@ -396,28 +396,26 @@ flowchart TD
 
 ## FAQ
 
-### Is the reference app a benchmark harness?
+| Question | Short answer |
+|---|---|
+| Is the reference app a benchmark harness? | No. It is the product-like evaluation surface for guided exchange, runtime controls, timeline evidence, and retained history. |
+| Why are there separate Android and iOS proof hosts? | Because the launch and transport seams differ by platform, and each proof host exposes the most direct way to prove the same claim. |
+| Why do the tests read logs instead of scraping UI text? | Because timing, throughput, and retained evidence are more stable in retained logs and campaign artifacts than in transient UI rendering. |
+| When should I use the physical scenario campaign? | Use it when you need auditable real-device evidence across a fleet, not just a local walkthrough or benchmark. |
 
-No. The reference app is the product-like evaluation surface. It is meant to
-show guided exchange, runtime controls, timeline evidence, and retained history.
-The proof apps and benchmark runners exist for timing and throughput claims.
+## File map appendix
 
-### Why are there separate Android and iOS proof hosts?
+This is the small map of the files most often involved in each layer.
 
-Because the platform-specific launch and transport seams differ. The proof hosts
-let each platform expose the same claim in the most direct way available on that
-platform while still keeping the normal reference-app experience separate.
-
-### Why do the tests read logs instead of scraping UI text?
-
-Because the asserted claims are timing, throughput, and retained evidence.
-Those are more stable when captured from the app’s retained log or campaign
-artifacts than from transient UI rendering.
-
-### When should I use the physical scenario campaign?
-
-Use it when you need auditable real-device evidence across a device fleet.
-It is the retained, reproducible layer above the app UI and the benchmark tests.
+| Layer | Main files |
+|---|---|
+| Reference app UI shell | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt` |
+| Reference automation | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDriver.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationCoordinator.kt` |
+| Android proof app runtime | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt` |
+| Android proof tests | `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/BenchmarkTestSupport.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` |
+| iOS proof app runtime | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift` |
+| iOS benchmark modes and capture | `meshlink-proof/ios/ProofApp/ProofLaunchConfig.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift`, `meshlink-proof/ios/ProofApp/ProofTransportLogCapture.swift` |
+| Retained physical campaign | `meshlink-reference/scripts/run_reference_release_campaign.py`, `meshlink-reference/scripts/run_headless_reference_live_proof.py` |
 
 ## Related docs
 
