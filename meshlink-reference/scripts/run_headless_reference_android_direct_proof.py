@@ -1250,22 +1250,41 @@ def launch_android_role_apps(
     passive_advertisement_carrier: str,
     passive_benchmark_transport: str | None,
     sender_advertisement_carrier: str,
-) -> tuple[BackgroundProcess, BackgroundProcess | None]:
-    passive_process = start_android_role_app(
-        run_dir=run_dir,
-        android_serial=passive_android_serial,
-        label="passive",
-        role="passive",
-        app_id=app_id,
-        storage_subdirectory=storage_subdirectory,
-        android_transport_logcat=android_transport_logcat,
-        target_peer_id=None,
-        advertisement_carrier=passive_advertisement_carrier,
-        benchmark_transport=passive_benchmark_transport,
-        android_activity=ANDROID_ACTIVITY,
-        android_package=ANDROID_PACKAGE,
-    )
-    return passive_process, None
+) -> tuple[BackgroundProcess, BackgroundProcess]:
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        passive_future = executor.submit(
+            start_android_role_app,
+            run_dir=run_dir,
+            android_serial=passive_android_serial,
+            label="passive",
+            role="passive",
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            android_transport_logcat=android_transport_logcat,
+            target_peer_id=None,
+            advertisement_carrier=passive_advertisement_carrier,
+            benchmark_transport=passive_benchmark_transport,
+            android_activity=ANDROID_ACTIVITY,
+            android_package=ANDROID_PACKAGE,
+        )
+        sender_future = executor.submit(
+            start_android_role_app,
+            run_dir=run_dir,
+            android_serial=sender_android_serial,
+            label="sender",
+            role="sender",
+            app_id=app_id,
+            storage_subdirectory=storage_subdirectory,
+            android_transport_logcat=android_transport_logcat,
+            target_peer_id=target_peer_id,
+            advertisement_carrier=sender_advertisement_carrier,
+            benchmark_transport=None,
+            android_activity=ANDROID_ACTIVITY,
+            android_package=ANDROID_PACKAGE,
+        )
+        passive_process = passive_future.result()
+        sender_process = sender_future.result()
+    return passive_process, sender_process
 
 def wait_for_discovered_peer_id(log_path: Path, timeout_seconds: float) -> str | None:
     deadline = time.monotonic() + timeout_seconds
