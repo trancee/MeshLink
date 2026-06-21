@@ -7,6 +7,12 @@ It is written for a reader landing cold. The goal is to show where the user
 experience lives, where the runtime state lives, and where the tests and proof
 runs attach.
 
+If you are new here, read in this order:
+1. The short version
+2. The choose-your-path matrix
+3. The FAQ
+4. The file map appendix
+
 ## The short version
 
 MeshLink has three related surfaces:
@@ -396,6 +402,17 @@ Use this when you are unsure which surface to open.
 
 This is the fuller map of the files most often involved in each layer.
 
+### By platform
+
+| Platform | Main files |
+|---|---|
+| Android reference/proof | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/BenchmarkTestSupport.kt` |
+| iOS reference/proof | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift` |
+| Shared reference runtime | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/LiveReferenceMeshRuntime.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/JsonSessionHistoryRepository.kt` |
+| Shared reference automation | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDriver.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationCoordinator.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDirectSenderStepRunner.kt` |
+
+### By layer
+
 | Layer | Main files |
 |---|---|
 | Reference app UI shell | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsOverviewSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsInteractionSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineRetentionSection.kt` |
@@ -411,13 +428,15 @@ This is the fuller map of the files most often involved in each layer.
 
 | Term | Meaning |
 |---|---|
-| Reference app | The product-like Android and iOS experience used for guided evaluation and operator review. |
-| Proof app | The focused host used for transport validation, benchmark paths, and retained evidence. |
-| Technical timeline | The retained event stream that shows lifecycle, peer, diagnostic, message, and export evidence. |
-| Advanced controls | The runtime control surface for lifecycle, peer, trust, power, and send actions. |
-| Retained history | Session data kept after a live run ends so evidence can be revisited later. |
-| Benchmark test | An instrumented or scripted check that asserts latency, throughput, cold-start, or power thresholds. |
-| Physical scenario campaign | The higher-level retained run that executes scenarios on real devices and writes audited artifacts. |
+| [Reference app](#what-the-reference-app-is-doing) | The product-like Android and iOS experience used for guided evaluation and operator review. |
+| [Proof app](#how-the-android-proof-app-tests-execute) | The focused host used for transport validation, benchmark paths, and retained evidence. |
+| [Technical timeline](#what-the-reference-app-is-doing) | The retained event stream that shows lifecycle, peer, diagnostic, message, and export evidence. |
+| [Advanced controls](#what-the-reference-app-is-doing) | The runtime control surface for lifecycle, peer, trust, power, and send actions. |
+| [Retained history](#what-the-reference-app-is-doing) | Session data kept after a live run ends so evidence can be revisited later. |
+| [Benchmark test](#how-the-android-proof-app-tests-execute) | An instrumented or scripted check that asserts latency, throughput, cold-start, or power thresholds. |
+| [Physical scenario campaign](#how-the-physical-scenario-campaign-fits-in) | The higher-level retained run that executes scenarios on real devices and writes audited artifacts. |
+
+## Related docs
 
 ## Related docs
 
