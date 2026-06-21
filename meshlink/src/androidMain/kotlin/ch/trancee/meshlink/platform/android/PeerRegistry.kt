@@ -102,15 +102,21 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
     internal fun upsertDiscovery(
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
+        announcePresence: Boolean = true,
     ): PeerDiscoveryUpdate {
         val existingPeer = discoveredPeers[hintPeerId.value]
         return if (existingPeer == null) {
-            createDiscoveredPeer(hintPeerId = hintPeerId, discovery = discovery)
+            createDiscoveredPeer(
+                hintPeerId = hintPeerId,
+                discovery = discovery,
+                announcePresence = announcePresence,
+            )
         } else {
             refreshDiscoveredPeer(
                 existingPeer = existingPeer,
                 hintPeerId = hintPeerId,
                 discovery = discovery,
+                announcePresence = announcePresence,
             )
         }
     }
@@ -118,6 +124,7 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
     private fun createDiscoveredPeer(
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
+        announcePresence: Boolean,
     ): PeerDiscoveryUpdate {
         val peer =
             DiscoveredPeer(
@@ -129,7 +136,7 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
                         l2capPsm = discovery.l2capPsm,
                         transportMode = discovery.transportMode,
                         platformFamily = discovery.platformFamily,
-                        flags = DiscoveredPeerFlags(presenceAnnounced = true),
+                        flags = DiscoveredPeerFlags(presenceAnnounced = announcePresence),
                     ),
             )
         discoveredPeers[hintPeerId.value] = peer
@@ -137,12 +144,16 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
         return PeerDiscoveryUpdate(
             peer = peer,
             events =
-                listOf(
-                    TransportEvent.PeerDiscovered(
-                        peerId = hintPeerId,
-                        transportMode = discovery.transportMode,
+                if (announcePresence) {
+                    listOf(
+                        TransportEvent.PeerDiscovered(
+                            peerId = hintPeerId,
+                            transportMode = discovery.transportMode,
+                        )
                     )
-                ),
+                } else {
+                    emptyList()
+                },
         )
     }
 
@@ -150,6 +161,7 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
         existingPeer: DiscoveredPeer,
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
+        announcePresence: Boolean,
     ): PeerDiscoveryUpdate {
         existingPeer.deviceAddress = discovery.address
         existingPeer.l2capPsm = discovery.l2capPsm
@@ -165,7 +177,7 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
                     transportMode = discovery.transportMode,
                 )
         }
-        if (!existingPeer.presenceAnnounced) {
+        if (announcePresence && !existingPeer.presenceAnnounced) {
             existingPeer.presenceAnnounced = true
             events +=
                 TransportEvent.PeerDiscovered(

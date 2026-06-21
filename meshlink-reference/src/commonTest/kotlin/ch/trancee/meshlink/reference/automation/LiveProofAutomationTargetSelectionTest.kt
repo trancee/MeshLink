@@ -65,7 +65,7 @@ class LiveProofAutomationTargetSelectionTest {
 
         assertFalse(hasAvailableRouteForPeer(snapshot, targetPeerId))
         assertEquals("bootstrap-peer", bootstrapTargetPeer(snapshot, targetPeerId)?.peerId)
-        assertTrue(shouldAutoSendGuidedHello(snapshot))
+        assertFalse(shouldAutoSendGuidedHello(snapshot))
     }
 
     @Test
@@ -110,6 +110,7 @@ class LiveProofAutomationTargetSelectionTest {
             )
 
         assertTrue(hasAvailableRouteForPeer(snapshot, targetPeerId))
+        assertTrue(shouldAutoSendGuidedHello(snapshot))
         assertEquals(null, bootstrapTargetPeer(snapshot, targetPeerId))
     }
 }

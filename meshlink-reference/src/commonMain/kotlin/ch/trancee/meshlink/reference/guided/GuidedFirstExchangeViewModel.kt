@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 /** Shared state holder for the guided first-exchange surface. */
 internal class GuidedFirstExchangeViewModel(
     private val platformServices: PlatformServices,
+    private val automationMode: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
@@ -45,8 +46,7 @@ internal class GuidedFirstExchangeViewModel(
 
     private fun maybeAutoStartMesh(): Unit {
         if (autoStartRequested) return
-        val config = platformServices.automationConfig ?: return
-        if (config.mode != ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_LIVE_PROOF)
+        if (automationMode != ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_LIVE_PROOF)
             return
         val currentSnapshot = uiState.value.snapshot
         if (!currentSnapshot.session.meshStateLabel.contains("Uninitialized")) return

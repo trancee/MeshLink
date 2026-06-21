@@ -4,7 +4,7 @@ import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
 
 internal class LiveProofAutomationCoordinator(
-    private val automationConfig: ReferenceAutomationConfig,
+    private val automationConfig: ReferenceAutomationConfigView,
     private val actions: LiveProofAutomationActions,
     private val progress: LiveProofAutomationProgress,
 ) {

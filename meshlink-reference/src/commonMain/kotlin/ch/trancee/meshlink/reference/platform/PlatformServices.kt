@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.reference.platform
 
 import ch.trancee.meshlink.api.MeshLinkBootstrap
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.LiveReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
@@ -14,7 +13,6 @@ public interface PlatformServices {
     public val defaultAuthorityMode: String
     public val readinessGuidance: List<String>
     public val readinessBlockers: List<String>
-    public val automationConfig: ReferenceAutomationConfig?
     public val powerMitigationStatus: String?
     public val documentStore: ReferenceDocumentStore
     public val meshLinkController: ReferenceMeshLinkController
@@ -31,13 +29,12 @@ public interface PlatformServices {
 }
 
 /** Mutable options bag used by the shared default platform-services bridge. */
-internal class DefaultPlatformServicesOptions {
+public class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
     public var meshLinkBootstrap: MeshLinkBootstrap? = null
     public var documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
     public var readinessBlockers: List<String> = emptyList()
-    public var automationConfig: ReferenceAutomationConfig? = null
     public var powerMitigationStatus: String? = null
     public var automationLogger: (String) -> Unit = {}
     public var meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? = null
@@ -45,7 +42,7 @@ internal class DefaultPlatformServicesOptions {
 }
 
 /** Lightweight default implementation used by the reference app entry points. */
-internal class DefaultPlatformServices(
+public class DefaultPlatformServices(
     override val platformName: String,
     override val defaultAuthorityMode: String,
     override val readinessGuidance: List<String>,
@@ -56,7 +53,6 @@ internal class DefaultPlatformServices(
     private val meshLinkBootstrap: MeshLinkBootstrap? = options.meshLinkBootstrap
     override val documentStore: ReferenceDocumentStore = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
-    override val automationConfig: ReferenceAutomationConfig? = options.automationConfig
     override val powerMitigationStatus: String? = options.powerMitigationStatus
     private val automationLogger: (String) -> Unit = options.automationLogger
     private val stopPowerMitigationAction: () -> Unit = options.stopPowerMitigation

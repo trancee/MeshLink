@@ -7,7 +7,7 @@ import ch.trancee.meshlink.reference.timeline.TechnicalTimelineUiState
 internal fun runPassiveAutomationStep(
     snapshot: ReferenceControllerSnapshot,
     timelineUiState: TechnicalTimelineUiState,
-    automationConfig: ReferenceAutomationConfig,
+    automationConfig: ReferenceAutomationConfigView,
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {
