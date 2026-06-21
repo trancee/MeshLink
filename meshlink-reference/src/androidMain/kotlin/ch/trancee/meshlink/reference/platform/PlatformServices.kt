@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -55,13 +54,6 @@ public fun createAutomationPlatformServices(
                     }
                 nowProvider = clock
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = "scripted-ui",
-                        role = "passive",
-                        appId = "demo.meshlink.reference.automation",
-                        storageSubdirectory = storageSubdirectory,
-                    )
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
@@ -102,17 +94,6 @@ public fun createLiveAutomationPlatformServices(
                 this.appId = automationAppId
                 meshLinkBootstrap = meshLinkBootstrap(context)
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = "live-proof",
-                        role = role,
-                        appId = automationAppId,
-                        storageSubdirectory = storageSubdirectory,
-                        requiredPeerCount = requiredPeerCount,
-                        targetPeerIndex = targetPeerIndex,
-                        targetPeerId = targetPeerId,
-                        scenario = scenario,
-                    )
                 powerMitigationStatus =
                     "Foreground wake lock active for live-proof automation sessions."
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }

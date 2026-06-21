@@ -1,16 +1,27 @@
 package ch.trancee.meshlink.reference.automation
 
 /** Optional host-driven automation modes for the reference app. */
+public interface ReferenceAutomationConfigView {
+    public val mode: String
+    public val role: String
+    public val appId: String
+    public val storageSubdirectory: String
+    public val requiredPeerCount: Int
+    public val targetPeerIndex: Int
+    public val targetPeerId: String?
+    public val scenario: String
+}
+
 public data class ReferenceAutomationConfig(
-    public val mode: String,
-    public val role: String,
-    public val appId: String,
-    public val storageSubdirectory: String,
-    public val requiredPeerCount: Int = 1,
-    public val targetPeerIndex: Int = 0,
-    public val targetPeerId: String? = null,
-    public val scenario: String = AUTOMATION_SCENARIO_DIRECT_GUIDED,
-)
+    override val mode: String,
+    override val role: String,
+    override val appId: String,
+    override val storageSubdirectory: String,
+    override val requiredPeerCount: Int = 1,
+    override val targetPeerIndex: Int = 0,
+    override val targetPeerId: String? = null,
+    override val scenario: String = AUTOMATION_SCENARIO_DIRECT_GUIDED,
+) : ReferenceAutomationConfigView
 
 public const val AUTOMATION_MODE_SCRIPTED_UI: String = "scripted-ui"
 public const val AUTOMATION_MODE_LIVE_PROOF: String = "live-proof"
@@ -93,4 +104,30 @@ public fun ReferenceAutomationScenario.wireValue(): String {
             AUTOMATION_SCENARIO_DIRECT_LARGE_TRANSFER
         ReferenceAutomationScenario.RELAY_CONSTRAINED -> AUTOMATION_SCENARIO_RELAY_CONSTRAINED
     }
+}
+
+/**
+ * Creates a reference automation config from primitive inputs so platform code does not need to
+ * construct the data class inline.
+ */
+public fun createReferenceAutomationConfig(
+    mode: String,
+    role: String,
+    appId: String,
+    storageSubdirectory: String,
+    requiredPeerCount: Int = 1,
+    targetPeerIndex: Int = 0,
+    targetPeerId: String? = null,
+    scenario: String = AUTOMATION_SCENARIO_DIRECT_GUIDED,
+): ReferenceAutomationConfig {
+    return ReferenceAutomationConfig(
+        mode = mode,
+        role = role,
+        appId = appId,
+        storageSubdirectory = storageSubdirectory,
+        requiredPeerCount = requiredPeerCount,
+        targetPeerIndex = targetPeerIndex,
+        targetPeerId = targetPeerId,
+        scenario = scenario,
+    )
 }

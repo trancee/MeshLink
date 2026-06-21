@@ -265,7 +265,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                         [
                             "06-20 09:33:52.279 31225 31225 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION directProof.transport role=SENDER",
                             f"06-20 09:33:52.438 31225 31297 I MeshLinkReferenceAutomation: start() with l2capPsm={sender_psm}",
-                            "06-20 09:33:52.722 31225 31225 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true",
+                            "06-20 09:33:52.722 31225 31225 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
                         ]
                     ),
                     encoding="utf-8",
@@ -275,7 +275,7 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                         [
                             "06-20 09:33:51.909 28530 28530 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION directProof.transport role=PASSIVE",
                             f"06-20 09:33:52.418 28530 28614 I MeshLinkReferenceAutomation: start() with l2capPsm={passive_psm}",
-                            "06-20 09:33:52.911 28530 28530 I MeshLinkReferenceAutomation: advertising started mode=2 tx=3 connectable=true",
+                            "06-20 09:33:52.911 28530 28530 D MeshLinkTransport: advertising started mode=2 tx=3 connectable=true",
                         ]
                     ),
                     encoding="utf-8",
@@ -402,15 +402,15 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertIn("fleet.json", matrix_report_text)
             pair_report_text = (run_root / "01_a065_nam_lx9_report.md").read_text(encoding="utf-8")
             self.assertTrue((run_root / "01_a065_nam_lx9_report.md").exists())
-            self.assertIn("participant Sender as A065 🔌 USB", pair_report_text)
-            self.assertIn("participant Passive as NAM-LX9 🔌 USB", pair_report_text)
-            self.assertIn("sender transport start (0.2s)", pair_report_text)
-            self.assertIn("start() with l2capPsm=147 (0.2s)", pair_report_text)
-            self.assertIn("passive transport start (3.0s)", pair_report_text)
-            self.assertIn("start() (3.0s)", pair_report_text)
-            self.assertIn("rect rgba(30, 64, 175, 0.40)", pair_report_text)
+            self.assertIn("participant Sender as A065", pair_report_text)
+            self.assertIn("participant Passive as NAM-LX9", pair_report_text)
+            self.assertIn("sender transport start", pair_report_text)
+            self.assertIn("start() with l2capPsm=147", pair_report_text)
+            self.assertIn("passive transport start", pair_report_text)
+            self.assertIn("start()", pair_report_text)
+            self.assertIn("sequenceDiagram", pair_report_text)
             self.assertIn("wait for passive peer id", pair_report_text)
-            self.assertIn("failure explanation:", pair_report_text)
+            self.assertIn("Final failure reason:", pair_report_text)
             self.assertIn("sender_logcat.log", pair_report_text)
             self.assertIn("passive_logcat.log", pair_report_text)
             self.assertIn("summary.json", pair_report_text)

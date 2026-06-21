@@ -85,6 +85,7 @@ internal class BleTransportAdapter(
                     log = ::log,
                 )
         )
+    internal var gattNotifyServer: GattNotifyServer? = null
     internal val transportMutex = Mutex()
     internal var inboundFrameQueue: InboundFrameQueue? = null
 

@@ -5,7 +5,7 @@ import ch.trancee.meshlink.reference.meshlink.redactedSuffix
 
 internal fun runRelaySenderAutomationStep(
     snapshot: ReferenceControllerSnapshot,
-    automationConfig: ReferenceAutomationConfig,
+    automationConfig: ReferenceAutomationConfigView,
     actions: LiveProofAutomationActions,
     progress: LiveProofAutomationProgress,
 ): Unit {
