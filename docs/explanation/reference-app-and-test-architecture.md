@@ -372,27 +372,16 @@ Use this when deciding what to open first.
 | retain real-device evidence | Physical scenario campaign | It writes audited JSON / HTML artifacts from actual devices |
 | understand how the layers fit | This doc + [About proof validation surfaces](about-proof-validation-surfaces.md) | These explain the architectural split and choice of surface |
 
-## Decision tree
+## Choose-your-path matrix
 
 Use this when you are unsure which surface to open.
 
-```mermaid
-flowchart TD
-    Start[What do you want to prove?]
-    Human[Understand the product-like experience]
-    Perf[Prove timing or throughput]
-    Fleet[Retain real-device evidence]
-    Cross[Understand the layered architecture]
-    RefApp[Open the reference app]
-    Proof[Use the proof app + benchmark tests]
-    Campaign[Run the physical scenario campaign]
-    Docs[Read this doc + the proof-surfaces doc]
-
-    Start --> Human --> RefApp
-    Start --> Perf --> Proof
-    Start --> Fleet --> Campaign
-    Start --> Cross --> Docs
-```
+| Your goal | Open or run | You should expect |
+|---|---|---|
+| Understand the product-like experience | Reference app | Guided exchange, live timeline, retained history, and exports |
+| Prove timing or throughput | Proof app + benchmark tests | Retained log lines with parsed latency or throughput thresholds |
+| Retain real-device evidence | Physical scenario campaign | Audited JSON / HTML artifacts from actual devices |
+| Understand the layered architecture | This doc + [About proof validation surfaces](about-proof-validation-surfaces.md) | A clear explanation of where each surface fits |
 
 ## FAQ
 
@@ -405,17 +394,30 @@ flowchart TD
 
 ## File map appendix
 
-This is the small map of the files most often involved in each layer.
+This is the fuller map of the files most often involved in each layer.
 
 | Layer | Main files |
 |---|---|
-| Reference app UI shell | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineStore.kt` |
-| Reference automation | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDriver.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationCoordinator.kt` |
-| Android proof app runtime | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt` |
+| Reference app UI shell | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsOverviewSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/advanced/AdvancedControlsInteractionSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineScreen.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineSections.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/timeline/TechnicalTimelineRetentionSection.kt` |
+| Reference app runtime seams | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/LiveReferenceMeshRuntime.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/LiveReferenceMeshControllerAssembly.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/meshlink/LiveReferenceMeshLinkController.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/navigation/SessionTransitionService.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/session/ExportPayloadPolicy.kt` |
+| Reference automation | `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDriver.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationCoordinator.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationActions.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationDirectSenderStepRunner.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationPassiveBaselineStepRunner.kt`, `meshlink-reference/src/commonMain/kotlin/ch/trancee/meshlink/reference/automation/LiveProofAutomationLaunchMarkers.kt` |
+| Android proof app runtime | `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MainActivity.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/MeshLinkProofRuntime.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/ProofLaunchConfig.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/ProofBenchmarkProtocol.kt`, `meshlink-proof/android/src/main/kotlin/ch/trancee/meshlink/proof/android/ProofBenchmarkTransport.kt` |
 | Android proof tests | `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/BenchmarkTestSupport.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/ColdStartBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/TransportPerformanceBenchmark.kt`, `meshlink-proof/android/src/androidTest/kotlin/ch/trancee/meshlink/proof/android/PowerProfileBenchmark.kt` |
-| iOS proof app runtime | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift` |
-| iOS benchmark modes and capture | `meshlink-proof/ios/ProofApp/ProofLaunchConfig.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift`, `meshlink-proof/ios/ProofApp/ProofTransportLogCapture.swift` |
-| Retained physical campaign | `meshlink-reference/scripts/run_reference_release_campaign.py`, `meshlink-reference/scripts/run_headless_reference_live_proof.py` |
+| iOS proof app runtime | `meshlink-proof/ios/ProofApp/ProofApp.swift`, `meshlink-proof/ios/ProofApp/ContentView.swift`, `meshlink-proof/ios/ProofApp/ProofViewModel.swift`, `meshlink-proof/ios/ProofApp/ProofGattBenchmarkClient.swift`, `meshlink-proof/ios/ProofApp/ProofGattNotifyBenchmarkServer.swift` |
+| iOS benchmark modes and capture | `meshlink-proof/ios/ProofApp/ProofLaunchConfig.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkModeController.swift`, `meshlink-proof/ios/ProofApp/ProofBenchmarkTransport.swift`, `meshlink-proof/ios/ProofApp/ProofTransportLogCapture.swift` |
+| Retained physical campaign | `meshlink-reference/scripts/run_reference_release_campaign.py`, `meshlink-reference/scripts/run_headless_reference_live_proof.py`, `meshlink-reference/fleet-test-history/index.html` |
+
+## Glossary
+
+| Term | Meaning |
+|---|---|
+| Reference app | The product-like Android and iOS experience used for guided evaluation and operator review. |
+| Proof app | The focused host used for transport validation, benchmark paths, and retained evidence. |
+| Technical timeline | The retained event stream that shows lifecycle, peer, diagnostic, message, and export evidence. |
+| Advanced controls | The runtime control surface for lifecycle, peer, trust, power, and send actions. |
+| Retained history | Session data kept after a live run ends so evidence can be revisited later. |
+| Benchmark test | An instrumented or scripted check that asserts latency, throughput, cold-start, or power thresholds. |
+| Physical scenario campaign | The higher-level retained run that executes scenarios on real devices and writes audited artifacts. |
 
 ## Related docs
 
