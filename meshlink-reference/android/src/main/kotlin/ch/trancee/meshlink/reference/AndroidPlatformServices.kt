@@ -63,16 +63,18 @@ internal fun createPlatformServices(context: Context): PlatformServices {
                 appId = "demo.meshlink.reference.automation",
                 storageSubdirectory = "default",
             ),
-        meshLinkController = createPublicMeshLinkController(
-            PublicMeshLinkControllerArgs(
-                appId = "demo.meshlink.reference",
-                authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
-                storageSubdirectory = "default",
-                bootstrap = createMeshLinkBootstrap(context),
-                currentTimeMillis = { System.currentTimeMillis() },
-            ),
-        ),
+        meshLinkControllerFactory = {
+            createPublicMeshLinkController(
+                PublicMeshLinkControllerArgs(
+                    appId = "demo.meshlink.reference",
+                    authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
+                    scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
+                    storageSubdirectory = "default",
+                    bootstrap = createMeshLinkBootstrap(context),
+                    currentTimeMillis = { System.currentTimeMillis() },
+                ),
+            )
+        },
     )
 }
 
@@ -85,18 +87,6 @@ internal fun createAutomationPlatformServices(
         "MeshLinkReferenceAutomation",
         "REFERENCE_AUTOMATION android.factory.begin live blocked=$blocked storageSubdirectory=$storageSubdirectory",
     )
-    val controller =
-        createPublicMeshLinkController(
-            PublicMeshLinkControllerArgs(
-                appId = "demo.meshlink.reference.automation",
-                authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
-                storageSubdirectory =
-                    normalizeAutomationStorageSubdirectory(storageSubdirectory, "default"),
-                bootstrap = createMeshLinkBootstrap(context),
-                currentTimeMillis = { System.currentTimeMillis() },
-            )
-        )
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.controller.ready live")
     return AndroidPlatformServices(
         context = context.applicationContext,
@@ -109,25 +99,24 @@ internal fun createAutomationPlatformServices(
                 appId = "demo.meshlink.reference.automation",
                 storageSubdirectory = normalizeAutomationStorageSubdirectory(storageSubdirectory, "default"),
             ),
-        meshLinkController = controller,
+        meshLinkControllerFactory = {
+            createPublicMeshLinkController(
+                PublicMeshLinkControllerArgs(
+                    appId = "demo.meshlink.reference.automation",
+                    authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
+                    scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
+                    storageSubdirectory = normalizeAutomationStorageSubdirectory(storageSubdirectory, "default"),
+                    bootstrap = createMeshLinkBootstrap(context),
+                    currentTimeMillis = { System.currentTimeMillis() },
+                )
+            )
+        },
     )
 }
 
 internal fun createLiveAutomationPlatformServices(
     args: LiveAutomationPlatformServicesArgs,
 ): PlatformServices {
-    val controller =
-        createPublicMeshLinkController(
-            PublicMeshLinkControllerArgs(
-                appId = args.appId,
-                authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                scenarioId = args.scenario,
-                storageSubdirectory =
-                    normalizeAutomationStorageSubdirectory(args.storageSubdirectory, "default"),
-                bootstrap = createMeshLinkBootstrap(args.context),
-                currentTimeMillis = { System.currentTimeMillis() },
-            )
-        )
     return AndroidPlatformServices(
         context = args.context.applicationContext,
         readinessGuidance = readinessGuidance(),
@@ -144,7 +133,19 @@ internal fun createLiveAutomationPlatformServices(
                 targetPeerId = args.targetPeerId,
                 scenario = args.scenario,
             ),
-        meshLinkController = controller,
+        meshLinkControllerFactory = {
+            createPublicMeshLinkController(
+                PublicMeshLinkControllerArgs(
+                    appId = args.appId,
+                    authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
+                    scenarioId = args.scenario,
+                    storageSubdirectory =
+                        normalizeAutomationStorageSubdirectory(args.storageSubdirectory, "default"),
+                    bootstrap = createMeshLinkBootstrap(args.context),
+                    currentTimeMillis = { System.currentTimeMillis() },
+                )
+            )
+        },
     )
 }
 
@@ -153,8 +154,9 @@ private class AndroidPlatformServices(
     override val readinessGuidance: List<String>,
     override val readinessBlockers: List<String> = emptyList(),
     override val automationConfig: ReferenceAutomationConfig?,
-    override val meshLinkController: ReferenceMeshLinkController,
+    meshLinkControllerFactory: () -> ReferenceMeshLinkController,
 ) : PlatformServices {
+    override val meshLinkController: ReferenceMeshLinkController by lazy(meshLinkControllerFactory)
     override val platformName: String = "Android"
     override val defaultAuthorityMode: String = REFERENCE_AUTHORITY_MODE_LIVE
     override val powerMitigationStatus: String? = null
