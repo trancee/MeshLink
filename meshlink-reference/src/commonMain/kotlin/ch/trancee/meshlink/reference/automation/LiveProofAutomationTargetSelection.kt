@@ -55,15 +55,34 @@ internal fun hasAvailableRouteForPeerAfterEntry(
     boundaryEntryId: String?,
 ): Boolean {
     var boundaryReached = boundaryEntryId == null
+    var peerDiscovered = false
     return snapshot.timeline.any { entry ->
         if (!boundaryReached) {
             boundaryReached = entry.entryId == boundaryEntryId
             return@any false
         }
-        entry.family == TimelineFamily.DIAGNOSTIC &&
-            entry.peerSuffix == redactedSuffix(peerId) &&
-            entry.detail.contains("peerId=$peerId") &&
-            entry.detail.contains("routeAvailable=true")
+        if (
+            entry.family == TimelineFamily.DIAGNOSTIC && entry.peerSuffix == redactedSuffix(peerId)
+        ) {
+            if (
+                entry.detail.contains("peerId=$peerId") &&
+                    entry.detail.contains("routeAvailable=false")
+            ) {
+                return@any false
+            }
+            if (
+                entry.detail.contains("peerId=$peerId") &&
+                    entry.detail.contains("routeAvailable=true")
+            ) {
+                return@any true
+            }
+            if (
+                entry.detail.contains("peerId=$peerId") && entry.detail.contains("peer.discovered")
+            ) {
+                peerDiscovered = true
+            }
+        }
+        peerDiscovered || snapshot.peers.any { it.peerId == peerId }
     }
 }
 

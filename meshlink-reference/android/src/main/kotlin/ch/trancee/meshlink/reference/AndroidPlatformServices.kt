@@ -139,6 +139,10 @@ internal fun createLiveAutomationPlatformServices(
                 appId = args.appId,
                 storageSubdirectory =
                     normalizeAutomationStorageSubdirectory(args.storageSubdirectory, "default"),
+                requiredPeerCount = args.requiredPeerCount,
+                targetPeerIndex = args.targetPeerIndex,
+                targetPeerId = args.targetPeerId,
+                scenario = args.scenario,
             ),
         meshLinkController = controller,
     )

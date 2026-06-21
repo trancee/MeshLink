@@ -235,6 +235,57 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(peer_id, "passive-peer-123456")
 
+    def test_transport_failure_reason_promotes_route_stage_failures(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION peer.discovered role=SENDER peer=c6a6f5\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "06-21 13:29:11.912  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC "
+                "title=diagnostic peer=none detail=DiagnosticEvent(code=HOP_SESSION_FAILED, "
+                "severity=WARN, stage=transport.handshake.message1.send, peerSuffix=5df06e, "
+                "reason=DELIVERY_FAILURE)\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.transport_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNotNone(reason)
+            self.assertIn("stalled at route stage", reason)
+            self.assertIn("passive=hop-failed", reason)
+
+    def test_wait_for_android_completions_fails_fast_on_route_failure(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            with patch.object(
+                android_direct_proof,
+                "collect_android_completions",
+                return_value=android_direct_proof.AndroidDirectCompletions(),
+            ), patch.object(
+                android_direct_proof,
+                "transport_failure_reason",
+                return_value="Android direct proof stalled at route stage sender=peer-discovered passive=hop-failed; senderEvidence=n/a passiveEvidence=n/a",
+            ), patch.object(android_direct_proof.time, "monotonic", return_value=0.0):
+                # Act / Assert
+                with self.assertRaises(SystemExit) as raised:
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir=run_dir,
+                        timeout_seconds=30.0,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
+                self.assertIn("route stage", str(raised.exception))
+
     def test_read_passive_peer_id_reads_target_peer_from_shared_prefs(self) -> None:
         # Arrange
         xml_text = (

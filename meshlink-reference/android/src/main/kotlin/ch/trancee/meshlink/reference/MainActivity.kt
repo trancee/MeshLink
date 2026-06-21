@@ -164,7 +164,7 @@ private fun MainActivity.readAutomationConfig(): AutomationConfig {
     val mode = if (automationEnabled) automationMode else null
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)}",
+        "REFERENCE_AUTOMATION readAutomationConfig enabled=$automationEnabled mode=$mode role=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_ROLE)} targetPeerId=${intent?.getStringExtra(MainActivity.EXTRA_UI_AUTOMATION_TARGET_PEER_ID)}",
     )
     return AutomationConfig(
         enabled = automationEnabled,

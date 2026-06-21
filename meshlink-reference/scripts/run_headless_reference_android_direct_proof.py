@@ -439,7 +439,9 @@ def passive_log_path(run_dir: Path) -> Path:
 
 def extract_discovered_peer_id(log_text: str) -> str | None:
     for line in log_text.splitlines():
-        if "REFERENCE_AUTOMATION peer.discovered role=PASSIVE" not in line:
+        if "REFERENCE_AUTOMATION peer.discovered" not in line:
+            continue
+        if "role=passive" not in line.lower():
             continue
         match = re.search(r"peer=([A-Za-z0-9._:-]+)", line)
         if match is not None:
@@ -850,10 +852,13 @@ def wait_for_android_completions(
             )
         if completions.sender_completion:
             return completions
+        transport_reason = transport_failure_reason(run_dir)
+        if transport_reason is not None:
+            raise SystemExit(transport_reason)
         if time.monotonic() >= no_peer_deadline:
-            transport_reason = transport_failure_reason(run_dir)
-            if transport_reason is not None:
-                raise SystemExit(transport_reason)
+            # Keep the explicit no-peer guard for runs that never emit route diagnostics,
+            # but fall through to the standard timeout message when no transport reason exists.
+            pass
         time.sleep(0.5)
 
     completions = collect_android_completions(run_dir)
@@ -1704,6 +1709,7 @@ def main(argv: list[str] | None = None) -> int:
                         discovery_wait_seconds,
                     )
                 )
+                print(f"==> Passive peer id resolved: {discovered_peer_id}")
             else:
                 discovered_peer_id = discovered_peer_id or args.target_peer_id
                 print(
@@ -1735,6 +1741,13 @@ def main(argv: list[str] | None = None) -> int:
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
             if sender_process is None:
+                sender_target_peer_id = wait_for_discovered_peer_id(
+                    passive_marker_path,
+                    discovery_wait_seconds,
+                )
+                if sender_target_peer_id is None:
+                    sender_target_peer_id = discovered_peer_id or args.target_peer_id
+                print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
                 sender_process = start_android_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
@@ -1743,7 +1756,7 @@ def main(argv: list[str] | None = None) -> int:
                     app_id=app_id,
                     storage_subdirectory=storage_subdirectory,
                     android_transport_logcat=args.android_transport_logcat,
-                    target_peer_id=discovered_peer_id,
+                    target_peer_id=sender_target_peer_id,
                     advertisement_carrier=(
                         "uuid-pair-plus-service-data"
                         if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
