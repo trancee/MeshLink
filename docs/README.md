@@ -135,6 +135,7 @@ guessing which page owns which model.
 
 - [About the repository architecture](explanation/about-the-repository-architecture.md) — why the repository is split between the SDK, the reference app, the proof apps, and the retained evidence surfaces.
 - [About proof validation surfaces](explanation/about-proof-validation-surfaces.md) — when to choose the reference app, the proof apps, or retained benchmarks.
+- [Reference app and test architecture](explanation/reference-app-and-test-architecture.md) — how the reference app, proof apps, and automated tests fit together.
 
 ### Integration and lifecycle
 

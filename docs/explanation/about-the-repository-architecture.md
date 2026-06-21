@@ -14,6 +14,15 @@ It is an explanation page. Use the other docs when the job is different:
   [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - reference-app evaluation flow —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- reference-app and test boundaries —
+  [Reference app and test architecture](reference-app-and-test-architecture.md)
+
+> Quick orientation:
+> - the reference app is the human-facing surface for evaluation and review
+> - the proof apps are the transport-validation surfaces kept separate from it
+> - the repository split keeps SDK, app, and evidence concerns independently testable
+
+## How the repository is organized
 - proof-surface chooser and validation-boundary explanation —
   [About proof validation surfaces](about-proof-validation-surfaces.md)
 
@@ -334,10 +343,10 @@ Keeping them separate preserves a clean boundary between:
 - evaluating the SDK as a coherent operator-facing experience
 - proving transport behavior on physical devices
 
-Inside those proof hosts, the code now follows the same architectural instinct.
-The Android proof activity stays a thin host surface while launch parsing,
+Inside those proof apps, the code now follows the same architectural instinct.
+The Android proof activity stays a thin app surface while launch parsing,
 permission rules, benchmark framing, and runtime ownership sit behind narrower
-helpers. The iPhone proof host still presents one view model to SwiftUI, but
+helpers. The iPhone proof app still presents one view model to SwiftUI, but
 benchmark-only mode switching, launch parsing, and transport-log capture no
 longer compete inside one undifferentiated file.
 

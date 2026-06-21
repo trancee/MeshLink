@@ -236,6 +236,9 @@ Use the reference app when you need:
 - a shared Android and iOS operator surface
 - timeline evidence that is easy to walk through with another engineer
 
+For the internal architecture of the app, proof apps, and test flow, see
+[Reference app and test architecture](../explanation/reference-app-and-test-architecture.md).
+
 Switch to the proof apps or the live-proof harness when you need:
 
 - retained transport-validation evidence

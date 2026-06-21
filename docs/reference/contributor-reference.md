@@ -131,11 +131,11 @@ need to find the right seam quickly.
 
 | Concern | Primary module | Notes |
 |---|---|---|
-| Android proof host surface | Android proof `MainActivity` | Owns the minimal host UI, permission request loop, and start or stop button wiring. |
+| Android proof app surface | Android proof `MainActivity` | Owns the minimal host UI, permission request loop, and start or stop button wiring. |
 | Android proof launch parsing | `ProofLaunchConfig` | Owns intent-extra decoding for mesh domain, power mode, benchmark payload size, and proof transport selection. |
 | Android proof runtime ownership | `MeshLinkProofRuntime` | Owns MeshLink lifecycle, peer and diagnostic collection, benchmark receipts, auto-send policy, and persisted proof logs. |
 | Android proof benchmark framing | `BenchmarkPayloadEnvelope` + `BenchmarkReceipt` | Own the retained MeshLink benchmark payload and receipt shape used by the Android proof harness. |
-| Android proof permission contract | `ProofPermissionContract` | Owns the Bluetooth permission list and permission-result interpretation for the proof host. |
+| Android proof permission contract | `ProofPermissionContract` | Owns the Bluetooth permission list and permission-result interpretation for the proof app. |
 | iOS proof launch parsing | `ProofLaunchConfig` | Owns environment-variable decoding for mesh domain, power mode, benchmark payload size, telemetry, and proof transport selection. |
 | iOS proof benchmark-only mode switching | `ProofBenchmarkModeController` | Owns the GATT prototype and GATT-notify prototype start or stop validation so the view model stays focused on host-facing state. |
 | iOS proof transport-log capture | `ProofTransportLogCapture` | Owns stdout capture for transport telemetry and forwards only MeshLink transport lines back into the proof log. |
