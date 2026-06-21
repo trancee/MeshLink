@@ -211,6 +211,13 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertIsNone(args.passive_benchmark_transport)
 
+    def test_launch_passive_transport_wait_seconds_uses_20_second_floor(self) -> None:
+        # Arrange / Act
+        wait_seconds = android_direct_proof.launch_passive_transport_wait_seconds(8.0, 45.0)
+
+        # Assert
+        self.assertEqual(wait_seconds, 20.0)
+
     def test_verify_permissions_for_low_api_proof_app_accepts_location_only(self) -> None:
         # Arrange
         package_dump = "android.permission.ACCESS_FINE_LOCATION: granted=true\n"

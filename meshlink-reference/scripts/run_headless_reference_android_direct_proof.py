@@ -836,6 +836,13 @@ def extract_power_state_snapshot(log_text: str) -> str | None:
     return None
 
 
+def launch_passive_transport_wait_seconds(
+    android_ready_seconds: float,
+    _capture_timeout_seconds: float,
+) -> float:
+    return max(android_ready_seconds, 20.0)
+
+
 def wait_for_android_completions(
     run_dir: Path,
     timeout_seconds: float,
@@ -1745,9 +1752,9 @@ def main(argv: list[str] | None = None) -> int:
                     print(
                         f"==> Android proof-app ready marker not observed after {args.android_ready_seconds} seconds; continuing with GATT transport wait"
                     )
-                passive_transport_timeout_seconds = max(
+                passive_transport_timeout_seconds = launch_passive_transport_wait_seconds(
                     args.android_ready_seconds,
-                    min(args.capture_timeout_seconds * 0.3, 20.0),
+                    args.capture_timeout_seconds,
                 )
                 startup_timing["launch"]["passiveTransportWaitSeconds"] = passive_transport_timeout_seconds
                 passive_transport_observation = wait_for_log_marker_observation(
