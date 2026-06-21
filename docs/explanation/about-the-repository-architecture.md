@@ -336,10 +336,10 @@ Keeping them separate preserves a clean boundary between:
 - evaluating the SDK as a coherent operator-facing experience
 - proving transport behavior on physical devices
 
-Inside those proof hosts, the code now follows the same architectural instinct.
-The Android proof activity stays a thin host surface while launch parsing,
+Inside those proof apps, the code now follows the same architectural instinct.
+The Android proof activity stays a thin app surface while launch parsing,
 permission rules, benchmark framing, and runtime ownership sit behind narrower
-helpers. The iPhone proof host still presents one view model to SwiftUI, but
+helpers. The iPhone proof app still presents one view model to SwiftUI, but
 benchmark-only mode switching, launch parsing, and transport-log capture no
 longer compete inside one undifferentiated file.
 

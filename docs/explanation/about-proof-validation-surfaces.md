@@ -56,7 +56,7 @@ Keeping those behaviors separate means a reviewer can still say:
 
 without those statements stepping on each other.
 
-## Why the proof hosts still look platform-specific
+## Why the proof apps still look platform-specific
 
 The proof apps are intentionally separate on Android and iPhone because the
 host-level concerns are genuinely different:

@@ -13,6 +13,24 @@ If you are new here, read in this order:
 3. The FAQ
 4. The file map appendix
 
+## Who should read which section
+
+| If you want to... | Read this section |
+|---|---|
+| get the 30-second model | The short version and At a glance |
+| choose the right surface | The choose-your-path matrix |
+| clear up wording or intent | The FAQ |
+| find the files behind a layer | The file map appendix |
+
+## README-style excerpt
+
+MeshLink uses three related surfaces:
+- the reference app for guided evaluation and operator review
+- the proof apps for transport validation and benchmark runs
+- the automation and tests for reproducible scripted execution
+
+If you only need the basics, start with the short version and then the choose-your-path matrix.
+
 ## At a glance
 
 | Surface | What it is for | What it proves |
@@ -402,7 +420,7 @@ Use this when you are unsure which surface to open.
 | Question | Short answer |
 |---|---|
 | Is the reference app a benchmark harness? | No. It is the product-like evaluation surface for guided exchange, runtime controls, timeline evidence, and retained history. |
-| Why are there separate Android and iOS proof hosts? | Because the launch and transport seams differ by platform, and each proof host exposes the most direct way to prove the same claim. |
+| Why are there separate Android and iOS proof apps? | Because the launch and transport seams differ by platform, and each proof app exposes the most direct way to prove the same claim. |
 | Why do the tests read logs instead of scraping UI text? | Because timing, throughput, and retained evidence are more stable in retained logs and campaign artifacts than in transient UI rendering. |
 | When should I use the physical scenario campaign? | Use it when you need auditable real-device evidence across a fleet, not just a local walkthrough or benchmark. |
 
