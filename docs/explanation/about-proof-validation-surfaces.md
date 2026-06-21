@@ -10,9 +10,9 @@ It is an explanation page. Use the other docs when the job is different:
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
 - the internal architecture of the reference app, proof apps, and automated tests —
   [Reference app and test architecture](reference-app-and-test-architecture.md)
-- Android proof-host setup and launch steps —
+- Android proof-app setup and launch steps —
   [How to run the Android proof app](../../meshlink-proof/android/README.md)
-- iPhone proof-host setup and launch steps —
+- iPhone proof-app setup and launch steps —
   [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - retained performance thresholds and latest evidence —
   [Benchmark and validation baselines](../../benchmarks/README.md)
@@ -66,8 +66,8 @@ host-level concerns are genuinely different:
 - iOS launch control is shaped around Xcode signing, environment variables,
   simulator or device destinations, and retained console capture
 
-That does not mean the hosts should become giant files.
-The current proof-host refactors keep the platform shell thin while pushing the
+That does not mean the apps should become giant files.
+The current proof-app refactors keep the platform shell thin while pushing the
 real moving parts behind narrower helpers such as launch-config parsing,
 permission policy, benchmark framing, runtime ownership, benchmark-mode
 switching, and transport-log capture.

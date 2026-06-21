@@ -24,12 +24,12 @@ If you are new here, read in this order:
 
 ## README-style excerpt
 
-MeshLink uses three related surfaces:
-- the reference app for guided evaluation and operator review
-- the proof apps for transport validation and benchmark runs
-- the automation and tests for reproducible scripted execution
-
-If you only need the basics, start with the short version and then the choose-your-path matrix.
+> MeshLink uses three related surfaces:
+> - the reference app for guided evaluation and operator review
+> - the proof apps for transport validation and benchmark runs
+> - the automation and tests for reproducible scripted execution
+>
+> If you only need the basics, start with the short version and then the choose-your-path matrix.
 
 ## At a glance
 
@@ -423,6 +423,12 @@ Use this when you are unsure which surface to open.
 | Why are there separate Android and iOS proof apps? | Because the launch and transport seams differ by platform, and each proof app exposes the most direct way to prove the same claim. |
 | Why do the tests read logs instead of scraping UI text? | Because timing, throughput, and retained evidence are more stable in retained logs and campaign artifacts than in transient UI rendering. |
 | When should I use the physical scenario campaign? | Use it when you need auditable real-device evidence across a fleet, not just a local walkthrough or benchmark. |
+
+## Common misconceptions
+
+- The reference app is not the benchmark harness; it is the product-like shell for guided evaluation and operator review.
+- The proof apps are not alternate product surfaces; they are focused hosts for transport validation and retained evidence.
+- Reading retained logs is not a shortcut around verification; it is how this repository keeps timing and throughput assertions stable.
 
 ## File map appendix
 
