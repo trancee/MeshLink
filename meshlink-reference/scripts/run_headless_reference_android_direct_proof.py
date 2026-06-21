@@ -802,11 +802,12 @@ def transport_failure_reason(run_dir: Path) -> str | None:
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     combined_log = sender_log + "\n" + passive_log
+    combined_log_lower = combined_log.lower()
     sender_route_stage, sender_route_evidence = extract_route_observation(sender_log)
     passive_route_stage, passive_route_evidence = extract_route_observation(passive_log)
     peer_discovered = (
-        "peer.discovered role=PASSIVE" in combined_log
-        or "peer.discovered role=SENDER" in combined_log
+        "peer.discovered role=passive" in combined_log_lower
+        or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
     if peer_discovered:

@@ -242,7 +242,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             run_dir.mkdir()
             (run_dir / "sender_logcat.log").write_text(
                 "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
-                "REFERENCE_AUTOMATION peer.discovered role=SENDER peer=c6a6f5\n",
+                "REFERENCE_AUTOMATION peer.discovered role=sender peer=c6a6f5\n",
                 encoding="utf-8",
             )
             (run_dir / "passive_logcat.log").write_text(
