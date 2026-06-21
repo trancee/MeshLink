@@ -8,6 +8,8 @@ It is an explanation page. Use the other docs when the job is different:
 
 - product-like evaluation through the shared Android and iOS experience —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- the internal architecture of the reference app, proof apps, and automated tests —
+  [Reference app and test architecture](reference-app-and-test-architecture.md)
 - Android proof-host setup and launch steps —
   [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - iPhone proof-host setup and launch steps —

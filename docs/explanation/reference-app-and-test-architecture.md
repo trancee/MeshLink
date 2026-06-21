@@ -19,6 +19,14 @@ MeshLink has three related surfaces:
    benchmarks, and retained physical campaigns that read the app’s own state
    and logs.
 
+If you only need the one-screen summary, use this table:
+
+| Surface | Primary goal | Typical evidence |
+|---|---|---|
+| Reference app | Explain the product-like experience | guided exchange, timeline, history, export |
+| Proof apps | Prove transport and runtime thresholds | retained logs, benchmark results, physical runs |
+| Automation/tests | Reproduce claims mechanically | scenario logs, parsed benchmark lines, retained JSON |
+
 The reference app is what a human uses to understand MeshLink. The proof apps
 and benchmark runners are what we use to prove timing, throughput, and retained
 physical behavior.
@@ -351,6 +359,18 @@ threshold?”**, use the **proof apps and benchmark tests**.
 
 If you are trying to answer **“can we retain auditable evidence from a real
 fleet?”**, use the **physical scenario campaign**.
+
+## A one-page cheat sheet
+
+Use this when deciding what to open first.
+
+| If you want to... | Open or run | Why |
+|---|---|---|
+| understand the product-like experience | Reference app | It shows guided evaluation, timeline, retained history, and exports |
+| inspect runtime state and operator controls | Advanced controls / Technical timeline | They expose the live state the operator would act on |
+| prove transport performance | Proof app + benchmark tests | They assert thresholds against retained logs |
+| retain real-device evidence | Physical scenario campaign | It writes audited JSON / HTML artifacts from actual devices |
+| understand how the layers fit | This doc + [About proof validation surfaces](about-proof-validation-surfaces.md) | These explain the architectural split and choice of surface |
 
 ## Related docs
 
