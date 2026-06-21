@@ -31,6 +31,17 @@ If you are new here, read in this order:
 >
 > Start with the short version, then the choose-your-path matrix.
 
+## Reusable quick orientation snippet
+
+Copy this pattern near the top of other docs when you want a brief navigation cue:
+
+> Quick orientation:
+> - the <surface A> shows <what it shows>
+> - the <surface B> shows <what it shows>
+> - the <surface C> shows <what it shows>
+>
+> If you need the full split and file map, open [Reference app and test architecture](reference-app-and-test-architecture.md).
+
 ## At a glance
 
 | Surface | What it is for | What it proves |
