@@ -1246,6 +1246,17 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
     return None
 
 
+def resolve_sender_target_peer_id(
+    passive_marker_path: Path,
+    discovery_wait_seconds: float,
+    discovered_peer_id: str | None,
+    target_peer_id: str | None,
+) -> str | None:
+    sender_target_peer_id = wait_for_discovered_peer_id(passive_marker_path, discovery_wait_seconds)
+    if sender_target_peer_id is None:
+        sender_target_peer_id = discovered_peer_id or target_peer_id
+    return sender_target_peer_id
+
 
 
 def launch_android_role_apps(
@@ -1770,12 +1781,17 @@ def main(argv: list[str] | None = None) -> int:
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
                     )
             if sender_process is None:
-                sender_target_peer_id = wait_for_discovered_peer_id(
+                sender_target_peer_id = resolve_sender_target_peer_id(
                     passive_marker_path,
                     discovery_wait_seconds,
+                    discovered_peer_id,
+                    args.target_peer_id,
                 )
                 if sender_target_peer_id is None:
-                    sender_target_peer_id = discovered_peer_id or args.target_peer_id
+                    raise SystemExit(
+                        "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before sender launch"
+                    )
+                discovered_peer_id = sender_target_peer_id
                 print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
                 sender_process = start_android_role_app(
                     run_dir=run_dir,
@@ -1795,7 +1811,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             if discovered_peer_id is None:
                 raise SystemExit(
-                    "Android peer-resolution gate failed: passive peer id was not resolved before the route phase"
+                    "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before the route phase"
                 )
             print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
             sender_startup_observation = wait_for_log_marker_observation(
