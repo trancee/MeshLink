@@ -647,6 +647,9 @@ class AndroidDirectProofTests(unittest.TestCase):
                     {None, "peer-discovered", "route-discovered", "hop-established"},
                 )
                 self.assertIsNotNone(summary["routeEvidence"])
+                self.assertEqual(summary["routeBoundary"]["stage"], summary["routeStage"])
+                self.assertEqual(summary["routeBoundary"]["senderStage"], summary["senderRouteStage"])
+                self.assertEqual(summary["routeBoundary"]["passiveStage"], summary["passiveRouteStage"])
                 self.assertEqual(summary["evidence"]["senderLogcat"], "sender_logcat.log")
                 self.assertEqual(summary["evidence"]["passiveLogcat"], "passive_logcat.log")
                 self.assertTrue((run_dir / "sender_logcat.log").exists())
@@ -883,6 +886,41 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertIn("route stage", reason)
             self.assertIn("sender=route-unavailable", reason)
             self.assertIn("passive=route-discovered", reason)
+
+    def test_failure_summary_exposes_route_boundary_fields(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "route-boundary"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=route-unavailable attempt=3 delayMs=5000\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC title=HOP_SESSION_FAILED peer=passive-peer detail=HOP_SESSION_FAILED @ transport.handshake.message1.send {peerId=passive-peer, topologyVersion=0, routeAvailable=false}\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            summary = android_direct_proof.failure_summary(
+                run_dir=run_dir,
+                sender_android_serial="sender-1",
+                passive_android_serial="passive-1",
+                app_id="demo.meshlink.reference.direct.test",
+                storage_subdirectory="route-boundary",
+                stage="capture",
+                error_message="Android direct proof stalled at route stage sender=route-unavailable passive=hop-failed",
+                completions=android_direct_proof.AndroidDirectCompletions(),
+                startup_timing={"sender": {}, "passive": {}, "launch": {}},
+                timings={"transportMode": "L2CAP"},
+            )
+
+            # Assert
+            self.assertEqual(summary["routeStage"], "route-unavailable")
+            self.assertEqual(summary["senderRouteStage"], "route-unavailable")
+            self.assertEqual(summary["passiveRouteStage"], "hop-failed")
+            self.assertEqual(summary["routeBoundary"]["stage"], "route-unavailable")
+            self.assertEqual(summary["routeBoundary"]["passiveEvidence"].startswith("I MeshLinkReferenceAutomation"), True)
 
     def test_main_rejects_duplicate_sender_and_passive_serials_and_records_failure_summary(self) -> None:
         # Arrange / Act
