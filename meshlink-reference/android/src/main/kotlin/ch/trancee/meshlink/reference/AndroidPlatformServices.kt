@@ -1,10 +1,7 @@
-@file:Suppress("LongParameterList", "LongMethod", "TooManyFunctions", "UnusedParameter")
-
 package ch.trancee.meshlink.reference
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
@@ -105,116 +102,80 @@ internal fun createAutomationPlatformServices(
 @Suppress("LongMethod")
 internal fun createLiveAutomationPlatformServices(
     args: LiveAutomationPlatformServicesArgs,
-): AndroidLiveAutomationState =
-    createLiveAutomationPlatformServices(
-        context = args.context,
-        storageSubdirectory = args.storageSubdirectory,
-        appId = args.appId,
-        role = args.role,
-        requiredPeerCount = args.requiredPeerCount,
-        targetPeerIndex = args.targetPeerIndex,
-        targetPeerId = args.targetPeerId,
-        scenario = args.scenario,
-    )
-
-internal fun createLiveAutomationPlatformServices(
-    context: Context,
-    storageSubdirectory: String,
-    appId: String,
-    role: String,
-    requiredPeerCount: Int = 1,
-    targetPeerIndex: Int = 0,
-    targetPeerId: String? = null,
-    scenario: String = "direct-guided",
-): AndroidLiveAutomationState {
+): AndroidPlatformServices {
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.begin role=${role} " +
-            "storageSubdirectory=${storageSubdirectory}",
+        "REFERENCE_AUTOMATION android.live.factory.begin role=${args.role} " +
+            "storageSubdirectory=${args.storageSubdirectory}",
     )
     val guidance = readinessGuidance()
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.guidance.ready role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.guidance.ready role=${args.role}",
     )
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.construct.begin role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.construct.begin role=${args.role}",
     )
-    val appContext = context.applicationContext
+    val appContext = args.context.applicationContext
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.appContext.ready role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.appContext.ready role=${args.role}",
     )
     val automationStorageSubdirectory =
-        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
+        normalizeAutomationStorageSubdirectory(args.storageSubdirectory, "default")
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.storage.ready role=${role} " +
-            "storageSubdirectory=${automationStorageSubdirectory}",
+        "REFERENCE_AUTOMATION android.live.factory.storage.ready role=${args.role} " +
+            "storageSubdirectory=$automationStorageSubdirectory",
     )
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.config.skipped role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.config.skipped role=${args.role}",
     )
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.before.bootstrap role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.before.bootstrap role=${args.role}",
     )
     val meshLinkBootstrap = createMeshLinkBootstrap(appContext)
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.bootstrap.after ctor role=bootstrap",
+        "REFERENCE_AUTOMATION android.live.factory.after.bootstrap role=${args.role}",
     )
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.after.bootstrap role=${role}",
-    )
-    val clock = { System.currentTimeMillis() }
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.before.platform role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.before.services role=${args.role}",
     )
     val services =
-        AndroidLiveAutomationState(
+        AndroidPlatformServices(
+            context = appContext,
             readinessGuidance = guidance,
-            readinessBlockersFactory = { readinessBlockers(appContext) },
+            readinessBlockersFactory = { emptyList() },
             meshLinkControllerFactory = {
                 createPublicMeshLinkController(
                     PublicMeshLinkControllerArgs(
-                        appId = appId,
+                        appId = args.appId,
                         authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                        scenarioId = scenario,
+                        scenarioId = args.scenario,
                         storageSubdirectory = automationStorageSubdirectory,
                         bootstrap = meshLinkBootstrap,
-                        currentTimeMillis = clock,
+                        currentTimeMillis = { System.currentTimeMillis() },
                     ),
-                )
-            },
-            automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) },
-            stopPowerMitigationAction = {
-                context.stopService(
-                    Intent()
-                        .setClassName(
-                            context.packageName,
-                            "ch.trancee.meshlink.reference.DirectProofPowerService",
-                        )
                 )
             },
         )
     Log.i(
         "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.end role=${role}",
+        "REFERENCE_AUTOMATION android.live.factory.end role=${args.role}",
     )
     return services
 }
 
-internal class AndroidLiveAutomationState(
+internal class AndroidPlatformServices(
+    private val context: Context,
     val readinessGuidance: List<String>,
-    private val readinessBlockersFactory: () -> List<String>,
+    private val readinessBlockersFactory: () -> List<String> = { emptyList() },
     private val meshLinkControllerFactory: () -> ReferenceMeshLinkController,
-    private val automationLogger: (String) -> Unit,
-    private val stopPowerMitigationAction: () -> Unit,
 ) {
     private var readinessBlockersMemo: List<String>? = null
     private var meshLinkControllerMemo: ReferenceMeshLinkController? = null
@@ -224,43 +185,19 @@ internal class AndroidLiveAutomationState(
 
     val meshLinkController: ReferenceMeshLinkController
         get() = meshLinkControllerMemo ?: meshLinkControllerFactory().also { meshLinkControllerMemo = it }
+    val platformName: String = "Android"
+    val defaultAuthorityMode: String = REFERENCE_AUTHORITY_MODE_LIVE
+    val powerMitigationStatus: String? = null
+    val documentStore: Any? = null
 
-    fun stopPowerMitigation(): Unit = stopPowerMitigationAction()
+    fun stopPowerMitigation(): Unit = Unit
 
     fun currentTimeMillis(): Long = System.currentTimeMillis()
 
-    fun emitAutomationLog(message: String): Unit = automationLogger(message)
-
-}
-
-internal class AndroidPlatformServices(
-    private val context: Context,
-    override val readinessGuidance: List<String>,
-    private val readinessBlockersFactory: () -> List<String> = { emptyList() },
-    private val meshLinkControllerFactory: () -> ReferenceMeshLinkController,
-) : PlatformServices {
-    private var readinessBlockersMemo: List<String>? = null
-    private var meshLinkControllerMemo: ReferenceMeshLinkController? = null
-
-    override val readinessBlockers: List<String>
-        get() = readinessBlockersMemo ?: readinessBlockersFactory().also { readinessBlockersMemo = it }
-
-    override val meshLinkController: ReferenceMeshLinkController
-        get() = meshLinkControllerMemo ?: meshLinkControllerFactory().also { meshLinkControllerMemo = it }
-    override val platformName: String = "Android"
-    override val defaultAuthorityMode: String = REFERENCE_AUTHORITY_MODE_LIVE
-    override val powerMitigationStatus: String? = null
-    override val documentStore: Any? = null
-
-    override fun stopPowerMitigation(): Unit = Unit
-
-    override fun currentTimeMillis(): Long = System.currentTimeMillis()
-
-    override fun emitAutomationLog(message: String): Unit {
+    fun emitAutomationLog(message: String): Unit {
         Log.i(AUTOMATION_LOG_TAG, message)
     }
 }
-
 
 private fun createMeshLinkBootstrap(context: Context): MeshLinkBootstrap {
     Log.i(

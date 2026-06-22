@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 /** Shared state holder for the advanced controls surface. */
 internal class AdvancedControlsViewModel(
-    private val platformServices: LiveProofPlatformServices,
+    private val platformServices: PlatformServices,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: AdvancedControlsStateStore =

@@ -33,14 +33,12 @@ internal fun MainActivity.emitDirectProofPowerState(
     stage: String,
     directProofEnabled: Boolean,
 ) {
-    if (platformServices == null) return
-    Log.i(
-        "MeshLinkReferenceAutomation",
+    val androidPlatformServices = platformServices as? AndroidPlatformServices ?: return
+    androidPlatformServices.emitAutomationLog(
         "REFERENCE_AUTOMATION power.state stage=$stage interactive=${isDeviceInteractive()} " +
             "powerSaveMode=${isPowerSaveMode()} directProof=$directProofEnabled",
     )
 }
-
 
 internal fun MainActivity.configureDiscoveryCarrier(
     advertisementCarrier: String,

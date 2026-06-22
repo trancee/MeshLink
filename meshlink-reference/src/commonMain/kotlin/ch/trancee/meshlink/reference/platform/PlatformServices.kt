@@ -6,16 +6,34 @@ import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 
 /** Shared platform bridge consumed by the app shell. */
-public interface PlatformServices : LiveProofPlatformServices
+public interface PlatformServices {
+    public val platformName: String
+    public val defaultAuthorityMode: String
+    public val readinessGuidance: List<String>
+    public val readinessBlockers: List<String>
+    public val powerMitigationStatus: String?
+    public val documentStore: Any?
+    public val meshLinkController: ReferenceMeshLinkController
+
+    public fun stopPowerMitigation(): Unit
+
+    public fun createSupportedMeshLinkController(
+        surfaceOfOrigin: String = "main-guided"
+    ): ReferenceMeshLinkController = meshLinkController
+
+    public fun currentTimeMillis(): Long
+
+    public fun emitAutomationLog(message: String): Unit
+}
 
 /** Mutable options bag used by the shared default platform-services bridge. */
 public class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
     public var meshLinkBootstrap: MeshLinkBootstrap? = null
+    public var documentStore: Any? = null
     public var readinessBlockers: List<String> = emptyList()
     public var powerMitigationStatus: String? = null
-    public var documentStore: Any? = null
     public var automationLogger: (String) -> Unit = {}
     public var meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? = null
     public var stopPowerMitigation: () -> Unit = {}
@@ -31,9 +49,9 @@ public class DefaultPlatformServices(
     private val nowProvider: () -> Long = options.nowProvider
     private val appId: String = options.appId
     private val meshLinkBootstrap: MeshLinkBootstrap? = options.meshLinkBootstrap
+    override val documentStore: Any? = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
     override val powerMitigationStatus: String? = options.powerMitigationStatus
-    override val documentStore: Any? = options.documentStore
     private val automationLogger: (String) -> Unit = options.automationLogger
     private val stopPowerMitigationAction: () -> Unit = options.stopPowerMitigation
     private val meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? =

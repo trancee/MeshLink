@@ -7,7 +7,7 @@ import ch.trancee.meshlink.reference.automation.LiveProofAutomationDriver
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
-import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
@@ -27,22 +27,21 @@ internal data class ReferenceNavHostDependencies(
 
 @Composable
 internal fun rememberReferenceNavHostDependencies(
-    platformServices: LiveProofPlatformServices,
+    platformServices: PlatformServices,
     automationConfig: ReferenceAutomationConfigView? = null,
 ): ReferenceNavHostDependencies {
+    val retainedDocumentStore =
+        remember(platformServices.platformName) {
+            (platformServices.documentStore as? ReferenceDocumentStore)
+                ?: InMemoryReferenceDocumentStore()
+        }
     val historyRepository =
         remember(platformServices.platformName) {
-            JsonSessionHistoryRepository(
-                (platformServices.documentStore as? ReferenceDocumentStore)
-                    ?: InMemoryReferenceDocumentStore()
-            )
+            JsonSessionHistoryRepository(retainedDocumentStore)
         }
     val artifactSerializer =
         remember(platformServices.platformName) {
-            JsonSessionArtifactSerializer(
-                (platformServices.documentStore as? ReferenceDocumentStore)
-                    ?: InMemoryReferenceDocumentStore()
-            )
+            JsonSessionArtifactSerializer(retainedDocumentStore)
         }
     val sessionController =
         remember(platformServices.platformName) {

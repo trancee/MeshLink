@@ -11,8 +11,11 @@ import android.util.Log
 import android.view.WindowManager
 import java.io.File
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import ch.trancee.meshlink.reference.app.ReferenceApp
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
@@ -37,7 +40,23 @@ public class MainActivity : ComponentActivity() {
             "MeshLinkReferenceAutomation",
             "REFERENCE_AUTOMATION platform.factory.begin directProof=$directProofEnabled mode=${automationConfig.mode} role=${automationConfig.role}",
         )
-        val platformServices = createPlatformServicesForAutomation(automationConfig)
+        val platformServices =
+            if (directProofEnabled) {
+                createLiveAutomationPlatformServices(
+                    LiveAutomationPlatformServicesArgs(
+                        context = applicationContext,
+                        storageSubdirectory = automationConfig.storageSubdirectory,
+                        appId = automationConfig.appId,
+                        role = automationConfig.role,
+                        requiredPeerCount = automationConfig.requiredPeerCount,
+                        targetPeerIndex = automationConfig.targetPeerIndex,
+                        targetPeerId = automationConfig.targetPeerId,
+                        scenario = automationConfig.scenario,
+                    ),
+                )
+            } else {
+                createPlatformServicesForAutomation(automationConfig)
+            }
         Log.i(
             "MeshLinkReferenceAutomation",
             "REFERENCE_AUTOMATION platform.factory.end directProof=$directProofEnabled",
@@ -55,7 +74,16 @@ public class MainActivity : ComponentActivity() {
                 "role=${automationConfig.role} directProofEnabled=$directProofEnabled\n",
             )
         }
-        bindReferenceContent(platformServices as AndroidLiveAutomationState, automationConfig)
+        if (directProofEnabled) {
+            setContent { }
+        } else {
+            setContent {
+                ReferenceApp(
+                    platformServices = platformServices as PlatformServices,
+                    automationConfig = automationConfig.toAndroidAutomationConfigView(),
+                )
+            }
+        }
     }
 
     override fun onResume() {

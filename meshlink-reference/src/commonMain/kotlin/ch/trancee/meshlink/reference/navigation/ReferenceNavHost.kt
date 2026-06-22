@@ -11,7 +11,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
-import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 /** Shared navigation shell for the reference app surfaces. */
 @Composable
 internal fun ReferenceNavHost(
-    platformServices: LiveProofPlatformServices,
+    platformServices: PlatformServices,
     automationConfig: ReferenceAutomationConfigView? = null,
 ) {
     var activeRoute: ReferenceSurface by remember { mutableStateOf(ReferenceSurface.MAIN_GUIDED) }

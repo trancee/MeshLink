@@ -2,6 +2,7 @@ package ch.trancee.meshlink.reference.platform
 
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
+import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import kotlinx.cinterop.ExperimentalForeignApi
 import okio.FileSystem
 import platform.Foundation.NSDocumentDirectory
@@ -24,7 +25,11 @@ internal fun createPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
-        options = DefaultPlatformServicesOptions().apply { this.nowProvider = nowProvider },
+        options =
+            DefaultPlatformServicesOptions().apply {
+                this.nowProvider = nowProvider
+                documentStore = OkioReferenceDocumentStore(documentsDirectory, fileSystem)
+            },
     )
 }
 
@@ -51,6 +56,7 @@ internal fun createAutomationPlatformServices(
                         emptyList()
                     }
                 nowProvider = clock
+                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
                 automationLogger = ::println
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
@@ -90,6 +96,7 @@ internal fun createLiveAutomationPlatformServices(
             DefaultPlatformServicesOptions().apply {
                 nowProvider = clock
                 this.appId = automationAppId
+                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
                 automationLogger = ::println
             },
     )

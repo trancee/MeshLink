@@ -2,7 +2,7 @@ package ch.trancee.meshlink.reference.guided
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
-import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 /** Shared state holder for the guided first-exchange surface. */
 internal class GuidedFirstExchangeViewModel(
-    private val platformServices: LiveProofPlatformServices,
+    private val platformServices: PlatformServices,
     private val automationMode: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {

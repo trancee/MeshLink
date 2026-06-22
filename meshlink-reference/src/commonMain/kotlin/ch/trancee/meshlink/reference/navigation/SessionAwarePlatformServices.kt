@@ -1,13 +1,13 @@
 package ch.trancee.meshlink.reference.navigation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
+import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
 
 internal class SessionAwarePlatformServices(
-    private val delegate: LiveProofPlatformServices,
+    private val delegate: PlatformServices,
     private val sessionController: ReferenceSessionController,
-) : LiveProofPlatformServices by delegate {
+) : PlatformServices by delegate {
     override val meshLinkController: ReferenceMeshLinkController
         get() = sessionController
 
