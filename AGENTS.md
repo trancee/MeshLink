@@ -5,6 +5,9 @@ After making repository changes, create a Conventional Commit before moving to
 another governed task, phase, or command unless an enabled auto-commit hook has
 already done it.
 
+When a decision is needed, do not choose on your own. Present the available
+options clearly and concisely, then wait for the user to decide.
+
 # Android Automation
 
 Use the local command layer first:
