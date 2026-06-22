@@ -1262,6 +1262,32 @@ def resolve_sender_target_peer_id(
     return sender_target_peer_id
 
 
+def launch_android_sender_role_app(
+    *,
+    run_dir: Path,
+    android_serial: str,
+    app_id: str,
+    storage_subdirectory: str,
+    android_transport_logcat: bool,
+    target_peer_id: str,
+    sender_advertisement_carrier: str,
+) -> BackgroundProcess:
+    return start_android_role_app(
+        run_dir=run_dir,
+        android_serial=android_serial,
+        label="sender",
+        role="sender",
+        app_id=app_id,
+        storage_subdirectory=storage_subdirectory,
+        android_transport_logcat=android_transport_logcat,
+        target_peer_id=target_peer_id,
+        advertisement_carrier=sender_advertisement_carrier,
+        benchmark_transport=None,
+        android_activity=ANDROID_ACTIVITY,
+        android_package=ANDROID_PACKAGE,
+    )
+
+
 
 def launch_android_role_apps(
     *,
@@ -1691,24 +1717,21 @@ def main(argv: list[str] | None = None) -> int:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
             passive_transport_is_meshlink = True
-            passive_process, sender_process = launch_android_role_apps(
+            passive_process = start_android_role_app(
                 run_dir=run_dir,
-                sender_android_serial=args.sender_android_serial,
-                passive_android_serial=args.passive_android_serial,
+                android_serial=args.passive_android_serial,
+                label="passive",
+                role="passive",
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                target_peer_id=discovered_peer_id,
-                passive_advertisement_carrier=args.advertisement_carrier,
-                passive_benchmark_transport=args.passive_benchmark_transport,
-                sender_advertisement_carrier=(
-                    "uuid-pair-plus-service-data"
-                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                    else args.advertisement_carrier
-                ),
+                target_peer_id=None,
+                advertisement_carrier=args.advertisement_carrier,
+                benchmark_transport=args.passive_benchmark_transport,
+                android_activity=ANDROID_ACTIVITY,
+                android_package=ANDROID_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
-            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
             sender_marker_path = sender_log_path(run_dir)
             if passive_transport_is_meshlink:
@@ -1813,16 +1836,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 discovered_peer_id = sender_target_peer_id
                 print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
-                sender_process = start_android_role_app(
+                sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
-                    label="sender",
-                    role="sender",
                     app_id=app_id,
                     storage_subdirectory=storage_subdirectory,
                     android_transport_logcat=args.android_transport_logcat,
                     target_peer_id=sender_target_peer_id,
-                    advertisement_carrier=(
+                    sender_advertisement_carrier=(
                         "uuid-pair-plus-service-data"
                         if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
                         else args.advertisement_carrier

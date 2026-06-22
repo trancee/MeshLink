@@ -370,6 +370,33 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertEqual(peer_id, "fallback-peer-456")
         wait_mock.assert_called_once_with(Path("/tmp/passive-logcat.log"), 20.0)
 
+    def test_launch_android_sender_role_app_uses_resolved_seed(self) -> None:
+        # Arrange
+        calls: list[dict[str, object]] = []
+
+        def fake_start_android_role_app(**kwargs: object) -> str:
+            calls.append(kwargs)
+            return "sender-process"
+
+        with patch.object(android_direct_proof, "start_android_role_app", side_effect=fake_start_android_role_app):
+            # Act
+            process = android_direct_proof.launch_android_sender_role_app(
+                run_dir=Path("/tmp/direct-proof-test"),
+                android_serial="sender-1",
+                app_id="demo.meshlink.reference.android-direct.test",
+                storage_subdirectory="direct-proof-test",
+                android_transport_logcat=False,
+                target_peer_id="seed-peer-123",
+                sender_advertisement_carrier="uuid-pair-plus-service-data",
+            )
+
+        # Assert
+        self.assertEqual(process, "sender-process")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["role"], "sender")
+        self.assertEqual(calls[0]["target_peer_id"], "seed-peer-123")
+        self.assertEqual(calls[0]["advertisement_carrier"], "uuid-pair-plus-service-data")
+
     def test_android_proof_install_timeout_differs_for_wireless_and_usb_serials(self) -> None:
         # Arrange / Act / Assert
         self.assertEqual(
