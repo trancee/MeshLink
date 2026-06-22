@@ -24,17 +24,18 @@ internal fun autoSendTargetPeer(
     targetPeerIndex: Int,
     targetPeerId: String? = null,
 ): AutoSendTargetPeer? {
-    if (targetPeerId != null) {
-        return AutoSendTargetPeer(peerId = targetPeerId, peerSuffix = redactedSuffix(targetPeerId))
-    }
     val selectedPeer =
-        snapshot.peers
-            .takeIf { peers ->
-                targetPeerIndex >= 0 &&
-                    peers.size >= requiredPeerCount &&
-                    targetPeerIndex < peers.size
-            }
-            ?.get(targetPeerIndex) ?: return null
+        if (targetPeerId != null) {
+            snapshot.peers.firstOrNull { it.peerId == targetPeerId } ?: return null
+        } else {
+            snapshot.peers
+                .takeIf { peers ->
+                    targetPeerIndex >= 0 &&
+                        peers.size >= requiredPeerCount &&
+                        targetPeerIndex < peers.size
+                }
+                ?.get(targetPeerIndex) ?: return null
+        }
     if (!hasAvailableRouteForPeer(snapshot, selectedPeer.peerId)) {
         return null
     }

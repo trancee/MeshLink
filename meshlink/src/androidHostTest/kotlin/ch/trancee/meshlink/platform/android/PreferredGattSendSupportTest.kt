@@ -114,6 +114,38 @@ class PreferredGattSendSupportTest {
     }
 
     @Test
+    fun sendViaPreferredGattSideLinkOrNullWaitsForClientReadiness(): Unit = runBlocking {
+        // Arrange
+        val fixture = PreferredGattSendFixture()
+        val frame =
+            OutboundFrame(
+                peerId = fixture.context.hintPeerId,
+                payload = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01)).encode(),
+            )
+        val client =
+            object : PreferredGattSendClient {
+                private var readyChecks = 0
+
+                override fun isReady(): Boolean {
+                    readyChecks += 1
+                    return readyChecks >= 24
+                }
+
+                override suspend fun write(payload: ByteArray): Boolean {
+                    return payload.isNotEmpty()
+                }
+            }
+
+        // Act
+        val result = fixture.run(frame = frame, client = client)
+
+        // Assert
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
+        assertEquals(0, fixture.restartReasons.size)
+    }
+
+    @Test
     fun sendViaPreferredGattSideLinkOrNullFallsBackWhenTheSideLinkIsUnavailable(): Unit =
         runBlocking {
             // Arrange
@@ -226,10 +258,7 @@ private class PreferredGattSendFixture(
     var ensureSideLinkCalls: Int = 0
     val restartReasons: MutableList<String> = mutableListOf()
 
-    suspend fun run(
-        frame: OutboundFrame,
-        client: FakePreferredGattSendClient?,
-    ): TransportSendResult? {
+    suspend fun run(frame: OutboundFrame, client: PreferredGattSendClient?): TransportSendResult? {
         return sendViaPreferredGattSideLinkOrNull(
             frame = frame,
             context = context,
