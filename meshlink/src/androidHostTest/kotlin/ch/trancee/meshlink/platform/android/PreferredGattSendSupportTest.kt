@@ -128,7 +128,7 @@ class PreferredGattSendSupportTest {
 
                 override fun isReady(): Boolean {
                     readyChecks += 1
-                    return readyChecks >= 24
+                    return readyChecks >= 4
                 }
 
                 override suspend fun write(payload: ByteArray): Boolean {
