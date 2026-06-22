@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Pair 06 (nam_lx9_a065) is a failed initial run over NAM-LX9 → A065. The sender started GATT transport, the passive side started L2CAP transport, and the pair stalled at capture before route establishment.
+Pair 06 (nam_lx9_a065) is a failed initial run over NAM-LX9 → A065. The sender started GATT transport, the passive side started L2CAP transport, and the pair stalled at capture with a passive-side handshake-send failure rather than a clean route handoff.
 
 ## Setup
 
@@ -24,8 +24,8 @@ Pair 06 (nam_lx9_a065) is a failed initial run over NAM-LX9 → A065. The sender
 
 - Initial status: failed (capture) in 64.0s
 - Final status: failed (capture) in 11.6s
-- Initial failure reason: Android direct proof stalled at route stage sender=route-unavailable passive=peer-discovered; senderEvidence=06-20 22:26:11.183 20935 20998 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=route-unavailable attempt=10 delayMs=5000 passiveEvidence=06-20 22:25:26.459 13304 13338 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=eb4b61
-- Final failure reason: Android direct proof stalled at route stage sender=route-unavailable passive=peer-discovered; senderEvidence=06-20 22:26:30.237 21103 21144 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=route-unavailable attempt=3 delayMs=5000 passiveEvidence=06-20 22:26:20.527 13617 13650 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=eb4b61
+- Initial failure reason: Android direct proof stalled at route stage sender=peer-discovered passive=handshake-message1-send; senderEvidence=06-22 08:51:36.519  1460  1534 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=sender peer=d59b41 passiveEvidence=06-22 08:51:34.529 26190 26256 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC title=diagnostic peer=none detail=DiagnosticEvent(code=HOP_SESSION_FAILED, severity=WARN, stage=transport.handshake.message1.send, peerSuffix=370ccc, reason=DELIVERY_FAILURE)
+- Final failure reason: Android direct proof stalled at route stage sender=peer-discovered passive=handshake-message1-send; senderEvidence=06-22 08:51:36.519  1460  1534 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=sender peer=d59b41 passiveEvidence=06-22 08:51:34.529 26190 26256 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION passive.observed role=passive family=DIAGNOSTIC title=diagnostic peer=none detail=DiagnosticEvent(code=HOP_SESSION_FAILED, severity=WARN, stage=transport.handshake.message1.send, peerSuffix=370ccc, reason=DELIVERY_FAILURE)
 - Route stage: route-unavailable
 - Route evidence: 06-20 22:26:30.237 21103 21144 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION sender.wait.retry role=sender reason=route-unavailable attempt=3 delayMs=5000
 
