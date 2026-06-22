@@ -340,6 +340,36 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertEqual(peer_id, "passive-peer-123456")
         read_mock.assert_called_once_with("passive-1", "../shared_prefs/meshlink-app-123.xml")
 
+    def test_resolve_sender_target_peer_id_uses_passive_discovery_marker_before_fallbacks(self) -> None:
+        # Arrange
+        with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value="marker-peer-123") as wait_mock:
+            # Act
+            peer_id = android_direct_proof.resolve_sender_target_peer_id(
+                Path("/tmp/passive-logcat.log"),
+                20.0,
+                discovered_peer_id="fallback-peer-456",
+                target_peer_id="target-peer-789",
+            )
+
+        # Assert
+        self.assertEqual(peer_id, "marker-peer-123")
+        wait_mock.assert_called_once_with(Path("/tmp/passive-logcat.log"), 20.0)
+
+    def test_resolve_sender_target_peer_id_falls_back_to_discovered_peer_id(self) -> None:
+        # Arrange
+        with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value=None) as wait_mock:
+            # Act
+            peer_id = android_direct_proof.resolve_sender_target_peer_id(
+                Path("/tmp/passive-logcat.log"),
+                20.0,
+                discovered_peer_id="fallback-peer-456",
+                target_peer_id="target-peer-789",
+            )
+
+        # Assert
+        self.assertEqual(peer_id, "fallback-peer-456")
+        wait_mock.assert_called_once_with(Path("/tmp/passive-logcat.log"), 20.0)
+
     def test_android_proof_install_timeout_differs_for_wireless_and_usb_serials(self) -> None:
         # Arrange / Act / Assert
         self.assertEqual(
