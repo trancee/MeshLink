@@ -13,6 +13,7 @@ import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
@@ -20,10 +21,15 @@ import ch.trancee.meshlink.reference.platform.createPlatformServices
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val REFERENCE_SHELL_MOUNT_DELAY_MILLIS: Long = 250L
+
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
     private var activePlatformServices: AndroidPlatformServices? = null
+    private var activeAutomationConfig: AutomationConfig? = null
     private var directProofEnabled: Boolean = false
+    private var referenceShellMountRequested: Boolean = false
+    private var referenceShellMounted: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
@@ -61,6 +67,7 @@ public class MainActivity : ComponentActivity() {
             "REFERENCE_AUTOMATION platform.factory.end directProof=$directProofEnabled",
         )
         activePlatformServices = platformServices
+        activeAutomationConfig = automationConfig
         if (directProofEnabled) {
             emitStartupMarker(automationConfig)
             emitDirectProofPowerState(platformServices, "onCreate", directProofEnabled)
@@ -89,6 +96,15 @@ public class MainActivity : ComponentActivity() {
                     automationConfig = automationConfig.toAndroidAutomationConfigView(),
                 )
             }
+        }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        if (directProofEnabled) {
+            logActivityStage("onPostResume", directProofEnabled)
+            emitDirectProofPowerState(activePlatformServices, "onPostResume", directProofEnabled)
+            scheduleReferenceShellMount()
         }
     }
 
@@ -127,6 +143,35 @@ public class MainActivity : ComponentActivity() {
         releaseScreenOn()
         stopDirectProofPowerService()
         super.onDestroy()
+    }
+
+    private fun scheduleReferenceShellMount() {
+        val platformServices = activePlatformServices
+        val automationConfig = activeAutomationConfig
+        if (platformServices == null || automationConfig == null) return
+        if (referenceShellMountRequested || referenceShellMounted) return
+        referenceShellMountRequested = true
+        lifecycleScope.launch {
+            delay(REFERENCE_SHELL_MOUNT_DELAY_MILLIS)
+            if (!referenceShellMounted) {
+                setContent {
+                    ReferenceApp(
+                        platformName = platformServices.platformName,
+                        readinessGuidance = platformServices.readinessGuidance,
+                        readinessBlockers = platformServices.readinessBlockers,
+                        powerMitigationStatus = platformServices.powerMitigationStatus,
+                        documentStore = platformServices.documentStore,
+                        meshLinkController = platformServices.meshLinkController,
+                        stopPowerMitigation = { platformServices.stopPowerMitigation() },
+                        currentTimeMillis = { platformServices.currentTimeMillis() },
+                        emitAutomationLog = { message -> platformServices.emitAutomationLog(message) },
+                        createSupportedMeshLinkController = { _ -> platformServices.meshLinkController },
+                        automationConfig = automationConfig.toAndroidAutomationConfigView(),
+                    )
+                }
+                referenceShellMounted = true
+            }
+        }
     }
 
 

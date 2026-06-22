@@ -12,8 +12,10 @@ import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.config.MeshLinkConfigBuilder
+import kotlin.time.Duration.Companion.seconds
+import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.PowerMode
+import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_LIVE_PROOF
 import ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_SCRIPTED_UI
@@ -242,12 +244,12 @@ private fun createPublicMeshLinkController(
     val meshLinkRuntime: MeshLink =
         meshLink(
             config =
-                MeshLinkConfigBuilder()
-                    .apply {
-                        appId = args.appId
-                        powerMode = PowerMode.Automatic
-                    }
-                    .build(),
+                MeshLinkConfig(
+                    appId = args.appId,
+                    regulatoryRegion = RegulatoryRegion.DEFAULT,
+                    powerMode = PowerMode.Automatic,
+                    deliveryRetryDeadline = 15.seconds,
+                ),
             bootstrap = args.bootstrap,
         )
     return PublicMeshLinkController(
