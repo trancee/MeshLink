@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.navigation
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
@@ -18,7 +18,7 @@ import ch.trancee.meshlink.reference.timeline.normalizeExportPolicy
 internal class SessionTransitionService(
     private val timelineStore: TechnicalTimelineStore,
     private val sessionController: ReferenceSessionController,
-    private val platformServices: PlatformServices,
+    private val platformServices: LiveProofPlatformServices,
     private val currentTimeMillis: () -> Long,
 ) {
     fun canExecuteBoundary(request: SessionBoundaryRequest): Boolean {

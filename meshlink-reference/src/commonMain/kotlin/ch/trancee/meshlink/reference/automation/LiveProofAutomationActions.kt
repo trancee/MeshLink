@@ -2,7 +2,7 @@ package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.navigation.SessionTransitionService
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import kotlinx.coroutines.launch
@@ -33,7 +33,7 @@ internal interface LiveProofAutomationActions {
 }
 
 internal class TimelineStoreLiveProofAutomationActions(
-    private val platformServices: PlatformServices,
+    private val platformServices: LiveProofPlatformServices,
     private val timelineStore: TechnicalTimelineStore,
     private val sessionTransitionService: SessionTransitionService,
 ) : LiveProofAutomationActions {

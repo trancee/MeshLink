@@ -6,25 +6,7 @@ import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 
 /** Shared platform bridge consumed by the app shell. */
-public interface PlatformServices {
-    public val platformName: String
-    public val defaultAuthorityMode: String
-    public val readinessGuidance: List<String>
-    public val readinessBlockers: List<String>
-    public val powerMitigationStatus: String?
-    public val documentStore: Any?
-    public val meshLinkController: ReferenceMeshLinkController
-
-    public fun stopPowerMitigation(): Unit
-
-    public fun createSupportedMeshLinkController(
-        surfaceOfOrigin: String = "main-guided"
-    ): ReferenceMeshLinkController = meshLinkController
-
-    public fun currentTimeMillis(): Long
-
-    public fun emitAutomationLog(message: String): Unit
-}
+public interface PlatformServices : LiveProofPlatformServices
 
 /** Mutable options bag used by the shared default platform-services bridge. */
 public class DefaultPlatformServicesOptions {

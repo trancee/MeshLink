@@ -9,12 +9,12 @@ import androidx.compose.ui.Modifier
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.design.ReferenceTheme
 import ch.trancee.meshlink.reference.navigation.ReferenceNavHost
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
 
 /** Root composable for the MeshLink reference app. */
 @Composable
 public fun ReferenceApp(
-    platformServices: PlatformServices,
+    platformServices: LiveProofPlatformServices,
     automationConfig: ReferenceAutomationConfigView? = null,
 ) {
     ReferenceTheme {

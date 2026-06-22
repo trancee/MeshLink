@@ -12,7 +12,7 @@ import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
  * and replacement live elsewhere.
  */
 internal class TechnicalTimelineStore(
-    private val platformServices: PlatformServices,
+    private val platformServices: LiveProofPlatformServices,
     private val historyRepository: JsonSessionHistoryRepository,
     private val artifactSerializer: JsonSessionArtifactSerializer,
     internal val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),

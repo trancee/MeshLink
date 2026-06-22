@@ -7,7 +7,7 @@ import ch.trancee.meshlink.reference.automation.LiveProofAutomationDriver
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.platform.LiveProofPlatformServices
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
@@ -27,7 +27,7 @@ internal data class ReferenceNavHostDependencies(
 
 @Composable
 internal fun rememberReferenceNavHostDependencies(
-    platformServices: PlatformServices,
+    platformServices: LiveProofPlatformServices,
     automationConfig: ReferenceAutomationConfigView? = null,
 ): ReferenceNavHostDependencies {
     val historyRepository =
