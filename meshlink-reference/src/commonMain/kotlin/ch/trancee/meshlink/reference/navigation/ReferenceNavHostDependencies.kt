@@ -8,8 +8,10 @@ import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.ReferenceSessionController
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 
@@ -30,11 +32,17 @@ internal fun rememberReferenceNavHostDependencies(
 ): ReferenceNavHostDependencies {
     val historyRepository =
         remember(platformServices.platformName) {
-            JsonSessionHistoryRepository(platformServices.documentStore)
+            JsonSessionHistoryRepository(
+                (platformServices.documentStore as? ReferenceDocumentStore)
+                    ?: InMemoryReferenceDocumentStore()
+            )
         }
     val artifactSerializer =
         remember(platformServices.platformName) {
-            JsonSessionArtifactSerializer(platformServices.documentStore)
+            JsonSessionArtifactSerializer(
+                (platformServices.documentStore as? ReferenceDocumentStore)
+                    ?: InMemoryReferenceDocumentStore()
+            )
         }
     val sessionController =
         remember(platformServices.platformName) {

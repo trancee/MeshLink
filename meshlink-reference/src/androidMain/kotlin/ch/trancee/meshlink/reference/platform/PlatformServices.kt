@@ -8,8 +8,6 @@ import android.util.Log
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
-import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
-import okio.FileSystem
 
 public fun createPlatformServices(context: Context): PlatformServices {
     return DefaultPlatformServices(
@@ -21,8 +19,6 @@ public fun createPlatformServices(context: Context): PlatformServices {
                 readinessBlockers = readinessBlockers(context)
                 nowProvider = { System.currentTimeMillis() }
                 meshLinkBootstrap = meshLinkBootstrap(context)
-                documentStore =
-                    OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM)
             },
     )
 }
@@ -53,7 +49,6 @@ public fun createAutomationPlatformServices(
                         emptyList()
                     }
                 nowProvider = clock
-                documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
@@ -93,7 +88,6 @@ public fun createLiveAutomationPlatformServices(
                 nowProvider = clock
                 this.appId = automationAppId
                 meshLinkBootstrap = meshLinkBootstrap(context)
-                documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 powerMitigationStatus =
                     "Foreground wake lock active for live-proof automation sessions."
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }

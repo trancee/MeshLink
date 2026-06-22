@@ -3,7 +3,6 @@ package ch.trancee.meshlink.reference
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.content.ContextCompat
-import ch.trancee.meshlink.reference.platform.PlatformServices
 
 internal fun MainActivity.startDirectProofPowerService() {
     ContextCompat.startForegroundService(this, DirectProofPowerService.start(this))
@@ -30,16 +29,18 @@ internal fun MainActivity.logActivityStage(stage: String, directProofEnabled: Bo
 }
 
 internal fun MainActivity.emitDirectProofPowerState(
-    platformServices: PlatformServices?,
+    platformServices: Any?,
     stage: String,
     directProofEnabled: Boolean,
 ) {
     if (platformServices == null) return
-    platformServices.emitAutomationLog(
+    Log.i(
+        "MeshLinkReferenceAutomation",
         "REFERENCE_AUTOMATION power.state stage=$stage interactive=${isDeviceInteractive()} " +
             "powerSaveMode=${isPowerSaveMode()} directProof=$directProofEnabled",
     )
 }
+
 
 internal fun MainActivity.configureDiscoveryCarrier(
     advertisementCarrier: String,
@@ -53,7 +54,7 @@ internal fun MainActivity.configureDiscoveryCarrier(
 
 internal fun MainActivity.createPlatformServicesForAutomation(
     automationConfig: AutomationConfig,
-): PlatformServices {
+): Any {
     return when {
         automationConfig.enabled && automationConfig.mode == MainActivity.AUTOMATION_MODE_LIVE_PROOF ->
             createLiveAutomationPlatformServices(

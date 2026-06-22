@@ -11,11 +11,8 @@ import android.util.Log
 import android.view.WindowManager
 import java.io.File
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import ch.trancee.meshlink.reference.app.ReferenceApp
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
@@ -23,7 +20,7 @@ import kotlinx.coroutines.launch
 
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
-    private var activePlatformServices: PlatformServices? = null
+    private var activePlatformServices: Any? = null
     private var directProofEnabled: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
@@ -58,12 +55,7 @@ public class MainActivity : ComponentActivity() {
                 "role=${automationConfig.role} directProofEnabled=$directProofEnabled\n",
             )
         }
-        setContent {
-            ReferenceApp(
-                platformServices = platformServices,
-                automationConfig = automationConfig.toAndroidAutomationConfigView(),
-            )
-        }
+        bindReferenceContent(platformServices as AndroidLiveAutomationState, automationConfig)
     }
 
     override fun onResume() {
