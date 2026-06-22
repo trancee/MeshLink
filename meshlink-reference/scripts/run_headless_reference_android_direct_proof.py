@@ -156,7 +156,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=min(DEFAULT_ANDROID_READY_SECONDS, 10.0),
+        default=60.0,
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
             "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
@@ -168,7 +168,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--capture-timeout-seconds",
         type=float,
-        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 45.0),
+        default=180.0,
         help="Hard timeout for both Android roles to reach proof completion",
     )
     parser.add_argument(
