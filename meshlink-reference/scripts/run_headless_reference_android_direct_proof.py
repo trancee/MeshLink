@@ -156,7 +156,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=60.0,
+        default=90.0,
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
             "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
