@@ -486,7 +486,10 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         if "peer.discovered role=" in line or "GATT notify benchmark discovered service" in line:
             stage = "peer-discovered"
             evidence = normalized
-        if "HOP_SESSION_FAILED" in line:
+        if "transport.handshake.message1.send" in line:
+            stage = "handshake-message1-send"
+            evidence = normalized
+        elif "HOP_SESSION_FAILED" in line:
             stage = "hop-failed"
             evidence = normalized
         elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
@@ -814,7 +817,7 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {"hop-failed", "route-unavailable"}
+    route_failure_stages = {"handshake-message1-send", "hop-failed", "route-unavailable"}
     if peer_discovered:
         if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
             return (

@@ -242,7 +242,7 @@ class AndroidDirectProofTests(unittest.TestCase):
         # Assert
         self.assertEqual(peer_id, "passive-peer-123456")
 
-    def test_transport_failure_reason_promotes_route_stage_failures(self) -> None:
+    def test_transport_failure_reason_promotes_handshake_message1_send_failures(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory) / "android-direct-proof"
@@ -267,7 +267,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             # Assert
             self.assertIsNotNone(reason)
             self.assertIn("stalled at route stage", reason)
-            self.assertIn("passive=hop-failed", reason)
+            self.assertIn("passive=handshake-message1-send", reason)
 
     def test_transport_failure_reason_ignores_route_discovered_success(self) -> None:
         # Arrange
@@ -945,7 +945,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             # Assert
             self.assertEqual(summary["routeStage"], "route-unavailable")
             self.assertEqual(summary["senderRouteStage"], "route-unavailable")
-            self.assertEqual(summary["passiveRouteStage"], "hop-failed")
+            self.assertEqual(summary["passiveRouteStage"], "handshake-message1-send")
             self.assertEqual(summary["routeBoundary"]["stage"], "route-unavailable")
             self.assertEqual(summary["routeBoundary"]["passiveEvidence"].startswith("I MeshLinkReferenceAutomation"), True)
 
