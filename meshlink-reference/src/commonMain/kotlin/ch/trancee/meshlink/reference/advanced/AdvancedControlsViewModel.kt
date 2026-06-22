@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.advanced
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,22 +11,21 @@ import kotlinx.coroutines.launch
 
 /** Shared state holder for the advanced controls surface. */
 internal class AdvancedControlsViewModel(
-    private val platformServices: PlatformServices,
+    private val platformName: String,
+    private val meshLinkController: ReferenceMeshLinkController,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: AdvancedControlsStateStore =
         AdvancedControlsStateStore(
-            platformName = platformServices.platformName,
-            initialSnapshot = platformServices.meshLinkController.snapshot.value,
+            platformName = platformName,
+            initialSnapshot = meshLinkController.snapshot.value,
         )
 
     public val uiState: StateFlow<AdvancedControlsUiState> = stateStore.uiState
     public val lifecycleActions: StateFlow<LifecycleActionState> = stateStore.lifecycleActions
 
     init {
-        scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest(stateStore::applySnapshot)
-        }
+        scope.launch { meshLinkController.snapshot.collectLatest(stateStore::applySnapshot) }
     }
 
     public fun selectPeer(peerId: String): Unit {
@@ -42,19 +41,19 @@ internal class AdvancedControlsViewModel(
     }
 
     public fun startMesh(): Unit {
-        scope.launch { platformServices.meshLinkController.start() }
+        scope.launch { meshLinkController.start() }
     }
 
     public fun pauseMesh(): Unit {
-        scope.launch { platformServices.meshLinkController.pause() }
+        scope.launch { meshLinkController.pause() }
     }
 
     public fun resumeMesh(): Unit {
-        scope.launch { platformServices.meshLinkController.resume() }
+        scope.launch { meshLinkController.resume() }
     }
 
     public fun stopMesh(): Unit {
-        scope.launch { platformServices.meshLinkController.stop() }
+        scope.launch { meshLinkController.stop() }
     }
 
     public fun sendCurrentMessage(): Unit {
@@ -64,7 +63,7 @@ internal class AdvancedControlsViewModel(
             return
         }
         scope.launch {
-            platformServices.meshLinkController.sendPayload(
+            meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = state.composerText,
                 priority = state.selectedPriority,
@@ -79,7 +78,7 @@ internal class AdvancedControlsViewModel(
             return
         }
         scope.launch {
-            platformServices.meshLinkController.sendPayload(
+            meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = buildAdvancedLargeTransferPreviewPayload(),
                 priority = DeliveryPriority.HIGH,
@@ -89,6 +88,6 @@ internal class AdvancedControlsViewModel(
 
     public fun forgetSelectedPeer(): Unit {
         val peerId = uiState.value.selectedPeerId ?: return
-        scope.launch { platformServices.meshLinkController.forgetPeer(peerId) }
+        scope.launch { meshLinkController.forgetPeer(peerId) }
     }
 }

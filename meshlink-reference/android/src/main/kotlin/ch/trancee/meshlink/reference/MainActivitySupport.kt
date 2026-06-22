@@ -52,7 +52,7 @@ internal fun MainActivity.configureDiscoveryCarrier(
 
 internal fun MainActivity.createPlatformServicesForAutomation(
     automationConfig: AutomationConfig,
-): Any {
+): AndroidPlatformServices {
     return when {
         automationConfig.enabled && automationConfig.mode == MainActivity.AUTOMATION_MODE_LIVE_PROOF ->
             createLiveAutomationPlatformServices(

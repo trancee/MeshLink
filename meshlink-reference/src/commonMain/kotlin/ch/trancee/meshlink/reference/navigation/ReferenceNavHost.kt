@@ -10,8 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.referenceAuthorityLabel
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -19,7 +19,18 @@ import kotlinx.coroutines.launch
 /** Shared navigation shell for the reference app surfaces. */
 @Composable
 internal fun ReferenceNavHost(
-    platformServices: PlatformServices,
+    platformName: String,
+    readinessGuidance: List<String>,
+    readinessBlockers: List<String>,
+    powerMitigationStatus: String?,
+    documentStore: Any?,
+    meshLinkController: ReferenceMeshLinkController,
+    stopPowerMitigation: () -> Unit,
+    currentTimeMillis: () -> Long,
+    emitAutomationLog: (String) -> Unit,
+    createSupportedMeshLinkController: (String) -> ReferenceMeshLinkController = {
+        meshLinkController
+    },
     automationConfig: ReferenceAutomationConfigView? = null,
 ) {
     var activeRoute: ReferenceSurface by remember { mutableStateOf(ReferenceSurface.MAIN_GUIDED) }
@@ -27,7 +38,16 @@ internal fun ReferenceNavHost(
     val coroutineScope = rememberCoroutineScope()
     val dependencies =
         rememberReferenceNavHostDependencies(
-            platformServices = platformServices,
+            platformName = platformName,
+            readinessGuidance = readinessGuidance,
+            readinessBlockers = readinessBlockers,
+            powerMitigationStatus = powerMitigationStatus,
+            documentStore = documentStore,
+            meshLinkController = meshLinkController,
+            stopPowerMitigation = stopPowerMitigation,
+            currentTimeMillis = currentTimeMillis,
+            emitAutomationLog = emitAutomationLog,
+            createSupportedMeshLinkController = createSupportedMeshLinkController,
             automationConfig = automationConfig,
         )
     val snapshot by dependencies.sessionController.snapshot.collectAsState()
@@ -104,7 +124,7 @@ internal fun ReferenceNavHost(
             activeSection = primarySectionFor(activeRoute),
             activeRoute = activeRoute,
             workflowTitles = workflowTitles,
-            platformName = platformServices.platformName,
+            platformName = platformName,
             authorityModeLabel = referenceAuthorityLabel(snapshot.session.authorityMode),
             meshStateLabel = snapshot.session.meshStateLabel,
         )
@@ -113,7 +133,7 @@ internal fun ReferenceNavHost(
         dependencies.liveProofAutomationDriver.start()
         onDispose {
             dependencies.liveProofAutomationDriver.close()
-            platformServices.stopPowerMitigation()
+            stopPowerMitigation()
         }
     }
 

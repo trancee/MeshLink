@@ -7,7 +7,7 @@ import ch.trancee.meshlink.reference.automation.LiveProofAutomationDriver
 import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.automation.TimelineStoreLiveProofAutomationActions
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
@@ -17,7 +17,6 @@ import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 
 internal data class ReferenceNavHostDependencies(
     val sessionController: ReferenceSessionController,
-    val sessionPlatformServices: SessionAwarePlatformServices,
     val guidedViewModel: GuidedFirstExchangeViewModel,
     val advancedViewModel: AdvancedControlsViewModel,
     val timelineStore: TechnicalTimelineStore,
@@ -27,74 +26,86 @@ internal data class ReferenceNavHostDependencies(
 
 @Composable
 internal fun rememberReferenceNavHostDependencies(
-    platformServices: PlatformServices,
+    platformName: String,
+    readinessGuidance: List<String>,
+    readinessBlockers: List<String>,
+    powerMitigationStatus: String?,
+    documentStore: Any?,
+    meshLinkController: ReferenceMeshLinkController,
+    stopPowerMitigation: () -> Unit,
+    currentTimeMillis: () -> Long,
+    emitAutomationLog: (String) -> Unit,
+    createSupportedMeshLinkController: (String) -> ReferenceMeshLinkController = {
+        meshLinkController
+    },
     automationConfig: ReferenceAutomationConfigView? = null,
 ): ReferenceNavHostDependencies {
     val retainedDocumentStore =
-        remember(platformServices.platformName) {
-            (platformServices.documentStore as? ReferenceDocumentStore)
-                ?: InMemoryReferenceDocumentStore()
+        remember(platformName) {
+            (documentStore as? ReferenceDocumentStore) ?: InMemoryReferenceDocumentStore()
         }
     val historyRepository =
-        remember(platformServices.platformName) {
-            JsonSessionHistoryRepository(retainedDocumentStore)
-        }
+        remember(platformName) { JsonSessionHistoryRepository(retainedDocumentStore) }
     val artifactSerializer =
-        remember(platformServices.platformName) {
-            JsonSessionArtifactSerializer(retainedDocumentStore)
-        }
+        remember(platformName) { JsonSessionArtifactSerializer(retainedDocumentStore) }
     val sessionController =
-        remember(platformServices.platformName) {
+        remember(platformName) {
             ReferenceSessionController(
-                platformName = platformServices.platformName,
-                nowProvider = platformServices::currentTimeMillis,
-                supportedControllerFactory = platformServices::createSupportedMeshLinkController,
-                emitAutomationLog = platformServices::emitAutomationLog,
-            )
-        }
-    val sessionPlatformServices =
-        remember(platformServices.platformName) {
-            SessionAwarePlatformServices(
-                delegate = platformServices,
-                sessionController = sessionController,
+                platformName = platformName,
+                nowProvider = currentTimeMillis,
+                supportedControllerFactory = createSupportedMeshLinkController,
+                emitAutomationLog = emitAutomationLog,
             )
         }
     val guidedViewModel =
-        remember(platformServices.platformName) {
+        remember(platformName) {
             GuidedFirstExchangeViewModel(
-                platformServices = sessionPlatformServices,
+                platformName = platformName,
+                readinessGuidance = readinessGuidance,
+                readinessBlockers = readinessBlockers,
+                powerMitigationStatus = powerMitigationStatus,
+                meshLinkController = meshLinkController,
                 automationMode = automationConfig?.mode,
             )
         }
     val advancedViewModel =
-        remember(platformServices.platformName) {
-            AdvancedControlsViewModel(sessionPlatformServices)
+        remember(platformName) {
+            AdvancedControlsViewModel(
+                platformName = platformName,
+                meshLinkController = meshLinkController,
+            )
         }
     val timelineStore =
-        remember(platformServices.platformName) {
+        remember(platformName) {
             TechnicalTimelineStore(
-                platformServices = sessionPlatformServices,
+                platformName = platformName,
+                readinessBlockers = readinessBlockers,
+                meshLinkController = meshLinkController,
+                currentTimeMillis = currentTimeMillis,
                 historyRepository = historyRepository,
                 artifactSerializer = artifactSerializer,
             )
         }
     val sessionTransitionService =
-        remember(platformServices.platformName) {
+        remember(platformName) {
             SessionTransitionService(
                 timelineStore = timelineStore,
                 sessionController = sessionController,
-                platformServices = sessionPlatformServices,
-                currentTimeMillis = sessionPlatformServices::currentTimeMillis,
+                stopPowerMitigation = stopPowerMitigation,
+                currentTimeMillis = currentTimeMillis,
             )
         }
     val liveProofAutomationDriver =
-        remember(platformServices.platformName) {
+        remember(platformName) {
             LiveProofAutomationDriver(
                 automationConfig = automationConfig,
                 timelineUiStateFlow = timelineStore.uiState,
                 actions =
                     TimelineStoreLiveProofAutomationActions(
-                        platformServices = sessionPlatformServices,
+                        platformNameValue = platformName,
+                        readinessBlockersValue = readinessBlockers,
+                        emitAutomationLogAction = emitAutomationLog,
+                        meshLinkController = meshLinkController,
                         timelineStore = timelineStore,
                         sessionTransitionService = sessionTransitionService,
                     ),
@@ -103,7 +114,6 @@ internal fun rememberReferenceNavHostDependencies(
 
     return ReferenceNavHostDependencies(
         sessionController = sessionController,
-        sessionPlatformServices = sessionPlatformServices,
         guidedViewModel = guidedViewModel,
         advancedViewModel = advancedViewModel,
         timelineStore = timelineStore,

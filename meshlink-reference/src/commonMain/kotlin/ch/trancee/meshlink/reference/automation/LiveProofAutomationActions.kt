@@ -1,8 +1,8 @@
 package ch.trancee.meshlink.reference.automation
 
 import ch.trancee.meshlink.api.DeliveryPriority
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.navigation.SessionTransitionService
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.timeline.TechnicalTimelineStore
 import kotlinx.coroutines.launch
@@ -33,30 +33,33 @@ internal interface LiveProofAutomationActions {
 }
 
 internal class TimelineStoreLiveProofAutomationActions(
-    private val platformServices: PlatformServices,
+    private val platformNameValue: String,
+    private val readinessBlockersValue: List<String>,
+    private val emitAutomationLogAction: (String) -> Unit,
+    private val meshLinkController: ReferenceMeshLinkController,
     private val timelineStore: TechnicalTimelineStore,
     private val sessionTransitionService: SessionTransitionService,
 ) : LiveProofAutomationActions {
     override val platformName: String
-        get() = platformServices.platformName
+        get() = platformNameValue
 
     override val readinessBlockers: List<String>
-        get() = platformServices.readinessBlockers
+        get() = readinessBlockersValue
 
     override fun emitAutomationLog(message: String) {
-        platformServices.emitAutomationLog(message)
+        emitAutomationLogAction(message)
     }
 
     override fun requestMeshStart() {
-        timelineStore.scope.launch { platformServices.meshLinkController.start() }
+        timelineStore.scope.launch { meshLinkController.start() }
     }
 
     override fun requestMeshPause() {
-        timelineStore.scope.launch { platformServices.meshLinkController.pause() }
+        timelineStore.scope.launch { meshLinkController.pause() }
     }
 
     override fun requestMeshResume() {
-        timelineStore.scope.launch { platformServices.meshLinkController.resume() }
+        timelineStore.scope.launch { meshLinkController.resume() }
     }
 
     override fun requestSendPayload(
@@ -65,7 +68,7 @@ internal class TimelineStoreLiveProofAutomationActions(
         priority: DeliveryPriority,
     ) {
         timelineStore.scope.launch {
-            platformServices.meshLinkController.sendPayload(
+            meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = payloadText,
                 priority = priority,
@@ -74,7 +77,7 @@ internal class TimelineStoreLiveProofAutomationActions(
     }
 
     override fun requestForgetPeer(peerId: String) {
-        timelineStore.scope.launch { platformServices.meshLinkController.forgetPeer(peerId) }
+        timelineStore.scope.launch { meshLinkController.forgetPeer(peerId) }
     }
 
     override fun requestEndCurrentSession() {

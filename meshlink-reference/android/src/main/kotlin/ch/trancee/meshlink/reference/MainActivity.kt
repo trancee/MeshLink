@@ -15,7 +15,6 @@ import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
@@ -79,7 +78,16 @@ public class MainActivity : ComponentActivity() {
         } else {
             setContent {
                 ReferenceApp(
-                    platformServices = platformServices as PlatformServices,
+                    platformName = platformServices.platformName,
+                    readinessGuidance = platformServices.readinessGuidance,
+                    readinessBlockers = platformServices.readinessBlockers,
+                    powerMitigationStatus = platformServices.powerMitigationStatus,
+                    documentStore = platformServices.documentStore,
+                    meshLinkController = platformServices.meshLinkController,
+                    stopPowerMitigation = { platformServices.stopPowerMitigation() },
+                    currentTimeMillis = { platformServices.currentTimeMillis() },
+                    emitAutomationLog = { message -> platformServices.emitAutomationLog(message) },
+                    createSupportedMeshLinkController = { _ -> platformServices.meshLinkController },
                     automationConfig = automationConfig.toAndroidAutomationConfigView(),
                 )
             }

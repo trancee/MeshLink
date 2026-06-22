@@ -2,7 +2,7 @@ package ch.trancee.meshlink.reference.guided
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
-import ch.trancee.meshlink.reference.platform.PlatformServices
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,28 +12,32 @@ import kotlinx.coroutines.launch
 
 /** Shared state holder for the guided first-exchange surface. */
 internal class GuidedFirstExchangeViewModel(
-    private val platformServices: PlatformServices,
+    private val platformName: String,
+    private val readinessGuidance: List<String>,
+    private val readinessBlockers: List<String>,
+    private val powerMitigationStatus: String?,
+    private val meshLinkController: ReferenceMeshLinkController,
     private val automationMode: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
         GuidedFirstExchangeStateStore(
-            platformName = platformServices.platformName,
-            readinessGuidance = platformServices.readinessGuidance,
-            readinessBlockers = platformServices.readinessBlockers,
-            initialSnapshot = platformServices.meshLinkController.snapshot.value,
+            platformName = platformName,
+            readinessGuidance = readinessGuidance,
+            readinessBlockers = readinessBlockers,
+            initialSnapshot = meshLinkController.snapshot.value,
         )
-    private val powerMitigationStatus: String? = platformServices.powerMitigationStatus
+    private val powerMitigationLabelValue: String? = powerMitigationStatus
     private var autoStartRequested: Boolean = false
 
     public val powerMitigationLabel: String?
-        get() = powerMitigationStatus
+        get() = powerMitigationLabelValue
 
     public val uiState: StateFlow<GuidedFirstExchangeUiState> = stateStore.uiState
 
     init {
         scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
+            meshLinkController.snapshot.collectLatest { snapshot ->
                 stateStore.applySnapshot(snapshot)
                 maybeAutoStartMesh()
             }
@@ -41,7 +45,7 @@ internal class GuidedFirstExchangeViewModel(
     }
 
     public fun startMesh(): Unit {
-        scope.launch { platformServices.meshLinkController.start() }
+        scope.launch { meshLinkController.start() }
     }
 
     private fun maybeAutoStartMesh(): Unit {
@@ -63,9 +67,9 @@ internal class GuidedFirstExchangeViewModel(
 
     public fun sendHelloToPeer(peerId: String): Unit {
         scope.launch {
-            platformServices.meshLinkController.sendPayload(
+            meshLinkController.sendPayload(
                 peerId = peerId,
-                payloadText = "hello mesh from ${platformServices.platformName}",
+                payloadText = "hello mesh from $platformName",
                 priority = DeliveryPriority.NORMAL,
             )
         }
