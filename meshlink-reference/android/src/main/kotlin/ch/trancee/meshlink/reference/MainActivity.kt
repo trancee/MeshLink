@@ -13,16 +13,16 @@ import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import ch.trancee.meshlink.reference.app.ReferenceApp
 import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
 import ch.trancee.meshlink.reference.platform.createPlatformServices
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Android entry point for the shared reference app shell. */
 public class MainActivity : ComponentActivity() {
-    private var activePlatformServices: Any? = null
+    private var activePlatformServices: AndroidPlatformServices? = null
     private var directProofEnabled: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
@@ -72,8 +72,6 @@ public class MainActivity : ComponentActivity() {
                 "onCreate.txt",
                 "role=${automationConfig.role} directProofEnabled=$directProofEnabled\n",
             )
-        }
-        if (directProofEnabled) {
             setContent { }
         } else {
             setContent {
@@ -130,6 +128,7 @@ public class MainActivity : ComponentActivity() {
         stopDirectProofPowerService()
         super.onDestroy()
     }
+
 
     public companion object {
         public const val EXTRA_UI_AUTOMATION: String =
