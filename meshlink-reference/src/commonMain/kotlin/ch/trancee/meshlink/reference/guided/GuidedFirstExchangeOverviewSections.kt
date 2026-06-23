@@ -18,7 +18,7 @@ import ch.trancee.meshlink.reference.design.ReferenceSectionCard
 @Composable
 internal fun GuidedFirstExchangeHeader(): Unit {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Guided first exchange", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "Library harness", style = MaterialTheme.typography.headlineSmall)
         Text(
             text = GUIDED_FIRST_EXCHANGE_INTRO_TEXT,
             style = MaterialTheme.typography.bodyMedium,
@@ -34,10 +34,9 @@ internal fun GuidedLiveFirstMessageSection(
     powerMitigationLabel: String?,
     onStartMesh: () -> Unit,
     onSendHello: () -> Unit,
-    onOpenSolo: () -> Unit,
 ): Unit {
     ReferenceSectionCard(
-        title = "Live first-message flow",
+        title = "Deterministic startup flow",
         modifier = Modifier.testTag("guided-state-card"),
     ) {
         FlowRow(
@@ -49,9 +48,9 @@ internal fun GuidedLiveFirstMessageSection(
             ReferenceBadge(
                 label =
                     when {
-                        uiState.isSessionEnded -> "Session ended"
+                        uiState.isSessionEnded -> "Session complete"
                         uiState.readiness.isBlocked -> "Startup blocked"
-                        else -> "Ready to start"
+                        else -> "Ready"
                     },
                 prominent = !uiState.readiness.isBlocked && !uiState.isSessionEnded,
             )
@@ -76,13 +75,6 @@ internal fun GuidedLiveFirstMessageSection(
             ) {
                 Text("Send Hello")
             }
-            Button(
-                onClick = onOpenSolo,
-                enabled = !uiState.isSessionEnded,
-                modifier = Modifier.testTag("guided-open-solo"),
-            ) {
-                Text("Solo exploration")
-            }
         }
         Text(
             text = "Mesh state: ${uiState.snapshot.session.meshStateLabel}",
@@ -98,7 +90,7 @@ internal fun GuidedLiveFirstMessageSection(
         if (uiState.isSessionEnded) {
             Text(
                 text =
-                    "This session is closed. Open the technical timeline to export a redacted artifact or start the next supported session.",
+                    "This session is closed. Export the captured artifact or rerun the harness with a fresh scenario.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -107,5 +99,5 @@ internal fun GuidedLiveFirstMessageSection(
 }
 
 private const val GUIDED_FIRST_EXCHANGE_INTRO_TEXT: String =
-    "Use the fastest product-like path to start MeshLink, discover one peer, and prove the " +
-        "first message flow."
+    "Use this screen to start MeshLink, inspect peers, and deterministically verify the first " +
+        "message flow."

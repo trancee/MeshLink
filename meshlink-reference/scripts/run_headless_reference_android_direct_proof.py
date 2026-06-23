@@ -156,7 +156,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=min(DEFAULT_ANDROID_READY_SECONDS, 10.0),
+        default=90.0,
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
             "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
@@ -168,7 +168,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--capture-timeout-seconds",
         type=float,
-        default=min(DEFAULT_CAPTURE_TIMEOUT_SECONDS, 45.0),
+        default=180.0,
         help="Hard timeout for both Android roles to reach proof completion",
     )
     parser.add_argument(
@@ -324,6 +324,10 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Startup evidence", payload.get("startupStateEvidence")),
                 ("Route stage", payload.get("routeStage")),
                 ("Route evidence", route_evidence),
+                ("Sender route stage", payload.get("senderRouteStage")),
+                ("Sender route evidence", payload.get("senderRouteEvidence")),
+                ("Passive route stage", payload.get("passiveRouteStage")),
+                ("Passive route evidence", payload.get("passiveRouteEvidence")),
                 ("Sender completion", sender_completion),
                 ("Passive completion", passive_completion),
             ],
@@ -482,7 +486,10 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         if "peer.discovered role=" in line or "GATT notify benchmark discovered service" in line:
             stage = "peer-discovered"
             evidence = normalized
-        if "HOP_SESSION_FAILED" in line:
+        if "transport.handshake.message1.send" in line:
+            stage = "handshake-message1-send"
+            evidence = normalized
+        elif "HOP_SESSION_FAILED" in line:
             stage = "hop-failed"
             evidence = normalized
         elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
@@ -810,7 +817,7 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {"hop-failed", "route-unavailable"}
+    route_failure_stages = {"handshake-message1-send", "hop-failed", "route-unavailable"}
     if peer_discovered:
         if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
             return (
@@ -1258,6 +1265,32 @@ def resolve_sender_target_peer_id(
     return sender_target_peer_id
 
 
+def launch_android_sender_role_app(
+    *,
+    run_dir: Path,
+    android_serial: str,
+    app_id: str,
+    storage_subdirectory: str,
+    android_transport_logcat: bool,
+    target_peer_id: str,
+    sender_advertisement_carrier: str,
+) -> BackgroundProcess:
+    return start_android_role_app(
+        run_dir=run_dir,
+        android_serial=android_serial,
+        label="sender",
+        role="sender",
+        app_id=app_id,
+        storage_subdirectory=storage_subdirectory,
+        android_transport_logcat=android_transport_logcat,
+        target_peer_id=target_peer_id,
+        advertisement_carrier=sender_advertisement_carrier,
+        benchmark_transport=None,
+        android_activity=ANDROID_ACTIVITY,
+        android_package=ANDROID_PACKAGE,
+    )
+
+
 
 def launch_android_role_apps(
     *,
@@ -1536,6 +1569,14 @@ def summarize_and_verify(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "routeBoundary": {
+            "stage": route_stage,
+            "evidence": route_evidence,
+            "senderStage": sender_route_stage,
+            "senderEvidence": sender_route_evidence,
+            "passiveStage": passive_route_stage,
+            "passiveEvidence": passive_route_evidence,
+        },
         "transportMode": transport_mode,
         "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
@@ -1595,6 +1636,14 @@ def failure_summary(
         "senderRouteEvidence": sender_route_evidence,
         "passiveRouteStage": passive_route_stage,
         "passiveRouteEvidence": passive_route_evidence,
+        "routeBoundary": {
+            "stage": route_stage,
+            "evidence": route_evidence,
+            "senderStage": sender_route_stage,
+            "senderEvidence": sender_route_evidence,
+            "passiveStage": passive_route_stage,
+            "passiveEvidence": passive_route_evidence,
+        },
         "transportMode": transport_mode,
         "transportEvidence": transport_evidence,
         "startupTiming": startup_timing,
@@ -1671,24 +1720,21 @@ def main(argv: list[str] | None = None) -> int:
             stage = "launch"
             force_stop_extra_peers(args.extra_force_stop_serial)
             passive_transport_is_meshlink = True
-            passive_process, sender_process = launch_android_role_apps(
+            passive_process = start_android_role_app(
                 run_dir=run_dir,
-                sender_android_serial=args.sender_android_serial,
-                passive_android_serial=args.passive_android_serial,
+                android_serial=args.passive_android_serial,
+                label="passive",
+                role="passive",
                 app_id=app_id,
                 storage_subdirectory=storage_subdirectory,
                 android_transport_logcat=args.android_transport_logcat,
-                target_peer_id=discovered_peer_id,
-                passive_advertisement_carrier=args.advertisement_carrier,
-                passive_benchmark_transport=args.passive_benchmark_transport,
-                sender_advertisement_carrier=(
-                    "uuid-pair-plus-service-data"
-                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                    else args.advertisement_carrier
-                ),
+                target_peer_id=None,
+                advertisement_carrier=args.advertisement_carrier,
+                benchmark_transport=args.passive_benchmark_transport,
+                android_activity=ANDROID_ACTIVITY,
+                android_package=ANDROID_PACKAGE,
             )
             print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
-            print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             passive_marker_path = passive_log_path(run_dir)
             sender_marker_path = sender_log_path(run_dir)
             if passive_transport_is_meshlink:
@@ -1793,16 +1839,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 discovered_peer_id = sender_target_peer_id
                 print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
-                sender_process = start_android_role_app(
+                sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
-                    label="sender",
-                    role="sender",
                     app_id=app_id,
                     storage_subdirectory=storage_subdirectory,
                     android_transport_logcat=args.android_transport_logcat,
                     target_peer_id=sender_target_peer_id,
-                    advertisement_carrier=(
+                    sender_advertisement_carrier=(
                         "uuid-pair-plus-service-data"
                         if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
                         else args.advertisement_carrier

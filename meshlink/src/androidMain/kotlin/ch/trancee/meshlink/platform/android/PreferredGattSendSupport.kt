@@ -7,6 +7,8 @@ import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class PreferredGattSendContext
 internal constructor(
@@ -53,7 +55,14 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
 
     dependencies.ensureSideLink()
     val client = dependencies.currentClient() ?: return null
-    if (!client.isReady()) {
+    val ready =
+        withTimeoutOrNull(500) {
+            while (!client.isReady()) {
+                delay(25)
+            }
+            true
+        } == true
+    if (!ready) {
         dependencies.log(
             "preferred GATT side-link send skipped for ${context.hintPeerId.value.takeLast(6)}: client not ready"
         )

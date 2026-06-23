@@ -18,9 +18,6 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-
-        multiDexEnabled = true
-        multiDexKeepProguard = file("multidex-keep.pro")
     }
 
     buildFeatures { compose = true }
@@ -38,7 +35,6 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
 dependencies {
     implementation(project(":meshlink-reference"))
     implementation(libs.androidx.activity.compose)
-    implementation("androidx.multidex:multidex:2.0.1")
 }
 
 detekt {

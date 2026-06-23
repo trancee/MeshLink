@@ -1,8 +1,0 @@
--keep class ch.trancee.meshlink.reference.** { *; }
--keep class ch.trancee.meshlink.reference.platform.** { *; }
--keep class ch.trancee.meshlink.reference.automation.** { *; }
--keep class ch.trancee.meshlink.reference.model.** { *; }
--keep class ch.trancee.meshlink.reference.meshlink.** { *; }
--keep class ch.trancee.meshlink.reference.session.** { *; }
--keep class ch.trancee.meshlink.reference.timeline.** { *; }
--keep class ch.trancee.meshlink.reference.guided.** { *; }

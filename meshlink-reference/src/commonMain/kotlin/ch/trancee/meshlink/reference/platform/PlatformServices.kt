@@ -4,8 +4,6 @@ import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.LiveReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
-import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 
 /** Shared platform bridge consumed by the app shell. */
 public interface PlatformServices {
@@ -14,7 +12,7 @@ public interface PlatformServices {
     public val readinessGuidance: List<String>
     public val readinessBlockers: List<String>
     public val powerMitigationStatus: String?
-    public val documentStore: ReferenceDocumentStore
+    public val documentStore: Any?
     public val meshLinkController: ReferenceMeshLinkController
 
     public fun stopPowerMitigation(): Unit
@@ -33,7 +31,7 @@ public class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
     public var meshLinkBootstrap: MeshLinkBootstrap? = null
-    public var documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
+    public var documentStore: Any? = null
     public var readinessBlockers: List<String> = emptyList()
     public var powerMitigationStatus: String? = null
     public var automationLogger: (String) -> Unit = {}
@@ -51,7 +49,7 @@ public class DefaultPlatformServices(
     private val nowProvider: () -> Long = options.nowProvider
     private val appId: String = options.appId
     private val meshLinkBootstrap: MeshLinkBootstrap? = options.meshLinkBootstrap
-    override val documentStore: ReferenceDocumentStore = options.documentStore
+    override val documentStore: Any? = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
     override val powerMitigationStatus: String? = options.powerMitigationStatus
     private val automationLogger: (String) -> Unit = options.automationLogger
