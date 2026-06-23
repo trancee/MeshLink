@@ -14,6 +14,7 @@ private const val EXTRA_STORAGE = "ch.trancee.meshlink.reference.extra.UI_AUTOMA
 private const val EXTRA_APP_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID"
 private const val EXTRA_ROLE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
 private const val EXTRA_SCENARIO = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
+private const val EXTRA_TARGET_PEER_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 
 /** Android entry point for the shared reference app harness. */
 public class MainActivity : ComponentActivity() {
@@ -21,8 +22,9 @@ public class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
+        val extras = intent?.extras
         logActivityStage("onCreate")
-        logAutomationStartupStage()
+        logAutomationStartupStage(extras)
 
         val platformServices = createPlatformServices(applicationContext)
         activePlatformServices = platformServices
@@ -33,6 +35,13 @@ public class MainActivity : ComponentActivity() {
         val readinessBlockers = platformServices.readinessBlockers
         logActivityStage("afterReadinessBlockers")
         logActivityStage("setContentBegin")
+
+        val automationMode = (extras?.getString(EXTRA_MODE) ?: "unknown").uppercase().replace('-', '_')
+        val automationRole = (extras?.getString(EXTRA_ROLE) ?: "unknown").uppercase().replace('-', '_')
+        val automationScenario = extras?.getString(EXTRA_SCENARIO) ?: "unknown"
+        val automationTargetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
+        val autoStartMesh = automationRole == "SENDER" || automationRole == "PASSIVE"
+        val autoSendHello = automationRole == "SENDER"
 
         setContent {
             logActivityStage("insideSetContent")
@@ -46,6 +55,12 @@ public class MainActivity : ComponentActivity() {
                 meshLinkController = meshLinkController,
                 stopPowerMitigation = { platformServices.stopPowerMitigation() },
                 currentTimeMillis = { platformServices.currentTimeMillis() },
+                automationMode = automationMode,
+                automationRole = automationRole,
+                automationScenario = automationScenario,
+                automationTargetPeerId = automationTargetPeerId,
+                autoStartMesh = autoStartMesh,
+                autoSendHello = autoSendHello,
                 emitAutomationLog = { message -> platformServices.emitAutomationLog(message) },
             )
             platformServices.emitAutomationLog("REFERENCE_AUTOMATION app.compose.end")
@@ -63,8 +78,7 @@ public class MainActivity : ComponentActivity() {
         Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION activity.stage=$stage")
     }
 
-    private fun logAutomationStartupStage(): Unit {
-        val extras = intent?.extras
+    private fun logAutomationStartupStage(extras: Bundle?): Unit {
         if (extras?.getBoolean(EXTRA_UI_AUTOMATION, false) != true) {
             return
         }
@@ -73,6 +87,9 @@ public class MainActivity : ComponentActivity() {
         val scenario = extras.getString(EXTRA_SCENARIO) ?: "unknown"
         val appId = extras.getString(EXTRA_APP_ID) ?: "unknown"
         val storage = extras.getString(EXTRA_STORAGE) ?: "unknown"
+        val targetPeerId = extras.getString(EXTRA_TARGET_PEER_ID)
+        val autoStartMesh = role == "SENDER" || role == "PASSIVE"
+        val autoSendHello = role == "SENDER"
         Log.i(
             "MeshLinkReferenceAutomation",
             buildString {
@@ -86,6 +103,25 @@ public class MainActivity : ComponentActivity() {
                 append(appId)
                 append(" storage=")
                 append(storage)
+                append(" targetPeerId=")
+                append(targetPeerId ?: "none")
+                append(" autoStartMesh=")
+                append(autoStartMesh)
+                append(" autoSendHello=")
+                append(autoSendHello)
+            },
+        )
+        Log.i(
+            "MeshLinkReferenceAutomation",
+            buildString {
+                append("REFERENCE_AUTOMATION startup-state=activity.onCreate role=")
+                append(role)
+                append(" scenario=")
+                append(scenario)
+                append(" autoStartMesh=")
+                append(autoStartMesh)
+                append(" autoSendHello=")
+                append(autoSendHello)
             },
         )
     }

@@ -23,10 +23,21 @@ public fun ReferenceApp(
     meshLinkController: ReferenceMeshLinkController,
     stopPowerMitigation: () -> Unit,
     currentTimeMillis: () -> Long,
+    automationMode: String? = null,
+    automationRole: String? = null,
+    automationScenario: String? = null,
+    automationTargetPeerId: String? = null,
+    autoStartMesh: Boolean = false,
+    autoSendHello: Boolean = false,
     emitAutomationLog: (String) -> Unit = {},
     diagnosticMinimalUi: Boolean = false,
 ) {
-    emitAutomationLog("REFERENCE_AUTOMATION app.compose.begin minimal=$diagnosticMinimalUi")
+    emitAutomationLog(
+        "REFERENCE_AUTOMATION app.compose.begin minimal=$diagnosticMinimalUi mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} targetPeerId=${automationTargetPeerId ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello"
+    )
+    emitAutomationLog(
+        "REFERENCE_AUTOMATION startup-state=app.compose.begin mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello"
+    )
     ReferenceTheme {
         if (diagnosticMinimalUi) {
             emitAutomationLog("REFERENCE_AUTOMATION app.compose.placeholder")
@@ -40,6 +51,12 @@ public fun ReferenceApp(
                     readinessBlockers,
                     powerMitigationStatus,
                     meshLinkController,
+                    automationMode,
+                    automationRole,
+                    automationScenario,
+                    automationTargetPeerId,
+                    autoStartMesh,
+                    autoSendHello,
                 ) {
                     GuidedFirstExchangeViewModel(
                         platformName = platformName,
@@ -47,12 +64,22 @@ public fun ReferenceApp(
                         readinessBlockers = readinessBlockers,
                         powerMitigationStatus = powerMitigationStatus,
                         meshLinkController = meshLinkController,
+                        automationMode = automationMode,
+                        automationRole = automationRole,
+                        automationScenario = automationScenario,
+                        automationTargetPeerId = automationTargetPeerId,
+                        autoStartMesh = autoStartMesh,
+                        autoSendHello = autoSendHello,
+                        emitAutomationLog = emitAutomationLog,
                     )
                 }
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.afterRemember")
             emitAutomationLog("REFERENCE_AUTOMATION app.compose.afterRemember")
             Surface(modifier = Modifier.fillMaxSize()) {
                 GuidedFirstExchangeScreen(viewModel = guidedViewModel)
             }
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.end")
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.end")
         }
     }
 }

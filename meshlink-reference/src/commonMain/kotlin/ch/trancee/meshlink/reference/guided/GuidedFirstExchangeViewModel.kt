@@ -17,6 +17,13 @@ internal class GuidedFirstExchangeViewModel(
     private val readinessBlockers: List<String>,
     private val powerMitigationStatus: String?,
     private val meshLinkController: ReferenceMeshLinkController,
+    private val automationMode: String? = null,
+    private val automationRole: String? = null,
+    private val automationScenario: String? = null,
+    private val automationTargetPeerId: String? = null,
+    private val autoStartMesh: Boolean = false,
+    private val autoSendHello: Boolean = false,
+    private val emitAutomationLog: (String) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
@@ -27,6 +34,8 @@ internal class GuidedFirstExchangeViewModel(
             initialSnapshot = meshLinkController.snapshot.value,
         )
     private val powerMitigationLabelValue: String? = powerMitigationStatus
+    private var autoSendTriggered: Boolean = false
+    private var peerDiscoveryLogged: Boolean = false
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -34,15 +43,34 @@ internal class GuidedFirstExchangeViewModel(
     public val uiState: StateFlow<GuidedFirstExchangeUiState> = stateStore.uiState
 
     init {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.init mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello targetPeerId=${automationTargetPeerId ?: "none"}"
+        )
         scope.launch {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.snapshot.collect.begin"
+            )
             meshLinkController.snapshot.collectLatest { snapshot ->
                 stateStore.applySnapshot(snapshot)
+                maybeLogPeerDiscovery(snapshot)
+                maybeAutoSendHello(snapshot)
             }
+        }
+        if (autoStartMesh) {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested"
+            )
+            startMesh()
         }
     }
 
     public fun startMesh(): Unit {
-        scope.launch { meshLinkController.start() }
+        emitAutomationLog("REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.requested")
+        scope.launch {
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin")
+            meshLinkController.start()
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.end")
+        }
     }
 
     public fun sendHelloToFirstPeer(): Unit {
@@ -51,13 +79,50 @@ internal class GuidedFirstExchangeViewModel(
     }
 
     public fun sendHelloToPeer(peerId: String): Unit {
+        emitAutomationLog("REFERENCE_AUTOMATION send.requested role=sender peerId=$peerId")
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested peerId=$peerId"
+        )
         scope.launch {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.begin peerId=$peerId"
+            )
             meshLinkController.sendPayload(
                 peerId = peerId,
                 payloadText = "hello mesh from $platformName",
                 priority = DeliveryPriority.NORMAL,
             )
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.end peerId=$peerId"
+            )
         }
+    }
+
+    private fun maybeLogPeerDiscovery(snapshot: ReferenceControllerSnapshot): Unit {
+        if (peerDiscoveryLogged) return
+        val peer = snapshot.peers.firstOrNull() ?: return
+        peerDiscoveryLogged = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION peer.discovered role=${automationRole ?: "unknown"} peerId=${peer.peerId} peerSuffix=${peer.peerSuffix}"
+        )
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.peer.discovered peerId=${peer.peerId} peerSuffix=${peer.peerSuffix}"
+        )
+    }
+
+    private fun maybeAutoSendHello(snapshot: ReferenceControllerSnapshot): Unit {
+        if (!autoSendHello || autoSendTriggered) return
+        val targetPeerId = automationTargetPeerId
+        val peer =
+            when {
+                targetPeerId != null -> snapshot.peers.firstOrNull { it.peerId == targetPeerId }
+                else -> snapshot.peers.firstOrNull()
+            } ?: return
+        autoSendTriggered = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${targetPeerId ?: "none"}"
+        )
+        sendHelloToPeer(peer.peerId)
     }
 }
 

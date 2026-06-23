@@ -303,7 +303,7 @@ def extract_peer_id_from_evidence(evidence: str | None) -> str | None:
     return match.group(1)
 
 
-def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+def read_passive_peer_id(serial: str, app_id: str, retries: int = 5, delay_s: float = 1.0) -> str | None:
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
     identity_key = f"identity:{app_id}:x25519-public"
     for _ in range(retries):

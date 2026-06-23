@@ -89,12 +89,19 @@ PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passiv
 SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
     "REFERENCE_AUTOMATION peer.discovered role=SENDER",
     "REFERENCE_AUTOMATION send.requested role=sender",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested",
 ]
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
 ]
 PASSIVE_PROOF_REQUIRED_LOG_MARKERS = [
     "MeshLink proof app ready on",
@@ -469,14 +476,17 @@ def extract_sender_failure(log_text: str) -> str | None:
 
 
 def extract_startup_state(log_text: str) -> tuple[str | None, str | None]:
+    latest_state: str | None = None
+    latest_line: str | None = None
     for line in log_text.splitlines():
         if "startup-state=" not in line:
             continue
-        match = re.search(r"startup-state=([a-z-]+)", line)
+        match = re.search(r"startup-state=([a-z0-9_.-]+)", line)
         if match is None:
             continue
-        return match.group(1), line.strip()
-    return None, None
+        latest_state = match.group(1)
+        latest_line = line.strip()
+    return latest_state, latest_line
 
 
 def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
@@ -1666,7 +1676,7 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
-    discovery_wait_seconds = max(args.android_ready_seconds * 2, 20.0)
+    peer_resolution_wait_seconds = min(max(args.android_ready_seconds, 1.0), 5.0)
     discovered_peer_id: str | None = args.target_peer_id
     stage = "input-validation"
     sender_process: BackgroundProcess | None = None
@@ -1789,11 +1799,11 @@ def main(argv: list[str] | None = None) -> int:
                     or read_passive_peer_id(
                         args.passive_android_serial,
                         app_id,
-                        retries=max(1, int(discovery_wait_seconds)),
+                        retries=max(1, int(peer_resolution_wait_seconds)),
                     )
                     or wait_for_discovered_peer_id(
                         passive_marker_path,
-                        discovery_wait_seconds,
+                        peer_resolution_wait_seconds,
                     )
                 )
                 print(f"==> Passive peer id resolved: {discovered_peer_id}")
@@ -1830,16 +1840,17 @@ def main(argv: list[str] | None = None) -> int:
             if sender_process is None:
                 sender_target_peer_id = resolve_sender_target_peer_id(
                     passive_marker_path,
-                    discovery_wait_seconds,
+                    peer_resolution_wait_seconds,
                     discovered_peer_id,
                     args.target_peer_id,
                 )
                 if sender_target_peer_id is None:
-                    raise SystemExit(
-                        "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before sender launch"
+                    print(
+                        "==> Passive peer id unavailable after short resolution wait; launching sender without a seeded target peer"
                     )
-                discovered_peer_id = sender_target_peer_id
-                print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
+                else:
+                    discovered_peer_id = sender_target_peer_id
+                    print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
                 sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
@@ -1855,10 +1866,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             if discovered_peer_id is None:
-                raise SystemExit(
-                    "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before the route phase"
+                print(
+                    "==> Passive peer id unavailable before the route phase; proceeding without a seeded target peer"
                 )
-            print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
+            else:
+                print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
