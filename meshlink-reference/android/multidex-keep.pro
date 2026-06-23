@@ -1,4 +1,0 @@
--keep class ch.trancee.meshlink.config.MeshLinkConfig { *; }
--keep class ch.trancee.meshlink.config.MeshLinkConfigBuilder { *; }
--keep class ch.trancee.meshlink.config.MeshLinkConfigKt { *; }
--keep class ch.trancee.meshlink.api.MeshLinkFactoriesKt { *; }

@@ -16,48 +16,17 @@ internal fun createPlatformServices(): DefaultPlatformServices {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createPlatformServices(
-    documentsDirectory: String,
-    fileSystem: FileSystem = FileSystem.SYSTEM,
-    nowProvider: () -> Long = { time(null) * 1000L },
-): DefaultPlatformServices {
+internal fun createPlatformServices(documentsDirectory: String): DefaultPlatformServices {
+    val clock = { (time(null) * 1000.0).toLong() }
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
-                this.nowProvider = nowProvider
-                documentStore = OkioReferenceDocumentStore(documentsDirectory, fileSystem)
-            },
-    )
-}
-
-@OptIn(ExperimentalForeignApi::class)
-internal fun createAutomationPlatformServices(
-    storageSubdirectory: String,
-    blocked: Boolean,
-): DefaultPlatformServices {
-    val baseDirectory = resolveAutomationDirectory(storageSubdirectory)
-    val clock = { time(null) * 1000L }
-    return DefaultPlatformServices(
-        platformName = "iOS",
-        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-        readinessGuidance = readinessGuidance(),
-        options =
-            DefaultPlatformServicesOptions().apply {
-                readinessBlockers =
-                    if (blocked) {
-                        listOf(
-                            "Enable Bluetooth on the iPhone before starting the guided exchange.",
-                            "Grant the required local Bluetooth permissions for MeshLink.",
-                        )
-                    } else {
-                        emptyList()
-                    }
                 nowProvider = clock
-                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
-                automationLogger = ::println
+                appId = "demo.meshlink.reference.ios"
+                documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM)
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
                         platformName = "iOS",
@@ -71,48 +40,8 @@ internal fun createAutomationPlatformServices(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createLiveAutomationPlatformServices(
-    storageSubdirectory: String,
-    appId: String,
-    role: String,
-    requiredPeerCount: Int = 1,
-    targetPeerIndex: Int = 0,
-    targetPeerId: String? = null,
-    scenario: String = "direct-guided",
-): DefaultPlatformServices {
-    val baseDirectory = buildString {
-        append(resolveDocumentsDirectory())
-        append("/live-automation")
-        append('/')
-        append(storageSubdirectory)
-    }
-    val clock = { time(null) * 1000L }
-    val automationAppId = appId
-    return DefaultPlatformServices(
-        platformName = "iOS",
-        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-        readinessGuidance = readinessGuidance(),
-        options =
-            DefaultPlatformServicesOptions().apply {
-                nowProvider = clock
-                this.appId = automationAppId
-                documentStore = OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)
-                automationLogger = ::println
-            },
-    )
-}
-
-@OptIn(ExperimentalForeignApi::class)
 private fun resolveDocumentsDirectory(): String {
-    return NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
-        .firstOrNull() as? String ?: error("Unable to resolve iOS documents directory")
-}
-
-private fun resolveAutomationDirectory(storageSubdirectory: String): String {
-    return buildString {
-        append(resolveDocumentsDirectory())
-        append("/ui-automation")
-        append('/')
-        append(storageSubdirectory)
-    }
+    val directories =
+        NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
+    return directories.firstOrNull() as? String ?: "/tmp"
 }

@@ -17,7 +17,6 @@ internal class GuidedFirstExchangeViewModel(
     private val readinessBlockers: List<String>,
     private val powerMitigationStatus: String?,
     private val meshLinkController: ReferenceMeshLinkController,
-    private val automationMode: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
@@ -28,7 +27,6 @@ internal class GuidedFirstExchangeViewModel(
             initialSnapshot = meshLinkController.snapshot.value,
         )
     private val powerMitigationLabelValue: String? = powerMitigationStatus
-    private var autoStartRequested: Boolean = false
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -39,25 +37,12 @@ internal class GuidedFirstExchangeViewModel(
         scope.launch {
             meshLinkController.snapshot.collectLatest { snapshot ->
                 stateStore.applySnapshot(snapshot)
-                maybeAutoStartMesh()
             }
         }
     }
 
     public fun startMesh(): Unit {
         scope.launch { meshLinkController.start() }
-    }
-
-    private fun maybeAutoStartMesh(): Unit {
-        if (autoStartRequested) return
-        if (automationMode != ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_LIVE_PROOF)
-            return
-        val currentSnapshot = uiState.value.snapshot
-        if (!currentSnapshot.session.meshStateLabel.contains("Uninitialized")) return
-        if (uiState.value.readiness.isBlocked) return
-
-        autoStartRequested = true
-        startMesh()
     }
 
     public fun sendHelloToFirstPeer(): Unit {
@@ -83,12 +68,11 @@ internal data class GuidedFirstExchangeUiState(
     public val nextActionLabel: String
         get() {
             return when {
-                isSessionEnded ->
-                    "Open the technical timeline to review or start the next supported session"
+                isSessionEnded -> "Review the captured session state"
                 readiness.isBlocked -> "Resolve startup blockers"
                 snapshot.session.meshStateLabel.contains("Uninitialized") -> "Start MeshLink"
-                snapshot.peers.isEmpty() -> "Wait for a peer or start a solo session"
-                else -> "Send the first guided message"
+                snapshot.peers.isEmpty() -> "Wait for a peer or rerun the harness"
+                else -> "Send the first test message"
             }
         }
 

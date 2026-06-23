@@ -17,10 +17,6 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.api.meshLink
-import ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_LIVE_PROOF
-import ch.trancee.meshlink.reference.automation.AUTOMATION_MODE_SCRIPTED_UI
-import ch.trancee.meshlink.reference.automation.AUTOMATION_ROLE_PASSIVE
-import ch.trancee.meshlink.reference.automation.AUTOMATION_SCENARIO_DIRECT_GUIDED
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServices
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServicesOptions
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
@@ -47,7 +43,6 @@ import kotlinx.coroutines.launch
 
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 
-private const val AUTOMATION_LOG_TAG = "MeshLinkReferenceAutomation"
 private const val PEER_SUFFIX_LENGTH: Int = 6
 
 internal fun createPlatformServices(context: Context): AndroidPlatformServices {
@@ -61,7 +56,7 @@ internal fun createPlatformServices(context: Context): AndroidPlatformServices {
                 PublicMeshLinkControllerArgs(
                     appId = "demo.meshlink.reference",
                     authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                    scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
+                    scenarioId = "direct-guided",
                     storageSubdirectory = "default",
                     bootstrap = createMeshLinkBootstrap(context),
                     currentTimeMillis = { System.currentTimeMillis() },
@@ -70,168 +65,6 @@ internal fun createPlatformServices(context: Context): AndroidPlatformServices {
         },
     )
 }
-
-internal fun createAutomationPlatformServices(
-    context: Context,
-    storageSubdirectory: String,
-    blocked: Boolean,
-): AndroidPlatformServices {
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.factory.begin live blocked=$blocked storageSubdirectory=$storageSubdirectory",
-    )
-    Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.controller.ready live")
-    return AndroidPlatformServices(
-        context = context.applicationContext,
-        readinessGuidance = readinessGuidance(),
-        readinessBlockersFactory = { if (blocked) readinessBlockers(context) else emptyList() },
-        meshLinkControllerFactory = {
-            createPublicMeshLinkController(
-                PublicMeshLinkControllerArgs(
-                    appId = "demo.meshlink.reference.automation",
-                    authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                    scenarioId = AUTOMATION_SCENARIO_DIRECT_GUIDED,
-                    storageSubdirectory = normalizeAutomationStorageSubdirectory(storageSubdirectory, "default"),
-                    bootstrap = createMeshLinkBootstrap(context),
-                    currentTimeMillis = { System.currentTimeMillis() },
-                )
-            )
-        },
-    )
-}
-
-@Suppress("LongMethod")
-internal fun createLiveAutomationPlatformServices(
-    args: LiveAutomationPlatformServicesArgs,
-): AndroidPlatformServices {
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.begin role=${args.role} " +
-            "storageSubdirectory=${args.storageSubdirectory}",
-    )
-    val guidance = readinessGuidance()
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.guidance.ready role=${args.role}",
-    )
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.construct.begin role=${args.role}",
-    )
-    val appContext = args.context.applicationContext
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.appContext.ready role=${args.role}",
-    )
-    val automationStorageSubdirectory =
-        normalizeAutomationStorageSubdirectory(args.storageSubdirectory, "default")
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.storage.ready role=${args.role} " +
-            "storageSubdirectory=$automationStorageSubdirectory",
-    )
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.config.skipped role=${args.role}",
-    )
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.before.bootstrap role=${args.role}",
-    )
-    val meshLinkBootstrap = createMeshLinkBootstrap(appContext)
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.after.bootstrap role=${args.role}",
-    )
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.before.services role=${args.role}",
-    )
-    val services =
-        AndroidPlatformServices(
-            context = appContext,
-            readinessGuidance = guidance,
-            readinessBlockersFactory = { emptyList() },
-            meshLinkControllerFactory = {
-                createPublicMeshLinkController(
-                    PublicMeshLinkControllerArgs(
-                        appId = args.appId,
-                        authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                        scenarioId = args.scenario,
-                        storageSubdirectory = automationStorageSubdirectory,
-                        bootstrap = meshLinkBootstrap,
-                        currentTimeMillis = { System.currentTimeMillis() },
-                    ),
-                )
-            },
-        )
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.factory.end role=${args.role}",
-    )
-    return services
-}
-
-internal class AndroidPlatformServices(
-    private val context: Context,
-    val readinessGuidance: List<String>,
-    private val readinessBlockersFactory: () -> List<String> = { emptyList() },
-    private val meshLinkControllerFactory: () -> ReferenceMeshLinkController,
-) {
-    private var readinessBlockersMemo: List<String>? = null
-    private var meshLinkControllerMemo: ReferenceMeshLinkController? = null
-
-    val readinessBlockers: List<String>
-        get() = readinessBlockersMemo ?: readinessBlockersFactory().also { readinessBlockersMemo = it }
-
-    val meshLinkController: ReferenceMeshLinkController
-        get() =
-            meshLinkControllerMemo
-                ?: DeferredAndroidReferenceMeshLinkController(meshLinkControllerFactory).also {
-                    meshLinkControllerMemo = it
-                }
-    val platformName: String = "Android"
-    val defaultAuthorityMode: String = REFERENCE_AUTHORITY_MODE_LIVE
-    val powerMitigationStatus: String? = null
-    val documentStore: Any? = null
-
-    fun stopPowerMitigation(): Unit = Unit
-
-    fun currentTimeMillis(): Long = System.currentTimeMillis()
-
-    fun emitAutomationLog(message: String): Unit {
-        Log.i(AUTOMATION_LOG_TAG, message)
-    }
-}
-
-private fun createMeshLinkBootstrap(context: Context): MeshLinkBootstrap {
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.bootstrap.before context role=bootstrap",
-    )
-    val appContext = context.applicationContext
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.bootstrap.after context role=bootstrap",
-    )
-    val bootstrap = ch.trancee.meshlink.api.android.meshLinkBootstrap(appContext)
-    Log.i(
-        "MeshLinkReferenceAutomation",
-        "REFERENCE_AUTOMATION android.live.bootstrap.after ctor role=bootstrap",
-    )
-    return bootstrap
-}
-
-internal data class LiveAutomationPlatformServicesArgs(
-    val context: Context,
-    val storageSubdirectory: String,
-    val appId: String,
-    val role: String,
-    val requiredPeerCount: Int = 1,
-    val targetPeerIndex: Int = 0,
-    val targetPeerId: String? = null,
-    val scenario: String = AUTOMATION_SCENARIO_DIRECT_GUIDED,
-)
 
 private data class PublicMeshLinkControllerArgs(
     val appId: String,
@@ -597,42 +430,3 @@ private fun readinessBlockers(
 }
 
 
-private class DeferredAndroidReferenceMeshLinkController(
-    private val factory: () -> ReferenceMeshLinkController,
-) : ReferenceMeshLinkController {
-    private val delegate: ReferenceMeshLinkController by lazy(factory)
-
-    override val snapshot: StateFlow<ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot>
-        get() = delegate.snapshot
-
-    override suspend fun start(): Unit = delegate.start()
-
-    override suspend fun pause(): Unit = delegate.pause()
-
-    override suspend fun resume(): Unit = delegate.resume()
-
-    override suspend fun stop(): Unit = delegate.stop()
-
-    override suspend fun sendPayload(
-        peerId: String,
-        payloadText: String,
-        priority: DeliveryPriority,
-    ): Unit = delegate.sendPayload(peerId = peerId, payloadText = payloadText, priority = priority)
-
-    override suspend fun forgetPeer(peerId: String): Unit = delegate.forgetPeer(peerId)
-
-    override suspend fun close(): Unit = delegate.close()
-}
-
-private fun normalizeAutomationStorageSubdirectory(
-    raw: String?,
-    defaultValue: String = "default",
-): String {
-    val candidate = raw?.trim().orEmpty()
-    return when {
-        candidate.isBlank() -> defaultValue
-        candidate == "." || candidate == ".." -> defaultValue
-        candidate.any { it == '/' || it == '\\' || it.isISOControl() } -> defaultValue
-        else -> candidate
-    }
-}

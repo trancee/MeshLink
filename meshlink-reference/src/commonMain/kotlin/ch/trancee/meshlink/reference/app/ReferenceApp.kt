@@ -5,11 +5,12 @@ package ch.trancee.meshlink.reference.app
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfigView
 import ch.trancee.meshlink.reference.design.ReferenceTheme
+import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
+import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.navigation.ReferenceNavHost
 
 /** Root composable for the MeshLink reference app. */
 @Composable
@@ -22,27 +23,26 @@ public fun ReferenceApp(
     meshLinkController: ReferenceMeshLinkController,
     stopPowerMitigation: () -> Unit,
     currentTimeMillis: () -> Long,
-    emitAutomationLog: (String) -> Unit,
-    createSupportedMeshLinkController: (String) -> ReferenceMeshLinkController = {
-        meshLinkController
-    },
-    automationConfig: ReferenceAutomationConfigView? = null,
 ) {
-    ReferenceTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            ReferenceNavHost(
+    val guidedViewModel =
+        remember(
+            platformName,
+            readinessGuidance,
+            readinessBlockers,
+            powerMitigationStatus,
+            meshLinkController,
+        ) {
+            GuidedFirstExchangeViewModel(
                 platformName = platformName,
                 readinessGuidance = readinessGuidance,
                 readinessBlockers = readinessBlockers,
                 powerMitigationStatus = powerMitigationStatus,
-                documentStore = documentStore,
                 meshLinkController = meshLinkController,
-                stopPowerMitigation = stopPowerMitigation,
-                currentTimeMillis = currentTimeMillis,
-                emitAutomationLog = emitAutomationLog,
-                createSupportedMeshLinkController = createSupportedMeshLinkController,
-                automationConfig = automationConfig,
             )
+        }
+    ReferenceTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            GuidedFirstExchangeScreen(viewModel = guidedViewModel)
         }
     }
 }
