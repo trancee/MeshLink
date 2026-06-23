@@ -30,9 +30,7 @@ public fun ReferenceApp(
     ReferenceTheme {
         if (diagnosticMinimalUi) {
             emitAutomationLog("REFERENCE_AUTOMATION app.compose.placeholder")
-            Surface(modifier = Modifier.fillMaxSize()) {
-                Unit
-            }
+            Surface(modifier = Modifier.fillMaxSize()) { Unit }
         } else {
             emitAutomationLog("REFERENCE_AUTOMATION app.compose.beforeRemember")
             val guidedViewModel =

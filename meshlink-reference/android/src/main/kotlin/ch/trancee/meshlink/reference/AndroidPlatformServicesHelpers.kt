@@ -23,7 +23,9 @@ internal class AndroidPlatformServices(
     val documentStore: Any? = null,
     private val currentTimeMillisProvider: () -> Long = { System.currentTimeMillis() },
     private val stopPowerMitigationAction: () -> Unit = {},
-    private val emitAutomationLogAction: (String) -> Unit = {},
+    private val emitAutomationLogAction: (String) -> Unit = { message ->
+        Log.i("MeshLinkReferenceAutomation", message)
+    },
 ) {
     val readinessBlockers: List<String>
         get() = readinessBlockersFactory(context)

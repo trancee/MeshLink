@@ -86,7 +86,14 @@ private fun createPublicMeshLinkController(
         meshLinkRuntimeFactory = {
             Log.i(
                 AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.begin create appId=${args.appId} scenario=${args.scenarioId} storage=${args.storageSubdirectory}",
+                buildString {
+                    append("REFERENCE_AUTOMATION android.meshlink.begin create appId=")
+                    append(args.appId)
+                    append(" scenario=")
+                    append(args.scenarioId)
+                    append(" storage=")
+                    append(args.storageSubdirectory)
+                },
             )
             val runtime =
                 meshLink(
@@ -101,7 +108,14 @@ private fun createPublicMeshLinkController(
                 )
             Log.i(
                 AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.end create appId=${args.appId} scenario=${args.scenarioId} storage=${args.storageSubdirectory}",
+                buildString {
+                    append("REFERENCE_AUTOMATION android.meshlink.end create appId=")
+                    append(args.appId)
+                    append(" scenario=")
+                    append(args.scenarioId)
+                    append(" storage=")
+                    append(args.storageSubdirectory)
+                },
             )
             runtime
         },
@@ -113,6 +127,7 @@ private fun createPublicMeshLinkController(
     )
 }
 
+@Suppress("TooManyFunctions")
 private class PublicMeshLinkController(
     private val meshLinkRuntimeFactory: () -> MeshLink,
     private val currentTimeMillis: () -> Long,
@@ -165,19 +180,19 @@ private class PublicMeshLinkController(
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = _snapshot.asStateFlow()
 
-    private suspend fun resolveMeshLinkRuntime(): MeshLink {
-        meshLinkRuntime?.let { return it }
-        return runtimeMutex.withLock {
-            meshLinkRuntime?.let { return it }
-            val created = withContext(Dispatchers.Default) { meshLinkRuntimeFactory() }
-            meshLinkRuntime = created
-            if (!runtimeCollectorsStarted) {
-                runtimeCollectorsStarted = true
-                startRuntimeCollectors(created)
+    private suspend fun resolveMeshLinkRuntime(): MeshLink =
+        meshLinkRuntime
+            ?: runtimeMutex.withLock {
+                meshLinkRuntime
+                    ?: withContext(Dispatchers.Default) { meshLinkRuntimeFactory() }
+                        .also { created ->
+                            meshLinkRuntime = created
+                            if (!runtimeCollectorsStarted) {
+                                runtimeCollectorsStarted = true
+                                startRuntimeCollectors(created)
+                            }
+                        }
             }
-            created
-        }
-    }
 
     private fun startRuntimeCollectors(runtime: MeshLink): Unit {
         scope.launch {
