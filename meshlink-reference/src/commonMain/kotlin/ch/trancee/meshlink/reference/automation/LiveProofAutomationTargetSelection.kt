@@ -88,7 +88,13 @@ internal fun bootstrapTargetPeer(
     snapshot: ReferenceControllerSnapshot,
     targetPeerId: String? = null,
 ): AutoSendTargetPeer? {
-    return null
+    val selectedPeer =
+        if (targetPeerId != null) {
+            snapshot.peers.firstOrNull { it.peerId == targetPeerId } ?: return null
+        } else {
+            snapshot.peers.firstOrNull() ?: return null
+        }
+    return AutoSendTargetPeer(peerId = selectedPeer.peerId, peerSuffix = selectedPeer.peerSuffix)
 }
 
 internal data class AutoSendTargetPeer(val peerId: String, val peerSuffix: String)
