@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference
 
 import android.content.Context
+import android.util.Log
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
@@ -27,7 +28,27 @@ internal class AndroidPlatformServices(
     val readinessBlockers: List<String>
         get() = readinessBlockersFactory(context)
 
-    val meshLinkController: ReferenceMeshLinkController by lazy(meshLinkControllerFactory)
+    private val meshLinkControllerLock: Any = Any()
+    @Volatile private var meshLinkControllerInstance: ReferenceMeshLinkController? = null
+
+    val meshLinkController: ReferenceMeshLinkController
+        get() {
+            meshLinkControllerInstance?.let { return it }
+            return synchronized(meshLinkControllerLock) {
+                meshLinkControllerInstance?.let { return@synchronized it }
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.access begin",
+                )
+                val created = meshLinkControllerFactory()
+                meshLinkControllerInstance = created
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.access end",
+                )
+                created
+            }
+        }
 
     fun stopPowerMitigation(): Unit = stopPowerMitigationAction()
 

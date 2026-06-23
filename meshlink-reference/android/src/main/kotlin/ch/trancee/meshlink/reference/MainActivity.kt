@@ -18,15 +18,20 @@ public class MainActivity : ComponentActivity() {
 
         val platformServices = createPlatformServices(applicationContext)
         activePlatformServices = platformServices
+        logActivityStage("beforeSetContent")
+        val meshLinkController = platformServices.meshLinkController
+        logActivityStage("afterMeshLinkControllerAccess")
+        logActivityStage("setContentBegin")
 
         setContent {
+            logActivityStage("insideSetContent")
             ReferenceApp(
                 platformName = platformServices.platformName,
                 readinessGuidance = platformServices.readinessGuidance,
                 readinessBlockers = platformServices.readinessBlockers,
                 powerMitigationStatus = platformServices.powerMitigationStatus,
                 documentStore = platformServices.documentStore,
-                meshLinkController = platformServices.meshLinkController,
+                meshLinkController = meshLinkController,
                 stopPowerMitigation = { platformServices.stopPowerMitigation() },
                 currentTimeMillis = { platformServices.currentTimeMillis() },
             )
@@ -41,6 +46,6 @@ public class MainActivity : ComponentActivity() {
     }
 
     private fun logActivityStage(stage: String): Unit {
-        Log.i("MeshLinkReference", "REFERENCE_HARNESS activity.stage=$stage")
+        Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION activity.stage=$stage")
     }
 }
