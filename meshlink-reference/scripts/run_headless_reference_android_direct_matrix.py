@@ -880,7 +880,7 @@ def main(argv: list[str] | None = None) -> int:
         peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
         if target_peer_id is None:
             print(
-                "==> Passive peer id unavailable; skipping the final pass because no valid discovery evidence was captured",
+                "==> Passive peer id unavailable; continuing without a seeded target peer",
                 flush=True,
             )
         else:
@@ -888,33 +888,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Seeded final pass from discovered peer {target_peer_id}",
                 flush=True,
             )
-        if target_peer_id is not None:
-            final = run_pair(
-                sender=pair["sender"],
-                passive=pair["passive"],
-                app_id=app_id,
-                run_dir=final_dir,
-                target_peer_id=target_peer_id,
-                capture_timeout=args.capture_timeout_seconds,
-                android_ready_seconds=args.android_ready_seconds,
-                pair_timeout_seconds=args.pair_timeout_seconds,
-                skip_install=True,
-            )
-        else:
-            final = {
-                "status": "skipped",
-                "failureStage": initial.get("failureStage"),
-                "failureReason": initial.get("failureReason"),
-                "senderCompletion": initial.get("senderCompletion"),
-                "passiveCompletion": initial.get("passiveCompletion"),
-                "timings": initial.get("timings"),
-                "htmlReportPath": initial.get("htmlReportPath"),
-                "stdoutTail": initial.get("stdoutTail"),
-                "stderrTail": initial.get("stderrTail"),
-                "elapsedSeconds": initial.get("elapsedSeconds"),
-                "runDir": str(final_dir),
-                "summaryPath": None,
-            }
+        final = run_pair(
+            sender=pair["sender"],
+            passive=pair["passive"],
+            app_id=app_id,
+            run_dir=final_dir,
+            target_peer_id=target_peer_id,
+            capture_timeout=args.capture_timeout_seconds,
+            android_ready_seconds=args.android_ready_seconds,
+            pair_timeout_seconds=args.pair_timeout_seconds,
+            skip_install=True,
+        )
 
         row = {
             "label": pair["label"],

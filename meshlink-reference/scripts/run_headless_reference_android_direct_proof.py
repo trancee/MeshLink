@@ -36,6 +36,7 @@ from run_headless_reference_live_proof import (
     force_stop_reference_app,
     grant_android_runtime_permissions,
     install_android_app,
+    uninstall_android_package,
     read_android_app_file,
     run,
     shell_join,
@@ -1035,6 +1036,7 @@ def install_android_proof_app(
         print("==> Android install stderr:")
         print(result.stderr.rstrip() or "(empty)")
 
+    uninstall_android_package(android_serial, ANDROID_PROOF_PACKAGE)
     try:
         run_install_once()
     except (TimeoutError, subprocess.TimeoutExpired) as error:
@@ -1045,8 +1047,7 @@ def install_android_proof_app(
         details = (error.stderr or error.stdout or "").strip()
         detail_suffix = f": {details}" if details else ""
         print("==> Android install failed; retrying once after uninstalling the existing package")
-        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PROOF_PACKAGE], capture_output=True)
-        print("==> Android uninstall result:", uninstall_result.stdout.strip() or uninstall_result.stderr.strip() or "(empty)")
+        uninstall_android_package(android_serial, ANDROID_PROOF_PACKAGE)
         try:
             run_install_once()
         except (TimeoutError, subprocess.TimeoutExpired) as retry_error:
