@@ -30,7 +30,7 @@ def mermaid_text(value: Any, *, max_len: int = 120) -> str:
     return text or "—"
 
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
-DEFAULT_ANDROID_READY_SECONDS = 90.0
+DEFAULT_ANDROID_READY_SECONDS = 30.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 180.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 240.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
@@ -98,7 +98,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--android-ready-seconds",
         type=float,
         default=DEFAULT_ANDROID_READY_SECONDS,
-        help="Passive startup wait per pair",
+        help="Passive startup wait per pair (kept short so transport-start failures surface quickly)",
     )
     parser.add_argument(
         "--capture-timeout-seconds",
@@ -134,7 +134,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=5,
         help="Stop the sweep once failures exceed this threshold when fail-fast is disabled",
     )
-    parser.set_defaults(fail_fast=False)
+    parser.set_defaults(fail_fast=True)
     return parser.parse_args(argv)
 
 

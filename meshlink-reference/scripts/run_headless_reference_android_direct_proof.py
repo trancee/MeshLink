@@ -157,10 +157,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=90.0,
+        default=30.0,
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
-            "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
+            "Keep this short so passive transport startup fails fast when the app never reaches the transport-start marker. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
             "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
             "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake, disable battery optimization if discovery stalls, and rely on the live-proof foreground wake-lock mitigation when the reference app starts it."
