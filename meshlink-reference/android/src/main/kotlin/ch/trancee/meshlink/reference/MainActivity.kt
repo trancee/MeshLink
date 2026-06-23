@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import ch.trancee.meshlink.reference.app.ReferenceApp
 
 /** Android entry point for the shared reference app harness. */
 public class MainActivity : ComponentActivity() {
@@ -21,20 +20,16 @@ public class MainActivity : ComponentActivity() {
         logActivityStage("beforeSetContent")
         val meshLinkController = platformServices.meshLinkController
         logActivityStage("afterMeshLinkControllerAccess")
+        logActivityStage("beforeReadinessBlockers")
+        val readinessBlockers = platformServices.readinessBlockers
+        logActivityStage("afterReadinessBlockers")
         logActivityStage("setContentBegin")
 
         setContent {
             logActivityStage("insideSetContent")
-            ReferenceApp(
-                platformName = platformServices.platformName,
-                readinessGuidance = platformServices.readinessGuidance,
-                readinessBlockers = platformServices.readinessBlockers,
-                powerMitigationStatus = platformServices.powerMitigationStatus,
-                documentStore = platformServices.documentStore,
-                meshLinkController = meshLinkController,
-                stopPowerMitigation = { platformServices.stopPowerMitigation() },
-                currentTimeMillis = { platformServices.currentTimeMillis() },
-            )
+            logActivityStage("placeholderBeforeEmit")
+            platformServices.emitAutomationLog("REFERENCE_AUTOMATION activity.placeholder.rendered")
+            logActivityStage("placeholderAfterEmit")
         }
     }
 

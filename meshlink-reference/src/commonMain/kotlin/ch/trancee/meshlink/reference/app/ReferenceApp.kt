@@ -23,26 +23,38 @@ public fun ReferenceApp(
     meshLinkController: ReferenceMeshLinkController,
     stopPowerMitigation: () -> Unit,
     currentTimeMillis: () -> Long,
+    emitAutomationLog: (String) -> Unit = {},
+    diagnosticMinimalUi: Boolean = false,
 ) {
-    val guidedViewModel =
-        remember(
-            platformName,
-            readinessGuidance,
-            readinessBlockers,
-            powerMitigationStatus,
-            meshLinkController,
-        ) {
-            GuidedFirstExchangeViewModel(
-                platformName = platformName,
-                readinessGuidance = readinessGuidance,
-                readinessBlockers = readinessBlockers,
-                powerMitigationStatus = powerMitigationStatus,
-                meshLinkController = meshLinkController,
-            )
-        }
+    emitAutomationLog("REFERENCE_AUTOMATION app.compose.begin minimal=$diagnosticMinimalUi")
     ReferenceTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            GuidedFirstExchangeScreen(viewModel = guidedViewModel)
+        if (diagnosticMinimalUi) {
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.placeholder")
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Unit
+            }
+        } else {
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.beforeRemember")
+            val guidedViewModel =
+                remember(
+                    platformName,
+                    readinessGuidance,
+                    readinessBlockers,
+                    powerMitigationStatus,
+                    meshLinkController,
+                ) {
+                    GuidedFirstExchangeViewModel(
+                        platformName = platformName,
+                        readinessGuidance = readinessGuidance,
+                        readinessBlockers = readinessBlockers,
+                        powerMitigationStatus = powerMitigationStatus,
+                        meshLinkController = meshLinkController,
+                    )
+                }
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.afterRemember")
+            Surface(modifier = Modifier.fillMaxSize()) {
+                GuidedFirstExchangeScreen(viewModel = guidedViewModel)
+            }
         }
     }
 }
