@@ -24,10 +24,12 @@ internal class BleTransportDiscoveryLifecycle(
     localKeyHash: ByteArray,
     private val handleScanResult: (ScanResult) -> Unit,
     private val ensurePermissionsGranted: () -> Unit,
+    private val foreignScanIgnoredCount: () -> Int,
     private val log: (String) -> Unit,
 ) {
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
+    private val localMeshHash: UShort = BleDiscoveryContract.computeMeshHash(appId)
 
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
         private set
@@ -105,10 +107,10 @@ internal class BleTransportDiscoveryLifecycle(
 
     fun refresh(started: Boolean, hardware: BleTransportDiscoveryHardware): Unit {
         log(
-            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=${BleDiscoveryContract.computeMeshHash(appId)} advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
         log(
-            "discovery.summary activeMeshHash=${BleDiscoveryContract.computeMeshHash(appId)} advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+            "discovery.summary activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
         stop(hardware)
         if (!started || isDiscoverySuspended) {

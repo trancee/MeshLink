@@ -290,6 +290,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_completion = payload.get("passiveCompletion")
     route_evidence = payload.get("routeEvidence")
     transport_evidence = payload.get("transportEvidence")
+    sender_discovery_focus = payload.get("senderDiscoveryFocus", {}) or {}
+    sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
 
     execution_timeline_html = ""
     if any(
@@ -417,6 +419,15 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Android export", payload.get("evidence", {}).get("androidExport")),
             ],
         ),
+        kv_table(
+            "Sender discovery focus",
+            [
+                ("Peer id", sender_discovery_focus.get("peerId")),
+                ("Foreign scan ignored count", sender_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Matching line count", len(sender_discovery_focus_lines)),
+            ],
+        ),
+        f"<section><h2>Sender discovery lines</h2><pre>{esc('\n'.join(sender_discovery_focus_lines) if sender_discovery_focus_lines else '—')}</pre></section>",
         "<section><h2>Completion lines</h2>",
         f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
         f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
@@ -456,10 +467,43 @@ def extract_discovered_peer_id(log_text: str) -> str | None:
             continue
         if "role=passive" not in line.lower():
             continue
-        match = re.search(r"peer=([A-Za-z0-9._:-]+)", line)
+        match = re.search(r"peer=([^\s]+)", line)
         if match is not None:
             return match.group(1)
     return None
+
+
+def extract_target_peer_id(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "targetPeerId=" not in line:
+            continue
+        match = re.search(r"targetPeerId=([^\s]+)", line)
+        if match is not None:
+            return match.group(1)
+    return None
+
+
+def count_foreign_scan_ignored_lines(log_text: str) -> int:
+    return sum(
+        1
+        for line in log_text.splitlines()
+        if "ignoring discovery payload with mismatched meshHash" in line
+    )
+
+
+def extract_sender_discovery_focus_lines(log_text: str, peer_id: str | None) -> list[str]:
+    focus_lines: list[str] = []
+    peer_id_tokens = tuple(token for token in [peer_id, f"peerId={peer_id}" if peer_id else None, f"hintPeerId={peer_id}" if peer_id else None, f"targetPeerId={peer_id}" if peer_id else None] if token is not None)
+    for line in log_text.splitlines():
+        normalized = line.strip()
+        if "REFERENCE_AUTOMATION startup.meshHashSummary" in normalized or "discovery.summary" in normalized:
+            focus_lines.append(normalized)
+            continue
+        if peer_id is None:
+            continue
+        if any(token in normalized for token in peer_id_tokens):
+            focus_lines.append(normalized)
+    return focus_lines
 
 
 def extract_sender_completion(log_text: str) -> str | None:
@@ -1666,6 +1710,10 @@ def failure_summary(
     route_evidence = sender_route_evidence or passive_route_evidence
     transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
     transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
+    sender_log_text = read_text(sender_log_path(run_dir))
+    discovered_peer_id = extract_discovered_peer_id(read_text(passive_log_path(run_dir)))
+    target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
+    sender_discovery_focus_lines = extract_sender_discovery_focus_lines(sender_log_text, target_peer_id)
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1678,8 +1726,14 @@ def failure_summary(
         "senderCompletion": completions.sender_completion,
         "passiveCompletion": completions.passive_completion,
         "senderFailure": completions.sender_failed,
-        "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
+        "senderPowerState": extract_power_state_snapshot(sender_log_text),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "discoveredPeerId": discovered_peer_id,
+        "senderDiscoveryFocus": {
+            "peerId": target_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "lines": sender_discovery_focus_lines,
+        },
         "startupState": completions.startup_state,
         "startupStateEvidence": completions.startup_evidence,
         "routeStage": route_stage,
@@ -1970,6 +2024,16 @@ def main(argv: list[str] | None = None) -> int:
             passive_transport="meshlink",
         )
         summary["discoveredPeerId"] = discovered_peer_id
+        sender_log_text = read_text(sender_log_path(run_dir))
+        sender_discovery_focus_lines = extract_sender_discovery_focus_lines(
+            sender_log_text,
+            discovered_peer_id,
+        )
+        summary["senderDiscoveryFocus"] = {
+            "peerId": discovered_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "lines": sender_discovery_focus_lines,
+        }
         summary["timings"].update(
             {
                 "totalSeconds": total_seconds,

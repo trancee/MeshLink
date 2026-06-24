@@ -22,6 +22,7 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             deviceAddress = result.device.address,
             localMeshHash = currentDiscoveryPayload.meshHash,
             localKeyHash = localKeyHash,
+            onForeignScanIgnored = { foreignScanIgnoredCount.incrementAndGet() },
             log = ::log,
         )
             ?: run {

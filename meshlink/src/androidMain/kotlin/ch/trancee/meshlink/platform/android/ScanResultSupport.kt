@@ -39,6 +39,7 @@ internal fun parseDiscoveryScanResultOrNull(
     deviceAddress: String,
     localMeshHash: UShort,
     localKeyHash: ByteArray,
+    onForeignScanIgnored: () -> Unit = {},
     log: (String) -> Unit,
 ): DiscoveryScanResult? {
     val payloadUuid =
@@ -56,6 +57,7 @@ internal fun parseDiscoveryScanResultOrNull(
                 return null
             }
     if (payload.meshHash != localMeshHash) {
+        onForeignScanIgnored()
         log(
             "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash}"
         )
