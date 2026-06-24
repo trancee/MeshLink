@@ -157,6 +157,10 @@ and runs the consumer smoke check without creating a release:
 gh workflow run release-please.yml --ref main -f dry_run=true
 ```
 
+Dry-run and publish jobs expect these repository Actions secrets to be present:
+`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`,
+`SIGNING_KEY_ID`, and `SIGNING_KEY_PASSWORD`.
+
 Because the repository currently uses the default `GITHUB_TOKEN` for
 `release-please`, release-please-created PRs do not automatically trigger the
 normal PR workflow.
