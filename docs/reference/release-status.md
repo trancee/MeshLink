@@ -80,7 +80,7 @@ The repository now has:
 
 The first public release still needs:
 
-- artifact publishing and signing configuration for `:meshlink`
+- automated artifact publication workflow wiring for `:meshlink`
 - consumer smoke validation against the released distribution path
 - a maintainer-reviewed first release PR before the initial `release-please` release is merged
 

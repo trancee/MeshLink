@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinMultiplatform
 import io.gitlab.arturbosch.detekt.Detekt
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
@@ -12,6 +14,7 @@ plugins {
     alias(libs.plugins.ktfmt)
     alias(libs.plugins.dokka)
     alias(libs.plugins.skie)
+    alias(libs.plugins.mavenPublish)
     id("org.jetbrains.kotlinx.kover")
 }
 
@@ -71,6 +74,36 @@ dokka {
 }
 
 skie { analytics { disableUpload.set(true) } }
+
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
+    configure(KotlinMultiplatform(javadocJar = JavadocJar.Dokka("dokkaGeneratePublicationHtml")))
+    pom {
+        name.set("MeshLink")
+        description.set("Offline-first BLE mesh SDK for Android and iOS.")
+        inceptionYear.set("2026")
+        url.set("https://github.com/trancee/MeshLink")
+        licenses {
+            license {
+                name.set("Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+        scm {
+            url.set("https://github.com/trancee/MeshLink")
+            connection.set("scm:git:https://github.com/trancee/MeshLink.git")
+            developerConnection.set("scm:git:ssh://git@github.com:trancee/MeshLink.git")
+        }
+        developers {
+            developer {
+                id.set("trancee")
+                name.set("Trancee")
+                url.set("https://github.com/trancee")
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {

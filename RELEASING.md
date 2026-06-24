@@ -18,8 +18,9 @@ The intended first public release shape is:
 
 Artifact publication is partially wired into this repository. The release
 workflow now packages the SwiftPM XCFramework zip and checksum on published
-GitHub releases, while the Maven/Gradle SDK publication and signing steps remain
-separate follow-up work.
+GitHub releases, while the `:meshlink` module now defines Maven Central
+publishing, signing, and documentation-jar wiring. The remaining follow-up work
+is workflow automation and consumer smoke validation.
 
 ## Release automation
 
