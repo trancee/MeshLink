@@ -535,8 +535,8 @@ def format_elapsed_from_markers(
 ) -> str:
     if start_line and end_line and len(start_line) >= 18 and len(end_line) >= 18:
         try:
-            start = datetime.strptime(start_line[:18], "%m-%d %H:%M:%S.%f")
-            end = datetime.strptime(end_line[:18], "%m-%d %H:%M:%S.%f")
+            start = datetime.strptime(f"2001-{start_line[:18]}", "%Y-%m-%d %H:%M:%S.%f")
+            end = datetime.strptime(f"2001-{end_line[:18]}", "%Y-%m-%d %H:%M:%S.%f")
             if end >= start:
                 return f"{(end - start).total_seconds():.1f}s"
         except ValueError:
@@ -1117,6 +1117,7 @@ def main(argv: list[str] | None = None) -> int:
     compact_report += "\n\n## Run setup\n\n"
     compact_report += f"- Fleet inventory: `{fleet_markdown_path}`\n"
     compact_report += f"- Fleet JSON: `{fleet_json_path}`\n"
+    compact_report += "- `foreignScanSummary` is written to both `fleet.json` and `progress.json` for downstream tooling.\n"
     compact_report += f"- Fail-fast: {'enabled' if args.fail_fast else 'disabled'}\n"
     compact_report += f"- Stopped early: {'yes' if stopped_early else 'no'}\n"
     if stop_reason is not None:
