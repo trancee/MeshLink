@@ -19,6 +19,7 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 import java.io.Closeable
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -95,12 +96,14 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
+    internal val foreignScanIgnoredCount = AtomicInteger(0)
     internal val discoveryLifecycle =
         BleTransportDiscoveryLifecycle(
             appId = appId,
             localKeyHash = localKeyHash,
             handleScanResult = ::handleScanResult,
             ensurePermissionsGranted = ::ensurePermissionsGranted,
+            foreignScanIgnoredCount = { foreignScanIgnoredCount.get() },
             log = ::log,
         )
 

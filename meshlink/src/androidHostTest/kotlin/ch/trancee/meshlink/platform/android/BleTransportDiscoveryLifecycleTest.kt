@@ -101,6 +101,7 @@ private class BleTransportDiscoveryLifecycleFixture {
             localKeyHash = ByteArray(12) { index -> (index + 1).toByte() },
             handleScanResult = {},
             ensurePermissionsGranted = {},
+            foreignScanIgnoredCount = { 0 },
             log = {},
         )
 }

@@ -41,21 +41,42 @@ internal class ReferenceSessionController(
 
     override suspend fun start(): Unit {
         emitAutomationLog(
-            "REFERENCE_AUTOMATION session.controller.start kind=$currentKind platform=$platformName"
+            "REFERENCE_AUTOMATION startup-state=session.controller.start.begin kind=$currentKind platform=$platformName"
         )
         runOnSupportedLiveController { controller -> controller.start() }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.start.end kind=$currentKind platform=$platformName"
+        )
     }
 
     override suspend fun pause(): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.pause.begin kind=$currentKind platform=$platformName"
+        )
         runOnSupportedLiveController { controller -> controller.pause() }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.pause.end kind=$currentKind platform=$platformName"
+        )
     }
 
     override suspend fun resume(): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.resume.begin kind=$currentKind platform=$platformName"
+        )
         runOnSupportedLiveController { controller -> controller.resume() }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.resume.end kind=$currentKind platform=$platformName"
+        )
     }
 
     override suspend fun stop(): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.stop.begin kind=$currentKind platform=$platformName"
+        )
         runOnSupportedLiveController { controller -> controller.stop() }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.stop.end kind=$currentKind platform=$platformName"
+        )
     }
 
     override suspend fun sendPayload(
@@ -63,13 +84,25 @@ internal class ReferenceSessionController(
         payloadText: String,
         priority: DeliveryPriority,
     ): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.sendPayload.begin kind=$currentKind platform=$platformName peerId=$peerId priority=$priority"
+        )
         runOnSupportedLiveController { controller ->
             controller.sendPayload(peerId = peerId, payloadText = payloadText, priority = priority)
         }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.sendPayload.end kind=$currentKind platform=$platformName peerId=$peerId priority=$priority"
+        )
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.forgetPeer.begin kind=$currentKind platform=$platformName peerId=$peerId"
+        )
         runOnSupportedLiveController { controller -> controller.forgetPeer(peerId) }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=session.controller.forgetPeer.end kind=$currentKind platform=$platformName peerId=$peerId"
+        )
     }
 
     override suspend fun close(): Unit {

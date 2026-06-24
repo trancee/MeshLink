@@ -23,26 +23,64 @@ public fun ReferenceApp(
     meshLinkController: ReferenceMeshLinkController,
     stopPowerMitigation: () -> Unit,
     currentTimeMillis: () -> Long,
+    automationMode: String? = null,
+    automationRole: String? = null,
+    automationScenario: String? = null,
+    automationTargetPeerId: String? = null,
+    autoStartMesh: Boolean = false,
+    autoSendHello: Boolean = false,
+    emitAutomationLog: (String) -> Unit = {},
+    diagnosticMinimalUi: Boolean = false,
 ) {
-    val guidedViewModel =
-        remember(
-            platformName,
-            readinessGuidance,
-            readinessBlockers,
-            powerMitigationStatus,
-            meshLinkController,
-        ) {
-            GuidedFirstExchangeViewModel(
-                platformName = platformName,
-                readinessGuidance = readinessGuidance,
-                readinessBlockers = readinessBlockers,
-                powerMitigationStatus = powerMitigationStatus,
-                meshLinkController = meshLinkController,
-            )
-        }
+    emitAutomationLog(
+        "REFERENCE_AUTOMATION app.compose.begin minimal=$diagnosticMinimalUi mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} targetPeerId=${automationTargetPeerId ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello"
+    )
+    emitAutomationLog(
+        "REFERENCE_AUTOMATION startup-state=app.compose.begin mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello"
+    )
     ReferenceTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            GuidedFirstExchangeScreen(viewModel = guidedViewModel)
+        if (diagnosticMinimalUi) {
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.placeholder")
+            Surface(modifier = Modifier.fillMaxSize()) { Unit }
+        } else {
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.beforeRemember")
+            val guidedViewModel =
+                remember(
+                    platformName,
+                    readinessGuidance,
+                    readinessBlockers,
+                    powerMitigationStatus,
+                    meshLinkController,
+                    automationMode,
+                    automationRole,
+                    automationScenario,
+                    automationTargetPeerId,
+                    autoStartMesh,
+                    autoSendHello,
+                ) {
+                    GuidedFirstExchangeViewModel(
+                        platformName = platformName,
+                        readinessGuidance = readinessGuidance,
+                        readinessBlockers = readinessBlockers,
+                        powerMitigationStatus = powerMitigationStatus,
+                        meshLinkController = meshLinkController,
+                        automationMode = automationMode,
+                        automationRole = automationRole,
+                        automationScenario = automationScenario,
+                        automationTargetPeerId = automationTargetPeerId,
+                        autoStartMesh = autoStartMesh,
+                        autoSendHello = autoSendHello,
+                        emitAutomationLog = emitAutomationLog,
+                        currentTimeMillis = currentTimeMillis,
+                    )
+                }
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.afterRemember")
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.afterRemember")
+            Surface(modifier = Modifier.fillMaxSize()) {
+                GuidedFirstExchangeScreen(viewModel = guidedViewModel)
+            }
+            emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.end")
+            emitAutomationLog("REFERENCE_AUTOMATION app.compose.end")
         }
     }
 }

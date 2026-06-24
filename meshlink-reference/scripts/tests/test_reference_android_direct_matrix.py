@@ -167,7 +167,9 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 ],
             )
 
-    def test_main_skips_final_pass_when_discovery_evidence_is_missing(self) -> None:
+    def test_main_runs_final_pass_without_seeded_peer_when_discovery_evidence_is_missing(
+        self,
+    ) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_root = Path(temporary_directory) / "matrix"
@@ -188,8 +190,6 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                         "target_peer_id": kwargs["target_peer_id"],
                     }
                 )
-                if kwargs["skip_install"]:
-                    raise AssertionError("final pass should be skipped without discovery evidence")
                 return {
                     "status": "failed",
                     "failureStage": "capture",
@@ -227,10 +227,10 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             rows = json.loads((run_root / "matrix-results.json").read_text(encoding="utf-8"))
             self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["initial"]["status"], "failed")
-            self.assertEqual(rows[0]["final"]["status"], "skipped")
+            self.assertEqual(rows[0]["final"]["status"], "failed")
             self.assertIsNone(rows[0]["targetPeerId"])
             self.assertEqual(rows[1]["initial"]["status"], "failed")
-            self.assertEqual(rows[1]["final"]["status"], "skipped")
+            self.assertEqual(rows[1]["final"]["status"], "failed")
             self.assertIsNone(rows[1]["targetPeerId"])
             self.assertEqual(
                 peer_reads,
@@ -243,7 +243,9 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 run_calls,
                 [
                     {"sender": "1f1dad34", "passive": "2ASVB21B09005117", "skip_install": "False", "target_peer_id": None},
+                    {"sender": "1f1dad34", "passive": "2ASVB21B09005117", "skip_install": "True", "target_peer_id": None},
                     {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "False", "target_peer_id": None},
+                    {"sender": "2ASVB21B09005117", "passive": "1f1dad34", "skip_install": "True", "target_peer_id": None},
                 ],
             )
 

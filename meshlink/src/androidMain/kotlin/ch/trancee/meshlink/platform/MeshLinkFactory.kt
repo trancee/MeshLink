@@ -4,7 +4,7 @@ import ch.trancee.meshlink.api.FactoryTestBootstrap
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkException
-import ch.trancee.meshlink.api.android.ContextBootstrap
+import ch.trancee.meshlink.api.android.AndroidBootstrapContextCarrier
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.platform.android.BleTransportAdapter
@@ -25,7 +25,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig, bootstrap: MeshLinkBo
     }
 
     val androidContext =
-        (bootstrap as? ContextBootstrap)?.context
+        (bootstrap as? AndroidBootstrapContextCarrier)?.context
             ?: throw MeshLinkException.InvalidConfiguration(ANDROID_BOOTSTRAP_REQUIRED_MESSAGE)
     val secureStorage = PreferencesSecureStorage(androidContext, config.appId)
     val cryptoProvider = JcaCryptoProviderFactory.create()
