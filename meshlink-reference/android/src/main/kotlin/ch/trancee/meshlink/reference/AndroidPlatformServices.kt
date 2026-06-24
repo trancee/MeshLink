@@ -37,28 +37,51 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 
+private const val AUTOMATION_LOG_TAG: String = "MeshLinkReferenceAutomation"
 private const val PEER_SUFFIX_LENGTH: Int = 6
+private const val FNV_OFFSET_BASIS: UInt = 0x811C9DC5u
+private const val FNV_PRIME: UInt = 16777619u
+private const val BYTE_MASK: UInt = 0xFFu
+private const val USHORT_MASK: UInt = 0xFFFFu
+private const val FNV_FOLD_SHIFT: Int = 16
 
-internal fun createPlatformServices(context: Context): AndroidPlatformServices {
+internal fun createPlatformServices(context: Context, appId: String): AndroidPlatformServices {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.begin scripted")
+    val meshHash = computeAppMeshHash(appId)
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION startup.meshHashSummary appId=")
+            append(appId)
+            append(" activeMeshHash=")
+            append(meshHash)
+            append(" advertisedMeshHash=")
+            append(meshHash)
+        },
+    )
     return AndroidPlatformServices(
         context = context.applicationContext,
         readinessGuidance = readinessGuidance(),
         readinessBlockersFactory = { readinessBlockers(context) },
         meshLinkControllerFactory = {
+            val bootstrap = createMeshLinkBootstrap(context)
             createPublicMeshLinkController(
                 PublicMeshLinkControllerArgs(
-                    appId = "demo.meshlink.reference",
+                    appId = appId,
                     authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                     scenarioId = "direct-guided",
                     storageSubdirectory = "default",
-                    bootstrap = createMeshLinkBootstrap(context),
+                    bootstrap = bootstrap,
                     currentTimeMillis = { System.currentTimeMillis() },
                 ),
             )
@@ -75,32 +98,82 @@ private data class PublicMeshLinkControllerArgs(
     val currentTimeMillis: () -> Long,
 )
 
+@Suppress("LongMethod")
 private fun createPublicMeshLinkController(
     args: PublicMeshLinkControllerArgs,
 ): ReferenceMeshLinkController {
-    val meshLinkRuntime: MeshLink =
-        meshLink(
-            config =
-                MeshLinkConfig(
-                    appId = args.appId,
-                    regulatoryRegion = RegulatoryRegion.DEFAULT,
-                    powerMode = PowerMode.Automatic,
-                    deliveryRetryDeadline = 15.seconds,
-                ),
-            bootstrap = args.bootstrap,
+    val controller =
+        PublicMeshLinkController(
+            meshLinkRuntimeFactory = {
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.begin create appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" storage=")
+                        append(args.storageSubdirectory)
+                    },
+                )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.construct.begin appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" thread=")
+                        append(Thread.currentThread().name)
+                    },
+                )
+                val runtime =
+                    meshLink(
+                        config =
+                            MeshLinkConfig(
+                                appId = args.appId,
+                                regulatoryRegion = RegulatoryRegion.DEFAULT,
+                                powerMode = PowerMode.Automatic,
+                                deliveryRetryDeadline = 15.seconds,
+                            ),
+                        bootstrap = args.bootstrap,
+                    )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.construct.end appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" thread=")
+                        append(Thread.currentThread().name)
+                    },
+                )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.end create appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" storage=")
+                        append(args.storageSubdirectory)
+                    },
+                )
+                runtime
+            },
+            currentTimeMillis = args.currentTimeMillis,
+            authorityMode = args.authorityMode,
+            scenarioId = args.scenarioId,
+            storageSubdirectory = args.storageSubdirectory,
+            appId = args.appId,
         )
-    return PublicMeshLinkController(
-        meshLinkRuntime = meshLinkRuntime,
-        currentTimeMillis = args.currentTimeMillis,
-        authorityMode = args.authorityMode,
-        scenarioId = args.scenarioId,
-        storageSubdirectory = args.storageSubdirectory,
-        appId = args.appId,
-    )
+    return controller
 }
 
+@Suppress("TooManyFunctions")
 private class PublicMeshLinkController(
-    private val meshLinkRuntime: MeshLink,
+    private val meshLinkRuntimeFactory: () -> MeshLink,
     private val currentTimeMillis: () -> Long,
     authorityMode: String,
     scenarioId: String,
@@ -108,6 +181,10 @@ private class PublicMeshLinkController(
     appId: String,
 ) : ReferenceMeshLinkController {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val runtimeMutex = Mutex()
+    @Volatile private var meshLinkRuntime: MeshLink? = null
+    @Volatile private var runtimeCollectorsStarted: Boolean = false
+    @Volatile private var discoveryWatchScheduled: Boolean = false
     private val sessionId = "$appId-${currentTimeMillis()}"
     private val startedAt = currentTimeMillis()
     private val peers: LinkedHashMap<String, PeerSnapshot> = linkedMapOf()
@@ -148,28 +225,128 @@ private class PublicMeshLinkController(
 
     override val snapshot: StateFlow<ReferenceControllerSnapshot> = _snapshot.asStateFlow()
 
-    init {
+    private suspend fun resolveMeshLinkRuntime(): MeshLink =
+        meshLinkRuntime
+            ?: runtimeMutex.withLock {
+                meshLinkRuntime
+                    ?: withContext(Dispatchers.Default) { meshLinkRuntimeFactory() }
+                        .also { created ->
+                            meshLinkRuntime = created
+                            if (!runtimeCollectorsStarted) {
+                                runtimeCollectorsStarted = true
+                                startRuntimeCollectors(created)
+                            }
+                        }
+            }
+
+    private fun startRuntimeCollectors(runtime: MeshLink): Unit {
+        observeMeshState(runtime)
+        observePeerEvents(runtime)
+        observeDiagnosticEvents(runtime)
+        observeMessages(runtime)
+    }
+
+    private fun observeMeshState(runtime: MeshLink): Unit {
         scope.launch {
-            meshLinkRuntime.state.collect { state ->
+            runtime.state.collect { state ->
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION runtime.state value=")
+                        append(state)
+                    },
+                )
                 updateSnapshot { current ->
                     current.copy(
                         session = current.session.copy(meshStateLabel = state.toString()),
                     )
                 }
-            }
-        }
-        scope.launch {
-            meshLinkRuntime.peerEvents.collect { event ->
-                when (event) {
-                    is PeerEvent.Found -> updatePeer(event.peerId.value, event.state, "found")
-                    is PeerEvent.StateChanged ->
-                        updatePeer(event.peerId.value, event.state, "state-changed")
-                    is PeerEvent.Lost -> removePeer(event.peerId.value)
+                logPeerSnapshot("meshState=$state")
+                if (state == MeshLinkState.Running && !discoveryWatchScheduled) {
+                    discoveryWatchScheduled = true
+                    scope.launch {
+                        delay(3.seconds)
+                        val current = snapshot.value
+                        if (current.peers.isEmpty()) {
+                            Log.i(
+                                AUTOMATION_LOG_TAG,
+                                buildString {
+                                    append("REFERENCE_AUTOMATION peer.discovery.pending elapsedSeconds=3.0 count=")
+                                    append(current.peers.size)
+                                    append(" selectedPeerId=")
+                                    append(current.session.selectedPeerId ?: "none")
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun observePeerEvents(runtime: MeshLink): Unit {
         scope.launch {
-            meshLinkRuntime.diagnosticEvents.collect { event ->
+            Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION runtime.peerEvents.collect.begin")
+            runtime.peerEvents.collect { event ->
+                when (event) {
+                    is PeerEvent.Found -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=Found peerId=")
+                                append(event.peerId.value)
+                                append(" state=")
+                                append(event.state)
+                            },
+                        )
+                        updatePeer(event.peerId.value, event.state, "found")
+                    }
+                    is PeerEvent.StateChanged -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=StateChanged peerId=")
+                                append(event.peerId.value)
+                                append(" state=")
+                                append(event.state)
+                            },
+                        )
+                        updatePeer(event.peerId.value, event.state, "state-changed")
+                    }
+                    is PeerEvent.Lost -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=Lost peerId=")
+                                append(event.peerId.value)
+                            },
+                        )
+                        removePeer(event.peerId.value)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeDiagnosticEvents(runtime: MeshLink): Unit {
+        scope.launch {
+            Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION runtime.diagnosticEvents.collect.begin")
+            runtime.diagnosticEvents.collect { event ->
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION runtime.diagnostic code=")
+                        append(event.code)
+                        append(" severity=")
+                        append(event.severity)
+                        append(" stage=")
+                        append(event.stage)
+                        append(" peerSuffix=")
+                        append(event.peerSuffix ?: "none")
+                        append(" reason=")
+                        append(event.reason ?: "none")
+                    },
+                )
                 appendTimeline(
                     timelineContext,
                     TimelineAppendSpec(
@@ -181,8 +358,11 @@ private class PublicMeshLinkController(
                 )
             }
         }
+    }
+
+    private fun observeMessages(runtime: MeshLink): Unit {
         scope.launch {
-            meshLinkRuntime.messages.collect { message ->
+            runtime.messages.collect { message ->
                 appendTimeline(
                     timelineContext,
                     TimelineAppendSpec(
@@ -200,7 +380,14 @@ private class PublicMeshLinkController(
     }
 
     override suspend fun start(): Unit {
-        val result = meshLinkRuntime.start()
+        val result = resolveMeshLinkRuntime().start()
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION runtime.start result=")
+                append(result)
+            },
+        )
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -213,7 +400,7 @@ private class PublicMeshLinkController(
     }
 
     override suspend fun pause(): Unit {
-        val result = meshLinkRuntime.pause()
+        val result = resolveMeshLinkRuntime().pause()
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -226,7 +413,7 @@ private class PublicMeshLinkController(
     }
 
     override suspend fun resume(): Unit {
-        val result = meshLinkRuntime.resume()
+        val result = resolveMeshLinkRuntime().resume()
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -239,7 +426,7 @@ private class PublicMeshLinkController(
     }
 
     override suspend fun stop(): Unit {
-        val result = meshLinkRuntime.stop()
+        val result = resolveMeshLinkRuntime().stop()
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -260,7 +447,7 @@ private class PublicMeshLinkController(
         priority: DeliveryPriority,
     ): Unit {
         val result =
-            meshLinkRuntime.send(
+            resolveMeshLinkRuntime().send(
                 peerId = PeerId(peerId),
                 payload = payloadText.encodeToByteArray(),
                 priority = priority,
@@ -280,7 +467,7 @@ private class PublicMeshLinkController(
     }
 
     override suspend fun forgetPeer(peerId: String): Unit {
-        val result = meshLinkRuntime.forgetPeer(PeerId(peerId))
+        val result = resolveMeshLinkRuntime().forgetPeer(PeerId(peerId))
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -295,7 +482,24 @@ private class PublicMeshLinkController(
 
     override suspend fun close(): Unit {
         scope.cancel()
-        meshLinkRuntime.stop()
+        meshLinkRuntime?.let { runCatching { it.stop() } }
+    }
+
+    private fun logPeerSnapshot(reason: String): Unit {
+        val current = snapshot.value
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION peer.snapshot reason=")
+                append(reason)
+                append(" count=")
+                append(current.peers.size)
+                append(" selectedPeerId=")
+                append(current.session.selectedPeerId ?: "none")
+                append(" suffixes=")
+                append(current.peers.joinToString(prefix = "[", postfix = "]") { it.peerSuffix })
+            },
+        )
     }
 
     private fun updatePeer(
@@ -345,6 +549,7 @@ private class PublicMeshLinkController(
             )
         }
         refreshSnapshotPeers()
+        logPeerSnapshot("updatePeer reason=$reason peerId=$peerId state=$state")
     }
 
     private fun removePeer(peerId: String): Unit {
@@ -367,6 +572,7 @@ private class PublicMeshLinkController(
             ),
         )
         refreshSnapshotPeers()
+        logPeerSnapshot("removePeer peerId=$peerId")
     }
 
     private fun refreshSnapshotPeers(): Unit {
@@ -427,6 +633,17 @@ private fun readinessBlockers(
     }
     blockers += powerManagement
     return blockers
+}
+
+private fun computeAppMeshHash(appId: String): UShort {
+    val bytes = appId.encodeToByteArray()
+    val seedBytes = if (bytes.isNotEmpty()) bytes else byteArrayOf(0)
+    var state = FNV_OFFSET_BASIS
+    for (byte in seedBytes) {
+        state = (state xor (byte.toUInt() and BYTE_MASK)) * FNV_PRIME
+    }
+    val folded = (((state shr FNV_FOLD_SHIFT) xor (state and USHORT_MASK)) and USHORT_MASK)
+    return folded.toUShort()
 }
 
 

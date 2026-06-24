@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference
 
 import android.content.Context
+import android.util.Log
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
@@ -22,12 +23,58 @@ internal class AndroidPlatformServices(
     val documentStore: Any? = null,
     private val currentTimeMillisProvider: () -> Long = { System.currentTimeMillis() },
     private val stopPowerMitigationAction: () -> Unit = {},
-    private val emitAutomationLogAction: (String) -> Unit = {},
+    private val emitAutomationLogAction: (String) -> Unit = { message ->
+        Log.i("MeshLinkReferenceAutomation", message)
+    },
 ) {
     val readinessBlockers: List<String>
         get() = readinessBlockersFactory(context)
 
-    val meshLinkController: ReferenceMeshLinkController by lazy(meshLinkControllerFactory)
+    private val meshLinkControllerLock: Any = Any()
+    @Volatile private var meshLinkControllerInstance: ReferenceMeshLinkController? = null
+    @Volatile private var meshLinkControllerFactoryInProgress: Boolean = false
+
+    private companion object {
+        private const val MESH_LINK_CONTROLLER_FACTORY_WATCHDOG_DELAY_MILLIS: Long = 2_000L
+    }
+
+    val meshLinkController: ReferenceMeshLinkController
+        get() {
+            meshLinkControllerInstance?.let { return it }
+            return synchronized(meshLinkControllerLock) {
+                meshLinkControllerInstance?.let { return@synchronized it }
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.access begin",
+                )
+                meshLinkControllerFactoryInProgress = true
+                val watchdog =
+                    Thread {
+                        try {
+                            Thread.sleep(MESH_LINK_CONTROLLER_FACTORY_WATCHDOG_DELAY_MILLIS)
+                        } catch (_: InterruptedException) {
+                            return@Thread
+                        }
+                        if (meshLinkControllerFactoryInProgress) {
+                            Log.i(
+                                "MeshLinkReferenceAutomation",
+                                "REFERENCE_AUTOMATION android.meshLinkController.access waiting elapsedSeconds=2.0",
+                            )
+                        }
+                    }
+                watchdog.isDaemon = true
+                watchdog.start()
+                val created = meshLinkControllerFactory()
+                meshLinkControllerFactoryInProgress = false
+                meshLinkControllerInstance = created
+                watchdog.interrupt()
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.access end",
+                )
+                created
+            }
+        }
 
     fun stopPowerMitigation(): Unit = stopPowerMitigationAction()
 

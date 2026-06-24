@@ -30,7 +30,7 @@ def mermaid_text(value: Any, *, max_len: int = 120) -> str:
     return text or "—"
 
 PROOF_SCRIPT = Path("meshlink-reference/scripts/run_headless_reference_android_direct_proof.py")
-DEFAULT_ANDROID_READY_SECONDS = 90.0
+DEFAULT_ANDROID_READY_SECONDS = 30.0
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 180.0
 DEFAULT_PAIR_TIMEOUT_SECONDS = 240.0
 DEFAULT_MIN_ANDROID_API_LEVEL = 33
@@ -98,7 +98,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--android-ready-seconds",
         type=float,
         default=DEFAULT_ANDROID_READY_SECONDS,
-        help="Passive startup wait per pair",
+        help="Passive startup wait per pair (kept short so transport-start failures surface quickly)",
     )
     parser.add_argument(
         "--capture-timeout-seconds",
@@ -134,7 +134,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=5,
         help="Stop the sweep once failures exceed this threshold when fail-fast is disabled",
     )
-    parser.set_defaults(fail_fast=False)
+    parser.set_defaults(fail_fast=True)
     return parser.parse_args(argv)
 
 
@@ -268,6 +268,8 @@ def run_pair(
             "failureStage": "no-summary",
             "failureReason": (completed.stderr or completed.stdout or "").strip(),
         }
+    sender_focus = summary.get("senderDiscoveryFocus") or {}
+    passive_focus = summary.get("passiveDiscoveryFocus") or {}
     return {
         "status": summary.get("status"),
         "failureStage": summary.get("failureStage"),
@@ -276,6 +278,10 @@ def run_pair(
         "routeEvidence": summary.get("routeEvidence"),
         "senderRouteStage": summary.get("senderRouteStage"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
+        "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
+        "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderDiscoveryFocus": sender_focus,
+        "passiveDiscoveryFocus": passive_focus,
         "timings": summary.get("timings"),
         "startupTiming": summary.get("startupTiming"),
         "htmlReportPath": summary.get("htmlReportPath"),
@@ -303,10 +309,21 @@ def extract_peer_id_from_evidence(evidence: str | None) -> str | None:
     return match.group(1)
 
 
-def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+def read_passive_peer_id(serial: str, app_id: str, retries: int = 5, delay_s: float = 1.0) -> str | None:
+    discovery_seed_path = "files/automation-discovery-seed.txt"
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
     identity_key = f"identity:{app_id}:x25519-public"
     for _ in range(retries):
+        seed_result = subprocess.run(
+            ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", discovery_seed_path],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if seed_result.returncode == 0:
+            seed_text = seed_result.stdout.strip()
+            if seed_text:
+                return seed_text.splitlines()[0].strip()
         result = subprocess.run(
             ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", xml_path],
             check=False,
@@ -331,6 +348,8 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 60, delay_s: f
 
 
 def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
+    sender_focus = summary.get("senderDiscoveryFocus") or {}
+    passive_focus = summary.get("passiveDiscoveryFocus") or {}
     return {
         "status": summary.get("status"),
         "failureStage": summary.get("failureStage"),
@@ -343,6 +362,10 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "senderRouteEvidence": summary.get("senderRouteEvidence"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "passiveRouteEvidence": summary.get("passiveRouteEvidence"),
+        "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
+        "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderDiscoveryFocus": sender_focus,
+        "passiveDiscoveryFocus": passive_focus,
         "transportMode": summary.get("transportMode") or (summary.get("timings") or {}).get("transportMode"),
         "transportEvidence": summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence"),
         "startupTiming": summary.get("startupTiming"),
@@ -406,6 +429,17 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
     fleet_inventory_path = state.get("fleetInventoryPath") if state is not None else None
     run_root = state.get("runRoot") if state is not None else None
 
+    sender_ignored_total = sum(
+        int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+        + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+        for row in results
+    )
+    passive_ignored_total = sum(
+        int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+        + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+        for row in results
+    )
+
     report = [
         "# Android direct-proof matrix",
         "",
@@ -421,6 +455,9 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"| Max failures | {max_failures if max_failures is not None else '—'} |",
         f"| Stopped early | {'yes' if stopped_early else 'no'} |",
         f"| Stop reason | {stop_reason or '—'} |",
+        "",
+        f"Foreign scan summary: sender ignored {sender_ignored_total} · passive ignored {passive_ignored_total}",
+        "- How to read this report: sender/passive foreign-scan counts are summed across initial + final passes for the fleet overview, while pair reports show the same counts per run.",
         "",
         "## Mermaid overview",
         "",
@@ -498,8 +535,8 @@ def format_elapsed_from_markers(
 ) -> str:
     if start_line and end_line and len(start_line) >= 18 and len(end_line) >= 18:
         try:
-            start = datetime.strptime(start_line[:18], "%m-%d %H:%M:%S.%f")
-            end = datetime.strptime(end_line[:18], "%m-%d %H:%M:%S.%f")
+            start = datetime.strptime(f"2001-{start_line[:18]}", "%Y-%m-%d %H:%M:%S.%f")
+            end = datetime.strptime(f"2001-{end_line[:18]}", "%Y-%m-%d %H:%M:%S.%f")
             if end >= start:
                 return f"{(end - start).total_seconds():.1f}s"
         except ValueError:
@@ -683,7 +720,8 @@ def render_pair_report(
 
     intro = (
         f"Pair {index:02d} ({pair['label']}) is a {initial.get('status')} initial run over {sender_model} → {passive_model}. "
-        f"The sender started {sender_startup_transport or 'unknown'} transport, the passive side started {passive_startup_transport or 'unknown'} transport, and the pair stalled at {final.get('failureStage') or initial.get('failureStage') or 'unknown'} before route establishment."
+        f"The sender started {sender_startup_transport or 'unknown'} transport, the passive side started {passive_startup_transport or 'unknown'} transport, and the pair stalled at {final.get('failureStage') or initial.get('failureStage') or 'unknown'} before route establishment. "
+        f"Foreign scan summary: initial sender ignored {initial.get('senderForeignScanIgnoredCount', '—')} · initial passive ignored {initial.get('passiveForeignScanIgnoredCount', '—')} · final sender ignored {final.get('senderForeignScanIgnoredCount', '—')} · final passive ignored {final.get('passiveForeignScanIgnoredCount', '—')}"
     )
 
     lines = [
@@ -692,6 +730,10 @@ def render_pair_report(
         "## Introduction",
         "",
         intro,
+        "",
+        "### How to read this report",
+        "- The foreign-scan summary in the intro aggregates initial + final runs for this pair.",
+        "- The detailed initial/final counts below let you see whether scan noise was one-sided or symmetric.",
         "",
         "## Setup",
         "",
@@ -708,6 +750,8 @@ def render_pair_report(
         f"- Initial run dir: `{initial.get('runDir') or initial.get('summaryPath') or '—'}`",
         f"- Final run dir: `{final.get('runDir') or '—'}`",
         f"- Target peer id: {target_peer_id or 'not resolved'}",
+        "- How to read this report: the foreign-scan summary above aggregates the initial + final runs; the per-pair counts below are broken out per run.",
+        "- How to read this report: the sender and passive counts are treated separately so you can spot whether the mesh hash noise is localized or symmetric.",
         "",
         "## Result",
         "",
@@ -798,7 +842,12 @@ def render_pair_report(
 def load_progress(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return payload.get("results") or []
+    raise TypeError("progress.json must contain a list of results or an object with results")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -880,7 +929,7 @@ def main(argv: list[str] | None = None) -> int:
         peer_lookup_seconds = round(time.monotonic() - peer_lookup_started, 1)
         if target_peer_id is None:
             print(
-                "==> Passive peer id unavailable; skipping the final pass because no valid discovery evidence was captured",
+                "==> Passive peer id unavailable; continuing without a seeded target peer",
                 flush=True,
             )
         else:
@@ -888,33 +937,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"==> Seeded final pass from discovered peer {target_peer_id}",
                 flush=True,
             )
-        if target_peer_id is not None:
-            final = run_pair(
-                sender=pair["sender"],
-                passive=pair["passive"],
-                app_id=app_id,
-                run_dir=final_dir,
-                target_peer_id=target_peer_id,
-                capture_timeout=args.capture_timeout_seconds,
-                android_ready_seconds=args.android_ready_seconds,
-                pair_timeout_seconds=args.pair_timeout_seconds,
-                skip_install=True,
-            )
-        else:
-            final = {
-                "status": "skipped",
-                "failureStage": initial.get("failureStage"),
-                "failureReason": initial.get("failureReason"),
-                "senderCompletion": initial.get("senderCompletion"),
-                "passiveCompletion": initial.get("passiveCompletion"),
-                "timings": initial.get("timings"),
-                "htmlReportPath": initial.get("htmlReportPath"),
-                "stdoutTail": initial.get("stdoutTail"),
-                "stderrTail": initial.get("stderrTail"),
-                "elapsedSeconds": initial.get("elapsedSeconds"),
-                "runDir": str(final_dir),
-                "summaryPath": None,
-            }
+        final = run_pair(
+            sender=pair["sender"],
+            passive=pair["passive"],
+            app_id=app_id,
+            run_dir=final_dir,
+            target_peer_id=target_peer_id,
+            capture_timeout=args.capture_timeout_seconds,
+            android_ready_seconds=args.android_ready_seconds,
+            pair_timeout_seconds=args.pair_timeout_seconds,
+            skip_install=True,
+        )
 
         row = {
             "label": pair["label"],
@@ -939,8 +972,44 @@ def main(argv: list[str] | None = None) -> int:
         }
         results.append(row)
         completed.add((pair["sender"], pair["passive"]))
-        progress_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "results": results,
+                    "foreignScanSummary": {
+                        "senderIgnoredTotal": sum(
+                            int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+                            + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+                            for row in results
+                        ),
+                        "passiveIgnoredTotal": sum(
+                            int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+                            + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+                            for row in results
+                        ),
+                        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+                    },
+                    "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        fleet_inventory["foreignScanSummary"] = {
+            "senderIgnoredTotal": sum(
+                int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+                + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+                for row in results
+            ),
+            "passiveIgnoredTotal": sum(
+                int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+                + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+                for row in results
+            ),
+            "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+        }
+        fleet_json_path.write_text(json.dumps(fleet_inventory, indent=2), encoding="utf-8")
         state_path.write_text(
             json.dumps(
                 {
@@ -981,6 +1050,12 @@ def main(argv: list[str] | None = None) -> int:
             f"    initial {initial['status']} ({initial.get('failureStage')}) -> final {final['status']} ({final.get('failureStage')})",
             flush=True,
         )
+        print(
+            "    foreign scan summary "
+            + f"sender ignored={initial.get('senderForeignScanIgnoredCount', '—')} "
+            + f"passive ignored={initial.get('passiveForeignScanIgnoredCount', '—')}",
+            flush=True,
+        )
 
         pair_failed = initial["status"] != "passed" or final["status"] != "passed"
         if pair_failed:
@@ -998,6 +1073,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             break
 
+    foreign_scan_summary = {
+        "senderIgnoredTotal": sum(
+            int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+            + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+            for row in results
+        ),
+        "passiveIgnoredTotal": sum(
+            int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+            + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+            for row in results
+        ),
+        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+    }
     state_path.write_text(
         json.dumps(
             {
@@ -1010,16 +1098,26 @@ def main(argv: list[str] | None = None) -> int:
                 "failFast": args.fail_fast,
                 "stoppedEarly": stopped_early,
                 "stopReason": stop_reason,
+                "foreignScanSummary": foreign_scan_summary,
             },
             indent=2,
         ),
         encoding="utf-8",
     )
 
+    progress_summary = {
+        "foreignScanSummary": foreign_scan_summary,
+        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+    }
+    progress_path.write_text(
+        json.dumps({"results": results, **progress_summary}, indent=2),
+        encoding="utf-8",
+    )
     compact_report = render_compact_report(results, state=json.loads(state_path.read_text(encoding="utf-8")))
     compact_report += "\n\n## Run setup\n\n"
     compact_report += f"- Fleet inventory: `{fleet_markdown_path}`\n"
     compact_report += f"- Fleet JSON: `{fleet_json_path}`\n"
+    compact_report += "- `foreignScanSummary` is written to both `fleet.json` and `progress.json` for downstream tooling.\n"
     compact_report += f"- Fail-fast: {'enabled' if args.fail_fast else 'disabled'}\n"
     compact_report += f"- Stopped early: {'yes' if stopped_early else 'no'}\n"
     if stop_reason is not None:
