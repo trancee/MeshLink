@@ -80,7 +80,7 @@ The repository now has:
 
 The first public release still needs:
 
-- GitHub Actions secret provisioning for the publish workflow (`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_IN_MEMORY_KEY`, `SIGNING_KEY_ID`, `SIGNING_KEY_PASSWORD`)
+- GitHub Actions secret provisioning for the publish workflow (`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, `SIGNING_KEY_ID`, `SIGNING_KEY_PASSWORD`)
 - a maintainer-reviewed first release PR before the initial `release-please` release is merged
 
 ## Related docs

@@ -148,7 +148,14 @@ pre-release-readiness commit on `main` so the first live release PR does not
 sweep the full historical pre-automation commit range. The first public release
 PR still needs maintainer curation before merge.
 
-## Release PR verification with `GITHUB_TOKEN`
+## Release workflow dry-run and PR verification
+
+The release workflow supports a manual dry-run that publishes to Maven Local
+and runs the consumer smoke check without creating a release:
+
+```bash
+gh workflow run release-please.yml --ref main -f dry_run=true
+```
 
 Because the repository currently uses the default `GITHUB_TOKEN` for
 `release-please`, release-please-created PRs do not automatically trigger the
@@ -192,7 +199,7 @@ or tagging.
 
 These items still sit outside the automated release-please flow:
 
-- provisioning the GitHub Actions secrets used by the publish job: `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_IN_MEMORY_KEY`, `SIGNING_KEY_ID`, and `SIGNING_KEY_PASSWORD`
+- provisioning the GitHub Actions secrets used by the publish job: `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, `SIGNING_KEY_ID`, and `SIGNING_KEY_PASSWORD`
 - rollback guidance for failed publishes
 
 ## Follow-up after publishing support lands
