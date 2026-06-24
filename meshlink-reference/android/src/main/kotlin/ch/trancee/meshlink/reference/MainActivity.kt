@@ -7,6 +7,10 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import ch.trancee.meshlink.reference.app.ReferenceApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 private const val EXTRA_UI_AUTOMATION = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION"
 private const val EXTRA_MODE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_MODE"
@@ -18,15 +22,23 @@ private const val EXTRA_TARGET_PEER_ID = "ch.trancee.meshlink.reference.extra.UI
 
 /** Android entry point for the shared reference app harness. */
 public class MainActivity : ComponentActivity() {
+    private val automationProbeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var activePlatformServices: AndroidPlatformServices? = null
 
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
         val extras = intent?.extras
+        val automationAppId = extras?.getString(EXTRA_APP_ID) ?: "unknown"
         logActivityStage("onCreate")
         logAutomationStartupStage(extras)
 
-        val platformServices = createPlatformServices(applicationContext)
+        val platformServices = createPlatformServices(applicationContext, automationAppId)
+        launchRetainedDiscoverySeedProbe(
+            context = applicationContext,
+            appId = automationAppId,
+            emitAutomationLog = platformServices::emitAutomationLog,
+            scope = automationProbeScope,
+        )
         activePlatformServices = platformServices
         logActivityStage("beforeSetContent")
         val meshLinkController = platformServices.meshLinkController
@@ -71,6 +83,7 @@ public class MainActivity : ComponentActivity() {
         logActivityStage("onDestroy")
         activePlatformServices?.stopPowerMitigation()
         activePlatformServices = null
+        automationProbeScope.cancel()
         super.onDestroy()
     }
 

@@ -304,9 +304,20 @@ def extract_peer_id_from_evidence(evidence: str | None) -> str | None:
 
 
 def read_passive_peer_id(serial: str, app_id: str, retries: int = 5, delay_s: float = 1.0) -> str | None:
+    discovery_seed_path = "files/automation-discovery-seed.txt"
     xml_path = f"shared_prefs/meshlink-{app_id}.xml"
     identity_key = f"identity:{app_id}:x25519-public"
     for _ in range(retries):
+        seed_result = subprocess.run(
+            ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", discovery_seed_path],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if seed_result.returncode == 0:
+            seed_text = seed_result.stdout.strip()
+            if seed_text:
+                return seed_text.splitlines()[0].strip()
         result = subprocess.run(
             ["adb", "-s", serial, "shell", "run-as", "ch.trancee.meshlink.reference", "cat", xml_path],
             check=False,

@@ -844,7 +844,7 @@ def transport_failure_reason(run_dir: Path) -> str | None:
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
             "Android transport reached scan/advertise startup but never emitted peer.discovered; "
-            "direct proof cannot proceed without a retained discovery seed"
+            "classified as a capture stall"
         )
     return None
 
@@ -1242,8 +1242,15 @@ def start_android_role_app(
 
 
 def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+    discovery_seed_path = "automation-discovery-seed.txt"
     relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
     for _ in range(retries):
+        try:
+            discovery_seed_text = read_android_app_file(android_serial, discovery_seed_path).strip()
+        except subprocess.CalledProcessError:
+            discovery_seed_text = ""
+        if discovery_seed_text:
+            return discovery_seed_text.splitlines()[0].strip()
         try:
             xml_text = read_android_app_file(android_serial, relative_path)
         except subprocess.CalledProcessError:

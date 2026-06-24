@@ -49,7 +49,7 @@ import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 private const val AUTOMATION_LOG_TAG: String = "MeshLinkReferenceAutomation"
 private const val PEER_SUFFIX_LENGTH: Int = 6
 
-internal fun createPlatformServices(context: Context): AndroidPlatformServices {
+internal fun createPlatformServices(context: Context, appId: String): AndroidPlatformServices {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.begin scripted")
     return AndroidPlatformServices(
         context = context.applicationContext,
@@ -58,7 +58,7 @@ internal fun createPlatformServices(context: Context): AndroidPlatformServices {
         meshLinkControllerFactory = {
             createPublicMeshLinkController(
                 PublicMeshLinkControllerArgs(
-                    appId = "demo.meshlink.reference",
+                    appId = appId,
                     authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                     scenarioId = "direct-guided",
                     storageSubdirectory = "default",
