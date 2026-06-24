@@ -336,6 +336,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         )
 
     failure_diagnostics_html = ""
+    capture_stall_note_html = ""
     foreign_scan_note = None
     passive_foreign_scan_ignored_count = passive_discovery_focus.get("foreignScanIgnoredCount")
     if passive_foreign_scan_ignored_count is not None and int(passive_foreign_scan_ignored_count or 0) > 0:
@@ -369,6 +370,16 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         ]
         if foreign_scan_note is not None:
             failure_rows.append(("Foreign scan note", foreign_scan_note))
+        if payload.get("failureStage") == "capture" or payload.get("routeStage") == "discovery-stalled":
+            capture_stall_note = (
+                "Capture stalled before route establishment; the passive side is still absorbing foreign payloads "
+                "so check the Top foreign peers table for the dominant noisy addresses."
+            )
+            failure_rows.append(("Capture stall note", capture_stall_note))
+            capture_stall_note_html = (
+                "<section><h2>Capture stall note</h2>"
+                f"<p>{esc(capture_stall_note)}</p></section>"
+            )
         failure_diagnostics_html = kv_table("Failure diagnostics", failure_rows)
 
     html_parts = [
@@ -436,6 +447,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         ),
         execution_timeline_html,
         failure_diagnostics_html,
+        capture_stall_note_html,
         kv_table(
             "Evidence",
             [
