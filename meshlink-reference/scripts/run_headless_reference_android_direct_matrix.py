@@ -268,6 +268,8 @@ def run_pair(
             "failureStage": "no-summary",
             "failureReason": (completed.stderr or completed.stdout or "").strip(),
         }
+    sender_focus = summary.get("senderDiscoveryFocus") or {}
+    passive_focus = summary.get("passiveDiscoveryFocus") or {}
     return {
         "status": summary.get("status"),
         "failureStage": summary.get("failureStage"),
@@ -276,6 +278,8 @@ def run_pair(
         "routeEvidence": summary.get("routeEvidence"),
         "senderRouteStage": summary.get("senderRouteStage"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
+        "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
+        "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
         "timings": summary.get("timings"),
         "startupTiming": summary.get("startupTiming"),
         "htmlReportPath": summary.get("htmlReportPath"),
@@ -974,6 +978,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             f"    initial {initial['status']} ({initial.get('failureStage')}) -> final {final['status']} ({final.get('failureStage')})",
+            flush=True,
+        )
+        print(
+            "    foreign scan summary "
+            + f"sender ignored={initial.get('senderForeignScanIgnoredCount', '—')} "
+            + f"passive ignored={initial.get('passiveForeignScanIgnoredCount', '—')}",
             flush=True,
         )
 

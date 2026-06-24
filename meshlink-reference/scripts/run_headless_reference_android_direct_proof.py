@@ -507,6 +507,7 @@ def extract_discovery_focus_lines(
     log_text: str,
     peer_id: str | None,
     *,
+    include_summary_lines: bool = True,
     include_peer_lines: bool = True,
 ) -> list[str]:
     focus_lines: list[str] = []
@@ -522,7 +523,10 @@ def extract_discovery_focus_lines(
     )
     for line in log_text.splitlines():
         normalized = line.strip()
-        if "REFERENCE_AUTOMATION startup.meshHashSummary" in normalized or "discovery.summary" in normalized:
+        if include_summary_lines and (
+            "REFERENCE_AUTOMATION startup.meshHashSummary" in normalized
+            or "discovery.summary" in normalized
+        ):
             focus_lines.append(normalized)
             continue
         if not include_peer_lines or peer_id is None:
@@ -1740,7 +1744,11 @@ def failure_summary(
     passive_log_text = read_text(passive_log_path(run_dir))
     discovered_peer_id = extract_discovered_peer_id(passive_log_text)
     target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
-    sender_discovery_focus_lines = extract_discovery_focus_lines(sender_log_text, target_peer_id)
+    sender_discovery_focus_lines = extract_discovery_focus_lines(
+        sender_log_text,
+        target_peer_id,
+        include_summary_lines=False,
+    )
     passive_discovery_focus_lines = extract_discovery_focus_lines(
         passive_log_text,
         target_peer_id,
@@ -2064,7 +2072,11 @@ def main(argv: list[str] | None = None) -> int:
         sender_log_text = read_text(sender_log_path(run_dir))
         passive_log_text = read_text(passive_log_path(run_dir))
         target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
-        sender_discovery_focus_lines = extract_discovery_focus_lines(sender_log_text, target_peer_id)
+        sender_discovery_focus_lines = extract_discovery_focus_lines(
+            sender_log_text,
+            target_peer_id,
+            include_summary_lines=False,
+        )
         passive_discovery_focus_lines = extract_discovery_focus_lines(
             passive_log_text,
             target_peer_id,
