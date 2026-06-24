@@ -135,15 +135,13 @@ follow-on workflows.
 
 Before cutting `0.1.0`, confirm all of the following:
 
-- the project license in `LICENSE` still matches the intended public
-  distribution posture
+- the project license in `LICENSE` still matches the intended public distribution posture
 - `CHANGELOG.md` describes the release in reader-facing terms
 - `README.md` and the install docs match the current distribution shape
 - `SECURITY.md` and this runbook are still accurate
 - the repository verification bundle passes from a clean checkout
 - the release tag name and next snapshot version are decided in advance
-- Maven Central publishing, signing, and consumer smoke validation are ready if
-  the release will publish an artifact
+- Maven Central publishing, signing, and consumer smoke validation are wired and pass in a release dry-run
 
 The repository pins `bootstrap-sha` in `release-please-config.json` to the last
 pre-release-readiness commit on `main` so the first live release PR does not
