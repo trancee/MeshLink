@@ -37,6 +37,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -140,6 +141,7 @@ private class PublicMeshLinkController(
     private val runtimeMutex = Mutex()
     @Volatile private var meshLinkRuntime: MeshLink? = null
     @Volatile private var runtimeCollectorsStarted: Boolean = false
+    @Volatile private var discoveryWatchScheduled: Boolean = false
     private val sessionId = "$appId-${currentTimeMillis()}"
     private val startedAt = currentTimeMillis()
     private val peers: LinkedHashMap<String, PeerSnapshot> = linkedMapOf()
@@ -195,27 +197,113 @@ private class PublicMeshLinkController(
             }
 
     private fun startRuntimeCollectors(runtime: MeshLink): Unit {
+        observeMeshState(runtime)
+        observePeerEvents(runtime)
+        observeDiagnosticEvents(runtime)
+        observeMessages(runtime)
+    }
+
+    private fun observeMeshState(runtime: MeshLink): Unit {
         scope.launch {
             runtime.state.collect { state ->
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION runtime.state value=")
+                        append(state)
+                    },
+                )
                 updateSnapshot { current ->
                     current.copy(
                         session = current.session.copy(meshStateLabel = state.toString()),
                     )
                 }
-            }
-        }
-        scope.launch {
-            runtime.peerEvents.collect { event ->
-                when (event) {
-                    is PeerEvent.Found -> updatePeer(event.peerId.value, event.state, "found")
-                    is PeerEvent.StateChanged ->
-                        updatePeer(event.peerId.value, event.state, "state-changed")
-                    is PeerEvent.Lost -> removePeer(event.peerId.value)
+                logPeerSnapshot("meshState=$state")
+                if (state == MeshLinkState.Running && !discoveryWatchScheduled) {
+                    discoveryWatchScheduled = true
+                    scope.launch {
+                        delay(3.seconds)
+                        val current = snapshot.value
+                        if (current.peers.isEmpty()) {
+                            Log.i(
+                                AUTOMATION_LOG_TAG,
+                                buildString {
+                                    append("REFERENCE_AUTOMATION peer.discovery.pending elapsedSeconds=3.0 count=")
+                                    append(current.peers.size)
+                                    append(" selectedPeerId=")
+                                    append(current.session.selectedPeerId ?: "none")
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun observePeerEvents(runtime: MeshLink): Unit {
         scope.launch {
+            Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION runtime.peerEvents.collect.begin")
+            runtime.peerEvents.collect { event ->
+                when (event) {
+                    is PeerEvent.Found -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=Found peerId=")
+                                append(event.peerId.value)
+                                append(" state=")
+                                append(event.state)
+                            },
+                        )
+                        updatePeer(event.peerId.value, event.state, "found")
+                    }
+                    is PeerEvent.StateChanged -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=StateChanged peerId=")
+                                append(event.peerId.value)
+                                append(" state=")
+                                append(event.state)
+                            },
+                        )
+                        updatePeer(event.peerId.value, event.state, "state-changed")
+                    }
+                    is PeerEvent.Lost -> {
+                        Log.i(
+                            AUTOMATION_LOG_TAG,
+                            buildString {
+                                append("REFERENCE_AUTOMATION runtime.peerEvent type=Lost peerId=")
+                                append(event.peerId.value)
+                            },
+                        )
+                        removePeer(event.peerId.value)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeDiagnosticEvents(runtime: MeshLink): Unit {
+        scope.launch {
+            Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION runtime.diagnosticEvents.collect.begin")
             runtime.diagnosticEvents.collect { event ->
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION runtime.diagnostic code=")
+                        append(event.code)
+                        append(" severity=")
+                        append(event.severity)
+                        append(" stage=")
+                        append(event.stage)
+                        append(" peerSuffix=")
+                        append(event.peerSuffix ?: "none")
+                        append(" reason=")
+                        append(event.reason ?: "none")
+                    },
+                )
                 appendTimeline(
                     timelineContext,
                     TimelineAppendSpec(
@@ -227,6 +315,9 @@ private class PublicMeshLinkController(
                 )
             }
         }
+    }
+
+    private fun observeMessages(runtime: MeshLink): Unit {
         scope.launch {
             runtime.messages.collect { message ->
                 appendTimeline(
@@ -247,6 +338,13 @@ private class PublicMeshLinkController(
 
     override suspend fun start(): Unit {
         val result = resolveMeshLinkRuntime().start()
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION runtime.start result=")
+                append(result)
+            },
+        )
         appendTimeline(
             timelineContext,
             TimelineAppendSpec(
@@ -344,6 +442,23 @@ private class PublicMeshLinkController(
         meshLinkRuntime?.let { runCatching { it.stop() } }
     }
 
+    private fun logPeerSnapshot(reason: String): Unit {
+        val current = snapshot.value
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION peer.snapshot reason=")
+                append(reason)
+                append(" count=")
+                append(current.peers.size)
+                append(" selectedPeerId=")
+                append(current.session.selectedPeerId ?: "none")
+                append(" suffixes=")
+                append(current.peers.joinToString(prefix = "[", postfix = "]") { it.peerSuffix })
+            },
+        )
+    }
+
     private fun updatePeer(
         peerId: String,
         state: ch.trancee.meshlink.api.PeerConnectionState,
@@ -391,6 +506,7 @@ private class PublicMeshLinkController(
             )
         }
         refreshSnapshotPeers()
+        logPeerSnapshot("updatePeer reason=$reason peerId=$peerId state=$state")
     }
 
     private fun removePeer(peerId: String): Unit {
@@ -413,6 +529,7 @@ private class PublicMeshLinkController(
             ),
         )
         refreshSnapshotPeers()
+        logPeerSnapshot("removePeer peerId=$peerId")
     }
 
     private fun refreshSnapshotPeers(): Unit {
