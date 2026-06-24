@@ -3,6 +3,7 @@ package ch.trancee.meshlink.reference.guided
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
+import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +37,8 @@ internal class GuidedFirstExchangeViewModel(
     private val powerMitigationLabelValue: String? = powerMitigationStatus
     private var autoSendTriggered: Boolean = false
     private var peerDiscoveryLogged: Boolean = false
+    private var routeReadyLogged: Boolean = false
+    private var routePendingLogged: Boolean = false
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -53,6 +56,7 @@ internal class GuidedFirstExchangeViewModel(
             meshLinkController.snapshot.collectLatest { snapshot ->
                 stateStore.applySnapshot(snapshot)
                 maybeLogPeerDiscovery(snapshot)
+                maybeLogRouteReadiness(snapshot)
                 maybeAutoSendHello(snapshot)
             }
         }
@@ -110,6 +114,34 @@ internal class GuidedFirstExchangeViewModel(
         )
     }
 
+    private fun maybeLogRouteReadiness(snapshot: ReferenceControllerSnapshot): Unit {
+        val peer = snapshot.peers.firstOrNull()
+        if (peer == null) {
+            if (routePendingLogged) return
+            routePendingLogged = true
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION route.pending role=${automationRole ?: "unknown"} count=0 selectedPeerId=none"
+            )
+            return
+        }
+        if (peer.connectionState == PeerConnectionSnapshotState.CONNECTED) {
+            if (routeReadyLogged) return
+            routeReadyLogged = true
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION route.ready role=${automationRole ?: "unknown"} peerId=${peer.peerId} peerSuffix=${peer.peerSuffix} trustState=${peer.trustState} connectionState=${peer.connectionState}"
+            )
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.route.ready peerId=${peer.peerId} peerSuffix=${peer.peerSuffix} trustState=${peer.trustState} connectionState=${peer.connectionState}"
+            )
+            return
+        }
+        if (routePendingLogged) return
+        routePendingLogged = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION route.pending role=${automationRole ?: "unknown"} peerId=${peer.peerId} peerSuffix=${peer.peerSuffix} trustState=${peer.trustState} connectionState=${peer.connectionState}"
+        )
+    }
+
     private fun maybeAutoSendHello(snapshot: ReferenceControllerSnapshot): Unit {
         if (!autoSendHello || autoSendTriggered) return
         val targetPeerId = automationTargetPeerId
@@ -118,6 +150,7 @@ internal class GuidedFirstExchangeViewModel(
                 targetPeerId != null -> snapshot.peers.firstOrNull { it.peerId == targetPeerId }
                 else -> snapshot.peers.firstOrNull()
             } ?: return
+        if (peer.connectionState != PeerConnectionSnapshotState.CONNECTED) return
         autoSendTriggered = true
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${targetPeerId ?: "none"}"

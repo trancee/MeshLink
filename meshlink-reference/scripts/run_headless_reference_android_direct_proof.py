@@ -93,6 +93,7 @@ SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
     "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
     "REFERENCE_AUTOMATION peer.discovered role=SENDER",
+    "REFERENCE_AUTOMATION route.ready role=SENDER",
     "REFERENCE_AUTOMATION send.requested role=sender",
     "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested",
 ]
@@ -506,7 +507,10 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
             stage = "route-unavailable"
             evidence = normalized
-        elif "GATT notify benchmark notifications enabled" in line:
+        elif "route.pending role=" in line:
+            stage = "route-pending"
+            evidence = normalized
+        elif "route.ready role=" in line or "GATT notify benchmark notifications enabled" in line:
             stage = "route-discovered"
             evidence = normalized
         elif "ROUTE_DISCOVERED" in line or "routeAvailable=true" in line:
@@ -690,13 +694,13 @@ def build_timing_snapshot(
     )
     sender_trust_line, sender_trust_seconds = extract_marker_timing(
         sender_log,
-        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        ("route.ready role=SENDER", "ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
         after_seconds=sender_peer_seconds or sender_startup_seconds,
     )
     sender_send_line, sender_send_seconds = extract_marker_timing(
         sender_log,
         ("send.requested role=sender",),
-        after_seconds=sender_peer_seconds or sender_startup_seconds,
+        after_seconds=sender_trust_seconds or sender_peer_seconds or sender_startup_seconds,
     )
     sender_complete_line, sender_complete_seconds = extract_marker_timing(
         sender_log,
@@ -717,7 +721,7 @@ def build_timing_snapshot(
     )
     passive_trust_line, passive_trust_seconds = extract_marker_timing(
         passive_log,
-        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        ("route.ready role=PASSIVE", "ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
         after_seconds=passive_peer_seconds or passive_startup_seconds,
     )
     passive_complete_line, passive_complete_seconds = extract_marker_timing(
@@ -843,7 +847,7 @@ def transport_failure_reason(run_dir: Path) -> str | None:
             )
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
-            "Android transport reached scan/advertise startup but never emitted peer.discovered; "
+            "Android transport reached scan/advertise startup but never emitted peer.discovered or route.ready; "
             "classified as a capture stall"
         )
     return None
