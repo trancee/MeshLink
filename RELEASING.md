@@ -33,6 +33,11 @@ Repository files that define this flow:
 - `.release-please-manifest.json`
 - `gradle.properties`
 
+When `release-please` creates a release, the workflow now:
+
+- publishes `:meshlink` to Maven Central with the release tag checkout
+- runs a consumer smoke compile against the released coordinates
+
 The release-please workflow runs on pushes to `main` and is also available
 through manual dispatch.
 
@@ -187,20 +192,15 @@ or tagging.
 
 ## What is still manual
 
-Until artifact publishing lands, these items still sit outside the automated
-release-please flow:
+These items still sit outside the automated release-please flow:
 
-- artifact publication to Maven Central
-- signing-key setup and credential management
-- consumer smoke validation against the published artifact
+- provisioning the GitHub Actions secrets used by the publish job: `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_IN_MEMORY_KEY`, `SIGNING_KEY_ID`, and `SIGNING_KEY_PASSWORD`
 - rollback guidance for failed publishes
 
 ## Follow-up after publishing support lands
 
-Once `:meshlink` publishing is implemented, extend this runbook with:
+Now that `:meshlink` publishing is wired in, keep this runbook updated if any of the following change:
 
 - the exact publish command or workflow
 - required credentials and signing-key setup
-- release-created gating for the publish job
-- consumer smoke validation against the published artifact
 - rollback or failed-release handling guidance

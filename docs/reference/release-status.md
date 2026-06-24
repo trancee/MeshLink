@@ -70,7 +70,7 @@ The planned first public release shape is:
 The repository now has:
 
 - a maintained CI workflow for the core MeshLink SDK verification bundle
-- a `release-please` workflow and manifest configuration for cumulative release PRs, tags, and next-snapshot bumps
+- a `release-please` workflow and manifest configuration for cumulative release PRs, Maven Central publishing, consumer smoke validation, tags, and next-snapshot bumps
 - a SwiftPM release workflow that packages the XCFramework zip and checksum for published GitHub releases
 - a changelog for release-facing notes
 - a security policy for private vulnerability reporting
@@ -80,8 +80,7 @@ The repository now has:
 
 The first public release still needs:
 
-- automated artifact publication workflow wiring for `:meshlink`
-- consumer smoke validation against the released distribution path
+- GitHub Actions secret provisioning for the publish workflow (`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_IN_MEMORY_KEY`, `SIGNING_KEY_ID`, `SIGNING_KEY_PASSWORD`)
 - a maintainer-reviewed first release PR before the initial `release-please` release is merged
 
 ## Related docs
