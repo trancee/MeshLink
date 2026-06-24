@@ -29,7 +29,10 @@ class ScanResultSupportTest {
 
         // Assert
         assertNull(discovery)
-        assertEquals(emptyList(), logMessages)
+        assertEquals(
+            listOf("ignoring scan result without discovery payload addr=$DEVICE_ADDRESS"),
+            logMessages,
+        )
     }
 
     @Test

@@ -36,6 +36,7 @@ from run_headless_reference_live_proof import (
     force_stop_reference_app,
     grant_android_runtime_permissions,
     install_android_app,
+    uninstall_android_package,
     read_android_app_file,
     run,
     shell_join,
@@ -88,12 +89,20 @@ PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passiv
 SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
     "REFERENCE_AUTOMATION peer.discovered role=SENDER",
+    "REFERENCE_AUTOMATION route.ready role=SENDER",
     "REFERENCE_AUTOMATION send.requested role=sender",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested",
 ]
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
+    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
 ]
 PASSIVE_PROOF_REQUIRED_LOG_MARKERS = [
     "MeshLink proof app ready on",
@@ -156,10 +165,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--android-ready-seconds",
         type=float,
-        default=90.0,
+        default=30.0,
         help=(
             "How long to wait after launching the passive Android peer before starting the sender. "
-            "This gate is intentionally wider than the fastest smoke because some attached Android pairs need more time to surface the transport-start marker before the sender launches. "
+            "Keep this short so passive transport startup fails fast when the app never reaches the transport-start marker. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
             "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
             "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake, disable battery optimization if discovery stalls, and rely on the live-proof foreground wake-lock mitigation when the reference app starts it."
@@ -243,6 +252,14 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         body = "".join(f"<tr><th>{esc(label)}</th><td>{esc(value)}</td></tr>" for label, value in rows)
         return f"<section><h2>{esc(title)}</h2><table>{body}</table></section>"
 
+    def foreign_peer_rows(peers: list[dict[str, Any]]) -> str:
+        if not peers:
+            return "<tr><th>None</th><td>—</td></tr>"
+        return "".join(
+            f"<tr><th>{esc(peer.get('addr'))}</th><td>remoteMeshHash={esc(peer.get('remoteMeshHash'))} · count={esc(peer.get('count'))}</td></tr>"
+            for peer in peers
+        )
+
     def timing_rows(stage: str, data: dict[str, Any]) -> str:
         message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
         return "".join(
@@ -281,6 +298,11 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_completion = payload.get("passiveCompletion")
     route_evidence = payload.get("routeEvidence")
     transport_evidence = payload.get("transportEvidence")
+    sender_discovery_focus = payload.get("senderDiscoveryFocus", {}) or {}
+    passive_discovery_focus = payload.get("passiveDiscoveryFocus", {}) or {}
+    sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
+    passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
+    passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
 
     execution_timeline_html = ""
     if any(
@@ -314,24 +336,51 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         )
 
     failure_diagnostics_html = ""
-    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
-        failure_diagnostics_html = kv_table(
-            "Failure diagnostics",
-            [
-                ("Failure stage", payload.get("failureStage")),
-                ("Failure reason", payload.get("failureReason")),
-                ("Startup state", payload.get("startupState")),
-                ("Startup evidence", payload.get("startupStateEvidence")),
-                ("Route stage", payload.get("routeStage")),
-                ("Route evidence", route_evidence),
-                ("Sender route stage", payload.get("senderRouteStage")),
-                ("Sender route evidence", payload.get("senderRouteEvidence")),
-                ("Passive route stage", payload.get("passiveRouteStage")),
-                ("Passive route evidence", payload.get("passiveRouteEvidence")),
-                ("Sender completion", sender_completion),
-                ("Passive completion", passive_completion),
-            ],
+    capture_stall_note_html = ""
+    foreign_scan_note = None
+    passive_foreign_scan_ignored_count = passive_discovery_focus.get("foreignScanIgnoredCount")
+    if passive_foreign_scan_ignored_count is not None and int(passive_foreign_scan_ignored_count or 0) > 0:
+        top_peer_note = (
+            "Top foreign peers: "
+            + ", ".join(
+                f"{peer.get('addr')}→{peer.get('remoteMeshHash')}×{peer.get('count')}"
+                for peer in passive_foreign_scan_top_peers[:3]
+            )
+            if passive_foreign_scan_top_peers
+            else "Top foreign peers: none parsed"
         )
+        foreign_scan_note = (
+            "Passive discovery is dropping foreign payloads; inspect the Passive discovery focus section "
+            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}"
+        )
+    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
+        failure_rows = [
+            ("Failure stage", payload.get("failureStage")),
+            ("Failure reason", payload.get("failureReason")),
+            ("Startup state", payload.get("startupState")),
+            ("Startup evidence", payload.get("startupStateEvidence")),
+            ("Route stage", payload.get("routeStage")),
+            ("Route evidence", route_evidence),
+            ("Sender route stage", payload.get("senderRouteStage")),
+            ("Sender route evidence", payload.get("senderRouteEvidence")),
+            ("Passive route stage", payload.get("passiveRouteStage")),
+            ("Passive route evidence", payload.get("passiveRouteEvidence")),
+            ("Sender completion", sender_completion),
+            ("Passive completion", passive_completion),
+        ]
+        if foreign_scan_note is not None:
+            failure_rows.append(("Foreign scan note", foreign_scan_note))
+        if payload.get("failureStage") == "capture" or payload.get("routeStage") == "discovery-stalled":
+            capture_stall_note = (
+                "Capture stalled before route establishment; the passive side is still absorbing foreign payloads "
+                "so check the Top foreign peers table for the dominant noisy addresses."
+            )
+            failure_rows.append(("Capture stall note", capture_stall_note))
+            capture_stall_note_html = (
+                "<section><h2>Capture stall note</h2>"
+                f"<p>{esc(capture_stall_note)}</p></section>"
+            )
+        failure_diagnostics_html = kv_table("Failure diagnostics", failure_rows)
 
     html_parts = [
         "<!doctype html>",
@@ -356,6 +405,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         "<body>",
         f"<h1>Android direct-proof summary <span class=\"badge {badge_class}\">{esc(status)}</span></h1>",
         f"<p class=\"muted\">App ID: {esc(payload.get('appId'))} · Scenario: {esc(payload.get('scenario'))} · Report: {esc(payload.get('htmlReportPath'))}</p>",
+        f"<p class=\"muted\">Foreign scan summary: sender ignored {esc((payload.get('senderDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))} · passive ignored {esc((payload.get('passiveDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))}</p>",
         kv_table(
             "Overview",
             [
@@ -397,6 +447,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         ),
         execution_timeline_html,
         failure_diagnostics_html,
+        capture_stall_note_html,
         kv_table(
             "Evidence",
             [
@@ -408,6 +459,25 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Android export", payload.get("evidence", {}).get("androidExport")),
             ],
         ),
+        kv_table(
+            "Sender discovery focus",
+            [
+                ("Peer id", sender_discovery_focus.get("peerId")),
+                ("Foreign scan ignored count", sender_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Matching line count", len(sender_discovery_focus_lines)),
+            ],
+        ),
+        f"<section><h2>Sender discovery lines</h2><pre>{esc('\n'.join(sender_discovery_focus_lines) if sender_discovery_focus_lines else '—')}</pre></section>",
+        kv_table(
+            "Passive discovery focus",
+            [
+                ("Peer id", passive_discovery_focus.get("peerId")),
+                ("Foreign scan ignored count", passive_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Matching line count", len(passive_discovery_focus_lines)),
+            ],
+        ),
+        f"<section><h2>Passive discovery lines</h2><pre>{esc('\n'.join(passive_discovery_focus_lines) if passive_discovery_focus_lines else '—')}</pre></section>",
+        f"<section><h2>Top foreign peers</h2><table>{foreign_peer_rows(passive_foreign_scan_top_peers)}</table></section>",
         "<section><h2>Completion lines</h2>",
         f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
         f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
@@ -447,10 +517,80 @@ def extract_discovered_peer_id(log_text: str) -> str | None:
             continue
         if "role=passive" not in line.lower():
             continue
-        match = re.search(r"peer=([A-Za-z0-9._:-]+)", line)
+        match = re.search(r"peer=([^\s]+)", line)
         if match is not None:
             return match.group(1)
     return None
+
+
+def extract_target_peer_id(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "targetPeerId=" not in line:
+            continue
+        match = re.search(r"targetPeerId=([^\s]+)", line)
+        if match is not None:
+            return match.group(1)
+    return None
+
+
+def count_foreign_scan_ignored_lines(log_text: str) -> int:
+    return sum(
+        1
+        for line in log_text.splitlines()
+        if "ignoring discovery payload with mismatched meshHash" in line
+    )
+
+
+def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
+    counts: dict[tuple[str, str], int] = {}
+    for line in log_text.splitlines():
+        if "ignoring discovery payload with mismatched meshHash" not in line:
+            continue
+        addr_match = re.search(r"addr=([^\s]+)", line)
+        remote_match = re.search(r"remoteMeshHash=([^\s]+)", line)
+        if addr_match is None or remote_match is None:
+            continue
+        key = (addr_match.group(1), remote_match.group(1))
+        counts[key] = counts.get(key, 0) + 1
+    peers = [
+        {"addr": addr, "remoteMeshHash": remote_mesh_hash, "count": count}
+        for (addr, remote_mesh_hash), count in counts.items()
+    ]
+    peers.sort(key=lambda item: (-item["count"], item["addr"], item["remoteMeshHash"]))
+    return peers[:limit]
+
+
+def extract_discovery_focus_lines(
+    log_text: str,
+    peer_id: str | None,
+    *,
+    include_summary_lines: bool = True,
+    include_peer_lines: bool = True,
+) -> list[str]:
+    focus_lines: list[str] = []
+    peer_id_tokens = tuple(
+        token
+        for token in [
+            peer_id,
+            f"peerId={peer_id}" if peer_id else None,
+            f"hintPeerId={peer_id}" if peer_id else None,
+            f"targetPeerId={peer_id}" if peer_id else None,
+        ]
+        if token is not None
+    )
+    for line in log_text.splitlines():
+        normalized = line.strip()
+        if include_summary_lines and (
+            "REFERENCE_AUTOMATION startup.meshHashSummary" in normalized
+            or "discovery.summary" in normalized
+        ):
+            focus_lines.append(normalized)
+            continue
+        if not include_peer_lines or peer_id is None:
+            continue
+        if any(token in normalized for token in peer_id_tokens):
+            focus_lines.append(normalized)
+    return focus_lines
 
 
 def extract_sender_completion(log_text: str) -> str | None:
@@ -468,14 +608,17 @@ def extract_sender_failure(log_text: str) -> str | None:
 
 
 def extract_startup_state(log_text: str) -> tuple[str | None, str | None]:
+    latest_state: str | None = None
+    latest_line: str | None = None
     for line in log_text.splitlines():
         if "startup-state=" not in line:
             continue
-        match = re.search(r"startup-state=([a-z-]+)", line)
+        match = re.search(r"startup-state=([a-z0-9_.-]+)", line)
         if match is None:
             continue
-        return match.group(1), line.strip()
-    return None, None
+        latest_state = match.group(1)
+        latest_line = line.strip()
+    return latest_state, latest_line
 
 
 def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
@@ -483,7 +626,19 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
     evidence: str | None = None
     for line in log_text.splitlines():
         normalized = line.strip()
-        if "peer.discovered role=" in line or "GATT notify benchmark discovered service" in line:
+        if "sender.discovery.stalled role=" in line:
+            stage = "sender-discovery-stalled"
+            evidence = normalized
+        elif "sender.discovery.pending role=" in line:
+            stage = "sender-discovery-pending"
+            evidence = normalized
+        elif "discovery.stalled role=" in line:
+            stage = "discovery-stalled"
+            evidence = normalized
+        elif "discovery.pending role=" in line:
+            stage = "discovery-pending"
+            evidence = normalized
+        elif "peer.discovered role=" in line or "GATT notify benchmark discovered service" in line:
             stage = "peer-discovered"
             evidence = normalized
         if "transport.handshake.message1.send" in line:
@@ -495,7 +650,10 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         elif "NO_ROUTE_AVAILABLE" in line or "route-unavailable" in line or "routeAvailable=false" in line:
             stage = "route-unavailable"
             evidence = normalized
-        elif "GATT notify benchmark notifications enabled" in line:
+        elif "route.pending role=" in line:
+            stage = "route-pending"
+            evidence = normalized
+        elif "route.ready role=" in line or "GATT notify benchmark notifications enabled" in line:
             stage = "route-discovered"
             evidence = normalized
         elif "ROUTE_DISCOVERED" in line or "routeAvailable=true" in line:
@@ -679,13 +837,13 @@ def build_timing_snapshot(
     )
     sender_trust_line, sender_trust_seconds = extract_marker_timing(
         sender_log,
-        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        ("route.ready role=SENDER", "ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
         after_seconds=sender_peer_seconds or sender_startup_seconds,
     )
     sender_send_line, sender_send_seconds = extract_marker_timing(
         sender_log,
         ("send.requested role=sender",),
-        after_seconds=sender_peer_seconds or sender_startup_seconds,
+        after_seconds=sender_trust_seconds or sender_peer_seconds or sender_startup_seconds,
     )
     sender_complete_line, sender_complete_seconds = extract_marker_timing(
         sender_log,
@@ -706,7 +864,7 @@ def build_timing_snapshot(
     )
     passive_trust_line, passive_trust_seconds = extract_marker_timing(
         passive_log,
-        ("ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
+        ("route.ready role=PASSIVE", "ROUTE_DISCOVERED", "HOP_SESSION_ESTABLISHED"),
         after_seconds=passive_peer_seconds or passive_startup_seconds,
     )
     passive_complete_line, passive_complete_seconds = extract_marker_timing(
@@ -817,7 +975,15 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {"handshake-message1-send", "hop-failed", "route-unavailable"}
+    route_failure_stages = {
+        "handshake-message1-send",
+        "hop-failed",
+        "route-unavailable",
+        "discovery-stalled",
+        "discovery-pending",
+        "sender-discovery-stalled",
+        "sender-discovery-pending",
+    }
     if peer_discovered:
         if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
             return (
@@ -830,10 +996,20 @@ def transport_failure_reason(run_dir: Path) -> str | None:
                 "Android direct proof discovered a peer but never emitted a route-stage marker; "
                 "sender stalled before route stabilization"
             )
+    if "sender.discovery.stalled role=" in combined_log_lower or "sender.discovery.pending role=" in combined_log_lower:
+        return (
+            "Android direct proof sender stalled before peer discovery; "
+            "classified as a capture stall"
+        )
+    if "discovery.stalled role=" in combined_log_lower or "discovery.pending role=" in combined_log_lower:
+        return (
+            "Android direct proof reached startup but discovery stalled before peer discovery or route readiness; "
+            "classified as a capture stall"
+        )
     if all(marker in combined_log for marker in TRANSPORT_REQUIRED_MARKERS):
         return (
-            "Android transport reached scan/advertise startup but never emitted peer.discovered; "
-            "direct proof cannot proceed without a retained discovery seed"
+            "Android transport reached scan/advertise startup but never emitted peer.discovered or route.ready; "
+            "classified as a capture stall"
         )
     return None
 
@@ -1035,6 +1211,7 @@ def install_android_proof_app(
         print("==> Android install stderr:")
         print(result.stderr.rstrip() or "(empty)")
 
+    uninstall_android_package(android_serial, ANDROID_PROOF_PACKAGE)
     try:
         run_install_once()
     except (TimeoutError, subprocess.TimeoutExpired) as error:
@@ -1045,8 +1222,7 @@ def install_android_proof_app(
         details = (error.stderr or error.stdout or "").strip()
         detail_suffix = f": {details}" if details else ""
         print("==> Android install failed; retrying once after uninstalling the existing package")
-        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PROOF_PACKAGE], capture_output=True)
-        print("==> Android uninstall result:", uninstall_result.stdout.strip() or uninstall_result.stderr.strip() or "(empty)")
+        uninstall_android_package(android_serial, ANDROID_PROOF_PACKAGE)
         try:
             run_install_once()
         except (TimeoutError, subprocess.TimeoutExpired) as retry_error:
@@ -1231,8 +1407,15 @@ def start_android_role_app(
 
 
 def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
+    discovery_seed_path = "automation-discovery-seed.txt"
     relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
     for _ in range(retries):
+        try:
+            discovery_seed_text = read_android_app_file(android_serial, discovery_seed_path).strip()
+        except subprocess.CalledProcessError:
+            discovery_seed_text = ""
+        if discovery_seed_text:
+            return discovery_seed_text.splitlines()[0].strip()
         try:
             xml_text = read_android_app_file(android_serial, relative_path)
         except subprocess.CalledProcessError:
@@ -1614,6 +1797,20 @@ def failure_summary(
     route_evidence = sender_route_evidence or passive_route_evidence
     transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
     transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
+    sender_log_text = read_text(sender_log_path(run_dir))
+    passive_log_text = read_text(passive_log_path(run_dir))
+    discovered_peer_id = extract_discovered_peer_id(passive_log_text)
+    target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
+    sender_discovery_focus_lines = extract_discovery_focus_lines(
+        sender_log_text,
+        target_peer_id,
+        include_summary_lines=False,
+    )
+    passive_discovery_focus_lines = extract_discovery_focus_lines(
+        passive_log_text,
+        target_peer_id,
+        include_peer_lines=False,
+    )
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -1626,8 +1823,20 @@ def failure_summary(
         "senderCompletion": completions.sender_completion,
         "passiveCompletion": completions.passive_completion,
         "senderFailure": completions.sender_failed,
-        "senderPowerState": extract_power_state_snapshot(read_text(sender_log_path(run_dir))),
+        "senderPowerState": extract_power_state_snapshot(sender_log_text),
         "passivePowerState": extract_power_state_snapshot(read_text(passive_log_path(run_dir))),
+        "discoveredPeerId": discovered_peer_id,
+        "senderDiscoveryFocus": {
+            "peerId": target_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "lines": sender_discovery_focus_lines,
+        },
+        "passiveDiscoveryFocus": {
+            "peerId": target_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "lines": passive_discovery_focus_lines,
+        },
         "startupState": completions.startup_state,
         "startupStateEvidence": completions.startup_evidence,
         "routeStage": route_stage,
@@ -1665,7 +1874,7 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
-    discovery_wait_seconds = max(args.android_ready_seconds * 2, 20.0)
+    peer_resolution_wait_seconds = min(max(args.android_ready_seconds, 1.0), 5.0)
     discovered_peer_id: str | None = args.target_peer_id
     stage = "input-validation"
     sender_process: BackgroundProcess | None = None
@@ -1788,11 +1997,11 @@ def main(argv: list[str] | None = None) -> int:
                     or read_passive_peer_id(
                         args.passive_android_serial,
                         app_id,
-                        retries=max(1, int(discovery_wait_seconds)),
+                        retries=max(1, int(peer_resolution_wait_seconds)),
                     )
                     or wait_for_discovered_peer_id(
                         passive_marker_path,
-                        discovery_wait_seconds,
+                        peer_resolution_wait_seconds,
                     )
                 )
                 print(f"==> Passive peer id resolved: {discovered_peer_id}")
@@ -1829,16 +2038,17 @@ def main(argv: list[str] | None = None) -> int:
             if sender_process is None:
                 sender_target_peer_id = resolve_sender_target_peer_id(
                     passive_marker_path,
-                    discovery_wait_seconds,
+                    peer_resolution_wait_seconds,
                     discovered_peer_id,
                     args.target_peer_id,
                 )
                 if sender_target_peer_id is None:
-                    raise SystemExit(
-                        "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before sender launch"
+                    print(
+                        "==> Passive peer id unavailable after short resolution wait; launching sender without a seeded target peer"
                     )
-                discovered_peer_id = sender_target_peer_id
-                print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
+                else:
+                    discovered_peer_id = sender_target_peer_id
+                    print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
                 sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
@@ -1854,10 +2064,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
             if discovered_peer_id is None:
-                raise SystemExit(
-                    "Android peer-resolution gate failed: passive peer id was not resolved from shared prefs or passive discovery markers before the route phase"
+                print(
+                    "==> Passive peer id unavailable before the route phase; proceeding without a seeded target peer"
                 )
-            print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
+            else:
+                print(f"==> Peer resolution gate resolved passive peer id {discovered_peer_id}")
             sender_startup_observation = wait_for_log_marker_observation(
                 sender_log_path(run_dir),
                 "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
@@ -1916,6 +2127,30 @@ def main(argv: list[str] | None = None) -> int:
             passive_transport="meshlink",
         )
         summary["discoveredPeerId"] = discovered_peer_id
+        sender_log_text = read_text(sender_log_path(run_dir))
+        passive_log_text = read_text(passive_log_path(run_dir))
+        target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
+        sender_discovery_focus_lines = extract_discovery_focus_lines(
+            sender_log_text,
+            target_peer_id,
+            include_summary_lines=False,
+        )
+        passive_discovery_focus_lines = extract_discovery_focus_lines(
+            passive_log_text,
+            target_peer_id,
+            include_peer_lines=False,
+        )
+        summary["senderDiscoveryFocus"] = {
+            "peerId": target_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "lines": sender_discovery_focus_lines,
+        }
+        summary["passiveDiscoveryFocus"] = {
+            "peerId": target_peer_id,
+            "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "lines": passive_discovery_focus_lines,
+        }
         summary["timings"].update(
             {
                 "totalSeconds": total_seconds,

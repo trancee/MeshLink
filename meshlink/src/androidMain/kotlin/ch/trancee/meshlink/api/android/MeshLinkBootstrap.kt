@@ -3,10 +3,14 @@ package ch.trancee.meshlink.api.android
 import android.content.Context
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 
-/** Creates a typed MeshLink bootstrap handle from an Android application context. */
-public fun meshLinkBootstrap(context: Context): MeshLinkBootstrap {
-    return ContextBootstrap(context.applicationContext)
+internal interface AndroidBootstrapContextCarrier {
+    val context: Context
 }
 
-internal class ContextBootstrap internal constructor(internal val context: Context) :
-    MeshLinkBootstrap()
+/** Creates a typed MeshLink bootstrap handle from an Android application context. */
+public fun meshLinkBootstrap(context: Context): MeshLinkBootstrap {
+    val appContext = context.applicationContext
+    return object : MeshLinkBootstrap(), AndroidBootstrapContextCarrier {
+        override val context: Context = appContext
+    }
+}

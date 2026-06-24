@@ -657,6 +657,27 @@ def android_install_timeout_seconds(android_serial: str) -> float:
     return 240.0 if is_wireless_android_serial(android_serial) else 60.0
 
 
+def uninstall_android_package(android_serial: str, package_name: str) -> bool:
+    commands = [
+        ["adb", "-s", android_serial, "uninstall", package_name],
+        ["adb", "-s", android_serial, "shell", "pm", "uninstall", "--user", "0", package_name],
+        ["adb", "-s", android_serial, "shell", "cmd", "package", "uninstall", "--user", "0", package_name],
+    ]
+    for command in commands:
+        result = run(command, capture_output=True, check=False)
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        print(
+            "==> Android uninstall result ("
+            + shell_join(command)
+            + "): "
+            + (stdout or stderr or "(empty)")
+        )
+        if result.returncode == 0 and ("Success" in stdout or "Success" in stderr):
+            return True
+    return False
+
+
 def android_install_cache_path(run_dir: Path, android_serial: str) -> Path:
     safe_serial = re.sub(r"[^A-Za-z0-9._-]", "_", android_serial)
     return run_dir / f".android-install-cache-{safe_serial}.json"
@@ -720,6 +741,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
                 stderr=result.stderr,
             )
 
+    uninstall_android_package(android_serial, ANDROID_PACKAGE)
     try:
         run_install_once()
     except subprocess.TimeoutExpired as error:
@@ -733,14 +755,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
         print(
             "==> Android install failed; retrying once after uninstalling the existing package"
         )
-        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True, check=False)
-        uninstall_stdout = (uninstall_result.stdout or "").strip()
-        uninstall_stderr = (uninstall_result.stderr or "").strip()
-        print(
-            "==> Android uninstall result: "
-            + (uninstall_stdout or "(no stdout)")
-            + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
-        )
+        uninstall_android_package(android_serial, ANDROID_PACKAGE)
         run_install_once()
     grant_android_runtime_permissions(android_serial)
     apk_path = android_apk_path()
