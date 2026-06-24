@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from support import SCRIPTS_DIR
 
@@ -44,6 +44,18 @@ class FakeLogcatProcess:
                 stdout.write(
                     "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
                     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                    "05-31 10:00:00010 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                    "05-31 10:00:00020 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.010 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.020 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
                 )
                 stdout.write(
                     "05-31 10:00:00.000 I MeshLinkProof: MeshLink proof app ready on Test OEM Test Model (SDK 35) appId=demo.meshlink powerMode=Automatic transport=gattPrototype\n"
@@ -58,6 +70,18 @@ class FakeLogcatProcess:
                 stdout.write(
                     "05-31 10:00:00.000 I MeshLinkReferenceAutomation: "
                     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                    "05-31 10:00:00010 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                    "05-31 10:00:00020 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.010 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                )
+                stdout.write(
+                    "05-31 10:00:00.020 I MeshLinkReferenceAutomation: "
+                    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
                 )
                 stdout.write(
                     "05-31 10:00:00.050 D MeshLinkTransport: start() with l2capPsm=136\n"
@@ -89,6 +113,18 @@ class FakeLogcatProcess:
             stdout.write(
                 "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER scenario=direct-guided\n"
+                "05-31 10:00:01010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=true\n"
+                "05-31 10:00:01020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER scenario=direct-guided autoStartMesh=true autoSendHello=true\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=true\n"
+            )
+            stdout.write(
+                "05-31 10:00:01.020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER scenario=direct-guided autoStartMesh=true autoSendHello=true\n"
             )
             stdout.write(
                 "05-31 10:00:01.050 D MeshLinkTransport: start() with l2capPsm=136\n"
@@ -338,7 +374,13 @@ class AndroidDirectProofTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(peer_id, "passive-peer-123456")
-        read_mock.assert_called_once_with("passive-1", "../shared_prefs/meshlink-app-123.xml")
+        read_mock.assert_has_calls(
+            [
+                call("passive-1", "automation-discovery-seed.txt"),
+                call("passive-1", "../shared_prefs/meshlink-app-123.xml"),
+            ]
+        )
+        self.assertEqual(read_mock.call_count, 2)
 
     def test_resolve_sender_target_peer_id_uses_passive_discovery_marker_before_fallbacks(self) -> None:
         # Arrange
@@ -512,6 +554,8 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(android_serial, "passive-1")
             if relative_path.endswith("reference/history.json"):
                 return '{"historyStatus": "RETAINED"}'
+            if relative_path.endswith("automation-discovery-seed.txt"):
+                return "passive-peer-123456\n"
             if relative_path.endswith("exports/session-redacted.json"):
                 return (
                     '{"defaultMode": "redacted-preview", '
@@ -872,7 +916,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             # Act / Assert
             self.assertEqual(
                 android_direct_proof.transport_failure_reason(run_dir),
-                "Android transport reached scan/advertise startup but never emitted peer.discovered; direct proof cannot proceed without a retained discovery seed",
+                "Android transport reached scan/advertise startup but never emitted peer.discovered or route.ready; classified as a capture stall",
             )
 
     def test_transport_failure_reason_reports_route_stall_after_peer_discovery(self) -> None:
@@ -1224,6 +1268,8 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertEqual(android_serial, "passive-1")
             if relative_path.endswith("reference/history.json"):
                 return '{"historyStatus": "RETAINED"}'
+            if relative_path.endswith("automation-discovery-seed.txt"):
+                return "passive-peer-123456\n"
             if relative_path.endswith("exports/session-redacted.json"):
                 return (
                     '{"defaultMode": "redacted-preview", '
@@ -1409,6 +1455,18 @@ class AndroidDirectProofTests(unittest.TestCase):
             log_path.write_text(
                 "05-31 10:00:01.000 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided\n"
+                "05-31 10:00:01010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                "05-31 10:00:01020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
+                "05-31 10:00:01.010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                "05-31 10:00:01.020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
+                "05-31 10:00:01.010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false\n"
+                "05-31 10:00:01.020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false\n"
                 "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
                 "REFERENCE_AUTOMATION BENCHMARK receipt sent peer=peer-123 token=deadbeef result=Sent\n"
                 "05-31 10:00:01.150 I MeshLinkReferenceAutomation: "
@@ -1677,7 +1735,9 @@ class AndroidDirectProofTests(unittest.TestCase):
                 "\n".join(
                     [
                         "06-15 08:55:30.882 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE scenario=direct-guided",
-                        "06-15 08:55:30.902 I MeshLinkProof: MeshLink proof app ready on realme",
+                        "06-15 08:55:30.892 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=none autoStartMesh=true autoSendHello=false",
+                        "06-15 08:55:30.902 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE scenario=direct-guided autoStartMesh=true autoSendHello=false",
+                        "06-15 08:55:30.912 I MeshLinkProof: MeshLink proof app ready on realme",
                         "06-15 08:55:31.157 I MeshLinkProof: gatt.notify.start() -> Started",
                     ]
                 ),
@@ -1688,7 +1748,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as context:
                 android_direct_proof.verify_passive_log(log_path, passive_transport="meshlink")
 
-        self.assertIn("Missing passive proof.complete line", str(context.exception))
+        self.assertIn("Missing passive proof.complete line and receipt-sent retained evidence", str(context.exception))
 
 
 if __name__ == "__main__":

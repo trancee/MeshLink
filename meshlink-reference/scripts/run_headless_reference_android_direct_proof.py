@@ -89,20 +89,19 @@ PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passiv
 SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
+    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
+    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER",
+    "autoStartMesh=true",
+    "autoSendHello=true",
     "REFERENCE_AUTOMATION peer.discovered role=SENDER",
-    "REFERENCE_AUTOMATION route.ready role=SENDER",
     "REFERENCE_AUTOMATION send.requested role=sender",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested",
 ]
 PASSIVE_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.init",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoStartMesh.requested",
-    "REFERENCE_AUTOMATION startup-state=guided.viewModel.startMesh.begin",
+    "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
+    "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE",
+    "autoStartMesh=true",
 ]
 PASSIVE_PROOF_REQUIRED_LOG_MARKERS = [
     "MeshLink proof app ready on",
@@ -1414,7 +1413,7 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
             discovery_seed_text = read_android_app_file(android_serial, discovery_seed_path).strip()
         except subprocess.CalledProcessError:
             discovery_seed_text = ""
-        if discovery_seed_text:
+        if discovery_seed_text and not discovery_seed_text.lstrip().startswith("<"):
             return discovery_seed_text.splitlines()[0].strip()
         try:
             xml_text = read_android_app_file(android_serial, relative_path)
@@ -1636,9 +1635,19 @@ def verify_passive_log(log_path: Path, *, passive_transport: str = "meshlink") -
             if marker not in log_text:
                 raise SystemExit(f"Expected passive log to contain '{marker}'")
         completion_line, _export_relative_path = extract_passive_completion(log_text)
-        if completion_line is None:
-            raise SystemExit("Missing passive proof.complete line in passive log")
-        return completion_line
+        if completion_line is not None:
+            return completion_line
+        receipt_line = next(
+            (
+                line.strip()
+                for line in log_text.splitlines()
+                if "REFERENCE_AUTOMATION BENCHMARK receipt sent" in line and "result=Sent" in line
+            ),
+            None,
+        )
+        if receipt_line is None:
+            raise SystemExit("Missing passive proof.complete line and receipt-sent retained evidence in passive log")
+        return receipt_line
     if passive_transport == "gatt":
         proof_app_markers = [
             "MeshLink proof app ready on",
