@@ -730,6 +730,7 @@ def render_pair_report(
         f"- Final status: {final.get('status')} ({final.get('failureStage') or '—'}) in {final.get('timings', {}).get('totalSeconds') or final.get('elapsedSeconds') or '—'}s",
         f"- Initial failure reason: {initial.get('failureReason') or 'None.'}",
         f"- Final failure reason: {final.get('failureReason') or 'None.'}",
+        f"- Foreign scan summary: initial sender ignored {initial.get('senderForeignScanIgnoredCount', '—')} · initial passive ignored {initial.get('passiveForeignScanIgnoredCount', '—')} · final sender ignored {final.get('senderForeignScanIgnoredCount', '—')} · final passive ignored {final.get('passiveForeignScanIgnoredCount', '—')}",
         f"- Route stage: {final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
         f"- Route evidence: {final.get('routeEvidence') or initial.get('routeEvidence') or '—'}",
         "",
