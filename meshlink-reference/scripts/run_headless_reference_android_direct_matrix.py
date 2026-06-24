@@ -280,6 +280,8 @@ def run_pair(
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
         "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderDiscoveryFocus": sender_focus,
+        "passiveDiscoveryFocus": passive_focus,
         "timings": summary.get("timings"),
         "startupTiming": summary.get("startupTiming"),
         "htmlReportPath": summary.get("htmlReportPath"),
@@ -346,6 +348,8 @@ def read_passive_peer_id(serial: str, app_id: str, retries: int = 5, delay_s: fl
 
 
 def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
+    sender_focus = summary.get("senderDiscoveryFocus") or {}
+    passive_focus = summary.get("passiveDiscoveryFocus") or {}
     return {
         "status": summary.get("status"),
         "failureStage": summary.get("failureStage"),
@@ -358,6 +362,10 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "senderRouteEvidence": summary.get("senderRouteEvidence"),
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "passiveRouteEvidence": summary.get("passiveRouteEvidence"),
+        "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
+        "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderDiscoveryFocus": sender_focus,
+        "passiveDiscoveryFocus": passive_focus,
         "transportMode": summary.get("transportMode") or (summary.get("timings") or {}).get("transportMode"),
         "transportEvidence": summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence"),
         "startupTiming": summary.get("startupTiming"),
@@ -421,6 +429,17 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
     fleet_inventory_path = state.get("fleetInventoryPath") if state is not None else None
     run_root = state.get("runRoot") if state is not None else None
 
+    sender_ignored_total = sum(
+        int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+        + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+        for row in results
+    )
+    passive_ignored_total = sum(
+        int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+        + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+        for row in results
+    )
+
     report = [
         "# Android direct-proof matrix",
         "",
@@ -436,6 +455,8 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"| Max failures | {max_failures if max_failures is not None else '—'} |",
         f"| Stopped early | {'yes' if stopped_early else 'no'} |",
         f"| Stop reason | {stop_reason or '—'} |",
+        "",
+        f"Foreign scan summary: sender ignored {sender_ignored_total} · passive ignored {passive_ignored_total}",
         "",
         "## Mermaid overview",
         "",
@@ -698,7 +719,8 @@ def render_pair_report(
 
     intro = (
         f"Pair {index:02d} ({pair['label']}) is a {initial.get('status')} initial run over {sender_model} → {passive_model}. "
-        f"The sender started {sender_startup_transport or 'unknown'} transport, the passive side started {passive_startup_transport or 'unknown'} transport, and the pair stalled at {final.get('failureStage') or initial.get('failureStage') or 'unknown'} before route establishment."
+        f"The sender started {sender_startup_transport or 'unknown'} transport, the passive side started {passive_startup_transport or 'unknown'} transport, and the pair stalled at {final.get('failureStage') or initial.get('failureStage') or 'unknown'} before route establishment. "
+        f"Foreign scan summary: initial sender ignored {initial.get('senderForeignScanIgnoredCount', '—')} · initial passive ignored {initial.get('passiveForeignScanIgnoredCount', '—')} · final sender ignored {final.get('senderForeignScanIgnoredCount', '—')} · final passive ignored {final.get('passiveForeignScanIgnoredCount', '—')}"
     )
 
     lines = [
@@ -730,7 +752,6 @@ def render_pair_report(
         f"- Final status: {final.get('status')} ({final.get('failureStage') or '—'}) in {final.get('timings', {}).get('totalSeconds') or final.get('elapsedSeconds') or '—'}s",
         f"- Initial failure reason: {initial.get('failureReason') or 'None.'}",
         f"- Final failure reason: {final.get('failureReason') or 'None.'}",
-        f"- Foreign scan summary: initial sender ignored {initial.get('senderForeignScanIgnoredCount', '—')} · initial passive ignored {initial.get('passiveForeignScanIgnoredCount', '—')} · final sender ignored {final.get('senderForeignScanIgnoredCount', '—')} · final passive ignored {final.get('passiveForeignScanIgnoredCount', '—')}",
         f"- Route stage: {final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
         f"- Route evidence: {final.get('routeEvidence') or initial.get('routeEvidence') or '—'}",
         "",
