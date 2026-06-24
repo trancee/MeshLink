@@ -57,16 +57,42 @@ internal fun createPlatformServices(context: Context, appId: String): AndroidPla
         readinessGuidance = readinessGuidance(),
         readinessBlockersFactory = { readinessBlockers(context) },
         meshLinkControllerFactory = {
-            createPublicMeshLinkController(
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.factoryLambda.begin",
+            )
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.bootstrap.begin",
+            )
+            val bootstrap = createMeshLinkBootstrap(context)
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.bootstrap.end",
+            )
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.controllerArgs.begin",
+            )
+            val controllerArgs =
                 PublicMeshLinkControllerArgs(
                     appId = appId,
                     authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                     scenarioId = "direct-guided",
                     storageSubdirectory = "default",
-                    bootstrap = createMeshLinkBootstrap(context),
+                    bootstrap = bootstrap,
                     currentTimeMillis = { System.currentTimeMillis() },
-                ),
+                )
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.controllerArgs.end",
             )
+            val controller = createPublicMeshLinkController(controllerArgs)
+            Log.i(
+                AUTOMATION_LOG_TAG,
+                "REFERENCE_AUTOMATION android.meshlink.factoryLambda.end",
+            )
+            controller
         },
     )
 }

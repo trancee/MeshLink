@@ -48,6 +48,10 @@ internal class AndroidPlatformServices(
                     "REFERENCE_AUTOMATION android.meshLinkController.access begin",
                 )
                 meshLinkControllerFactoryInProgress = true
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.factoryInvoke.begin",
+                )
                 val watchdog =
                     Thread {
                         try {
@@ -65,6 +69,10 @@ internal class AndroidPlatformServices(
                 watchdog.isDaemon = true
                 watchdog.start()
                 val created = meshLinkControllerFactory()
+                Log.i(
+                    "MeshLinkReferenceAutomation",
+                    "REFERENCE_AUTOMATION android.meshLinkController.factoryInvoke.end",
+                )
                 meshLinkControllerFactoryInProgress = false
                 meshLinkControllerInstance = created
                 watchdog.interrupt()

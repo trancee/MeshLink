@@ -34,6 +34,7 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
 
 dependencies {
     implementation(project(":meshlink-reference"))
+    implementation(project(":meshlink"))
     implementation(libs.androidx.activity.compose)
 }
 
