@@ -80,52 +80,103 @@ private data class PublicMeshLinkControllerArgs(
     val currentTimeMillis: () -> Long,
 )
 
+@Suppress("LongMethod")
 private fun createPublicMeshLinkController(
     args: PublicMeshLinkControllerArgs,
 ): ReferenceMeshLinkController {
-    return PublicMeshLinkController(
-        meshLinkRuntimeFactory = {
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                buildString {
-                    append("REFERENCE_AUTOMATION android.meshlink.begin create appId=")
-                    append(args.appId)
-                    append(" scenario=")
-                    append(args.scenarioId)
-                    append(" storage=")
-                    append(args.storageSubdirectory)
-                },
-            )
-            val runtime =
-                meshLink(
-                    config =
-                        MeshLinkConfig(
-                            appId = args.appId,
-                            regulatoryRegion = RegulatoryRegion.DEFAULT,
-                            powerMode = PowerMode.Automatic,
-                            deliveryRetryDeadline = 15.seconds,
-                        ),
-                    bootstrap = args.bootstrap,
-                )
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                buildString {
-                    append("REFERENCE_AUTOMATION android.meshlink.end create appId=")
-                    append(args.appId)
-                    append(" scenario=")
-                    append(args.scenarioId)
-                    append(" storage=")
-                    append(args.storageSubdirectory)
-                },
-            )
-            runtime
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.controller.begin appId=")
+            append(args.appId)
+            append(" scenario=")
+            append(args.scenarioId)
+            append(" storage=")
+            append(args.storageSubdirectory)
+            append(" thread=")
+            append(Thread.currentThread().name)
         },
-        currentTimeMillis = args.currentTimeMillis,
-        authorityMode = args.authorityMode,
-        scenarioId = args.scenarioId,
-        storageSubdirectory = args.storageSubdirectory,
-        appId = args.appId,
     )
+    val controller =
+        PublicMeshLinkController(
+            meshLinkRuntimeFactory = {
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.begin create appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" storage=")
+                        append(args.storageSubdirectory)
+                    },
+                )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.construct.begin appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" thread=")
+                        append(Thread.currentThread().name)
+                    },
+                )
+                val runtime =
+                    meshLink(
+                        config =
+                            MeshLinkConfig(
+                                appId = args.appId,
+                                regulatoryRegion = RegulatoryRegion.DEFAULT,
+                                powerMode = PowerMode.Automatic,
+                                deliveryRetryDeadline = 15.seconds,
+                            ),
+                        bootstrap = args.bootstrap,
+                    )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.construct.end appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" thread=")
+                        append(Thread.currentThread().name)
+                    },
+                )
+                Log.i(
+                    AUTOMATION_LOG_TAG,
+                    buildString {
+                        append("REFERENCE_AUTOMATION android.meshlink.end create appId=")
+                        append(args.appId)
+                        append(" scenario=")
+                        append(args.scenarioId)
+                        append(" storage=")
+                        append(args.storageSubdirectory)
+                    },
+                )
+                runtime
+            },
+            currentTimeMillis = args.currentTimeMillis,
+            authorityMode = args.authorityMode,
+            scenarioId = args.scenarioId,
+            storageSubdirectory = args.storageSubdirectory,
+            appId = args.appId,
+        )
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.controller.end appId=")
+            append(args.appId)
+            append(" scenario=")
+            append(args.scenarioId)
+            append(" storage=")
+            append(args.storageSubdirectory)
+            append(" thread=")
+            append(Thread.currentThread().name)
+        },
+    )
+    return controller
 }
 
 @Suppress("TooManyFunctions")

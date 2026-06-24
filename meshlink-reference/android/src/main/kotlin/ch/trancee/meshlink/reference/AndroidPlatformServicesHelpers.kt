@@ -32,6 +32,11 @@ internal class AndroidPlatformServices(
 
     private val meshLinkControllerLock: Any = Any()
     @Volatile private var meshLinkControllerInstance: ReferenceMeshLinkController? = null
+    @Volatile private var meshLinkControllerFactoryInProgress: Boolean = false
+
+    private companion object {
+        private const val MESH_LINK_CONTROLLER_FACTORY_WATCHDOG_DELAY_MILLIS: Long = 2_000L
+    }
 
     val meshLinkController: ReferenceMeshLinkController
         get() {
@@ -42,8 +47,27 @@ internal class AndroidPlatformServices(
                     "MeshLinkReferenceAutomation",
                     "REFERENCE_AUTOMATION android.meshLinkController.access begin",
                 )
+                meshLinkControllerFactoryInProgress = true
+                val watchdog =
+                    Thread {
+                        try {
+                            Thread.sleep(MESH_LINK_CONTROLLER_FACTORY_WATCHDOG_DELAY_MILLIS)
+                        } catch (_: InterruptedException) {
+                            return@Thread
+                        }
+                        if (meshLinkControllerFactoryInProgress) {
+                            Log.i(
+                                "MeshLinkReferenceAutomation",
+                                "REFERENCE_AUTOMATION android.meshLinkController.access waiting elapsedSeconds=2.0",
+                            )
+                        }
+                    }
+                watchdog.isDaemon = true
+                watchdog.start()
                 val created = meshLinkControllerFactory()
+                meshLinkControllerFactoryInProgress = false
                 meshLinkControllerInstance = created
+                watchdog.interrupt()
                 Log.i(
                     "MeshLinkReferenceAutomation",
                     "REFERENCE_AUTOMATION android.meshLinkController.access end",

@@ -12,6 +12,9 @@ import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 
 internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
+    log(
+        "scan result addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0}"
+    )
     val discovery =
         parseDiscoveryScanResultOrNull(
             serviceUuids =
@@ -37,21 +40,29 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             "scan found ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} addr=${result.device.address}"
         )
     }
-    val resolvedPeer =
-        peerRegistry
-            .upsertDiscovery(
-                hintPeerId = discovery.hintPeerId,
-                discovery =
-                    DiscoveredPeerDiscovery(
-                        address = result.device.address,
-                        keyHash = discovery.payload.keyHash,
-                        l2capPsm = discovery.payload.l2capPsm.toInt(),
-                        transportMode = discovery.transportMode,
-                        platformFamily = discovery.payload.platformFamily,
-                    ),
-            )
-            .also { update -> update.events.forEach(mutableEvents::tryEmit) }
-            .peer
+    val update =
+        peerRegistry.upsertDiscovery(
+            hintPeerId = discovery.hintPeerId,
+            discovery =
+                DiscoveredPeerDiscovery(
+                    address = result.device.address,
+                    keyHash = discovery.payload.keyHash,
+                    l2capPsm = discovery.payload.l2capPsm.toInt(),
+                    transportMode = discovery.transportMode,
+                    platformFamily = discovery.payload.platformFamily,
+                ),
+        )
+    if (update.events.isEmpty()) {
+        log(
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events"
+        )
+    } else {
+        log(
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size}"
+        )
+    }
+    update.events.forEach(mutableEvents::tryEmit)
+    val resolvedPeer = update.peer
     maybeLogRediscoveryWithoutLink(
         peer = resolvedPeer,
         transportMode = discovery.transportMode,
