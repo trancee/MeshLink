@@ -369,6 +369,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         "<body>",
         f"<h1>Android direct-proof summary <span class=\"badge {badge_class}\">{esc(status)}</span></h1>",
         f"<p class=\"muted\">App ID: {esc(payload.get('appId'))} · Scenario: {esc(payload.get('scenario'))} · Report: {esc(payload.get('htmlReportPath'))}</p>",
+        f"<p class=\"muted\">Foreign scan summary: sender ignored {esc((payload.get('senderDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))} · passive ignored {esc((payload.get('passiveDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))}</p>",
         kv_table(
             "Overview",
             [
@@ -502,7 +503,12 @@ def count_foreign_scan_ignored_lines(log_text: str) -> int:
     )
 
 
-def extract_discovery_focus_lines(log_text: str, peer_id: str | None) -> list[str]:
+def extract_discovery_focus_lines(
+    log_text: str,
+    peer_id: str | None,
+    *,
+    include_peer_lines: bool = True,
+) -> list[str]:
     focus_lines: list[str] = []
     peer_id_tokens = tuple(
         token
@@ -519,7 +525,7 @@ def extract_discovery_focus_lines(log_text: str, peer_id: str | None) -> list[st
         if "REFERENCE_AUTOMATION startup.meshHashSummary" in normalized or "discovery.summary" in normalized:
             focus_lines.append(normalized)
             continue
-        if peer_id is None:
+        if not include_peer_lines or peer_id is None:
             continue
         if any(token in normalized for token in peer_id_tokens):
             focus_lines.append(normalized)
@@ -1735,7 +1741,11 @@ def failure_summary(
     discovered_peer_id = extract_discovered_peer_id(passive_log_text)
     target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
     sender_discovery_focus_lines = extract_discovery_focus_lines(sender_log_text, target_peer_id)
-    passive_discovery_focus_lines = extract_discovery_focus_lines(passive_log_text, target_peer_id)
+    passive_discovery_focus_lines = extract_discovery_focus_lines(
+        passive_log_text,
+        target_peer_id,
+        include_peer_lines=False,
+    )
     return {
         "status": "failed",
         "scenario": DIRECT_GUIDED_SCENARIO,
@@ -2055,7 +2065,11 @@ def main(argv: list[str] | None = None) -> int:
         passive_log_text = read_text(passive_log_path(run_dir))
         target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
         sender_discovery_focus_lines = extract_discovery_focus_lines(sender_log_text, target_peer_id)
-        passive_discovery_focus_lines = extract_discovery_focus_lines(passive_log_text, target_peer_id)
+        passive_discovery_focus_lines = extract_discovery_focus_lines(
+            passive_log_text,
+            target_peer_id,
+            include_peer_lines=False,
+        )
         summary["senderDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
