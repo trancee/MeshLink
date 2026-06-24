@@ -5,6 +5,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 
 internal data class BleTransportDiscoveryHardware(
@@ -104,7 +105,10 @@ internal class BleTransportDiscoveryLifecycle(
 
     fun refresh(started: Boolean, hardware: BleTransportDiscoveryHardware): Unit {
         log(
-            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+            "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=${BleDiscoveryContract.computeMeshHash(appId)} advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+        )
+        log(
+            "discovery.summary activeMeshHash=${BleDiscoveryContract.computeMeshHash(appId)} advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
         )
         stop(hardware)
         if (!started || isDiscoverySuspended) {

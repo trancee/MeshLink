@@ -49,9 +49,26 @@ import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 
 private const val AUTOMATION_LOG_TAG: String = "MeshLinkReferenceAutomation"
 private const val PEER_SUFFIX_LENGTH: Int = 6
+private const val FNV_OFFSET_BASIS: UInt = 0x811C9DC5u
+private const val FNV_PRIME: UInt = 16777619u
+private const val BYTE_MASK: UInt = 0xFFu
+private const val USHORT_MASK: UInt = 0xFFFFu
+private const val FNV_FOLD_SHIFT: Int = 16
 
 internal fun createPlatformServices(context: Context, appId: String): AndroidPlatformServices {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.begin scripted")
+    val meshHash = computeAppMeshHash(appId)
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION startup.meshHashSummary appId=")
+            append(appId)
+            append(" activeMeshHash=")
+            append(meshHash)
+            append(" advertisedMeshHash=")
+            append(meshHash)
+        },
+    )
     return AndroidPlatformServices(
         context = context.applicationContext,
         readinessGuidance = readinessGuidance(),
@@ -616,6 +633,17 @@ private fun readinessBlockers(
     }
     blockers += powerManagement
     return blockers
+}
+
+private fun computeAppMeshHash(appId: String): UShort {
+    val bytes = appId.encodeToByteArray()
+    val seedBytes = if (bytes.isNotEmpty()) bytes else byteArrayOf(0)
+    var state = FNV_OFFSET_BASIS
+    for (byte in seedBytes) {
+        state = (state xor (byte.toUInt() and BYTE_MASK)) * FNV_PRIME
+    }
+    val folded = (((state shr FNV_FOLD_SHIFT) xor (state and USHORT_MASK)) and USHORT_MASK)
+    return folded.toUShort()
 }
 
 
