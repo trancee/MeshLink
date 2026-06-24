@@ -252,6 +252,14 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         body = "".join(f"<tr><th>{esc(label)}</th><td>{esc(value)}</td></tr>" for label, value in rows)
         return f"<section><h2>{esc(title)}</h2><table>{body}</table></section>"
 
+    def foreign_peer_rows(peers: list[dict[str, Any]]) -> str:
+        if not peers:
+            return "<tr><th>None</th><td>—</td></tr>"
+        return "".join(
+            f"<tr><th>{esc(peer.get('addr'))}</th><td>remoteMeshHash={esc(peer.get('remoteMeshHash'))} · count={esc(peer.get('count'))}</td></tr>"
+            for peer in peers
+        )
+
     def timing_rows(stage: str, data: dict[str, Any]) -> str:
         message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
         return "".join(
@@ -294,6 +302,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_discovery_focus = payload.get("passiveDiscoveryFocus", {}) or {}
     sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
     passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
+    passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
 
     execution_timeline_html = ""
     if any(
@@ -330,9 +339,18 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     foreign_scan_note = None
     passive_foreign_scan_ignored_count = passive_discovery_focus.get("foreignScanIgnoredCount")
     if passive_foreign_scan_ignored_count is not None and int(passive_foreign_scan_ignored_count or 0) > 0:
+        top_peer_note = (
+            "Top foreign peers: "
+            + ", ".join(
+                f"{peer.get('addr')}→{peer.get('remoteMeshHash')}×{peer.get('count')}"
+                for peer in passive_foreign_scan_top_peers[:3]
+            )
+            if passive_foreign_scan_top_peers
+            else "Top foreign peers: none parsed"
+        )
         foreign_scan_note = (
             "Passive discovery is dropping foreign payloads; inspect the Passive discovery focus section "
-            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count})."
+            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}"
         )
     if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
         failure_rows = [
@@ -447,6 +465,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             ],
         ),
         f"<section><h2>Passive discovery lines</h2><pre>{esc('\n'.join(passive_discovery_focus_lines) if passive_discovery_focus_lines else '—')}</pre></section>",
+        f"<section><h2>Top foreign peers</h2><table>{foreign_peer_rows(passive_foreign_scan_top_peers)}</table></section>",
         "<section><h2>Completion lines</h2>",
         f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
         f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
@@ -508,6 +527,25 @@ def count_foreign_scan_ignored_lines(log_text: str) -> int:
         for line in log_text.splitlines()
         if "ignoring discovery payload with mismatched meshHash" in line
     )
+
+
+def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
+    counts: dict[tuple[str, str], int] = {}
+    for line in log_text.splitlines():
+        if "ignoring discovery payload with mismatched meshHash" not in line:
+            continue
+        addr_match = re.search(r"addr=([^\s]+)", line)
+        remote_match = re.search(r"remoteMeshHash=([^\s]+)", line)
+        if addr_match is None or remote_match is None:
+            continue
+        key = (addr_match.group(1), remote_match.group(1))
+        counts[key] = counts.get(key, 0) + 1
+    peers = [
+        {"addr": addr, "remoteMeshHash": remote_mesh_hash, "count": count}
+        for (addr, remote_mesh_hash), count in counts.items()
+    ]
+    peers.sort(key=lambda item: (-item["count"], item["addr"], item["remoteMeshHash"]))
+    return peers[:limit]
 
 
 def extract_discovery_focus_lines(
@@ -1784,6 +1822,7 @@ def failure_summary(
         "passiveDiscoveryFocus": {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "topPeers": summarize_foreign_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         },
         "startupState": completions.startup_state,
@@ -2097,6 +2136,7 @@ def main(argv: list[str] | None = None) -> int:
         summary["passiveDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "topPeers": summarize_foreign_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         }
         summary["timings"].update(
