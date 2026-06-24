@@ -457,6 +457,7 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"| Stop reason | {stop_reason or '—'} |",
         "",
         f"Foreign scan summary: sender ignored {sender_ignored_total} · passive ignored {passive_ignored_total}",
+        "- Legend: the fleet summary aggregates initial + final ignored counts across all processed pairs, while each pair report breaks those counts down per run.",
         "",
         "## Mermaid overview",
         "",
@@ -962,6 +963,20 @@ def main(argv: list[str] | None = None) -> int:
         completed.add((pair["sender"], pair["passive"]))
         progress_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
         results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        fleet_inventory["foreignScanSummary"] = {
+            "senderIgnoredTotal": sum(
+                int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+                + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+                for row in results
+            ),
+            "passiveIgnoredTotal": sum(
+                int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+                + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+                for row in results
+            ),
+            "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+        }
+        fleet_json_path.write_text(json.dumps(fleet_inventory, indent=2), encoding="utf-8")
         state_path.write_text(
             json.dumps(
                 {
