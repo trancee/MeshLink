@@ -43,13 +43,26 @@ internal fun parseDiscoveryScanResultOrNull(
 ): DiscoveryScanResult? {
     val payloadUuid =
         serviceUuids?.firstOrNull { uuid -> !BleDiscoveryContract.isAdvertisementServiceUuid(uuid) }
-            ?: return null
+            ?: run {
+                log("ignoring scan result without discovery payload addr=$deviceAddress")
+                return null
+            }
     val payload =
-        runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull() ?: return null
+        runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull()
+            ?: run {
+                log(
+                    "ignoring discovery payload with invalid encoding addr=$deviceAddress payloadUuid=$payloadUuid"
+                )
+                return null
+            }
     if (payload.meshHash != localMeshHash) {
+        log(
+            "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash}"
+        )
         return null
     }
     if (payload.keyHash.contentEquals(localKeyHash)) {
+        log("ignoring self-discovery payload addr=$deviceAddress payloadUuid=$payloadUuid")
         return null
     }
     if (!BleDiscoveryContract.isSupportedProtocolVersion(payload.protocolVersion)) {

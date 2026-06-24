@@ -23,7 +23,11 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             localMeshHash = currentDiscoveryPayload.meshHash,
             localKeyHash = localKeyHash,
             log = ::log,
-        ) ?: return
+        )
+            ?: run {
+                log("scan discovery skipped addr=${result.device.address} rssi=${result.rssi}")
+                return
+            }
 
     if (discovery.transportMode == TransportMode.L2CAP) {
         promoteTemporaryLink(address = result.device.address, hintPeerId = discovery.hintPeerId)
@@ -54,11 +58,11 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
         )
     if (update.events.isEmpty()) {
         log(
-            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events"
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events peerId=${discovery.hintPeerId.value} addr=${result.device.address}"
         )
     } else {
         log(
-            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size}"
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size} peerId=${discovery.hintPeerId.value} addr=${result.device.address}"
         )
     }
     update.events.forEach(mutableEvents::tryEmit)

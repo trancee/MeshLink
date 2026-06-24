@@ -495,7 +495,13 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
     evidence: str | None = None
     for line in log_text.splitlines():
         normalized = line.strip()
-        if "discovery.stalled role=" in line:
+        if "sender.discovery.stalled role=" in line:
+            stage = "sender-discovery-stalled"
+            evidence = normalized
+        elif "sender.discovery.pending role=" in line:
+            stage = "sender-discovery-pending"
+            evidence = normalized
+        elif "discovery.stalled role=" in line:
             stage = "discovery-stalled"
             evidence = normalized
         elif "discovery.pending role=" in line:
@@ -838,7 +844,15 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         or "peer.discovered role=sender" in combined_log_lower
     )
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {"handshake-message1-send", "hop-failed", "route-unavailable", "discovery-stalled", "discovery-pending"}
+    route_failure_stages = {
+        "handshake-message1-send",
+        "hop-failed",
+        "route-unavailable",
+        "discovery-stalled",
+        "discovery-pending",
+        "sender-discovery-stalled",
+        "sender-discovery-pending",
+    }
     if peer_discovered:
         if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
             return (
@@ -851,6 +865,11 @@ def transport_failure_reason(run_dir: Path) -> str | None:
                 "Android direct proof discovered a peer but never emitted a route-stage marker; "
                 "sender stalled before route stabilization"
             )
+    if "sender.discovery.stalled role=" in combined_log_lower or "sender.discovery.pending role=" in combined_log_lower:
+        return (
+            "Android direct proof sender stalled before peer discovery; "
+            "classified as a capture stall"
+        )
     if "discovery.stalled role=" in combined_log_lower or "discovery.pending role=" in combined_log_lower:
         return (
             "Android direct proof reached startup but discovery stalled before peer discovery or route readiness; "

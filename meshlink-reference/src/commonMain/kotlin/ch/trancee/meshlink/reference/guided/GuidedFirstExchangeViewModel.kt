@@ -115,12 +115,18 @@ internal class GuidedFirstExchangeViewModel(
     private fun maybeLogDiscoveryPending(snapshot: ReferenceControllerSnapshot): Unit {
         if (discoveryPendingLogged || snapshot.peers.isNotEmpty()) return
         discoveryPendingLogged = true
+        val role = automationRole ?: "unknown"
         emitAutomationLog(
-            "REFERENCE_AUTOMATION discovery.pending role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=0.0"
+            "REFERENCE_AUTOMATION discovery.pending role=$role count=0 selectedPeerId=none elapsedSeconds=0.0"
         )
         emitAutomationLog(
-            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.pending role=${automationRole ?: "unknown"} count=0 selectedPeerId=none"
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.pending role=$role count=0 selectedPeerId=none"
         )
+        if (role.equals("sender", ignoreCase = true) || role.equals("SENDER", ignoreCase = true)) {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION sender.discovery.pending role=$role count=0 selectedPeerId=none elapsedSeconds=0.0"
+            )
+        }
     }
 
     private fun maybeLogDiscoveryStalled(): Unit {
@@ -128,12 +134,18 @@ internal class GuidedFirstExchangeViewModel(
         val snapshot = uiState.value.snapshot
         if (snapshot.peers.isNotEmpty()) return
         discoveryStalledLogged = true
+        val role = automationRole ?: "unknown"
         emitAutomationLog(
-            "REFERENCE_AUTOMATION discovery.stalled role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=3.0"
+            "REFERENCE_AUTOMATION discovery.stalled role=$role count=0 selectedPeerId=none elapsedSeconds=3.0"
         )
         emitAutomationLog(
-            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.stalled role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=3.0 initAt=$initAtEpochMillis"
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.stalled role=$role count=0 selectedPeerId=none elapsedSeconds=3.0 initAt=$initAtEpochMillis"
         )
+        if (role.equals("sender", ignoreCase = true) || role.equals("SENDER", ignoreCase = true)) {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION sender.discovery.stalled role=$role count=0 selectedPeerId=none elapsedSeconds=3.0"
+            )
+        }
     }
 
     private fun maybeLogPeerDiscovery(snapshot: ReferenceControllerSnapshot): Unit {
