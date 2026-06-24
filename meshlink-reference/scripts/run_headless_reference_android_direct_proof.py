@@ -327,24 +327,31 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         )
 
     failure_diagnostics_html = ""
-    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
-        failure_diagnostics_html = kv_table(
-            "Failure diagnostics",
-            [
-                ("Failure stage", payload.get("failureStage")),
-                ("Failure reason", payload.get("failureReason")),
-                ("Startup state", payload.get("startupState")),
-                ("Startup evidence", payload.get("startupStateEvidence")),
-                ("Route stage", payload.get("routeStage")),
-                ("Route evidence", route_evidence),
-                ("Sender route stage", payload.get("senderRouteStage")),
-                ("Sender route evidence", payload.get("senderRouteEvidence")),
-                ("Passive route stage", payload.get("passiveRouteStage")),
-                ("Passive route evidence", payload.get("passiveRouteEvidence")),
-                ("Sender completion", sender_completion),
-                ("Passive completion", passive_completion),
-            ],
+    foreign_scan_note = None
+    passive_foreign_scan_ignored_count = passive_discovery_focus.get("foreignScanIgnoredCount")
+    if passive_foreign_scan_ignored_count is not None and int(passive_foreign_scan_ignored_count or 0) > 0:
+        foreign_scan_note = (
+            "Passive discovery is dropping foreign payloads; inspect the Passive discovery focus section "
+            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count})."
         )
+    if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
+        failure_rows = [
+            ("Failure stage", payload.get("failureStage")),
+            ("Failure reason", payload.get("failureReason")),
+            ("Startup state", payload.get("startupState")),
+            ("Startup evidence", payload.get("startupStateEvidence")),
+            ("Route stage", payload.get("routeStage")),
+            ("Route evidence", route_evidence),
+            ("Sender route stage", payload.get("senderRouteStage")),
+            ("Sender route evidence", payload.get("senderRouteEvidence")),
+            ("Passive route stage", payload.get("passiveRouteStage")),
+            ("Passive route evidence", payload.get("passiveRouteEvidence")),
+            ("Sender completion", sender_completion),
+            ("Passive completion", passive_completion),
+        ]
+        if foreign_scan_note is not None:
+            failure_rows.append(("Foreign scan note", foreign_scan_note))
+        failure_diagnostics_html = kv_table("Failure diagnostics", failure_rows)
 
     html_parts = [
         "<!doctype html>",
