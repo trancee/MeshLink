@@ -7,12 +7,15 @@ import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.transport.resolveGattDataBearerMode
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class PreferredGattSendContext
 internal constructor(
     internal val hintPeerId: PeerId,
     internal val localPlatformFamily: BleDiscoveryPlatformFamily,
     internal val remotePlatformFamily: BleDiscoveryPlatformFamily,
+    internal val localL2capClientSocketsSupported: Boolean,
 )
 
 internal interface PreferredGattSendClient {
@@ -35,7 +38,7 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
     dependencies: PreferredGattSendDependencies,
 ): TransportSendResult? {
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    if (directFrame !is DirectWireFrame.Data) {
+    if (directFrame == null) {
         return null
     }
 
@@ -44,6 +47,7 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
             localPlatformFamily = context.localPlatformFamily,
             remotePlatformFamily = context.remotePlatformFamily,
             preferredMode = frame.preferredMode,
+            localL2capClientSocketsSupported = context.localL2capClientSocketsSupported,
         )
     if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
         return null
@@ -51,7 +55,14 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
 
     dependencies.ensureSideLink()
     val client = dependencies.currentClient() ?: return null
-    if (!client.isReady()) {
+    val ready =
+        withTimeoutOrNull(500) {
+            while (!client.isReady()) {
+                delay(25)
+            }
+            true
+        } == true
+    if (!ready) {
         dependencies.log(
             "preferred GATT side-link send skipped for ${context.hintPeerId.value.takeLast(6)}: client not ready"
         )

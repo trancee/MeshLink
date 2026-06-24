@@ -1,0 +1,10 @@
+{
+  "defaultMode": "redacted-preview",
+  "fullPayloadIncluded": false,
+  "operatorOptInRecorded": false,
+  "messages": [
+    {
+      "preview": "hello"
+    }
+  ]
+}

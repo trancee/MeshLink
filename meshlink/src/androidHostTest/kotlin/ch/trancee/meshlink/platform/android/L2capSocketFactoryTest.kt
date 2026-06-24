@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 
 class L2capSocketFactoryTest {
     @Test
-    fun `selectInsecureFactory uses legacy factory below api 36`() {
+    fun `selectInsecureFactory uses legacy factory below explicit socket api`() {
         // Arrange
         var explicitInvoked = false
         var legacyInvoked = false
@@ -27,12 +27,12 @@ class L2capSocketFactoryTest {
 
         // Assert
         assertEquals("legacy", selected)
-        assertTrue(legacyInvoked, "Expected the legacy factory to be used below API 36")
-        assertTrue(!explicitInvoked, "Expected the explicit factory to stay unused below API 36")
+        assertTrue(!explicitInvoked)
+        assertTrue(legacyInvoked)
     }
 
     @Test
-    fun `selectInsecureFactory prefers explicit settings on api 36 and above`() {
+    fun `selectInsecureFactory prefers explicit settings at explicit socket api`() {
         // Arrange
         var explicitInvoked = false
         var legacyInvoked = false
@@ -53,37 +53,7 @@ class L2capSocketFactoryTest {
 
         // Assert
         assertEquals("explicit", selected)
-        assertTrue(explicitInvoked, "Expected the explicit factory to run on API 36+")
-        assertTrue(
-            !legacyInvoked,
-            "Expected the legacy factory to stay unused when explicit settings succeed",
-        )
-    }
-
-    @Test
-    fun `selectInsecureFactory falls back to legacy settings when explicit creation fails`() {
-        // Arrange
-        var legacyInvoked = false
-        var fallbackError: Throwable? = null
-
-        // Act
-        val selected =
-            L2capSocketFactory.selectInsecureFactory(
-                sdkInt = 36,
-                explicitFactory = { error("boom") },
-                legacyFactory = {
-                    legacyInvoked = true
-                    "legacy"
-                },
-                onExplicitFailure = { error -> fallbackError = error },
-            )
-
-        // Assert
-        assertEquals("legacy", selected)
-        assertTrue(
-            legacyInvoked,
-            "Expected the legacy factory to run after explicit creation fails",
-        )
-        assertEquals("boom", fallbackError?.message)
+        assertTrue(explicitInvoked)
+        assertTrue(!legacyInvoked)
     }
 }

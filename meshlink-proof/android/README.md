@@ -10,6 +10,18 @@ Use it when you need:
 - an Android proof peer for manual validation
 - an Android proof fixture for passive transport or benchmark work
 
+## Support floor and crypto note
+
+- Current app floor: Android API 26+
+- Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
+  ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
+- MeshLink now has an in-repo fallback for X25519/XDH,
+  ChaCha20-Poly1305, and Ed25519 on Android when the runtime probe cannot rely
+  on platform support.
+- Attached Android 9 / SDK 28 hardware has already validated that fallback
+  selection path; retained API 26 runtime proof still needs a bootable emulator
+  environment or attached API 26-class hardware.
+
 ## Choose the right validation surface first
 
 | If you need to... | Use... |
@@ -22,7 +34,7 @@ Use it when you need:
 
 You need:
 
-- an Android device running API 29 or newer
+- an Android device running API 26 or newer
 - `adb` on your path
 - Bluetooth enabled on the device
 - this repository checked out locally
@@ -57,6 +69,8 @@ If you are using this app as the receiving proof peer for
 [Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
 keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
 matches the tutorial host app.
+
+For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake. The reference app now starts a foreground wake-lock mitigation during live-proof automation sessions to reduce that quick-doze risk on doze-sensitive OEM builds. The direct-proof runner now requires sender `proof.complete` but accepts passive retained evidence without passive `proof.complete`, so the passive role can pass on retained history/export evidence even when the completion log is absent.
 
 ## 3. Override launch settings when you need a specific proof shape
 
@@ -124,6 +138,13 @@ If you are validating supported user-visible behavior, stay in `meshlink` mode
 or move to the reference app. Use `gatt` and `gatt-notify` only when you are
 explicitly doing retained transport investigation or benchmark-oriented work.
 
+When using the reference app for Android direct proof, keep in mind that the
+live-proof automation path now starts a foreground wake lock plus a foreground
+service to keep doze-sensitive devices awake while the session is running.
+That makes the reference app more reliable on aggressive OEM builds, but it is
+still best to keep the device on a charger or otherwise avoid battery-saver
+policies during long capture windows.
+
 ### Contributor note
 
 The Android proof host now keeps the activity thin on purpose.
@@ -134,12 +155,13 @@ one giant activity file.
 ## 5. Run Android-side instrumented proof benchmarks
 
 The Android proof app also ships instrumented benchmark coverage under
-`androidTest`.
+`androidTest`. The default connected Android test task excludes those benchmark
+classes so the normal attached-device sweep stays fast.
 
-Run the attached-device suite with:
+Run the benchmark-only suite with:
 
 ```bash
-./gradlew :meshlink-proof:android:connectedDebugAndroidTest
+./gradlew :meshlink-proof:android:connectedDebugAndroidTest -PmeshlinkProofRunBenchmarks=true
 ```
 
 Use physical devices for meaningful transport and power evidence.
@@ -148,10 +170,12 @@ Use physical devices for meaningful transport and power evidence.
 
 Use this guide to run the Android proof app.
 
+This proof app is not the release-review campaign surface. If you are looking for the campaign's retained selection vocabulary or the Android-only fallback when mixed live proof is unsupported, use the reference-app release-review docs instead.
+
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
 - [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
-- [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)
+- [Release decision](../../specs/ble-mesh-sdk/release-decision.md)

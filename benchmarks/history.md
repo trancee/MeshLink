@@ -43,6 +43,14 @@ Rows not listed above are retained as regression-tracked evidence only.
 | 8-peer establish benchmark smoke | 262.995 ms/op | Regression-tracked evidence only |
 | 8-peer steady-state memory budget | 3,993,216 retained bytes | Meets the normative <= 8 MiB memory target |
 
+X25519 provider comparison from the 2026-06-17 benchmark refresh is retained in `benchmarks/build/reports/benchmarks/main/2026-06-17T23.04.11.896144882/jvm.json`:
+
+- JCA/JVM keypair: 89.649 us/op
+- Pure fallback keypair: 282.161 us/op
+- JCA/JVM agreement: 92.409 us/op
+- Pure fallback agreement: 277.250 us/op
+- The in-place ladder rewrite, specialized `a24` multiply, and trusted no-copy keypair path reduced the pure-path cost materially, but the JCA/provider-backed path remains the preferred fast path.
+
 Fresh JVM integration evidence from `MemoryBudgetIntegrationTest` retained:
 
 - `MEMORY_BUDGET baselineBytes=7437064 usedBytes=11430280 steadyStateBytes=3993216`

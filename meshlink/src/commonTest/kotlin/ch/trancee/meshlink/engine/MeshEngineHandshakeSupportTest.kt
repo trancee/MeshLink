@@ -19,7 +19,7 @@ class MeshEngineHandshakeSupportTest {
         var promotedCall: Pair<String, String>? = null
         val callbacks =
             buildMeshEngineRuntimeHandshakeCallbacks(
-                sendDirectWireFrame = { peerId, _, action ->
+                sendDirectWireFrame = { peerId, _, action, _ ->
                     sendCall = Triple(peerId.value, "HandshakeMessage1", action)
                     TransportSendResult.Delivered
                 },
@@ -45,7 +45,7 @@ class MeshEngineHandshakeSupportTest {
         val frame = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01))
 
         // Act
-        val sendResult = callbacks.sendDirectWireFrame(peerId, frame, "handshake.message1")
+        val sendResult = callbacks.sendDirectWireFrame(peerId, frame, "handshake.message1", null)
         callbacks.emitHopSessionEstablished(peerId, "handshake.established")
         callbacks.emitHopSessionFailed(
             peerId,

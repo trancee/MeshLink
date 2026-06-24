@@ -138,17 +138,9 @@ jobs:
         shell: bash
         run: |
           # CodeQL must observe real compiler invocations, so do not let Gradle satisfy
-          # these tasks from the build cache or up-to-date checks.
-          # Keep the task list scoped to JVM and Android compilation so this stays faster
-          # than a full build and avoids unnecessary iOS/native work.
+          # this repository-owned aggregation task from the build cache or up-to-date checks.
           ./gradlew \
-            :meshlink:jvmJar \
-            :meshlink:androidJar \
-            :benchmarks:jvmJar \
-            :meshlink-reference:jvmJar \
-            :meshlink-reference:bundleAndroidMainAar \
-            :meshlink-reference:android:compileDebugKotlin \
-            :meshlink-proof:android:compileDebugKotlin \
+            codeqlJavaKotlinBuild \
             --rerun-tasks \
             --no-build-cache \
             --no-daemon \

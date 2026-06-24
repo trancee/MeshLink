@@ -16,11 +16,17 @@ MeshLink has not cut a public stable release yet.
 
 Today, the repository is still source-distributed from a local checkout. The
 intended first public release shape is a published `:meshlink` artifact for
-Gradle consumers while iOS continues to use the generated Apple framework path.
-Swift Package Manager and CocoaPods are not part of that first-release target.
+Gradle consumers while iOS can use the generated Apple framework path or the
+root-level SwiftPM package.
 
 For the current distribution shape and remaining release blockers, use the
 [release status reference](docs/reference/release-status.md).
+
+Current mobile support floor: Android API 26+, iOS 14.0+. On Android, X25519/XDH
+and ChaCha20-Poly1305 are runtime-capability features on API 26-32 rather than
+blanket platform guarantees; the detailed crypto note and fallback-proof plan
+live in the release status reference and in [M011 Android crypto fallback proof
+plan](docs/rfcs/crypto/m011-android-crypto-fallback-proof.md).
 
 Release-facing entry points:
 
@@ -77,8 +83,9 @@ post-migration AGP 9 module shape stays intact.
 - [How to run the Android proof app](meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](meshlink-proof/ios/README.md)
 - [Benchmarks and retained evidence](benchmarks/README.md)
-- [Feature specification and release decision](specs/001-ble-mesh-sdk/spec.md)
-- [Spec alignment audit](specs/001-ble-mesh-sdk/alignment-audit.md)
+- [Fleet test history report](meshlink-reference/fleet-test-history/index.html) — concise HTML history of repeated fleet tests with device, result, and comparison context.
+- [Feature specification and release decision](specs/ble-mesh-sdk/spec.md)
+- [Spec alignment audit](specs/ble-mesh-sdk/alignment-audit.md)
 
 ## Source of truth
 

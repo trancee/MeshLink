@@ -66,6 +66,7 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             transportMode = discovery.transportMode,
             localPlatformFamily = currentDiscoveryPayload.platformFamily,
             remotePlatformFamily = resolvedPeer.platformFamily,
+            localL2capClientSocketsSupported = supportsL2capClientSockets(),
             shouldInitiateL2cap =
                 shouldInitiateL2cap(discovery.payload.keyHash, discovery.payload.platformFamily),
             gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),
@@ -79,12 +80,13 @@ internal fun BleTransportAdapter.shouldInitiateL2cap(
     remoteKeyHash: ByteArray,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
-    return shouldLocalPeerInitiateL2capConnection(
-        localKeyHash = localKeyHash,
-        localPlatformFamily = currentDiscoveryPayload.platformFamily,
-        remoteKeyHash = remoteKeyHash,
-        remotePlatformFamily = remotePlatformFamily,
-    )
+    return supportsL2capClientSockets() &&
+        shouldLocalPeerInitiateL2capConnection(
+            localKeyHash = localKeyHash,
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+            remoteKeyHash = remoteKeyHash,
+            remotePlatformFamily = remotePlatformFamily,
+        )
 }
 
 internal fun BleTransportAdapter.maybeLogRediscoveryWithoutLink(

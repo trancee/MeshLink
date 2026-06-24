@@ -12,8 +12,11 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.MeshLinkConfig
+import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.JvmCryptoProvider
 import ch.trancee.meshlink.crypto.NoiseIdentity
+import ch.trancee.meshlink.crypto.PureX25519
+import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.engine.MeshEngine
@@ -34,11 +37,49 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+private val benchmarkCryptoProvider = JvmCryptoProvider()
+
 @UnstableMeshLinkBenchmarkApi
 public class BenchmarkX25519KeyPair
 public constructor(privateKey: ByteArray, publicKey: ByteArray) {
     public val privateKey: ByteArray = privateKey.copyOf()
     public val publicKey: ByteArray = publicKey.copyOf()
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkEd25519KeyPair
+public constructor(privateKey: ByteArray, publicKey: ByteArray) {
+    public val privateKey: ByteArray = privateKey.copyOf()
+    public val publicKey: ByteArray = publicKey.copyOf()
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkNoiseIdentity
+public constructor(
+    private val ed25519KeyPair: BenchmarkEd25519KeyPair,
+    private val x25519KeyPair: BenchmarkX25519KeyPair,
+) {
+    internal fun toInternal(): NoiseIdentity {
+        return NoiseIdentity(
+            ed25519KeyPair =
+                Ed25519KeyPair(
+                    privateKey = ed25519KeyPair.privateKey,
+                    publicKey = ed25519KeyPair.publicKey,
+                ),
+            x25519KeyPair =
+                X25519KeyPair(
+                    privateKey = x25519KeyPair.privateKey,
+                    publicKey = x25519KeyPair.publicKey,
+                ),
+        )
+    }
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkLocalIdentity internal constructor(internal val delegate: LocalIdentity) {
+    internal fun toInternal(): LocalIdentity {
+        return delegate
+    }
 }
 
 @UnstableMeshLinkBenchmarkApi
@@ -49,12 +90,31 @@ public class BenchmarkCryptoProvider public constructor() {
         return delegate.randomBytes(size)
     }
 
+    public fun generateEd25519KeyPair(): BenchmarkEd25519KeyPair {
+        val keyPair = delegate.generateEd25519KeyPair()
+        return BenchmarkEd25519KeyPair(
+            privateKey = keyPair.privateKey,
+            publicKey = keyPair.publicKey,
+        )
+    }
+
     public fun generateX25519KeyPair(): BenchmarkX25519KeyPair {
         val keyPair = delegate.generateX25519KeyPair()
         return BenchmarkX25519KeyPair(
             privateKey = keyPair.privateKey,
             publicKey = keyPair.publicKey,
         )
+    }
+
+    public fun generateNoiseIdentity(): BenchmarkNoiseIdentity {
+        return BenchmarkNoiseIdentity(
+            ed25519KeyPair = generateEd25519KeyPair(),
+            x25519KeyPair = generateX25519KeyPair(),
+        )
+    }
+
+    public fun sha256(input: ByteArray): ByteArray {
+        return delegate.sha256(input)
     }
 
     public fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
@@ -87,6 +147,25 @@ public class BenchmarkCryptoProvider public constructor() {
             aad = aad,
             ciphertext = ciphertext,
         )
+    }
+}
+
+@UnstableMeshLinkBenchmarkApi
+public class BenchmarkPureX25519Provider public constructor() {
+    private val random = kotlin.random.Random(0x584635323531394c)
+
+    public fun generateX25519KeyPair(): BenchmarkX25519KeyPair {
+        val privateKey = ByteArray(32).also(random::nextBytes)
+        privateKey[0] = (privateKey[0].toInt() and 248).toByte()
+        privateKey[31] = ((privateKey[31].toInt() and 127) or 64).toByte()
+        return BenchmarkX25519KeyPair(
+            privateKey = privateKey,
+            publicKey = PureX25519.publicKeyFromClampedPrivate(privateKey),
+        )
+    }
+
+    public fun x25519(privateKey: ByteArray, publicKey: ByteArray): ByteArray {
+        return PureX25519.sharedSecret(privateKey = privateKey, publicKey = publicKey)
     }
 }
 
@@ -297,22 +376,52 @@ public fun interface BenchmarkDiagnosticSink {
 }
 
 @UnstableMeshLinkBenchmarkApi
+public fun createBenchmarkLocalIdentity(
+    noiseIdentity: BenchmarkNoiseIdentity,
+    peerId: PeerId,
+): BenchmarkLocalIdentity {
+    return BenchmarkLocalIdentity(
+        delegate =
+            LocalIdentity.fromNoiseIdentity(
+                noiseIdentity = noiseIdentity.toInternal(),
+                provider = benchmarkCryptoProvider,
+                peerId = peerId,
+            )
+    )
+}
+
+@UnstableMeshLinkBenchmarkApi
 public fun createBenchmarkMeshLink(
     config: MeshLinkConfig,
     peerId: PeerId,
     bleTransport: BenchmarkBleTransport? = null,
     diagnosticSink: BenchmarkDiagnosticSink? = null,
 ): MeshLink {
-    val provider = JvmCryptoProvider()
     val localIdentity =
         LocalIdentity.fromNoiseIdentity(
-            noiseIdentity = NoiseIdentity.generate(provider = provider),
-            provider = provider,
+            noiseIdentity = NoiseIdentity.generate(provider = benchmarkCryptoProvider),
+            provider = benchmarkCryptoProvider,
             peerId = peerId,
         )
     return MeshEngine.create(
         config = config,
         localIdentity = localIdentity,
+        secureStorage = InMemorySecureStorage(),
+        bleTransport = bleTransport?.let(::BenchmarkBleTransportAdapter),
+        diagnosticSink = diagnosticSink?.let(::BenchmarkDiagnosticSinkAdapter),
+    )
+}
+
+@UnstableMeshLinkBenchmarkApi
+public fun createBenchmarkMeshLink(
+    config: MeshLinkConfig,
+    localIdentity: BenchmarkLocalIdentity,
+    bleTransport: BenchmarkBleTransport? = null,
+    diagnosticSink: BenchmarkDiagnosticSink? = null,
+): MeshLink {
+    return MeshEngine.create(
+        config = config,
+        localIdentity = localIdentity.toInternal(),
         secureStorage = InMemorySecureStorage(),
         bleTransport = bleTransport?.let(::BenchmarkBleTransportAdapter),
         diagnosticSink = diagnosticSink?.let(::BenchmarkDiagnosticSinkAdapter),

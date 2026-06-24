@@ -19,6 +19,7 @@ Use it when you need to:
 | already shares the MeshLink Gradle build | depend on `project(":meshlink")` directly |
 | lives in a separate Gradle repo | use a composite build with dependency substitution |
 | is a native iOS Xcode app | call `:meshlink:embedAndSignAppleFrameworkForXcode` from an Xcode pre-build script |
+| wants SwiftPM integration | use the root-level `Package.swift` for local checkout development or `Package.release.swift` for the release binary target |
 
 ## Installation flow at a glance
 
@@ -53,22 +54,41 @@ blockers.
 This repository does **not** yet publish:
 
 - a Maven Central artifact
-- a Swift Package Manager package
-- a CocoaPods pod
+
+Swift Package Manager support is available from the repository root via:
+
+- `Package.swift` for local checkout integration
+- `Package.release.swift` as the release binary-target template
 
 The supported installation paths today are:
 
 - Gradle source integration for Android or shared Kotlin code
 - a Gradle-built Apple framework linked by Xcode for iOS
+- a SwiftPM package at the repository root for local checkout or binary-target use
 
 ## 2. Confirm the host requirements first
 
+MeshLink's current support floor is intentionally lower than the historical 29/15 default:
+
+- Android BLE/L2CAP transport is supported on API 26+.
+- iOS app surfaces are shipped as SwiftUI app targets with a 14.0 deployment target.
+- The cryptographic algorithm set stays the same; MeshLink does not silently drop SHA-256, HMAC-SHA256, X25519, Ed25519, or ChaCha20-Poly1305 on lower supported versions.
+- On Android, X25519/XDH and ChaCha20-Poly1305 are only officially guaranteed by the platform on newer API levels, so the lower app floor is a transport/runtime floor, not a blanket crypto guarantee.
+
+| Surface | Android SDK | iOS SDK | Notes |
+|---|---|---|---|
+| `:meshlink` SDK | API 26+ | 14.0+ | shared runtime floor |
+| `meshlink-reference` app | API 26+ | 14.0+ | evaluator and support surface |
+| `meshlink-proof` app | API 26+ | 14.0+ | proof and benchmark surface |
+
 | Host | Requirement |
 |---|---|
-| Android app | Android API 29+ |
-| iOS app | iOS 15+ |
+| Android app | Android API 26+ |
+| iOS app | iOS 14+ |
 | Gradle build | JDK 21 or newer |
 | iPhone device runs | Xcode with local signing access |
+
+MeshLink's Android crypto provider probes for X25519/XDH and ChaCha20-Poly1305 at runtime and fails fast with a clear crypto error if the device does not expose them; Ed25519 has an in-repo fallback path. On iOS, the bridge uses CryptoKit to keep the same algorithm contract on supported versions.
 
 If you only need runtime bootstrap after the library is already wired in, skip
 this guide and go straight to [How to integrate MeshLink into a host app](integrate-meshlink-into-a-host-app.md).

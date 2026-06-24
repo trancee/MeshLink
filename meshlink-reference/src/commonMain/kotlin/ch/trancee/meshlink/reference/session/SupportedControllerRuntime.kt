@@ -10,10 +10,15 @@ import kotlinx.coroutines.launch
 internal class SupportedControllerRuntime(
     initialSurfaceOfOrigin: String,
     private val supportedControllerFactory: (String) -> ReferenceMeshLinkController,
+    private val emitAutomationLog: (String) -> Unit = {},
     private val scope: CoroutineScope,
 ) {
     private var controller: ReferenceMeshLinkController =
-        supportedControllerFactory(initialSurfaceOfOrigin)
+        supportedControllerFactory(initialSurfaceOfOrigin).also { created ->
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION supported.controller.created surface=$initialSurfaceOfOrigin type=${created::class.simpleName.orEmpty()}"
+            )
+        }
     private var controllerClosed: Boolean = false
     private var snapshotJob: Job? = null
     private var surfaceOfOrigin: String = initialSurfaceOfOrigin
@@ -37,7 +42,11 @@ internal class SupportedControllerRuntime(
     ): ReferenceControllerSnapshot {
         closeCurrent()
         this.surfaceOfOrigin = surfaceOfOrigin
-        controller = supportedControllerFactory(surfaceOfOrigin)
+        val createdController = supportedControllerFactory(surfaceOfOrigin)
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION supported.controller.created surface=$surfaceOfOrigin type=${createdController::class.simpleName.orEmpty()}"
+        )
+        controller = createdController
         controllerClosed = false
         val initialSnapshot = currentSnapshot()
         onSnapshotChanged(initialSnapshot)
@@ -66,6 +75,9 @@ internal class SupportedControllerRuntime(
     }
 
     suspend fun run(action: suspend (ReferenceMeshLinkController) -> Unit): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION supported.controller.dispatch surface=$surfaceOfOrigin type=${controller::class.simpleName.orEmpty()}"
+        )
         action(controller)
     }
 }

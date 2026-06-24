@@ -8,12 +8,21 @@ It is an explanation page. Use the other docs when the job is different:
 
 - product-like evaluation through the shared Android and iOS experience —
   [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
-- Android proof-host setup and launch steps —
+- the internal architecture of the reference app, proof apps, and automated tests —
+  [Reference app and test architecture](reference-app-and-test-architecture.md)
+- Android proof-app setup and launch steps —
   [How to run the Android proof app](../../meshlink-proof/android/README.md)
-- iPhone proof-host setup and launch steps —
+- iPhone proof-app setup and launch steps —
   [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - retained performance thresholds and latest evidence —
   [Benchmark and validation baselines](../../benchmarks/README.md)
+
+> Quick orientation:
+> - the reference app shows the supported evaluation path
+> - the proof apps show physical transport evidence
+> - the retained benchmarks show the current numeric posture
+>
+> If you need the full split and file map, open [Reference app and test architecture](reference-app-and-test-architecture.md).
 
 ## One repository, three different kinds of claim
 
@@ -29,6 +38,8 @@ for the same conclusion.
 That separation is deliberate. MeshLink needs to prove both that the SDK behaves
 correctly on devices and that the supported evaluation experience stays coherent.
 Trying to make one app do every job would blur those claims together.
+
+The reference-app family now also includes a validated retained release-review campaign surface. It discovers the live fleet, persists `fleet-manifest.json`, `campaign-plan.json`, `campaign-state.json`, and `report-data.json`, and renders a self-contained offline `release-review-report.html` for reviewers who need a ship-or-no-ship decision without raw-log archaeology. On hosts where mixed iOS live proof is unsupported, that campaign explicitly falls back to Android-only direct-guided; the proof apps themselves remain separate evidence surfaces and do not carry the release-review selection contract.
 
 ## Why the proof apps remain separate
 
@@ -52,7 +63,7 @@ Keeping those behaviors separate means a reviewer can still say:
 
 without those statements stepping on each other.
 
-## Why the proof hosts still look platform-specific
+## Why the proof apps still look platform-specific
 
 The proof apps are intentionally separate on Android and iPhone because the
 host-level concerns are genuinely different:
@@ -62,8 +73,8 @@ host-level concerns are genuinely different:
 - iOS launch control is shaped around Xcode signing, environment variables,
   simulator or device destinations, and retained console capture
 
-That does not mean the hosts should become giant files.
-The current proof-host refactors keep the platform shell thin while pushing the
+That does not mean the apps should become giant files.
+The current proof-app refactors keep the platform shell thin while pushing the
 real moving parts behind narrower helpers such as launch-config parsing,
 permission policy, benchmark framing, runtime ownership, benchmark-mode
 switching, and transport-log capture.
@@ -108,6 +119,7 @@ or move to the reference app.
 
 - [MeshLink documentation map](../README.md)
 - [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
+- [Reference app and test architecture](reference-app-and-test-architecture.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)

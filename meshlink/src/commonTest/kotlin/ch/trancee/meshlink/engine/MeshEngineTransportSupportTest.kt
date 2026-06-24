@@ -44,46 +44,40 @@ class MeshEngineTransportSupportTest {
     }
 
     @Test
-    fun `transport mode changed to gatt retracts routes and emits a lost peer event`() =
-        runBlocking {
-            // Arrange
-            val harness = transportSupportHarness()
-            val peerId = PeerId("peer-abcdef")
-            harness.presenceTracker.onPeerConnected(peerId)
-            harness.routeCoordinator.onPeerConnected(
-                peerId = peerId,
-                trustRecord = trustRecord(peerId = peerId, seed = 1),
-            )
+    fun `transport mode changed to gatt keeps the peer connected`() = runBlocking {
+        // Arrange
+        val harness = transportSupportHarness()
+        val peerId = PeerId("peer-abcdef")
+        harness.presenceTracker.onPeerConnected(peerId)
+        harness.routeCoordinator.onPeerConnected(
+            peerId = peerId,
+            trustRecord = trustRecord(peerId = peerId, seed = 1),
+        )
 
-            // Act
-            harness.support.handleTransportEvent(
-                TransportEvent.TransportModeChanged(
-                    peerId = peerId,
-                    transportMode = TransportMode.GATT,
-                )
-            )
+        // Act
+        harness.support.handleTransportEvent(
+            TransportEvent.TransportModeChanged(peerId = peerId, transportMode = TransportMode.GATT)
+        )
 
-            // Assert
-            val lost = assertIs<PeerEvent.Lost>(harness.mutablePeerEvents.replayCache.single())
-            assertEquals(peerId.value, lost.peerId.value)
-            assertNull(harness.routeCoordinator.routeFor(peerId))
-            val modeChanged =
-                harness.diagnostics.firstOrNull { diagnostic ->
-                    diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
-                        diagnostic.stage == "transport.modeChanged" &&
-                        diagnostic.metadata["accepted"] == "false" &&
-                        diagnostic.metadata["transportMode"] == TransportMode.GATT.name
-                }
-            val routeRetracted =
-                harness.diagnostics.firstOrNull { diagnostic ->
-                    diagnostic.code == DiagnosticCode.ROUTE_RETRACTED &&
-                        diagnostic.stage == "transport.modeChanged.rejected.routeRetracted" &&
-                        diagnostic.metadata["removedByPeerId"] == peerId.value
-                }
-            assertNotNull(modeChanged)
-            assertNotNull(routeRetracted)
-            Unit
-        }
+        // Assert
+        assertTrue(harness.mutablePeerEvents.replayCache.isEmpty())
+        assertNotNull(harness.routeCoordinator.routeFor(peerId))
+        val modeChanged =
+            harness.diagnostics.firstOrNull { diagnostic ->
+                diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
+                    diagnostic.stage == "transport.modeChanged" &&
+                    diagnostic.metadata["accepted"] == "true" &&
+                    diagnostic.metadata["transportMode"] == TransportMode.GATT.name
+            }
+        val routeRetracted =
+            harness.diagnostics.firstOrNull { diagnostic ->
+                diagnostic.code == DiagnosticCode.ROUTE_RETRACTED &&
+                    diagnostic.stage == "transport.modeChanged.rejected.routeRetracted"
+            }
+        assertNotNull(modeChanged)
+        assertNull(routeRetracted)
+        Unit
+    }
 
     @Test
     fun `clearRuntimeView clears connected peers and routes and emits lost events`() = runBlocking {
@@ -127,7 +121,7 @@ class MeshEngineTransportSupportTest {
     }
 
     @Test
-    fun `peer discovered on gatt is rejected without peer events or prewarm`() = runBlocking {
+    fun `peer discovered on gatt is accepted and prewarms`() = runBlocking {
         // Arrange
         val harness = transportSupportHarness()
         val peerId = PeerId("peer-gatt")
@@ -138,14 +132,15 @@ class MeshEngineTransportSupportTest {
         )
 
         // Assert
-        assertTrue(harness.mutablePeerEvents.replayCache.isEmpty())
-        assertTrue(harness.prewarmedPeerIds.isEmpty())
-        assertNotNull(
-            harness.diagnostics.firstOrNull { diagnostic ->
+        val found = assertIs<PeerEvent.Found>(harness.mutablePeerEvents.replayCache.single())
+        assertEquals(peerId.value, found.peerId.value)
+        assertEquals(PeerConnectionState.CONNECTED, found.state)
+        assertEquals(listOf(peerId.value), harness.prewarmedPeerIds)
+        assertTrue(
+            harness.diagnostics.none { diagnostic ->
                 diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
                     diagnostic.stage == "transport.peerDiscovered.rejected" &&
-                    diagnostic.metadata["accepted"] == "false" &&
-                    diagnostic.metadata["transportMode"] == TransportMode.GATT.name
+                    diagnostic.metadata["accepted"] == "false"
             }
         )
         Unit

@@ -8,6 +8,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.test.InMemorySecureStorage
+import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import kotlin.test.Test
@@ -117,7 +118,7 @@ class MeshEngineResponderHandshakeSupportTest {
             val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
             val message1 = initiatorManager.createMessage1()
             val fixture =
-                responderHandshakeFixture(localIdentity = localIdentity) { _, _, _ ->
+                responderHandshakeFixture(localIdentity = localIdentity) { _, _, _, _ ->
                     TransportSendResult.Dropped("link not ready")
                 }
 
@@ -182,8 +183,9 @@ private data class ResponderHandshakeFixture(
 
 private fun responderHandshakeFixture(
     localIdentity: LocalIdentity,
-    sendDirectWireFrame: suspend (PeerId, DirectWireFrame, String) -> TransportSendResult =
-        { _, _, _ ->
+    sendDirectWireFrame:
+        suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult =
+        { _, _, _, _ ->
             TransportSendResult.Delivered
         },
 ): ResponderHandshakeFixture {
@@ -241,14 +243,14 @@ private fun responderHandshakeFixture(
                 ),
             callbacks =
                 MeshEngineHandshakeCallbacks(
-                    sendDirectWireFrame = { peerId, frame, action ->
+                    sendDirectWireFrame = { peerId, frame, action, preferredMode ->
                         sentFrames +=
                             RecordedResponderHandshakeSend(
                                 peerIdValue = peerId.value,
                                 frame = frame,
                                 action = action,
                             )
-                        sendDirectWireFrame(peerId, frame, action)
+                        sendDirectWireFrame(peerId, frame, action, preferredMode)
                     },
                     emitHopSessionEstablished = { peerId, stage ->
                         established +=

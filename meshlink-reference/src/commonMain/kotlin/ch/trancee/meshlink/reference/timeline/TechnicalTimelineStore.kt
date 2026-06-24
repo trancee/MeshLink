@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.reference.timeline
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
+import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.ArtifactPayloadPolicy
 import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.SessionArtifact
@@ -12,7 +13,6 @@ import ch.trancee.meshlink.reference.model.referenceConnectionLabel
 import ch.trancee.meshlink.reference.model.referenceOutcomeLabel
 import ch.trancee.meshlink.reference.model.referencePeerTrustLabel
 import ch.trancee.meshlink.reference.model.referenceScenarioTitle
-import ch.trancee.meshlink.reference.platform.PlatformServices
 import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
 import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
 import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
@@ -36,17 +36,16 @@ import kotlinx.coroutines.launch
  * and replacement live elsewhere.
  */
 internal class TechnicalTimelineStore(
-    private val platformServices: PlatformServices,
+    private val platformName: String,
+    private val readinessBlockers: List<String>,
+    private val meshLinkController: ReferenceMeshLinkController,
+    private val currentTimeMillis: () -> Long,
     private val historyRepository: JsonSessionHistoryRepository,
     private val artifactSerializer: JsonSessionArtifactSerializer,
     internal val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateFlow: MutableStateFlow<TechnicalTimelineUiState> =
-        MutableStateFlow(
-            TechnicalTimelineUiState(
-                liveSnapshot = platformServices.meshLinkController.snapshot.value
-            )
-        )
+        MutableStateFlow(TechnicalTimelineUiState(liveSnapshot = meshLinkController.snapshot.value))
 
     val uiState: StateFlow<TechnicalTimelineUiState> = stateFlow.asStateFlow()
 
@@ -163,7 +162,7 @@ internal class TechnicalTimelineStore(
     internal suspend fun retainEndedSnapshotIfEligible(
         endedSnapshot: ReferenceControllerSnapshot
     ): Unit {
-        if (!endedSnapshot.isEligibleForAutomaticRetention(platformServices.readinessBlockers)) {
+        if (!endedSnapshot.isEligibleForAutomaticRetention(readinessBlockers)) {
             return
         }
         historyRepository.retainSnapshot(endedSnapshot.redactedRetainedSnapshot())
@@ -173,7 +172,7 @@ internal class TechnicalTimelineStore(
         snapshot: ReferenceControllerSnapshot,
         policy: ExportPayloadPolicy,
     ): String {
-        val createdAtEpochMillis = platformServices.currentTimeMillis()
+        val createdAtEpochMillis = currentTimeMillis()
         val artifactPolicy =
             if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
                 ArtifactPayloadPolicy.FULL_OPT_IN
@@ -264,7 +263,7 @@ internal class TechnicalTimelineStore(
 
     private fun observeLiveSnapshot(): Unit {
         scope.launch {
-            platformServices.meshLinkController.snapshot.collectLatest { snapshot ->
+            meshLinkController.snapshot.collectLatest { snapshot ->
                 updateState { current ->
                     current.copy(
                         liveSnapshot = snapshot,

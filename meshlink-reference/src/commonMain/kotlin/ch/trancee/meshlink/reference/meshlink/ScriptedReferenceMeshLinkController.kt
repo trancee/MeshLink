@@ -1,13 +1,12 @@
 package ch.trancee.meshlink.reference.meshlink
 
 import ch.trancee.meshlink.api.DeliveryPriority
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
 import kotlinx.coroutines.flow.StateFlow
 
 /** Deterministic reference-app controller used by host-platform UI automation. */
 internal class ScriptedReferenceMeshLinkController(
     platformName: String,
-    authorityMode: ReferenceAuthorityMode,
+    authorityMode: String,
     nowProvider: () -> Long,
     appId: String = "demo.meshlink.reference.automation",
     surfaceOfOrigin: String = "main-guided",

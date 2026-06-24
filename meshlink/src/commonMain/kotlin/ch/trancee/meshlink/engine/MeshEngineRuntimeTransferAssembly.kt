@@ -101,7 +101,8 @@ private fun createMeshEngineRuntimeSendTransferTowardsDestination(
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 ): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
     return { peerId, frame, action, hardRunToken ->
-        val nextHopPeerId = routeCoordinator.nextHopFor(peerId) ?: peerId
+        val route = routeCoordinator.routeFor(peerId)
+        val nextHopPeerId = route?.nextHopPeerId ?: peerId
         sendEncryptedWireFrame(nextHopPeerId, frame, action, hardRunToken)
     }
 }

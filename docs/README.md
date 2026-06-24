@@ -13,6 +13,7 @@ single "read everything" path.
 | check official SDK or reference-app terms | [Reference](#reference) |
 | understand design decisions and trade-offs | [Explanation](#explanation) |
 | validate behavior on devices | [How-to guides](#how-to-guides), [Reference](#reference), and [Explanation](#explanation) |
+| review repeated fleet-test history | [How-to guides](#how-to-guides) and [Reference](#reference) |
 | understand when to use the reference app, proof apps, or retained benchmarks | [Explanation](#explanation) |
 | check the current MeshLink release posture | [Reference](#reference) |
 | understand where code lives and why the repository is split this way | [Reference](#reference) and [Explanation](#explanation) |
@@ -44,9 +45,11 @@ If you are not sure where to start, use one of these short paths.
 
 1. [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md)
 2. [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md)
-3. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
-4. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
-5. [Benchmark and validation baselines](../benchmarks/README.md)
+3. [Android direct-proof matrix result](reference/android-direct-proof-matrix-result.md) — read the canonical 45s rerun summary before digging into raw direct-proof artifacts.
+4. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
+5. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
+6. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
+6. [Benchmark and validation baselines](../benchmarks/README.md)
 
 ### Proof fixtures and retained benchmarks
 
@@ -106,22 +109,25 @@ guessing which page owns which model.
 ### Validation and proof workflows
 
 - [How to evaluate MeshLink with the reference app](how-to/evaluate-meshlink-with-the-reference-app.md) — walk through the shared Android and iOS reference app and export one retained artifact.
-- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — retain direct, relay, lifecycle, and export proofs on real devices.
-- [How to run the Android proof app](../meshlink-proof/android/README.md) — retain Android-side physical proof evidence.
-- [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) — retain iPhone-side physical proof evidence.
+- [How to run the reference-app physical integration scenarios](how-to/run-reference-app-physical-integration-scenarios.md) — run the validated release-review campaign and retain direct proof, lifecycle, export, and offline review evidence on real devices; relay coverage is available through the separate relay harness. The campaign docs carry the retained selection vocabulary and the Android-only fallback when mixed live proof is unsupported, and they also document the Android direct-proof foreground wake-lock mitigation for doze-sensitive devices.
+- [Physical proof checklist](how-to/run-reference-app-physical-integration-scenarios.md#direct-proof-checklist) — quick direct / relay / reporting checklist plus retained evidence excerpts for the reference-app release-review path.
+- [How to run the Android proof app](../meshlink-proof/android/README.md) — retain Android-side physical proof evidence for proof-fixture work, not release-review campaign selection.
+- [How to build and run the iOS proof app](../meshlink-proof/ios/README.md) — retain iPhone-side physical proof evidence for proof-fixture work, not release-review campaign selection.
 
 ## Reference
 
 - [MeshLink SDK API reference](reference/meshlink-sdk-api.md) — public entry points, configuration, result types, diagnostics, exceptions, and Apple bridge APIs.
 - [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md) — lifecycle boundaries, stream semantics, delivery-path selection, trust-reset effects, persistence, and operational limits.
 - [Glossary and acronym reference](reference/glossary.md) — quick definitions for recurring SDK, contributor, and reference-app terms.
+- [Device test matrix reference](reference/device-test-matrix.md) — the attached Android device fleet, human-readable model names, Bluetooth version, crypto baseline, and update rules.
+- [Android direct-proof fleet reports](reference/android-direct-proof-fleet-reports.md) — the repository-local report bundle layout, artifact references, and troubleshooting entry points for fleet sweeps.
 - [Release status reference](reference/release-status.md) — the current distribution shape, intended first public release shape, and remaining release blockers.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
 - [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
-- [Feature specification](../specs/001-ble-mesh-sdk/spec.md) — normative product scope and success criteria.
-- [Release decision](../specs/001-ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
+- [Feature specification](../specs/ble-mesh-sdk/spec.md) — normative product scope and success criteria.
+- [Release decision](../specs/ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
 
 ## Explanation
 
@@ -129,6 +135,7 @@ guessing which page owns which model.
 
 - [About the repository architecture](explanation/about-the-repository-architecture.md) — why the repository is split between the SDK, the reference app, the proof apps, and the retained evidence surfaces.
 - [About proof validation surfaces](explanation/about-proof-validation-surfaces.md) — when to choose the reference app, the proof apps, or retained benchmarks.
+- [Reference app and test architecture](explanation/reference-app-and-test-architecture.md) — how the reference app, proof apps, and automated tests fit together.
 
 ### Integration and lifecycle
 
@@ -165,4 +172,5 @@ guessing which page owns which model.
 
 - [M009 routing metadata privacy envelope and negotiation contract](rfcs/routing/m009-routing-metadata-privacy.md)
 - [M010 PQ-hybrid candidate matrix and wire-shape feasibility](rfcs/crypto/m010-pq-hybrid-candidate-matrix.md)
+- [M011 Android crypto fallback proof plan](rfcs/crypto/m011-android-crypto-fallback-proof.md) — shipped fallback plus retained validation posture
 - [Crypto vector policy](rfcs/crypto/vector-policy.md)

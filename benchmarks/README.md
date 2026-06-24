@@ -4,8 +4,8 @@ Use this page for the current benchmark posture.
 
 The normative targets still live in:
 
-- `specs/001-ble-mesh-sdk/spec.md` — success criteria
-- `specs/001-ble-mesh-sdk/plan.md` — mirrored performance goals
+- `specs/ble-mesh-sdk/spec.md` — success criteria
+- `specs/ble-mesh-sdk/plan.md` — mirrored performance goals
 
 A failing result in this directory is still useful retained evidence, but it
 does not relax the underlying requirement.
@@ -31,7 +31,7 @@ Rows not listed above are retained as regression-tracked evidence only.
 
 ## Latest retained evidence
 
-### JVM evidence (2026-05-11)
+### JVM evidence (2026-06-13)
 
 | Metric | Latest result | Interpretation |
 |---|---:|---|
@@ -40,6 +40,10 @@ Rows not listed above are retained as regression-tracked evidence only.
 | Wire decode message | 0.083 us/op | Meets the codec target |
 | Wire encode transfer chunk | 0.210 us/op | Meets the codec target |
 | Wire decode transfer chunk | 0.083 us/op | Meets the codec target |
+| X25519 keypair, JCA/JVM provider | 89.649 us/op | Baseline retained result for the platform-backed provider. |
+| X25519 keypair, pure fallback provider | 282.161 us/op | About 3.1x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
+| X25519 agreement, JCA/JVM provider | 92.409 us/op | Baseline retained result for the platform-backed provider. |
+| X25519 agreement, pure fallback provider | 277.250 us/op | About 3.0x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
 | 8-peer steady-state memory budget | 3,993,216 retained bytes | Meets the memory target |
 
 ### Physical mobile evidence

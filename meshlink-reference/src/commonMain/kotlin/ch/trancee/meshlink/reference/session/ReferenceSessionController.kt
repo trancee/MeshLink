@@ -3,7 +3,8 @@ package ch.trancee.meshlink.reference.session
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_SOLO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +17,7 @@ internal class ReferenceSessionController(
     private val platformName: String,
     private val nowProvider: () -> Long,
     supportedControllerFactory: (String) -> ReferenceMeshLinkController,
+    private val emitAutomationLog: (String) -> Unit = {},
     initialSupportedSurface: String = "main-guided",
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
@@ -23,6 +25,7 @@ internal class ReferenceSessionController(
         SupportedControllerRuntime(
             initialSurfaceOfOrigin = initialSupportedSurface,
             supportedControllerFactory = supportedControllerFactory,
+            emitAutomationLog = emitAutomationLog,
             scope = scope,
         )
     private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot> =
@@ -37,6 +40,9 @@ internal class ReferenceSessionController(
     }
 
     override suspend fun start(): Unit {
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION session.controller.start kind=$currentKind platform=$platformName"
+        )
         runOnSupportedLiveController { controller -> controller.start() }
     }
 
@@ -87,7 +93,7 @@ internal class ReferenceSessionController(
         return startAlternativeSession(
             kind = ReferenceSessionKind.SOLO,
             scenarioId = "solo-exploration",
-            authorityMode = ReferenceAuthorityMode.SOLO,
+            authorityMode = REFERENCE_AUTHORITY_MODE_SOLO,
             surfaceOfOrigin = "solo-exploration",
             title = "Solo exploration opened",
             detail = "Solo exploration is active on $platformName.",
@@ -98,7 +104,7 @@ internal class ReferenceSessionController(
         return startAlternativeSession(
             kind = ReferenceSessionKind.LAB,
             scenarioId = "lab",
-            authorityMode = ReferenceAuthorityMode.LIVE,
+            authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
             surfaceOfOrigin = "lab",
             title = "Lab session opened",
             detail = "The non-normative lab surface is active on $platformName.",
@@ -120,13 +126,17 @@ internal class ReferenceSessionController(
     ): Unit {
         if (currentKind == ReferenceSessionKind.SUPPORTED_LIVE) {
             supportedControllerRuntime.run(action)
+            return
         }
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION session.controller.skip kind=$currentKind platform=$platformName"
+        )
     }
 
     private suspend fun startAlternativeSession(
         kind: ReferenceSessionKind,
         scenarioId: String,
-        authorityMode: ReferenceAuthorityMode,
+        authorityMode: String,
         surfaceOfOrigin: String,
         title: String,
         detail: String,

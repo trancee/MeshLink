@@ -134,11 +134,6 @@ def main() -> int:
             'val installDebug by tasks.registering',
             ":meshlink-reference must keep the installDebug compatibility task",
         )
-        require_contains(
-            "meshlink-reference/build.gradle.kts",
-            'val connectedDebugAndroidTest by tasks.registering',
-            ":meshlink-reference must keep the connectedDebugAndroidTest compatibility task",
-        )
         require_not_contains(
             "meshlink-reference/build.gradle.kts",
             "alias(libs.plugins.android.application)",

@@ -1,23 +1,21 @@
 package ch.trancee.meshlink.reference.platform
 
 import ch.trancee.meshlink.api.MeshLinkBootstrap
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
 import ch.trancee.meshlink.reference.meshlink.LiveReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.PreviewReferenceMeshLinkController
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
-import ch.trancee.meshlink.reference.session.InMemoryReferenceDocumentStore
-import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 
 /** Shared platform bridge consumed by the app shell. */
 public interface PlatformServices {
     public val platformName: String
-    public val defaultAuthorityMode: ReferenceAuthorityMode
+    public val defaultAuthorityMode: String
     public val readinessGuidance: List<String>
     public val readinessBlockers: List<String>
-    public val automationConfig: ReferenceAutomationConfig?
-    public val documentStore: ReferenceDocumentStore
+    public val powerMitigationStatus: String?
+    public val documentStore: Any?
     public val meshLinkController: ReferenceMeshLinkController
+
+    public fun stopPowerMitigation(): Unit
 
     public fun createSupportedMeshLinkController(
         surfaceOfOrigin: String = "main-guided"
@@ -29,31 +27,33 @@ public interface PlatformServices {
 }
 
 /** Mutable options bag used by the shared default platform-services bridge. */
-internal class DefaultPlatformServicesOptions {
+public class DefaultPlatformServicesOptions {
     public var nowProvider: () -> Long = { 0L }
     public var appId: String = DEFAULT_REFERENCE_APP_ID
     public var meshLinkBootstrap: MeshLinkBootstrap? = null
-    public var documentStore: ReferenceDocumentStore = InMemoryReferenceDocumentStore()
+    public var documentStore: Any? = null
     public var readinessBlockers: List<String> = emptyList()
-    public var automationConfig: ReferenceAutomationConfig? = null
+    public var powerMitigationStatus: String? = null
     public var automationLogger: (String) -> Unit = {}
     public var meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? = null
+    public var stopPowerMitigation: () -> Unit = {}
 }
 
 /** Lightweight default implementation used by the reference app entry points. */
-internal class DefaultPlatformServices(
+public class DefaultPlatformServices(
     override val platformName: String,
-    override val defaultAuthorityMode: ReferenceAuthorityMode,
+    override val defaultAuthorityMode: String,
     override val readinessGuidance: List<String>,
     options: DefaultPlatformServicesOptions = DefaultPlatformServicesOptions(),
 ) : PlatformServices {
     private val nowProvider: () -> Long = options.nowProvider
     private val appId: String = options.appId
     private val meshLinkBootstrap: MeshLinkBootstrap? = options.meshLinkBootstrap
-    override val documentStore: ReferenceDocumentStore = options.documentStore
+    override val documentStore: Any? = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
-    override val automationConfig: ReferenceAutomationConfig? = options.automationConfig
+    override val powerMitigationStatus: String? = options.powerMitigationStatus
     private val automationLogger: (String) -> Unit = options.automationLogger
+    private val stopPowerMitigationAction: () -> Unit = options.stopPowerMitigation
     private val meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? =
         options.meshLinkControllerFactory
 
@@ -76,7 +76,15 @@ internal class DefaultPlatformServices(
                         runtimeLogger = automationLogger,
                     )
                 }
-                .getOrElse {
+                .onSuccess {
+                    automationLogger(
+                        "REFERENCE_AUTOMATION live.controller.created surface=$surfaceOfOrigin platform=$platformName appId=$appId"
+                    )
+                }
+                .getOrElse { error ->
+                    automationLogger(
+                        "REFERENCE_AUTOMATION live.controller.fallback surface=$surfaceOfOrigin platform=$platformName appId=$appId reason=${error::class.simpleName}: ${error.message.orEmpty()}"
+                    )
                     PreviewReferenceMeshLinkController(
                         platformName = platformName,
                         nowEpochMillis = nowProvider(),
@@ -90,6 +98,10 @@ internal class DefaultPlatformServices(
 
     override fun emitAutomationLog(message: String): Unit {
         automationLogger(message)
+    }
+
+    override fun stopPowerMitigation(): Unit {
+        stopPowerMitigationAction()
     }
 }
 

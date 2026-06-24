@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.platform.android
 
-import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.X25519KeyPair
@@ -10,10 +9,7 @@ internal object JcaCryptoProviderFactory {
         capabilityReport: JcaCapabilityReport = JcaCapabilityProbe.detect()
     ): CryptoProvider {
         if (!capabilityReport.supportsMeshLinkRuntime) {
-            throw MeshLinkException.CryptoFailure(
-                message =
-                    "Android device does not expose the required platform primitives for MeshLink runtime (X25519/XDH and ChaCha20-Poly1305). Ed25519 can fall back to the in-repo software implementation, but key agreement and AEAD still require platform support."
-            )
+            return AndroidFallbackCryptoProvider()
         }
 
         val jcaProvider = JcaCryptoProvider()

@@ -2,6 +2,7 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
+import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 
 internal interface GattSideLinkClient : PreferredGattSendClient {
@@ -37,10 +38,11 @@ internal class GattSideLinkCoordinator(
         localPlatformFamily: BleDiscoveryPlatformFamily,
     ): Unit {
         if (
-            !shouldUseMixedPlatformGattNotifyBearer(
-                localPlatformFamily = localPlatformFamily,
-                remotePlatformFamily = peer.platformFamily,
-            )
+            peer.transportMode != TransportMode.GATT &&
+                !shouldUseMixedPlatformGattNotifyBearer(
+                    localPlatformFamily = localPlatformFamily,
+                    remotePlatformFamily = peer.platformFamily,
+                )
         ) {
             return
         }

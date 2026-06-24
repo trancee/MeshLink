@@ -16,16 +16,16 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun GuidedFirstExchangeScreen(
     viewModel: GuidedFirstExchangeViewModel,
-    onOpenSolo: () -> Unit,
+    onOpenSolo: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     GuidedFirstExchangeContent(
         uiState = uiState,
+        powerMitigationLabel = viewModel.powerMitigationLabel,
         onStartMesh = viewModel::startMesh,
         onSendHello = viewModel::sendHelloToFirstPeer,
-        onOpenSolo = onOpenSolo,
         modifier = modifier,
     )
 }
@@ -34,9 +34,9 @@ internal fun GuidedFirstExchangeScreen(
 @Composable
 private fun GuidedFirstExchangeContent(
     uiState: GuidedFirstExchangeUiState,
+    powerMitigationLabel: String?,
     onStartMesh: () -> Unit,
     onSendHello: () -> Unit,
-    onOpenSolo: () -> Unit,
     modifier: Modifier,
 ): Unit {
     LazyColumn(
@@ -47,9 +47,9 @@ private fun GuidedFirstExchangeContent(
         item {
             GuidedLiveFirstMessageSection(
                 uiState = uiState,
+                powerMitigationLabel = powerMitigationLabel,
                 onStartMesh = onStartMesh,
                 onSendHello = onSendHello,
-                onOpenSolo = onOpenSolo,
             )
         }
         if (uiState.readiness.isBlocked) {

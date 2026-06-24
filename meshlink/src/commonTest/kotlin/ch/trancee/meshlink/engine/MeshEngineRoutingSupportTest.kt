@@ -49,6 +49,47 @@ class MeshEngineRoutingSupportTest {
         }
 
     @Test
+    fun `dispatchMutation emits diagnostics before routing advertisements for a direct peer update`() =
+        runBlocking {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("routing-local-order")
+            val remoteIdentity = LocalIdentity.fromAppId("routing-remote-order")
+            val runtimeSurface = MeshEngineRuntimeSurface().also { it.beginHardRun() }
+            val fixture =
+                routingSupportFixture(
+                    localPeerId = localIdentity.peerId,
+                    runtimeSurface = runtimeSurface,
+                )
+            val mutation =
+                fixture.routeCoordinator.onPeerConnected(
+                    peerId = remoteIdentity.peerId,
+                    trustRecord = trustRecordFor(remoteIdentity),
+                )
+
+            // Act
+            fixture.support.dispatchMutation(
+                mutation = mutation,
+                stage = "routing.connect",
+                metadata = mapOf("connectedPeerId" to remoteIdentity.peerId.value),
+            )
+
+            // Assert
+            val diagnosticEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("diagnostic:") }
+            val advertisementEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("advertisement:") }
+            assertTrue(diagnosticEventIndex >= 0, "Expected route diagnostics to be recorded")
+            assertTrue(
+                advertisementEventIndex >= 0,
+                "Expected routing advertisements to be recorded",
+            )
+            assertTrue(
+                diagnosticEventIndex < advertisementEventIndex,
+                "Expected diagnostics before advertisements, but saw ${fixture.eventLog}",
+            )
+        }
+
+    @Test
     fun `dispatchMutation sends routing advertisements while the hard run is active`() =
         runBlocking {
             // Arrange
@@ -123,10 +164,20 @@ class MeshEngineRoutingSupportTest {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val remoteIdentity = LocalIdentity.fromAppId("routing-remote")
-            val fixture = routingSupportFixture(localPeerId = localIdentity.peerId)
+            val observerIdentity = LocalIdentity.fromAppId("routing-observer")
+            val runtimeSurface = MeshEngineRuntimeSurface().also { it.beginHardRun() }
+            val fixture =
+                routingSupportFixture(
+                    localPeerId = localIdentity.peerId,
+                    runtimeSurface = runtimeSurface,
+                )
             fixture.routeCoordinator.onPeerConnected(
                 peerId = remoteIdentity.peerId,
                 trustRecord = trustRecordFor(remoteIdentity),
+            )
+            fixture.routeCoordinator.onPeerConnected(
+                peerId = observerIdentity.peerId,
+                trustRecord = trustRecordFor(observerIdentity),
             )
             val mutation = fixture.routeCoordinator.onPeerDisconnected(remoteIdentity.peerId)
 
@@ -146,6 +197,19 @@ class MeshEngineRoutingSupportTest {
             assertEquals(DiagnosticReason.ROUTE_CHANGE, diagnostic.reason)
             assertEquals("retracted", diagnostic.metadata["routeChange"])
             assertEquals(remoteIdentity.peerId.value, diagnostic.metadata["removedByPeerId"])
+            val diagnosticEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("diagnostic:") }
+            val advertisementEventIndex =
+                fixture.eventLog.indexOfFirst { it.startsWith("advertisement:") }
+            assertTrue(diagnosticEventIndex >= 0, "Expected route diagnostics to be recorded")
+            assertTrue(
+                advertisementEventIndex >= 0,
+                "Expected routing advertisements to be recorded",
+            )
+            assertTrue(
+                diagnosticEventIndex < advertisementEventIndex,
+                "Expected diagnostics before advertisements, but saw ${fixture.eventLog}",
+            )
         }
 }
 
@@ -154,6 +218,7 @@ private data class RoutingSupportFixture(
     val routeCoordinator: RouteCoordinator,
     val diagnostics: MutableList<RecordedRoutingDiagnostic>,
     val sentAdvertisements: MutableList<RecordedRoutingAdvertisement>,
+    val eventLog: MutableList<String>,
 )
 
 private fun routingSupportFixture(
@@ -163,12 +228,14 @@ private fun routingSupportFixture(
     val routeCoordinator = RouteCoordinator(localPeerId)
     val diagnostics = mutableListOf<RecordedRoutingDiagnostic>()
     val sentAdvertisements = mutableListOf<RecordedRoutingAdvertisement>()
+    val eventLog = mutableListOf<String>()
     val support =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
             runtimeGate = runtimeSurface.runtimeGate,
             coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
             emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
+                eventLog += "diagnostic:${code.name}"
                 diagnostics +=
                     RecordedRoutingDiagnostic(
                         code = code,
@@ -180,6 +247,7 @@ private fun routingSupportFixture(
                     )
             },
             sendEncryptedWireFrame = { peerId, frame, action, _ ->
+                eventLog += "advertisement:$action"
                 sentAdvertisements +=
                     RecordedRoutingAdvertisement(
                         targetPeerIdValue = peerId.value,
@@ -194,6 +262,7 @@ private fun routingSupportFixture(
         routeCoordinator = routeCoordinator,
         diagnostics = diagnostics,
         sentAdvertisements = sentAdvertisements,
+        eventLog = eventLog,
     )
 }
 

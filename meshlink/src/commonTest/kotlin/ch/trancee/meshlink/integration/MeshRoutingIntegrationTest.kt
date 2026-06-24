@@ -338,7 +338,7 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
-    fun `gatt-only peers are rejected and remain unreachable`() = runBlocking {
+    fun `gatt-only peers can complete a send after discovery`() = runBlocking {
         // Arrange
         val harness = harness()
         val sender =
@@ -346,7 +346,7 @@ class MeshRoutingIntegrationTest {
                 peerIdValue = "peer-a",
                 configOverride =
                     meshLinkConfig {
-                        appId = "peer-a-gatt-reject"
+                        appId = "peer-a-gatt-accept"
                         deliveryRetryDeadline = 500.milliseconds
                     },
             )
@@ -358,21 +358,33 @@ class MeshRoutingIntegrationTest {
         sender.meshLink.start()
         recipient.meshLink.start()
         testDelay(250)
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_DISCOVERED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = true,
+            timeoutMillis = 5_000,
+        )
+
+        val receivedMessageDeferred =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+            }
 
         // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, payload)
-        val receivedMessage = testWithTimeoutOrNull(250) { recipient.meshLink.messages.first() }
+        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+        val receivedMessage = receivedMessageDeferred.await()
 
         // Assert
-        val notSent = assertIs<SendResult.NotSent>(sendResult)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertNull(receivedMessage)
+        assertIs<SendResult.Sent>(sendResult)
+        assertNotNull(receivedMessage)
+        assertContentEquals(payload, receivedMessage.payload)
         assertTrue(
-            sender.diagnosticSink.events().any { diagnostic ->
+            sender.diagnosticSink.events().none { diagnostic ->
                 diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
                     diagnostic.stage == "transport.peerDiscovered.rejected"
             },
-            "Expected GATT-only discovery to emit an explicit transport rejection diagnostic",
+            "Expected GATT discovery to remain accepted in the transport path",
         )
     }
 
@@ -471,6 +483,12 @@ class MeshRoutingIntegrationTest {
         prewarmRoute(sender = sender, recipient = recipient)
         harness.unlinkPeers(sender, recipient)
         testDelay(100)
+        awaitDiagnosticForPeer(
+            diagnostics = sender.diagnosticSink::events,
+            code = DiagnosticCode.ROUTE_EXPIRED,
+            peerIdValue = recipient.peerId.value,
+            routeAvailable = false,
+        )
 
         // Act
         val sendResult = sender.meshLink.send(recipient.peerId, payload)

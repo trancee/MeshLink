@@ -68,12 +68,14 @@ internal class MeshEngineInlineDispatchSupport(
         hardRunToken: MeshEngineHardRunToken,
     ): MeshEngineInlineDispatchResolution {
         val nextHopPeerId = routingContext.routeCoordinator.nextHopFor(peerId) ?: peerId
+        val refreshedNextHopPeerId =
+            routingContext.routeCoordinator.nextHopFor(peerId) ?: nextHopPeerId
         return when (
-            val sessionOutcome = dependencies.ensureHopSession(nextHopPeerId, hardRunToken)
+            val sessionOutcome = dependencies.ensureHopSession(refreshedNextHopPeerId, hardRunToken)
         ) {
             is SessionEstablishmentOutcome.Established ->
                 MeshEngineInlineDispatchResolution.Ready(
-                    nextHopPeerId = nextHopPeerId,
+                    nextHopPeerId = refreshedNextHopPeerId,
                     session = sessionOutcome.session,
                 )
             SessionEstablishmentOutcome.TrustFailure ->
@@ -91,10 +93,16 @@ internal class MeshEngineInlineDispatchSupport(
         routedMessage: WireFrame.Message,
         resolution: MeshEngineInlineDispatchResolution.Ready,
     ): MeshEngineInlineDispatchResult {
+        val refreshedNextHopPeerId =
+            routingContext.routeCoordinator.nextHopFor(peerId) ?: resolution.nextHopPeerId
+        if (refreshedNextHopPeerId != resolution.nextHopPeerId) {
+            dependencies.scheduleRetryDiagnostic(peerId, priority)
+            return MeshEngineInlineDispatchResult.AwaitRetry
+        }
         return when (
             runCatching {
                     dependencies.sendEncryptedDirectWireFrame(
-                        resolution.nextHopPeerId,
+                        refreshedNextHopPeerId,
                         resolution.session,
                         routedMessage,
                         "send.data",
@@ -102,7 +110,7 @@ internal class MeshEngineInlineDispatchSupport(
                 }
                 .getOrElse { exception ->
                     dependencies.emitHopSessionFailed(
-                        resolution.nextHopPeerId,
+                        refreshedNextHopPeerId,
                         "delivery.send.transportEncrypt",
                         DiagnosticReason.DELIVERY_FAILURE,
                         mapOf("cause" to exception::class.simpleName.orEmpty()),

@@ -1,0 +1,50 @@
+[
+  {
+    "date": "2026-06-02",
+    "title": "M001 release-review campaign",
+    "tested": "Discovered 4-device Android fleet via the release-review campaign; Android-only fallback selected",
+    "campaign_result": "red",
+    "selection": "selected",
+    "gate": "red",
+    "report_gate": "red",
+    "comparison": "first recorded run",
+    "devices": [
+      {
+        "alias": "android-cph2359-8d1fef",
+        "platform": "android",
+        "role": null,
+        "available": true
+      },
+      {
+        "alias": "android-e940-2849-00-d19cfd",
+        "platform": "android",
+        "role": null,
+        "available": true
+      },
+      {
+        "alias": "android-oneplus-a6003-1791a4",
+        "platform": "android",
+        "role": null,
+        "available": true
+      },
+      {
+        "alias": "android-rmx3710-c04910",
+        "platform": "android",
+        "role": null,
+        "available": true
+      }
+    ],
+    "results": [
+      {
+        "scenario": "direct-guided",
+        "status": "fail",
+        "eligibility": "runnable"
+      },
+      {
+        "scenario": "relay-constrained",
+        "status": "invalid-environment",
+        "eligibility": "invalid-environment"
+      }
+    ]
+  }
+]

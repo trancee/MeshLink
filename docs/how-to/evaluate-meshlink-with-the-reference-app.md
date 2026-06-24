@@ -12,15 +12,22 @@ By the end of this guide you should be able to:
 - retain one session and export one redacted artifact
 - decide whether to stay in the reference app or switch to the proof apps or
   live-proof harness
+- find the canonical direct-proof result digest when you need the latest 45s
+  rerun summary
+- recognize the proof-app Bluetooth preflight guard that fails fast when Bluetooth is off or unavailable before a GATT run can start, and surfaces that state in the UI as well as the logs
 
 If you need the app overview itself, use
 [MeshLink reference app overview](../../meshlink-reference/README.md).
+If you want the canonical direct-proof rerun summary, use
+[Android direct-proof matrix result](../reference/android-direct-proof-matrix-result.md).
 If you want the minimal SDK tutorial shape instead of the product-like
 reference-app walkthrough, use
 [Your first MeshLink exchange](../tutorials/your-first-meshlink-exchange.md).
 If you already know you need retained physical evidence for direct and relay
 scenarios, go straight to
 [How to run the reference-app physical integration scenarios](run-reference-app-physical-integration-scenarios.md).
+Before you pick devices, check the [Device test matrix reference](../reference/device-test-matrix.md) for the current attached fleet, Android versions, Bluetooth versions, RAM, storage, and known quirks. The matrix is sorted by Android SDK highest-first, so the newest-platform devices appear at the top, and when the same hardware appears over USB and wireless ADB the matrix keeps the USB row. The current bench now includes the new Motorola Edge 30 Fusion, Nokia X20, and OnePlus Nord 2 5G alongside the existing Nothing, OPPO, realme, Gigaset, and OnePlus devices.
+That path now includes a validated release-review campaign, retained `report-data.json`, the offline `release-review-report.html` reviewer surface, and the repo-visible fleet-test history report from milestone **M001**. The release-review campaign may fall back to Android-only direct-guided when mixed iOS live-proof is not supported, so use the release-review docs for the exact retained status vocabulary if you are comparing campaign artifacts.
 
 ## Before you start
 
@@ -34,11 +41,17 @@ You need:
 
 - this repository checked out locally
 - Xcode for the iOS host project
-- an Android device running API 29+
-- an iPhone running iOS 15+
+- an Android device running API 26+
+- an iPhone running iOS 14+
 - Bluetooth enabled on both devices
 - an Apple development team available locally if you want to run on a physical
   iPhone
+
+Current supported floor: Android API 26+, iOS 14+. See the release-status
+reference for the why and the full matrix. The crypto contract is unchanged on
+those floors, but Android's X25519/XDH and ChaCha20-Poly1305 support remains a
+runtime capability check on older API levels rather than an official platform
+promise.
 
 If one device is not ready yet, you can still use **Solo exploration** for a
 non-authoritative walkthrough.
@@ -46,6 +59,12 @@ non-authoritative walkthrough.
 If discovery stalls because Android or iOS is still blocked on permissions or
 the first Bluetooth prompt, fix that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
+On doze-sensitive Android devices, keep the screen awake during direct proof or
+rely on the reference app's foreground wake-lock mitigation before treating a
+slow discovery as a transport regression. For Android direct-guided proofs,
+treat sender `proof.complete` as required, but use retained passive evidence as
+the acceptance gate even when the passive role does not emit its own
+`proof.complete` log on this host.
 
 ## Quick evaluation path
 
@@ -191,6 +210,7 @@ operator-facing place to inspect:
 - diagnostics
 - inbound and outbound message evidence
 - retained-session state and export actions
+- whether the live-proof session is holding the device awake for direct proof
 
 Use the filter controls when you want to isolate one kind of event.
 
@@ -215,6 +235,9 @@ Use the reference app when you need:
 - a guided first proof for SDK evaluation
 - a shared Android and iOS operator surface
 - timeline evidence that is easy to walk through with another engineer
+
+For the internal architecture of the app, proof apps, and test flow, see
+[Reference app and test architecture](../explanation/reference-app-and-test-architecture.md).
 
 Switch to the proof apps or the live-proof harness when you need:
 

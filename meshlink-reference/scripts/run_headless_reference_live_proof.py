@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
@@ -27,7 +28,7 @@ ANDROID_AUTOMATION_LOG_TAGS = ["MeshLinkReferenceAutomation:I", "*:S"]
 ANDROID_TRANSPORT_LOG_TAGS = ["MeshLinkTransport:D"]
 DEFAULT_ANDROID_READY_SECONDS = 8
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
-DEFAULT_POST_RESULT_IDLE_SECONDS = 5
+DEFAULT_POST_RESULT_IDLE_SECONDS = 1
 ADB_DEVICE_PATTERN = re.compile(r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)\b")
 ANDROID_PROOF_COMPLETE_PATTERN = re.compile(
     r"REFERENCE_AUTOMATION proof\.complete role=passive .* export=(?P<export>\S+)"
@@ -53,6 +54,9 @@ DIRECT_PHYSICAL_SCENARIOS = [
     "direct-pause-resume",
     "direct-full-export",
     "direct-trust-reset-recovery",
+    "direct-restart-recovery",
+    "direct-isolation-recovery",
+    "direct-route-break-recovery",
     "direct-large-transfer",
 ]
 IOS_XCUITEST_LIVE_PROOF_CONFIG = Path("/tmp/meshlink_reference_live_proof_xcuitest.json")
@@ -169,12 +173,122 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run(command: list[str], *, check: bool = True, capture_output: bool = False, text: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=check, capture_output=capture_output, text=text, env=env)
+def run(
+    command: list[str],
+    *,
+    check: bool = True,
+    capture_output: bool = False,
+    text: bool = True,
+    env: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        check=check,
+        capture_output=capture_output,
+        text=text,
+        env=env,
+        timeout=timeout,
+    )
 
 
 def shell_join(command: Iterable[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
+
+
+ANDROID_SHELL_PACKAGE = "com.android.shell"
+ANDROID_WRITE_SECURE_SETTINGS_PERMISSION = "android.permission.WRITE_SECURE_SETTINGS"
+ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED = "-1"
+
+
+def android_shell_has_secure_settings(android_serial: str) -> bool:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "dumpsys",
+            "package",
+            ANDROID_SHELL_PACKAGE,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    output = result.stdout or ""
+    return f"{ANDROID_WRITE_SECURE_SETTINGS_PERMISSION}: granted=true" in output
+
+
+def grant_android_shell_secure_settings(android_serial: str) -> bool:
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "pm",
+            "grant",
+            ANDROID_SHELL_PACKAGE,
+            ANDROID_WRITE_SECURE_SETTINGS_PERMISSION,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    stdout_tail = (result.stdout or "").strip()
+    stderr_tail = (result.stderr or "").strip()
+    detail_parts = [f"exit code {result.returncode}"]
+    if stdout_tail:
+        detail_parts.append(f"stdout: {stdout_tail}")
+    if stderr_tail:
+        detail_parts.append(f"stderr: {stderr_tail}")
+    print(
+        "==> Android secure settings grant was not accepted on this build; continuing without it: "
+        + " | ".join(detail_parts)
+    )
+    return False
+
+
+def disable_android_play_protect(android_serial: str) -> None:
+    if android_shell_has_secure_settings(android_serial):
+        print(
+            "==> Android shell already has WRITE_SECURE_SETTINGS; skipping secure-settings grant"
+        )
+    else:
+        print(
+            "==> Android shell is missing WRITE_SECURE_SETTINGS; attempting best-effort adb grant"
+        )
+        grant_android_shell_secure_settings(android_serial)
+    result = run(
+        [
+            "adb",
+            "-s",
+            android_serial,
+            "shell",
+            "settings",
+            "put",
+            "global",
+            "package_verifier_user_consent",
+            ANDROID_PLAY_PROTECT_USER_CONSENT_DISABLED,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stdout_tail = (result.stdout or "").strip()
+        stderr_tail = (result.stderr or "").strip()
+        detail_parts = [f"exit code {result.returncode}"]
+        if stdout_tail:
+            detail_parts.append(f"stdout: {stdout_tail}")
+        if stderr_tail:
+            detail_parts.append(f"stderr: {stderr_tail}")
+        print(
+            "==> Android Play Protect disable step did not report success; continuing with install: "
+            + " | ".join(detail_parts)
+        )
 
 
 def timestamp() -> str:
@@ -306,6 +420,7 @@ def build_ios_app(ios_device: str, run_dir: Path) -> Path:
         "-destination",
         f"id={ios_device}",
         f"DEVELOPMENT_TEAM={development_team}",
+        "-allowProvisioningUpdates",
         "build",
     ]
     redacted_command = [
@@ -320,6 +435,10 @@ def build_ios_app(ios_device: str, run_dir: Path) -> Path:
     if result.returncode != 0:
         print("==> iPhone reference app build failed; tail follows:", file=sys.stderr)
         print("\n".join(log_text.splitlines()[-40:]), file=sys.stderr)
+        if "errSecInternalComponent" in log_text:
+            raise SystemExit(
+                "iPhone codesign failed with errSecInternalComponent. If the signing keychain ACL was not granted, retry after fixing the ACL before changing the campaign logic."
+            )
         raise SystemExit(result.returncode)
     return latest_built_app()
 
@@ -411,6 +530,10 @@ def run_ios_live_proof_test(
     if build_result.returncode != 0:
         print("==> Physical iPhone build-for-testing failed; tail follows:", file=sys.stderr)
         print("\n".join(build_log_text.splitlines()[-60:]), file=sys.stderr)
+        if "errSecInternalComponent" in build_log_text:
+            raise SystemExit(
+                "iPhone codesign failed with errSecInternalComponent during build-for-testing. If the signing keychain ACL was not granted, retry after fixing the ACL before changing the campaign logic."
+            )
         raise SystemExit(build_result.returncode)
 
     source_xctestrun = latest_built_xctestrun()
@@ -418,13 +541,17 @@ def run_ios_live_proof_test(
     shutil.copy2(source_xctestrun, xctestrun_path)
     with xctestrun_path.open("rb") as source_file:
         xctestrun = plistlib.load(source_file)
-    test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
-    ui_test_target = next(
-        (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppPhysicalUITests"),
-        None,
-    )
+    ui_test_target = xctestrun.get("ReferenceAppPhysicalUITests")
+    if not isinstance(ui_test_target, dict):
+        test_targets = xctestrun.get("TestConfigurations", [{}])[0].get("TestTargets", [])
+        ui_test_target = next(
+            (target for target in test_targets if target.get("BlueprintName") == "ReferenceAppPhysicalUITests"),
+            None,
+        )
     if ui_test_target is None:
-        raise SystemExit("Could not find ReferenceAppPhysicalUITests in generated .xctestrun file")
+        raise SystemExit(
+            "Could not find ReferenceAppPhysicalUITests in generated .xctestrun file; expected a top-level target entry or a TestConfigurations/TestTargets match"
+        )
     ios_transport_environment = build_ios_transport_environment(
         transport_debug=ios_transport_debug,
         transport_telemetry=ios_transport_telemetry,
@@ -493,12 +620,140 @@ def run_ios_live_proof_test(
         raise SystemExit(result.returncode)
 
 
-def install_android_app(android_serial: str) -> None:
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def git_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return run(["git", "-C", str(repo_root()), *args], capture_output=True)
+
+
+def launcher_source_fingerprint() -> str:
+    head = git_command(["rev-parse", "HEAD"]).stdout.strip()
+    status = git_command(["status", "--porcelain"]).stdout.strip()
+    dirty = "dirty" if status else "clean"
+    return f"{head}:{dirty}"
+
+
+def android_apk_path() -> Path | None:
+    apk_dir = repo_root() / "meshlink-reference" / "android" / "build" / "outputs" / "apk" / "debug"
+    candidates = sorted(apk_dir.glob("*.apk"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return candidates[0] if candidates else None
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def is_wireless_android_serial(android_serial: str) -> bool:
+    return "_adb-tls-connect._tcp" in android_serial
+
+
+def android_install_timeout_seconds(android_serial: str) -> float:
+    return 240.0 if is_wireless_android_serial(android_serial) else 60.0
+
+
+def android_install_cache_path(run_dir: Path, android_serial: str) -> Path:
+    safe_serial = re.sub(r"[^A-Za-z0-9._-]", "_", android_serial)
+    return run_dir / f".android-install-cache-{safe_serial}.json"
+
+
+def load_android_install_cache(run_dir: Path, android_serial: str) -> dict[str, Any] | None:
+    cache_path = android_install_cache_path(run_dir, android_serial)
+    if not cache_path.exists():
+        return None
+    try:
+        return json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def write_android_install_cache(run_dir: Path, android_serial: str, payload: dict[str, Any]) -> None:
+    android_install_cache_path(run_dir, android_serial).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def install_android_app(android_serial: str, run_dir: Path | None = None, *, install_timeout_seconds: float | None = None) -> None:
     env = os.environ.copy()
+    install_timeout_seconds = install_timeout_seconds or android_install_timeout_seconds(android_serial)
     env["ANDROID_SERIAL"] = android_serial
-    command = ["./gradlew", ":meshlink-reference:installDebug", "--console=plain"]
-    print(f"==> Installing Android reference app: {shell_join(command)}")
-    run(command, env=env)
+    cache_run_dir = run_dir or Path("/tmp")
+    source_fingerprint = launcher_source_fingerprint()
+    apk_path = android_apk_path()
+    if apk_path is not None:
+        cached = load_android_install_cache(cache_run_dir, android_serial)
+        current_apk_hash = sha256_file(apk_path)
+        if (
+            cached is not None
+            and cached.get("sourceFingerprint") == source_fingerprint
+            and cached.get("apkHash") == current_apk_hash
+        ):
+            print("==> Reusing Android reference app install; APK fingerprint unchanged")
+            return
+    command = ["./gradlew", ":meshlink-reference:installDebug", "--no-build-cache", "--console=plain"]
+
+    def run_install_once() -> None:
+        disable_android_play_protect(android_serial)
+        print(f"==> Installing Android reference app: {shell_join(command)}")
+        result = subprocess.run(
+            command,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=install_timeout_seconds,
+        )
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()
+            stderr_tail = (result.stderr or "").strip()
+            if stdout_tail:
+                print("==> Android install stdout:\n" + stdout_tail)
+            if stderr_tail:
+                print("==> Android install stderr:\n" + stderr_tail)
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                command,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
+
+    try:
+        run_install_once()
+    except subprocess.TimeoutExpired as error:
+        print(
+            f"==> Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        )
+        raise TimeoutError(
+            f"Android install timed out after {install_timeout_seconds:.0f}s for {android_serial}"
+        ) from error
+    except subprocess.CalledProcessError:
+        print(
+            "==> Android install failed; retrying once after uninstalling the existing package"
+        )
+        uninstall_result = run(["adb", "-s", android_serial, "uninstall", ANDROID_PACKAGE], capture_output=True, check=False)
+        uninstall_stdout = (uninstall_result.stdout or "").strip()
+        uninstall_stderr = (uninstall_result.stderr or "").strip()
+        print(
+            "==> Android uninstall result: "
+            + (uninstall_stdout or "(no stdout)")
+            + (f" | stderr: {uninstall_stderr}" if uninstall_stderr else "")
+        )
+        run_install_once()
+    grant_android_runtime_permissions(android_serial)
+    apk_path = android_apk_path()
+    if apk_path is not None:
+        write_android_install_cache(
+            cache_run_dir,
+            android_serial,
+            {
+                "sourceFingerprint": source_fingerprint,
+                "apkPath": str(apk_path),
+                "apkHash": sha256_file(apk_path),
+            },
+        )
 
 
 def android_sdk_int(android_serial: str) -> int:
@@ -515,11 +770,31 @@ def android_runtime_permissions(android_serial: str) -> list[str]:
             "android.permission.BLUETOOTH_SCAN",
             "android.permission.BLUETOOTH_CONNECT",
             "android.permission.BLUETOOTH_ADVERTISE",
-            "android.permission.ACCESS_FINE_LOCATION",
         ]
         if android_sdk_int(android_serial) >= 31
         else ["android.permission.ACCESS_FINE_LOCATION"]
     )
+
+
+def grant_android_runtime_permissions(android_serial: str, android_package: str = ANDROID_PACKAGE) -> None:
+    for permission in android_runtime_permissions(android_serial):
+        result = run(
+            ["adb", "-s", android_serial, "shell", "pm", "grant", android_package, permission],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()
+            stderr_tail = (result.stderr or "").strip()
+            detail_parts = [f"exit code {result.returncode}"]
+            if stdout_tail:
+                detail_parts.append(f"stdout: {stdout_tail}")
+            if stderr_tail:
+                detail_parts.append(f"stderr: {stderr_tail}")
+            print(
+                "==> Android runtime permission grant did not report success for "
+                f"{android_package} {permission}: " + " | ".join(detail_parts)
+            )
 
 
 def verify_android_runtime_permissions(android_serial: str) -> None:
@@ -814,6 +1089,7 @@ def summarize_sender_only(*, run_dir: Path, scenario: str, ios_completion: str) 
 
 def main() -> int:
     args = parse_args()
+    run_started_at = time.monotonic()
     ensure_android_device_ready(args.android_serial)
     for extra_serial in args.extra_force_stop_serial:
         ensure_android_device_ready(extra_serial)
@@ -823,9 +1099,21 @@ def main() -> int:
     app_id = args.app_id or f"demo.meshlink.reference.live.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
 
+    install_reused = args.skip_android_install
     if not args.skip_android_install:
-        install_android_app(args.android_serial)
+        install_started_at = time.monotonic()
+        install_android_app(args.android_serial, run_dir)
+        install_seconds = round(time.monotonic() - install_started_at, 1)
+        print(f"==> Android install completed in {install_seconds:.1f}s")
+        install_reused = False
+    else:
+        install_seconds = None
+        print("==> Reusing Android reference app install; APK fingerprint unchanged")
+    permissions_started_at = time.monotonic()
     verify_android_runtime_permissions(args.android_serial)
+    permissions_seconds = round(time.monotonic() - permissions_started_at, 1)
+    print(f"==> Android permissions verified in {permissions_seconds:.1f}s")
+    print(f"==> Android preflight ready in {time.monotonic() - run_started_at:.1f}s")
 
     ios_app_path = None
     if args.ios_launch_mode == "devicectl":
@@ -844,11 +1132,26 @@ def main() -> int:
         args.scenario,
         args.android_transport_logcat,
     )
+    print(f"==> Android passive launched at +{time.monotonic() - run_started_at:.1f}s")
     ios_console_process: BackgroundProcess | None = None
 
     try:
-        print(f"==> Waiting {args.android_ready_seconds} seconds for Android passive initialization")
-        time.sleep(args.android_ready_seconds)
+        passive_marker = "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE"
+        passive_log_path = run_dir / "android_logcat.log"
+        print(f"==> Waiting up to {args.android_ready_seconds} seconds for Android passive startup marker")
+        passive_ready = False
+        deadline = time.monotonic() + args.android_ready_seconds
+        while time.monotonic() < deadline:
+            if passive_marker in passive_log_path.read_text(encoding="utf-8", errors="replace"):
+                passive_ready = True
+                break
+            time.sleep(0.25)
+        if passive_ready:
+            print("==> Android passive startup marker observed")
+        else:
+            print(
+                f"==> Android passive startup marker not observed after {args.android_ready_seconds} seconds; continuing with launch sequence"
+            )
         if args.ios_launch_mode == "xcuitest":
             if args.cleanup_ios_dev_app_slots:
                 cleanup_ios_dev_app_slots(args.ios_device)
@@ -862,6 +1165,7 @@ def main() -> int:
                 ios_transport_telemetry=args.ios_transport_telemetry,
             )
             ios_completion = "xcodebuild test passed"
+            print(f"==> iPhone sender completed at +{time.monotonic() - run_started_at:.1f}s")
         else:
             ios_console_process = start_ios_app_via_devicectl(
                 ios_device=args.ios_device,
@@ -872,13 +1176,17 @@ def main() -> int:
                 ios_transport_debug=args.ios_transport_debug,
                 ios_transport_telemetry=args.ios_transport_telemetry,
             )
+            print(f"==> iPhone sender launched at +{time.monotonic() - run_started_at:.1f}s")
         if args.ios_launch_mode == "devicectl":
             wait_for_ios_sender_result(
                 run_dir / "iphone_console.log",
                 args.capture_timeout_seconds,
             )
-            time.sleep(args.post_result_idle_seconds)
+            if args.post_result_idle_seconds > 0:
+                print(f"==> Waiting {args.post_result_idle_seconds:.1f} seconds for iPhone console to settle")
+                time.sleep(args.post_result_idle_seconds)
             ios_completion = verify_ios_sender_log(run_dir / "iphone_console.log", args.scenario)
+            print(f"==> iPhone sender completed at +{time.monotonic() - run_started_at:.1f}s")
         if args.skip_android_completion_wait:
             android_completion_line = None
             export_relative_path = None
@@ -895,8 +1203,34 @@ def main() -> int:
         for extra_serial in args.extra_force_stop_serial:
             force_stop_reference_app(extra_serial)
 
+    timings = {
+        "totalSeconds": round(time.monotonic() - run_started_at, 1),
+        "androidReadySeconds": args.android_ready_seconds,
+        "captureTimeoutSeconds": args.capture_timeout_seconds,
+        "androidInstallReused": install_reused,
+        "androidInstallSeconds": install_seconds,
+        "androidPermissionsSeconds": permissions_seconds,
+    }
+    startup_timing = {
+        "install": {
+            "androidSeconds": install_seconds,
+            "androidReused": install_reused,
+        },
+        "permissions": {
+            "androidSeconds": permissions_seconds,
+        },
+        "launch": {
+            "passiveStartupWaitSeconds": args.android_ready_seconds,
+            "postResultIdleSeconds": args.post_result_idle_seconds,
+        },
+        "totalSeconds": timings["totalSeconds"],
+    }
     if args.skip_android_completion_wait:
         summarize_sender_only(run_dir=run_dir, scenario=args.scenario, ios_completion=ios_completion)
+        summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+        summary["timings"] = timings
+        summary["startupTiming"] = startup_timing
+        (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     else:
         summarize_and_verify(
             android_serial=args.android_serial,
@@ -907,6 +1241,11 @@ def main() -> int:
             ios_completion=ios_completion,
             export_relative_path=export_relative_path,
         )
+        summary_path = run_dir / "summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["timings"] = timings
+        summary["startupTiming"] = startup_timing
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return 0
 
 

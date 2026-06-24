@@ -1,0 +1,1 @@
+Starting: Intent { cmp=ch.trancee.meshlink.reference/.MainActivity (has extras) }

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
+import android.os.Build
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -14,6 +15,24 @@ internal constructor(
     internal val hintPeerId: PeerId,
     internal val transportMode: TransportMode,
 )
+
+internal fun supportsL2capClientSockets(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= L2capSupportedSdkInt
+}
+
+internal fun supportsL2capClientSockets(clientSocketSupported: Boolean): Boolean {
+    return clientSocketSupported
+}
+
+internal fun supportsL2capServerSockets(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= L2capSupportedSdkInt
+}
+
+internal fun supportsL2capServerSockets(serverSocketSupported: Boolean): Boolean {
+    return serverSocketSupported
+}
+
+private const val L2capSupportedSdkInt: Int = 34
 
 internal fun parseDiscoveryScanResultOrNull(
     serviceUuids: List<String>?,
@@ -52,10 +71,12 @@ internal fun shouldConnectAfterDiscovery(
     transportMode: TransportMode,
     localPlatformFamily: BleDiscoveryPlatformFamily,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
+    localL2capClientSocketsSupported: Boolean,
     shouldInitiateL2cap: Boolean,
     gattSideLinkReady: Boolean,
 ): Boolean {
-    return transportMode == TransportMode.L2CAP &&
+    return localL2capClientSocketsSupported &&
+        transportMode == TransportMode.L2CAP &&
         shouldInitiateL2cap &&
         shouldInitiateDiscoveryDrivenL2capConnection(
             localPlatformFamily = localPlatformFamily,

@@ -3,21 +3,18 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import ch.trancee.meshlink.api.android.meshLinkBootstrap
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationConfig
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationMode
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import okio.FileSystem
 
 public fun createPlatformServices(context: Context): PlatformServices {
     return DefaultPlatformServices(
         platformName = "Android",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -36,10 +33,13 @@ public fun createAutomationPlatformServices(
     blocked: Boolean,
 ): PlatformServices {
     val clock = { System.currentTimeMillis() }
-    val automationDirectory = "${context.filesDir.absolutePath}/ui-automation/$storageSubdirectory"
+    val safeStorageSubdirectory =
+        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
+    val automationDirectory =
+        "${context.filesDir.absolutePath}/ui-automation/" + safeStorageSubdirectory
     return DefaultPlatformServices(
         platformName = "Android",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -54,18 +54,11 @@ public fun createAutomationPlatformServices(
                     }
                 nowProvider = clock
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = ReferenceAutomationMode.SCRIPTED_UI,
-                        role = ReferenceAutomationRole.PASSIVE,
-                        appId = "demo.meshlink.reference.automation",
-                        storageSubdirectory = storageSubdirectory,
-                    )
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
                 meshLinkControllerFactory = { surfaceOfOrigin ->
                     ScriptedReferenceMeshLinkController(
                         platformName = "Android",
-                        authorityMode = ReferenceAuthorityMode.LIVE,
+                        authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                         nowProvider = clock,
                         surfaceOfOrigin = surfaceOfOrigin,
                     )
@@ -78,19 +71,21 @@ public fun createLiveAutomationPlatformServices(
     context: Context,
     storageSubdirectory: String,
     appId: String,
-    role: ReferenceAutomationRole,
+    role: String,
     requiredPeerCount: Int = 1,
     targetPeerIndex: Int = 0,
     targetPeerId: String? = null,
-    scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
+    scenario: String = "direct-guided",
 ): PlatformServices {
     val clock = { System.currentTimeMillis() }
+    val safeStorageSubdirectory =
+        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
     val automationDirectory =
-        "${context.filesDir.absolutePath}/live-automation/$storageSubdirectory"
+        "${context.filesDir.absolutePath}/live-automation/" + safeStorageSubdirectory
     val automationAppId = appId
     return DefaultPlatformServices(
         platformName = "Android",
-        defaultAuthorityMode = ReferenceAuthorityMode.LIVE,
+        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
         readinessGuidance = readinessGuidance(),
         options =
             DefaultPlatformServicesOptions().apply {
@@ -99,18 +94,18 @@ public fun createLiveAutomationPlatformServices(
                 this.appId = automationAppId
                 meshLinkBootstrap = meshLinkBootstrap(context)
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
-                automationConfig =
-                    ReferenceAutomationConfig(
-                        mode = ReferenceAutomationMode.LIVE_PROOF,
-                        role = role,
-                        appId = automationAppId,
-                        storageSubdirectory = storageSubdirectory,
-                        requiredPeerCount = requiredPeerCount,
-                        targetPeerIndex = targetPeerIndex,
-                        targetPeerId = targetPeerId,
-                        scenario = scenario,
-                    )
+                powerMitigationStatus =
+                    "Foreground wake lock active for live-proof automation sessions."
                 automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
+                stopPowerMitigation = {
+                    context.stopService(
+                        Intent()
+                            .setClassName(
+                                context.packageName,
+                                "ch.trancee.meshlink.reference.DirectProofPowerService",
+                            )
+                    )
+                }
             },
     )
 }

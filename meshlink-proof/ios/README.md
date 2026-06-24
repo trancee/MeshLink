@@ -9,6 +9,14 @@ Use it when you need:
 - a physical iPhone proof peer
 - retained iPhone/Android benchmark evidence with the iPhone app acting as a proof fixture
 
+## Support floor and crypto note
+
+- Current app floor: iOS 14.0+
+- The iOS app uses CryptoKit to keep MeshLink's algorithm contract available on
+  the supported floor.
+- The Android-side X25519/XDH and ChaCha20-Poly1305 fallback question is still
+  open and tracked in the release-status notes.
+
 ## Choose the right validation surface first
 
 | If you need to... | Use... |
@@ -178,10 +186,12 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
 
 Use this guide to build and run the iOS proof app.
 
+This proof app is not the release-review campaign surface. If you are looking for the campaign's retained selection vocabulary or the Android-only fallback when mixed live proof is unsupported, use the reference-app release-review docs instead.
+
 For retained evidence and release posture, use:
 
 - [MeshLink documentation map](../../docs/README.md)
 - [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
 - [Benchmark and validation baselines](../../benchmarks/README.md)
-- [Release decision](../../specs/001-ble-mesh-sdk/release-decision.md)
+- [Release decision](../../specs/ble-mesh-sdk/release-decision.md)

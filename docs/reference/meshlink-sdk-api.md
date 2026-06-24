@@ -360,6 +360,10 @@ Rules:
   `InvalidStateTransition`
 - `InvalidStateTransition` is reserved for invalid API usage or protocol or
   invariant breaches that are not modeled as public result types
+- X25519 low-order or otherwise invalid peer public keys must surface as
+  `CryptoFailure`; providers may detect that either as an all-zero shared secret
+  or as a lower-level key-agreement failure, but MeshLink normalizes the public
+  contract
 - platform-native failures must be wrapped before crossing the public API
   boundary
 

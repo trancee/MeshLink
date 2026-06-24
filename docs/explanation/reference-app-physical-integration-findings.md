@@ -8,13 +8,17 @@ optimizations are worth keeping or pursuing.
 
 | Area | What we learned |
 |---|---|
-| direct proof | it is still the baseline physical signal and must stay clean before deeper scenarios matter |
+| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported; doze-sensitive Android devices now start a foreground wake-lock mitigation during live-proof automation |
 | direct vs relay placement | they often need different room geometry; running them back-to-back without changing placement can create fake failures |
 | direct passive automation | moving it off the UI surface closed a misleading blind spot |
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
 | relay proof | sender-only success is not enough; `routeIsDirect=false` plus passive completion is the real invariant |
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
-| retained review surface | per-run analysis artifacts are much easier to review than raw log scrolling |
+| retained review surface | per-run analysis artifacts, the browser/runtime proof note, and the fleet-test history HTML are much easier to review than raw log scrolling |
+
+## Current milestone outcome
+
+Milestone **M001** validated the release-review campaign end-to-end: one-command fleet discovery, ordered happy-path execution, retained report-data persistence, and the offline HTML review surface all passed on a real 4-device discovered fleet. That closed the validation-surface gap for **R010** by adding retained browser/runtime proof for the offline review path, so reviewers can trust the disk-backed surface without reconstructing raw logs. The campaign now treats Android-only sender symmetry as a deliberate follow-up rather than a hidden assumption.
 
 ## Why physical scenarios still matter
 
@@ -45,6 +49,8 @@ devices, real Bluetooth stacks, and real route convergence are involved.
 ## What the direct proof taught us
 
 The direct guided proof is the baseline physical scenario.
+
+On the current release-review host, the campaign may still discover a mixed iOS sender and Android passive pair, but release review now falls back to Android-only direct-guided when the live mixed bootstrap path is not supported. That keeps the campaign honest without pretending a runnable-but-unwired mixed path is the baseline for release review.
 
 When it passes, we know:
 
@@ -203,6 +209,32 @@ A good constrained relay run proves an ordered chain of real behaviors:
 
 That level of evidence makes the next debugging step much clearer when
 something regresses.
+
+### 5. A foreground wake-lock mitigation is worth keeping on Android direct proof
+
+The Nokia X20 incident showed that some Android OEM builds can enter quick-doze
+fast enough to stall peer discovery even when Bluetooth permissions and the app
+startup path are healthy. On the current Nokia X20 + DN2103 pair, retained
+logcat breadcrumbs showed `interactive=false` at `onCreate` and `onResume`, and
+the passive activity also reached `onStop` before the run timed out. That makes
+doze/screen-off a plausible contributor, but not a proven sole root cause.
+
+The reference app now starts a foreground service plus partial wake lock during
+live-proof automation so the device stays awake long enough for discovery and
+proof completion. The app also now emits retained `power.state` breadcrumbs so
+future runs can tell whether the device was interactive and whether lifecycle
+transitions suggest backgrounding or idle behavior when proof stalls.
+
+This is worth keeping because it:
+
+- reduces false transport failures caused by aggressive device sleep policies
+- keeps the mitigation inside the supported reference-app shell rather than the runner
+- makes doze-related issues visible as readiness and lifecycle state instead of silent timeouts
+- gives later runs a retained signal to compare against pair-specific discovery failures
+
+The mitigation is not a substitute for clean battery policy on every device, but
+it turns a flaky environment dependence into an explicit, documented operator
+step.
 
 ## Optimizations worth keeping
 

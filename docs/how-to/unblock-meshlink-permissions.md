@@ -46,6 +46,20 @@ If discovery still stays empty on some Android 12+ OEM builds, also grant
 Location permission for the app. In Android settings, the two labels you
 usually need to verify are **Nearby devices** and **Location**.
 
+If you are using the Android direct-proof launcher, note that it now accepts an
+optional `--target-peer-id` bootstrap hint. That only helps when the upstream
+runner already knows a concrete peer id; it does not replace real discovery, so
+an empty peer list can still stall the proof if no seed is supplied. On
+doze-sensitive Android builds, the reference app also starts a foreground
+wake-lock mitigation during live-proof automation; if discovery still stalls,
+check both permissions and battery optimization / screen-awake state before
+assuming it is a pure transport failure.
+
+Important remark: if `adb install` fails with `INSTALL_FAILED_USER_RESTRICTED`
+or `Install canceled by user`, open **Developer options** on the Android device
+and explicitly enable **Install via USB**. On the Mi Note 3 this is the first
+thing to verify before chasing MeshLink startup or transport bugs.
+
 After changing Android permissions:
 
 1. force-stop or relaunch the app
@@ -63,6 +77,15 @@ If iOS shows the Bluetooth prompt, tap **Allow** before continuing.
 If Bluetooth access was denied earlier, re-enable it in iPhone Settings and then
 launch the app again. The recovery path is usually under **Settings > Privacy &
 Security > Bluetooth** or the app's own settings page.
+
+If the iPhone sender build fails during `codesign` with `errSecInternalComponent`,
+check the signing keychain before changing the app or campaign logic:
+
+1. verify the Apple Development certificate is present in `login.keychain-db`
+2. confirm the private key has an ACL / partition list that allows Xcode and
+   `codesign`
+3. if needed, reset the partition list with `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`
+4. rerun the build from a fresh Xcode session
 
 After changing iPhone permission state:
 
@@ -93,3 +116,24 @@ You are past the permission issue when:
 If both platforms have the right permissions and discovery still fails, continue
 with the task-specific guide you started from rather than staying in permission
 troubleshooting.
+
+## 6. If iPhone signing fails before launch, check the keychain first
+
+When Xcode reaches `codesign` and exits with `errSecInternalComponent`, the
+problem is often the signing keychain rather than the project settings. The
+reference-app mixed-fleet proof has recovered by:
+
+- confirming the Apple Development identity exists in `login.keychain-db`
+- opening the key's ACL in Keychain Access
+- resetting the partition list with `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`
+- rerunning the proof from a clean run directory
+
+If the error changes to a bundle-name or `.xctestrun` lookup issue, the build
+succeeded and the remaining problem is in the Xcode test bundle path or scheme
+mapping, not signing.
+
+When a release-review campaign rerun fails the same way, look for a retained
+`runner.stderr.log` tail that contains `CodeSign ... errSecInternalComponent`
+and a missing `summary.json` / `analysis.json` pair. That combination means the
+campaign runner died before it could retain proof artifacts, so the fix belongs
+in the signing keychain path rather than in the campaign orchestration.

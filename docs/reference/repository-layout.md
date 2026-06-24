@@ -78,6 +78,8 @@ flowchart LR
 | `:meshlink-reference` | Kotlin Multiplatform library | `:meshlink` | Shared reference-app shell, screens, session model, export logic, and automation support |
 | `:meshlink-reference:android` | Android application module | `:meshlink-reference` | Android host application for the shared reference-app shell |
 | `meshlink-reference/ios` | Native Xcode project | exported `MeshLinkReference` framework from `:meshlink-reference` | iOS host application, signing, simulator, device, and UI-test workflows |
+| `Package.swift` | Swift Package manifest | `meshlink/build/swiftpm/MeshLink.xcframework` | SwiftPM local checkout package for Xcode and `swift package` consumers |
+| `Package.release.swift` | Swift Package manifest template | published XCFramework ZIP artifact | SwiftPM release binary-target packaging |
 | `:meshlink-proof:android` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
 | `meshlink-proof/ios` | Native Xcode project | exported `MeshLink` framework from `:meshlink` | iOS proof and benchmark surface for physical validation |
 | `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
@@ -93,7 +95,7 @@ flowchart LR
 | `iosMain` | iOS factory actuals, CoreBluetooth bridge glue, iOS secure storage, and iOS crypto provider glue |
 | `jvmMain` | JVM factory actuals and JVM-side crypto or storage used by tests and benchmarks |
 | `commonTest` | Shared protocol, routing, transfer, crypto, and public-surface tests |
-| `androidHostTest` | Android-specific library tests |
+| `androidHostTest` | Host-side Android library tests |
 | `iosTest` | iOS-specific library tests |
 | `jvmTest` | Fast shared-library and codec tests on the JVM |
 
@@ -105,7 +107,7 @@ flowchart LR
 | `androidMain` | Android platform-services factories, Android readiness guidance, and Android-specific host glue for the shared shell |
 | `iosMain` | iOS platform-services factories and UIKit entry points for the shared shell |
 | `commonTest` | Shared session-model, store, and UI-state tests |
-| `androidHostTest` | Android-specific shared-module tests |
+| `androidHostTest` | Host-side Android shared-module tests |
 | `iosTest` | iOS-specific shared-module tests |
 | `androidInstrumentedTest` | Shared-module Android instrumented tests |
 | `android/src/main` | Android activity host and automation intent entry points |
@@ -143,6 +145,7 @@ flowchart LR
 | `meshlink-reference/scripts/run_headless_reference_relay_proof.py` | Runs the constrained relay proof for the reference app |
 | `meshlink-reference/scripts/run_headless_reference_physical_matrix.py` | Runs the broader physical reference-app matrix |
 | `meshlink-reference/scripts/analyze_reference_physical_run.py` | Summarizes a retained physical reference-app run |
+| `docs/reference/android-direct-proof-matrix-result.md` | Retains the canonical summary of the latest direct-proof matrix rerun |
 | `benchmarks/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
 
 ## Contributor workflow scaffolding
@@ -163,9 +166,9 @@ flowchart LR
 | `docs/explanation` | Architecture, rationale, and mental-model docs |
 | `docs/tooling` | Build-tooling and migration docs |
 | `docs/rfcs` | Retained protocol, routing, replay, compression, and crypto source material |
-| `specs/001-ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
-| `specs/002-meshlink-reference-app` | Reference-app spec, plan, research, and tasks |
+| `specs/ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
 | `meshlink-reference/README.md` | High-level reference-app overview |
+| `meshlink-reference/fleet-test-history/` | Retained reference-app fleet history and campaign evidence bundles |
 | `benchmarks/README.md` | Current retained benchmark posture |
 
 ## Related docs

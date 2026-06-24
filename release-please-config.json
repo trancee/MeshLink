@@ -10,8 +10,7 @@
       "package-name": "meshlink",
       "exclude-paths": [
         "meshlink-reference",
-        "meshlink-proof",
-        "specs/002-meshlink-reference-app"
+        "meshlink-proof"
       ],
       "extra-files": [
         {

@@ -5,6 +5,7 @@ import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
 
@@ -37,6 +38,7 @@ internal class MeshEngineResponderHandshakeSupport(
                 peerId,
                 DirectWireFrame.HandshakeMessage2(message2),
                 "handshake.message2",
+                TransportMode.GATT,
             )
         ) {
             TransportSendResult.Delivered -> Unit

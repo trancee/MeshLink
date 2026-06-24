@@ -2,6 +2,13 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.power.PowerPolicy
 
+internal fun advertisedDiscoveryL2capPsm(
+    serverSocketPsm: Int?,
+    localL2capClientSocketsSupported: Boolean,
+): UByte {
+    return if (!localL2capClientSocketsSupported) 0u else (serverSocketPsm ?: 0).toUByte()
+}
+
 internal suspend fun BleTransportAdapter.startTransport(): Unit {
     ensurePermissionsGranted()
     val bluetoothManager =
@@ -31,20 +38,41 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             throw androidPermissionDenied(exception)
         }
 
+    val l2capServerSupported = supportsL2capServerSockets()
+    log(
+        "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported"
+    )
     val serverSocket =
-        runCatching {
-                L2capSocketFactory.listenInsecure(adapter) { error ->
-                    log(
-                        "explicit insecure L2CAP server socket fallback: ${error.message.orEmpty()}"
-                    )
+        if (l2capServerSupported) {
+            runCatching { L2capSocketFactory.listenInsecure(adapter) }
+                .onFailure { error ->
+                    log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
                 }
-            }
-            .onFailure { error ->
-                log("L2CAP server socket unavailable: ${error.message.orEmpty()}")
-            }
-            .getOrNull()
+                .getOrNull()
+        } else {
+            log("L2CAP server socket unavailable: runtime capability probe returned false")
+            null
+        }
     l2capServerSocket = serverSocket
-    discoveryLifecycle.updateL2capPsm((serverSocket?.psm ?: 0).toUByte())
+    val gattNotifyServer =
+        BluetoothGattNotifyServer(
+            context = context,
+            peerBindings = peerBindings,
+            onFrameReceived = ::enqueueInboundFrame,
+            log = ::log,
+        )
+    gattNotifyServer.start().also { ready ->
+        if (!ready) {
+            log("GATT notify server unavailable: service did not become ready")
+        }
+    }
+    this.gattNotifyServer = gattNotifyServer
+    discoveryLifecycle.updateL2capPsm(
+        advertisedDiscoveryL2capPsm(
+            serverSocketPsm = serverSocket?.psm,
+            localL2capClientSocketsSupported = supportsL2capClientSockets(),
+        )
+    )
     log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")
     serverSocket?.let(::launchAcceptLoop)
 
@@ -93,14 +121,24 @@ internal fun BleTransportAdapter.discoveryHardware(): BleTransportDiscoveryHardw
         hasAdvertiser = advertiser != null,
         stopScan = { callback -> scanner?.stopScan(callback) },
         startScan = { powerProfile, callback ->
+            log(
+                "scan requested mode=${powerProfile.scanMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"
+            )
             scanner?.startScan(buildScanFilters(), buildScanSettings(powerProfile), callback)
+            log("scan start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}")
         },
         stopAdvertising = { callback -> advertiser?.stopAdvertising(callback) },
         startAdvertising = { powerProfile, payload, callback ->
+            log(
+                "advertise requested mode=${powerProfile.advertiseMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"
+            )
             advertiser?.startAdvertising(
                 buildAdvertiseSettings(powerProfile),
                 buildAdvertiseData(payload),
                 callback,
+            )
+            log(
+                "advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"
             )
         },
     )

@@ -13,7 +13,7 @@ import kotlinx.coroutines.runBlocking
 
 class PreferredGattSendSupportTest {
     @Test
-    fun sendViaPreferredGattSideLinkOrNullSkipsHandshakeFrames(): Unit = runBlocking {
+    fun sendViaPreferredGattSideLinkOrNullHandlesHandshakeFrames(): Unit = runBlocking {
         // Arrange
         val fixture = PreferredGattSendFixture()
         val frame =
@@ -30,8 +30,8 @@ class PreferredGattSendSupportTest {
             )
 
         // Assert
-        assertNull(result)
-        assertEquals(0, fixture.ensureSideLinkCalls)
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
         assertEquals(0, fixture.restartReasons.size)
     }
 
@@ -84,6 +84,66 @@ class PreferredGattSendSupportTest {
             assertEquals(1, fixture.ensureSideLinkCalls)
             assertEquals(0, fixture.restartReasons.size)
         }
+
+    @Test
+    fun sendViaPreferredGattSideLinkOrNullFallsBackToGattWhenL2capClientSocketsAreUnsupported():
+        Unit = runBlocking {
+        // Arrange
+        val fixture =
+            PreferredGattSendFixture(
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = false,
+            )
+        val frame =
+            OutboundFrame(
+                peerId = fixture.context.hintPeerId,
+                payload = DirectWireFrame.Data(ByteArray(8)).encode(),
+            )
+
+        // Act
+        val result =
+            fixture.run(
+                frame = frame,
+                client = FakePreferredGattSendClient(ready = true, writeResult = true),
+            )
+
+        // Assert
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
+        assertEquals(0, fixture.restartReasons.size)
+    }
+
+    @Test
+    fun sendViaPreferredGattSideLinkOrNullWaitsForClientReadiness(): Unit = runBlocking {
+        // Arrange
+        val fixture = PreferredGattSendFixture()
+        val frame =
+            OutboundFrame(
+                peerId = fixture.context.hintPeerId,
+                payload = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01)).encode(),
+            )
+        val client =
+            object : PreferredGattSendClient {
+                private var readyChecks = 0
+
+                override fun isReady(): Boolean {
+                    readyChecks += 1
+                    return readyChecks >= 4
+                }
+
+                override suspend fun write(payload: ByteArray): Boolean {
+                    return payload.isNotEmpty()
+                }
+            }
+
+        // Act
+        val result = fixture.run(frame = frame, client = client)
+
+        // Assert
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.ensureSideLinkCalls)
+        assertEquals(0, fixture.restartReasons.size)
+    }
 
     @Test
     fun sendViaPreferredGattSideLinkOrNullFallsBackWhenTheSideLinkIsUnavailable(): Unit =
@@ -185,21 +245,20 @@ class PreferredGattSendSupportTest {
 }
 
 private class PreferredGattSendFixture(
-    remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.IOS
+    remotePlatformFamily: BleDiscoveryPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+    localL2capClientSocketsSupported: Boolean = true,
 ) {
     val context =
         PreferredGattSendContext(
             hintPeerId = PeerId("peer-android"),
             localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
             remotePlatformFamily = remotePlatformFamily,
+            localL2capClientSocketsSupported = localL2capClientSocketsSupported,
         )
     var ensureSideLinkCalls: Int = 0
     val restartReasons: MutableList<String> = mutableListOf()
 
-    suspend fun run(
-        frame: OutboundFrame,
-        client: FakePreferredGattSendClient?,
-    ): TransportSendResult? {
+    suspend fun run(frame: OutboundFrame, client: PreferredGattSendClient?): TransportSendResult? {
         return sendViaPreferredGattSideLinkOrNull(
             frame = frame,
             context = context,

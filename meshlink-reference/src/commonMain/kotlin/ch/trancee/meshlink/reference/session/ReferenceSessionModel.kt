@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.reference.session
 
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
-import ch.trancee.meshlink.reference.model.ReferenceAuthorityMode
+import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_SOLO
 
 internal enum class ReferenceSessionKind {
     SUPPORTED_LIVE,
@@ -13,7 +13,7 @@ internal enum class ReferenceSessionKind {
 internal fun ReferenceControllerSnapshot.referenceSessionKind(): ReferenceSessionKind {
     val surfaceOfOrigin = session.configurationSnapshot["surface"]
     return when {
-        session.authorityMode == ReferenceAuthorityMode.SOLO -> ReferenceSessionKind.SOLO
+        session.authorityMode == REFERENCE_AUTHORITY_MODE_SOLO -> ReferenceSessionKind.SOLO
         surfaceOfOrigin == "lab" -> ReferenceSessionKind.LAB
         session.endedAtEpochMillis != null -> ReferenceSessionKind.SUPPORTED_ENDED
         else -> ReferenceSessionKind.SUPPORTED_LIVE

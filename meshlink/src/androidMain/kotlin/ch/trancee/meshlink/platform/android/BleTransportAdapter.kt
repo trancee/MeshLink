@@ -12,6 +12,7 @@ import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.L2capReconnectGuard
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
@@ -58,6 +59,7 @@ internal class BleTransportAdapter(
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
     internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
+    internal val l2capReconnectGuard = L2capReconnectGuard()
     internal val gattSideLinks =
         GattSideLinkCoordinator(
             dependencies =
@@ -83,6 +85,7 @@ internal class BleTransportAdapter(
                     log = ::log,
                 )
         )
+    internal var gattNotifyServer: GattNotifyServer? = null
     internal val transportMutex = Mutex()
     internal var inboundFrameQueue: InboundFrameQueue? = null
 
@@ -252,6 +255,7 @@ internal class BleTransportAdapter(
                     hintPeerId = peer.hintPeerId,
                     localPlatformFamily = currentDiscoveryPayload.platformFamily,
                     remotePlatformFamily = peer.platformFamily,
+                    localL2capClientSocketsSupported = supportsL2capClientSockets(),
                 ),
             dependencies =
                 PreferredGattSendDependencies(
@@ -322,9 +326,7 @@ internal class BleTransportAdapter(
     }
 
     internal fun log(message: () -> String): Unit {
-        if (transportDebugLoggingEnabled) {
-            Log.d(LOG_TAG, message())
-        }
+        Log.i(LOG_TAG, message())
     }
 
     internal fun log(message: String): Unit {
@@ -332,6 +334,6 @@ internal class BleTransportAdapter(
     }
 
     private companion object {
-        private const val LOG_TAG: String = "MeshLinkTransport"
+        private const val LOG_TAG: String = "MeshLinkReferenceAutomation"
     }
 }

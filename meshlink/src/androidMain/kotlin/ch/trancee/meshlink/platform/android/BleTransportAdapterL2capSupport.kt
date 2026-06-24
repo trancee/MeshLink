@@ -31,7 +31,8 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
         return
     }
     val adapter = bluetoothAdapter ?: return
-    val device = peerBindings.deviceFor(peer.deviceAddress) ?: return
+    val device =
+        peerBindings.deviceFor(peer.deviceAddress) ?: adapter.getRemoteDevice(peer.deviceAddress)
     val connectJob =
         coroutineScope.launch(start = CoroutineStart.LAZY) {
             runCatching {
@@ -39,12 +40,7 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
                         "connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${device.address}"
                     )
                     val socket =
-                        L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm) {
-                            error ->
-                            log(
-                                "explicit insecure L2CAP client socket fallback for ${peer.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"
-                            )
-                        }
+                        L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm)
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
                     peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
@@ -66,6 +62,17 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
     }
     adapter.cancelDiscovery()
     connectJob.start()
+}
+
+internal fun BleTransportAdapter.scheduleL2capReconnect(peer: DiscoveredPeer): Unit {
+    coroutineScope.launch {
+        delay(L2CAP_RECONNECT_BACKOFF_MS)
+        val retryPeer = peerRegistry.peer(peer.hintPeerId.value) ?: return@launch
+        log(
+            "retrying L2CAP connect for ${retryPeer.hintPeerId.value.takeLast(6)} after transient close"
+        )
+        connectIfNeeded(retryPeer)
+    }
 }
 
 internal fun BleTransportAdapter.promoteTemporaryLink(address: String, hintPeerId: PeerId): Unit {
@@ -121,7 +128,12 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     socket: BluetoothSocket,
 ): Unit {
     val link =
-        L2capLink(peerHintId = hintPeerId, socket = socket, incomingFrames = L2capFrameBuffer())
+        L2capLink(
+            peerHintId = hintPeerId,
+            socket = socket,
+            incomingFrames = L2capFrameBuffer(),
+            log = ::log,
+        )
     if (!linkRegistry.registerActiveLink(hintPeerId.value, link)) {
         log("ignoring duplicate L2CAP socket for ${hintPeerId.value.takeLast(6)}")
         closeQuietly(socket)
@@ -162,6 +174,9 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                     continue
                 }
                 consecutiveZeroByteReads = 0
+                log(
+                    "L2CAP read ${link.peerHintId.value.takeLast(6)} bytes=$read prefix=${readBuffer.copyOf(minOf(read, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
+                )
                 val appendResult =
                     link.incomingFrames.appendDetailed(source = readBuffer, length = read)
                 appendResult.frames.forEachIndexed { frameIndex, payload ->
@@ -213,10 +228,13 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     acceptLoopJob?.cancel()
     acceptLoopJob = null
     linkRegistry.cancelPendingConnects()
+    gattNotifyServer?.close()
+    gattNotifyServer = null
     closeQuietly(l2capServerSocket)
     l2capServerSocket = null
     val hintIds = linkRegistry.activeHintIdsSnapshot()
     hintIds.forEach { hintPeer -> closeLink(hintPeer = hintPeer, reason = "transport stopped") }
+    l2capReconnectGuard.clear()
     gattSideLinks.stopAll()
     inboundFrameQueue?.close()
     inboundFrameQueue = null
@@ -229,12 +247,22 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
 
 internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit {
     val link = linkRegistry.removeActiveLink(hintPeer) ?: return
+    val retryPeer = peerRegistry.peer(hintPeer)
+    val retryRequested =
+        retryPeer != null &&
+            !hasPendingConnect(hintPeer) &&
+            !gattSideLinks.hasReadyLink(hintPeer) &&
+            l2capReconnectGuard.shouldRetry(hintPeerIdValue = hintPeer, reason = reason)
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeer, false)
     log(
-        "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${peerRegistry.peer(hintPeer) != null} pendingConnect=${hasPendingConnect(hintPeer)}"
+        "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${retryPeer != null} pendingConnect=${hasPendingConnect(hintPeer)} retryRequested=$retryRequested"
     )
     link.readLoopJob?.cancel()
     closeQuietly(link)
+    if (retryRequested) {
+        scheduleL2capReconnect(requireNotNull(retryPeer))
+        return
+    }
     if (gattSideLinks.hasReadyLink(hintPeer)) {
         log(
             "retaining peer ${hintPeer.takeLast(6)} after L2CAP close because the GATT side link is still active"
@@ -248,11 +276,13 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
 
 private const val ZERO_BYTE_READ_BACKOFF_MS: Long = 5L
 private const val MAX_CONSECUTIVE_ZERO_BYTE_READS: Int = 3
+private const val L2CAP_RECONNECT_BACKOFF_MS: Long = 500L
 
 internal class L2capLink(
     internal var peerHintId: PeerId,
     private val socket: BluetoothSocket,
     internal val incomingFrames: L2capFrameBuffer,
+    private val log: (String) -> Unit,
 ) : Closeable {
     internal val remoteDevice: android.bluetooth.BluetoothDevice = socket.remoteDevice
     internal val inputStream: InputStream = socket.inputStream
@@ -262,7 +292,11 @@ internal class L2capLink(
     private val outputStream = socket.outputStream
 
     internal suspend fun write(payload: ByteArray): Unit {
-        outputStream.write(incomingFrames.encode(payload))
+        val encoded = L2capFrameBuffer().encode(payload)
+        log(
+            "L2CAP write ${peerHintId.value.takeLast(6)} payloadBytes=${payload.size} encodedBytes=${encoded.size} payloadPrefix=${payload.copyOf(minOf(payload.size, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
+        )
+        outputStream.write(encoded)
     }
 
     override fun close(): Unit {

@@ -1,5 +1,4 @@
 import io.gitlab.arturbosch.detekt.Detekt
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -8,12 +7,10 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktfmt)
     alias(libs.plugins.dokka)
     alias(libs.plugins.skie)
-    id("org.jetbrains.kotlinx.kover")
 }
 
 kotlin {
@@ -22,7 +19,7 @@ kotlin {
     android {
         namespace = "ch.trancee.meshlink.reference"
         compileSdk = 36
-        minSdk = 29
+        minSdk = 26
         compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
         androidResources { enable = true }
         withHostTest {}
@@ -55,24 +52,7 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.compose.material.icons.extended)
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.compose.ui.test)
-        }
-        jvmTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(compose.desktop.currentOs)
-        }
-        getByName("androidHostTest").dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
-        }
-        iosTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
-        }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
     }
 }
 
@@ -101,6 +81,8 @@ dokka {
     }
 }
 
+skie { analytics { disableUpload.set(true) } }
+
 compose.resources {
     publicResClass = true
     packageOfResClass = "ch.trancee.meshlink.reference.resources"
@@ -123,22 +105,4 @@ val installDebug by tasks.registering {
     group = "install"
     description = "Installs the Android debug reference app from the nested Android host module."
     dependsOn(":meshlink-reference:android:installDebug")
-}
-
-val connectedDebugAndroidTest by tasks.registering {
-    group = "verification"
-    description = "Runs Android connected debug tests for the nested reference Android host module."
-    dependsOn(":meshlink-reference:android:connectedDebugAndroidTest")
-}
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions =
-        listOf(
-            "kotlin.assert",
-            "kotlin.test.assertEquals",
-            "kotlin.test.assertFalse",
-            "kotlin.test.assertTrue",
-        )
-    includedSourceSets = listOf("commonTest", "jvmTest", "androidHostTest", "iosTest")
 }

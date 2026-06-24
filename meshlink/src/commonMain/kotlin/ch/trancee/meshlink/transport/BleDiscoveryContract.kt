@@ -260,12 +260,14 @@ internal fun resolveGattDataBearerMode(
     localPlatformFamily: BleDiscoveryPlatformFamily,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
     preferredMode: TransportMode?,
+    localL2capClientSocketsSupported: Boolean = true,
 ): GattDataBearerMode {
     return when {
         shouldUseMixedPlatformGattNotifyBearer(
             localPlatformFamily = localPlatformFamily,
             remotePlatformFamily = remotePlatformFamily,
         ) -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
+        !localL2capClientSocketsSupported -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
         preferredMode == TransportMode.GATT -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
         else -> GattDataBearerMode.L2CAP_ONLY
     }

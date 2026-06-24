@@ -1,126 +1,46 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package ch.trancee.meshlink.reference
 
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import ch.trancee.meshlink.reference.app.ReferenceApp
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationRole
-import ch.trancee.meshlink.reference.automation.ReferenceAutomationScenario
-import ch.trancee.meshlink.reference.automation.toReferenceAutomationScenario
-import ch.trancee.meshlink.reference.automation.wireValue
-import ch.trancee.meshlink.reference.platform.createAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createLiveAutomationPlatformServices
-import ch.trancee.meshlink.reference.platform.createPlatformServices
 
-/** Android entry point for the shared reference app shell. */
+/** Android entry point for the shared reference app harness. */
 public class MainActivity : ComponentActivity() {
+    private var activePlatformServices: AndroidPlatformServices? = null
+
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
-        val automationEnabled = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION, false) == true
-        val automationMode = intent?.getStringExtra(EXTRA_UI_AUTOMATION_MODE)
-        val platformServices =
-            if (automationEnabled && automationMode == AUTOMATION_MODE_LIVE_PROOF) {
-                createLiveAutomationPlatformServices(
-                    context = applicationContext,
-                    storageSubdirectory =
-                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY)
-                            ?: DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY,
-                    appId =
-                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_APP_ID)
-                            ?: DEFAULT_LIVE_AUTOMATION_APP_ID,
-                    role =
-                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_ROLE).toReferenceAutomationRole(),
-                    requiredPeerCount =
-                        intent?.getIntExtra(EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT, 1) ?: 1,
-                    targetPeerIndex =
-                        intent?.getIntExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX, 0) ?: 0,
-                    targetPeerId = intent?.getStringExtra(EXTRA_UI_AUTOMATION_TARGET_PEER_ID),
-                    scenario =
-                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_SCENARIO)
-                            .toReferenceAutomationScenario(),
-                )
-            } else if (automationEnabled) {
-                createAutomationPlatformServices(
-                    context = applicationContext,
-                    storageSubdirectory =
-                        intent?.getStringExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY)
-                            ?: DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY,
-                    blocked = intent?.getBooleanExtra(EXTRA_UI_AUTOMATION_BLOCKED, false) == true,
-                )
-            } else {
-                createPlatformServices(applicationContext)
-            }
-        setContent { ReferenceApp(platformServices = platformServices) }
-    }
+        logActivityStage("onCreate")
 
-    public companion object {
-        public const val EXTRA_UI_AUTOMATION: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION"
-        public const val EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_STORAGE_SUBDIRECTORY"
-        public const val EXTRA_UI_AUTOMATION_BLOCKED: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BLOCKED"
-        public const val EXTRA_UI_AUTOMATION_MODE: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_MODE"
-        public const val EXTRA_UI_AUTOMATION_APP_ID: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_APP_ID"
-        public const val EXTRA_UI_AUTOMATION_ROLE: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
-        public const val EXTRA_UI_AUTOMATION_REQUIRED_PEER_COUNT: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_REQUIRED_PEER_COUNT"
-        public const val EXTRA_UI_AUTOMATION_TARGET_PEER_INDEX: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_INDEX"
-        public const val EXTRA_UI_AUTOMATION_TARGET_PEER_ID: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
-        public const val EXTRA_UI_AUTOMATION_SCENARIO: String =
-            "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
-        public const val DEFAULT_AUTOMATION_STORAGE_SUBDIRECTORY: String = "default"
-        public const val DEFAULT_LIVE_AUTOMATION_APP_ID: String = "demo.meshlink.reference.live"
-        public const val AUTOMATION_MODE_SCRIPTED: String = "scripted"
-        public const val AUTOMATION_MODE_LIVE_PROOF: String = "live-proof"
+        val platformServices = createPlatformServices(applicationContext)
+        activePlatformServices = platformServices
 
-        public fun automationIntent(
-            context: Context,
-            storageSubdirectory: String,
-            blocked: Boolean = false,
-        ): Intent {
-            return Intent(context, MainActivity::class.java).apply {
-                putExtra(EXTRA_UI_AUTOMATION, true)
-                putExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY, storageSubdirectory)
-                putExtra(EXTRA_UI_AUTOMATION_BLOCKED, blocked)
-                putExtra(EXTRA_UI_AUTOMATION_MODE, AUTOMATION_MODE_SCRIPTED)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-        }
-
-        public fun liveAutomationIntent(
-            context: Context,
-            storageSubdirectory: String,
-            appId: String,
-            role: ReferenceAutomationRole,
-            scenario: ReferenceAutomationScenario = ReferenceAutomationScenario.DIRECT_GUIDED,
-        ): Intent {
-            return Intent(context, MainActivity::class.java).apply {
-                putExtra(EXTRA_UI_AUTOMATION, true)
-                putExtra(EXTRA_UI_AUTOMATION_MODE, AUTOMATION_MODE_LIVE_PROOF)
-                putExtra(EXTRA_UI_AUTOMATION_STORAGE_SUBDIRECTORY, storageSubdirectory)
-                putExtra(EXTRA_UI_AUTOMATION_APP_ID, appId)
-                putExtra(EXTRA_UI_AUTOMATION_ROLE, role.name.lowercase())
-                putExtra(EXTRA_UI_AUTOMATION_SCENARIO, scenario.wireValue())
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
+        setContent {
+            ReferenceApp(
+                platformName = platformServices.platformName,
+                readinessGuidance = platformServices.readinessGuidance,
+                readinessBlockers = platformServices.readinessBlockers,
+                powerMitigationStatus = platformServices.powerMitigationStatus,
+                documentStore = platformServices.documentStore,
+                meshLinkController = platformServices.meshLinkController,
+                stopPowerMitigation = { platformServices.stopPowerMitigation() },
+                currentTimeMillis = { platformServices.currentTimeMillis() },
+            )
         }
     }
-}
 
-private fun String?.toReferenceAutomationRole(): ReferenceAutomationRole {
-    return when {
-        this.equals("sender", ignoreCase = true) -> ReferenceAutomationRole.SENDER
-        this.equals("relay", ignoreCase = true) -> ReferenceAutomationRole.RELAY
-        else -> ReferenceAutomationRole.PASSIVE
+    override fun onDestroy() {
+        logActivityStage("onDestroy")
+        activePlatformServices?.stopPowerMitigation()
+        activePlatformServices = null
+        super.onDestroy()
+    }
+
+    private fun logActivityStage(stage: String): Unit {
+        Log.i("MeshLinkReference", "REFERENCE_HARNESS activity.stage=$stage")
     }
 }

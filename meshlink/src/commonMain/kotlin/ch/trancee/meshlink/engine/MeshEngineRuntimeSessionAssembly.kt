@@ -85,8 +85,8 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         )
     val handshakeCallbacks =
         buildMeshEngineRuntimeHandshakeCallbacks(
-            sendDirectWireFrame = { peerId, frame, action ->
-                support.sendDirectWireFrame(peerId, frame, action, null)
+            sendDirectWireFrame = { peerId, frame, action, preferredMode ->
+                support.sendDirectWireFrame(peerId, frame, action, preferredMode)
             },
             emitHopSessionEstablished = hopTransportSupport::emitHopSessionEstablished,
             emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,

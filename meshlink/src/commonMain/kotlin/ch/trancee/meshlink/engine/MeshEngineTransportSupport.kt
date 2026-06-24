@@ -62,7 +62,9 @@ internal class MeshEngineTransportSupport(
     }
 
     private suspend fun handleDiscoveredPeer(event: TransportEvent.PeerDiscovered): Unit {
-        if (event.transportMode != TransportMode.L2CAP) {
+        if (
+            event.transportMode != TransportMode.L2CAP && event.transportMode != TransportMode.GATT
+        ) {
             emitTransportModeDiagnostic(
                 peerId = event.peerId,
                 transportMode = event.transportMode,
@@ -81,7 +83,8 @@ internal class MeshEngineTransportSupport(
     private suspend fun handleTransportModeChanged(
         event: TransportEvent.TransportModeChanged
     ): Unit {
-        val accepted = event.transportMode == TransportMode.L2CAP
+        val accepted =
+            event.transportMode == TransportMode.L2CAP || event.transportMode == TransportMode.GATT
         emitTransportModeDiagnostic(
             peerId = event.peerId,
             transportMode = event.transportMode,
@@ -177,7 +180,8 @@ internal class MeshEngineTransportSupport(
             DiagnosticReason.TRANSPORT_CHANGE,
             mapOf(
                 "accepted" to accepted.toString(),
-                "supportedTransportMode" to TransportMode.L2CAP.name,
+                "supportedTransportMode" to
+                    "${TransportMode.L2CAP.name},${TransportMode.GATT.name}",
                 "transportMode" to transportMode.name,
             ),
         )
