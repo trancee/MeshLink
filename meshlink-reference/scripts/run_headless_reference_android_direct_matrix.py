@@ -457,7 +457,7 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"| Stop reason | {stop_reason or '—'} |",
         "",
         f"Foreign scan summary: sender ignored {sender_ignored_total} · passive ignored {passive_ignored_total}",
-        "- Legend: the fleet summary aggregates initial + final ignored counts across all processed pairs, while each pair report breaks those counts down per run.",
+        "- How to read this report: sender/passive foreign-scan counts are summed across initial + final passes for the fleet overview, while pair reports show the same counts per run.",
         "",
         "## Mermaid overview",
         "",
@@ -731,6 +731,10 @@ def render_pair_report(
         "",
         intro,
         "",
+        "### How to read this report",
+        "- The foreign-scan summary in the intro aggregates initial + final runs for this pair.",
+        "- The detailed initial/final counts below let you see whether scan noise was one-sided or symmetric.",
+        "",
         "## Setup",
         "",
         f"- Sender: {sender_model} ({pair['sender']})",
@@ -746,6 +750,8 @@ def render_pair_report(
         f"- Initial run dir: `{initial.get('runDir') or initial.get('summaryPath') or '—'}`",
         f"- Final run dir: `{final.get('runDir') or '—'}`",
         f"- Target peer id: {target_peer_id or 'not resolved'}",
+        "- How to read this report: the foreign-scan summary above aggregates the initial + final runs; the per-pair counts below are broken out per run.",
+        "- How to read this report: the sender and passive counts are treated separately so you can spot whether the mesh hash noise is localized or symmetric.",
         "",
         "## Result",
         "",
@@ -836,7 +842,12 @@ def render_pair_report(
 def load_progress(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return payload.get("results") or []
+    raise TypeError("progress.json must contain a list of results or an object with results")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -961,7 +972,29 @@ def main(argv: list[str] | None = None) -> int:
         }
         results.append(row)
         completed.add((pair["sender"], pair["passive"]))
-        progress_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "results": results,
+                    "foreignScanSummary": {
+                        "senderIgnoredTotal": sum(
+                            int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+                            + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+                            for row in results
+                        ),
+                        "passiveIgnoredTotal": sum(
+                            int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+                            + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+                            for row in results
+                        ),
+                        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+                    },
+                    "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
         fleet_inventory["foreignScanSummary"] = {
             "senderIgnoredTotal": sum(
@@ -1040,6 +1073,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             break
 
+    foreign_scan_summary = {
+        "senderIgnoredTotal": sum(
+            int(row.get("initial", {}).get("senderForeignScanIgnoredCount") or 0)
+            + int(row.get("final", {}).get("senderForeignScanIgnoredCount") or 0)
+            for row in results
+        ),
+        "passiveIgnoredTotal": sum(
+            int(row.get("initial", {}).get("passiveForeignScanIgnoredCount") or 0)
+            + int(row.get("final", {}).get("passiveForeignScanIgnoredCount") or 0)
+            for row in results
+        ),
+        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+    }
     state_path.write_text(
         json.dumps(
             {
@@ -1052,12 +1098,21 @@ def main(argv: list[str] | None = None) -> int:
                 "failFast": args.fail_fast,
                 "stoppedEarly": stopped_early,
                 "stopReason": stop_reason,
+                "foreignScanSummary": foreign_scan_summary,
             },
             indent=2,
         ),
         encoding="utf-8",
     )
 
+    progress_summary = {
+        "foreignScanSummary": foreign_scan_summary,
+        "legend": "Fleet summary aggregates initial + final ignored counts across all processed pairs; pair reports break those counts down per run.",
+    }
+    progress_path.write_text(
+        json.dumps({"results": results, **progress_summary}, indent=2),
+        encoding="utf-8",
+    )
     compact_report = render_compact_report(results, state=json.loads(state_path.read_text(encoding="utf-8")))
     compact_report += "\n\n## Run setup\n\n"
     compact_report += f"- Fleet inventory: `{fleet_markdown_path}`\n"
