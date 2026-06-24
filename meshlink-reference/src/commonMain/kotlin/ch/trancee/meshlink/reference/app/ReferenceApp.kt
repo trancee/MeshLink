@@ -71,6 +71,7 @@ public fun ReferenceApp(
                         autoStartMesh = autoStartMesh,
                         autoSendHello = autoSendHello,
                         emitAutomationLog = emitAutomationLog,
+                        currentTimeMillis = currentTimeMillis,
                     )
                 }
             emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.afterRemember")

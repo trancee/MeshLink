@@ -7,6 +7,7 @@ import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -25,6 +26,7 @@ internal class GuidedFirstExchangeViewModel(
     private val autoStartMesh: Boolean = false,
     private val autoSendHello: Boolean = false,
     private val emitAutomationLog: (String) -> Unit = {},
+    private val currentTimeMillis: () -> Long,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
@@ -37,8 +39,11 @@ internal class GuidedFirstExchangeViewModel(
     private val powerMitigationLabelValue: String? = powerMitigationStatus
     private var autoSendTriggered: Boolean = false
     private var peerDiscoveryLogged: Boolean = false
+    private var discoveryPendingLogged: Boolean = false
+    private var discoveryStalledLogged: Boolean = false
     private var routeReadyLogged: Boolean = false
     private var routePendingLogged: Boolean = false
+    private val initAtEpochMillis: Long = currentTimeMillis()
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -55,10 +60,15 @@ internal class GuidedFirstExchangeViewModel(
             )
             meshLinkController.snapshot.collectLatest { snapshot ->
                 stateStore.applySnapshot(snapshot)
+                maybeLogDiscoveryPending(snapshot)
                 maybeLogPeerDiscovery(snapshot)
                 maybeLogRouteReadiness(snapshot)
                 maybeAutoSendHello(snapshot)
             }
+        }
+        scope.launch {
+            delay(3_000L)
+            maybeLogDiscoveryStalled()
         }
         if (autoStartMesh) {
             emitAutomationLog(
@@ -100,6 +110,30 @@ internal class GuidedFirstExchangeViewModel(
                 "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.end peerId=$peerId"
             )
         }
+    }
+
+    private fun maybeLogDiscoveryPending(snapshot: ReferenceControllerSnapshot): Unit {
+        if (discoveryPendingLogged || snapshot.peers.isNotEmpty()) return
+        discoveryPendingLogged = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION discovery.pending role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=0.0"
+        )
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.pending role=${automationRole ?: "unknown"} count=0 selectedPeerId=none"
+        )
+    }
+
+    private fun maybeLogDiscoveryStalled(): Unit {
+        if (discoveryStalledLogged) return
+        val snapshot = uiState.value.snapshot
+        if (snapshot.peers.isNotEmpty()) return
+        discoveryStalledLogged = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION discovery.stalled role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=3.0"
+        )
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.discovery.stalled role=${automationRole ?: "unknown"} count=0 selectedPeerId=none elapsedSeconds=3.0 initAt=$initAtEpochMillis"
+        )
     }
 
     private fun maybeLogPeerDiscovery(snapshot: ReferenceControllerSnapshot): Unit {
