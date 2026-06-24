@@ -57,24 +57,8 @@ internal fun createPlatformServices(context: Context, appId: String): AndroidPla
         readinessGuidance = readinessGuidance(),
         readinessBlockersFactory = { readinessBlockers(context) },
         meshLinkControllerFactory = {
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.factoryLambda.begin",
-            )
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.bootstrap.begin",
-            )
             val bootstrap = createMeshLinkBootstrap(context)
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.bootstrap.end",
-            )
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.controllerArgs.begin",
-            )
-            val controllerArgs =
+            createPublicMeshLinkController(
                 PublicMeshLinkControllerArgs(
                     appId = appId,
                     authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
@@ -82,17 +66,8 @@ internal fun createPlatformServices(context: Context, appId: String): AndroidPla
                     storageSubdirectory = "default",
                     bootstrap = bootstrap,
                     currentTimeMillis = { System.currentTimeMillis() },
-                )
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.controllerArgs.end",
+                ),
             )
-            val controller = createPublicMeshLinkController(controllerArgs)
-            Log.i(
-                AUTOMATION_LOG_TAG,
-                "REFERENCE_AUTOMATION android.meshlink.factoryLambda.end",
-            )
-            controller
         },
     )
 }
@@ -110,19 +85,6 @@ private data class PublicMeshLinkControllerArgs(
 private fun createPublicMeshLinkController(
     args: PublicMeshLinkControllerArgs,
 ): ReferenceMeshLinkController {
-    Log.i(
-        AUTOMATION_LOG_TAG,
-        buildString {
-            append("REFERENCE_AUTOMATION android.meshlink.controller.begin appId=")
-            append(args.appId)
-            append(" scenario=")
-            append(args.scenarioId)
-            append(" storage=")
-            append(args.storageSubdirectory)
-            append(" thread=")
-            append(Thread.currentThread().name)
-        },
-    )
     val controller =
         PublicMeshLinkController(
             meshLinkRuntimeFactory = {
@@ -189,19 +151,6 @@ private fun createPublicMeshLinkController(
             storageSubdirectory = args.storageSubdirectory,
             appId = args.appId,
         )
-    Log.i(
-        AUTOMATION_LOG_TAG,
-        buildString {
-            append("REFERENCE_AUTOMATION android.meshlink.controller.end appId=")
-            append(args.appId)
-            append(" scenario=")
-            append(args.scenarioId)
-            append(" storage=")
-            append(args.storageSubdirectory)
-            append(" thread=")
-            append(Thread.currentThread().name)
-        },
-    )
     return controller
 }
 
