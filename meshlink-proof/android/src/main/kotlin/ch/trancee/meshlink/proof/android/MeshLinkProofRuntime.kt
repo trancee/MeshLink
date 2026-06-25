@@ -38,7 +38,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 internal object MeshLinkProofRuntime {
     private const val PROOF_LOG_FILE_NAME: String = "proof.log"
-    private const val BENCHMARK_WARMUP_PAYLOAD: String = "benchmark warmup"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
@@ -127,7 +126,7 @@ internal object MeshLinkProofRuntime {
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()}$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} benchmarkTransport=${resolvedLaunchConfig.benchmarkTransport ?: "meshlink"}$keyHashSuffix",
                 )
             }
         }
@@ -498,6 +497,7 @@ internal object MeshLinkProofRuntime {
         if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
             return true
         }
+        appendLog("route ready wait start ${describeRouteState(peerId)} source=$source")
         return withTimeoutOrNull(ROUTE_READY_WAIT_TIMEOUT_MS) {
             while (true) {
                 if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
@@ -508,10 +508,32 @@ internal object MeshLinkProofRuntime {
         }.also { result ->
             if (result != true) {
                 appendLog(
-                    "route ready wait timed out for ${peerId.value.takeLast(6)} source=$source"
+                    "route ready wait timed out ${describeRouteState(peerId)} source=$source"
                 )
             }
         } == true
+    }
+
+    private fun describeRouteState(peerId: PeerId): String {
+        val knownPeersSummary =
+            synchronized(knownPeers) {
+                knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
+                    "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
+                }
+            }
+        val readyPeersSummary =
+            synchronized(routeReadyPeers) {
+                routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        val pendingPeersSummary =
+            synchronized(pendingAutoSendPeers) {
+                pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        return "peer=${peerId.value.takeLast(6)} known=$knownPeersSummary ready=$readyPeersSummary pending=$pendingPeersSummary"
     }
 
     private fun maybeStartAutoHello(peerId: PeerId, source: String): Unit {
@@ -548,23 +570,9 @@ internal object MeshLinkProofRuntime {
                         "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected"
                     )
                     if (launchConfig.benchmarkPayloadBytes != null) {
-                        val warmupResult =
-                            runCatching {
-                                requireMeshLink().send(
-                                    peerId,
-                                    BENCHMARK_WARMUP_PAYLOAD.encodeToByteArray(),
-                                )
-                            }
-                        warmupResult
-                            .onSuccess { sendResult ->
-                                appendLog("BENCHMARK transport warmup=$sendResult")
-                            }
-                            .onFailure { error ->
-                                appendLog(
-                                    "BENCHMARK transport warmupFailed=${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                                )
-                            }
-                        delay(BENCHMARK_WARMUP_DELAY_MS)
+                        appendLog(
+                            "BENCHMARK transport waiting for route diagnostic ${describeRouteState(peerId)} source=$source"
+                        )
                     }
                     repeat(AUTO_SEND_ATTEMPTS) { attemptIndex ->
                         delay(AUTO_SEND_RETRY_DELAY_MS)
@@ -598,43 +606,41 @@ internal object MeshLinkProofRuntime {
                                 appendLog(
                                     "auto-send attempt ${attemptIndex + 1} -> $sendResult for ${peerId.value.takeLast(6)}"
                                 )
-                                var receiptConfirmed = true
                                 benchmarkPayload?.let { envelope ->
-                                    val receipt =
-                                        if (sendResult is SendResult.Sent) {
-                                            withTimeoutOrNull(BENCHMARK_RECEIPT_TIMEOUT_MS) {
-                                                receiptDeferred?.await()
-                                            }
-                                        } else {
-                                            synchronized(pendingBenchmarkReceipts) {
-                                                pendingBenchmarkReceipts.remove(envelope.tokenHex)
-                                            }
-                                            null
-                                        }
-                                    if (receipt == null) {
-                                        synchronized(pendingBenchmarkReceipts) {
-                                            pendingBenchmarkReceipts.remove(envelope.tokenHex)
-                                        }
-                                    }
-                                    receiptConfirmed = receipt != null
                                     val elapsedMs = elapsedMillisSince(startedAtNanos)
-                                    val benchmarkResult =
-                                        when {
-                                            sendResult !is SendResult.Sent -> sendResult.toString()
-                                            receipt != null -> sendResult.toString()
-                                            else -> "ReceiptTimeout"
-                                        }
                                     appendLog(
-                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=$benchmarkResult"
+                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=${sendResult}"
                                     )
                                     appendBenchmarkCorrelation(
                                         role = "sender.benchmark.result",
                                         tokenHex = envelope.tokenHex,
                                         peerIdValue = peerId.value,
-                                        outcome = benchmarkResult,
+                                        outcome = sendResult.toString(),
                                     )
+                                    if (sendResult is SendResult.Sent) {
+                                        val receipt =
+                                            withTimeoutOrNull(BENCHMARK_RECEIPT_TIMEOUT_MS) {
+                                                receiptDeferred?.await()
+                                            }
+                                        if (receipt == null) {
+                                            synchronized(pendingBenchmarkReceipts) {
+                                                pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                            }
+                                            appendLog(
+                                                "BENCHMARK receipt timeout peer=${peerId.value.takeLast(6)} token=${envelope.tokenHex}"
+                                            )
+                                        } else {
+                                            appendLog(
+                                                "BENCHMARK receipt confirmed peer=${peerId.value.takeLast(6)} token=${envelope.tokenHex} bytes=${receipt.totalBytes}"
+                                            )
+                                        }
+                                    } else {
+                                        synchronized(pendingBenchmarkReceipts) {
+                                            pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                        }
+                                    }
                                 }
-                                if (sendResult is SendResult.Sent && receiptConfirmed) {
+                                if (sendResult is SendResult.Sent) {
                                     return@launch
                                 }
                             }
@@ -714,9 +720,8 @@ internal object MeshLinkProofRuntime {
 
     private const val AUTO_SEND_ATTEMPTS: Int = 6
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
-    private const val BENCHMARK_WARMUP_DELAY_MS: Long = 500L
     private const val ROUTE_READY_POLL_INTERVAL_MS: Long = 50L
-    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 1_500L
+    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 10_000L
     private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
     private const val BENCHMARK_MAGIC: String = "MLBM1000"
     private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.proof.android
 
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -30,10 +31,11 @@ internal object BenchmarkTestSupport {
         benchmarkIsCharging: Boolean? = null,
         benchmarkColdStart: Boolean = false,
         benchmarkTransport: String? = null,
-    ): ActivityScenario<MainActivity> {
-        ensureTargetRuntimePermissionsGranted()
+    ): ActivityScenario<android.app.Activity> {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val intent = Intent(context, MainActivity::class.java).apply {
+        requireBluetoothEnabled(context)
+        ensureTargetRuntimePermissionsGranted()
+        val intent = Intent().setClassName(PACKAGE_NAME, "$PACKAGE_NAME.MainActivity").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra(EXTRA_APP_ID, appId)
             powerMode?.let { value -> putExtra(EXTRA_POWER_MODE, value) }
@@ -66,34 +68,73 @@ internal object BenchmarkTestSupport {
         )
     }
 
+    fun requireL2capRouteBenchmarkSupported(): Unit {
+        assumeTrue(
+            "Requires Android 14+ L2CAP client sockets for the fast route benchmark",
+            Build.VERSION.SDK_INT >= 34,
+        )
+    }
+
+    private fun requireBluetoothEnabled(context: Context): Unit {
+        val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
+        val enabled = bluetoothManager?.adapter?.isEnabled == true
+        assumeTrue(
+            "Requires Bluetooth to be turned on before running proof benchmarks",
+            enabled,
+        )
+    }
+
     private fun ensureTargetRuntimePermissionsGranted(): Unit {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val targetContext = instrumentation.targetContext
         val uiAutomation = instrumentation.uiAutomation
-        uiAutomation.adoptShellPermissionIdentity(GRANT_RUNTIME_PERMISSIONS_PERMISSION)
-        try {
-            requiredTargetRuntimePermissions().forEach { permission ->
-                if (targetContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
-                    return@forEach
-                }
-                val grantFailure =
-                    runCatching { uiAutomation.grantRuntimePermission(PACKAGE_NAME, permission) }
-                        .exceptionOrNull()
-                check(waitForTargetPermissionGrant(targetContext, permission)) {
-                    val failureSuffix =
-                        grantFailure?.let { error ->
-                            val message = error.message?.takeIf(String::isNotBlank)
-                            if (message == null) {
-                                "${error::class.simpleName}"
-                            } else {
-                                "${error::class.simpleName}: $message"
-                            }
-                        } ?: "permission remained denied"
-                    "Failed to grant $permission to $PACKAGE_NAME: $failureSuffix"
-                }
+        requiredTargetRuntimePermissions().forEach { permission ->
+            if (targetContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                return@forEach
             }
-        } finally {
-            uiAutomation.dropShellPermissionIdentity()
+            val grantFailure =
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= 28) {
+                        runCatching {
+                            uiAutomation.adoptShellPermissionIdentity(GRANT_RUNTIME_PERMISSIONS_PERMISSION)
+                        }.recoverCatching { uiAutomation.adoptShellPermissionIdentity() }
+                        uiAutomation.grantRuntimePermission(PACKAGE_NAME, permission)
+                        runCatching { uiAutomation.dropShellPermissionIdentity() }
+                    } else {
+                        val descriptor =
+                            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(
+                                "pm grant $PACKAGE_NAME $permission"
+                            )
+                        ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { input ->
+                            input.readText()
+                        }
+                    }
+                }.exceptionOrNull()
+            check(waitForTargetPermissionGrant(targetContext, permission)) {
+                val failureSuffix =
+                    grantFailure?.let { error ->
+                        val message = error.message?.takeIf(String::isNotBlank)
+                        if (message == null) {
+                            "${error::class.simpleName}"
+                        } else {
+                            "${error::class.simpleName}: $message"
+                        }
+                    } ?: "permission remained denied"
+                "Failed to grant $permission to $PACKAGE_NAME: $failureSuffix"
+            }
+        }
+    }
+
+    private fun adoptGrantRuntimePermissionsIdentity(uiAutomation: android.app.UiAutomation) {
+        runCatching {
+            uiAutomation.adoptShellPermissionIdentity(GRANT_RUNTIME_PERMISSIONS_PERMISSION)
+        }.recoverCatching {
+            uiAutomation.adoptShellPermissionIdentity()
+        }.getOrElse { error ->
+            throw IllegalStateException(
+                "Failed to adopt shell permission identity for runtime grants",
+                error,
+            )
         }
     }
 

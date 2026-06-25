@@ -55,8 +55,9 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
 
     dependencies.ensureSideLink()
     val client = dependencies.currentClient() ?: return null
+    val readyWaitTimeoutMillis = 2_000L
     val ready =
-        withTimeoutOrNull(500) {
+        withTimeoutOrNull(readyWaitTimeoutMillis) {
             while (!client.isReady()) {
                 delay(25)
             }

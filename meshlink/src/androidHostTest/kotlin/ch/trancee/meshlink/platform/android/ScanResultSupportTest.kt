@@ -111,7 +111,7 @@ class ScanResultSupportTest {
     }
 
     @Test
-    fun shouldConnectAfterDiscoveryOnlyReturnsTrueForEligibleL2capPeers(): Unit {
+    fun shouldConnectAfterDiscoveryReturnsTrueForGattReadyAndEligibleL2capPeers(): Unit {
         // Arrange / Act
         val gattOnlyResult =
             shouldConnectAfterDiscovery(
@@ -121,6 +121,15 @@ class ScanResultSupportTest {
                 localL2capClientSocketsSupported = true,
                 shouldInitiateL2cap = true,
                 gattSideLinkReady = false,
+            )
+        val gattReadyResult =
+            shouldConnectAfterDiscovery(
+                transportMode = TransportMode.GATT,
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                localL2capClientSocketsSupported = false,
+                shouldInitiateL2cap = false,
+                gattSideLinkReady = true,
             )
         val waitingForInboundResult =
             shouldConnectAfterDiscovery(
@@ -161,6 +170,7 @@ class ScanResultSupportTest {
 
         // Assert
         assertEquals(false, gattOnlyResult)
+        assertEquals(true, gattReadyResult)
         assertEquals(false, waitingForInboundResult)
         assertEquals(false, mixedPlatformReadyResult)
         assertEquals(false, unsupportedSdkResult)

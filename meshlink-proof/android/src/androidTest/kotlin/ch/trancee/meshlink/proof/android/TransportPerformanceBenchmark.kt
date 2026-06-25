@@ -12,6 +12,8 @@ class TransportPerformanceBenchmark {
     @Test
     fun latency256ByteSendStaysWithinTarget(): Unit {
         // Arrange
+        BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.requireL2capRouteBenchmarkSupported()
         BenchmarkTestSupport.clearProofLog()
         val scenario =
             BenchmarkTestSupport.startProofApp(
@@ -32,8 +34,42 @@ class TransportPerformanceBenchmark {
                 result,
             )
             assertTrue(
-                "Expected 256-byte latency <= 50 ms, but observed $elapsedMs ms",
+                "Expected 256-byte latency <= 50 ms on the L2CAP route, but observed $elapsedMs ms",
                 elapsedMs <= 50,
+            )
+        } finally {
+            scenario.close()
+            BenchmarkTestSupport.clearProofLog()
+        }
+    }
+
+    @Test
+    fun latency256ByteSendViaGattFallbackStaysWithinTarget(): Unit {
+        // Arrange
+        BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.clearProofLog()
+        val scenario =
+            BenchmarkTestSupport.startProofApp(
+                appId = LATENCY_APP_ID,
+                benchmarkPayloadBytes = 256,
+                benchmarkTransport = "gatt",
+            )
+
+        try {
+            // Act
+            val logLine = BenchmarkTestSupport.waitForLogLine("BENCHMARK transport bytes=", 20_000)
+            val elapsedMs = BenchmarkTestSupport.extractElapsedMs(logLine)
+            val result = BenchmarkTestSupport.extractResult(logLine)
+
+            // Assert
+            assertEquals(
+                "Latency benchmarks require a nearby proof peer running appId=$LATENCY_APP_ID",
+                "Sent",
+                result,
+            )
+            assertTrue(
+                "Expected 256-byte latency <= 500 ms on the GATT fallback route, but observed $elapsedMs ms",
+                elapsedMs <= 500,
             )
         } finally {
             scenario.close()
@@ -44,6 +80,8 @@ class TransportPerformanceBenchmark {
     @Test
     fun throughput64KiBStaysWithinTarget(): Unit {
         // Arrange
+        BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.requireL2capRouteBenchmarkSupported()
         BenchmarkTestSupport.clearProofLog()
         val scenario =
             BenchmarkTestSupport.startProofApp(
