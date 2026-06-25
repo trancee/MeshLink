@@ -8,6 +8,7 @@ This note records what the Android direct-proof runs showed about the passive GA
 
 Launching the passive proof app with `meshlink.benchmarkTransport=gatt` starts the proof-app GATT server. The latest attached-fleet rerun also confirmed the sender contract fix: for passive GATT fallback runs, the sender stays on `meshlink` instead of being switched to `gatt-notify`, and the low-API xcover bundle now shows `benchmarkTransport=meshlink` on the sender plus `start() with l2capPsm=227` in the retained transport path. On the older low-API fallback pairs, that GATT path can now be the retained primary transport and the summary can report `timings.transportMode = GATT`.
 
+
 In the successful retained run on CPH2359:
 - the passive proof app logged `gatt.server.start` / `gatt.server.started`
 - the same run later logged `start() with l2capPsm=201`
