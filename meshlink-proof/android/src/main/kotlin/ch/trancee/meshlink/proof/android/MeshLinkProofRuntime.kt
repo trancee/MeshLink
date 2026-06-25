@@ -38,7 +38,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 internal object MeshLinkProofRuntime {
     private const val PROOF_LOG_FILE_NAME: String = "proof.log"
-    private const val BENCHMARK_WARMUP_PAYLOAD: String = "benchmark warmup"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
@@ -515,25 +514,6 @@ internal object MeshLinkProofRuntime {
         } == true
     }
 
-    private fun prewarmRoute(peerId: PeerId, source: String): Unit {
-        appendLog("BENCHMARK transport route prewarm start ${describeRouteState(peerId)} source=$source")
-        scope.launch {
-            val result =
-                runCatching {
-                    requireMeshLink().send(peerId, BENCHMARK_WARMUP_PAYLOAD.encodeToByteArray())
-                }
-            result
-                .onSuccess { sendResult ->
-                    appendLog("BENCHMARK transport route prewarm=$sendResult ${describeRouteState(peerId)} source=$source")
-                }
-                .onFailure { error ->
-                    appendLog(
-                        "BENCHMARK transport route prewarmFailed=${error.javaClass.simpleName}: ${error.message.orEmpty()} ${describeRouteState(peerId)} source=$source"
-                    )
-                }
-        }
-    }
-
     private fun describeRouteState(peerId: PeerId): String {
         val knownPeersSummary =
             synchronized(knownPeers) {
@@ -570,9 +550,6 @@ internal object MeshLinkProofRuntime {
             synchronized(pendingAutoSendPeers) {
                 pendingAutoSendPeers.remove(peerId.value)
             }
-            if (launchConfig.benchmarkPayloadBytes != null) {
-                prewarmRoute(peerId, source)
-            }
             autoSendJobs[peerId.value] =
                 scope.launch {
                     val routeReady = awaitRouteReady(peerId, source)
@@ -593,23 +570,9 @@ internal object MeshLinkProofRuntime {
                         "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected"
                     )
                     if (launchConfig.benchmarkPayloadBytes != null) {
-                        val warmupResult =
-                            runCatching {
-                                requireMeshLink().send(
-                                    peerId,
-                                    BENCHMARK_WARMUP_PAYLOAD.encodeToByteArray(),
-                                )
-                            }
-                        warmupResult
-                            .onSuccess { sendResult ->
-                                appendLog("BENCHMARK transport warmup=$sendResult")
-                            }
-                            .onFailure { error ->
-                                appendLog(
-                                    "BENCHMARK transport warmupFailed=${error.javaClass.simpleName}: ${error.message.orEmpty()}"
-                                )
-                            }
-                        delay(BENCHMARK_WARMUP_DELAY_MS)
+                        appendLog(
+                            "BENCHMARK transport waiting for route diagnostic ${describeRouteState(peerId)} source=$source"
+                        )
                     }
                     repeat(AUTO_SEND_ATTEMPTS) { attemptIndex ->
                         delay(AUTO_SEND_RETRY_DELAY_MS)
@@ -759,7 +722,6 @@ internal object MeshLinkProofRuntime {
 
     private const val AUTO_SEND_ATTEMPTS: Int = 6
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
-    private const val BENCHMARK_WARMUP_DELAY_MS: Long = 500L
     private const val ROUTE_READY_POLL_INTERVAL_MS: Long = 50L
     private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 10_000L
     private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
