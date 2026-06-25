@@ -13,6 +13,7 @@ class TransportPerformanceBenchmark {
     fun latency256ByteSendStaysWithinTarget(): Unit {
         // Arrange
         BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.requireRouteBenchmarkTransportSupported()
         BenchmarkTestSupport.clearProofLog()
         val scenario =
             BenchmarkTestSupport.startProofApp(
@@ -46,6 +47,7 @@ class TransportPerformanceBenchmark {
     fun throughput64KiBStaysWithinTarget(): Unit {
         // Arrange
         BenchmarkTestSupport.requirePeerBenchmarksEnabled()
+        BenchmarkTestSupport.requireRouteBenchmarkTransportSupported()
         BenchmarkTestSupport.clearProofLog()
         val scenario =
             BenchmarkTestSupport.startProofApp(

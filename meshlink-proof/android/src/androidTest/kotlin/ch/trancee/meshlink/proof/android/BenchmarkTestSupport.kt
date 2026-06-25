@@ -67,6 +67,13 @@ internal object BenchmarkTestSupport {
         )
     }
 
+    fun requireRouteBenchmarkTransportSupported(): Unit {
+        assumeTrue(
+            "Requires Android 14+ L2CAP client sockets so the route benchmark does not fall back to GATT-only side links",
+            Build.VERSION.SDK_INT >= 34,
+        )
+    }
+
     private fun requireBluetoothEnabled(context: Context): Unit {
         val readiness = ProofBluetoothContract.inspect(context)
         assumeTrue(
