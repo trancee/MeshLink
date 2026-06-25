@@ -716,7 +716,7 @@ internal object MeshLinkProofRuntime {
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
     private const val BENCHMARK_WARMUP_DELAY_MS: Long = 500L
     private const val ROUTE_READY_POLL_INTERVAL_MS: Long = 50L
-    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 1_500L
+    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 10_000L
     private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
     private const val BENCHMARK_MAGIC: String = "MLBM1000"
     private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
