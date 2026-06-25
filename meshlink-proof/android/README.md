@@ -13,8 +13,14 @@ Use it when you need:
 ## Support floor and crypto note
 
 - Current app floor: Android API 26+
-- Android BLE/L2CAP is supported on API 26+, but X25519/XDH and
-  ChaCha20-Poly1305 are only officially guaranteed by Android on later APIs.
+- Android BLE/GATT route discovery is supported on API 26+, while L2CAP
+  client sockets are only available on API 34+.
+- Route benchmarks now gate on real route readiness (`ROUTE_DISCOVERED` or
+  `HOP_SESSION_ESTABLISHED`) instead of assuming a socket-capability check.
+  The fast-route benchmark keeps the 50 ms ceiling on L2CAP-capable devices,
+  while the GATT fallback benchmark uses its own 500 ms ceiling.
+- X25519/XDH and ChaCha20-Poly1305 are only officially guaranteed by Android
+  on later APIs.
 - MeshLink now has an in-repo fallback for X25519/XDH,
   ChaCha20-Poly1305, and Ed25519 on Android when the runtime probe cannot rely
   on platform support.
@@ -123,7 +129,7 @@ Use them for different claims.
 | Value | Meaning | Use it when you need to... | Important boundary |
 |---|---|---|---|
 | `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
-| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role for retained investigation work | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
+| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise GATT-only route discovery when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
 | `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
 
 In normal `meshlink` mode, the proof app gives you:
@@ -137,6 +143,10 @@ In normal `meshlink` mode, the proof app gives you:
 If you are validating supported user-visible behavior, stay in `meshlink` mode
 or move to the reference app. Use `gatt` and `gatt-notify` only when you are
 explicitly doing retained transport investigation or benchmark-oriented work.
+
+Benchmark runs now split by route: keep `meshlink.benchmarkTransport=meshlink`
+for the fast-route 50 ms ceiling, and use `meshlink.benchmarkTransport=gatt`
+for the fallback route's 500 ms ceiling.
 
 When using the reference app for Android direct proof, keep in mind that the
 live-proof automation path now starts a foreground wake lock plus a foreground

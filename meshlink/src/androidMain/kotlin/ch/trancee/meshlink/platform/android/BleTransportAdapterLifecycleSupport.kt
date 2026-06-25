@@ -58,6 +58,7 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
         BluetoothGattNotifyServer(
             context = context,
             peerBindings = peerBindings,
+            onUnknownPeerFrame = ::registerProvisionalGattPeer,
             onFrameReceived = ::enqueueInboundFrame,
             log = ::log,
         )

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.proof.android
 
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -30,11 +31,11 @@ internal object BenchmarkTestSupport {
         benchmarkIsCharging: Boolean? = null,
         benchmarkColdStart: Boolean = false,
         benchmarkTransport: String? = null,
-    ): ActivityScenario<MainActivity> {
+    ): ActivityScenario<android.app.Activity> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         requireBluetoothEnabled(context)
         ensureTargetRuntimePermissionsGranted()
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = Intent().setClassName(PACKAGE_NAME, "$PACKAGE_NAME.MainActivity").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra(EXTRA_APP_ID, appId)
             powerMode?.let { value -> putExtra(EXTRA_POWER_MODE, value) }
@@ -67,18 +68,19 @@ internal object BenchmarkTestSupport {
         )
     }
 
-    fun requireRouteBenchmarkTransportSupported(): Unit {
+    fun requireL2capRouteBenchmarkSupported(): Unit {
         assumeTrue(
-            "Requires Android 14+ L2CAP client sockets so the route benchmark does not fall back to GATT-only side links",
+            "Requires Android 14+ L2CAP client sockets for the fast route benchmark",
             Build.VERSION.SDK_INT >= 34,
         )
     }
 
     private fun requireBluetoothEnabled(context: Context): Unit {
-        val readiness = ProofBluetoothContract.inspect(context)
+        val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
+        val enabled = bluetoothManager?.adapter?.isEnabled == true
         assumeTrue(
             "Requires Bluetooth to be turned on before running proof benchmarks",
-            readiness.ready,
+            enabled,
         )
     }
 

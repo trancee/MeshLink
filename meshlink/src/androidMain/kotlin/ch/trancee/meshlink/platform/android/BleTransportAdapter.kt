@@ -296,6 +296,25 @@ internal class BleTransportAdapter(
         return enqueued
     }
 
+    internal fun registerProvisionalGattPeer(peerId: PeerId, address: String): Unit {
+        val zeroKeyHash = ByteArray(BleDiscoveryPayload.KEY_HASH_SIZE_BYTES)
+        val update =
+            peerRegistry.upsertDiscovery(
+                hintPeerId = peerId,
+                discovery =
+                    DiscoveredPeerDiscovery(
+                        address = address,
+                        keyHash = zeroKeyHash,
+                        l2capPsm = 0,
+                        transportMode = TransportMode.GATT,
+                        platformFamily = currentDiscoveryPayload.platformFamily,
+                    ),
+                announcePresence = false,
+            )
+        peerBindings.bindHintToAddress(address, update.peer.hintPeerId.value)
+        log("registered provisional GATT peer ${peerId.value.takeLast(6)} addr=$address")
+    }
+
     internal fun createInboundFrameQueue(): InboundFrameQueue {
         return InboundFrameQueue(scope = coroutineScope) { event -> mutableEvents.emit(event) }
     }

@@ -126,7 +126,7 @@ internal object MeshLinkProofRuntime {
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()}$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} benchmarkTransport=${resolvedLaunchConfig.benchmarkTransport ?: "meshlink"}$keyHashSuffix",
                 )
             }
         }
@@ -606,43 +606,41 @@ internal object MeshLinkProofRuntime {
                                 appendLog(
                                     "auto-send attempt ${attemptIndex + 1} -> $sendResult for ${peerId.value.takeLast(6)}"
                                 )
-                                var receiptConfirmed = true
                                 benchmarkPayload?.let { envelope ->
-                                    val receipt =
-                                        if (sendResult is SendResult.Sent) {
-                                            withTimeoutOrNull(BENCHMARK_RECEIPT_TIMEOUT_MS) {
-                                                receiptDeferred?.await()
-                                            }
-                                        } else {
-                                            synchronized(pendingBenchmarkReceipts) {
-                                                pendingBenchmarkReceipts.remove(envelope.tokenHex)
-                                            }
-                                            null
-                                        }
-                                    if (receipt == null) {
-                                        synchronized(pendingBenchmarkReceipts) {
-                                            pendingBenchmarkReceipts.remove(envelope.tokenHex)
-                                        }
-                                    }
-                                    receiptConfirmed = receipt != null
                                     val elapsedMs = elapsedMillisSince(startedAtNanos)
-                                    val benchmarkResult =
-                                        when {
-                                            sendResult !is SendResult.Sent -> sendResult.toString()
-                                            receipt != null -> sendResult.toString()
-                                            else -> "ReceiptTimeout"
-                                        }
                                     appendLog(
-                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=$benchmarkResult"
+                                        "BENCHMARK transport bytes=${payload.size} elapsedMs=$elapsedMs throughputKBps=${formatThroughputKilobytesPerSecond(payload.size, elapsedMs)} result=${sendResult}"
                                     )
                                     appendBenchmarkCorrelation(
                                         role = "sender.benchmark.result",
                                         tokenHex = envelope.tokenHex,
                                         peerIdValue = peerId.value,
-                                        outcome = benchmarkResult,
+                                        outcome = sendResult.toString(),
                                     )
+                                    if (sendResult is SendResult.Sent) {
+                                        val receipt =
+                                            withTimeoutOrNull(BENCHMARK_RECEIPT_TIMEOUT_MS) {
+                                                receiptDeferred?.await()
+                                            }
+                                        if (receipt == null) {
+                                            synchronized(pendingBenchmarkReceipts) {
+                                                pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                            }
+                                            appendLog(
+                                                "BENCHMARK receipt timeout peer=${peerId.value.takeLast(6)} token=${envelope.tokenHex}"
+                                            )
+                                        } else {
+                                            appendLog(
+                                                "BENCHMARK receipt confirmed peer=${peerId.value.takeLast(6)} token=${envelope.tokenHex} bytes=${receipt.totalBytes}"
+                                            )
+                                        }
+                                    } else {
+                                        synchronized(pendingBenchmarkReceipts) {
+                                            pendingBenchmarkReceipts.remove(envelope.tokenHex)
+                                        }
+                                    }
                                 }
-                                if (sendResult is SendResult.Sent && receiptConfirmed) {
+                                if (sendResult is SendResult.Sent) {
                                     return@launch
                                 }
                             }

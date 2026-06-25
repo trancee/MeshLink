@@ -90,12 +90,16 @@ internal fun shouldConnectAfterDiscovery(
     shouldInitiateL2cap: Boolean,
     gattSideLinkReady: Boolean,
 ): Boolean {
-    return localL2capClientSocketsSupported &&
-        transportMode == TransportMode.L2CAP &&
-        shouldInitiateL2cap &&
-        shouldInitiateDiscoveryDrivenL2capConnection(
-            localPlatformFamily = localPlatformFamily,
-            remotePlatformFamily = remotePlatformFamily,
-            gattSideLinkReady = gattSideLinkReady,
-        )
+    return when (transportMode) {
+        TransportMode.GATT -> gattSideLinkReady
+        TransportMode.L2CAP ->
+            localL2capClientSocketsSupported &&
+                shouldInitiateL2cap &&
+                shouldInitiateDiscoveryDrivenL2capConnection(
+                    localPlatformFamily = localPlatformFamily,
+                    remotePlatformFamily = remotePlatformFamily,
+                    gattSideLinkReady = gattSideLinkReady,
+                )
+        else -> false
+    }
 }

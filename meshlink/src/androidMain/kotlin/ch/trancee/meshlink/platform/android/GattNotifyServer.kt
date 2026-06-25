@@ -28,6 +28,7 @@ internal interface GattNotifyServer {
 internal class BluetoothGattNotifyServer(
     private val context: Context,
     private val peerBindings: PeerBindings,
+    private val onUnknownPeerFrame: (PeerId, String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
     private val log: (String) -> Unit,
     private val serviceReadyTimeoutMillis: Long = 2_000,
@@ -170,10 +171,15 @@ internal class BluetoothGattNotifyServer(
                     return
                 }
                 val payload = value ?: ByteArray(0)
-                val peerHintIdValue =
+                val knownPeerHintIdValue =
                     peerBindings.hintForAddress(device.address)
                         ?: peerBindings.temporaryHintForAddress(device.address)
-                val peerId = peerHintIdValue?.let(::PeerId)
+                val peerId =
+                    knownPeerHintIdValue?.let(::PeerId)
+                        ?: peerBindings.temporaryPeerId(device.address).also { temporaryPeerId ->
+                            onUnknownPeerFrame(temporaryPeerId, device.address)
+                        }
+                val peerHintIdValue = peerId.value
                 val decodedFrames = mutableListOf<ByteArray>()
                 val accepted =
                     synchronized(lock) {
