@@ -100,6 +100,8 @@ jobs:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
+    # Kotlin 2.4.0 is currently outside CodeQL's supported range, so the Kotlin analysis
+    # job stays disabled until GitHub ships support for this compiler line.
 
     strategy:
       fail-fast: false
@@ -111,40 +113,16 @@ jobs:
           - language: python
             timeout_minutes: 10
             build_mode: none
-          - language: java-kotlin
-            timeout_minutes: 20
-            build_mode: manual
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-
-      - name: Set up Java
-        if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v5.2.0
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build_mode }}
-
-      - name: Build Java/Kotlin database
-        if: matrix.language == 'java-kotlin'
-        shell: bash
-        run: |
-          # CodeQL must observe real compiler invocations, so do not let Gradle satisfy
-          # this repository-owned aggregation task from the build cache or up-to-date checks.
-          ./gradlew \
-            codeqlJavaKotlinBuild \
-            --rerun-tasks \
-            --no-build-cache \
-            --no-daemon \
-            --console=plain
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
