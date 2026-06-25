@@ -498,6 +498,7 @@ internal object MeshLinkProofRuntime {
         if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
             return true
         }
+        appendLog("route ready wait start ${describeRouteState(peerId)} source=$source")
         return withTimeoutOrNull(ROUTE_READY_WAIT_TIMEOUT_MS) {
             while (true) {
                 if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
@@ -508,10 +509,51 @@ internal object MeshLinkProofRuntime {
         }.also { result ->
             if (result != true) {
                 appendLog(
-                    "route ready wait timed out for ${peerId.value.takeLast(6)} source=$source"
+                    "route ready wait timed out ${describeRouteState(peerId)} source=$source"
                 )
             }
         } == true
+    }
+
+    private fun prewarmRoute(peerId: PeerId, source: String): Unit {
+        appendLog("BENCHMARK transport route prewarm start ${describeRouteState(peerId)} source=$source")
+        scope.launch {
+            val result =
+                runCatching {
+                    requireMeshLink().send(peerId, BENCHMARK_WARMUP_PAYLOAD.encodeToByteArray())
+                }
+            result
+                .onSuccess { sendResult ->
+                    appendLog("BENCHMARK transport route prewarm=$sendResult ${describeRouteState(peerId)} source=$source")
+                }
+                .onFailure { error ->
+                    appendLog(
+                        "BENCHMARK transport route prewarmFailed=${error.javaClass.simpleName}: ${error.message.orEmpty()} ${describeRouteState(peerId)} source=$source"
+                    )
+                }
+        }
+    }
+
+    private fun describeRouteState(peerId: PeerId): String {
+        val knownPeersSummary =
+            synchronized(knownPeers) {
+                knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
+                    "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
+                }
+            }
+        val readyPeersSummary =
+            synchronized(routeReadyPeers) {
+                routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        val pendingPeersSummary =
+            synchronized(pendingAutoSendPeers) {
+                pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        return "peer=${peerId.value.takeLast(6)} known=$knownPeersSummary ready=$readyPeersSummary pending=$pendingPeersSummary"
     }
 
     private fun maybeStartAutoHello(peerId: PeerId, source: String): Unit {
@@ -527,6 +569,9 @@ internal object MeshLinkProofRuntime {
             }
             synchronized(pendingAutoSendPeers) {
                 pendingAutoSendPeers.remove(peerId.value)
+            }
+            if (launchConfig.benchmarkPayloadBytes != null) {
+                prewarmRoute(peerId, source)
             }
             autoSendJobs[peerId.value] =
                 scope.launch {
