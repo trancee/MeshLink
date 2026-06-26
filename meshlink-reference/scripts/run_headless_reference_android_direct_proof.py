@@ -260,6 +260,14 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             for peer in peers
         )
 
+    def accepted_peer_rows(peers: list[dict[str, Any]]) -> str:
+        if not peers:
+            return "<tr><th>None</th><td>—</td></tr>"
+        return "".join(
+            f"<tr><th>{esc(peer.get('peerId'))}</th><td>addr={esc(peer.get('addr'))} · mode={esc(peer.get('mode'))} · count={esc(peer.get('count'))}</td></tr>"
+            for peer in peers
+        )
+
     def timing_rows(stage: str, data: dict[str, Any]) -> str:
         message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
         return "".join(
@@ -303,6 +311,10 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
     passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
+    sender_accepted_top_peers = sender_discovery_focus.get("topAcceptedPeers") or []
+    passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
+    sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
+    passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
     scan_summary = (
         f"sender scans {esc(sender_discovery_focus.get('scanResultCount'))} "
         f"accepted {esc(sender_discovery_focus.get('scanAcceptedCount'))} "
@@ -359,9 +371,29 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             if passive_foreign_scan_top_peers
             else "Top foreign peers: none parsed"
         )
+        top_accepted_peer_note = (
+            "Top accepted peers: sender "
+            + (
+                ", ".join(
+                    f"{peer.get('peerId')}@{peer.get('addr')}×{peer.get('count')}"
+                    for peer in sender_accepted_top_peers[:3]
+                )
+                if sender_accepted_top_peers
+                else "none parsed"
+            )
+            + " · passive "
+            + (
+                ", ".join(
+                    f"{peer.get('peerId')}@{peer.get('addr')}×{peer.get('count')}"
+                    for peer in passive_accepted_top_peers[:3]
+                )
+                if passive_accepted_top_peers
+                else "none parsed"
+            )
+        )
         foreign_scan_note = (
             "Passive discovery is dropping foreign payloads; inspect the Passive discovery focus section "
-            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}"
+            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}. {top_accepted_peer_note}."
         )
     if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
         failure_rows = [
@@ -479,6 +511,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Parse-skipped count", sender_discovery_focus.get("scanParseSkippedCount")),
                 ("Target-mismatch count", sender_discovery_focus.get("scanTargetMismatchCount")),
                 ("Accepted count", sender_discovery_focus.get("scanAcceptedCount")),
+                ("Top accepted peer id", (sender_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(sender_discovery_focus_lines)),
             ],
         ),
@@ -492,11 +525,14 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Parse-skipped count", passive_discovery_focus.get("scanParseSkippedCount")),
                 ("Target-mismatch count", passive_discovery_focus.get("scanTargetMismatchCount")),
                 ("Accepted count", passive_discovery_focus.get("scanAcceptedCount")),
+                ("Top accepted peer id", (passive_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(passive_discovery_focus_lines)),
             ],
         ),
         f"<section><h2>Passive discovery lines</h2><pre>{esc('\n'.join(passive_discovery_focus_lines) if passive_discovery_focus_lines else '—')}</pre></section>",
         f"<section><h2>Top foreign peers</h2><table>{foreign_peer_rows(passive_foreign_scan_top_peers)}</table></section>",
+        f"<section><h2>Sender top accepted peers</h2><table>{accepted_peer_rows(sender_accepted_top_peers)}</table></section>",
+        f"<section><h2>Passive top accepted peers</h2><table>{accepted_peer_rows(passive_accepted_top_peers)}</table></section>",
         "<section><h2>Completion lines</h2>",
         f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
         f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
@@ -592,6 +628,33 @@ def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str
         for (addr, remote_mesh_hash), count in counts.items()
     ]
     peers.sort(key=lambda item: (-item["count"], item["addr"], item["remoteMeshHash"]))
+    return peers[:limit]
+
+
+def summarize_accepted_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    first_seen: dict[str, dict[str, str]] = {}
+    for line in log_text.splitlines():
+        if "scan accepted " not in line:
+            continue
+        peer_match = re.search(r"peerId=([^\s]+)", line)
+        if peer_match is None:
+            continue
+        peer_id = peer_match.group(1)
+        counts[peer_id] = counts.get(peer_id, 0) + 1
+        first_seen.setdefault(
+            peer_id,
+            {
+                "peerId": peer_id,
+                "addr": re.search(r"addr=([^\s]+)", line).group(1) if re.search(r"addr=([^\s]+)", line) else "—",
+                "mode": re.search(r"mode=([^\s]+)", line).group(1) if re.search(r"mode=([^\s]+)", line) else "—",
+            },
+        )
+    peers = [
+        {"peerId": peer_id, "addr": first_seen[peer_id]["addr"], "mode": first_seen[peer_id]["mode"], "count": count}
+        for peer_id, count in counts.items()
+    ]
+    peers.sort(key=lambda item: (-item["count"], item["peerId"]))
     return peers[:limit]
 
 
@@ -1878,6 +1941,7 @@ def failure_summary(
             "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
             "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
             "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(sender_log_text),
             "lines": sender_discovery_focus_lines,
         },
         "passiveDiscoveryFocus": {
@@ -1888,6 +1952,7 @@ def failure_summary(
             "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
             "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         },
         "startupState": completions.startup_state,
@@ -2204,6 +2269,7 @@ def main(argv: list[str] | None = None) -> int:
             "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
             "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
             "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(sender_log_text),
             "lines": sender_discovery_focus_lines,
         }
         summary["passiveDiscoveryFocus"] = {
@@ -2214,6 +2280,7 @@ def main(argv: list[str] | None = None) -> int:
             "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
             "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         }
         summary["timings"].update(
