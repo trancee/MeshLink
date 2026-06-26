@@ -125,8 +125,9 @@ internal object MeshLinkProofRuntime {
                 clearPersistedLogs()
                 val keyHashSuffix =
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
+                val initiatorMode = if (resolvedLaunchConfig.forceInitiator) "forced" else "hash"
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} benchmarkTransport=${resolvedLaunchConfig.benchmarkTransport ?: "meshlink"}$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} benchmarkTransport=${resolvedLaunchConfig.benchmarkTransport ?: "meshlink"} initiatorMode=$initiatorMode$keyHashSuffix",
                 )
             }
         }
@@ -296,6 +297,7 @@ internal object MeshLinkProofRuntime {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog("Peer found: ${event.peerId.value} (${event.state})")
+                appendLog("peer state snapshot ${describeRouteState(event.peerId)} source=found")
                 scheduleAutoHello(event.peerId, event.state, "found")
             }
             is PeerEvent.Lost -> {
@@ -318,6 +320,7 @@ internal object MeshLinkProofRuntime {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog("Peer state changed: ${event.peerId.value} -> ${event.state}")
+                appendLog("peer state snapshot ${describeRouteState(event.peerId)} source=state-changed")
                 scheduleAutoHello(event.peerId, event.state, "state-changed")
             }
         }
@@ -336,8 +339,23 @@ internal object MeshLinkProofRuntime {
                     }
             }
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
-        if (event.code == DiagnosticCode.ROUTE_DISCOVERED || event.code == DiagnosticCode.HOP_SESSION_ESTABLISHED) {
-            markRouteReady(event.peerSuffix, event.code.name)
+        when (event.code) {
+            DiagnosticCode.ROUTE_DISCOVERED,
+            DiagnosticCode.HOP_SESSION_ESTABLISHED -> markRouteReady(event.peerSuffix, event.code.name)
+            DiagnosticCode.TRUST_ESTABLISHED -> {
+                val peerIdValue = event.metadata["peerId"]
+                if (peerIdValue != null) {
+                    appendLog("trust state snapshot ${describeRouteState(PeerId(peerIdValue))} source=${event.code.name}")
+                }
+            }
+            DiagnosticCode.HOP_SESSION_FAILED,
+            DiagnosticCode.NO_ROUTE_AVAILABLE -> {
+                val peerIdValue = event.metadata["peerId"]
+                if (peerIdValue != null) {
+                    appendLog("route failure state ${describeRouteState(PeerId(peerIdValue))} source=${event.code.name}")
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -682,6 +700,9 @@ internal object MeshLinkProofRuntime {
     }
 
     private fun shouldInitiateHello(peerId: PeerId): Boolean {
+        if (launchConfig.forceInitiator) {
+            return true
+        }
         val localKeyHash = localAdvertisementKeyHash ?: return false
         return localKeyHash.lexicographicallyPrecedesHexString(peerId.value)
     }

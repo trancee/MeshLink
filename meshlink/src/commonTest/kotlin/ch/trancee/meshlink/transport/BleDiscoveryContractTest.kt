@@ -384,7 +384,7 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `mixed android ios pairs are eligible for the gatt notify side bearer`() {
+    fun `known android and ios pairs are eligible for the gatt notify side bearer`() {
         // Arrange / Act
         val androidToIos =
             shouldUseMixedPlatformGattNotifyBearer(
@@ -405,7 +405,7 @@ class BleDiscoveryContractTest {
         // Assert
         assertTrue(androidToIos)
         assertTrue(iosToAndroid)
-        assertTrue(!samePlatform)
+        assertTrue(samePlatform)
     }
 
     @Test
@@ -444,9 +444,9 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `mixed platform peers skip discovery driven l2cap reconnects while gatt is ready`() {
+    fun `mixed platform peers still allow discovery driven l2cap connects while gatt is ready`() {
         // Arrange
-        val expected = false
+        val expected = true
 
         // Act
         val actual =
@@ -495,7 +495,30 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `same platform transfer ack preference still falls back to l2cap`() {
+    fun `same platform peers still keep the gatt notify bearer available`() {
+        // Arrange
+        val expected = true
+
+        // Act
+        val androidPair =
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+        val iosPair =
+            shouldUseMixedPlatformGattNotifyBearer(
+                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
+                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+
+        // Assert
+        assertTrue(androidPair)
+        assertTrue(iosPair)
+        assertEquals(expected, androidPair && iosPair)
+    }
+
+    @Test
+    fun `same platform peers still resolve to gatt fallback when l2cap is supported`() {
         // Arrange
         val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
 
@@ -504,7 +527,8 @@ class BleDiscoveryContractTest {
             resolveGattDataBearerMode(
                 localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
                 remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                preferredMode = TransportMode.GATT,
+                preferredMode = null,
+                localL2capClientSocketsSupported = true,
             )
 
         // Assert

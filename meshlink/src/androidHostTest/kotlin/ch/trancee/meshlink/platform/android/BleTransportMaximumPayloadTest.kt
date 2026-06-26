@@ -23,7 +23,7 @@ class BleTransportMaximumPayloadTest {
     }
 
     @Test
-    fun resolveMaximumPayloadBytesPerDeliveryReturnsL2capBudgetForSamePlatformPeers(): Unit {
+    fun resolveMaximumPayloadBytesPerDeliveryReturnsGattLimitForSamePlatformPeers(): Unit {
         // Arrange
         val l2capMaxTransmitPacketSize = 185
 
@@ -36,11 +36,11 @@ class BleTransportMaximumPayloadTest {
             )
 
         // Assert
-        assertEquals(l2capMaxTransmitPacketSize, maximumPayloadBytes)
+        assertEquals(GattNotifyClient.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
     }
 
     @Test
-    fun resolveMaximumPayloadBytesPerDeliveryKeepsNullWhenNoL2capBudgetExists(): Unit {
+    fun resolveMaximumPayloadBytesPerDeliveryKeepsGattWhenNoL2capBudgetExists(): Unit {
         // Arrange / Act
         val maximumPayloadBytes =
             resolveMaximumPayloadBytesPerDelivery(
@@ -50,6 +50,6 @@ class BleTransportMaximumPayloadTest {
             )
 
         // Assert
-        assertEquals(null, maximumPayloadBytes)
+        assertEquals(GattNotifyClient.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
     }
 }

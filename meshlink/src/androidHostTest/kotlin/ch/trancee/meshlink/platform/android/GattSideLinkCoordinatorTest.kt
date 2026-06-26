@@ -9,10 +9,12 @@ import kotlin.test.assertNull
 
 class GattSideLinkCoordinatorTest {
     @Test
-    fun ensureStartedSkipsPeersThatDoNotNeedTheMixedPlatformGattSideLink(): Unit {
+    fun ensureStartedCreatesAndStartsANewClientForSamePlatformL2capPeers(): Unit {
         // Arrange
         val fixture = GattSideLinkCoordinatorFixture()
         val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.ANDROID)
+        val client = FakeGattSideLinkClient(ready = false)
+        fixture.enqueueClient(client)
 
         // Act
         fixture.coordinator.ensureStarted(
@@ -21,8 +23,9 @@ class GattSideLinkCoordinatorTest {
         )
 
         // Assert
-        assertEquals(0, fixture.createClientCalls)
-        assertNull(fixture.coordinator.currentClient(peer.hintPeerId.value))
+        assertEquals(1, fixture.createClientCalls)
+        assertEquals(1, client.startCalls)
+        assertEquals(true, fixture.coordinator.currentClient(peer.hintPeerId.value) != null)
     }
 
     @Test

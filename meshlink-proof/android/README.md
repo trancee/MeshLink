@@ -92,6 +92,7 @@ The Android proof app reads these intent extras on launch:
 | `meshlink.benchmarkColdStart` | bool | Enables the cold-start benchmark path |
 | `meshlink.disableAutoSend` | bool | Suppresses the automatic benchmark send |
 | `meshlink.benchmarkTransport` | string | `meshlink`, `gatt`, or `gatt-notify` |
+| `meshlink.forceInitiator` | bool | Forces the proof peer to take the initiator role |
 
 Example: start the app in a dedicated proof mesh domain with performance mode.
 
@@ -121,6 +122,15 @@ adb shell am start \
   --ez meshlink.disableAutoSend true
 ```
 
+Example: force the Huawei proof peer into the initiator role for balanced proof runs.
+
+```bash
+adb shell am start \
+  -n ch.trancee.meshlink.proof.android/.MainActivity \
+  --es meshlink.appId demo.meshlink \
+  --ez meshlink.forceInitiator true
+```
+
 ## 4. Choose the transport mode deliberately
 
 The Android proof app can start in three transport modes.
@@ -129,7 +139,7 @@ Use them for different claims.
 | Value | Meaning | Use it when you need to... | Important boundary |
 |---|---|---|---|
 | `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
-| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise GATT-only route discovery when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
+| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise the GATT route-discovery fallback when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
 | `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
 
 In normal `meshlink` mode, the proof app gives you:

@@ -172,7 +172,7 @@ class ScanResultSupportTest {
         assertEquals(false, gattOnlyResult)
         assertEquals(true, gattReadyResult)
         assertEquals(false, waitingForInboundResult)
-        assertEquals(false, mixedPlatformReadyResult)
+        assertEquals(true, mixedPlatformReadyResult)
         assertEquals(false, unsupportedSdkResult)
         assertEquals(true, eligibleResult)
     }

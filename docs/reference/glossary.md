@@ -98,7 +98,7 @@ ends.
 the BLE attribute-oriented transport model used for reads, writes, and
 notifications.
 
-**Notes:** Contrasted most often with MeshLink's L2CAP-first transport posture.
+**Notes:** Contrasted most often with MeshLink's L2CAP-preferred transport posture.
 
 ### `GATT-notify side bearer`
 
@@ -257,5 +257,5 @@ identity.
 - [MeshLink reference app overview](../../meshlink-reference/README.md)
 - [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md)
 - [The trust model](../explanation/trust-model.md)
-- [About the L2CAP-first transport posture](../explanation/why-l2cap-first.md)
+- [About the L2CAP-preferred transport posture](../explanation/why-l2cap-first.md)
 - [How to use MeshLink from Swift](../how-to/use-meshlink-from-swift.md)

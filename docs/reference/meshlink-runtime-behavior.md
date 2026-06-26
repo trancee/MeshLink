@@ -272,6 +272,7 @@ flowchart TD
 | payload limit | `64 KiB` maximum |
 | retry persistence | in memory only |
 | transport selection ownership | MeshLink owns bearer, route, and next-hop selection behind one send contract |
+| bearer posture | L2CAP is preferred when available; GATT stays enabled as a concurrent fallback/side bearer when supported |
 | trust continuity | persisted locally; not replaced silently on mismatch |
 | event replay | only `state` replays the latest value |
 

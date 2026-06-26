@@ -1,13 +1,15 @@
-# About the L2CAP-first transport posture
+# About the L2CAP-preferred transport posture
 
-MeshLink still thinks in L2CAP-first terms, where L2CAP is the
-channel-oriented BLE bearer MeshLink prefers, even though the current mixed
-Android/iOS product path can use an iPhone-hosted GATT-notify side bearer for
-part of the large-transfer path.
+MeshLink keeps L2CAP as the preferred channel-oriented bearer for normal
+connections, while keeping GATT active at the same time whenever the platform
+supports it. Android and iOS now run the GATT side bearer alongside L2CAP so
+older peers can still connect through GATT while newer peers continue to prefer
+L2CAP when both are available.
 
 That distinction matters. The mixed-bearer work did not replace the transport
-model with a GATT-first design. It refined the edges of an L2CAP-first design
-after physical evidence showed where the platform boundary was actually costly.
+model with a GATT-first design. It refined the edges of an L2CAP-preferred
+design after physical evidence showed where the platform boundary was actually
+costly.
 
 ## The stable idea
 
@@ -26,19 +28,19 @@ For a mesh SDK, those are architectural properties, not minor optimizations.
 The mixed-bearer follow-up was driven by measured Android/iOS behavior, not by a
 new product philosophy.
 
-The runtime still prefers to discover, identify, and connect peers in an
-L2CAP-first way. What changed is that some mixed-platform links proved more
-stable and faster when the iPhone stayed in the peripheral-hosted role for the
-large-transfer drain path.
+The runtime still prefers to discover, identify, and connect peers with
+L2CAP as the default direct bearer. What changed is that GATT now stays active
+at the same time whenever the platform supports it, so a peer can still connect
+through the GATT side bearer when L2CAP is unavailable or not yet ready.
 
 So the current posture is:
 
 - same-platform peers should still look like direct L2CAP peers
-- mixed Android/iOS peers still begin from the L2CAP-first policy
-- the runtime may then select the iPhone-hosted GATT-notify side bearer where
-  that data-plane path is measurably better
+- mixed Android/iOS peers keep GATT available alongside L2CAP
+- the runtime may prefer the GATT side bearer where that path is needed for
+  compatibility or fallback delivery
 
-That is a refinement of an L2CAP-first design, not a retreat from it.
+That is a refinement of an L2CAP-preferred design, not a retreat from it.
 
 ## Why MeshLink never wanted to be GATT-only
 

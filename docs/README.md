@@ -65,7 +65,7 @@ If you are not sure where to start, use one of these short paths.
 3. [About how MeshLink works](explanation/about-how-meshlink-works.md)
 4. [The trust model](explanation/trust-model.md)
 5. [The peer lifecycle model](explanation/peer-lifecycle.md)
-6. [About the L2CAP-first transport posture](explanation/why-l2cap-first.md)
+6. [About the L2CAP-preferred transport posture](explanation/why-l2cap-first.md)
 
 ### Contributor architecture
 
@@ -147,7 +147,7 @@ guessing which page owns which model.
 
 ### Routing and transport
 
-- [About the L2CAP-first transport posture](explanation/why-l2cap-first.md) — why MeshLink still thinks in L2CAP-first terms.
+- [About the L2CAP-preferred transport posture](explanation/why-l2cap-first.md) — why MeshLink prefers L2CAP while keeping GATT available alongside it.
 - [Cut-through relay](explanation/cut-through-relay.md) — why relays prefer forwarding without full reassembly.
 - [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md) — what recent real-device runs taught us.
 - [Understanding Babel routing](explanation/understanding-babel-routing.md) — the routing ideas MeshLink borrows and adapts.

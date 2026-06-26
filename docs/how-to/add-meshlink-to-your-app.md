@@ -174,7 +174,8 @@ required native crypto bridge:
 
 - `CryptoBridge` is required
 - `BleTransportBridge` is optional and only needed for the iPhone-hosted
-  GATT-notify side bearer
+  GATT-notify side bearer; when present, it keeps GATT available alongside
+  L2CAP rather than replacing it
 
 Use [How to use MeshLink from Swift](use-meshlink-from-swift.md) for the exact
 Swift-facing API and bridge-install pattern.

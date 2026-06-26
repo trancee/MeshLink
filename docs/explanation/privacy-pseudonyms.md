@@ -80,4 +80,4 @@ rotating-pseudonym design.
 - [The trust model](trust-model.md)
 - [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)
 - [Regulatory compliance and region clamping](regulatory-compliance.md)
-- [About the L2CAP-first transport posture](why-l2cap-first.md)
+- [About the L2CAP-preferred transport posture](why-l2cap-first.md)

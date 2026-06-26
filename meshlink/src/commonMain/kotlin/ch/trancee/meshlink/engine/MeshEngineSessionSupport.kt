@@ -194,7 +194,7 @@ internal class MeshEngineSessionSupport(
                 peerId,
                 stage,
                 DiagnosticReason.DELIVERY_FAILURE,
-                emptyMap(),
+                mapOf("peerId" to peerId.value, "pendingHandshake" to "initiator"),
             )
         }
         return pendingHandshake.sessionDeferred.completedOutcomeOr(
