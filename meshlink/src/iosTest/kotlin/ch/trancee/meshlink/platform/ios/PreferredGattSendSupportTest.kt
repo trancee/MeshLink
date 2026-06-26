@@ -32,7 +32,7 @@ class PreferredGattSendSupportTest {
     }
 
     @Test
-    fun sendViaPreferredGattNotifyLinkOrNullSkipsSamePlatformDataFramesWithoutGattPreference():
+    fun sendViaPreferredGattNotifyLinkOrNullUsesGattFallbackForSamePlatformDataFrames():
         Unit = runBlocking {
         // Arrange
         val fixture =
@@ -48,8 +48,8 @@ class PreferredGattSendSupportTest {
             fixture.run(frame = frame, link = FakePreferredGattSendLink(enqueueResult = true))
 
         // Assert
-        assertNull(result)
-        assertEquals(0, fixture.currentLinkCalls)
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, fixture.currentLinkCalls)
     }
 
     @Test
