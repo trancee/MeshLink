@@ -22,6 +22,7 @@ Two exploratory wrapper attempts failed before the final sweep because the matri
 | Stopped early | no |
 | Stop reason | none |
 | Aggregate foreign-scan noise | sender ignored 54 · passive ignored 2347 |
+| Root-level smoke check | passed; repo-root CLI invocation confirmed, 1 pair capture-stalled |
 
 ## What happened
 
@@ -47,6 +48,8 @@ Every pair failed for the same underlying reason: **capture stall before route e
 ### Interpretation
 
 This is not a launch/install problem anymore. The fleet can start the proof app, but the mesh does not converge far enough for the proof harness to observe route readiness or a peer-discovery handoff. The repeated failure signature suggests a transport / discovery / environment issue rather than a device-specific crash.
+
+The foreign-scan pattern is asymmetric: sender ignored counts stay at zero, while passive ignored counts are high on the fleet run and still non-zero on the smoke run. That is consistent with passive-side discovery chatter or environmental noise on the receiving devices rather than symmetrical mesh churn. The drop from 62 ignored scans in the smoke run's initial pass to 3 in the final pass suggests the passive side quieted after discovery settled, but not enough for route readiness to appear.
 
 ## Root-level smoke check
 
