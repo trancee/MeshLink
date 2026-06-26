@@ -178,7 +178,7 @@ private fun createPublicMeshLinkController(
     return controller
 }
 
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 private class PublicMeshLinkController(
     private val meshLinkRuntimeFactory: () -> MeshLink,
     private val currentTimeMillis: () -> Long,

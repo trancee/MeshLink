@@ -303,6 +303,16 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
     passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
+    scan_summary = (
+        f"sender scans {esc(sender_discovery_focus.get('scanResultCount'))} "
+        f"accepted {esc(sender_discovery_focus.get('scanAcceptedCount'))} "
+        f"parse-skipped {esc(sender_discovery_focus.get('scanParseSkippedCount'))} "
+        f"target-mismatch {esc(sender_discovery_focus.get('scanTargetMismatchCount'))} · "
+        f"passive scans {esc(passive_discovery_focus.get('scanResultCount'))} "
+        f"accepted {esc(passive_discovery_focus.get('scanAcceptedCount'))} "
+        f"parse-skipped {esc(passive_discovery_focus.get('scanParseSkippedCount'))} "
+        f"target-mismatch {esc(passive_discovery_focus.get('scanTargetMismatchCount'))}"
+    )
 
     execution_timeline_html = ""
     if any(
@@ -406,6 +416,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         f"<h1>Android direct-proof summary <span class=\"badge {badge_class}\">{esc(status)}</span></h1>",
         f"<p class=\"muted\">App ID: {esc(payload.get('appId'))} · Scenario: {esc(payload.get('scenario'))} · Report: {esc(payload.get('htmlReportPath'))}</p>",
         f"<p class=\"muted\">Foreign scan summary: sender ignored {esc((payload.get('senderDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))} · passive ignored {esc((payload.get('passiveDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))}</p>",
+        f"<p class=\"muted\">Scan-path summary: {scan_summary}</p>",
         kv_table(
             "Overview",
             [
@@ -464,6 +475,10 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             [
                 ("Peer id", sender_discovery_focus.get("peerId")),
                 ("Foreign scan ignored count", sender_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Scan result count", sender_discovery_focus.get("scanResultCount")),
+                ("Parse-skipped count", sender_discovery_focus.get("scanParseSkippedCount")),
+                ("Target-mismatch count", sender_discovery_focus.get("scanTargetMismatchCount")),
+                ("Accepted count", sender_discovery_focus.get("scanAcceptedCount")),
                 ("Matching line count", len(sender_discovery_focus_lines)),
             ],
         ),
@@ -473,6 +488,10 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             [
                 ("Peer id", passive_discovery_focus.get("peerId")),
                 ("Foreign scan ignored count", passive_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Scan result count", passive_discovery_focus.get("scanResultCount")),
+                ("Parse-skipped count", passive_discovery_focus.get("scanParseSkippedCount")),
+                ("Target-mismatch count", passive_discovery_focus.get("scanTargetMismatchCount")),
+                ("Accepted count", passive_discovery_focus.get("scanAcceptedCount")),
                 ("Matching line count", len(passive_discovery_focus_lines)),
             ],
         ),
@@ -539,6 +558,22 @@ def count_foreign_scan_ignored_lines(log_text: str) -> int:
         for line in log_text.splitlines()
         if "ignoring discovery payload with mismatched meshHash" in line
     )
+
+
+def count_scan_result_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan result#" in line)
+
+
+def count_scan_parse_skipped_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan discovery skipped" in line)
+
+
+def count_scan_target_mismatch_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan discovery target mismatch" in line)
+
+
+def count_scan_accepted_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan accepted " in line)
 
 
 def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
@@ -1839,11 +1874,19 @@ def failure_summary(
         "senderDiscoveryFocus": {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "scanResultCount": count_scan_result_lines(sender_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
             "lines": sender_discovery_focus_lines,
         },
         "passiveDiscoveryFocus": {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "scanResultCount": count_scan_result_lines(passive_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         },
@@ -2157,11 +2200,19 @@ def main(argv: list[str] | None = None) -> int:
         summary["senderDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "scanResultCount": count_scan_result_lines(sender_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
             "lines": sender_discovery_focus_lines,
         }
         summary["passiveDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "scanResultCount": count_scan_result_lines(passive_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         }

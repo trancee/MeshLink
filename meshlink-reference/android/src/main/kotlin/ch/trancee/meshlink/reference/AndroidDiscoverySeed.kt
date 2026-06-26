@@ -12,6 +12,7 @@ private const val SHARED_PREFS_PREFIX = "meshlink-"
 private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
 private const val RETAINED_DISCOVERY_SEED_WAIT_MILLIS = 5_000L
 private const val RETAINED_DISCOVERY_SEED_POLL_MILLIS = 250L
+private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 20
 
 internal fun launchRetainedDiscoverySeedProbe(
     context: Context,
@@ -68,9 +69,12 @@ private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): Stri
         val digest = MessageDigest.getInstance("SHA-256")
         val publicKeyHash =
             digest.digest(
-                Base64.decode(ed25519Public, Base64.NO_WRAP) + Base64.decode(x25519Public, Base64.NO_WRAP)
+                Base64.decode(ed25519Public, Base64.NO_WRAP) +
+                    Base64.decode(x25519Public, Base64.NO_WRAP)
             )
-        publicKeyHash.copyOfRange(0, 20).joinToString(separator = "") { byte -> "%02x".format(byte) }
+        publicKeyHash
+            .copyOfRange(0, RETAINED_DISCOVERY_PEER_ID_BYTES)
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
     }.getOrNull()
 }
 
