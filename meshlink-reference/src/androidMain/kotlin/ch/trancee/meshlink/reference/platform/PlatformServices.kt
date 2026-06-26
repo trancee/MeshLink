@@ -93,6 +93,7 @@ public fun createLiveAutomationPlatformServices(
                 nowProvider = clock
                 this.appId = automationAppId
                 meshLinkBootstrap = meshLinkBootstrap(context)
+                automationTargetPeerId = targetPeerId
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 powerMitigationStatus =
                     "Foreground wake lock active for live-proof automation sessions."

@@ -1,9 +1,11 @@
 package ch.trancee.meshlink.reference
 
 import android.content.Context
+import android.util.Base64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
 
 private const val RETAINED_DISCOVERY_SEED_FILE = "automation-discovery-seed.txt"
 private const val SHARED_PREFS_PREFIX = "meshlink-"
@@ -29,9 +31,10 @@ internal fun launchRetainedDiscoverySeedProbe(
             )
             return@launch
         }
-        writeRetainedDiscoverySeedArtifact(context, seed)
+        val peerId = deriveRetainedDiscoveryPeerId(context, appId) ?: seed
+        writeRetainedDiscoverySeedArtifact(context, peerId)
         emitAutomationLog(
-            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$seed source=shared_prefs",
+            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$peerId source=shared_prefs",
         )
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$seed",
@@ -41,8 +44,7 @@ internal fun launchRetainedDiscoverySeedProbe(
 
 internal fun readRetainedDiscoverySeed(context: Context, appId: String): String? {
     val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
-    val identityKey = "identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX"
-    val directSeed = sharedPrefs.getString(identityKey, null)?.trim().orEmpty()
+    val directSeed = sharedPrefs.getString("identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX", null)?.trim().orEmpty()
     if (directSeed.isNotBlank()) {
         return directSeed
     }
@@ -51,6 +53,25 @@ internal fun readRetainedDiscoverySeed(context: Context, appId: String): String?
             entry.value is String &&
             (entry.value as String).isNotBlank()
     }?.value as? String
+}
+
+private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): String? {
+    val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
+    val ed25519Public =
+        sharedPrefs.getString("identity:$appId:ed25519-public", null)?.trim().orEmpty()
+    val x25519Public =
+        sharedPrefs.getString("identity:$appId:x25519-public", null)?.trim().orEmpty()
+    if (ed25519Public.isBlank() || x25519Public.isBlank()) {
+        return null
+    }
+    return runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val publicKeyHash =
+            digest.digest(
+                Base64.decode(ed25519Public, Base64.NO_WRAP) + Base64.decode(x25519Public, Base64.NO_WRAP)
+            )
+        publicKeyHash.copyOfRange(0, 20).joinToString(separator = "") { byte -> "%02x".format(byte) }
+    }.getOrNull()
 }
 
 private suspend fun waitForRetainedDiscoverySeed(context: Context, appId: String): String? {

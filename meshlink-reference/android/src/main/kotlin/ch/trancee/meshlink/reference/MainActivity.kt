@@ -86,10 +86,11 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val extras = intent?.extras
         val automationAppId = extras?.getString(EXTRA_APP_ID) ?: "unknown"
+        val targetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
         logActivityStage("onCreate")
         logAutomationStartupStage(extras)
 
-        val platformServices = createPlatformServices(applicationContext, automationAppId)
+        val platformServices = createPlatformServices(applicationContext, automationAppId, targetPeerId)
         launchRetainedDiscoverySeedProbe(
             context = applicationContext,
             appId = automationAppId,

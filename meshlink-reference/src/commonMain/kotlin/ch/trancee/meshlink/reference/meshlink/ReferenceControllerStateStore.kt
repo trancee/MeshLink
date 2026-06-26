@@ -15,6 +15,7 @@ internal class ReferenceControllerStateStore(
     initialSnapshot: ReferenceControllerSnapshot,
     private val sessionId: String,
     private val nowProvider: () -> Long,
+    internal val automationTargetPeerId: String? = null,
 ) {
     private val snapshotFlow: MutableStateFlow<ReferenceControllerSnapshot> =
         MutableStateFlow(initialSnapshot)
@@ -23,6 +24,10 @@ internal class ReferenceControllerStateStore(
 
     internal val currentSnapshot: ReferenceControllerSnapshot
         get() = snapshotFlow.value
+
+    internal fun shouldTrackPeer(peerId: String): Boolean {
+        return automationTargetPeerId.isNullOrBlank() || automationTargetPeerId == peerId
+    }
 
     internal fun updateSession(
         meshStateLabel: Any? = UnchangedSessionField,

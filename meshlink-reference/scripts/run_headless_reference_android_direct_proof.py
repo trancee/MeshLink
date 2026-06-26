@@ -69,6 +69,7 @@ def is_wireless_android_serial(android_serial: str) -> bool:
 
 POST_RESULT_IDLE_SECONDS = 2.0
 POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
+POST_PASSIVE_START_SETTLE_SECONDS = 5.0
 LOGCAT_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<month>\d{2})-(?P<day>\d{2}) (?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?:\.(?P<millis>\d{3}))?"
 )
@@ -995,12 +996,12 @@ def transport_failure_reason(run_dir: Path) -> str | None:
                 "Android direct proof discovered a peer but never emitted a route-stage marker; "
                 "sender stalled before route stabilization"
             )
-    if "sender.discovery.stalled role=" in combined_log_lower or "sender.discovery.pending role=" in combined_log_lower:
+    if "sender.discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof sender stalled before peer discovery; "
             "classified as a capture stall"
         )
-    if "discovery.stalled role=" in combined_log_lower or "discovery.pending role=" in combined_log_lower:
+    if "discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof reached startup but discovery stalled before peer discovery or route readiness; "
             "classified as a capture stall"
@@ -1441,9 +1442,9 @@ def resolve_sender_target_peer_id(
     discovered_peer_id: str | None,
     target_peer_id: str | None,
 ) -> str | None:
-    sender_target_peer_id = wait_for_discovered_peer_id(passive_marker_path, discovery_wait_seconds)
+    sender_target_peer_id = discovered_peer_id or target_peer_id
     if sender_target_peer_id is None:
-        sender_target_peer_id = discovered_peer_id or target_peer_id
+        sender_target_peer_id = wait_for_discovered_peer_id(passive_marker_path, discovery_wait_seconds)
     return sender_target_peer_id
 
 
@@ -1997,6 +1998,8 @@ def main(argv: list[str] | None = None) -> int:
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
+                if passive_transport_observation["observed"]:
+                    time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
@@ -2040,6 +2043,8 @@ def main(argv: list[str] | None = None) -> int:
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
+                if passive_transport_observation["observed"]:
+                    time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"

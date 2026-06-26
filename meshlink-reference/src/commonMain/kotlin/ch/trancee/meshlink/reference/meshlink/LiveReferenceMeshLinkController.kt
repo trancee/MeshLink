@@ -16,6 +16,7 @@ internal class LiveReferenceMeshLinkController(
     private val nowProvider: () -> Long,
     private val surfaceOfOrigin: String = "main-guided",
     private val meshLinkBootstrap: MeshLinkBootstrap? = null,
+    private val automationTargetPeerId: String? = null,
     private val runtimeLogger: (String) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : ReferenceMeshLinkController {
@@ -34,6 +35,7 @@ internal class LiveReferenceMeshLinkController(
                 ),
             sessionId = sessionId,
             nowProvider = nowProvider,
+            automationTargetPeerId = automationTargetPeerId,
         )
     private val runtime: LiveReferenceMeshRuntime =
         LiveReferenceMeshRuntime(

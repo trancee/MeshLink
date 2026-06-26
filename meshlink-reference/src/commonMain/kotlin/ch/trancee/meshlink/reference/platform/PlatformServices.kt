@@ -34,6 +34,7 @@ public class DefaultPlatformServicesOptions {
     public var documentStore: Any? = null
     public var readinessBlockers: List<String> = emptyList()
     public var powerMitigationStatus: String? = null
+    public var automationTargetPeerId: String? = null
     public var automationLogger: (String) -> Unit = {}
     public var meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? = null
     public var stopPowerMitigation: () -> Unit = {}
@@ -52,6 +53,7 @@ public class DefaultPlatformServices(
     override val documentStore: Any? = options.documentStore
     override val readinessBlockers: List<String> = options.readinessBlockers
     override val powerMitigationStatus: String? = options.powerMitigationStatus
+    private val automationTargetPeerId: String? = options.automationTargetPeerId
     private val automationLogger: (String) -> Unit = options.automationLogger
     private val stopPowerMitigationAction: () -> Unit = options.stopPowerMitigation
     private val meshLinkControllerFactory: ((String) -> ReferenceMeshLinkController)? =
@@ -73,6 +75,7 @@ public class DefaultPlatformServices(
                         nowProvider = nowProvider,
                         surfaceOfOrigin = surfaceOfOrigin,
                         meshLinkBootstrap = meshLinkBootstrap,
+                        automationTargetPeerId = automationTargetPeerId,
                         runtimeLogger = automationLogger,
                     )
                 }

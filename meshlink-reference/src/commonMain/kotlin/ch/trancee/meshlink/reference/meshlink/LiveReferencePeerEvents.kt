@@ -50,6 +50,9 @@ private fun handlePeerFound(
     nowProvider: () -> Long,
     event: PeerEvent.Found,
 ): Unit {
+    if (!stateStore.shouldTrackPeer(event.peerId.value)) {
+        return
+    }
     val peerSnapshot = discoveredPeerSnapshot(event = event, nowProvider = nowProvider)
 
     stateStore.updatePeers { peers ->

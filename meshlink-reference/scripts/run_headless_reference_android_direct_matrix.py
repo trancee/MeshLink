@@ -191,6 +191,15 @@ def select_pair_transport(
     return DEFAULT_PRIMARY_TRANSPORT, None
 
 
+def clear_reference_app_data(android_serial: str) -> None:
+    command = ["adb", "-s", android_serial, "shell", "pm", "clear", "ch.trancee.meshlink.reference"]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    message = stdout or stderr or "(no output)"
+    print(f"==> Android clear app data result ({shell_join(command)}): {message}", flush=True)
+
+
 def run_pair(
     *,
     sender: str,
@@ -202,6 +211,7 @@ def run_pair(
     android_ready_seconds: float,
     pair_timeout_seconds: float,
     skip_install: bool,
+    passive_benchmark_transport: str | None = None,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -225,6 +235,8 @@ def run_pair(
         command.append("--skip-android-install")
     if target_peer_id is not None:
         command.extend(["--target-peer-id", target_peer_id])
+    if passive_benchmark_transport is not None:
+        command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
 
     print(f"==> Running: {shell_join(command)}", flush=True)
     started_at = time.monotonic()
@@ -910,6 +922,9 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
+        clear_reference_app_data(pair["sender"])
+        clear_reference_app_data(pair["passive"])
+        passive_benchmark_transport = "gatt" if passive_api_level is not None and passive_api_level < 34 else None
         initial = run_pair(
             sender=pair["sender"],
             passive=pair["passive"],
@@ -920,6 +935,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
         target_peer_id = None
         peer_lookup_seconds = None
@@ -951,6 +967,7 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=True,
+            passive_benchmark_transport=passive_benchmark_transport,
         )
 
         row = {

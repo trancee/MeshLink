@@ -305,6 +305,28 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertIn("stalled at route stage", reason)
             self.assertIn("passive=handshake-message1-send", reason)
 
+    def test_transport_failure_reason_does_not_treat_pending_discovery_as_terminal(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "06-21 13:29:07.900  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION discovery.pending role=PASSIVE count=0 selectedPeerId=none elapsedSeconds=0.0\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.transport_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNone(reason)
+
     def test_transport_failure_reason_ignores_route_discovered_success(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -382,7 +404,7 @@ class AndroidDirectProofTests(unittest.TestCase):
         )
         self.assertEqual(read_mock.call_count, 2)
 
-    def test_resolve_sender_target_peer_id_uses_passive_discovery_marker_before_fallbacks(self) -> None:
+    def test_resolve_sender_target_peer_id_prefers_discovered_peer_id(self) -> None:
         # Arrange
         with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value="marker-peer-123") as wait_mock:
             # Act
@@ -394,22 +416,37 @@ class AndroidDirectProofTests(unittest.TestCase):
             )
 
         # Assert
-        self.assertEqual(peer_id, "marker-peer-123")
-        wait_mock.assert_called_once_with(Path("/tmp/passive-logcat.log"), 20.0)
+        self.assertEqual(peer_id, "fallback-peer-456")
+        wait_mock.assert_not_called()
 
-    def test_resolve_sender_target_peer_id_falls_back_to_discovered_peer_id(self) -> None:
+    def test_resolve_sender_target_peer_id_falls_back_to_target_peer_id(self) -> None:
         # Arrange
         with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value=None) as wait_mock:
             # Act
             peer_id = android_direct_proof.resolve_sender_target_peer_id(
                 Path("/tmp/passive-logcat.log"),
                 20.0,
-                discovered_peer_id="fallback-peer-456",
+                discovered_peer_id=None,
                 target_peer_id="target-peer-789",
             )
 
         # Assert
-        self.assertEqual(peer_id, "fallback-peer-456")
+        self.assertEqual(peer_id, "target-peer-789")
+        wait_mock.assert_not_called()
+
+    def test_resolve_sender_target_peer_id_uses_passive_discovery_marker_as_last_resort(self) -> None:
+        # Arrange
+        with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value="marker-peer-123") as wait_mock:
+            # Act
+            peer_id = android_direct_proof.resolve_sender_target_peer_id(
+                Path("/tmp/passive-logcat.log"),
+                20.0,
+                discovered_peer_id=None,
+                target_peer_id=None,
+            )
+
+        # Assert
+        self.assertEqual(peer_id, "marker-peer-123")
         wait_mock.assert_called_once_with(Path("/tmp/passive-logcat.log"), 20.0)
 
     def test_launch_android_sender_role_app_uses_resolved_seed(self) -> None:
