@@ -66,7 +66,7 @@ class BleTransportMaximumPayloadTest {
     }
 
     @Test
-    fun maximumPayloadBytesPerDeliveryReturnsNullForSamePlatformPeersEvenWhenBridgeExists(): Unit {
+    fun maximumPayloadBytesPerDeliveryReturnsGattLimitForSamePlatformPeersEvenWhenBridgeExists(): Unit {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-ios")
@@ -87,7 +87,7 @@ class BleTransportMaximumPayloadTest {
         val maximumPayloadBytes = transport.maximumPayloadBytesPerDelivery(peerId)
 
         // Assert
-        assertNull(maximumPayloadBytes)
+        assertEquals(GattNotifyLink.maximumPayloadBytesPerDelivery(), maximumPayloadBytes)
     }
 }
 

@@ -69,7 +69,7 @@ class BleTransportGattFallbackPolicyTest {
     }
 
     @Test
-    fun selectGattNotifyHintPeerIdValueFindsTheFirstMixedPlatformPeerWhenNoBindingExists(): Unit {
+    fun selectGattNotifyHintPeerIdValueFindsTheFirstKnownPeerWhenNoBindingExists(): Unit {
         // Arrange
         val samePlatformPeer =
             discoveredPeer(hintPeerId = "peer-ios", platformFamily = BleDiscoveryPlatformFamily.IOS)
@@ -90,7 +90,7 @@ class BleTransportGattFallbackPolicyTest {
             )
 
         // Assert
-        assertEquals("peer-android", selectedHintPeerIdValue)
+        assertEquals("peer-ios", selectedHintPeerIdValue)
     }
 }
 
