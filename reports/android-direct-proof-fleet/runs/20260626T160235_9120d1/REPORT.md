@@ -59,11 +59,19 @@ A follow-up smoke run launched the matrix script from the repo root with a singl
 
 From the initial smoke run payload:
 
+```text
+06-26 17:56:22.942 12767 12767 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979
+06-26 17:56:23.470 12767 12819 I MeshLinkReferenceAutomation: discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0
+```
+
 - `foreignScanIgnoredCount = 62`
-- `06-26 17:56:22.942 ... REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979`
-- `06-26 17:56:23.470 ... discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0`
 
 From the final smoke run payload:
+
+```text
+06-26 17:56:30.461 12893 12893 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979
+06-26 17:56:30.955 12893 12931 I MeshLinkReferenceAutomation: discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0
+```
 
 - `foreignScanIgnoredCount = 3`
 - sender side remained at `foreignScanIgnoredCount = 0`
