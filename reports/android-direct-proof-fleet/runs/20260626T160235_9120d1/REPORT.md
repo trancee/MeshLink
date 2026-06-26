@@ -6,6 +6,8 @@ I ran the proof app across the connected Android fleet using the direct-proof ma
 
 A small runner adjustment was needed to get past one slow APK install on the first device pair: the USB install timeout in the proof runner was widened from 60s to 120s. After that, the run reached the real transport boundary instead of dying during preflight.
 
+Two exploratory wrapper attempts failed before the final sweep because the matrix script was loaded from the repo root without the sibling `meshlink-reference/scripts` directory on `sys.path`, which raised `ModuleNotFoundError: run_headless_reference_live_proof`. The matrix script now adds its own script directory to `sys.path` before importing the sibling helper, so root-level loading is safe.
+
 ## Outcome at a glance
 
 | Metric | Value |

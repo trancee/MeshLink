@@ -14,6 +14,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 from run_headless_reference_live_proof import shell_join, timestamp
 
 
