@@ -48,6 +48,10 @@ Every pair failed for the same underlying reason: **capture stall before route e
 
 This is not a launch/install problem anymore. The fleet can start the proof app, but the mesh does not converge far enough for the proof harness to observe route readiness or a peer-discovery handoff. The repeated failure signature suggests a transport / discovery / environment issue rather than a device-specific crash.
 
+## Root-level smoke check
+
+A follow-up smoke run launched the matrix script from the repo root with a single pair (`a065_nam_lx9`). That invocation now succeeds end-to-end at the CLI layer, confirming the import-path fix is effective. The smoke run still failed at capture, with foreign scan summary `sender ignored 0 · passive ignored 62`, which matches the fleet-wide pattern rather than a wrapper failure.
+
 ## Mermaid view
 
 ```mermaid
