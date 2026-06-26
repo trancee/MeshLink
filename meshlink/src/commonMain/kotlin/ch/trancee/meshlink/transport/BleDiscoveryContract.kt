@@ -229,14 +229,16 @@ internal fun shouldLocalPeerInitiateL2capConnection(
     }
 }
 
+/**
+ * Keep the GATT side bearer available whenever both peers are known BLE peers.
+ * L2CAP still wins the normal connection path, but GATT stays up as the fallback.
+ */
 internal fun shouldUseMixedPlatformGattNotifyBearer(
     localPlatformFamily: BleDiscoveryPlatformFamily,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
-    return (localPlatformFamily == BleDiscoveryPlatformFamily.IOS &&
-        remotePlatformFamily == BleDiscoveryPlatformFamily.ANDROID) ||
-        (localPlatformFamily == BleDiscoveryPlatformFamily.ANDROID &&
-            remotePlatformFamily == BleDiscoveryPlatformFamily.IOS)
+    return localPlatformFamily != BleDiscoveryPlatformFamily.UNKNOWN &&
+        remotePlatformFamily != BleDiscoveryPlatformFamily.UNKNOWN
 }
 
 internal fun shouldInitiateDiscoveryDrivenL2capConnection(
@@ -258,15 +260,7 @@ internal fun resolveGattDataBearerMode(
     preferredMode: TransportMode?,
     localL2capClientSocketsSupported: Boolean = true,
 ): GattDataBearerMode {
-    return when {
-        shouldUseMixedPlatformGattNotifyBearer(
-            localPlatformFamily = localPlatformFamily,
-            remotePlatformFamily = remotePlatformFamily,
-        ) -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-        !localL2capClientSocketsSupported -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-        preferredMode == TransportMode.GATT -> GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-        else -> GattDataBearerMode.L2CAP_ONLY
-    }
+    return GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
 }
 
 private fun compareUnsignedKeyHashes(left: ByteArray, right: ByteArray): Int {

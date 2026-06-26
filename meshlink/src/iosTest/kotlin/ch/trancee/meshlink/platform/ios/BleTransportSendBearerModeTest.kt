@@ -64,7 +64,7 @@ class BleTransportSendBearerModeTest {
     }
 
     @Test
-    fun resolveSendDataBearerModeKeepsSamePlatformDataFramesOnL2capByDefault(): Unit {
+    fun resolveSendDataBearerModeKeepsSamePlatformDataFramesOnGattFallback(): Unit {
         // Arrange
         val transport = testTransport()
         val peer =
@@ -81,7 +81,7 @@ class BleTransportSendBearerModeTest {
             )
 
         // Assert
-        assertEquals(GattDataBearerMode.L2CAP_ONLY, bearerMode)
+        assertEquals(GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK, bearerMode)
     }
 }
 

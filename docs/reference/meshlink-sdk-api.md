@@ -473,6 +473,9 @@ Notes:
   can work directly with Swift `Data` or `NSData`
 - when the side bearer is enabled, prefer `installData(...)` unless the host
   app truly needs the Kotlin `ByteArray` form
+- GATT and L2CAP are both expected to stay active when the platform supports
+  them; L2CAP remains the preferred connection path and GATT remains available
+  for older peers or fallback delivery
 
 ## Public limits and guarantees
 

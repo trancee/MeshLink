@@ -36,7 +36,7 @@ class PreferredGattSendSupportTest {
     }
 
     @Test
-    fun sendViaPreferredGattSideLinkOrNullSkipsSamePlatformDataFramesWithoutGattPreference(): Unit =
+    fun sendViaPreferredGattSideLinkOrNullUsesGattFallbackForSamePlatformDataFrames(): Unit =
         runBlocking {
             // Arrange
             val fixture =
@@ -55,8 +55,9 @@ class PreferredGattSendSupportTest {
                 )
 
             // Assert
-            assertNull(result)
-            assertEquals(0, fixture.ensureSideLinkCalls)
+            assertEquals(TransportSendResult.Delivered, result)
+            assertEquals(1, fixture.ensureSideLinkCalls)
+            assertEquals(0, fixture.restartReasons.size)
         }
 
     @Test

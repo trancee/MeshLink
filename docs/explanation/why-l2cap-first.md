@@ -1,13 +1,15 @@
-# About the L2CAP-first transport posture
+# About the L2CAP-preferred transport posture
 
-MeshLink still thinks in L2CAP-first terms, where L2CAP is the
-channel-oriented BLE bearer MeshLink prefers, even though the current mixed
-Android/iOS product path can use an iPhone-hosted GATT-notify side bearer for
-part of the large-transfer path.
+MeshLink keeps L2CAP as the preferred channel-oriented bearer for normal
+connections, while keeping GATT active at the same time whenever the platform
+supports it. Android and iOS now run the GATT side bearer alongside L2CAP so
+older peers can still connect through GATT while newer peers continue to prefer
+L2CAP when both are available.
 
 That distinction matters. The mixed-bearer work did not replace the transport
-model with a GATT-first design. It refined the edges of an L2CAP-first design
-after physical evidence showed where the platform boundary was actually costly.
+model with a GATT-first design. It refined the edges of an L2CAP-preferred
+design after physical evidence showed where the platform boundary was actually
+costly.
 
 ## The stable idea
 
