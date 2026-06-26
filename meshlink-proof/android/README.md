@@ -139,7 +139,7 @@ Use them for different claims.
 | Value | Meaning | Use it when you need to... | Important boundary |
 |---|---|---|---|
 | `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
-| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise GATT-only route discovery when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
+| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise the GATT route-discovery fallback when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
 | `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
 
 In normal `meshlink` mode, the proof app gives you:

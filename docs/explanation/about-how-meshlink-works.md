@@ -283,5 +283,5 @@ That model explains most of the library's behavior:
 - [Understanding Babel routing](understanding-babel-routing.md)
 - [Cut-through relay](cut-through-relay.md)
 - [Power management](power-management.md)
-- [About the L2CAP-first transport posture](why-l2cap-first.md)
+- [About the L2CAP-preferred transport posture](why-l2cap-first.md)
 - [Discovery identity hash and privacy trade-offs](privacy-pseudonyms.md)
