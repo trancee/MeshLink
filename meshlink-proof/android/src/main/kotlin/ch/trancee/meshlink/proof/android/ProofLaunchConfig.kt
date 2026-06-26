@@ -12,6 +12,7 @@ internal data class ProofLaunchConfig(
     val benchmarkIsCharging: Boolean? = null,
     val benchmarkColdStart: Boolean = false,
     val benchmarkTransport: String? = null,
+    val forceInitiator: Boolean = false,
 ) {
     val powerModeLabel: String
         get() = powerMode.logLabel()
@@ -25,6 +26,7 @@ internal data class ProofLaunchConfig(
         private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
         private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
         private const val EXTRA_BENCHMARK_TRANSPORT: String = "meshlink.benchmarkTransport"
+        private const val EXTRA_FORCE_INITIATOR: String = "meshlink.forceInitiator"
 
         fun fromIntent(intent: Intent?): ProofLaunchConfig {
             return ProofLaunchConfig(
@@ -43,6 +45,7 @@ internal data class ProofLaunchConfig(
                 benchmarkColdStart =
                     intent?.getBooleanExtra(EXTRA_BENCHMARK_COLD_START, false) ?: false,
                 benchmarkTransport = intent?.getStringExtra(EXTRA_BENCHMARK_TRANSPORT),
+                forceInitiator = intent?.getBooleanExtra(EXTRA_FORCE_INITIATOR, false) ?: false,
             )
         }
 

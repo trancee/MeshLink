@@ -37,20 +37,30 @@ internal class GattSideLinkCoordinator(
         peer: DiscoveredPeer,
         localPlatformFamily: BleDiscoveryPlatformFamily,
     ): Unit {
-        if (
-            peer.transportMode != TransportMode.GATT &&
-                !shouldUseMixedPlatformGattNotifyBearer(
+        val gattEligible =
+            peer.transportMode == TransportMode.GATT ||
+                shouldUseMixedPlatformGattNotifyBearer(
                     localPlatformFamily = localPlatformFamily,
                     remotePlatformFamily = peer.platformFamily,
                 )
-        ) {
+        if (!gattEligible) {
+            dependencies.log(
+                "GATT side-link not eligible for ${peer.hintPeerId.value.takeLast(6)} transport=${peer.transportMode} local=$localPlatformFamily remote=${peer.platformFamily}"
+            )
             return
         }
         val device = dependencies.deviceForPeer(peer) ?: return
         val existingClient = clientsByHint[peer.hintPeerId.value]
         if (existingClient != null) {
             if (!existingClient.isReady()) {
+                dependencies.log(
+                    "starting existing GATT side-link for ${peer.hintPeerId.value.takeLast(6)}"
+                )
                 existingClient.start()
+            } else {
+                dependencies.log(
+                    "GATT side-link already active for ${peer.hintPeerId.value.takeLast(6)}"
+                )
             }
             return
         }
@@ -62,7 +72,9 @@ internal class GattSideLinkCoordinator(
                 ::handleDisconnected,
             )
         clientsByHint[peer.hintPeerId.value] = client
-        dependencies.log("initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)}")
+        dependencies.log(
+            "initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)} local=$localPlatformFamily remote=${peer.platformFamily}"
+        )
         client.start()
     }
 

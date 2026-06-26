@@ -92,6 +92,7 @@ The Android proof app reads these intent extras on launch:
 | `meshlink.benchmarkColdStart` | bool | Enables the cold-start benchmark path |
 | `meshlink.disableAutoSend` | bool | Suppresses the automatic benchmark send |
 | `meshlink.benchmarkTransport` | string | `meshlink`, `gatt`, or `gatt-notify` |
+| `meshlink.forceInitiator` | bool | Forces the proof peer to take the initiator role |
 
 Example: start the app in a dedicated proof mesh domain with performance mode.
 
@@ -119,6 +120,15 @@ adb shell am start \
   --es meshlink.appId demo.meshlink \
   --es meshlink.benchmarkTransport gatt-notify \
   --ez meshlink.disableAutoSend true
+```
+
+Example: force the Huawei proof peer into the initiator role for balanced proof runs.
+
+```bash
+adb shell am start \
+  -n ch.trancee.meshlink.proof.android/.MainActivity \
+  --es meshlink.appId demo.meshlink \
+  --ez meshlink.forceInitiator true
 ```
 
 ## 4. Choose the transport mode deliberately

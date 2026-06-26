@@ -444,9 +444,9 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `mixed platform peers skip discovery driven l2cap reconnects while gatt is ready`() {
+    fun `mixed platform peers still allow discovery driven l2cap connects while gatt is ready`() {
         // Arrange
-        val expected = false
+        val expected = true
 
         // Act
         val actual =

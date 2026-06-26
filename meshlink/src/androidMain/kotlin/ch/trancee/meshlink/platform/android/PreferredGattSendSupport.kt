@@ -49,13 +49,27 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
             preferredMode = frame.preferredMode,
             localL2capClientSocketsSupported = context.localL2capClientSocketsSupported,
         )
+    dependencies.log(
+        "preferred GATT side-link evaluation for ${context.hintPeerId.value.takeLast(6)} mode=$dataBearerMode local=${context.localPlatformFamily} remote=${context.remotePlatformFamily} preferred=${frame.preferredMode ?: "none"}"
+    )
     if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
+        dependencies.log(
+            "preferred GATT side-link bypassed for ${context.hintPeerId.value.takeLast(6)} because bearerMode=L2CAP_ONLY"
+        )
         return null
     }
 
     dependencies.ensureSideLink()
-    val client = dependencies.currentClient() ?: return null
+    val client = dependencies.currentClient() ?: run {
+        dependencies.log(
+            "preferred GATT side-link missing client for ${context.hintPeerId.value.takeLast(6)}"
+        )
+        return null
+    }
     val readyWaitTimeoutMillis = 2_000L
+    dependencies.log(
+        "preferred GATT side-link waiting for readiness for ${context.hintPeerId.value.takeLast(6)} timeoutMs=$readyWaitTimeoutMillis"
+    )
     val ready =
         withTimeoutOrNull(readyWaitTimeoutMillis) {
             while (!client.isReady()) {
