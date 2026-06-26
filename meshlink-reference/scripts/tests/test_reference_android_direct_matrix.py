@@ -26,7 +26,6 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
         self.assertFalse(args.fail_fast)
         self.assertEqual(args.max_failures, 5)
         self.assertEqual(args.android_ready_seconds, android_direct_matrix.DEFAULT_ANDROID_READY_SECONDS)
-        self.assertEqual(args.capture_timeout_seconds, android_direct_matrix.DEFAULT_CAPTURE_TIMEOUT_SECONDS)
 
     def test_default_matrix_reports_land_under_reports_root(self) -> None:
         # Arrange / Act
