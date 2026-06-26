@@ -308,6 +308,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     transport_evidence = payload.get("transportEvidence")
     sender_discovery_focus = payload.get("senderDiscoveryFocus", {}) or {}
     passive_discovery_focus = payload.get("passiveDiscoveryFocus", {}) or {}
+    sender_selected_peer_id = payload.get("senderSelectedPeerId")
+    passive_selected_peer_id = payload.get("passiveSelectedPeerId")
     sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
     passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
@@ -315,6 +317,12 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
     sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
     passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
+    sender_selection_note = (
+        "matches target" if sender_selected_peer_id and sender_selected_peer_id == sender_discovery_focus.get("peerId") else "mismatch or none"
+    )
+    passive_selection_note = (
+        "matches target" if passive_selected_peer_id and passive_selected_peer_id == passive_discovery_focus.get("peerId") else "mismatch or none"
+    )
     scan_summary = (
         f"sender scans {esc(sender_discovery_focus.get('scanResultCount'))} "
         f"accepted {esc(sender_discovery_focus.get('scanAcceptedCount'))} "
@@ -511,6 +519,9 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Parse-skipped count", sender_discovery_focus.get("scanParseSkippedCount")),
                 ("Target-mismatch count", sender_discovery_focus.get("scanTargetMismatchCount")),
                 ("Accepted count", sender_discovery_focus.get("scanAcceptedCount")),
+                ("Selected peer id", sender_selected_peer_id),
+                ("Target match", sender_discovery_focus.get("peerMatch")),
+                ("Selection note", sender_selection_note),
                 ("Top accepted peer id", (sender_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(sender_discovery_focus_lines)),
             ],
@@ -525,6 +536,9 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Parse-skipped count", passive_discovery_focus.get("scanParseSkippedCount")),
                 ("Target-mismatch count", passive_discovery_focus.get("scanTargetMismatchCount")),
                 ("Accepted count", passive_discovery_focus.get("scanAcceptedCount")),
+                ("Selected peer id", passive_selected_peer_id),
+                ("Target match", passive_discovery_focus.get("peerMatch")),
+                ("Selection note", passive_selection_note),
                 ("Top accepted peer id", (passive_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(passive_discovery_focus_lines)),
             ],
@@ -586,6 +600,21 @@ def extract_target_peer_id(log_text: str) -> str | None:
         if match is not None:
             return match.group(1)
     return None
+
+
+def extract_selected_peer_id(log_text: str) -> str | None:
+    fallback: str | None = None
+    for line in log_text.splitlines():
+        if "peer.snapshot reason=" not in line or "selectedPeerId=" not in line:
+            continue
+        match = re.search(r"selectedPeerId=([^\s]+)", line)
+        if match is None:
+            continue
+        selected_peer_id = match.group(1)
+        if selected_peer_id != "none":
+            return selected_peer_id
+        fallback = fallback or selected_peer_id
+    return fallback
 
 
 def count_foreign_scan_ignored_lines(log_text: str) -> int:
@@ -1899,16 +1928,18 @@ def failure_summary(
     startup_timing: dict[str, Any],
     timings: dict[str, Any],
 ) -> dict[str, Any]:
-    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
-    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    sender_log_text = read_text(sender_log_path(run_dir))
+    passive_log_text = read_text(passive_log_path(run_dir))
+    sender_route_stage, sender_route_evidence = extract_route_observation(sender_log_text)
+    passive_route_stage, passive_route_evidence = extract_route_observation(passive_log_text)
     route_stage = sender_route_stage or passive_route_stage
     route_evidence = sender_route_evidence or passive_route_evidence
     transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
     transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
-    sender_log_text = read_text(sender_log_path(run_dir))
-    passive_log_text = read_text(passive_log_path(run_dir))
     discovered_peer_id = extract_discovered_peer_id(passive_log_text)
     target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
+    sender_selected_peer_id = extract_selected_peer_id(sender_log_text)
+    passive_selected_peer_id = extract_selected_peer_id(passive_log_text)
     sender_discovery_focus_lines = extract_discovery_focus_lines(
         sender_log_text,
         target_peer_id,
@@ -1936,6 +1967,8 @@ def failure_summary(
         "discoveredPeerId": discovered_peer_id,
         "senderDiscoveryFocus": {
             "peerId": target_peer_id,
+            "selectedPeerId": sender_selected_peer_id,
+            "peerMatch": bool(sender_selected_peer_id and target_peer_id and sender_selected_peer_id == target_peer_id),
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
             "scanResultCount": count_scan_result_lines(sender_log_text),
             "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
@@ -1946,6 +1979,8 @@ def failure_summary(
         },
         "passiveDiscoveryFocus": {
             "peerId": target_peer_id,
+            "selectedPeerId": passive_selected_peer_id,
+            "peerMatch": bool(passive_selected_peer_id and target_peer_id and passive_selected_peer_id == target_peer_id),
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
             "scanResultCount": count_scan_result_lines(passive_log_text),
             "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),
