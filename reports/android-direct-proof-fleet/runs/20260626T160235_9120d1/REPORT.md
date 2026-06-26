@@ -55,6 +55,36 @@ The foreign-scan pattern is asymmetric: sender ignored counts stay at zero, whil
 
 A follow-up smoke run launched the matrix script from the repo root with a single pair (`a065_nam_lx9`). That invocation now succeeds end-to-end at the CLI layer, confirming the import-path fix is effective. The smoke run still failed at capture, with foreign scan summary `sender ignored 0 · passive ignored 62`, which matches the fleet-wide pattern rather than a wrapper failure.
 
+### Quoted passive evidence
+
+From the initial smoke run payload:
+
+- `foreignScanIgnoredCount = 62`
+- `06-26 17:56:22.942 ... REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979`
+- `06-26 17:56:23.470 ... discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0`
+
+From the final smoke run payload:
+
+- `foreignScanIgnoredCount = 3`
+- sender side remained at `foreignScanIgnoredCount = 0`
+- no route readiness was observed in either pass
+
+### Mermaid comparison
+
+```mermaid
+flowchart LR
+    F[Fleet sweep\n30 directed pairs\n30 capture stalls\nsender ignored 54\npassive ignored 2347] --> S[Smoke run\n1 pair\n2 capture stalls\nsender ignored 0\npassive ignored 62 → 3]
+    S --> T[Interpretation\nPassive-side discovery chatter persists\nRoute readiness never appears]
+
+    classDef fleet fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
+    classDef smoke fill:#fef3c7,stroke:#d97706,color:#92400e;
+    classDef interp fill:#fee2e2,stroke:#dc2626,color:#991b1b;
+
+    F:::fleet
+    S:::smoke
+    T:::interp
+```
+
 ## Mermaid view
 
 ```mermaid
