@@ -69,11 +69,22 @@ From the final smoke run payload:
 - sender side remained at `foreignScanIgnoredCount = 0`
 - no route readiness was observed in either pass
 
+### Fleet vs smoke comparison
+
+| Signal | Fleet sweep | Root-level smoke run |
+|---|---:|---:|
+| Directed pairs | 30 | 1 |
+| Capture stalls | 30 | 1 |
+| Sender ignored | 54 aggregate | 0 |
+| Passive ignored | 2347 aggregate | 62 → 3 |
+| Route readiness observed | 0 | 0 |
+| Message exchange completed | 0 | 0 |
+
 ### Mermaid comparison
 
 ```mermaid
 flowchart LR
-    F[Fleet sweep\n30 directed pairs\n30 capture stalls\nsender ignored 54\npassive ignored 2347] --> S[Smoke run\n1 pair\n2 capture stalls\nsender ignored 0\npassive ignored 62 → 3]
+    F[Fleet sweep\n30 directed pairs\n30 capture stalls\nsender ignored 54\npassive ignored 2347] --> S[Smoke run\n1 pair\n1 capture stall\nsender ignored 0\npassive ignored 62 → 3]
     S --> T[Interpretation\nPassive-side discovery chatter persists\nRoute readiness never appears]
 
     classDef fleet fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
@@ -83,6 +94,22 @@ flowchart LR
     F:::fleet
     S:::smoke
     T:::interp
+```
+
+## Appendix: passive log excerpts
+
+### Initial smoke pass
+
+```text
+06-26 17:56:22.942 12767 12767 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979
+06-26 17:56:23.470 12767 12819 I MeshLinkReferenceAutomation: discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0
+```
+
+### Final smoke pass
+
+```text
+06-26 17:56:30.461 12893 12893 I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION startup.meshHashSummary appId=demo.meshlink.reference.android-direct.a065_nam_lx9 activeMeshHash=25979 advertisedMeshHash=25979
+06-26 17:56:30.955 12893 12931 I MeshLinkReferenceAutomation: discovery.summary activeMeshHash=25979 advertisedMeshHash=25979 psm=0 carrier=UUID_PAIR foreignScanIgnoredCount=0
 ```
 
 ## Mermaid view
