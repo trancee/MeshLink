@@ -3,7 +3,6 @@ package ch.trancee.meshlink.platform.android
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
-import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
 
 internal interface GattSideLinkClient : PreferredGattSendClient {
     fun start(): Unit
@@ -37,18 +36,6 @@ internal class GattSideLinkCoordinator(
         peer: DiscoveredPeer,
         localPlatformFamily: BleDiscoveryPlatformFamily,
     ): Unit {
-        val gattEligible =
-            peer.transportMode == TransportMode.GATT ||
-                shouldUseMixedPlatformGattNotifyBearer(
-                    localPlatformFamily = localPlatformFamily,
-                    remotePlatformFamily = peer.platformFamily,
-                )
-        if (!gattEligible) {
-            dependencies.log(
-                "GATT side-link not eligible for ${peer.hintPeerId.value.takeLast(6)} transport=${peer.transportMode} local=$localPlatformFamily remote=${peer.platformFamily}"
-            )
-            return
-        }
         val device = dependencies.deviceForPeer(peer) ?: return
         val existingClient = clientsByHint[peer.hintPeerId.value]
         if (existingClient != null) {
