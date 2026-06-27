@@ -162,7 +162,15 @@ internal object MeshLinkProofRuntime {
                     scope.launch {
                         appendLog("BENCHMARK fallback waiting for peer discovery")
                         var waitedMs = 0L
+                        var lastDiscoverySnapshot: String? = null
                         while (waitedMs < 15_000L) {
+                            val discoverySnapshot = describeDiscoveryState()
+                            if (discoverySnapshot != lastDiscoverySnapshot) {
+                                appendLog(
+                                    "BENCHMARK fallback discovery snapshot waitedMs=$waitedMs $discoverySnapshot"
+                                )
+                                lastDiscoverySnapshot = discoverySnapshot
+                            }
                             val peerId =
                                 synchronized(knownPeers) {
                                     knownPeers.values.firstOrNull()?.peerId
@@ -338,8 +346,9 @@ internal object MeshLinkProofRuntime {
                 synchronized(knownPeers) {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
-                appendLog("Peer found: ${event.peerId.value} (${event.state})")
-                appendLog("peer state snapshot ${describeRouteState(event.peerId)} source=found")
+                appendLog(
+                    "PEER discovery found peer=${event.peerId.value.takeLast(6)} state=${event.state} ${describeRouteState(event.peerId)}"
+                )
                 scheduleAutoHello(event.peerId, event.state, "found")
             }
             is PeerEvent.Lost -> {
@@ -355,14 +364,17 @@ internal object MeshLinkProofRuntime {
                 synchronized(autoSendJobs) {
                     autoSendJobs.remove(event.peerId.value)?.cancel()
                 }
-                appendLog("Peer lost: ${event.peerId.value}")
+                appendLog(
+                    "PEER discovery lost peer=${event.peerId.value.takeLast(6)} ${describeDiscoveryState()}"
+                )
             }
             is PeerEvent.StateChanged -> {
                 synchronized(knownPeers) {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
-                appendLog("Peer state changed: ${event.peerId.value} -> ${event.state}")
-                appendLog("peer state snapshot ${describeRouteState(event.peerId)} source=state-changed")
+                appendLog(
+                    "PEER discovery stateChanged peer=${event.peerId.value.takeLast(6)} state=${event.state} ${describeRouteState(event.peerId)}"
+                )
                 scheduleAutoHello(event.peerId, event.state, "state-changed")
             }
         }
@@ -537,10 +549,18 @@ internal object MeshLinkProofRuntime {
             synchronized(knownPeers) {
                 knownPeers.putIfAbsent(peerId.value, KnownPeer.from(peerId)) == null
             }
+        appendLog(
+            buildString {
+                append(if (inserted) "BENCHMARK known peer restored" else "BENCHMARK known peer observed")
+                append(' ')
+                append(peerId.value.takeLast(6))
+                append(" source=")
+                append(source)
+                append(' ')
+                append(describeDiscoveryState())
+            }
+        )
         if (inserted) {
-            appendLog(
-                "BENCHMARK known peer restored ${peerId.value.takeLast(6)} source=$source",
-            )
             updatesFlow.tryEmit(Unit)
         }
     }
@@ -552,13 +572,16 @@ internal object MeshLinkProofRuntime {
     ): Unit {
         if (state != PeerConnectionState.CONNECTED) {
             appendLog(
-                "auto-send deferred for ${peerId.value.takeLast(6)} source=$source state=$state"
+                "auto-send deferred for ${peerId.value.takeLast(6)} source=$source state=$state ${describeRouteState(peerId)}"
             )
             return
         }
         synchronized(pendingAutoSendPeers) {
             pendingAutoSendPeers.add(peerId.value)
         }
+        appendLog(
+            "auto-send queued for ${peerId.value.takeLast(6)} source=$source ${describeRouteState(peerId)}"
+        )
         maybeStartAutoHello(peerId, source)
     }
 
@@ -575,7 +598,9 @@ internal object MeshLinkProofRuntime {
         synchronized(routeReadyPeers) {
             routeReadyPeers.add(peerId.value)
         }
-        appendLog("auto-send route ready for ${peerId.value.takeLast(6)} source=$source")
+        appendLog(
+            "auto-send route ready for ${peerId.value.takeLast(6)} source=$source ${describeRouteState(peerId)}"
+        )
         maybeStartAutoHello(peerId, source)
     }
 
@@ -620,6 +645,34 @@ internal object MeshLinkProofRuntime {
                 }
             }
         return "peer=${peerId.value.takeLast(6)} known=$knownPeersSummary ready=$readyPeersSummary pending=$pendingPeersSummary"
+    }
+
+    private fun describeDiscoveryState(): String {
+        val knownPeersSummary =
+            synchronized(knownPeers) {
+                knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
+                    "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
+                }
+            }
+        val readyPeersSummary =
+            synchronized(routeReadyPeers) {
+                routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        val pendingPeersSummary =
+            synchronized(pendingAutoSendPeers) {
+                pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        val jobsSummary =
+            synchronized(autoSendJobs) {
+                autoSendJobs.keys.joinToString(prefix = "[", postfix = "]") { peer ->
+                    peer.takeLast(6)
+                }
+            }
+        return "known=$knownPeersSummary ready=$readyPeersSummary pending=$pendingPeersSummary jobs=$jobsSummary"
     }
 
     private fun maybeStartAutoHello(peerId: PeerId, source: String): Unit {
