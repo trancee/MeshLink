@@ -76,7 +76,7 @@ If you are using this app as the receiving proof peer for
 keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
 matches the tutorial host app.
 
-For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake. The reference app now starts a foreground wake-lock mitigation during live-proof automation sessions to reduce that quick-doze risk on doze-sensitive OEM builds. The direct-proof runner now requires sender `proof.complete` but accepts passive retained evidence without passive `proof.complete`, so the passive role can pass on retained history/export evidence even when the completion log is absent.
+For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake. The reference app now starts a foreground wake-lock mitigation during live-proof automation sessions to reduce that quick-doze risk on doze-sensitive OEM builds. The direct-proof runner still treats sender `proof.complete` as the hard success gate and accepts passive retained evidence without passive `proof.complete`. The proof-app test itself should verify that both sender and passive can initiate a message when the UI exposes a send control, and the runner force-stops both proof-app packages in cleanup after success or failure.
 
 ## 3. Override launch settings when you need a specific proof shape
 
