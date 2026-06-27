@@ -1,14 +1,15 @@
 # How to run the Android proof app
 
-This guide shows you how to build the Android proof app, launch it with a
-chosen mesh domain, and switch between the normal MeshLink path and the
-proof-only benchmark transports.
+This guide shows you how to build the Android proof app and launch it with a
+chosen mesh domain. The proof app itself stays on the normal MeshLink path;
+transport choice belongs to the MeshLink library. Benchmark-only transport
+experiments live in the separate `androidTest` harness.
 
 Use it when you need:
 
 - a second device for the MeshLink tutorial flow
 - an Android proof peer for manual validation
-- an Android proof fixture for passive transport or benchmark work
+- an Android proof fixture for passive-transport or benchmark work, with the proof-app launch path still owned by the library
 
 ## Support floor and crypto note
 
@@ -131,6 +132,8 @@ adb shell am start \
 ## 4. Transport is library-owned
 
 The Android proof app does not expose a transport override. Use the default launch path for supported proof runs; the MeshLink library chooses transport and the logs report the observed transport when needed.
+
+The benchmark-only `androidTest` fixtures can still exercise transport-specific scenarios for retained investigation, but that is a separate harness from the proof-app launch path.
 
 When using the reference app for Android direct proof, keep in mind that the
 live-proof automation path now starts a foreground wake lock plus a foreground
