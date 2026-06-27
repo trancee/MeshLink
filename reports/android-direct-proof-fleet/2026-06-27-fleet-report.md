@@ -14,7 +14,7 @@ Executed the Android proof-app fleet pass with the stricter sequence:
 Verification used screenshots and UI dumps as the source of truth. `./tools/android app current` was not used for pass/fail classification because it was flaky during these runs.
 
 ## Transport mode
-Transport mode in the underlying direct-proof summaries is derived from nested `final.timings.transportMode` when the top-level field is absent. The evidence set includes both `GATT` fallback on the passive/proof-app side and `L2CAP` on the carried sender transport; the report keeps that distinction separate from hello outcome.
+Transport mode in the underlying direct-proof summaries is derived from nested `final.timings.transportMode` when the top-level field is absent. The evidence set includes both `GATT` fallback on the passive/proof-app side and `L2CAP` on the carried sender transport. Treat this as a report-level transport summary, not a row-by-row device attribute.
 
 ## Fleet coverage
 - Connected devices observed: 14
@@ -24,7 +24,7 @@ Transport mode in the underlying direct-proof summaries is derived from nested `
 
 ## Device matrix
 
-Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen state, `sent`/`proceeding`/`unknown` = latest hello status, `n/r` = not reverified in the latest sweep bundle.
+Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen state, `sent`/`proceeding`/`unknown` = latest hello status, `n/r` = not reverified in the latest sweep bundle, transport summary = report-level `GATT/L2CAP` from nested timings.
 
 | Device | Type | install | grants | launch | proof | latest hello | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -49,27 +49,11 @@ Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen s
 - `ZY22GCD9ST` — `Hello sent to b06435 -> Sent`
 - `adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp` — `Hello sent to ... -> Sent`
 
-## Triage shortlist
+## Recovery plan
 
-### Proceeding
-- `R5CT83ACSJX` — earlier confirmed send, later sweep 1 reported `hello=proceeding`
-- `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp` — sweep 2 reported `hello=proceeding`
-- Follow-up: retry only after route-discovered / route-ready evidence is present.
-
-### Unknown
-- `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` — send button disabled; sweep 2 reported `hello=unknown`
-- `e9097611` — sweep C timed out waiting for `Send Hello`; sweep 2 reported `hello=unknown`
-- `42004386e43c8589` — sweep 1 reported `hello=unknown`
-- `42c2cf` — sweep 1 reported `hello=unknown`
-- `EQUGS85LJNEIO7Z5` — sweep 1 reported `hello=unknown`
-- `MZLJMJAIO7SKS8BI` — uninitialized; Bluetooth off; sweep 1 reported `hello=unknown`
-- Follow-up: rerun with Bluetooth/preflight/UI-idle checks before attempting hello.
-
-### Not reverified in latest sweep bundle
-- `2ASVB21B09005117`
-- `7XHEIBPBLRJJSKFU`
-- `GX6CTR500184`
-- Follow-up: keep these in the next full inventory sweep rather than the current short retry list.
+1. Route-ready recovery: retry `R5CT83ACSJX` and `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp` only after route-discovered / route-ready evidence is present. Treat the transport summary as report-level `GATT/L2CAP` evidence, not a guarantee that hello can proceed.
+2. Unknown-state recovery: rerun `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp`, `e9097611`, `42004386e43c8589`, `42c2cf`, `EQUGS85LJNEIO7Z5`, and `MZLJMJAIO7SKS8BI` with Bluetooth/preflight/UI-idle checks before attempting hello. `MZLJMJAIO7SKS8BI` also needs Bluetooth enabled before any retry.
+3. Inventory-gap recovery: reverify `2ASVB21B09005117`, `7XHEIBPBLRJJSKFU`, and `GX6CTR500184` in the next full inventory sweep rather than the current short retry list.
 
 ## Send Hello outcomes that did not reach completion
 These devices reached the proof UI, but the hello path was blocked, passive, or not conclusively completed in the captured evidence window.
