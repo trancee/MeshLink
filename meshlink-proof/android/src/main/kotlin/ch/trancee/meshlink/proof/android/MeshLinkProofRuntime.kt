@@ -748,7 +748,7 @@ internal object MeshLinkProofRuntime {
     private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
     private const val BENCHMARK_HEADER_BYTES: Int = 16
     private const val BENCHMARK_TOKEN_HEX_LENGTH: Int = 16
-    private const val MAX_LOG_LINES: Int = 64
+    private const val MAX_LOG_LINES: Int = 256
     private const val CORRELATION_SUMMARY_LINES: Int = 4
     private const val CORRELATION_SUMMARY_CHARS: Int = 96
     private val PASSIVE_RECEIPT_SEND_DEADLINE = 3.seconds
