@@ -32,6 +32,7 @@ These devices reached the proof UI, but the hello path was blocked, passive, or 
 - `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` — Send Hello button was disabled
 - `MZLJMJAIO7SKS8BI` — remained `State: Uninitialized`; Send Hello was disabled and Bluetooth was off
 - `e9097611` — proof UI was present in earlier captures, but the sweep C job timed out waiting for the `Send Hello` element, so hello completion was not re-verified in that pass
+- `ZY22GCD9ST` — sweep E also captured `Hello sent to c67798 -> NotSent(reason=UNREACHABLE)`, which indicates a peer-level reachability failure even though the device had already produced a local successful send earlier in the run
 - `42004386e43c8589` — proof UI present; Send Hello disabled in the captured screenshot
 - `42c2cf` — proof UI present; Send Hello disabled in the captured screenshot
 - `EQUGS85LJNEIO7Z5` — proof UI present; Send Hello disabled in the captured screenshot
@@ -53,6 +54,7 @@ These devices reached the proof UI, but the hello path was blocked, passive, or 
   - `/tmp/net3-after-tap2.png`
 - Log evidence captured during the sweep included `Hello sent to ... -> Sent` for successful devices and `Hello send proceeding ...` / route-blocked diagnostics for blocked devices.
 - Sweep C added a second confirmed send path (`R5CT83ACSJX`) and exposed a timeout on `e9097611` while waiting for the hello control.
+- Sweep E added a peer-reachability failure for `ZY22GCD9ST` (`NotSent(reason=UNREACHABLE)`) without overturning the earlier local send success.
 
 ## Notes
 - The pass confirmed the permission-unblock ordering that worked on the fleet: install first, grant permissions on-device, then launch.
