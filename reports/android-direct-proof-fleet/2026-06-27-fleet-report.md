@@ -15,7 +15,7 @@ Verification used screenshots and UI dumps as the source of truth. `./tools/andr
 
 Future reruns should also verify that both sender and passive can initiate a message when the UI exposes a send control. The runner force-stops both proof-app packages during cleanup after either success or failure.
 
-Rerun note: I reran the proof app on `1f1dad34` (sender) and `R5CT83ACSJX` (passive) using the default library-owned MeshLink launch path and no transport override. Both the 30-second and 60-second passive-ready windows failed before discovery because Android passive transport did not start in time, so the updated bidirectional-send contract was not reached on this pair.
+Rerun note: I reran the proof app on `1f1dad34` (sender) and `R5CT83ACSJX` (passive) using the default library-owned MeshLink launch path and no transport override. The 30-second passive-ready window failed before discovery because Android passive transport did not start in time; a 60-second diagnostic retry showed the same missing-route boundary, so the updated bidirectional-send contract was not reached on this pair.
 
 ## Transport mode
 Transport mode in the underlying direct-proof summaries is derived from nested `final.timings.transportMode` when the top-level field is absent. The evidence set includes both `GATT` fallback on the passive/proof-app side and `L2CAP` on the carried sender transport. Treat this as report-level transport evidence, not a promise that every row carried the same bearer.
@@ -70,7 +70,7 @@ To keep this report in the same style on future runs:
 ## Evidence highlights
 - Rerun artifacts:
   - `/tmp/reference_android_direct_proof_20260627T200612` — failed because Android passive transport did not start within 30.0 seconds.
-  - `/tmp/reference_android_direct_proof_20260627T200846` — failed because Android passive transport did not start within 60.0 seconds.
+  - `/tmp/reference_android_direct_proof_20260627T200846` — diagnostic retry; no new discovery evidence before 60.0 seconds.
 - Proof screen verification screenshots:
   - `/tmp/2AS-after-launch.png`
   - `/tmp/420-after-launch.png`
@@ -95,4 +95,4 @@ To keep this report in the same style on future runs:
 - The pass confirmed the permission-unblock ordering that worked on the fleet: install first, grant permissions on-device, then launch.
 - The proof UI was the authoritative success surface: `MeshLink Proof`, `State: Running`, and visible `Stop Proof` / `Send Hello` controls when available.
 - Some devices were effectively passive or non-initiator paths; on those, Send Hello was intentionally not forced past the app's disabled state.
-- The updated direct-proof rerun on `1f1dad34` ↔ `R5CT83ACSJX` failed during passive transport startup with the default library-owned launch path, so bidirectional sendability is still unconfirmed on that pair.
+- Log analysis: the passive side reached `android.meshlink.controller.begin`, then only emitted ambient GATT scan accepts on other peers. Repeated `GATT side-link already active` / `connectIfNeeded skipped: no PSM` lines show it never established a sender-facing route or peer discovery path for this pair. The 60-second retry added no route-ready marker, so the problem is discovery/route setup rather than just the 30-second budget.
