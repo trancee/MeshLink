@@ -320,6 +320,28 @@ def capture_transport_mode(serial: str) -> dict[str, Any]:
     return {"serial": serial, "mode": None, "line": None}
 
 
+def canonical_transport_label(modes: list[str | None]) -> str:
+    candidates = [mode for mode in modes if mode]
+    if not candidates:
+        return "unknown"
+    if any("L2CAP" in mode for mode in candidates):
+        return "L2CAP"
+    if any("GATT" in mode for mode in candidates):
+        return "GATT"
+    return candidates[0]
+
+
+def canonical_transport_label(modes: list[str | None]) -> str:
+    candidates = [mode for mode in modes if mode]
+    if not candidates:
+        return "unknown"
+    if any("L2CAP" in mode for mode in candidates):
+        return "L2CAP"
+    if any("GATT" in mode for mode in candidates):
+        return "GATT"
+    return candidates[0]
+
+
 def summarize_pair(pair: PairRecord, run_root: Path, mode_map: dict[str, str | None]) -> dict[str, Any]:
     initiator_log = (run_root / "logs" / f"{pair.initiator.resolved_serial}.proof.log").read_text(encoding="utf-8", errors="ignore").splitlines()
     receiver_log = (run_root / "logs" / f"{pair.receiver.resolved_serial}.proof.log").read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -347,6 +369,7 @@ def summarize_pair(pair: PairRecord, run_root: Path, mode_map: dict[str, str | N
             "model": pair.receiver.model,
             "apiLevel": pair.receiver.api_level,
         },
+        "transportMode": canonical_transport_label(transport_modes),
         "transportModes": sorted({mode for mode in transport_modes if mode}),
         "ackLines": ack_lines[:8],
         "receiptLines": receipt_lines[:8],
@@ -373,19 +396,21 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
     lines.append("| Pair | Initiator | Receiver | Transport | ACK evidence | Receipt evidence |")
     lines.append("|---|---|---|---|---|---|")
     for row in summary["pairRows"]:
-        transport = ", ".join(row["transportModes"]) if row["transportModes"] else "unknown"
+        transport = row.get("transportMode") or "unknown"
         ack = "yes" if row["ackLines"] else "no"
-        receipt = "yes" if any("receipt sent" in line.lower() for line in row["receiptLines"]) else "no"
+        receipt = "yes" if row["receiptLines"] else "no"
         lines.append(
             f"| {row['label']} | {row['initiator']['model']} | {row['receiver']['model']} | {transport} | {ack} | {receipt} |"
         )
     lines.append("")
-    lines.append("## Notes")
+    lines.append("## Bluetooth preflight")
     lines.append("")
-    lines.append("- Proof logs were read from each device using `adb exec-out run-as ... cat files/proof.log`.")
-    lines.append("- Transport mode was sampled from live logcat lines tagged `MeshLinkReferenceAutomation`.")
-    lines.append("- The fleet launcher normalizes wireless ADB aliases to their canonical `.adb-tls-connect._tcp` serials before install and launch.")
-    lines.append("")
+    for check in summary.get("bluetoothChecks", []):
+        before = check.get("before", {})
+        after = check.get("after", {})
+        lines.append(
+            f"- {check['serial']}: before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')} action={check.get('action')}"
+        )
     return "\n".join(lines)
 
 
@@ -400,11 +425,11 @@ def render_human_summary(summary: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Pair snapshot")
     for row in summary["pairRows"]:
-        transport = ", ".join(row["transportModes"]) if row["transportModes"] else "unknown"
-        ack = "ACK" if row["ackLines"] else "no ACK"
-        lines.append(f"- {row['label']}: {transport}; {ack}")
-    lines.append("")
+        transport = row.get("transportMode") or "unknown"
+        ack = "yes" if row["ackLines"] else "no"
+        lines.append(f"- {row['label']}: {transport}; ACK {ack}")
     return "\n".join(lines)
+
 
 
 def main(argv: list[str] | None = None) -> int:
