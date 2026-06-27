@@ -19,11 +19,51 @@ Verification used screenshots and UI dumps as the source of truth. `./tools/andr
   - 3 network ADB devices
 - Network devices were installed before launch, as required.
 
+## Device matrix
+
+Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen state, `sent`/`proceeding`/`unknown` = latest hello status, `n/r` = not reverified in the latest sweep bundle.
+
+| Device | Type | install | grants | launch | proof | latest hello | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `1f1dad34` | USB | ok | ok | ok | yes | sent | confirmed send |
+| `2ASVB21B09005117` | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| `42004386e43c8589` | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
+| `42c2cf` | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
+| `7XHEIBPBLRJJSKFU` | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| `EQUGS85LJNEIO7Z5` | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
+| `GX6CTR500184` | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| `MZLJMJAIO7SKS8BI` | USB | ok | ok | ok | no | unknown | uninitialized; Bluetooth off; sweep 1 reported `hello=unknown` |
+| `R5CT83ACSJX` | USB | ok | ok | ok | yes | sent / proceeding | earlier confirmed send; later sweep 1 reported `hello=proceeding` |
+| `ZY22GCD9ST` | USB | ok | ok | ok | yes | sent | sweep E also reported `NotSent(reason=UNREACHABLE)` on target `c67798` |
+| `e9097611` | USB | ok | ok | ok | yes | unknown | sweep C timeout, sweep 2 reported `hello=unknown` |
+| `adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp` | network | ok | ok | ok | yes | sent | confirmed send |
+| `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp` | network | ok | ok | ok | yes | proceeding | sweep 2 reported `hello=proceeding` |
+| `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` | network | ok | ok | ok | yes | unknown | send button disabled; sweep 2 reported `hello=unknown` |
+
 ## Confirmed hello completions
 - `1f1dad34` — `Hello sent to ... -> Sent`
 - `R5CT83ACSJX` — `Hello sent to ... -> Sent` (`routeReady=false` at tap time, but the send completed)
 - `ZY22GCD9ST` — `Hello sent to b06435 -> Sent`
 - `adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp` — `Hello sent to ... -> Sent`
+
+## Triage shortlist
+
+### Proceeding
+- `R5CT83ACSJX` — earlier confirmed send, later sweep 1 reported `hello=proceeding`
+- `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp` — sweep 2 reported `hello=proceeding`
+
+### Unknown
+- `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` — send button disabled; sweep 2 reported `hello=unknown`
+- `e9097611` — sweep C timed out waiting for `Send Hello`; sweep 2 reported `hello=unknown`
+- `42004386e43c8589` — sweep 1 reported `hello=unknown`
+- `42c2cf` — sweep 1 reported `hello=unknown`
+- `EQUGS85LJNEIO7Z5` — sweep 1 reported `hello=unknown`
+- `MZLJMJAIO7SKS8BI` — uninitialized; Bluetooth off; sweep 1 reported `hello=unknown`
+
+### Not reverified in latest sweep bundle
+- `2ASVB21B09005117`
+- `7XHEIBPBLRJJSKFU`
+- `GX6CTR500184`
 
 ## Send Hello outcomes that did not reach completion
 These devices reached the proof UI, but the hello path was blocked, passive, or not conclusively completed in the captured evidence window.
