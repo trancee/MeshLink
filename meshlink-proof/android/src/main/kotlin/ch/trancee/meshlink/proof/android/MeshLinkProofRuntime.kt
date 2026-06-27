@@ -158,6 +158,26 @@ internal object MeshLinkProofRuntime {
                     )
                 }
                 applyBenchmarkPowerSnapshot()
+                if (launchConfig.benchmarkPayloadBytes != null && launchConfig.forceInitiator) {
+                    scope.launch {
+                        appendLog("BENCHMARK fallback waiting for peer discovery")
+                        var waitedMs = 0L
+                        while (waitedMs < 15_000L) {
+                            val peerId =
+                                synchronized(knownPeers) {
+                                    knownPeers.values.firstOrNull()?.peerId
+                                }
+                            if (peerId != null) {
+                                appendLog("BENCHMARK fallback peer resolved ${peerId.value.takeLast(6)}")
+                                maybeStartAutoHello(peerId, "benchmark-fallback")
+                                return@launch
+                            }
+                            delay(1_000L)
+                            waitedMs += 1_000L
+                        }
+                        appendLog("BENCHMARK fallback exhausted waiting for peer discovery")
+                    }
+                }
                 updatesFlow.tryEmit(Unit)
             }.onFailure { error ->
                 runtimeStateText = "Error(MeshLink)"
