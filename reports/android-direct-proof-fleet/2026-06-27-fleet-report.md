@@ -22,37 +22,41 @@ Transport mode in the underlying direct-proof summaries is derived from nested `
   - 3 network ADB devices
 - Network devices were installed before launch, as required.
 
+
 ## Device matrix
 
-Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen state, `sent`/`proceeding`/`unknown` = latest hello status, `n/r` = not reverified in the latest sweep bundle. Transport mode is described in the report-level section above and is not repeated per row.
+Legend: `ok` = confirmed in the latest sweep output, `yes`/`no` = proof-screen state, `sent`/`proceeding`/`unknown` = latest hello status, `n/r` = not reverified in the latest sweep bundle. The `Transport mode` column reflects the device-class bearer family used by the sweep path (`GATT` on API 31 and below, `L2CAP` on API 33+); it is separate from the report-level transport summary above.
 
-| Device Name | Serial | Type | install | grants | launch | proof | latest hello | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Nothing Phone (2) | 1f1dad34 | USB | ok | ok | ok | yes | sent | confirmed send |
-| Nothing A063 | adb-P2126T004912-Na69Lt._adb-tls-connect._tcp | network | ok | ok | ok | yes | unknown | send button disabled; sweep 2 reported `hello=unknown` |
-| realme RMX3710 | 7XHEIBPBLRJJSKFU | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
-| motorola edge 30 fusion | ZY22GCD9ST | USB | ok | ok | ok | yes | sent | sweep E also reported `NotSent(reason=UNREACHABLE)` on target `c67798` |
-| Nokia X20 | adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp | network | ok | ok | ok | yes | sent | confirmed send |
-| OPPO CPH2359 | EQUGS85LJNEIO7Z5 | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
-| Gigaset E940-2849-00 | GX6CTR500184 | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
-| OPPO CPH2385 | MZLJMJAIO7SKS8BI | USB | ok | ok | ok | no | unknown | uninitialized; Bluetooth off; sweep 1 reported `hello=unknown` |
-| OnePlus DN2103 | adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp | network | ok | ok | ok | yes | proceeding | sweep 2 reported `hello=proceeding` |
-| HUAWEI NAM-LX9 | 2ASVB21B09005117 | USB | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
-| Xiaomi POCOPHONE F1 | e9097611 | USB | ok | ok | ok | yes | unknown | sweep C timeout, sweep 2 reported `hello=unknown` |
-| Samsung Galaxy Z Flip4 | R5CT83ACSJX | USB | ok | ok | ok | yes | sent / proceeding | earlier confirmed send; later sweep 1 reported `hello=proceeding` |
-| Samsung Galaxy XCover4 | 42004386e43c8589 | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
-| Xiaomi Mi Note 3 | 42c2cf | USB | ok | ok | ok | yes | unknown | sweep 1 reported `hello=unknown` |
+| Device Name | Serial | Type | install | grants | launch | proof | Transport mode | latest hello | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [Nothing Phone (2)](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | 1f1dad34 | USB | ok | ok | ok | yes | L2CAP | sent | confirmed send |
+| [Nothing Phone (1)](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | adb-P2126T004912-Na69Lt._adb-tls-connect._tcp | network | ok | ok | ok | yes | L2CAP | unknown | send button disabled; sweep 2 reported `hello=unknown` |
+| [realme C55](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | 7XHEIBPBLRJJSKFU | USB | n/r | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| [motorola edge 30 fusion](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | ZY22GCD9ST | USB | ok | ok | ok | yes | L2CAP | sent | sweep E also reported `NotSent(reason=UNREACHABLE)` on target `c67798` |
+| [Nokia X20](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp | network | ok | ok | ok | yes | L2CAP | sent | confirmed send |
+| [OPPO Reno8 5G](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | EQUGS85LJNEIO7Z5 | USB | ok | ok | ok | yes | L2CAP | unknown | sweep 1 reported `hello=unknown` |
+| [Gigaset GX6 Outdoor Smartphone](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | GX6CTR500184 | USB | n/r | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| [OPPO A77](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | MZLJMJAIO7SKS8BI | USB | ok | ok | ok | no | L2CAP | unknown | uninitialized; Bluetooth off; sweep 1 reported `hello=unknown` |
+| [OnePlus Nord CE 2 5G](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp | network | ok | ok | ok | yes | L2CAP | proceeding | sweep 2 reported `hello=proceeding` |
+| [Huawei nova 9 SE](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | 2ASVB21B09005117 | USB | n/r | n/r | n/r | n/r | n/r | n/r | not reverified in the latest sweep bundle |
+| [Xiaomi Pocophone F1](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | e9097611 | USB | ok | ok | ok | yes | GATT | unknown | sweep C timeout, sweep 2 reported `hello=unknown` |
+| [Samsung Galaxy Z Flip4](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | R5CT83ACSJX | USB | ok | ok | ok | yes | L2CAP | sent / proceeding | earlier confirmed send; later sweep 1 reported `hello=proceeding` |
+| [Samsung Galaxy XCover4](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | 42004386e43c8589 | USB | ok | ok | ok | yes | GATT | unknown | sweep 1 reported `hello=unknown` |
+| [Xiaomi Mi Note 3](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) | 42c2cf | USB | ok | ok | ok | yes | GATT | unknown | sweep 1 reported `hello=unknown` |
 
 ## Confirmed hello completions
-- Nothing Phone (2) (1f1dad34) — `Hello sent to ... -> Sent`
-- Samsung Galaxy Z Flip4 (R5CT83ACSJX) — `Hello sent to ... -> Sent` (`routeReady=false` at tap time, but the send completed)
-- motorola edge 30 fusion (ZY22GCD9ST) — `Hello sent to b06435 -> Sent`
-- Nokia X20 (adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp) — `Hello sent to ... -> Sent`
+- [Nothing Phone (2)](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) — `Hello sent to ... -> Sent`
+- [Samsung Galaxy Z Flip4](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) — `Hello sent to ... -> Sent` (`routeReady=false` at tap time, but the send completed)
+- [motorola edge 30 fusion](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) — `Hello sent to b06435 -> Sent`
+- [Nokia X20](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) — `Hello sent to ... -> Sent`
 
 ## Recovery checklist
-- [ ] Route-ready retry: retry Samsung Galaxy Z Flip4 (R5CT83ACSJX) and OnePlus DN2103 (adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp) only after route-discovered / route-ready evidence is present, and after a fresh proof-screen check shows the Send Hello control enabled.
-- [ ] Unknown-state retry: rerun Nothing A063 (adb-P2126T004912-Na69Lt._adb-tls-connect._tcp), Xiaomi POCOPHONE F1 (e9097611), Samsung Galaxy XCover4 (42004386e43c8589), Xiaomi Mi Note 3 (42c2cf), OPPO CPH2359 (EQUGS85LJNEIO7Z5), and OPPO CPH2385 (MZLJMJAIO7SKS8BI) with Bluetooth/preflight/UI-idle checks before attempting hello.
-- [ ] Inventory-gap reverify: keep HUAWEI NAM-LX9 (2ASVB21B09005117), realme RMX3710 (7XHEIBPBLRJJSKFU), and Gigaset E940-2849-00 (GX6CTR500184) in the next full inventory sweep rather than the current short retry list.
+- [ ] Route-ready retry: retry [Samsung Galaxy Z Flip4](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`R5CT83ACSJX`) and [OnePlus Nord CE 2 5G](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp`) only after route-discovered / route-ready evidence is present, and after a fresh proof-screen check shows the Send Hello control enabled.
+- [ ] Unknown-state retry: rerun [Nothing Phone (1)](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`adb-P2126T004912-Na69Lt._adb-tls-connect._tcp`), [Xiaomi Pocophone F1](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`e9097611`), [Samsung Galaxy XCover4](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`42004386e43c8589`), [Xiaomi Mi Note 3](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`42c2cf`), [OPPO Reno8 5G](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`EQUGS85LJNEIO7Z5`), and [OPPO A77](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`MZLJMJAIO7SKS8BI`) with Bluetooth/preflight/UI-idle checks before attempting hello.
+- [ ] Inventory-gap reverify: keep [Huawei nova 9 SE](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`2ASVB21B09005117`), [realme C55](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`7XHEIBPBLRJJSKFU`), and [Gigaset GX6 Outdoor Smartphone](../../docs/reference/device-test-matrix.md#current-fleet-aliases-captured-during-the-2026-06-27-direct-proof-sweep) (`GX6CTR500184`) in the next full inventory sweep rather than the current short retry list.
+
+## Regeneration note
+To keep this report in the same style on future runs, start from the latest sweep outputs and the canonical names in `docs/reference/device-test-matrix.md`, then render rows in descending SDK order with `Device Name`, `Serial`, `Type`, `install`, `grants`, `launch`, `proof`, `Transport mode`, `latest hello`, and `Notes` columns. Link each device name to the matrix alias section, and only use the per-row transport value when the device class can be mapped confidently (`GATT` on API 31 and below, `L2CAP` on API 33+). If a device has not been reverified in the current bundle, keep `n/r` rather than guessing.
 
 ## Evidence highlights
 - Proof screen verification screenshots:
