@@ -96,7 +96,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--sender-passive-limit",
         type=int,
-        help="Optional cap on the number of directed pairs to run for a partial sweep",
+        help="Optional cap on the number of directed pairs to run for a partial run",
     )
     parser.add_argument(
         "--android-ready-seconds",
@@ -114,7 +114,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--pair-timeout-seconds",
         type=float,
         default=DEFAULT_PAIR_TIMEOUT_SECONDS,
-        help="Outer timeout per pair so a hung proof script cannot stall the whole sweep",
+        help="Outer timeout per pair so a hung proof script cannot stall the whole run",
     )
     parser.add_argument(
         "--min-android-api-level",
@@ -136,7 +136,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--max-failures",
         type=int,
         default=5,
-        help="Stop the sweep once failures exceed this threshold when fail-fast is disabled",
+        help="Stop the run once failures exceed this threshold when fail-fast is disabled",
     )
     parser.set_defaults(fail_fast=True)
     return parser.parse_args(argv)
@@ -211,7 +211,6 @@ def run_pair(
     android_ready_seconds: float,
     pair_timeout_seconds: float,
     skip_install: bool,
-    passive_benchmark_transport: str | None = None,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -235,8 +234,6 @@ def run_pair(
         command.append("--skip-android-install")
     if target_peer_id is not None:
         command.extend(["--target-peer-id", target_peer_id])
-    if passive_benchmark_transport is not None:
-        command.extend(["--passive-benchmark-transport", passive_benchmark_transport])
 
     print(f"==> Running: {shell_join(command)}", flush=True)
     started_at = time.monotonic()
@@ -511,31 +508,31 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    autonumber",
         "    participant Matrix",
         "    participant Fleet",
-        "    participant Sweep",
+        "    participant Run",
         "    participant Stop",
         f"    note over Matrix: runRoot={mermaid_text(run_root or '—', max_len=40)} · fleet={mermaid_text(Path(fleet_inventory_path).name if fleet_inventory_path else '—', max_len=40)}",
         "    rect rgba(30, 64, 175, 0.40)",
         f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
-        f"        Matrix->>Sweep: prepare directed sweep ({completed_pairs} completed)",
+        f"        Matrix->>Run: prepare directed run ({completed_pairs} completed)",
         f"        Fleet-->>Matrix: inventory ready ({passing_count} passing · {failing_count} failing)",
-        f"        note over Fleet,Sweep: failure bucket so far = {mermaid_text(top_failure_bucket, max_len=40)}",
+        f"        note over Fleet,Run: failure bucket so far = {mermaid_text(top_failure_bucket, max_len=40)}",
         "    end",
         "    rect rgba(236, 253, 245, 0.55)",
-        f"        Sweep->>Sweep: execute pair lane across {completed_pairs} completed pairs",
-        "        Sweep->>Sweep: classify outcomes by failure stage",
-        f"        note over Sweep: top failure bucket = {mermaid_text(top_failure_bucket, max_len=40)}",
+        f"        Run->>Run: execute pair lane across {completed_pairs} completed pairs",
+        "        Run->>Run: classify outcomes by failure stage",
+        f"        note over Run: top failure bucket = {mermaid_text(top_failure_bucket, max_len=40)}",
         "        alt at least one passing pair",
-        f"            Sweep-->>Matrix: {passing_count} passing pairs recorded",
+        f"            Run-->>Matrix: {passing_count} passing pairs recorded",
         "        else no passing pairs",
-        "            Sweep-->>Matrix: no successful pairs",
+        "            Run-->>Matrix: no successful pairs",
         "        end",
         "    end",
         "    rect rgba(254, 242, 242, 0.55)",
         "        alt stopped early",
-        "            Sweep->>Stop: stopped early",
+        "            Run->>Stop: stopped early",
         f"            note over Stop: failure summary recorded in report",
-        "        else sweep completed",
-        "            Sweep->>Stop: all processed pairs recorded",
+        "        else run completed",
+        "            Run->>Stop: all processed pairs recorded",
         f"            note over Stop: failure summary recorded in report",
         "        end",
         "    end",
@@ -953,7 +950,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
         clear_reference_app_data(pair["sender"])
         clear_reference_app_data(pair["passive"])
-        passive_benchmark_transport = "gatt" if passive_api_level is not None and passive_api_level < 34 else None
         initial = run_pair(
             sender=pair["sender"],
             passive=pair["passive"],
@@ -964,7 +960,6 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=False,
-            passive_benchmark_transport=passive_benchmark_transport,
         )
         target_peer_id = None
         peer_lookup_seconds = None
@@ -996,7 +991,6 @@ def main(argv: list[str] | None = None) -> int:
             android_ready_seconds=args.android_ready_seconds,
             pair_timeout_seconds=args.pair_timeout_seconds,
             skip_install=True,
-            passive_benchmark_transport=passive_benchmark_transport,
         )
 
         row = {

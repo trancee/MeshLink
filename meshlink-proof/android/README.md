@@ -69,12 +69,11 @@ The default launch uses:
 
 - `appId = demo.meshlink`
 - `powerMode = automatic`
-- `benchmarkTransport = meshlink`
 
 If you are using this app as the receiving proof peer for
 [Your first MeshLink exchange](../../docs/tutorials/your-first-meshlink-exchange.md),
-keep `benchmarkTransport` at `meshlink` and override only the `appId` so it
-matches the tutorial host app.
+keep the default launch settings and override only the `appId` so it
+matches the tutorial host app. Transport is chosen by the MeshLink library.
 
 For the Android direct-proof runner on this host, the stable pair that completed end-to-end was Spacewar (sender) + DN2103 (passive); Nokia X20 + DN2103 repeatedly failed to produce mutual discovery even though both devices were advertising and scanning until the screen stayed awake. The reference app now starts a foreground wake-lock mitigation during live-proof automation sessions to reduce that quick-doze risk on doze-sensitive OEM builds. The direct-proof runner still treats sender `proof.complete` as the hard success gate and accepts passive retained evidence without passive `proof.complete`. The proof-app test itself should verify that both sender and passive can initiate a message when the UI exposes a send control, and the runner force-stops both proof-app packages in cleanup after success or failure.
 
@@ -91,7 +90,6 @@ The Android proof app reads these intent extras on launch:
 | `meshlink.benchmarkIsCharging` | bool | Charging state to feed into `updateBattery()` |
 | `meshlink.benchmarkColdStart` | bool | Enables the cold-start benchmark path |
 | `meshlink.disableAutoSend` | bool | Suppresses the automatic benchmark send |
-| `meshlink.benchmarkTransport` | string | `meshlink`, `gatt`, or `gatt-notify` |
 | `meshlink.forceInitiator` | bool | Forces the proof peer to take the initiator role |
 
 Example: start the app in a dedicated proof mesh domain with performance mode.
@@ -111,14 +109,13 @@ adb shell am start \
   --es meshlink.appId com.example.meshlink.tutorial
 ```
 
-Example: start the proof-only GATT-notify setup without automatic MeshLink
+Example: start the proof-only setup without automatic MeshLink
 sends.
 
 ```bash
 adb shell am start \
   -n ch.trancee.meshlink.proof.android/.MainActivity \
   --es meshlink.appId demo.meshlink \
-  --es meshlink.benchmarkTransport gatt-notify \
   --ez meshlink.disableAutoSend true
 ```
 
@@ -131,32 +128,9 @@ adb shell am start \
   --ez meshlink.forceInitiator true
 ```
 
-## 4. Choose the transport mode deliberately
+## 4. Transport is library-owned
 
-The Android proof app can start in three transport modes.
-Use them for different claims.
-
-| Value | Meaning | Use it when you need to... | Important boundary |
-|---|---|---|---|
-| `meshlink` | normal MeshLink runtime | run the tutorial proof peer, manual product-path proof, or diagnostic sanity checks | closest to supported runtime behavior |
-| `gatt` | older Android GATT prototype | keep the Android device in the passive GATT-server fixture role or exercise the GATT route-discovery fallback when L2CAP is unavailable | relaunch with `meshlink.disableAutoSend=true`; proof-only and non-normative |
-| `gatt-notify` | Android-side GATT-notify prototype | run notify-side transport investigation against the matching iPhone proof setup | proof-only and non-normative |
-
-In normal `meshlink` mode, the proof app gives you:
-
-- Start / Stop controls
-- peer visibility
-- diagnostic log output
-- inbound-message logging
-- a Send Hello action
-
-If you are validating supported user-visible behavior, stay in `meshlink` mode
-or move to the reference app. Use `gatt` and `gatt-notify` only when you are
-explicitly doing retained transport investigation or benchmark-oriented work.
-
-Benchmark runs now split by route: keep `meshlink.benchmarkTransport=meshlink`
-for the fast-route 50 ms ceiling, and use `meshlink.benchmarkTransport=gatt`
-for the fallback route's 500 ms ceiling.
+The Android proof app does not expose a transport override. Use the default launch path for supported proof runs; the MeshLink library chooses transport and the logs report the observed transport when needed.
 
 When using the reference app for Android direct proof, keep in mind that the
 live-proof automation path now starts a foreground wake lock plus a foreground
@@ -176,7 +150,7 @@ one giant activity file.
 
 The Android proof app also ships instrumented benchmark coverage under
 `androidTest`. The default connected Android test task excludes those benchmark
-classes so the normal attached-device sweep stays fast.
+classes so the normal attached-device test run stays fast.
 
 Run the benchmark-only suite with:
 

@@ -1,6 +1,6 @@
 # Android direct-proof fleet reports
 
-The Android fleet sweep produces repository-local report bundles so failures can be debugged and fixed without rerunning the same pairs blindly.
+The Android fleet run produces repository-local report bundles so failures can be debugged and fixed without rerunning the same pairs blindly.
 
 ## Default report location
 
@@ -8,7 +8,7 @@ When `meshlink-reference/scripts/run_headless_reference_android_direct_matrix.py
 
 `reports/android-direct-proof-fleet/runs/<timestamp>/`
 
-That directory is the canonical report bundle for the sweep.
+That directory is the canonical report bundle for the run.
 
 ## Bundle contents
 

@@ -1,6 +1,6 @@
 # Android direct-proof fleet report layout
 
-This page is a concise repository-tracked sample of the report bundle shape produced by the Android direct-proof fleet sweep.
+This page is a concise repository-tracked sample of the report bundle shape produced by the Android direct-proof fleet run.
 
 ## Sample bundle
 

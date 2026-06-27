@@ -127,7 +127,7 @@ internal object MeshLinkProofRuntime {
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 val initiatorMode = if (resolvedLaunchConfig.forceInitiator) "forced" else "hash"
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} benchmarkTransport=${resolvedLaunchConfig.benchmarkTransport ?: "meshlink"} initiatorMode=$initiatorMode$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} initiatorMode=$initiatorMode$keyHashSuffix",
                 )
             }
         }

@@ -7,7 +7,7 @@ The currently tracked example bundle guide lives at [android-direct-proof-fleet/
 
 ## Android direct-proof fleet reports
 
-The Android direct-proof fleet sweep writes its default output under:
+The Android direct-proof fleet run writes its default output under:
 
 ```text
 reports/android-direct-proof-fleet/runs/<timestamp>/

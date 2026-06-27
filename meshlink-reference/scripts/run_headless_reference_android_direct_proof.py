@@ -79,10 +79,6 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
-ANDROID_EXTRA_BENCHMARK_TRANSPORT = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
-ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT = (
-    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
-)
 ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
@@ -202,15 +198,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Android advertisement carrier to use for direct proof. Keep the default UUID pair "
             "unless you are isolating discovery-carrier behavior on a specific device."
-        ),
-    )
-    parser.add_argument(
-        "--passive-benchmark-transport",
-        choices=("meshlink", "gatt", "gatt-notify"),
-        default=None,
-        help=(
-            "Optional passive Android benchmark transport override for manual diagnosis. "
-            "Leave unset so the library chooses the transport automatically."
         ),
     )
     parser.add_argument("--skip-android-install", action="store_true")
@@ -1446,7 +1433,6 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
-    benchmark_transport: str | None = None,
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
@@ -1517,14 +1503,6 @@ def start_android_role_app(
                 advertisement_carrier,
             ]
         )
-        if benchmark_transport is not None:
-            command.extend(
-                [
-                    "--es",
-                    ANDROID_EXTRA_BENCHMARK_TRANSPORT,
-                    benchmark_transport,
-                ]
-            )
     app_label = "proof" if android_package == ANDROID_PROOF_PACKAGE else "reference"
     print(f"==> Launching {label} Android {app_label} app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
@@ -1618,7 +1596,6 @@ def launch_android_sender_role_app(
         android_transport_logcat=android_transport_logcat,
         target_peer_id=target_peer_id,
         advertisement_carrier=sender_advertisement_carrier,
-        benchmark_transport=None,
         android_activity=ANDROID_ACTIVITY,
         android_package=ANDROID_PACKAGE,
     )
@@ -1635,7 +1612,6 @@ def launch_android_role_apps(
     android_transport_logcat: bool,
     target_peer_id: str | None,
     passive_advertisement_carrier: str,
-    passive_benchmark_transport: str | None,
     sender_advertisement_carrier: str,
 ) -> tuple[BackgroundProcess, BackgroundProcess]:
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1650,7 +1626,6 @@ def launch_android_role_apps(
             android_transport_logcat=android_transport_logcat,
             target_peer_id=None,
             advertisement_carrier=passive_advertisement_carrier,
-            benchmark_transport=passive_benchmark_transport,
             android_activity=ANDROID_ACTIVITY,
             android_package=ANDROID_PACKAGE,
         )
@@ -1665,8 +1640,7 @@ def launch_android_role_apps(
             android_transport_logcat=android_transport_logcat,
             target_peer_id=target_peer_id,
             advertisement_carrier=sender_advertisement_carrier,
-            benchmark_transport=None,
-            android_activity=ANDROID_ACTIVITY,
+                android_activity=ANDROID_ACTIVITY,
             android_package=ANDROID_PACKAGE,
         )
         passive_process = passive_future.result()
@@ -2119,7 +2093,6 @@ def main(argv: list[str] | None = None) -> int:
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=None,
                 advertisement_carrier=args.advertisement_carrier,
-                benchmark_transport=args.passive_benchmark_transport,
                 android_activity=ANDROID_ACTIVITY,
                 android_package=ANDROID_PACKAGE,
             )
