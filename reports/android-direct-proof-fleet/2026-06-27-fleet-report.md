@@ -30,12 +30,12 @@ These devices reached the proof UI, but the hello path was blocked, passive, or 
 
 - `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp` — button enabled; log showed `Hello send proceeding ... routeReady=false` and sweep 2 still reported `hello=proceeding`
 - `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp` — Send Hello button was disabled; sweep 2 still reported `hello=unknown`
-- `MZLJMJAIO7SKS8BI` — remained `State: Uninitialized`; Send Hello was disabled and Bluetooth was off
+- `MZLJMJAIO7SKS8BI` — remained `State: Uninitialized`; Send Hello was disabled and Bluetooth was off; sweep 1 also reported `hello=unknown`
 - `e9097611` — proof UI was present in earlier captures, but the sweep C job timed out waiting for the `Send Hello` element, so hello completion was not re-verified in that pass; sweep 2 still reported `hello=unknown`
 - `ZY22GCD9ST` — sweep E also captured `Hello sent to c67798 -> NotSent(reason=UNREACHABLE)`, which indicates a peer-level reachability failure even though the device had already produced a local successful send earlier in the run
-- `42004386e43c8589` — proof UI present; Send Hello disabled in the captured screenshot
-- `42c2cf` — proof UI present; Send Hello disabled in the captured screenshot
-- `EQUGS85LJNEIO7Z5` — proof UI present; Send Hello disabled in the captured screenshot
+- `42004386e43c8589` — proof UI present; sweep 1 reported `hello=unknown`
+- `42c2cf` — proof UI present; sweep 1 reported `hello=unknown`
+- `EQUGS85LJNEIO7Z5` — proof UI present; sweep 1 reported `hello=unknown`
 
 ## Evidence highlights
 - Proof screen verification screenshots:
@@ -56,6 +56,7 @@ These devices reached the proof UI, but the hello path was blocked, passive, or 
 - Sweep C added a second confirmed send path (`R5CT83ACSJX`) and exposed a timeout on `e9097611` while waiting for the hello control.
 - Sweep E added a peer-reachability failure for `ZY22GCD9ST` (`NotSent(reason=UNREACHABLE)`) without overturning the earlier local send success.
 - Sweep 2 added another confirmed send from `adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp` and preserved the remaining `proceeding` / `unknown` classifications for `adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp`, `adb-P2126T004912-Na69Lt._adb-tls-connect._tcp`, and `e9097611`.
+- Sweep 1 reintroduced `hello=unknown` on `42004386e43c8589`, `42c2cf`, `EQUGS85LJNEIO7Z5`, and `MZLJMJAIO7SKS8BI`, and showed `R5CT83ACSJX` as `hello=proceeding` on a later attempt even though the device had already logged a completed send earlier in the run.
 
 ## Notes
 - The pass confirmed the permission-unblock ordering that worked on the fleet: install first, grant permissions on-device, then launch.
