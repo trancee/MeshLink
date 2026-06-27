@@ -652,6 +652,15 @@ internal object MeshLinkProofRuntime {
                         }
                         return@launch
                     }
+                    if (launchConfig.benchmarkPayloadBytes != null && !routeReady) {
+                        appendLog(
+                            "BENCHMARK auto-send gated by route readiness ${describeRouteState(peerId)} source=$source"
+                        )
+                        synchronized(autoSendJobs) {
+                            autoSendJobs.remove(peerId.value)
+                        }
+                        return@launch
+                    }
                     appendLog(
                         "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected mode=${if (launchConfig.benchmarkPayloadBytes != null) "benchmark" else "hello"} payloadBytes=${launchConfig.benchmarkPayloadBytes ?: 0}"
                     )
