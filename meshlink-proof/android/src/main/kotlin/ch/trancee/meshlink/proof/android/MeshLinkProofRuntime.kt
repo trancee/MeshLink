@@ -281,7 +281,15 @@ internal object MeshLinkProofRuntime {
             }
         }
         scope.launch {
-            mesh.peerEvents.collectLatest(::handlePeerEvent)
+            appendLog("PEER collector subscribed")
+            var firstPeerEventLogged = false
+            mesh.peerEvents.collectLatest { event ->
+                if (!firstPeerEventLogged) {
+                    firstPeerEventLogged = true
+                    appendLog("PEER collector first event observed")
+                }
+                handlePeerEvent(event)
+            }
         }
         scope.launch {
             mesh.diagnosticEvents.collectLatest { event ->
