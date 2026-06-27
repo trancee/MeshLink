@@ -355,7 +355,13 @@ internal object MeshLinkProofRuntime {
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
         when (event.code) {
             DiagnosticCode.ROUTE_DISCOVERED,
-            DiagnosticCode.HOP_SESSION_ESTABLISHED -> markRouteReady(event.peerSuffix, event.code.name)
+            DiagnosticCode.HOP_SESSION_ESTABLISHED -> {
+                val peerIdValue = event.metadata["peerId"]
+                if (peerIdValue != null) {
+                    rememberKnownPeer(PeerId(peerIdValue), source = event.code.name)
+                }
+                markRouteReady(event.peerSuffix, event.code.name)
+            }
             DiagnosticCode.TRUST_ESTABLISHED -> {
                 val peerIdValue = event.metadata["peerId"]
                 if (peerIdValue != null) {
