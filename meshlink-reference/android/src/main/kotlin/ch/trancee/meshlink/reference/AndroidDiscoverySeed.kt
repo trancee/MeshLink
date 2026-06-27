@@ -3,16 +3,12 @@ package ch.trancee.meshlink.reference
 import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 
 private const val RETAINED_DISCOVERY_SEED_FILE = "automation-discovery-seed.txt"
 private const val SHARED_PREFS_PREFIX = "meshlink-"
 private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
-private const val RETAINED_DISCOVERY_SEED_WAIT_MILLIS = 15_000L
-private const val RETAINED_DISCOVERY_SEED_POLL_MILLIS = 250L
-private const val RETAINED_DISCOVERY_SEED_PROGRESS_LOG_INTERVAL = 4
 private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 20
 
 private data class RetainedDiscoverySeedSnapshot(
@@ -31,7 +27,7 @@ internal fun launchRetainedDiscoverySeedProbe(
 ): Unit {
     if (appId.isBlank() || appId == "unknown") return
     scope.launch {
-        val seedSnapshot = waitForRetainedDiscoverySeed(context, appId, emitAutomationLog)
+        val seedSnapshot = inspectRetainedDiscoverySeed(context, appId)
         if (seedSnapshot.seed == null) {
             emitAutomationLog(
                 buildString {
@@ -107,46 +103,6 @@ private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): Stri
             .copyOfRange(0, RETAINED_DISCOVERY_PEER_ID_BYTES)
             .joinToString(separator = "") { byte -> "%02x".format(byte) }
     }.getOrNull()
-}
-
-private suspend fun waitForRetainedDiscoverySeed(
-    context: Context,
-    appId: String,
-    emitAutomationLog: (String) -> Unit,
-): RetainedDiscoverySeedSnapshot {
-    val deadline = System.currentTimeMillis() + RETAINED_DISCOVERY_SEED_WAIT_MILLIS
-    var attempt = 0
-    while (System.currentTimeMillis() < deadline) {
-        attempt += 1
-        val snapshot = inspectRetainedDiscoverySeed(context, appId)
-        if (!snapshot.seed.isNullOrBlank()) {
-            return snapshot
-        }
-        if (
-            attempt == 1 ||
-                attempt % RETAINED_DISCOVERY_SEED_PROGRESS_LOG_INTERVAL == 0 ||
-                System.currentTimeMillis() + RETAINED_DISCOVERY_SEED_POLL_MILLIS >= deadline
-        ) {
-            emitAutomationLog(
-                buildString {
-                    append("REFERENCE_AUTOMATION retained.discovery-seed pending appId=")
-                    append(appId)
-                    append(" attempt=")
-                    append(attempt)
-                    append(" keys=")
-                    append(snapshot.sharedPrefKeyCount)
-                    append(" directSeed=")
-                    append(snapshot.hasDirectIdentitySeed)
-                    append(" ed25519Public=")
-                    append(snapshot.hasEd25519Public)
-                    append(" x25519Public=")
-                    append(snapshot.hasX25519Public)
-                },
-            )
-        }
-        delay(RETAINED_DISCOVERY_SEED_POLL_MILLIS)
-    }
-    return inspectRetainedDiscoverySeed(context, appId)
 }
 
 private fun writeRetainedDiscoverySeedArtifact(context: Context, seed: String): Unit {
