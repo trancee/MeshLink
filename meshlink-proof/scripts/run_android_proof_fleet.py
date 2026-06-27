@@ -324,22 +324,9 @@ def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
         return "unknown"
-    if any("L2CAP" in mode for mode in candidates):
+    if len(candidates) == 2 and all("L2CAP" in mode for mode in candidates):
         return "L2CAP"
-    if any("GATT" in mode for mode in candidates):
-        return "GATT"
-    return candidates[0]
-
-
-def canonical_transport_label(modes: list[str | None]) -> str:
-    candidates = [mode for mode in modes if mode]
-    if not candidates:
-        return "unknown"
-    if any("L2CAP" in mode for mode in candidates):
-        return "L2CAP"
-    if any("GATT" in mode for mode in candidates):
-        return "GATT"
-    return candidates[0]
+    return "GATT"
 
 
 def summarize_pair(pair: PairRecord, run_root: Path, mode_map: dict[str, str | None]) -> dict[str, Any]:
@@ -411,23 +398,6 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
         lines.append(
             f"- {check['serial']}: before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')} action={check.get('action')}"
         )
-    return "\n".join(lines)
-
-
-def render_human_summary(summary: dict[str, Any]) -> str:
-    lines: list[str] = []
-    lines.append("# MeshLink proof-app run note")
-    lines.append("")
-    lines.append(
-        f"Bluetooth preflight was checked before launch on {summary.get('deviceCount', len(summary.get('selectedDevices', [])))} devices across {summary.get('pairCount', len(summary.get('pairs', [])))} pairs."
-    )
-    lines.append("Weak pairs can be rerun with `--pair-label`.")
-    lines.append("")
-    lines.append("## Pair snapshot")
-    for row in summary["pairRows"]:
-        transport = row.get("transportMode") or "unknown"
-        ack = "yes" if row["ackLines"] else "no"
-        lines.append(f"- {row['label']}: {transport}; ACK {ack}")
     return "\n".join(lines)
 
 
@@ -541,7 +511,6 @@ def main(argv: list[str] | None = None) -> int:
     (run_root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (run_root / "summary.md").write_text(render_compact_summary(summary), encoding="utf-8")
     (run_root / "compact-summary.md").write_text(render_compact_summary(summary), encoding="utf-8")
-    (run_root / "human-summary.md").write_text(render_human_summary(summary), encoding="utf-8")
 
     print(json.dumps({
         "runRoot": str(run_root),
@@ -551,7 +520,6 @@ def main(argv: list[str] | None = None) -> int:
         "pairs": len(selected_pairs),
         "summary": str(run_root / "summary.md"),
         "compactSummary": str(run_root / "compact-summary.md"),
-        "humanSummary": str(run_root / "human-summary.md"),
     }, indent=2))
     return 0
 
