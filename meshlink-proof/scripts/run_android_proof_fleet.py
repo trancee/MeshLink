@@ -24,8 +24,8 @@ DEFAULT_POWER_MODE = "performance"
 DEFAULT_PAYLOAD_BYTES = 64
 DEFAULT_WAIT_SECONDS = 120
 DEFAULT_RUN_ROOT = ROOT / "reports" / "android-proof-fleet" / "runs"
-MESH_MODE_RE = re.compile(r"\bmode=([A-Z0-9_\-]+)\b")
-TRANSPORT_RE = re.compile(r"\btransport(?:Mode)?=([A-Z0-9_\-]+)\b")
+MESH_MODE_RE = re.compile(r"\bmode=([A-Z_][A-Z0-9_\-]*)\b")
+TRANSPORT_RE = re.compile(r"\btransport(?:Mode)?=([A-Z_][A-Z0-9_\-]*)\b")
 WIRELESS_SUFFIX = "._adb-tls-connect._tcp"
 
 
@@ -72,6 +72,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_WAIT_SECONDS,
         help="How long to wait for peer discovery and delivery before logs are captured",
     )
+    parser.add_argument(
+        "--pair-label",
+        action="append",
+        dest="pair_labels",
+        default=[],
+        help="Only run the named pair label(s). May be repeated.",
+    )
     return parser.parse_args(argv)
 
 
@@ -92,6 +99,7 @@ def android_devices() -> list[dict[str, Any]]:
     payload = json.loads(completed.stdout)
     return payload.get("devices", [])
 
+
 @lru_cache(maxsize=None)
 def device_info(serial: str) -> dict[str, Any]:
     completed = run_command([str(TOOLS), "device", "info", "--device", serial, "--json"], check=True)
@@ -110,6 +118,48 @@ def normalize_android_serial(listed_id: str) -> tuple[str, dict[str, Any]]:
         except Exception as error:  # noqa: BLE001 - we want to try the next candidate.
             last_error = error
     raise RuntimeError(f"Unable to resolve Android device serial {listed_id!r}: {last_error}")
+
+
+BLUETOOTH_ENABLED_RE = re.compile(r"^\s*enabled:\s*(true|false)\s*$", re.MULTILINE | re.IGNORECASE)
+BLUETOOTH_STATE_RE = re.compile(r"^\s*state:\s*([A-Z_]+)\s*$", re.MULTILINE)
+
+
+def bluetooth_manager_state(serial: str) -> dict[str, Any]:
+    completed = run_command(["adb", "-s", serial, "shell", "dumpsys", "bluetooth_manager"])
+    stdout = completed.stdout or ""
+    enabled_match = BLUETOOTH_ENABLED_RE.search(stdout)
+    state_match = BLUETOOTH_STATE_RE.search(stdout)
+    return {
+        "serial": serial,
+        "returncode": completed.returncode,
+        "enabled": enabled_match.group(1).lower() == "true" if enabled_match else None,
+        "state": state_match.group(1) if state_match else None,
+        "stdout": stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def ensure_bluetooth_on(device: DeviceRecord) -> dict[str, Any]:
+    serial = device.resolved_serial
+    before = bluetooth_manager_state(serial)
+    action = "already-on"
+    if not before["enabled"] or before["state"] != "ON":
+        action = "enable"
+        run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "enable"], check=True)
+        run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "wait-for-state:STATE_ON"], check=True)
+    after = bluetooth_manager_state(serial)
+    if after["enabled"] is not True or after["state"] != "ON":
+        raise RuntimeError(
+            f"Bluetooth preflight failed for {serial}: before={before['state']!r}/{before['enabled']!r} after={after['state']!r}/{after['enabled']!r}"
+        )
+    return {
+        "serial": serial,
+        "model": device.model,
+        "apiLevel": device.api_level,
+        "action": action,
+        "before": {"enabled": before["enabled"], "state": before["state"]},
+        "after": {"enabled": after["enabled"], "state": after["state"]},
+    }
 
 
 def collect_devices() -> list[DeviceRecord]:
@@ -136,17 +186,15 @@ def collect_devices() -> list[DeviceRecord]:
 
 
 def cross_generation_pairs(devices: list[DeviceRecord]) -> list[PairRecord]:
-    ordered = sorted(devices, key=lambda d: (-d.api_level, d.resolved_serial))
+    ordered = sorted(devices, key=lambda device: (-device.api_level, device.resolved_serial))
     pairs: list[PairRecord] = []
     half = len(ordered) // 2
     for index in range(half):
         initiator = ordered[index]
         receiver = ordered[-(index + 1)]
-        label = (
-            f"{slugify(initiator.model)}__{slugify(receiver.model)}"
-            if slugify(initiator.model) != slugify(receiver.model)
-            else f"{slugify(initiator.model)}_{index + 1}"
-        )
+        initiator_slug = slugify(initiator.model)
+        receiver_slug = slugify(receiver.model)
+        label = f"{initiator_slug}__{receiver_slug}" if initiator_slug != receiver_slug else f"{initiator_slug}_{index + 1}"
         pairs.append(PairRecord(label=label, initiator=initiator, receiver=receiver))
     return pairs
 
@@ -313,10 +361,12 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"- Run root: `{summary['runRoot']}`")
     lines.append(f"- App ID: `{summary['appId']}`")
-    lines.append(f"- Devices: `{summary.get('deviceCount', len(summary.get('devices', [])))}`")
+    lines.append(f"- Fleet devices discovered: `{summary.get('fleetDeviceCount', len(summary.get('devices', [])))}`")
+    lines.append(f"- Devices exercised: `{summary.get('deviceCount', len(summary.get('selectedDevices', [])))}`")
     lines.append(f"- Pairs: `{summary.get('pairCount', len(summary.get('pairs', [])))}`")
     lines.append(f"- Power mode: `{summary['powerMode']}`")
     lines.append(f"- Payload bytes: `{summary['payloadBytes']}`")
+    lines.append(f"- Bluetooth preflight: `{len(summary.get('bluetoothChecks', []))}` devices checked")
     lines.append("")
     lines.append("## Pairs")
     lines.append("")
@@ -334,7 +384,30 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
     lines.append("")
     lines.append("- Proof logs were read from each device using `adb exec-out run-as ... cat files/proof.log`.")
     lines.append("- Transport mode was sampled from live logcat lines tagged `MeshLinkReferenceAutomation`.")
-    lines.append("- The fleet run normalizes wireless ADB aliases to their canonical `.adb-tls-connect._tcp` serials before install and launch.")
+    lines.append("- The fleet launcher normalizes wireless ADB aliases to their canonical `.adb-tls-connect._tcp` serials before install and launch.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_human_summary(summary: dict[str, Any]) -> str:
+    lines: list[str] = []
+    lines.append("# MeshLink proof-app run note")
+    lines.append("")
+    lines.append(
+        f"This run exercised {summary.get('deviceCount', len(summary.get('selectedDevices', [])))} Android devices in {summary.get('pairCount', len(summary.get('pairs', [])))} cross-generation pairs after an adb Bluetooth preflight."
+    )
+    lines.append("")
+    lines.append("## What the launcher does")
+    lines.append("- Checks Bluetooth state with `adb shell dumpsys bluetooth_manager` before launch.")
+    lines.append("- Enables Bluetooth with `adb shell cmd bluetooth_manager enable` and waits for `STATE_ON` when needed.")
+    lines.append("- Normalizes wireless ADB serials to the canonical `.adb-tls-connect._tcp` form.")
+    lines.append("- Supports repeatable `--pair-label` reruns so weak pairs can be retried in isolation.")
+    lines.append("")
+    lines.append("## Pair snapshot")
+    for row in summary["pairRows"]:
+        transport = ", ".join(row["transportModes"]) if row["transportModes"] else "unknown"
+        ack = "ACK" if row["ackLines"] else "no ACK"
+        lines.append(f"- {row['label']}: {transport}; {ack}")
     lines.append("")
     return "\n".join(lines)
 
@@ -349,7 +422,17 @@ def main(argv: list[str] | None = None) -> int:
     app_id = args.app_id or f"demo.meshlink.proof.{timestamp_value}"
 
     devices = collect_devices()
-    pairs = cross_generation_pairs(devices)
+    all_pairs = cross_generation_pairs(devices)
+    if args.pair_labels:
+        pair_lookup = {pair.label: pair for pair in all_pairs}
+        missing = [label for label in args.pair_labels if label not in pair_lookup]
+        if missing:
+            raise SystemExit(f"Unknown pair label(s): {', '.join(missing)}")
+        selected_pairs = [pair_lookup[label] for label in args.pair_labels]
+    else:
+        selected_pairs = all_pairs
+    selected_serials = sorted({pair.initiator.resolved_serial for pair in selected_pairs} | {pair.receiver.resolved_serial for pair in selected_pairs})
+    selected_devices = [device for device in devices if device.resolved_serial in selected_serials]
 
     inventory = {
         "runRoot": str(run_root),
@@ -361,8 +444,10 @@ def main(argv: list[str] | None = None) -> int:
         "powerMode": args.power_mode,
         "payloadBytes": args.payload_bytes,
         "waitSeconds": args.wait_seconds,
-        "deviceCount": len(devices),
-        "pairCount": len(pairs),
+        "fleetDeviceCount": len(devices),
+        "deviceCount": len(selected_devices),
+        "pairCount": len(selected_pairs),
+        "selectedPairLabels": [pair.label for pair in selected_pairs],
         "devices": [
             {
                 "listedId": device.listed_id,
@@ -373,27 +458,40 @@ def main(argv: list[str] | None = None) -> int:
             }
             for device in devices
         ],
+        "selectedDevices": [
+            {
+                "listedId": device.listed_id,
+                "resolvedSerial": device.resolved_serial,
+                "model": device.model,
+                "apiLevel": device.api_level,
+                "raw": device.raw,
+            }
+            for device in selected_devices
+        ],
         "pairs": [
             {
                 "label": pair.label,
                 "initiator": pair.initiator.resolved_serial,
                 "receiver": pair.receiver.resolved_serial,
             }
-            for pair in pairs
+            for pair in selected_pairs
         ],
     }
     (run_root / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
 
-    with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
-        install_results = list(executor.map(install_apk, [device.resolved_serial for device in devices]))
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
 
-    with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
-        prep_results = list(executor.map(grant_permissions, devices))
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        prep_results = list(executor.map(grant_permissions, selected_devices))
+
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
 
     launch_results: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max(2, len(pairs) * 2)) as executor:
+    with ThreadPoolExecutor(max_workers=max(2, len(selected_pairs) * 2)) as executor:
         futures = []
-        for pair in pairs:
+        for pair in selected_pairs:
             futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
             futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
         for future in as_completed(futures):
@@ -401,19 +499,20 @@ def main(argv: list[str] | None = None) -> int:
 
     time.sleep(args.wait_seconds)
 
-    with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
-        capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), devices))
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), selected_devices))
 
-    with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
-        mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), devices))
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), selected_devices))
 
     mode_map = {result["serial"]: result["mode"] for result in mode_results}
-    pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in pairs]
+    pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
 
     summary = {
         **inventory,
         "installResults": install_results,
         "prepResults": prep_results,
+        "bluetoothChecks": bluetooth_checks,
         "launchResults": launch_results,
         "captureResults": capture_results,
         "modeResults": mode_results,
@@ -422,14 +521,17 @@ def main(argv: list[str] | None = None) -> int:
     (run_root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (run_root / "summary.md").write_text(render_compact_summary(summary), encoding="utf-8")
     (run_root / "compact-summary.md").write_text(render_compact_summary(summary), encoding="utf-8")
+    (run_root / "human-summary.md").write_text(render_human_summary(summary), encoding="utf-8")
 
     print(json.dumps({
         "runRoot": str(run_root),
         "appId": app_id,
-        "devices": len(devices),
-        "pairs": len(pairs),
+        "fleetDevices": len(devices),
+        "devices": len(selected_devices),
+        "pairs": len(selected_pairs),
         "summary": str(run_root / "summary.md"),
         "compactSummary": str(run_root / "compact-summary.md"),
+        "humanSummary": str(run_root / "human-summary.md"),
     }, indent=2))
     return 0
 
