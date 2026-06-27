@@ -300,6 +300,7 @@ internal object MeshLinkProofRuntime {
             collectorsStarted = true
         }
         val mesh = requireMeshLink()
+        val collectorsStartedAtNanos = SystemClock.elapsedRealtimeNanos()
 
         scope.launch {
             mesh.state.collectLatest { state ->
@@ -309,12 +310,17 @@ internal object MeshLinkProofRuntime {
             }
         }
         scope.launch {
-            appendLog("PEER collector subscribed")
+            val peerCollectorSubscribedAtNanos = SystemClock.elapsedRealtimeNanos()
+            appendLog(
+                "PEER collector subscribed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+            )
             var firstPeerEventLogged = false
             mesh.peerEvents.collectLatest { event ->
                 if (!firstPeerEventLogged) {
                     firstPeerEventLogged = true
-                    appendLog("PEER collector first event observed")
+                    appendLog(
+                        "PEER collector first event observed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)} sinceSubscribeMs=${elapsedMillisSince(peerCollectorSubscribedAtNanos)}"
+                    )
                 }
                 handlePeerEvent(event)
             }
