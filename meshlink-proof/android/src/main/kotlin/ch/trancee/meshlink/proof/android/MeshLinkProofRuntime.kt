@@ -288,6 +288,14 @@ internal object MeshLinkProofRuntime {
                 appendDiagnostic(event)
             }
         }
+        scope.launch {
+            mesh.messages.collectLatest { message ->
+                appendLog(
+                    "INBOUND message origin=${message.originPeerId.value.takeLast(6)} bytes=${message.payload.size} receivedAt=${message.receivedAtEpochMillis}",
+                )
+                handleInboundMessage(message)
+            }
+        }
     }
 
     private fun handlePeerEvent(event: PeerEvent): Unit {
