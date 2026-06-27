@@ -64,3 +64,25 @@ Crypto primitives are shown as colored chips: greener chips indicate more modern
 - Rows are sorted by descending Android SDK, then by Bluetooth standard.
 - No serial numbers or ADB transport IDs are published here.
 - The DeviceSpecifications link is the exact `url` field from the DeviceSpecifications search JSON for the device model.
+
+## Current fleet aliases captured during the 2026-06-27 direct-proof sweep
+
+This supplemental alias list maps the fleet serials used in the 2026-06-27 direct-proof report to the human-readable device names shown there. It is sorted by descending SDK, then human-readable name, and uses marketed memory/storage tiers rounded from live probes.
+
+| Device | Serial | Model | Android / SDK | Memory | Storage | Connection |
+|---|---|---|---|---:|---:|---|
+| Samsung Galaxy Z Flip4 | R5CT83ACSJX | SM-F721B | Android 16 / SDK 36 | 8 GB | 256 GB | USB |
+| Nothing Phone (2) | 1f1dad34 | A065 | Android 16 / SDK 36 | 12 GB | 256 GB | USB |
+| Nothing A063 | adb-P2126T004912-Na69Lt._adb-tls-connect._tcp | A063 | Android 15 / SDK 35 | 8 GB | 256 GB | network ADB |
+| realme RMX3710 | 7XHEIBPBLRJJSKFU | RMX3710 | Android 15 / SDK 35 | 8 GB | 256 GB | USB |
+| motorola edge 30 fusion | ZY22GCD9ST | motorola edge 30 fusion | Android 14 / SDK 34 | 8 GB | 128 GB | USB |
+| Nokia X20 | adb-AQKSLVH004M52800029-gRaTr5._adb-tls-connect._tcp | Nokia X20 | Android 14 / SDK 34 | 6 GB | 128 GB | network ADB |
+| OPPO CPH2359 | EQUGS85LJNEIO7Z5 | CPH2359 | Android 14 / SDK 34 | 8 GB | 256 GB | USB |
+| Gigaset E940-2849-00 | GX6CTR500184 | E940-2849-00 | Android 13 / SDK 33 | 6 GB | 128 GB | USB |
+| OnePlus DN2103 | adb-MJJ7ZDT455JBYTEA-0WCF8P._adb-tls-connect._tcp | DN2103 | Android 13 / SDK 33 | 12 GB | 256 GB | network ADB |
+| OPPO CPH2385 | MZLJMJAIO7SKS8BI | CPH2385 | Android 13 / SDK 33 | 4 GB | 128 GB | USB |
+| HUAWEI NAM-LX9 | 2ASVB21B09005117 | NAM-LX9 | Android 12 / SDK 31 | 8 GB | 128 GB | USB |
+| Xiaomi POCOPHONE F1 | e9097611 | POCO F1 | Android 10 / SDK 29 | 6 GB | 64 GB | USB |
+| Samsung Galaxy XCover4 | 42004386e43c8589 | SM-G390F | Android 9 / SDK 28 | 2 GB | 16 GB | USB |
+| Xiaomi Mi Note 3 | 42c2cf | Mi Note 3 | Android 9 / SDK 28 | 6 GB | 128 GB | USB |
+
