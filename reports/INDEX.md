@@ -11,9 +11,10 @@ Default output directory:
 reports/android-direct-proof-fleet/runs/<timestamp>/
 ```
 
-Latest tracked run:
+Tracked bundle guide:
 
-- [20260621T124016](android-direct-proof-fleet/runs/20260621T124016/INDEX.md) — [summary](android-direct-proof-fleet/runs/20260621T124016/SUMMARY.md)
+- [android-direct-proof-fleet/README.md](android-direct-proof-fleet/README.md) — canonical artifact guide for the report bundle
+- [Reports README](README.md) — repository entry point for generated reports
 
 Contents of each run:
 
