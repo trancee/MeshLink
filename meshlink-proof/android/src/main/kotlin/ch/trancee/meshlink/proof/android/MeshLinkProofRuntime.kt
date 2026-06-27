@@ -454,6 +454,21 @@ internal object MeshLinkProofRuntime {
             return
         }
 
+        if (launchConfig.benchmarkPayloadBytes != null && launchConfig.forceInitiator) {
+            appendLog(
+                "BENCHMARK inbound fallback scheduling from ${message.originPeerId.value.takeLast(6)} source=inbound-message",
+            )
+            rememberKnownPeer(
+                peerId = message.originPeerId,
+                source = "inbound-benchmark-fallback",
+            )
+            scheduleAutoHello(
+                peerId = message.originPeerId,
+                state = PeerConnectionState.CONNECTED,
+                source = "inbound-benchmark-fallback",
+            )
+        }
+
         appendLog(
             "MSG from ${message.originPeerId.value} bytes=${message.payload.size} text=${message.payload.decodeToString()}",
         )
