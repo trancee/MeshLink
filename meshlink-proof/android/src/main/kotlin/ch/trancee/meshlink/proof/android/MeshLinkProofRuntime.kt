@@ -289,7 +289,13 @@ internal object MeshLinkProofRuntime {
             }
         }
         scope.launch {
+            appendLog("INBOUND collector subscribed")
+            var firstInboundMessageLogged = false
             mesh.messages.collectLatest { message ->
+                if (!firstInboundMessageLogged) {
+                    firstInboundMessageLogged = true
+                    appendLog("INBOUND collector first message observed")
+                }
                 appendLog(
                     "INBOUND message origin=${message.originPeerId.value.takeLast(6)} bytes=${message.payload.size} receivedAt=${message.receivedAtEpochMillis}",
                 )
