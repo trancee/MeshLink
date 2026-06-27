@@ -57,7 +57,8 @@ internal class BleTransportAdapter(
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val automationTargetPeerId: String? =
-        context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
+        context
+            .getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
             .getString(AUTOMATION_TARGET_PEER_ID_PREF_KEY, null)
     internal val transportDebugLoggingEnabled: Boolean =
         Log.isLoggable(LOG_TAG, Log.DEBUG) ||

@@ -10,9 +10,18 @@ import java.security.MessageDigest
 private const val RETAINED_DISCOVERY_SEED_FILE = "automation-discovery-seed.txt"
 private const val SHARED_PREFS_PREFIX = "meshlink-"
 private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
-private const val RETAINED_DISCOVERY_SEED_WAIT_MILLIS = 5_000L
+private const val RETAINED_DISCOVERY_SEED_WAIT_MILLIS = 15_000L
 private const val RETAINED_DISCOVERY_SEED_POLL_MILLIS = 250L
+private const val RETAINED_DISCOVERY_SEED_PROGRESS_LOG_INTERVAL = 4
 private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 20
+
+private data class RetainedDiscoverySeedSnapshot(
+    val seed: String?,
+    val sharedPrefKeyCount: Int,
+    val hasDirectIdentitySeed: Boolean,
+    val hasEd25519Public: Boolean,
+    val hasX25519Public: Boolean,
+)
 
 internal fun launchRetainedDiscoverySeedProbe(
     context: Context,
@@ -22,38 +31,60 @@ internal fun launchRetainedDiscoverySeedProbe(
 ): Unit {
     if (appId.isBlank() || appId == "unknown") return
     scope.launch {
-        val seed = waitForRetainedDiscoverySeed(context, appId)
-        if (seed == null) {
+        val seedSnapshot = waitForRetainedDiscoverySeed(context, appId, emitAutomationLog)
+        if (seedSnapshot.seed == null) {
             emitAutomationLog(
-                "REFERENCE_AUTOMATION retained.discovery-seed unavailable appId=$appId",
+                buildString {
+                    append("REFERENCE_AUTOMATION retained.discovery-seed unavailable appId=")
+                    append(appId)
+                    append(" keys=")
+                    append(seedSnapshot.sharedPrefKeyCount)
+                    append(" directSeed=")
+                    append(seedSnapshot.hasDirectIdentitySeed)
+                    append(" ed25519Public=")
+                    append(seedSnapshot.hasEd25519Public)
+                    append(" x25519Public=")
+                    append(seedSnapshot.hasX25519Public)
+                },
             )
             emitAutomationLog(
                 "REFERENCE_AUTOMATION startup-state=retained.discoverySeed.unavailable appId=$appId",
             )
             return@launch
         }
-        val peerId = deriveRetainedDiscoveryPeerId(context, appId) ?: seed
+        val peerId = deriveRetainedDiscoveryPeerId(context, appId) ?: seedSnapshot.seed
         writeRetainedDiscoverySeedArtifact(context, peerId)
         emitAutomationLog(
             "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$peerId source=shared_prefs",
         )
         emitAutomationLog(
-            "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$seed",
+            "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$peerId",
         )
     }
 }
 
 internal fun readRetainedDiscoverySeed(context: Context, appId: String): String? {
+    return inspectRetainedDiscoverySeed(context, appId).seed
+}
+
+private fun inspectRetainedDiscoverySeed(context: Context, appId: String): RetainedDiscoverySeedSnapshot {
     val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
-    val directSeed = sharedPrefs.getString("identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX", null)?.trim().orEmpty()
-    if (directSeed.isNotBlank()) {
-        return directSeed
-    }
-    return sharedPrefs.all.entries.firstOrNull { entry ->
-        entry.key.endsWith(SHARED_PREFS_IDENTITY_SUFFIX) &&
-            entry.value is String &&
-            (entry.value as String).isNotBlank()
-    }?.value as? String
+    val directSeed =
+        sharedPrefs.getString("identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX", null)?.trim().orEmpty()
+    val firstIdentitySeed =
+        sharedPrefs.all.entries.firstOrNull { entry ->
+            entry.key.endsWith(SHARED_PREFS_IDENTITY_SUFFIX) &&
+                entry.value is String &&
+                (entry.value as String).isNotBlank()
+        }?.value as? String
+    return RetainedDiscoverySeedSnapshot(
+        seed = if (directSeed.isNotBlank()) directSeed else firstIdentitySeed,
+        sharedPrefKeyCount = sharedPrefs.all.keys.size,
+        hasDirectIdentitySeed = directSeed.isNotBlank(),
+        hasEd25519Public =
+            sharedPrefs.getString("identity:$appId:ed25519-public", null)?.trim().orEmpty().isNotBlank(),
+        hasX25519Public = directSeed.isNotBlank(),
+    )
 }
 
 private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): String? {
@@ -78,16 +109,44 @@ private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): Stri
     }.getOrNull()
 }
 
-private suspend fun waitForRetainedDiscoverySeed(context: Context, appId: String): String? {
+private suspend fun waitForRetainedDiscoverySeed(
+    context: Context,
+    appId: String,
+    emitAutomationLog: (String) -> Unit,
+): RetainedDiscoverySeedSnapshot {
     val deadline = System.currentTimeMillis() + RETAINED_DISCOVERY_SEED_WAIT_MILLIS
+    var attempt = 0
     while (System.currentTimeMillis() < deadline) {
-        val seed = readRetainedDiscoverySeed(context, appId)
-        if (!seed.isNullOrBlank()) {
-            return seed
+        attempt += 1
+        val snapshot = inspectRetainedDiscoverySeed(context, appId)
+        if (!snapshot.seed.isNullOrBlank()) {
+            return snapshot
+        }
+        if (
+            attempt == 1 ||
+                attempt % RETAINED_DISCOVERY_SEED_PROGRESS_LOG_INTERVAL == 0 ||
+                System.currentTimeMillis() + RETAINED_DISCOVERY_SEED_POLL_MILLIS >= deadline
+        ) {
+            emitAutomationLog(
+                buildString {
+                    append("REFERENCE_AUTOMATION retained.discovery-seed pending appId=")
+                    append(appId)
+                    append(" attempt=")
+                    append(attempt)
+                    append(" keys=")
+                    append(snapshot.sharedPrefKeyCount)
+                    append(" directSeed=")
+                    append(snapshot.hasDirectIdentitySeed)
+                    append(" ed25519Public=")
+                    append(snapshot.hasEd25519Public)
+                    append(" x25519Public=")
+                    append(snapshot.hasX25519Public)
+                },
+            )
         }
         delay(RETAINED_DISCOVERY_SEED_POLL_MILLIS)
     }
-    return readRetainedDiscoverySeed(context, appId)
+    return inspectRetainedDiscoverySeed(context, appId)
 }
 
 private fun writeRetainedDiscoverySeedArtifact(context: Context, seed: String): Unit {

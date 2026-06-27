@@ -315,6 +315,8 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
     sender_accepted_top_peers = sender_discovery_focus.get("topAcceptedPeers") or []
     passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
+    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
+    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
     sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
     passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
     sender_selection_note = (
@@ -522,6 +524,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Selected peer id", sender_selected_peer_id),
                 ("Target match", sender_discovery_focus.get("peerMatch")),
                 ("Selection note", sender_selection_note),
+                ("First snapshot transition", sender_discovery_focus.get("firstSnapshotTransition")),
                 ("Top accepted peer id", (sender_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(sender_discovery_focus_lines)),
             ],
@@ -539,6 +542,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
                 ("Selected peer id", passive_selected_peer_id),
                 ("Target match", passive_discovery_focus.get("peerMatch")),
                 ("Selection note", passive_selection_note),
+                ("First snapshot transition", passive_discovery_focus.get("firstSnapshotTransition")),
                 ("Top accepted peer id", (passive_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(passive_discovery_focus_lines)),
             ],
@@ -615,6 +619,18 @@ def extract_selected_peer_id(log_text: str) -> str | None:
             return selected_peer_id
         fallback = fallback or selected_peer_id
     return fallback
+
+
+def extract_first_peer_snapshot_transition(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "peer.snapshot reason=" not in line or "count=" not in line:
+            continue
+        match = re.search(r"count=(\d+)", line)
+        if match is None:
+            continue
+        if int(match.group(1)) > 0:
+            return line.strip()
+    return None
 
 
 def count_foreign_scan_ignored_lines(log_text: str) -> int:
@@ -1234,15 +1250,22 @@ def ensure_android_preflight(
     else:
         timings["installReused"] = True
     permissions_started_at = time.monotonic()
+    permission_package = ANDROID_PROOF_PACKAGE if install_profile == "proof" else ANDROID_PACKAGE
     try:
         if install_profile == "proof":
             verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
         else:
             verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
-        raise SystemExit(
-            f"Android runtime-permission verification failed for '{android_serial}': {error}"
-        ) from error
+        print(
+            f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
+            flush=True,
+        )
+        grant_android_runtime_permissions(android_serial, permission_package)
+        if install_profile == "proof":
+            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+        else:
+            verify_android_runtime_permissions(android_serial)
     except subprocess.CalledProcessError as error:
         raise SystemExit(
             "Android runtime-permission verification command failed for "
@@ -1940,6 +1963,8 @@ def failure_summary(
     target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
     sender_selected_peer_id = extract_selected_peer_id(sender_log_text)
     passive_selected_peer_id = extract_selected_peer_id(passive_log_text)
+    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
+    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
     sender_discovery_focus_lines = extract_discovery_focus_lines(
         sender_log_text,
         target_peer_id,
@@ -1969,6 +1994,7 @@ def failure_summary(
             "peerId": target_peer_id,
             "selectedPeerId": sender_selected_peer_id,
             "peerMatch": bool(sender_selected_peer_id and target_peer_id and sender_selected_peer_id == target_peer_id),
+            "firstSnapshotTransition": sender_first_snapshot_transition,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
             "scanResultCount": count_scan_result_lines(sender_log_text),
             "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
@@ -1981,6 +2007,7 @@ def failure_summary(
             "peerId": target_peer_id,
             "selectedPeerId": passive_selected_peer_id,
             "peerMatch": bool(passive_selected_peer_id and target_peer_id and passive_selected_peer_id == target_peer_id),
+            "firstSnapshotTransition": passive_first_snapshot_transition,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
             "scanResultCount": count_scan_result_lines(passive_log_text),
             "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),

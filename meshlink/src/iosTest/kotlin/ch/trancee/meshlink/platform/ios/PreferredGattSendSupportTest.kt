@@ -32,25 +32,25 @@ class PreferredGattSendSupportTest {
     }
 
     @Test
-    fun sendViaPreferredGattNotifyLinkOrNullUsesGattFallbackForSamePlatformDataFrames():
-        Unit = runBlocking {
-        // Arrange
-        val fixture =
-            PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
-        val frame =
-            OutboundFrame(
-                peerId = fixture.context.hintPeerId,
-                payload = DirectWireFrame.Data(ByteArray(8)).encode(),
-            )
+    fun sendViaPreferredGattNotifyLinkOrNullUsesGattFallbackForSamePlatformDataFrames(): Unit =
+        runBlocking {
+            // Arrange
+            val fixture =
+                PreferredGattSendFixture(remotePlatformFamily = BleDiscoveryPlatformFamily.IOS)
+            val frame =
+                OutboundFrame(
+                    peerId = fixture.context.hintPeerId,
+                    payload = DirectWireFrame.Data(ByteArray(8)).encode(),
+                )
 
-        // Act
-        val result =
-            fixture.run(frame = frame, link = FakePreferredGattSendLink(enqueueResult = true))
+            // Act
+            val result =
+                fixture.run(frame = frame, link = FakePreferredGattSendLink(enqueueResult = true))
 
-        // Assert
-        assertEquals(TransportSendResult.Delivered, result)
-        assertEquals(1, fixture.currentLinkCalls)
-    }
+            // Assert
+            assertEquals(TransportSendResult.Delivered, result)
+            assertEquals(1, fixture.currentLinkCalls)
+        }
 
     @Test
     fun sendViaPreferredGattNotifyLinkOrNullAllowsSamePlatformDataFramesWhenGattIsPreferred():

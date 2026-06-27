@@ -3,7 +3,7 @@ package ch.trancee.meshlink.reference
 import android.content.Context
 import android.util.Log
 import ch.trancee.meshlink.api.MeshLinkBootstrap
-import ch.trancee.meshlink.api.android.meshLinkBootstrap
+import ch.trancee.meshlink.api.android.meshLinkBootstrap as androidMeshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.TimelineEntry
@@ -124,7 +124,29 @@ internal fun appendTimeline(
 
 @Suppress("UnusedParameter")
 internal fun createMeshLinkBootstrap(context: Context): MeshLinkBootstrap {
-    return meshLinkBootstrap(context)
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION android.meshlink.createMeshLinkBootstrap.begin",
+    )
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION android.meshlink.createMeshLinkBootstrap.applicationContext.begin",
+    )
+    val appContext = context.applicationContext
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION android.meshlink.createMeshLinkBootstrap.applicationContext.end",
+    )
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION android.meshlink.createMeshLinkBootstrap.bootstrap.begin",
+    )
+    val bootstrap = androidMeshLinkBootstrap(appContext)
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION android.meshlink.createMeshLinkBootstrap.bootstrap.end",
+    )
+    return bootstrap
 }
 
 @Suppress("UnusedParameter")

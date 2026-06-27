@@ -230,8 +230,8 @@ internal fun shouldLocalPeerInitiateL2capConnection(
 }
 
 /**
- * Keep the GATT side bearer available whenever both peers are known BLE peers.
- * L2CAP still wins the normal connection path, but GATT stays up as the fallback.
+ * Keep the GATT side bearer available whenever both peers are known BLE peers. L2CAP still wins the
+ * normal connection path, but GATT stays up as the fallback.
  */
 internal fun shouldUseMixedPlatformGattNotifyBearer(
     localPlatformFamily: BleDiscoveryPlatformFamily,
