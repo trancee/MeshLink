@@ -127,7 +127,7 @@ internal object MeshLinkProofRuntime {
                     localAdvertisementKeyHashHex?.let { keyHash -> " keyHash=$keyHash" } ?: ""
                 val initiatorMode = if (resolvedLaunchConfig.forceInitiator) "forced" else "hash"
                 appendLog(
-                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} initiatorMode=$initiatorMode$keyHashSuffix",
+                    "MeshLink proof app ready on ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT}) appId=${resolvedLaunchConfig.appId} powerMode=${resolvedLaunchConfig.powerMode.logLabel()} initiatorMode=$initiatorMode benchmarkPayloadBytes=${resolvedLaunchConfig.benchmarkPayloadBytes ?: "none"} forceInitiator=${resolvedLaunchConfig.forceInitiator}$keyHashSuffix",
                 )
             }
         }
@@ -599,7 +599,7 @@ internal object MeshLinkProofRuntime {
                         return@launch
                     }
                     appendLog(
-                        "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected"
+                        "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected mode=${if (launchConfig.benchmarkPayloadBytes != null) "benchmark" else "hello"} payloadBytes=${launchConfig.benchmarkPayloadBytes ?: 0}"
                     )
                     if (launchConfig.benchmarkPayloadBytes != null) {
                         appendLog(
