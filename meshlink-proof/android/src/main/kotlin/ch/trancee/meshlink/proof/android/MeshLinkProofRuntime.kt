@@ -366,7 +366,9 @@ internal object MeshLinkProofRuntime {
             DiagnosticCode.HOP_SESSION_ESTABLISHED -> {
                 val peerIdValue = event.metadata["peerId"]
                 if (peerIdValue != null) {
-                    rememberKnownPeer(PeerId(peerIdValue), source = event.code.name)
+                    val peerId = PeerId(peerIdValue)
+                    rememberKnownPeer(peerId, source = event.code.name)
+                    scheduleAutoHello(peerId, PeerConnectionState.CONNECTED, event.code.name)
                 }
                 markRouteReady(event.peerSuffix, event.code.name)
             }
