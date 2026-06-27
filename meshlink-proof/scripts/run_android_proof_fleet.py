@@ -394,14 +394,9 @@ def render_human_summary(summary: dict[str, Any]) -> str:
     lines.append("# MeshLink proof-app run note")
     lines.append("")
     lines.append(
-        f"This run exercised {summary.get('deviceCount', len(summary.get('selectedDevices', [])))} Android devices in {summary.get('pairCount', len(summary.get('pairs', [])))} cross-generation pairs after an adb Bluetooth preflight."
+        f"Bluetooth preflight was checked before launch on {summary.get('deviceCount', len(summary.get('selectedDevices', [])))} devices across {summary.get('pairCount', len(summary.get('pairs', [])))} pairs."
     )
-    lines.append("")
-    lines.append("## What the launcher does")
-    lines.append("- Checks Bluetooth state with `adb shell dumpsys bluetooth_manager` before launch.")
-    lines.append("- Enables Bluetooth with `adb shell cmd bluetooth_manager enable` and waits for `STATE_ON` when needed.")
-    lines.append("- Normalizes wireless ADB serials to the canonical `.adb-tls-connect._tcp` form.")
-    lines.append("- Supports repeatable `--pair-label` reruns so weak pairs can be retried in isolation.")
+    lines.append("Weak pairs can be rerun with `--pair-label`.")
     lines.append("")
     lines.append("## Pair snapshot")
     for row in summary["pairRows"]:
