@@ -59,6 +59,8 @@ internal object MeshLinkProofRuntime {
     private var running: Boolean = false
     private var appContext: Context? = null
     private var runtimeStateText: String = MeshLinkState.Uninitialized.toString()
+    private var meshStartRequestedAtNanos: Long? = null
+    private var meshStartCompletedAtNanos: Long? = null
     private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
@@ -103,6 +105,8 @@ internal object MeshLinkProofRuntime {
                 collectorsStarted = false
                 running = false
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
+                meshStartRequestedAtNanos = null
+                meshStartCompletedAtNanos = null
                 synchronized(knownPeers) { knownPeers.clear() }
                 synchronized(routeReadyPeers) { routeReadyPeers.clear() }
                 synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
@@ -149,9 +153,14 @@ internal object MeshLinkProofRuntime {
         ensureCollectors()
         return scope.launch {
             val startedAtNanos = SystemClock.elapsedRealtimeNanos()
+            meshStartRequestedAtNanos = startedAtNanos
+            appendLog("mesh.start() requested elapsedMs=0")
             val result = runCatching { requireMeshLink().start() }
             result.onSuccess { startResult ->
-                appendLog("mesh.start() -> $startResult")
+                meshStartCompletedAtNanos = SystemClock.elapsedRealtimeNanos()
+                appendLog(
+                    "mesh.start() -> $startResult elapsedMs=${elapsedMillisSince(startedAtNanos)}"
+                )
                 if (launchConfig.benchmarkColdStart) {
                     appendLog(
                         "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult"
@@ -318,8 +327,23 @@ internal object MeshLinkProofRuntime {
             mesh.peerEvents.collectLatest { event ->
                 if (!firstPeerEventLogged) {
                     firstPeerEventLogged = true
+                    val meshStartRequestedAtNanos = this@MeshLinkProofRuntime.meshStartRequestedAtNanos
+                    val meshStartCompletedAtNanos = this@MeshLinkProofRuntime.meshStartCompletedAtNanos
+                    val meshStartRequestedDeltaMs =
+                        meshStartRequestedAtNanos?.let(::elapsedMillisSince)
+                    val meshStartCompletedDeltaMs =
+                        meshStartCompletedAtNanos?.let(::elapsedMillisSince)
                     appendLog(
-                        "PEER collector first event observed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)} sinceSubscribeMs=${elapsedMillisSince(peerCollectorSubscribedAtNanos)}"
+                        buildString {
+                            append("PEER collector first event observed elapsedMs=")
+                            append(elapsedMillisSince(collectorsStartedAtNanos))
+                            append(" sinceSubscribeMs=")
+                            append(elapsedMillisSince(peerCollectorSubscribedAtNanos))
+                            append(" sinceMeshStartRequestedMs=")
+                            append(meshStartRequestedDeltaMs ?: "n/a")
+                            append(" sinceMeshStartCompletedMs=")
+                            append(meshStartCompletedDeltaMs ?: "n/a")
+                        }
                     )
                 }
                 handlePeerEvent(event)
