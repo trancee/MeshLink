@@ -38,33 +38,34 @@ One constructed MeshLink runtime can span multiple hard runs.
 ```mermaid
 stateDiagram-v2
     direction LR
-    [*] --> Uninitialized: construct runtime
-    Uninitialized --> Running: start()
+    [*] --> Uninitialized: begin construction
+    Uninitialized --> Configured: construction completes
+    Configured --> Running: start()
     Running --> Paused: pause()
     Paused --> Running: resume()
     Running --> Stopped: stop()
     Paused --> Stopped: stop()
-    Uninitialized --> Stopped: stop()
+    Configured --> Stopped: stop()
     Stopped --> Running: start()
 ```
 
-A hard run begins on `start()` from `Uninitialized` or `Stopped` and ends on
+A hard run begins on `start()` from `Configured` or `Stopped` and ends on
 `stop()`.
 
 ## Lifecycle transitions
 
 | Call | Valid starting state(s) | Success result | Other result(s) | Immediate runtime effects |
 |---|---|---|---|---|
-| `start()` | `Uninitialized`, `Stopped` | `StartResult.Started` | `StartResult.AlreadyRunning` from `Running`; `StartResult.InvalidState(Paused)` from `Paused` | starts transport activity, starts a new hard run, emits `MESH_STARTED`, and applies the current power policy |
-| `pause()` | `Running` | `PauseResult.Paused` | `PauseResult.AlreadyPaused` from `Paused`; `PauseResult.InvalidState(...)` from `Uninitialized` or `Stopped` | pauses transport, stops transport event collection, clears the current volatile peer / route / pending-session view, and emits `MESH_PAUSED` |
-| `resume()` | `Paused` | `ResumeResult.Resumed` | `ResumeResult.AlreadyRunning` from `Running`; `ResumeResult.InvalidState(...)` from `Uninitialized` or `Stopped` | resumes transport inside the same hard run, refreshes the current power policy, and emits `MESH_RESUMED` |
-| `stop()` | `Uninitialized`, `Running`, `Paused` | `StopResult.Stopped` | `StopResult.AlreadyStopped` from `Stopped` | ends the current hard run, clears volatile runtime state, clears transfer state, and emits `MESH_STOPPED` |
+| `start()` | `Configured`, `Stopped` | `StartResult.Started` | `StartResult.AlreadyRunning` from `Running`; `StartResult.InvalidState(Paused)` from `Paused` | starts transport activity, starts a new hard run, emits `MESH_STARTED`, and applies the current power policy |
+| `pause()` | `Running` | `PauseResult.Paused` | `PauseResult.AlreadyPaused` from `Paused`; `PauseResult.InvalidState(...)` from `Configured`, `Uninitialized`, or `Stopped` | pauses transport, stops transport event collection, clears the current volatile peer / route / pending-session view, and emits `MESH_PAUSED` |
+| `resume()` | `Paused` | `ResumeResult.Resumed` | `ResumeResult.AlreadyRunning` from `Running`; `ResumeResult.InvalidState(...)` from `Configured`, `Uninitialized`, or `Stopped` | resumes transport inside the same hard run, refreshes the current power policy, and emits `MESH_RESUMED` |
+| `stop()` | `Configured`, `Running`, `Paused` | `StopResult.Stopped` | `StopResult.AlreadyStopped` from `Stopped` | ends the current hard run, clears volatile runtime state, clears transfer state, and emits `MESH_STOPPED` |
 
 ## Boundary effects
 
 | Area | Construction | `pause()` | `stop()` |
 |---|---|---|---|
-| Public lifecycle state | starts in `MeshLinkState.Uninitialized` | becomes `Paused` | becomes `Stopped` |
+| Public lifecycle state | starts in `MeshLinkState.Uninitialized` during construction, then becomes `MeshLinkState.Configured` when construction completes | becomes `Paused` | becomes `Stopped` |
 | Hard run | not started yet | remains active | ends |
 | Transport activity | not started | paused | stopped |
 | Transport event collector | not started | stopped | stopped |
