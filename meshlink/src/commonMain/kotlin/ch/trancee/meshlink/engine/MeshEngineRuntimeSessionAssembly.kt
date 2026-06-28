@@ -97,7 +97,7 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
                             canonicalPeerId,
                         )
                     }
-                    .getOrElse { Unit }
+                    .getOrElse {}
             },
         )
     val initiatorHandshakeSupport =

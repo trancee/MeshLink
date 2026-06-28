@@ -5,7 +5,8 @@ package ch.trancee.meshlink.reference.platform
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import ch.trancee.meshlink.api.android.meshLinkBootstrap
+import ch.trancee.meshlink.api.MeshLinkBootstrap
+import ch.trancee.meshlink.api.android.meshLinkBootstrap as androidMeshLinkBootstrap
 import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
@@ -20,7 +21,7 @@ public fun createPlatformServices(context: Context): PlatformServices {
             DefaultPlatformServicesOptions().apply {
                 readinessBlockers = readinessBlockers(context)
                 nowProvider = { System.currentTimeMillis() }
-                meshLinkBootstrap = meshLinkBootstrap(context)
+                meshLinkBootstrap = createAndroidBootstrap(context)
                 documentStore =
                     OkioReferenceDocumentStore(context.filesDir.absolutePath, FileSystem.SYSTEM)
             },
@@ -92,7 +93,8 @@ public fun createLiveAutomationPlatformServices(
                 readinessBlockers = readinessBlockers(context)
                 nowProvider = clock
                 this.appId = automationAppId
-                meshLinkBootstrap = meshLinkBootstrap(context)
+                meshLinkBootstrap = createAndroidBootstrap(context)
+                automationTargetPeerId = targetPeerId
                 documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
                 powerMitigationStatus =
                     "Foreground wake lock active for live-proof automation sessions."
@@ -108,6 +110,16 @@ public fun createLiveAutomationPlatformServices(
                 }
             },
     )
+}
+
+private fun createAndroidBootstrap(context: Context): MeshLinkBootstrap {
+    Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION android.bootstrap.applicationContext.begin")
+    val appContext = context.applicationContext
+    Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION android.bootstrap.applicationContext.end")
+    Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION android.bootstrap.object.begin")
+    val bootstrap = androidMeshLinkBootstrap(appContext)
+    Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION android.bootstrap.object.end")
+    return bootstrap
 }
 
 private const val AUTOMATION_LOG_TAG: String = "MeshLinkReferenceAutomation"

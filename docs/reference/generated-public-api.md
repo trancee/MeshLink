@@ -26,6 +26,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 | `ch.trancee.meshlink.api.MeshLinkException.StorageFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.TransportFailure` | nested type | `init` |
 | `ch.trancee.meshlink.api.MeshLinkState` | abstract class | — |
+| `ch.trancee.meshlink.api.MeshLinkState.Configured` | object | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Paused` | object | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Running` | object | — |
 | `ch.trancee.meshlink.api.MeshLinkState.Stopped` | object | — |

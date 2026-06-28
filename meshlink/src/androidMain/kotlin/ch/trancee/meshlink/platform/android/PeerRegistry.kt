@@ -188,6 +188,10 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
         return PeerDiscoveryUpdate(peer = existingPeer, events = events)
     }
 
+    internal fun discoveredPeerCount(): Int {
+        return discoveredPeers.size
+    }
+
     internal fun peer(hintPeerIdValue: String): DiscoveredPeer? {
         return discoveredPeers[hintPeerIdValue]
     }

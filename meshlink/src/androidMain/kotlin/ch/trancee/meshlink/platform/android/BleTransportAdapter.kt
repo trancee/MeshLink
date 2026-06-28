@@ -46,6 +46,8 @@ internal fun resolveMaximumPayloadBytesPerDelivery(
     }
 }
 
+private const val AUTOMATION_TARGET_PEER_ID_PREF_KEY = "automation:targetPeerId"
+
 internal class BleTransportAdapter(
     internal val context: Context,
     internal val appId: String,
@@ -54,6 +56,10 @@ internal class BleTransportAdapter(
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
+    internal val automationTargetPeerId: String? =
+        context
+            .getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
+            .getString(AUTOMATION_TARGET_PEER_ID_PREF_KEY, null)
     internal val transportDebugLoggingEnabled: Boolean =
         Log.isLoggable(LOG_TAG, Log.DEBUG) ||
             ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
@@ -97,6 +103,10 @@ internal class BleTransportAdapter(
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
     internal val foreignScanIgnoredCount = AtomicInteger(0)
+    internal val scanResultCount = AtomicInteger(0)
+    internal val scanParseSkippedCount = AtomicInteger(0)
+    internal val scanTargetMismatchCount = AtomicInteger(0)
+    internal val scanAcceptedCount = AtomicInteger(0)
     internal val discoveryLifecycle =
         BleTransportDiscoveryLifecycle(
             appId = appId,

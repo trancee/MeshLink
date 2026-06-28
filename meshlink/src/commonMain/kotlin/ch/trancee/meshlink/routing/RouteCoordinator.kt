@@ -199,9 +199,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     }
 
     @Suppress("UNUSED_PARAMETER")
-    internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {
-        Unit
-    }
+    internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {}
 
     internal fun nextHopFor(destinationPeerId: PeerId): PeerId? {
         val route = selectedRoutes[destinationPeerId.value] ?: return null

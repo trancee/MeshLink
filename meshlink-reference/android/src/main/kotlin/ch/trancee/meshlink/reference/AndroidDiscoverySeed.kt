@@ -1,15 +1,23 @@
 package ch.trancee.meshlink.reference
 
 import android.content.Context
+import android.util.Base64
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
 
 private const val RETAINED_DISCOVERY_SEED_FILE = "automation-discovery-seed.txt"
 private const val SHARED_PREFS_PREFIX = "meshlink-"
 private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
-private const val RETAINED_DISCOVERY_SEED_WAIT_MILLIS = 5_000L
-private const val RETAINED_DISCOVERY_SEED_POLL_MILLIS = 250L
+private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 20
+
+private data class RetainedDiscoverySeedSnapshot(
+    val seed: String?,
+    val sharedPrefKeyCount: Int,
+    val hasDirectIdentitySeed: Boolean,
+    val hasEd25519Public: Boolean,
+    val hasX25519Public: Boolean,
+)
 
 internal fun launchRetainedDiscoverySeedProbe(
     context: Context,
@@ -19,50 +27,82 @@ internal fun launchRetainedDiscoverySeedProbe(
 ): Unit {
     if (appId.isBlank() || appId == "unknown") return
     scope.launch {
-        val seed = waitForRetainedDiscoverySeed(context, appId)
-        if (seed == null) {
+        val seedSnapshot = inspectRetainedDiscoverySeed(context, appId)
+        if (seedSnapshot.seed == null) {
             emitAutomationLog(
-                "REFERENCE_AUTOMATION retained.discovery-seed unavailable appId=$appId",
+                buildString {
+                    append("REFERENCE_AUTOMATION retained.discovery-seed unavailable appId=")
+                    append(appId)
+                    append(" keys=")
+                    append(seedSnapshot.sharedPrefKeyCount)
+                    append(" directSeed=")
+                    append(seedSnapshot.hasDirectIdentitySeed)
+                    append(" ed25519Public=")
+                    append(seedSnapshot.hasEd25519Public)
+                    append(" x25519Public=")
+                    append(seedSnapshot.hasX25519Public)
+                },
             )
             emitAutomationLog(
                 "REFERENCE_AUTOMATION startup-state=retained.discoverySeed.unavailable appId=$appId",
             )
             return@launch
         }
-        writeRetainedDiscoverySeedArtifact(context, seed)
+        val peerId = deriveRetainedDiscoveryPeerId(context, appId) ?: seedSnapshot.seed
+        writeRetainedDiscoverySeedArtifact(context, peerId)
         emitAutomationLog(
-            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$seed source=shared_prefs",
+            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$peerId source=shared_prefs",
         )
         emitAutomationLog(
-            "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$seed",
+            "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$peerId",
         )
     }
 }
 
 internal fun readRetainedDiscoverySeed(context: Context, appId: String): String? {
-    val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
-    val identityKey = "identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX"
-    val directSeed = sharedPrefs.getString(identityKey, null)?.trim().orEmpty()
-    if (directSeed.isNotBlank()) {
-        return directSeed
-    }
-    return sharedPrefs.all.entries.firstOrNull { entry ->
-        entry.key.endsWith(SHARED_PREFS_IDENTITY_SUFFIX) &&
-            entry.value is String &&
-            (entry.value as String).isNotBlank()
-    }?.value as? String
+    return inspectRetainedDiscoverySeed(context, appId).seed
 }
 
-private suspend fun waitForRetainedDiscoverySeed(context: Context, appId: String): String? {
-    val deadline = System.currentTimeMillis() + RETAINED_DISCOVERY_SEED_WAIT_MILLIS
-    while (System.currentTimeMillis() < deadline) {
-        val seed = readRetainedDiscoverySeed(context, appId)
-        if (!seed.isNullOrBlank()) {
-            return seed
-        }
-        delay(RETAINED_DISCOVERY_SEED_POLL_MILLIS)
+private fun inspectRetainedDiscoverySeed(context: Context, appId: String): RetainedDiscoverySeedSnapshot {
+    val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
+    val directSeed =
+        sharedPrefs.getString("identity:$appId$SHARED_PREFS_IDENTITY_SUFFIX", null)?.trim().orEmpty()
+    val firstIdentitySeed =
+        sharedPrefs.all.entries.firstOrNull { entry ->
+            entry.key.endsWith(SHARED_PREFS_IDENTITY_SUFFIX) &&
+                entry.value is String &&
+                (entry.value as String).isNotBlank()
+        }?.value as? String
+    return RetainedDiscoverySeedSnapshot(
+        seed = if (directSeed.isNotBlank()) directSeed else firstIdentitySeed,
+        sharedPrefKeyCount = sharedPrefs.all.keys.size,
+        hasDirectIdentitySeed = directSeed.isNotBlank(),
+        hasEd25519Public =
+            sharedPrefs.getString("identity:$appId:ed25519-public", null)?.trim().orEmpty().isNotBlank(),
+        hasX25519Public = directSeed.isNotBlank(),
+    )
+}
+
+private fun deriveRetainedDiscoveryPeerId(context: Context, appId: String): String? {
+    val sharedPrefs = context.getSharedPreferences("$SHARED_PREFS_PREFIX$appId", Context.MODE_PRIVATE)
+    val ed25519Public =
+        sharedPrefs.getString("identity:$appId:ed25519-public", null)?.trim().orEmpty()
+    val x25519Public =
+        sharedPrefs.getString("identity:$appId:x25519-public", null)?.trim().orEmpty()
+    if (ed25519Public.isBlank() || x25519Public.isBlank()) {
+        return null
     }
-    return readRetainedDiscoverySeed(context, appId)
+    return runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val publicKeyHash =
+            digest.digest(
+                Base64.decode(ed25519Public, Base64.NO_WRAP) +
+                    Base64.decode(x25519Public, Base64.NO_WRAP)
+            )
+        publicKeyHash
+            .copyOfRange(0, RETAINED_DISCOVERY_PEER_ID_BYTES)
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+    }.getOrNull()
 }
 
 private fun writeRetainedDiscoverySeedArtifact(context: Context, seed: String): Unit {

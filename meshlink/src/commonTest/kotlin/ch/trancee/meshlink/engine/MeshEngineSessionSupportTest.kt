@@ -20,56 +20,57 @@ import kotlinx.coroutines.withTimeout
 
 class MeshEngineSessionSupportTest {
     @Test
-    fun `concurrent session establishment reuses the pending initiator handshake`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("session-support-test")
-        val sessionRegistry = MeshEngineSessionRegistry()
-        val peerId = PeerId("peer-b")
-        val sendStarted = CompletableDeferred<Unit>()
-        val allowSendToFinish = CompletableDeferred<Unit>()
-        var sendCallCount = 0
-        val support =
-            MeshEngineSessionSupport(
-                localIdentity = localIdentity,
-                state =
-                    MeshEngineSessionState(
-                        sessionRegistry = sessionRegistry,
-                        runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
-                    ),
-                handshakeTimeout = 1.seconds,
-                callbacks =
-                    MeshEngineSessionCallbacks(
-                        hasTransport = { true },
-                        sendDirectWireFrame = { _, _, _, _ ->
-                            sendCallCount += 1
-                            sendStarted.complete(Unit)
-                            allowSendToFinish.await()
-                            TransportSendResult.Dropped("test")
-                        },
-                        emitHopSessionFailed = { _, _, _, _ -> Unit },
-                    ),
-            )
+    fun `concurrent session establishment reuses the pending initiator handshake`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-support-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("peer-b")
+            val sendStarted = CompletableDeferred<Unit>()
+            val allowSendToFinish = CompletableDeferred<Unit>()
+            var sendCallCount = 0
+            val support =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state =
+                        MeshEngineSessionState(
+                            sessionRegistry = sessionRegistry,
+                            runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
+                        ),
+                    handshakeTimeout = 1.seconds,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { true },
+                            sendDirectWireFrame = { _, _, _, _ ->
+                                sendCallCount += 1
+                                sendStarted.complete(Unit)
+                                allowSendToFinish.await()
+                                TransportSendResult.Dropped("test")
+                            },
+                            emitHopSessionFailed = { _, _, _, _ -> },
+                        ),
+                )
 
-        // Act
-        val firstAttempt =
-            async(start = CoroutineStart.UNDISPATCHED) { support.ensureHopSession(peerId) }
-        sendStarted.await()
-        val secondAttempt =
-            async(start = CoroutineStart.UNDISPATCHED) { support.ensureHopSession(peerId) }
-        allowSendToFinish.complete(Unit)
-        val firstOutcome = withTimeout(1.seconds) { firstAttempt.await() }
-        val secondOutcome = withTimeout(1.seconds) { secondAttempt.await() }
+            // Act
+            val firstAttempt =
+                async(start = CoroutineStart.UNDISPATCHED) { support.ensureHopSession(peerId) }
+            sendStarted.await()
+            val secondAttempt =
+                async(start = CoroutineStart.UNDISPATCHED) { support.ensureHopSession(peerId) }
+            allowSendToFinish.complete(Unit)
+            val firstOutcome = withTimeout(1.seconds) { firstAttempt.await() }
+            val secondOutcome = withTimeout(1.seconds) { secondAttempt.await() }
 
-        // Assert
-        assertEquals(1, sendCallCount)
-        assertEquals(SessionEstablishmentOutcome.Unreachable, firstOutcome)
-        assertEquals(SessionEstablishmentOutcome.Unreachable, secondOutcome)
-        assertNull(sessionRegistry.initiatorHandshakeReservation(peerId))
-    }
+            // Assert
+            assertEquals(1, sendCallCount)
+            assertEquals(SessionEstablishmentOutcome.Unreachable, firstOutcome)
+            assertEquals(SessionEstablishmentOutcome.Unreachable, secondOutcome)
+            assertNull(sessionRegistry.initiatorHandshakeReservation(peerId))
+        }
 
     @Test
     fun `transient connection setup drops retry handshake message one until a direct link is ready`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("session-support-retry-test")
             val sessionRegistry = MeshEngineSessionRegistry()
@@ -120,7 +121,7 @@ class MeshEngineSessionSupportTest {
                                     else -> error("Unexpected send attempt $sendCallCount")
                                 }
                             },
-                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                            emitHopSessionFailed = { _, _, _, _ -> },
                         ),
                 )
 
@@ -139,7 +140,7 @@ class MeshEngineSessionSupportTest {
 
     @Test
     fun `transient connection setup keeps retrying beyond one second when the timeout allows it`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("session-support-extended-retry-test")
             val sessionRegistry = MeshEngineSessionRegistry()
@@ -194,7 +195,7 @@ class MeshEngineSessionSupportTest {
                                     else -> error("Unexpected send attempt $sendCallCount")
                                 }
                             },
-                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                            emitHopSessionFailed = { _, _, _, _ -> },
                         ),
                 )
 
@@ -213,7 +214,7 @@ class MeshEngineSessionSupportTest {
 
     @Test
     fun `pause during message one retry resumes and can still establish the session`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("session-support-pause-retry-test")
             val sessionRegistry = MeshEngineSessionRegistry()
@@ -269,7 +270,7 @@ class MeshEngineSessionSupportTest {
                                     else -> error("Unexpected send attempt $sendCallCount")
                                 }
                             },
-                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                            emitHopSessionFailed = { _, _, _, _ -> },
                         ),
                 )
             val outcomeDeferred =
@@ -296,7 +297,7 @@ class MeshEngineSessionSupportTest {
 
     @Test
     fun `pause while awaiting responder handshake resumes and can still establish the session`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("session-support-pause-await-test")
             val sessionRegistry = MeshEngineSessionRegistry()
@@ -323,7 +324,7 @@ class MeshEngineSessionSupportTest {
                                 sendStarted.complete(Unit)
                                 TransportSendResult.Delivered
                             },
-                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                            emitHopSessionFailed = { _, _, _, _ -> },
                         ),
                 )
             val outcomeDeferred =
@@ -362,7 +363,7 @@ class MeshEngineSessionSupportTest {
 
     @Test
     fun `hard run ending during message one retry fails the pending initiator handshake`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("session-support-hard-run-retry-test")
             val sessionRegistry = MeshEngineSessionRegistry()
@@ -389,7 +390,7 @@ class MeshEngineSessionSupportTest {
                                     "Android BLE L2CAP connection is not ready"
                                 )
                             },
-                            emitHopSessionFailed = { _, _, _, _ -> Unit },
+                            emitHopSessionFailed = { _, _, _, _ -> },
                         ),
                 )
             val hardRunToken = MeshEngineHardRunToken(epoch = 12L)
@@ -410,53 +411,53 @@ class MeshEngineSessionSupportTest {
         }
 
     @Test
-    fun `hard run ending while awaiting responder handshake returns unreachable`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("session-support-hard-run-await-test")
-        val sessionRegistry = MeshEngineSessionRegistry()
-        val runtimeGate = ControllableSessionRuntimeGate(activeHardRunEpoch = 21L)
-        val peerId = PeerId("peer-e")
-        val sendStarted = CompletableDeferred<Unit>()
-        var sendCallCount = 0
-        val support =
-            MeshEngineSessionSupport(
-                localIdentity = localIdentity,
-                state =
-                    MeshEngineSessionState(
-                        sessionRegistry = sessionRegistry,
-                        runtimeGate = runtimeGate,
-                    ),
-                handshakeTimeout = 1.seconds,
-                callbacks =
-                    MeshEngineSessionCallbacks(
-                        hasTransport = { true },
-                        sendDirectWireFrame = { _, _, _, _ ->
-                            sendCallCount += 1
-                            sendStarted.complete(Unit)
-                            TransportSendResult.Delivered
-                        },
-                        emitHopSessionFailed = { _, _, _, _ -> Unit },
-                    ),
+    fun `hard run ending while awaiting responder handshake returns unreachable`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-support-hard-run-await-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val runtimeGate = ControllableSessionRuntimeGate(activeHardRunEpoch = 21L)
+            val peerId = PeerId("peer-e")
+            val sendStarted = CompletableDeferred<Unit>()
+            var sendCallCount = 0
+            val support =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state =
+                        MeshEngineSessionState(
+                            sessionRegistry = sessionRegistry,
+                            runtimeGate = runtimeGate,
+                        ),
+                    handshakeTimeout = 1.seconds,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { true },
+                            sendDirectWireFrame = { _, _, _, _ ->
+                                sendCallCount += 1
+                                sendStarted.complete(Unit)
+                                TransportSendResult.Delivered
+                            },
+                            emitHopSessionFailed = { _, _, _, _ -> },
+                        ),
+                )
+            val hardRunToken = MeshEngineHardRunToken(epoch = 21L)
+            val outcomeDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    support.ensureHopSession(peerId, hardRunToken)
+                }
+
+            // Act
+            sendStarted.await()
+            runtimeGate.endHardRun()
+            val outcome = withTimeout(1.seconds) { outcomeDeferred.await() }
+
+            // Assert
+            assertEquals(1, sendCallCount)
+            assertEquals(SessionEstablishmentOutcome.Unreachable, outcome)
+            assertIs<InitiatorHandshakeReservation.Pending>(
+                sessionRegistry.initiatorHandshakeReservation(peerId)
             )
-        val hardRunToken = MeshEngineHardRunToken(epoch = 21L)
-        val outcomeDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                support.ensureHopSession(peerId, hardRunToken)
-            }
-
-        // Act
-        sendStarted.await()
-        runtimeGate.endHardRun()
-        val outcome = withTimeout(1.seconds) { outcomeDeferred.await() }
-
-        // Assert
-        assertEquals(1, sendCallCount)
-        assertEquals(SessionEstablishmentOutcome.Unreachable, outcome)
-        assertIs<InitiatorHandshakeReservation.Pending>(
-            sessionRegistry.initiatorHandshakeReservation(peerId)
-        )
-        Unit
-    }
+        }
 }
 
 private class ControllableSessionRuntimeGate(private val activeHardRunEpoch: Long) :

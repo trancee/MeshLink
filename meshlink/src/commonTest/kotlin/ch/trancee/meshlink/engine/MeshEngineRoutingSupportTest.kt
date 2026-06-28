@@ -19,7 +19,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineRoutingSupportTest {
     @Test
     fun `dispatchMutation emits a route available diagnostic when a direct peer appears`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val remoteIdentity = LocalIdentity.fromAppId("routing-remote")
@@ -50,7 +50,7 @@ class MeshEngineRoutingSupportTest {
 
     @Test
     fun `dispatchMutation emits diagnostics before routing advertisements for a direct peer update`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local-order")
             val remoteIdentity = LocalIdentity.fromAppId("routing-remote-order")
@@ -91,7 +91,7 @@ class MeshEngineRoutingSupportTest {
 
     @Test
     fun `dispatchMutation sends routing advertisements while the hard run is active`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val firstPeer = LocalIdentity.fromAppId("routing-first")
@@ -135,7 +135,7 @@ class MeshEngineRoutingSupportTest {
 
     @Test
     fun `dispatchMutation skips routing advertisements once the hard run has ended`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val firstPeer = LocalIdentity.fromAppId("routing-first")
@@ -160,7 +160,7 @@ class MeshEngineRoutingSupportTest {
 
     @Test
     fun `dispatchMutation emits route retracted diagnostics when a direct peer disappears`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("routing-local")
             val remoteIdentity = LocalIdentity.fromAppId("routing-remote")

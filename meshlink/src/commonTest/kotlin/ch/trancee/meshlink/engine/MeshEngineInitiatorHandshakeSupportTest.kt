@@ -28,7 +28,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineInitiatorHandshakeSupportTest {
     @Test
     fun `handleHandshakeMessage2 sends message3 and completes the pending initiator handshake`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
             val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
@@ -75,12 +75,11 @@ class MeshEngineInitiatorHandshakeSupportTest {
             )
             assertNotNull(fixture.trustStore.read(peerId.value))
             assertTrue(fixture.failures.isEmpty())
-            Unit
         }
 
     @Test
     fun `handleHandshakeMessage2 fails the pending initiator handshake when message3 delivery fails`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
             val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
@@ -127,7 +126,7 @@ class MeshEngineInitiatorHandshakeSupportTest {
 
     @Test
     fun `handleHandshakeMessage2 fails trust verification when pinned keys do not match`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
             val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
@@ -176,7 +175,7 @@ class MeshEngineInitiatorHandshakeSupportTest {
 
     @Test
     fun `handleHandshakeMessage2 reports unexpected payloads when no pending initiator handshake exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
             val peerId = PeerId("unknown-peer")

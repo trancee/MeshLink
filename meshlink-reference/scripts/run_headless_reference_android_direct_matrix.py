@@ -14,6 +14,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 from run_headless_reference_live_proof import shell_join, timestamp
 
 
@@ -92,7 +96,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--sender-passive-limit",
         type=int,
-        help="Optional cap on the number of directed pairs to run for a partial sweep",
+        help="Optional cap on the number of directed pairs to run for a partial run",
     )
     parser.add_argument(
         "--android-ready-seconds",
@@ -110,7 +114,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--pair-timeout-seconds",
         type=float,
         default=DEFAULT_PAIR_TIMEOUT_SECONDS,
-        help="Outer timeout per pair so a hung proof script cannot stall the whole sweep",
+        help="Outer timeout per pair so a hung proof script cannot stall the whole run",
     )
     parser.add_argument(
         "--min-android-api-level",
@@ -132,7 +136,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--max-failures",
         type=int,
         default=5,
-        help="Stop the sweep once failures exceed this threshold when fail-fast is disabled",
+        help="Stop the run once failures exceed this threshold when fail-fast is disabled",
     )
     parser.set_defaults(fail_fast=True)
     return parser.parse_args(argv)
@@ -185,6 +189,15 @@ def select_pair_transport(
             ),
         }
     return DEFAULT_PRIMARY_TRANSPORT, None
+
+
+def clear_reference_app_data(android_serial: str) -> None:
+    command = ["adb", "-s", android_serial, "shell", "pm", "clear", "ch.trancee.meshlink.reference"]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    message = stdout or stderr or "(no output)"
+    print(f"==> Android clear app data result ({shell_join(command)}): {message}", flush=True)
 
 
 def run_pair(
@@ -280,8 +293,22 @@ def run_pair(
         "passiveRouteStage": summary.get("passiveRouteStage"),
         "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
         "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderScanResultCount": sender_focus.get("scanResultCount"),
+        "passiveScanResultCount": passive_focus.get("scanResultCount"),
+        "senderScanAcceptedCount": sender_focus.get("scanAcceptedCount"),
+        "passiveScanAcceptedCount": passive_focus.get("scanAcceptedCount"),
+        "senderScanParseSkippedCount": sender_focus.get("scanParseSkippedCount"),
+        "passiveScanParseSkippedCount": passive_focus.get("scanParseSkippedCount"),
+        "senderScanTargetMismatchCount": sender_focus.get("scanTargetMismatchCount"),
+        "passiveScanTargetMismatchCount": passive_focus.get("scanTargetMismatchCount"),
         "senderDiscoveryFocus": sender_focus,
         "passiveDiscoveryFocus": passive_focus,
+        "senderSelectedPeerId": sender_focus.get("selectedPeerId"),
+        "passiveSelectedPeerId": passive_focus.get("selectedPeerId"),
+        "senderFirstSnapshotTransition": sender_focus.get("firstSnapshotTransition"),
+        "passiveFirstSnapshotTransition": passive_focus.get("firstSnapshotTransition"),
+        "senderTopAcceptedPeers": sender_focus.get("topAcceptedPeers"),
+        "passiveTopAcceptedPeers": passive_focus.get("topAcceptedPeers"),
         "timings": summary.get("timings"),
         "startupTiming": summary.get("startupTiming"),
         "htmlReportPath": summary.get("htmlReportPath"),
@@ -364,8 +391,22 @@ def compact_status(summary: dict[str, Any]) -> dict[str, Any]:
         "passiveRouteEvidence": summary.get("passiveRouteEvidence"),
         "senderForeignScanIgnoredCount": sender_focus.get("foreignScanIgnoredCount"),
         "passiveForeignScanIgnoredCount": passive_focus.get("foreignScanIgnoredCount"),
+        "senderScanResultCount": sender_focus.get("scanResultCount"),
+        "passiveScanResultCount": passive_focus.get("scanResultCount"),
+        "senderScanAcceptedCount": sender_focus.get("scanAcceptedCount"),
+        "passiveScanAcceptedCount": passive_focus.get("scanAcceptedCount"),
+        "senderScanParseSkippedCount": sender_focus.get("scanParseSkippedCount"),
+        "passiveScanParseSkippedCount": passive_focus.get("scanParseSkippedCount"),
+        "senderScanTargetMismatchCount": sender_focus.get("scanTargetMismatchCount"),
+        "passiveScanTargetMismatchCount": passive_focus.get("scanTargetMismatchCount"),
         "senderDiscoveryFocus": sender_focus,
         "passiveDiscoveryFocus": passive_focus,
+        "senderSelectedPeerId": sender_focus.get("selectedPeerId"),
+        "passiveSelectedPeerId": passive_focus.get("selectedPeerId"),
+        "senderFirstSnapshotTransition": sender_focus.get("firstSnapshotTransition"),
+        "passiveFirstSnapshotTransition": passive_focus.get("firstSnapshotTransition"),
+        "senderTopAcceptedPeers": sender_focus.get("topAcceptedPeers"),
+        "passiveTopAcceptedPeers": passive_focus.get("topAcceptedPeers"),
         "transportMode": summary.get("transportMode") or (summary.get("timings") or {}).get("transportMode"),
         "transportEvidence": summary.get("transportEvidence") or (summary.get("timings") or {}).get("transportEvidence"),
         "startupTiming": summary.get("startupTiming"),
@@ -457,6 +498,7 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         f"| Stop reason | {stop_reason or '—'} |",
         "",
         f"Foreign scan summary: sender ignored {sender_ignored_total} · passive ignored {passive_ignored_total}",
+        f"Scan-path summary: sender results {sum(int(row.get('initial', {}).get('senderScanResultCount') or 0) + int(row.get('final', {}).get('senderScanResultCount') or 0) for row in results)} accepted {sum(int(row.get('initial', {}).get('senderScanAcceptedCount') or 0) + int(row.get('final', {}).get('senderScanAcceptedCount') or 0) for row in results)} · passive results {sum(int(row.get('initial', {}).get('passiveScanResultCount') or 0) + int(row.get('final', {}).get('passiveScanResultCount') or 0) for row in results)} accepted {sum(int(row.get('initial', {}).get('passiveScanAcceptedCount') or 0) + int(row.get('final', {}).get('passiveScanAcceptedCount') or 0) for row in results)}",
         "- How to read this report: sender/passive foreign-scan counts are summed across initial + final passes for the fleet overview, while pair reports show the same counts per run.",
         "",
         "## Mermaid overview",
@@ -466,31 +508,31 @@ def render_compact_report(results: list[dict[str, Any]], *, state: dict[str, Any
         "    autonumber",
         "    participant Matrix",
         "    participant Fleet",
-        "    participant Sweep",
+        "    participant Run",
         "    participant Stop",
         f"    note over Matrix: runRoot={mermaid_text(run_root or '—', max_len=40)} · fleet={mermaid_text(Path(fleet_inventory_path).name if fleet_inventory_path else '—', max_len=40)}",
         "    rect rgba(30, 64, 175, 0.40)",
         f"        Matrix->>Fleet: capture inventory ({total_pairs if total_pairs is not None else 'unknown'} pairs)",
-        f"        Matrix->>Sweep: prepare directed sweep ({completed_pairs} completed)",
+        f"        Matrix->>Run: prepare directed run ({completed_pairs} completed)",
         f"        Fleet-->>Matrix: inventory ready ({passing_count} passing · {failing_count} failing)",
-        f"        note over Fleet,Sweep: failure bucket so far = {mermaid_text(top_failure_bucket, max_len=40)}",
+        f"        note over Fleet,Run: failure bucket so far = {mermaid_text(top_failure_bucket, max_len=40)}",
         "    end",
         "    rect rgba(236, 253, 245, 0.55)",
-        f"        Sweep->>Sweep: execute pair lane across {completed_pairs} completed pairs",
-        "        Sweep->>Sweep: classify outcomes by failure stage",
-        f"        note over Sweep: top failure bucket = {mermaid_text(top_failure_bucket, max_len=40)}",
+        f"        Run->>Run: execute pair lane across {completed_pairs} completed pairs",
+        "        Run->>Run: classify outcomes by failure stage",
+        f"        note over Run: top failure bucket = {mermaid_text(top_failure_bucket, max_len=40)}",
         "        alt at least one passing pair",
-        f"            Sweep-->>Matrix: {passing_count} passing pairs recorded",
+        f"            Run-->>Matrix: {passing_count} passing pairs recorded",
         "        else no passing pairs",
-        "            Sweep-->>Matrix: no successful pairs",
+        "            Run-->>Matrix: no successful pairs",
         "        end",
         "    end",
         "    rect rgba(254, 242, 242, 0.55)",
         "        alt stopped early",
-        "            Sweep->>Stop: stopped early",
+        "            Run->>Stop: stopped early",
         f"            note over Stop: failure summary recorded in report",
-        "        else sweep completed",
-        "            Sweep->>Stop: all processed pairs recorded",
+        "        else run completed",
+        "            Run->>Stop: all processed pairs recorded",
         f"            note over Stop: failure summary recorded in report",
         "        end",
         "    end",
@@ -755,8 +797,8 @@ def render_pair_report(
         "",
         "## Result",
         "",
-        f"- Initial status: {initial.get('status')} ({initial.get('failureStage') or '—'}) in {initial.get('timings', {}).get('totalSeconds') or initial.get('elapsedSeconds') or '—'}s",
-        f"- Final status: {final.get('status')} ({final.get('failureStage') or '—'}) in {final.get('timings', {}).get('totalSeconds') or final.get('elapsedSeconds') or '—'}s",
+        f"- Initial status: {initial.get('status')} ({initial.get('failureStage') or '—'}) in {(initial.get('timings') or {}).get('totalSeconds') or initial.get('elapsedSeconds') or '—'}s",
+        f"- Final status: {final.get('status')} ({final.get('failureStage') or '—'}) in {(final.get('timings') or {}).get('totalSeconds') or final.get('elapsedSeconds') or '—'}s",
         f"- Initial failure reason: {initial.get('failureReason') or 'None.'}",
         f"- Final failure reason: {final.get('failureReason') or 'None.'}",
         f"- Route stage: {final.get('routeStage') or initial.get('routeStage') or 'unknown'}",
@@ -906,6 +948,8 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print(f"==> Pair {index}/{len(available_pairs)} {pair['label']}", flush=True)
+        clear_reference_app_data(pair["sender"])
+        clear_reference_app_data(pair["passive"])
         initial = run_pair(
             sender=pair["sender"],
             passive=pair["passive"],

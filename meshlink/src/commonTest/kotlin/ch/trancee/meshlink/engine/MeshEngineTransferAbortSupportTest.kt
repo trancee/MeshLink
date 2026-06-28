@@ -20,7 +20,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineTransferAbortSupportTest {
     @Test
     fun `abortLocalTransfers clears all local transfer scopes and emits the matching abort frames`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val outboundSession = newOutboundSession("outbound-1", PeerId("destination"))
             val inboundSession = newInboundSession("inbound-1", PeerId("upstream"))
@@ -116,30 +116,31 @@ class MeshEngineTransferAbortSupportTest {
         }
 
     @Test
-    fun `abortLocalTransfers is a no-op when there are no active transfers`() = runBlocking {
-        // Arrange
-        val state =
-            MeshEngineTransferState(
-                inboundTransfers = mutableMapOf(),
-                relayTransfers = mutableMapOf(),
-            )
-        val callbacks = RecordingTransferAbortCallbacks()
-        val support =
-            transferAbortSupport(
-                state = state,
-                outboundTransferLifecycleSupport = outboundTransferLifecycleSupport(),
-                callbacks = callbacks,
-            )
+    fun `abortLocalTransfers is a no-op when there are no active transfers`() =
+        runBlocking<Unit> {
+            // Arrange
+            val state =
+                MeshEngineTransferState(
+                    inboundTransfers = mutableMapOf(),
+                    relayTransfers = mutableMapOf(),
+                )
+            val callbacks = RecordingTransferAbortCallbacks()
+            val support =
+                transferAbortSupport(
+                    state = state,
+                    outboundTransferLifecycleSupport = outboundTransferLifecycleSupport(),
+                    callbacks = callbacks,
+                )
 
-        // Act
-        support.abortLocalTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
+            // Act
+            support.abortLocalTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
 
-        // Assert
-        assertTrue(callbacks.clearedOutboundFrames.isEmpty())
-        assertTrue(callbacks.encryptedFrames.isEmpty())
-        assertTrue(callbacks.routedFrames.isEmpty())
-        assertTrue(callbacks.diagnostics.isEmpty())
-    }
+            // Assert
+            assertTrue(callbacks.clearedOutboundFrames.isEmpty())
+            assertTrue(callbacks.encryptedFrames.isEmpty())
+            assertTrue(callbacks.routedFrames.isEmpty())
+            assertTrue(callbacks.diagnostics.isEmpty())
+        }
 }
 
 private fun transferAbortSupport(

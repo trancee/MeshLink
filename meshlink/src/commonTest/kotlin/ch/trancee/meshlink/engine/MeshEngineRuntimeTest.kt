@@ -26,70 +26,73 @@ import kotlinx.coroutines.withTimeout
 
 class MeshEngineRuntimeTest {
     @Test
-    fun `runtime lifecycle methods delegate through facade operations`() = runBlocking {
-        // Arrange
-        val facadeOperations = RecordingRuntimeFacadeOperations()
-        val runtime =
-            MeshEngineRuntime(
-                publishedSurface = MeshEngineRuntimeSurface(),
-                facadeOperations = facadeOperations,
-            )
+    fun `runtime lifecycle methods delegate through facade operations`() =
+        runBlocking<Unit> {
+            // Arrange
+            val facadeOperations = RecordingRuntimeFacadeOperations()
+            val runtime =
+                MeshEngineRuntime(
+                    publishedSurface = MeshEngineRuntimeSurface(),
+                    facadeOperations = facadeOperations,
+                )
 
-        // Act
-        val startResult = runtime.start()
-        val pauseResult = runtime.pause()
-        val resumeResult = runtime.resume()
-        val stopResult = runtime.stop()
+            // Act
+            val startResult = runtime.start()
+            val pauseResult = runtime.pause()
+            val resumeResult = runtime.resume()
+            val stopResult = runtime.stop()
 
-        // Assert
-        assertEquals(StartResult.Started, startResult)
-        assertEquals(PauseResult.Paused, pauseResult)
-        assertEquals(ResumeResult.Resumed, resumeResult)
-        assertEquals(StopResult.Stopped, stopResult)
-        assertEquals(listOf("start", "pause", "resume", "stop"), facadeOperations.calls)
-    }
-
-    @Test
-    fun `runtime send delegates through facade operations`() = runBlocking {
-        // Arrange
-        val facadeOperations = RecordingRuntimeFacadeOperations()
-        val runtime =
-            MeshEngineRuntime(
-                publishedSurface = MeshEngineRuntimeSurface(),
-                facadeOperations = facadeOperations,
-            )
-        val peerId = PeerId("peer-abcdef")
-        val payload = "hello".encodeToByteArray()
-
-        // Act
-        val result =
-            runtime.send(peerId = peerId, payload = payload, priority = DeliveryPriority.HIGH)
-
-        // Assert
-        assertEquals(SendResult.Sent, result)
-        assertEquals(peerId, facadeOperations.sentPeerId)
-        assertContentEquals(payload, facadeOperations.sentPayload ?: error("Expected payload"))
-        assertEquals(DeliveryPriority.HIGH, facadeOperations.sentPriority)
-    }
+            // Assert
+            assertEquals(StartResult.Started, startResult)
+            assertEquals(PauseResult.Paused, pauseResult)
+            assertEquals(ResumeResult.Resumed, resumeResult)
+            assertEquals(StopResult.Stopped, stopResult)
+            assertEquals(listOf("start", "pause", "resume", "stop"), facadeOperations.calls)
+        }
 
     @Test
-    fun `runtime forgetPeer delegates through facade operations`() = runBlocking {
-        // Arrange
-        val facadeOperations = RecordingRuntimeFacadeOperations()
-        val runtime =
-            MeshEngineRuntime(
-                publishedSurface = MeshEngineRuntimeSurface(),
-                facadeOperations = facadeOperations,
-            )
-        val peerId = PeerId("peer-abcdef")
+    fun `runtime send delegates through facade operations`() =
+        runBlocking<Unit> {
+            // Arrange
+            val facadeOperations = RecordingRuntimeFacadeOperations()
+            val runtime =
+                MeshEngineRuntime(
+                    publishedSurface = MeshEngineRuntimeSurface(),
+                    facadeOperations = facadeOperations,
+                )
+            val peerId = PeerId("peer-abcdef")
+            val payload = "hello".encodeToByteArray()
 
-        // Act
-        val result = runtime.forgetPeer(peerId)
+            // Act
+            val result =
+                runtime.send(peerId = peerId, payload = payload, priority = DeliveryPriority.HIGH)
 
-        // Assert
-        assertEquals(ForgetPeerResult.Forgotten, result)
-        assertEquals(peerId, facadeOperations.forgottenPeerId)
-    }
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            assertEquals(peerId, facadeOperations.sentPeerId)
+            assertContentEquals(payload, facadeOperations.sentPayload ?: error("Expected payload"))
+            assertEquals(DeliveryPriority.HIGH, facadeOperations.sentPriority)
+        }
+
+    @Test
+    fun `runtime forgetPeer delegates through facade operations`() =
+        runBlocking<Unit> {
+            // Arrange
+            val facadeOperations = RecordingRuntimeFacadeOperations()
+            val runtime =
+                MeshEngineRuntime(
+                    publishedSurface = MeshEngineRuntimeSurface(),
+                    facadeOperations = facadeOperations,
+                )
+            val peerId = PeerId("peer-abcdef")
+
+            // Act
+            val result = runtime.forgetPeer(peerId)
+
+            // Assert
+            assertEquals(ForgetPeerResult.Forgotten, result)
+            assertEquals(peerId, facadeOperations.forgottenPeerId)
+        }
 
     @Test
     fun `runtime updateBattery delegates through facade operations`() {
@@ -110,60 +113,61 @@ class MeshEngineRuntimeTest {
     }
 
     @Test
-    fun `runtime exposes the published surface state and flows`() = runBlocking {
-        // Arrange
-        val surfaceOwner = MeshEngineRuntimeSurface()
-        val publishedSurface: MeshEnginePublishedRuntimeSurface = surfaceOwner
-        val compatibilitySurface: MeshEngineCompatibilityRuntimeSurface = surfaceOwner
-        val runtime =
-            MeshEngineRuntime(
-                publishedSurface = publishedSurface,
-                facadeOperations = RecordingRuntimeFacadeOperations(),
-            )
-        val peerEventDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { runtime.peerEvents.first() }
-            }
-        val messageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { runtime.messages.first() }
-            }
-        val diagnosticDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(1_000) { runtime.diagnosticEvents.first() }
-            }
-        val message =
-            InboundMessage(
-                originPeerId = PeerId("peer-fedcba"),
-                payload = "hello".encodeToByteArray(),
-                receivedAtEpochMillis = 123L,
-                priority = DeliveryPriority.NORMAL,
-            )
+    fun `runtime exposes the published surface state and flows`() =
+        runBlocking<Unit> {
+            // Arrange
+            val surfaceOwner = MeshEngineRuntimeSurface()
+            val publishedSurface: MeshEnginePublishedRuntimeSurface = surfaceOwner
+            val compatibilitySurface: MeshEngineCompatibilityRuntimeSurface = surfaceOwner
+            val runtime =
+                MeshEngineRuntime(
+                    publishedSurface = publishedSurface,
+                    facadeOperations = RecordingRuntimeFacadeOperations(),
+                )
+            val peerEventDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { runtime.peerEvents.first() }
+                }
+            val messageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { runtime.messages.first() }
+                }
+            val diagnosticDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) { runtime.diagnosticEvents.first() }
+                }
+            val message =
+                InboundMessage(
+                    originPeerId = PeerId("peer-fedcba"),
+                    payload = "hello".encodeToByteArray(),
+                    receivedAtEpochMillis = 123L,
+                    priority = DeliveryPriority.NORMAL,
+                )
 
-        // Act
-        compatibilitySurface.beginHardRun()
-        compatibilitySurface.mutablePeerEvents.emit(PeerEvent.Lost(PeerId("peer-abcdef")))
-        compatibilitySurface.mutableMessages.emit(message)
-        compatibilitySurface.emitDiagnostic(
-            code = DiagnosticCode.DELIVERY_SUCCEEDED,
-            severity = DiagnosticSeverity.INFO,
-            stage = "delivery.completed",
-            peerSuffix = "abcdef",
-            reason = DiagnosticReason.DELIVERY_FAILURE,
-            metadata = mapOf("routeAvailable" to "true"),
-        )
-        val peerEvent = peerEventDeferred.await()
-        val observedMessage = messageDeferred.await()
-        val diagnostic = diagnosticDeferred.await()
+            // Act
+            compatibilitySurface.beginHardRun()
+            compatibilitySurface.mutablePeerEvents.emit(PeerEvent.Lost(PeerId("peer-abcdef")))
+            compatibilitySurface.mutableMessages.emit(message)
+            compatibilitySurface.emitDiagnostic(
+                code = DiagnosticCode.DELIVERY_SUCCEEDED,
+                severity = DiagnosticSeverity.INFO,
+                stage = "delivery.completed",
+                peerSuffix = "abcdef",
+                reason = DiagnosticReason.DELIVERY_FAILURE,
+                metadata = mapOf("routeAvailable" to "true"),
+            )
+            val peerEvent = peerEventDeferred.await()
+            val observedMessage = messageDeferred.await()
+            val diagnostic = diagnosticDeferred.await()
 
-        // Assert
-        assertEquals(MeshLinkState.Running, runtime.state.value)
-        assertEquals("peer-abcdef", (peerEvent as PeerEvent.Lost).peerId.value)
-        assertEquals("peer-fedcba", observedMessage.originPeerId.value)
-        assertEquals("hello", observedMessage.payload.decodeToString())
-        assertEquals("delivery.completed", diagnostic.stage)
-        assertEquals("true", diagnostic.metadata["routeAvailable"])
-    }
+            // Assert
+            assertEquals(MeshLinkState.Running, runtime.state.value)
+            assertEquals("peer-abcdef", (peerEvent as PeerEvent.Lost).peerId.value)
+            assertEquals("peer-fedcba", observedMessage.originPeerId.value)
+            assertEquals("hello", observedMessage.payload.decodeToString())
+            assertEquals("delivery.completed", diagnostic.stage)
+            assertEquals("true", diagnostic.metadata["routeAvailable"])
+        }
 }
 
 private class RecordingRuntimeFacadeOperations : MeshEngineRuntimeFacadeOperations {

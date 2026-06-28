@@ -22,7 +22,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineOutboundTransferPreparationSupportTest {
     @Test
     fun `prepareOutboundTransferSession returns an unregistered outbound session when trust already exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("outbound-transfer-sender")
             val recipientIdentity = LocalIdentity.fromAppId("outbound-transfer-recipient")
@@ -56,7 +56,7 @@ class MeshEngineOutboundTransferPreparationSupportTest {
 
     @Test
     fun `prepareOutboundTransferSession returns pending route when no trust or route exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("outbound-transfer-missing-trust")
             val trustStore = TofuTrustStore(InMemorySecureStorage())

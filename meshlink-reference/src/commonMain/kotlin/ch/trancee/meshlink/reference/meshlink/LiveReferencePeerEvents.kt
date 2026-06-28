@@ -50,13 +50,21 @@ private fun handlePeerFound(
     nowProvider: () -> Long,
     event: PeerEvent.Found,
 ): Unit {
+    val currentSelectedPeerId = stateStore.currentSnapshot.session.selectedPeerId
+    val shouldAutoSelectFirstPeer = currentSelectedPeerId == null
+    if (!stateStore.shouldTrackPeer(event.peerId.value) && !shouldAutoSelectFirstPeer) {
+        return
+    }
     val peerSnapshot = discoveredPeerSnapshot(event = event, nowProvider = nowProvider)
 
     stateStore.updatePeers { peers ->
         (peers.filterNot { existing -> existing.peerId == peerSnapshot.peerId } + peerSnapshot)
             .sortedBy { peer -> peer.peerSuffix }
     }
-    stateStore.updateSession(selectedPeerId = event.peerId.value, lastOutcomeSummary = "Peer found")
+    stateStore.updateSession(
+        selectedPeerId = currentSelectedPeerId ?: event.peerId.value,
+        lastOutcomeSummary = "Peer found",
+    )
     stateStore.appendEvent(
         ReferenceTimelineEvent(
             family = TimelineFamily.PEER,

@@ -182,7 +182,11 @@ private fun buildMeshEngineRuntimeAssemblyEnvironment(
     diagnosticSink: DiagnosticSink?,
     coroutineScope: CoroutineScope,
 ): MeshEngineRuntimeAssemblyEnvironment {
-    val runtimeSurface = MeshEngineRuntimeSurface(diagnosticSink = diagnosticSink)
+    val runtimeSurface =
+        MeshEngineRuntimeSurface(
+            initialState = MeshLinkState.Configured,
+            diagnosticSink = diagnosticSink,
+        )
     return MeshEngineRuntimeAssemblyEnvironment(
         config = config,
         localIdentity = localIdentity,

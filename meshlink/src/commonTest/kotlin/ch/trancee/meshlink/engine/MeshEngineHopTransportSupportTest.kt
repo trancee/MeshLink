@@ -24,7 +24,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineHopTransportSupportTest {
     @Test
     fun `sendEncryptedDirectWireFrame prefers gatt for transfer acknowledgements and increments the send nonce`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val peerId = PeerId("peer-abcdef")
@@ -66,7 +66,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame emits a hop session failure when transport delivery drops`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val peerId = PeerId("peer-abcdef")
@@ -112,7 +112,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame ensures a hop session when a running hard run token is supplied`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -148,7 +148,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame returns false when no session exists without a hard run token`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val peerId = PeerId("peer-abcdef")
@@ -170,7 +170,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame returns false when ensuring a running hard run session stays unreachable`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -206,7 +206,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedDirectWireFrame does not increment the send nonce when delivery drops`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val peerId = PeerId("peer-abcdef")
@@ -236,7 +236,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame emits a hop session failure when encrypted send throws`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val peerId = PeerId("peer-abcdef")
@@ -282,7 +282,7 @@ class MeshEngineHopTransportSupportTest {
 
     @Test
     fun `sendEncryptedWireFrame returns false without ensuring a session when the hard run already ended`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -342,7 +342,7 @@ private fun hopTransportFixture(
             routeCoordinator = RouteCoordinator(localIdentity.peerId),
             runtimeGate = runtimeSurface.runtimeGate,
             coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
-            emitDiagnostic = { _, _, _, _, _, _ -> Unit },
+            emitDiagnostic = { _, _, _, _, _, _ -> },
             sendEncryptedWireFrame = { _, _, _, _ -> true },
         )
     val support =

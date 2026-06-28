@@ -51,7 +51,7 @@ ANDROID_PROOF_ACTIVITY = f"{ANDROID_PROOF_PACKAGE}/.MainActivity"
 TARGET_PEER = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 ANDROID_PROOF_INSTALL_TASK = ":meshlink-proof:android:installDebug"
 ANDROID_START_TIMEOUT_SECONDS = 12.0
-ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 60.0
+ANDROID_USB_INSTALL_TIMEOUT_SECONDS = 120.0
 ANDROID_WIRELESS_INSTALL_TIMEOUT_SECONDS = 240.0
 
 
@@ -69,6 +69,7 @@ def is_wireless_android_serial(android_serial: str) -> bool:
 
 POST_RESULT_IDLE_SECONDS = 2.0
 POST_RESULT_PASSIVE_EXPORT_TIMEOUT_SECONDS = 12.0
+POST_PASSIVE_START_SETTLE_SECONDS = 5.0
 LOGCAT_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<month>\d{2})-(?P<day>\d{2}) (?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?:\.(?P<millis>\d{3}))?"
 )
@@ -78,10 +79,6 @@ SENDER_START_NAME = "sender_start.txt"
 PASSIVE_START_NAME = "passive_start.txt"
 ANDROID_HISTORY_NAME = "android_history.json"
 ANDROID_EXPORT_NAME = "android_export.json"
-ANDROID_EXTRA_BENCHMARK_TRANSPORT = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
-ANDROID_EXTRA_REFERENCE_BENCHMARK_TRANSPORT = (
-    "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_BENCHMARK_TRANSPORT"
-)
 ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
@@ -203,15 +200,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "unless you are isolating discovery-carrier behavior on a specific device."
         ),
     )
-    parser.add_argument(
-        "--passive-benchmark-transport",
-        choices=("meshlink", "gatt", "gatt-notify"),
-        default=None,
-        help=(
-            "Optional passive Android benchmark transport override for manual diagnosis. "
-            "Leave unset so the library chooses the transport automatically."
-        ),
-    )
     parser.add_argument("--skip-android-install", action="store_true")
     return parser.parse_args(argv)
 
@@ -259,6 +247,14 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             for peer in peers
         )
 
+    def accepted_peer_rows(peers: list[dict[str, Any]]) -> str:
+        if not peers:
+            return "<tr><th>None</th><td>—</td></tr>"
+        return "".join(
+            f"<tr><th>{esc(peer.get('peerId'))}</th><td>addr={esc(peer.get('addr'))} · mode={esc(peer.get('mode'))} · count={esc(peer.get('count'))}</td></tr>"
+            for peer in peers
+        )
+
     def timing_rows(stage: str, data: dict[str, Any]) -> str:
         message_latency = data.get("sendLatencySeconds") if stage == "Sender" else data.get("receiptSeconds")
         return "".join(
@@ -299,9 +295,33 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     transport_evidence = payload.get("transportEvidence")
     sender_discovery_focus = payload.get("senderDiscoveryFocus", {}) or {}
     passive_discovery_focus = payload.get("passiveDiscoveryFocus", {}) or {}
+    sender_selected_peer_id = payload.get("senderSelectedPeerId")
+    passive_selected_peer_id = payload.get("passiveSelectedPeerId")
     sender_discovery_focus_lines = sender_discovery_focus.get("lines") or []
     passive_discovery_focus_lines = passive_discovery_focus.get("lines") or []
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
+    sender_accepted_top_peers = sender_discovery_focus.get("topAcceptedPeers") or []
+    passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
+    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
+    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
+    sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
+    passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
+    sender_selection_note = (
+        "matches target" if sender_selected_peer_id and sender_selected_peer_id == sender_discovery_focus.get("peerId") else "mismatch or none"
+    )
+    passive_selection_note = (
+        "matches target" if passive_selected_peer_id and passive_selected_peer_id == passive_discovery_focus.get("peerId") else "mismatch or none"
+    )
+    scan_summary = (
+        f"sender scans {esc(sender_discovery_focus.get('scanResultCount'))} "
+        f"accepted {esc(sender_discovery_focus.get('scanAcceptedCount'))} "
+        f"parse-skipped {esc(sender_discovery_focus.get('scanParseSkippedCount'))} "
+        f"target-mismatch {esc(sender_discovery_focus.get('scanTargetMismatchCount'))} · "
+        f"passive scans {esc(passive_discovery_focus.get('scanResultCount'))} "
+        f"accepted {esc(passive_discovery_focus.get('scanAcceptedCount'))} "
+        f"parse-skipped {esc(passive_discovery_focus.get('scanParseSkippedCount'))} "
+        f"target-mismatch {esc(passive_discovery_focus.get('scanTargetMismatchCount'))}"
+    )
 
     execution_timeline_html = ""
     if any(
@@ -348,9 +368,29 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             if passive_foreign_scan_top_peers
             else "Top foreign peers: none parsed"
         )
+        top_accepted_peer_note = (
+            "Top accepted peers: sender "
+            + (
+                ", ".join(
+                    f"{peer.get('peerId')}@{peer.get('addr')}×{peer.get('count')}"
+                    for peer in sender_accepted_top_peers[:3]
+                )
+                if sender_accepted_top_peers
+                else "none parsed"
+            )
+            + " · passive "
+            + (
+                ", ".join(
+                    f"{peer.get('peerId')}@{peer.get('addr')}×{peer.get('count')}"
+                    for peer in passive_accepted_top_peers[:3]
+                )
+                if passive_accepted_top_peers
+                else "none parsed"
+            )
+        )
         foreign_scan_note = (
             "Passive discovery is dropping foreign payloads; inspect the Passive discovery focus section "
-            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}"
+            f"and foreign scan summary (passive ignored {passive_foreign_scan_ignored_count}). {top_peer_note}. {top_accepted_peer_note}."
         )
     if status != "passed" or payload.get("failureReason") or payload.get("failureStage"):
         failure_rows = [
@@ -405,6 +445,7 @@ def render_summary_html(payload: dict[str, Any]) -> str:
         f"<h1>Android direct-proof summary <span class=\"badge {badge_class}\">{esc(status)}</span></h1>",
         f"<p class=\"muted\">App ID: {esc(payload.get('appId'))} · Scenario: {esc(payload.get('scenario'))} · Report: {esc(payload.get('htmlReportPath'))}</p>",
         f"<p class=\"muted\">Foreign scan summary: sender ignored {esc((payload.get('senderDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))} · passive ignored {esc((payload.get('passiveDiscoveryFocus') or {}).get('foreignScanIgnoredCount'))}</p>",
+        f"<p class=\"muted\">Scan-path summary: {scan_summary}</p>",
         kv_table(
             "Overview",
             [
@@ -463,6 +504,15 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             [
                 ("Peer id", sender_discovery_focus.get("peerId")),
                 ("Foreign scan ignored count", sender_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Scan result count", sender_discovery_focus.get("scanResultCount")),
+                ("Parse-skipped count", sender_discovery_focus.get("scanParseSkippedCount")),
+                ("Target-mismatch count", sender_discovery_focus.get("scanTargetMismatchCount")),
+                ("Accepted count", sender_discovery_focus.get("scanAcceptedCount")),
+                ("Selected peer id", sender_selected_peer_id),
+                ("Target match", sender_discovery_focus.get("peerMatch")),
+                ("Selection note", sender_selection_note),
+                ("First snapshot transition", sender_discovery_focus.get("firstSnapshotTransition")),
+                ("Top accepted peer id", (sender_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(sender_discovery_focus_lines)),
             ],
         ),
@@ -472,11 +522,22 @@ def render_summary_html(payload: dict[str, Any]) -> str:
             [
                 ("Peer id", passive_discovery_focus.get("peerId")),
                 ("Foreign scan ignored count", passive_discovery_focus.get("foreignScanIgnoredCount")),
+                ("Scan result count", passive_discovery_focus.get("scanResultCount")),
+                ("Parse-skipped count", passive_discovery_focus.get("scanParseSkippedCount")),
+                ("Target-mismatch count", passive_discovery_focus.get("scanTargetMismatchCount")),
+                ("Accepted count", passive_discovery_focus.get("scanAcceptedCount")),
+                ("Selected peer id", passive_selected_peer_id),
+                ("Target match", passive_discovery_focus.get("peerMatch")),
+                ("Selection note", passive_selection_note),
+                ("First snapshot transition", passive_discovery_focus.get("firstSnapshotTransition")),
+                ("Top accepted peer id", (passive_top_accepted_peer or {}).get("peerId")),
                 ("Matching line count", len(passive_discovery_focus_lines)),
             ],
         ),
         f"<section><h2>Passive discovery lines</h2><pre>{esc('\n'.join(passive_discovery_focus_lines) if passive_discovery_focus_lines else '—')}</pre></section>",
         f"<section><h2>Top foreign peers</h2><table>{foreign_peer_rows(passive_foreign_scan_top_peers)}</table></section>",
+        f"<section><h2>Sender top accepted peers</h2><table>{accepted_peer_rows(sender_accepted_top_peers)}</table></section>",
+        f"<section><h2>Passive top accepted peers</h2><table>{accepted_peer_rows(passive_accepted_top_peers)}</table></section>",
         "<section><h2>Completion lines</h2>",
         f"<h3>Sender</h3><pre>{esc(sender_completion)}</pre>",
         f"<h3>Passive</h3><pre>{esc(passive_completion)}</pre>",
@@ -532,12 +593,55 @@ def extract_target_peer_id(log_text: str) -> str | None:
     return None
 
 
+def extract_selected_peer_id(log_text: str) -> str | None:
+    fallback: str | None = None
+    for line in log_text.splitlines():
+        if "peer.snapshot reason=" not in line or "selectedPeerId=" not in line:
+            continue
+        match = re.search(r"selectedPeerId=([^\s]+)", line)
+        if match is None:
+            continue
+        selected_peer_id = match.group(1)
+        if selected_peer_id != "none":
+            return selected_peer_id
+        fallback = fallback or selected_peer_id
+    return fallback
+
+
+def extract_first_peer_snapshot_transition(log_text: str) -> str | None:
+    for line in log_text.splitlines():
+        if "peer.snapshot reason=" not in line or "count=" not in line:
+            continue
+        match = re.search(r"count=(\d+)", line)
+        if match is None:
+            continue
+        if int(match.group(1)) > 0:
+            return line.strip()
+    return None
+
+
 def count_foreign_scan_ignored_lines(log_text: str) -> int:
     return sum(
         1
         for line in log_text.splitlines()
         if "ignoring discovery payload with mismatched meshHash" in line
     )
+
+
+def count_scan_result_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan result#" in line)
+
+
+def count_scan_parse_skipped_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan discovery skipped" in line)
+
+
+def count_scan_target_mismatch_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan discovery target mismatch" in line)
+
+
+def count_scan_accepted_lines(log_text: str) -> int:
+    return sum(1 for line in log_text.splitlines() if "scan accepted " in line)
 
 
 def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
@@ -556,6 +660,33 @@ def summarize_foreign_scan_peers(log_text: str, limit: int = 3) -> list[dict[str
         for (addr, remote_mesh_hash), count in counts.items()
     ]
     peers.sort(key=lambda item: (-item["count"], item["addr"], item["remoteMeshHash"]))
+    return peers[:limit]
+
+
+def summarize_accepted_scan_peers(log_text: str, limit: int = 3) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    first_seen: dict[str, dict[str, str]] = {}
+    for line in log_text.splitlines():
+        if "scan accepted " not in line:
+            continue
+        peer_match = re.search(r"peerId=([^\s]+)", line)
+        if peer_match is None:
+            continue
+        peer_id = peer_match.group(1)
+        counts[peer_id] = counts.get(peer_id, 0) + 1
+        first_seen.setdefault(
+            peer_id,
+            {
+                "peerId": peer_id,
+                "addr": re.search(r"addr=([^\s]+)", line).group(1) if re.search(r"addr=([^\s]+)", line) else "—",
+                "mode": re.search(r"mode=([^\s]+)", line).group(1) if re.search(r"mode=([^\s]+)", line) else "—",
+            },
+        )
+    peers = [
+        {"peerId": peer_id, "addr": first_seen[peer_id]["addr"], "mode": first_seen[peer_id]["mode"], "count": count}
+        for peer_id, count in counts.items()
+    ]
+    peers.sort(key=lambda item: (-item["count"], item["peerId"]))
     return peers[:limit]
 
 
@@ -995,12 +1126,12 @@ def transport_failure_reason(run_dir: Path) -> str | None:
                 "Android direct proof discovered a peer but never emitted a route-stage marker; "
                 "sender stalled before route stabilization"
             )
-    if "sender.discovery.stalled role=" in combined_log_lower or "sender.discovery.pending role=" in combined_log_lower:
+    if "sender.discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof sender stalled before peer discovery; "
             "classified as a capture stall"
         )
-    if "discovery.stalled role=" in combined_log_lower or "discovery.pending role=" in combined_log_lower:
+    if "discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof reached startup but discovery stalled before peer discovery or route readiness; "
             "classified as a capture stall"
@@ -1106,15 +1237,22 @@ def ensure_android_preflight(
     else:
         timings["installReused"] = True
     permissions_started_at = time.monotonic()
+    permission_package = ANDROID_PROOF_PACKAGE if install_profile == "proof" else ANDROID_PACKAGE
     try:
         if install_profile == "proof":
             verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
         else:
             verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
-        raise SystemExit(
-            f"Android runtime-permission verification failed for '{android_serial}': {error}"
-        ) from error
+        print(
+            f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
+            flush=True,
+        )
+        grant_android_runtime_permissions(android_serial, permission_package)
+        if install_profile == "proof":
+            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+        else:
+            verify_android_runtime_permissions(android_serial)
     except subprocess.CalledProcessError as error:
         raise SystemExit(
             "Android runtime-permission verification command failed for "
@@ -1295,7 +1433,6 @@ def start_android_role_app(
     android_transport_logcat: bool,
     target_peer_id: str | None = None,
     advertisement_carrier: str = "uuid-pair",
-    benchmark_transport: str | None = None,
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
 ) -> BackgroundProcess:
@@ -1366,14 +1503,6 @@ def start_android_role_app(
                 advertisement_carrier,
             ]
         )
-        if benchmark_transport is not None:
-            command.extend(
-                [
-                    "--es",
-                    ANDROID_EXTRA_BENCHMARK_TRANSPORT,
-                    benchmark_transport,
-                ]
-            )
     app_label = "proof" if android_package == ANDROID_PROOF_PACKAGE else "reference"
     print(f"==> Launching {label} Android {app_label} app ({role}): {shell_join(command)}")
     start_path = run_dir / role_artifacts.start_name
@@ -1441,9 +1570,9 @@ def resolve_sender_target_peer_id(
     discovered_peer_id: str | None,
     target_peer_id: str | None,
 ) -> str | None:
-    sender_target_peer_id = wait_for_discovered_peer_id(passive_marker_path, discovery_wait_seconds)
+    sender_target_peer_id = discovered_peer_id or target_peer_id
     if sender_target_peer_id is None:
-        sender_target_peer_id = discovered_peer_id or target_peer_id
+        sender_target_peer_id = wait_for_discovered_peer_id(passive_marker_path, discovery_wait_seconds)
     return sender_target_peer_id
 
 
@@ -1467,7 +1596,6 @@ def launch_android_sender_role_app(
         android_transport_logcat=android_transport_logcat,
         target_peer_id=target_peer_id,
         advertisement_carrier=sender_advertisement_carrier,
-        benchmark_transport=None,
         android_activity=ANDROID_ACTIVITY,
         android_package=ANDROID_PACKAGE,
     )
@@ -1484,7 +1612,6 @@ def launch_android_role_apps(
     android_transport_logcat: bool,
     target_peer_id: str | None,
     passive_advertisement_carrier: str,
-    passive_benchmark_transport: str | None,
     sender_advertisement_carrier: str,
 ) -> tuple[BackgroundProcess, BackgroundProcess]:
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1499,7 +1626,6 @@ def launch_android_role_apps(
             android_transport_logcat=android_transport_logcat,
             target_peer_id=None,
             advertisement_carrier=passive_advertisement_carrier,
-            benchmark_transport=passive_benchmark_transport,
             android_activity=ANDROID_ACTIVITY,
             android_package=ANDROID_PACKAGE,
         )
@@ -1514,8 +1640,7 @@ def launch_android_role_apps(
             android_transport_logcat=android_transport_logcat,
             target_peer_id=target_peer_id,
             advertisement_carrier=sender_advertisement_carrier,
-            benchmark_transport=None,
-            android_activity=ANDROID_ACTIVITY,
+                android_activity=ANDROID_ACTIVITY,
             android_package=ANDROID_PACKAGE,
         )
         passive_process = passive_future.result()
@@ -1800,16 +1925,20 @@ def failure_summary(
     startup_timing: dict[str, Any],
     timings: dict[str, Any],
 ) -> dict[str, Any]:
-    sender_route_stage, sender_route_evidence = extract_route_observation(read_text(sender_log_path(run_dir)))
-    passive_route_stage, passive_route_evidence = extract_route_observation(read_text(passive_log_path(run_dir)))
+    sender_log_text = read_text(sender_log_path(run_dir))
+    passive_log_text = read_text(passive_log_path(run_dir))
+    sender_route_stage, sender_route_evidence = extract_route_observation(sender_log_text)
+    passive_route_stage, passive_route_evidence = extract_route_observation(passive_log_text)
     route_stage = sender_route_stage or passive_route_stage
     route_evidence = sender_route_evidence or passive_route_evidence
     transport_mode = timings.get("transportMode") or (timings.get("sender") or {}).get("transportMode") or (timings.get("passive") or {}).get("transportMode")
     transport_evidence = timings.get("transportEvidence") or (timings.get("sender") or {}).get("transportEvidence") or (timings.get("passive") or {}).get("transportEvidence")
-    sender_log_text = read_text(sender_log_path(run_dir))
-    passive_log_text = read_text(passive_log_path(run_dir))
     discovered_peer_id = extract_discovered_peer_id(passive_log_text)
     target_peer_id = discovered_peer_id or extract_target_peer_id(sender_log_text)
+    sender_selected_peer_id = extract_selected_peer_id(sender_log_text)
+    passive_selected_peer_id = extract_selected_peer_id(passive_log_text)
+    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
+    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
     sender_discovery_focus_lines = extract_discovery_focus_lines(
         sender_log_text,
         target_peer_id,
@@ -1837,13 +1966,29 @@ def failure_summary(
         "discoveredPeerId": discovered_peer_id,
         "senderDiscoveryFocus": {
             "peerId": target_peer_id,
+            "selectedPeerId": sender_selected_peer_id,
+            "peerMatch": bool(sender_selected_peer_id and target_peer_id and sender_selected_peer_id == target_peer_id),
+            "firstSnapshotTransition": sender_first_snapshot_transition,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "scanResultCount": count_scan_result_lines(sender_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(sender_log_text),
             "lines": sender_discovery_focus_lines,
         },
         "passiveDiscoveryFocus": {
             "peerId": target_peer_id,
+            "selectedPeerId": passive_selected_peer_id,
+            "peerMatch": bool(passive_selected_peer_id and target_peer_id and passive_selected_peer_id == target_peer_id),
+            "firstSnapshotTransition": passive_first_snapshot_transition,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "scanResultCount": count_scan_result_lines(passive_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         },
         "startupState": completions.startup_state,
@@ -1948,7 +2093,6 @@ def main(argv: list[str] | None = None) -> int:
                 android_transport_logcat=args.android_transport_logcat,
                 target_peer_id=None,
                 advertisement_carrier=args.advertisement_carrier,
-                benchmark_transport=args.passive_benchmark_transport,
                 android_activity=ANDROID_ACTIVITY,
                 android_package=ANDROID_PACKAGE,
             )
@@ -1997,6 +2141,8 @@ def main(argv: list[str] | None = None) -> int:
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
+                if passive_transport_observation["observed"]:
+                    time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
@@ -2040,6 +2186,8 @@ def main(argv: list[str] | None = None) -> int:
                     passive_transport_timeout_seconds,
                 )
                 startup_timing["passiveTransport"] = passive_transport_observation
+                if passive_transport_observation["observed"]:
+                    time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
                 if not passive_transport_observation["observed"]:
                     raise SystemExit(
                         f"Android passive transport did not start within {passive_transport_timeout_seconds} seconds"
@@ -2152,12 +2300,22 @@ def main(argv: list[str] | None = None) -> int:
         summary["senderDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(sender_log_text),
+            "scanResultCount": count_scan_result_lines(sender_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(sender_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(sender_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(sender_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(sender_log_text),
             "lines": sender_discovery_focus_lines,
         }
         summary["passiveDiscoveryFocus"] = {
             "peerId": target_peer_id,
             "foreignScanIgnoredCount": count_foreign_scan_ignored_lines(passive_log_text),
+            "scanResultCount": count_scan_result_lines(passive_log_text),
+            "scanParseSkippedCount": count_scan_parse_skipped_lines(passive_log_text),
+            "scanTargetMismatchCount": count_scan_target_mismatch_lines(passive_log_text),
+            "scanAcceptedCount": count_scan_accepted_lines(passive_log_text),
             "topPeers": summarize_foreign_scan_peers(passive_log_text),
+            "topAcceptedPeers": summarize_accepted_scan_peers(passive_log_text),
             "lines": passive_discovery_focus_lines,
         }
         summary["timings"].update(

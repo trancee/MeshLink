@@ -75,9 +75,13 @@ internal fun parseDiscoveryScanResultOrNull(
     }
     val transportMode =
         if (payload.l2capPsm.toInt() == 0) TransportMode.GATT else TransportMode.L2CAP
+    val hintPeerId = PeerId(payload.keyHash.toHexString())
+    log(
+        "accepted discovery payload addr=$deviceAddress protocolVersion=${payload.protocolVersion} meshHash=${payload.meshHash} platform=${payload.platformFamily} mode=$transportMode psm=${payload.l2capPsm} peerId=${hintPeerId.value}"
+    )
     return DiscoveryScanResult(
         payload = payload,
-        hintPeerId = PeerId(payload.keyHash.toHexString()),
+        hintPeerId = hintPeerId,
         transportMode = transportMode,
     )
 }
@@ -100,6 +104,5 @@ internal fun shouldConnectAfterDiscovery(
                     remotePlatformFamily = remotePlatformFamily,
                     gattSideLinkReady = gattSideLinkReady,
                 )
-        else -> false
     }
 }

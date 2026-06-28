@@ -28,7 +28,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineOutboundDeliverySupportTest {
     @Test
     fun `sendPayload returns the inline deadline result when the inline leaf requests retry`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val peerId = PeerId("peer-abcdef")
             val runtimeGate = TestRuntimeGate(activeHardRunEpoch = 7L)
@@ -77,7 +77,7 @@ class MeshEngineOutboundDeliverySupportTest {
 
     @Test
     fun `sendPayload does not suspend discovery while a large transfer is still waiting for its first route`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val peerId = PeerId("peer-route-wait")
             val runtimeGate = TestRuntimeGate(activeHardRunEpoch = 11L)
@@ -125,118 +125,126 @@ class MeshEngineOutboundDeliverySupportTest {
         }
 
     @Test
-    fun `sendPayload resets retry attempts after large transfer progress`() = runBlocking {
-        // Arrange
-        val peerId = PeerId("peer-abcdef")
-        val runtimeGate = TestRuntimeGate(activeHardRunEpoch = 9L)
-        val retrySequenceState = RetrySequenceState(firstWakeupPending = true)
-        val retryCallbacks = OutboundDeliveryRetryCallbacksRecorder { attempt, _ ->
-            if (attempt == 0 && retrySequenceState.firstWakeupPending) {
-                retrySequenceState.firstWakeupPending = false
-                RetryWakeup.TimerElapsed(topologyVersion = 5L)
-            } else {
-                RetryWakeup.DeadlineExpired(topologyVersion = 5L)
+    fun `sendPayload resets retry attempts after large transfer progress`() =
+        runBlocking<Unit> {
+            // Arrange
+            val peerId = PeerId("peer-abcdef")
+            val runtimeGate = TestRuntimeGate(activeHardRunEpoch = 9L)
+            val retrySequenceState = RetrySequenceState(firstWakeupPending = true)
+            val retryCallbacks = OutboundDeliveryRetryCallbacksRecorder { attempt, _ ->
+                if (attempt == 0 && retrySequenceState.firstWakeupPending) {
+                    retrySequenceState.firstWakeupPending = false
+                    RetryWakeup.TimerElapsed(topologyVersion = 5L)
+                } else {
+                    RetryWakeup.DeadlineExpired(topologyVersion = 5L)
+                }
             }
-        }
-        val largeDiscoveryTransitions = mutableListOf<Boolean>()
-        val largeRetryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
-        val clearedOutboundFrames = mutableListOf<Pair<PeerId, String>>()
-        val outboundTransfers = mutableMapOf<String, OutboundTransferSession>()
-        var outboundSession: OutboundTransferSession? = null
-        var transferStartFrames = 0
-        val support =
-            outboundDeliverySupport(
-                deliveryRetryCallbacks = retryCallbacks,
-                inlineOutboundDeliveryAdapter = dummyInlineOutboundDeliveryAdapter(runtimeGate),
-                largeTransferOutboundDeliveryAdapter =
-                    largeTransferOutboundDeliveryAdapter(
-                        runtimeGate = runtimeGate,
-                        outboundTransferLifecycleSupport =
-                            outboundTransferLifecycleSupport(
-                                outboundTransfers = outboundTransfers,
-                                scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
-                                    largeRetryDiagnostics += retryPeerId to retryPriority
-                                },
-                                prepareOutboundTransferSession = { destinationPeerId, _, _ ->
-                                    if (outboundSession == null) {
-                                        outboundSession = outboundTransferSession(destinationPeerId)
-                                    }
-                                    OutboundTransferPreparation.Ready(checkNotNull(outboundSession))
-                                },
-                            ),
-                        discoveryTransitions = largeDiscoveryTransitions,
-                        scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
-                            largeRetryDiagnostics += retryPeerId to retryPriority
-                        },
-                        sendTransferTowardsDestination = { _, frame, _, _ ->
-                            when (frame) {
-                                is WireFrame.TransferStart -> {
-                                    transferStartFrames += 1
-                                    transferStartFrames == 1
-                                }
-                                is WireFrame.TransferChunk -> {
-                                    if (transferStartFrames == 1) {
-                                        if (frame.chunkIndex == 0) {
-                                            launch {
-                                                delay(10)
-                                                val activeSession = checkNotNull(outboundSession)
-                                                activeSession.markAcknowledged(
-                                                    WireFrame.TransferAck(
-                                                        transferId = activeSession.transferId,
-                                                        highestContiguousAck = 0,
-                                                        selectiveRanges = byteArrayOf(),
-                                                    )
-                                                )
-                                            }
+            val largeDiscoveryTransitions = mutableListOf<Boolean>()
+            val largeRetryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+            val clearedOutboundFrames = mutableListOf<Pair<PeerId, String>>()
+            val outboundTransfers = mutableMapOf<String, OutboundTransferSession>()
+            var outboundSession: OutboundTransferSession? = null
+            var transferStartFrames = 0
+            val support =
+                outboundDeliverySupport(
+                    deliveryRetryCallbacks = retryCallbacks,
+                    inlineOutboundDeliveryAdapter = dummyInlineOutboundDeliveryAdapter(runtimeGate),
+                    largeTransferOutboundDeliveryAdapter =
+                        largeTransferOutboundDeliveryAdapter(
+                            runtimeGate = runtimeGate,
+                            outboundTransferLifecycleSupport =
+                                outboundTransferLifecycleSupport(
+                                    outboundTransfers = outboundTransfers,
+                                    scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
+                                        largeRetryDiagnostics += retryPeerId to retryPriority
+                                    },
+                                    prepareOutboundTransferSession = { destinationPeerId, _, _ ->
+                                        if (outboundSession == null) {
+                                            outboundSession =
+                                                outboundTransferSession(destinationPeerId)
                                         }
-                                        true
-                                    } else {
-                                        false
+                                        OutboundTransferPreparation.Ready(
+                                            checkNotNull(outboundSession)
+                                        )
+                                    },
+                                ),
+                            discoveryTransitions = largeDiscoveryTransitions,
+                            scheduleRetryDiagnostic = { retryPeerId, retryPriority ->
+                                largeRetryDiagnostics += retryPeerId to retryPriority
+                            },
+                            sendTransferTowardsDestination = { _, frame, _, _ ->
+                                when (frame) {
+                                    is WireFrame.TransferStart -> {
+                                        transferStartFrames += 1
+                                        transferStartFrames == 1
                                     }
+                                    is WireFrame.TransferChunk -> {
+                                        if (transferStartFrames == 1) {
+                                            if (frame.chunkIndex == 0) {
+                                                launch {
+                                                    delay(10)
+                                                    val activeSession =
+                                                        checkNotNull(outboundSession)
+                                                    activeSession.markAcknowledged(
+                                                        WireFrame.TransferAck(
+                                                            transferId = activeSession.transferId,
+                                                            highestContiguousAck = 0,
+                                                            selectiveRanges = byteArrayOf(),
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    is WireFrame.TransferAck,
+                                    is WireFrame.TransferComplete,
+                                    is WireFrame.TransferAbort,
+                                    is WireFrame.Message,
+                                    is WireFrame.Hello,
+                                    is WireFrame.Ihu,
+                                    is WireFrame.RouteUpdate,
+                                    is WireFrame.RouteRetraction,
+                                    is WireFrame.SeqNoRequest,
+                                    is WireFrame.RouteDigest -> true
                                 }
-                                is WireFrame.TransferAck,
-                                is WireFrame.TransferComplete,
-                                is WireFrame.TransferAbort,
-                                is WireFrame.Message,
-                                is WireFrame.Hello,
-                                is WireFrame.Ihu,
-                                is WireFrame.RouteUpdate,
-                                is WireFrame.RouteRetraction,
-                                is WireFrame.SeqNoRequest,
-                                is WireFrame.RouteDigest -> true
-                            }
-                        },
-                        clearQueuedOutboundFrames = { clearedPeerId, action ->
-                            clearedOutboundFrames += clearedPeerId to action
-                        },
-                    ),
-                deliveryRetryDeadline = 300.milliseconds,
-            )
+                            },
+                            clearQueuedOutboundFrames = { clearedPeerId, action ->
+                                clearedOutboundFrames += clearedPeerId to action
+                            },
+                        ),
+                    deliveryRetryDeadline = 300.milliseconds,
+                )
 
-        // Act
-        val result =
-            support.sendPayload(
-                mode = MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
-                peerId = peerId,
-                payload = byteArrayOf(0x01, 0x02),
-                priority = DeliveryPriority.HIGH,
-                hardRunToken = MeshEngineHardRunToken(epoch = 9L),
-            )
+            // Act
+            val result =
+                support.sendPayload(
+                    mode = MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
+                    peerId = peerId,
+                    payload = byteArrayOf(0x01, 0x02),
+                    priority = DeliveryPriority.HIGH,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 9L),
+                )
 
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertEquals(
-            listOf(
-                OutboundDeliveryRetryCall(attempt = 0, hardRunEpoch = 9L),
-                OutboundDeliveryRetryCall(attempt = 1, hardRunEpoch = 9L),
-            ),
-            retryCallbacks.calls,
-        )
-        assertEquals(listOf(true, false), largeDiscoveryTransitions)
-        assertEquals(2, largeRetryDiagnostics.size)
-        assertEquals(listOf(peerId to "transfer.clearQueuedFramesOnFailure"), clearedOutboundFrames)
-    }
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            assertEquals(
+                listOf(
+                    OutboundDeliveryRetryCall(attempt = 0, hardRunEpoch = 9L),
+                    OutboundDeliveryRetryCall(attempt = 1, hardRunEpoch = 9L),
+                ),
+                retryCallbacks.calls,
+            )
+            assertEquals(listOf(true, false), largeDiscoveryTransitions)
+            assertEquals(2, largeRetryDiagnostics.size)
+            assertEquals(
+                listOf(peerId to "transfer.clearQueuedFramesOnFailure"),
+                clearedOutboundFrames,
+            )
+        }
 }
 
 private fun outboundDeliverySupport(

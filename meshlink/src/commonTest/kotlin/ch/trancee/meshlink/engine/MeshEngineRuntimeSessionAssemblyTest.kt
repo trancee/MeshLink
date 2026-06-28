@@ -26,7 +26,7 @@ import kotlinx.coroutines.withTimeout
 class MeshEngineRuntimeSessionAssemblyTest {
     @Test
     fun `session assembly completes a real handshake between two assembled runtimes`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val initiator =
                 runtimeSessionAssemblyHarness(LocalIdentity.fromAppId("session-assembly-a"))

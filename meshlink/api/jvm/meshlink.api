@@ -110,6 +110,13 @@ public final class ch/trancee/meshlink/api/MeshLinkFactoriesKt {
 public abstract class ch/trancee/meshlink/api/MeshLinkState {
 }
 
+public final class ch/trancee/meshlink/api/MeshLinkState$Configured : ch/trancee/meshlink/api/MeshLinkState {
+	public static final field INSTANCE Lch/trancee/meshlink/api/MeshLinkState$Configured;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/api/MeshLinkState$Paused : ch/trancee/meshlink/api/MeshLinkState {
 	public static final field INSTANCE Lch/trancee/meshlink/api/MeshLinkState$Paused;
 	public fun equals (Ljava/lang/Object;)Z

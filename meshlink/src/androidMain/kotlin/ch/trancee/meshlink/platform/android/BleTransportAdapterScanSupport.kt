@@ -12,8 +12,9 @@ import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 
 internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
+    val scanNumber = scanResultCount.incrementAndGet()
     log(
-        "scan result addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0}"
+        "scan result#$scanNumber addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} accepted=${scanAcceptedCount.get()} parseSkipped=${scanParseSkippedCount.get()} targetMismatch=${scanTargetMismatchCount.get()}"
     )
     val discovery =
         parseDiscoveryScanResultOrNull(
@@ -26,9 +27,21 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             log = ::log,
         )
             ?: run {
-                log("scan discovery skipped addr=${result.device.address} rssi=${result.rssi}")
+                scanParseSkippedCount.incrementAndGet()
+                log(
+                    "scan discovery skipped addr=${result.device.address} rssi=${result.rssi} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} parseSkipped=${scanParseSkippedCount.get()}"
+                )
                 return
             }
+
+    val targetPeerId = automationTargetPeerId
+    if (targetPeerId != null && discovery.hintPeerId.value != targetPeerId) {
+        scanTargetMismatchCount.incrementAndGet()
+        log(
+            "scan discovery target mismatch addr=${result.device.address} rssi=${result.rssi} targetPeerId=$targetPeerId peerId=${discovery.hintPeerId.value} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} targetMismatch=${scanTargetMismatchCount.get()}"
+        )
+        return
+    }
 
     if (discovery.transportMode == TransportMode.L2CAP) {
         promoteTemporaryLink(address = result.device.address, hintPeerId = discovery.hintPeerId)
@@ -57,13 +70,14 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
                     platformFamily = discovery.payload.platformFamily,
                 ),
         )
+    scanAcceptedCount.incrementAndGet()
     if (update.events.isEmpty()) {
         log(
-            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events peerId=${discovery.hintPeerId.value} addr=${result.device.address}"
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"
         )
     } else {
         log(
-            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size} peerId=${discovery.hintPeerId.value} addr=${result.device.address}"
+            "scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size} peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"
         )
     }
     update.events.forEach(mutableEvents::tryEmit)

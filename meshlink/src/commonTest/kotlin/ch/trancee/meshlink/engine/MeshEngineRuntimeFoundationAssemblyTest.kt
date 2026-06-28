@@ -26,7 +26,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineRuntimeFoundationAssemblyTest {
     @Test
     fun `foundation assembly routing support uses the registered late-binding sender`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = runtimeFoundationAssemblyHarness()
             harness.runtimeSurface.beginHardRun()

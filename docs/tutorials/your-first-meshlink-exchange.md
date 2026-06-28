@@ -195,7 +195,7 @@ Use these tutorial-specific settings:
 
 - tutorial host app `appId` → `com.example.meshlink.tutorial`
 - Android proof peer → set `meshlink.appId=com.example.meshlink.tutorial`
-  and leave `meshlink.benchmarkTransport=meshlink`
+  and leave transport extras unset
 - iPhone proof peer → set `MESHLINK_APP_ID=com.example.meshlink.tutorial`
   and leave `MESHLINK_BENCHMARK_TRANSPORT` unset or `meshlink`
 

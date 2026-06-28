@@ -25,44 +25,45 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
     @Test
-    fun `attemptOutboundDelivery returns await retry when no route is available`() = runBlocking {
-        // Arrange
-        val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
-        val adapter =
-            largeTransferOutboundDeliveryAdapter(
-                outboundTransferLifecycleSupport =
-                    outboundTransferLifecycleSupport(
-                        scheduleRetryDiagnostic = { peerId, priority ->
-                            retryDiagnostics += peerId to priority
-                        },
-                        prepareOutboundTransferSession = { _, _, _ ->
-                            OutboundTransferPreparation.PendingRoute
-                        },
-                    )
-            )
-        val context = largeTransferAttemptContext()
-        val state = adapter.beginOutboundDelivery(context)
+    fun `attemptOutboundDelivery returns await retry when no route is available`() =
+        runBlocking<Unit> {
+            // Arrange
+            val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+            val adapter =
+                largeTransferOutboundDeliveryAdapter(
+                    outboundTransferLifecycleSupport =
+                        outboundTransferLifecycleSupport(
+                            scheduleRetryDiagnostic = { peerId, priority ->
+                                retryDiagnostics += peerId to priority
+                            },
+                            prepareOutboundTransferSession = { _, _, _ ->
+                                OutboundTransferPreparation.PendingRoute
+                            },
+                        )
+                )
+            val context = largeTransferAttemptContext()
+            val state = adapter.beginOutboundDelivery(context)
 
-        // Act
-        val outcome = adapter.attemptOutboundDelivery(state, context)
+            // Act
+            val outcome = adapter.attemptOutboundDelivery(state, context)
 
-        // Assert
-        val awaitRetry =
-            assertIs<
-                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<
-                    MeshEngineLargeTransferOutboundDeliveryState
-                >
-            >(
-                outcome
-            )
-        assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
-        assertEquals(false, awaitRetry.nextState.lastRouteAvailable)
-        assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
-    }
+            // Assert
+            val awaitRetry =
+                assertIs<
+                    MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<
+                        MeshEngineLargeTransferOutboundDeliveryState
+                    >
+                >(
+                    outcome
+                )
+            assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
+            assertEquals(false, awaitRetry.nextState.lastRouteAvailable)
+            assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
+        }
 
     @Test
     fun `attemptOutboundDelivery returns retry immediately when acknowledgement progress is observed`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             var outboundSession: OutboundTransferSession? = null
             var transferStartFrames = 0
@@ -129,12 +130,11 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
                 )
             assertEquals(true, retryImmediately.nextState.lastRouteAvailable)
             assertNotNull(retryImmediately.nextState.activeSession)
-            Unit
         }
 
     @Test
     fun `withDiscoveryPolicy skips discovery suspension when the route is not ready`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val discoveryTransitions = mutableListOf<Boolean>()
             val adapter =
@@ -153,7 +153,7 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
 
     @Test
     fun `onDeadlineExpired returns transfer timed out when a route was previously available`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val clearedOutboundFrames = mutableListOf<Pair<PeerId, String>>()
             val outboundTransfers = mutableMapOf<String, OutboundTransferSession>()

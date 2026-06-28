@@ -13,32 +13,33 @@ import kotlinx.coroutines.runBlocking
 
 class DeliveryRetrySchedulerTest {
     @Test
-    fun `awaitRetry returns deadline expired when no retry budget remains`() = runBlocking {
-        // Arrange
-        val topologyVersion = MutableStateFlow(7L)
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.beginHardRun()
-        val scheduler =
-            DeliveryRetryScheduler(topologyVersion = topologyVersion, random = ZeroRandom)
+    fun `awaitRetry returns deadline expired when no retry budget remains`() =
+        runBlocking<Unit> {
+            // Arrange
+            val topologyVersion = MutableStateFlow(7L)
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            val scheduler =
+                DeliveryRetryScheduler(topologyVersion = topologyVersion, random = ZeroRandom)
 
-        // Act
-        val result =
-            scheduler.awaitRetry(
-                attempt = 0,
-                remainingBudget = 0.milliseconds,
-                lastObservedTopologyVersion = 7L,
-                runtimeGate = runtimeSurface.runtimeGate,
-                hardRunToken = hardRunToken,
-            )
+            // Act
+            val result =
+                scheduler.awaitRetry(
+                    attempt = 0,
+                    remainingBudget = 0.milliseconds,
+                    lastObservedTopologyVersion = 7L,
+                    runtimeGate = runtimeSurface.runtimeGate,
+                    hardRunToken = hardRunToken,
+                )
 
-        // Assert
-        val expired = assertIs<RetryWakeup.DeadlineExpired>(result)
-        assertEquals(7L, expired.topologyVersion)
-    }
+            // Assert
+            val expired = assertIs<RetryWakeup.DeadlineExpired>(result)
+            assertEquals(7L, expired.topologyVersion)
+        }
 
     @Test
     fun `awaitRetry returns topology changed when the topology advances before the timer elapses`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val topologyVersion = MutableStateFlow(3L)
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -67,7 +68,7 @@ class DeliveryRetrySchedulerTest {
 
     @Test
     fun `awaitRetry returns timer elapsed when the retry delay consumes the remaining budget`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val topologyVersion = MutableStateFlow(5L)
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -91,31 +92,32 @@ class DeliveryRetrySchedulerTest {
         }
 
     @Test
-    fun `awaitRetry returns hard run ended when the runtime stops during the wait`() = runBlocking {
-        // Arrange
-        val topologyVersion = MutableStateFlow(1L)
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.beginHardRun()
-        val scheduler =
-            DeliveryRetryScheduler(topologyVersion = topologyVersion, random = ZeroRandom)
-        val resultDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                scheduler.awaitRetry(
-                    attempt = 0,
-                    remainingBudget = 200.milliseconds,
-                    lastObservedTopologyVersion = 1L,
-                    runtimeGate = runtimeSurface.runtimeGate,
-                    hardRunToken = hardRunToken,
-                )
-            }
+    fun `awaitRetry returns hard run ended when the runtime stops during the wait`() =
+        runBlocking<Unit> {
+            // Arrange
+            val topologyVersion = MutableStateFlow(1L)
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            val scheduler =
+                DeliveryRetryScheduler(topologyVersion = topologyVersion, random = ZeroRandom)
+            val resultDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    scheduler.awaitRetry(
+                        attempt = 0,
+                        remainingBudget = 200.milliseconds,
+                        lastObservedTopologyVersion = 1L,
+                        runtimeGate = runtimeSurface.runtimeGate,
+                        hardRunToken = hardRunToken,
+                    )
+                }
 
-        // Act
-        runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
-        val result = resultDeferred.await()
+            // Act
+            runtimeSurface.setLifecycleState(MeshLinkState.Stopped)
+            val result = resultDeferred.await()
 
-        // Assert
-        assertEquals(RetryWakeup.HardRunEnded, result)
-    }
+            // Assert
+            assertEquals(RetryWakeup.HardRunEnded, result)
+        }
 }
 
 private object ZeroRandom : Random() {

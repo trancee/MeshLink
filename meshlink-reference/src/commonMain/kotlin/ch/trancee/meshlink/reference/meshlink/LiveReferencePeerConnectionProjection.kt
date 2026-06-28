@@ -10,6 +10,9 @@ internal fun handlePeerStateChanged(
     nowProvider: () -> Long,
     event: PeerEvent.StateChanged,
 ): Unit {
+    if (!stateStore.shouldTrackPeer(event.peerId.value)) {
+        return
+    }
     updatePeerConnectionState(
         stateStore = stateStore,
         peerId = event.peerId.value,
@@ -32,6 +35,9 @@ internal fun handlePeerLost(
     nowProvider: () -> Long,
     event: PeerEvent.Lost,
 ): Unit {
+    if (!stateStore.shouldTrackPeer(event.peerId.value)) {
+        return
+    }
     updatePeerConnectionState(
         stateStore = stateStore,
         peerId = event.peerId.value,

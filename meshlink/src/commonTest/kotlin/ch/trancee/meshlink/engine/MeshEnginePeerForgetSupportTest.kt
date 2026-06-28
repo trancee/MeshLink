@@ -12,25 +12,26 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEnginePeerForgetSupportTest {
     @Test
-    fun `forgetPeer returns NotFound when no trust record exists`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingPeerForgetCallbacks(firstSeenAtEpochMillis = null)
-        val support = MeshEnginePeerForgetSupport(callbacks.asCallbacks())
-        val peerId = PeerId("peer-abcdef")
+    fun `forgetPeer returns NotFound when no trust record exists`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingPeerForgetCallbacks(firstSeenAtEpochMillis = null)
+            val support = MeshEnginePeerForgetSupport(callbacks.asCallbacks())
+            val peerId = PeerId("peer-abcdef")
 
-        // Act
-        val result = support.forgetPeer(peerId)
+            // Act
+            val result = support.forgetPeer(peerId)
 
-        // Assert
-        assertEquals(ForgetPeerResult.NotFound, result)
-        assertFalse(callbacks.deleteTrustCalled)
-        assertTrue(callbacks.disconnectedMetadata.isEmpty())
-        assertTrue(callbacks.lostPeers.isEmpty())
-    }
+            // Assert
+            assertEquals(ForgetPeerResult.NotFound, result)
+            assertFalse(callbacks.deleteTrustCalled)
+            assertTrue(callbacks.disconnectedMetadata.isEmpty())
+            assertTrue(callbacks.lostPeers.isEmpty())
+        }
 
     @Test
     fun `forgetPeer clears trust disconnects the peer and emits peer lost when presence changes`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val sessionDeferred = CompletableDeferred<SessionEstablishmentOutcome>()
             val pendingHandshake =
@@ -71,24 +72,25 @@ class MeshEnginePeerForgetSupportTest {
         }
 
     @Test
-    fun `forgetPeer skips peer lost when presence was already disconnected`() = runBlocking {
-        // Arrange
-        val callbacks =
-            RecordingPeerForgetCallbacks(
-                firstSeenAtEpochMillis = 456L,
-                markPeerDisconnected = false,
-            )
-        val support = MeshEnginePeerForgetSupport(callbacks.asCallbacks())
-        val peerId = PeerId("peer-abcdef")
+    fun `forgetPeer skips peer lost when presence was already disconnected`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks =
+                RecordingPeerForgetCallbacks(
+                    firstSeenAtEpochMillis = 456L,
+                    markPeerDisconnected = false,
+                )
+            val support = MeshEnginePeerForgetSupport(callbacks.asCallbacks())
+            val peerId = PeerId("peer-abcdef")
 
-        // Act
-        val result = support.forgetPeer(peerId)
+            // Act
+            val result = support.forgetPeer(peerId)
 
-        // Assert
-        assertEquals(ForgetPeerResult.Forgotten, result)
-        assertTrue(callbacks.deleteTrustCalled)
-        assertTrue(callbacks.lostPeers.isEmpty())
-    }
+            // Assert
+            assertEquals(ForgetPeerResult.Forgotten, result)
+            assertTrue(callbacks.deleteTrustCalled)
+            assertTrue(callbacks.lostPeers.isEmpty())
+        }
 }
 
 private class RecordingPeerForgetCallbacks(

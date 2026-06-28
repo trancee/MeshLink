@@ -713,6 +713,7 @@ def install_android_app(android_serial: str, run_dir: Path | None = None, *, ins
             and cached.get("apkHash") == current_apk_hash
         ):
             print("==> Reusing Android reference app install; APK fingerprint unchanged")
+            grant_android_runtime_permissions(android_serial)
             return
     command = ["./gradlew", ":meshlink-reference:installDebug", "--no-build-cache", "--console=plain"]
 

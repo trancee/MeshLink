@@ -22,37 +22,41 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineLargeTransferProgressSupportTest {
     @Test
-    fun `advance schedules retry when no route is available`() = runBlocking {
-        // Arrange
-        val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
-        val session = outboundTransferSession(PeerId("destination-abcdef"))
-        val support =
-            largeTransferProgressSupport(
-                scheduleRetryDiagnostic = { peerId, priority ->
-                    retryDiagnostics += peerId to priority
-                },
-                sendTransferTowardsDestination = { _, _, _, _ -> false },
-            )
+    fun `advance schedules retry when no route is available`() =
+        runBlocking<Unit> {
+            // Arrange
+            val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+            val session = outboundTransferSession(PeerId("destination-abcdef"))
+            val support =
+                largeTransferProgressSupport(
+                    scheduleRetryDiagnostic = { peerId, priority ->
+                        retryDiagnostics += peerId to priority
+                    },
+                    sendTransferTowardsDestination = { _, _, _, _ -> false },
+                )
 
-        // Act
-        val result =
-            support.advance(
-                session = session,
-                priority = DeliveryPriority.HIGH,
-                remainingBudget = 250.milliseconds,
-                hardRunToken = MeshEngineHardRunToken(epoch = 7L),
-            )
+            // Act
+            val result =
+                support.advance(
+                    session = session,
+                    priority = DeliveryPriority.HIGH,
+                    remainingBudget = 250.milliseconds,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 7L),
+                )
 
-        // Assert
-        assertEquals(false, result.lastRouteAvailable)
-        assertEquals(false, result.transferProgressObserved)
-        assertEquals(false, result.sessionIsComplete)
-        assertEquals(listOf(session.destinationPeerId to DeliveryPriority.HIGH), retryDiagnostics)
-    }
+            // Assert
+            assertEquals(false, result.lastRouteAvailable)
+            assertEquals(false, result.transferProgressObserved)
+            assertEquals(false, result.sessionIsComplete)
+            assertEquals(
+                listOf(session.destinationPeerId to DeliveryPriority.HIGH),
+                retryDiagnostics,
+            )
+        }
 
     @Test
     fun `advance reports progress when acknowledgement settlement observes new acknowledgements`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val session = outboundTransferSession(PeerId("destination-abcdef"))
             val support =

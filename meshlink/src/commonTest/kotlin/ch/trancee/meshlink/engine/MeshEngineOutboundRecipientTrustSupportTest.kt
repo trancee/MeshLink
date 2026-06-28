@@ -21,32 +21,33 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineOutboundRecipientTrustSupportTest {
     @Test
-    fun `resolveRecipientTrust returns existing trust when already pinned`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("recipient-trust-local")
-        val recipientIdentity = LocalIdentity.fromAppId("recipient-trust-recipient")
-        val trustStore = TofuTrustStore(InMemorySecureStorage())
-        val existingTrust = trustRecordFor(recipientIdentity)
-        trustStore.write(existingTrust)
-        val fixture = outboundRecipientTrustFixture(localIdentity, trustStore)
+    fun `resolveRecipientTrust returns existing trust when already pinned`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("recipient-trust-local")
+            val recipientIdentity = LocalIdentity.fromAppId("recipient-trust-recipient")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            val existingTrust = trustRecordFor(recipientIdentity)
+            trustStore.write(existingTrust)
+            val fixture = outboundRecipientTrustFixture(localIdentity, trustStore)
 
-        // Act
-        val resolvedTrust = fixture.support.resolveRecipientTrust(recipientIdentity.peerId)
+            // Act
+            val resolvedTrust = fixture.support.resolveRecipientTrust(recipientIdentity.peerId)
 
-        // Assert
-        assertNotNull(resolvedTrust)
-        assertContentEquals(
-            existingTrust.identityFingerprintBytes,
-            resolvedTrust.identityFingerprintBytes,
-        )
-        assertContentEquals(existingTrust.ed25519PublicKey, resolvedTrust.ed25519PublicKey)
-        assertContentEquals(existingTrust.x25519PublicKey, resolvedTrust.x25519PublicKey)
-        assertTrue(fixture.diagnostics.isEmpty())
-    }
+            // Assert
+            assertNotNull(resolvedTrust)
+            assertContentEquals(
+                existingTrust.identityFingerprintBytes,
+                resolvedTrust.identityFingerprintBytes,
+            )
+            assertContentEquals(existingTrust.ed25519PublicKey, resolvedTrust.ed25519PublicKey)
+            assertContentEquals(existingTrust.x25519PublicKey, resolvedTrust.x25519PublicKey)
+            assertTrue(fixture.diagnostics.isEmpty())
+        }
 
     @Test
     fun `resolveRecipientTrust learns trust from a routed destination when no trust exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("recipient-trust-route-local")
             val relayIdentity = LocalIdentity.fromAppId("recipient-trust-relay")
@@ -86,19 +87,20 @@ class MeshEngineOutboundRecipientTrustSupportTest {
         }
 
     @Test
-    fun `resolveRecipientTrust returns null when no trust or route exists`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("recipient-trust-missing-local")
-        val trustStore = TofuTrustStore(InMemorySecureStorage())
-        val fixture = outboundRecipientTrustFixture(localIdentity, trustStore)
+    fun `resolveRecipientTrust returns null when no trust or route exists`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("recipient-trust-missing-local")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            val fixture = outboundRecipientTrustFixture(localIdentity, trustStore)
 
-        // Act
-        val resolvedTrust = fixture.support.resolveRecipientTrust(PeerId("unknown-recipient"))
+            // Act
+            val resolvedTrust = fixture.support.resolveRecipientTrust(PeerId("unknown-recipient"))
 
-        // Assert
-        assertNull(resolvedTrust)
-        assertTrue(fixture.diagnostics.isEmpty())
-    }
+            // Assert
+            assertNull(resolvedTrust)
+            assertTrue(fixture.diagnostics.isEmpty())
+        }
 }
 
 private data class OutboundRecipientTrustFixture(

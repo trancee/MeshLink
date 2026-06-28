@@ -60,12 +60,14 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
     }
 
     dependencies.ensureSideLink()
-    val client = dependencies.currentClient() ?: run {
-        dependencies.log(
-            "preferred GATT side-link missing client for ${context.hintPeerId.value.takeLast(6)}"
-        )
-        return null
-    }
+    val client =
+        dependencies.currentClient()
+            ?: run {
+                dependencies.log(
+                    "preferred GATT side-link missing client for ${context.hintPeerId.value.takeLast(6)}"
+                )
+                return null
+            }
     val readyWaitTimeoutMillis = 2_000L
     dependencies.log(
         "preferred GATT side-link waiting for readiness for ${context.hintPeerId.value.takeLast(6)} timeoutMs=$readyWaitTimeoutMillis"

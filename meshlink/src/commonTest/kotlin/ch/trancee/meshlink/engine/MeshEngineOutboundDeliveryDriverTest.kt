@@ -14,111 +14,124 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineOutboundDeliveryDriverTest {
     @Test
-    fun `execute returns the adapter deadline result when retry support expires`() = runBlocking {
-        // Arrange
-        val retryCalls = mutableListOf<RecordedDriverRetryCall>()
-        val driver =
-            MeshEngineOutboundDeliveryDriver(
-                deliveryRetryDeadline = 250.milliseconds,
-                deliveryRetrySupport =
-                    driverRetrySupport(retryCalls) { _, _, _ -> RetryWakeup.DeadlineExpired(4L) },
-            )
-        val adapter =
-            RecordingOutboundDeliveryAdapter(
-                currentTopologyVersion = 3L,
-                attemptOutcomes =
-                    ArrayDeque(
-                        listOf(
-                            MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
-                                nextState = "awaiting-retry",
-                                retryPolicy = DRIVER_RETRY_POLICY,
+    fun `execute returns the adapter deadline result when retry support expires`() =
+        runBlocking<Unit> {
+            // Arrange
+            val retryCalls = mutableListOf<RecordedDriverRetryCall>()
+            val driver =
+                MeshEngineOutboundDeliveryDriver(
+                    deliveryRetryDeadline = 250.milliseconds,
+                    deliveryRetrySupport =
+                        driverRetrySupport(retryCalls) { _, _, _ ->
+                            RetryWakeup.DeadlineExpired(4L)
+                        },
+                )
+            val adapter =
+                RecordingOutboundDeliveryAdapter(
+                    currentTopologyVersion = 3L,
+                    attemptOutcomes =
+                        ArrayDeque(
+                            listOf(
+                                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                                    nextState = "awaiting-retry",
+                                    retryPolicy = DRIVER_RETRY_POLICY,
+                                )
                             )
-                        )
-                    ),
-                deadlineResult = SendResult.NotSent(SendFailureReason.UNREACHABLE),
-                hardRunEndedResult = SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED),
+                        ),
+                    deadlineResult = SendResult.NotSent(SendFailureReason.UNREACHABLE),
+                    hardRunEndedResult = SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED),
+                )
+            val initialContext =
+                driverAttemptContext(peerId = PeerId("peer-abcdef"), hardRunEpoch = 7L)
+
+            // Act
+            val result = driver.execute(adapter = adapter, initialContext = initialContext)
+
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            assertEquals(
+                listOf(
+                    RecordedDriverRetryCall(attempt = 0, topologyVersion = 3L, hardRunEpoch = 7L)
+                ),
+                retryCalls,
             )
-        val initialContext = driverAttemptContext(peerId = PeerId("peer-abcdef"), hardRunEpoch = 7L)
-
-        // Act
-        val result = driver.execute(adapter = adapter, initialContext = initialContext)
-
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertEquals(
-            listOf(RecordedDriverRetryCall(attempt = 0, topologyVersion = 3L, hardRunEpoch = 7L)),
-            retryCalls,
-        )
-        assertEquals(listOf("begin", "attempt:initial", "deadline:awaiting-retry"), adapter.calls)
-        assertTrue(adapter.deadlineContexts.single().remainingBudget > Duration.ZERO)
-        assertTrue(adapter.deadlineContexts.single().remainingBudget <= 250.milliseconds)
-    }
+            assertEquals(
+                listOf("begin", "attempt:initial", "deadline:awaiting-retry"),
+                adapter.calls,
+            )
+            assertTrue(adapter.deadlineContexts.single().remainingBudget > Duration.ZERO)
+            assertTrue(adapter.deadlineContexts.single().remainingBudget <= 250.milliseconds)
+        }
 
     @Test
-    fun `execute resets retry attempts after immediate progress`() = runBlocking {
-        // Arrange
-        val retryCalls = mutableListOf<RecordedDriverRetryCall>()
-        val wakeups =
-            ArrayDeque(listOf(RetryWakeup.TimerElapsed(6L), RetryWakeup.DeadlineExpired(6L)))
-        val driver =
-            MeshEngineOutboundDeliveryDriver(
-                deliveryRetryDeadline = 250.milliseconds,
-                deliveryRetrySupport =
-                    driverRetrySupport(retryCalls) { _, _, _ ->
-                        wakeups.removeFirstOrNull() ?: error("Expected a retry wakeup")
-                    },
-            )
-        val adapter =
-            RecordingOutboundDeliveryAdapter(
-                currentTopologyVersion = 5L,
-                attemptOutcomes =
-                    ArrayDeque(
-                        listOf(
-                            MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
-                                nextState = "waiting",
-                                retryPolicy = DRIVER_RETRY_POLICY,
-                            ),
-                            MeshEngineOutboundDeliveryAttemptOutcome.RetryImmediately("progressed"),
-                            MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
-                                nextState = "waiting-again",
-                                retryPolicy = DRIVER_RETRY_POLICY,
-                            ),
-                        )
-                    ),
-                deadlineResult = SendResult.NotSent(SendFailureReason.UNREACHABLE),
-                hardRunEndedResult = SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED),
-            )
-        val initialContext = driverAttemptContext(peerId = PeerId("peer-abcdef"), hardRunEpoch = 9L)
+    fun `execute resets retry attempts after immediate progress`() =
+        runBlocking<Unit> {
+            // Arrange
+            val retryCalls = mutableListOf<RecordedDriverRetryCall>()
+            val wakeups =
+                ArrayDeque(listOf(RetryWakeup.TimerElapsed(6L), RetryWakeup.DeadlineExpired(6L)))
+            val driver =
+                MeshEngineOutboundDeliveryDriver(
+                    deliveryRetryDeadline = 250.milliseconds,
+                    deliveryRetrySupport =
+                        driverRetrySupport(retryCalls) { _, _, _ ->
+                            wakeups.removeFirstOrNull() ?: error("Expected a retry wakeup")
+                        },
+                )
+            val adapter =
+                RecordingOutboundDeliveryAdapter(
+                    currentTopologyVersion = 5L,
+                    attemptOutcomes =
+                        ArrayDeque(
+                            listOf(
+                                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                                    nextState = "waiting",
+                                    retryPolicy = DRIVER_RETRY_POLICY,
+                                ),
+                                MeshEngineOutboundDeliveryAttemptOutcome.RetryImmediately(
+                                    "progressed"
+                                ),
+                                MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry(
+                                    nextState = "waiting-again",
+                                    retryPolicy = DRIVER_RETRY_POLICY,
+                                ),
+                            )
+                        ),
+                    deadlineResult = SendResult.NotSent(SendFailureReason.UNREACHABLE),
+                    hardRunEndedResult = SendResult.NotSent(SendFailureReason.TRANSFER_ABORTED),
+                )
+            val initialContext =
+                driverAttemptContext(peerId = PeerId("peer-abcdef"), hardRunEpoch = 9L)
 
-        // Act
-        val result = driver.execute(adapter = adapter, initialContext = initialContext)
+            // Act
+            val result = driver.execute(adapter = adapter, initialContext = initialContext)
 
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertEquals(
-            listOf(
-                RecordedDriverRetryCall(attempt = 0, topologyVersion = 5L, hardRunEpoch = 9L),
-                RecordedDriverRetryCall(attempt = 0, topologyVersion = 6L, hardRunEpoch = 9L),
-            ),
-            retryCalls,
-        )
-        assertEquals(
-            listOf(
-                "begin",
-                "attempt:initial",
-                "attempt:waiting",
-                "attempt:progressed",
-                "deadline:waiting-again",
-            ),
-            adapter.calls,
-        )
-    }
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            assertEquals(
+                listOf(
+                    RecordedDriverRetryCall(attempt = 0, topologyVersion = 5L, hardRunEpoch = 9L),
+                    RecordedDriverRetryCall(attempt = 0, topologyVersion = 6L, hardRunEpoch = 9L),
+                ),
+                retryCalls,
+            )
+            assertEquals(
+                listOf(
+                    "begin",
+                    "attempt:initial",
+                    "attempt:waiting",
+                    "attempt:progressed",
+                    "deadline:waiting-again",
+                ),
+                adapter.calls,
+            )
+        }
 
     @Test
     fun `execute returns the adapter hard run ended result when retry support ends the hard run`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val retryCalls = mutableListOf<RecordedDriverRetryCall>()
             val driver =

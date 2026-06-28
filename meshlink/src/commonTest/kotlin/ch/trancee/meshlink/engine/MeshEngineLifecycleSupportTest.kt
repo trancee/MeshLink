@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeout
 class MeshEngineLifecycleSupportTest {
     @Test
     fun `start from uninitialized begins a new hard run and emits the started diagnostic`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
             val support = harness.lifecycleSupport
@@ -51,24 +51,25 @@ class MeshEngineLifecycleSupportTest {
         }
 
     @Test
-    fun `start from paused returns invalid state without side effects`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
-        val support = harness.lifecycleSupport
+    fun `start from paused returns invalid state without side effects`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
+            val support = harness.lifecycleSupport
 
-        // Act
-        val result = support.start()
+            // Act
+            val result = support.start()
 
-        // Assert
-        val invalidState = result as StartResult.InvalidState
-        assertEquals(MeshLinkState.Paused, invalidState.currentState)
-        assertEquals(0, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
-        assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
-    }
+            // Assert
+            val invalidState = result as StartResult.InvalidState
+            assertEquals(MeshLinkState.Paused, invalidState.currentState)
+            assertEquals(0, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
+        }
 
     @Test
     fun `pause from running suspends collection clears the volatile view and emits the paused diagnostic`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = lifecycleHarness(meshState = MeshLinkState.Running)
             val support = harness.lifecycleSupport
@@ -98,64 +99,67 @@ class MeshEngineLifecycleSupportTest {
         }
 
     @Test
-    fun `pause from stopped returns invalid state`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Stopped)
-        val support = harness.lifecycleSupport
+    fun `pause from stopped returns invalid state`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Stopped)
+            val support = harness.lifecycleSupport
 
-        // Act
-        val result = support.pause()
+            // Act
+            val result = support.pause()
 
-        // Assert
-        val invalidState = result as PauseResult.InvalidState
-        assertEquals(MeshLinkState.Stopped, invalidState.currentState)
-        assertEquals(0, harness.lifecycleCallbacks.pauseTransportCalls)
-        assertTrue(harness.lifecycleCallbacks.clearedRuntimeViews.isEmpty())
-    }
-
-    @Test
-    fun `resume from paused restarts collection and emits the resumed diagnostic`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
-        val support = harness.lifecycleSupport
-
-        // Act
-        val result = support.resume()
-
-        // Assert
-        assertEquals(ResumeResult.Resumed, result)
-        assertEquals(MeshLinkState.Running, harness.runtimeSurface.state.value)
-        assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
-        assertEquals(1, harness.lifecycleCallbacks.resumeTransportCalls)
-        assertEquals(1, harness.powerCallbacks.updatedTransportPolicies.size)
-        assertEquals(
-            listOf(DiagnosticCode.MESH_RESUMED to "lifecycle.resume"),
-            harness.lifecycleDiagnostics.lifecycleEvents,
-        )
-    }
+            // Assert
+            val invalidState = result as PauseResult.InvalidState
+            assertEquals(MeshLinkState.Stopped, invalidState.currentState)
+            assertEquals(0, harness.lifecycleCallbacks.pauseTransportCalls)
+            assertTrue(harness.lifecycleCallbacks.clearedRuntimeViews.isEmpty())
+        }
 
     @Test
-    fun `stop from uninitialized commits locally without transport teardown`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
-        val support = harness.lifecycleSupport
+    fun `resume from paused restarts collection and emits the resumed diagnostic`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
+            val support = harness.lifecycleSupport
 
-        // Act
-        val result = support.stop()
+            // Act
+            val result = support.resume()
 
-        // Assert
-        assertEquals(StopResult.Stopped, result)
-        assertEquals(MeshLinkState.Stopped, harness.runtimeSurface.state.value)
-        assertEquals(0, harness.lifecycleCallbacks.stopTransportCalls)
-        assertEquals(0, harness.lifecycleCallbacks.stopTransportCollectorCalls)
-        assertEquals(1, harness.lifecycleCallbacks.clearOutboundTransfersCalls)
-        assertTrue(harness.lifecycleCallbacks.clearedRuntimeViews.isEmpty())
-        assertTrue(harness.lifecycleCallbacks.abortedTransferReasons.isEmpty())
-    }
+            // Assert
+            assertEquals(ResumeResult.Resumed, result)
+            assertEquals(MeshLinkState.Running, harness.runtimeSurface.state.value)
+            assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.resumeTransportCalls)
+            assertEquals(1, harness.powerCallbacks.updatedTransportPolicies.size)
+            assertEquals(
+                listOf(DiagnosticCode.MESH_RESUMED to "lifecycle.resume"),
+                harness.lifecycleDiagnostics.lifecycleEvents,
+            )
+        }
+
+    @Test
+    fun `stop from uninitialized commits locally without transport teardown`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
+            val support = harness.lifecycleSupport
+
+            // Act
+            val result = support.stop()
+
+            // Assert
+            assertEquals(StopResult.Stopped, result)
+            assertEquals(MeshLinkState.Stopped, harness.runtimeSurface.state.value)
+            assertEquals(0, harness.lifecycleCallbacks.stopTransportCalls)
+            assertEquals(0, harness.lifecycleCallbacks.stopTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.clearOutboundTransfersCalls)
+            assertTrue(harness.lifecycleCallbacks.clearedRuntimeViews.isEmpty())
+            assertTrue(harness.lifecycleCallbacks.abortedTransferReasons.isEmpty())
+        }
 
     @Test
     fun `stop from running aborts transfers clears the volatile view and emits the stopped diagnostic`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = lifecycleHarness(meshState = MeshLinkState.Running)
             val support = harness.lifecycleSupport
@@ -191,7 +195,7 @@ class MeshEngineLifecycleSupportTest {
 
     @Test
     fun `stop waits for the transport collector to finish before clearing the volatile view`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = lifecycleHarness(meshState = MeshLinkState.Running)
             val support = harness.lifecycleSupport
@@ -224,42 +228,44 @@ class MeshEngineLifecycleSupportTest {
         }
 
     @Test
-    fun `start stops the transport collector again when transport startup throws`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
-        val support = harness.lifecycleSupport
-        harness.lifecycleCallbacks.startTransportFailure = IllegalStateException("boom")
+    fun `start stops the transport collector again when transport startup throws`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Uninitialized)
+            val support = harness.lifecycleSupport
+            harness.lifecycleCallbacks.startTransportFailure = IllegalStateException("boom")
 
-        // Act
-        val error = kotlin.test.assertFailsWith<IllegalStateException> { support.start() }
+            // Act
+            val error = kotlin.test.assertFailsWith<IllegalStateException> { support.start() }
 
-        // Assert
-        assertEquals("boom", error.message)
-        assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
-        assertEquals(1, harness.lifecycleCallbacks.startTransportCalls)
-        assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
-        assertEquals(MeshLinkState.Uninitialized, harness.runtimeSurface.state.value)
-        assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
-    }
+            // Assert
+            assertEquals("boom", error.message)
+            assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.startTransportCalls)
+            assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
+            assertEquals(MeshLinkState.Uninitialized, harness.runtimeSurface.state.value)
+            assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
+        }
 
     @Test
-    fun `resume stops the transport collector again when transport resume throws`() = runBlocking {
-        // Arrange
-        val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
-        val support = harness.lifecycleSupport
-        harness.lifecycleCallbacks.resumeTransportFailure = IllegalStateException("boom")
+    fun `resume stops the transport collector again when transport resume throws`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = lifecycleHarness(meshState = MeshLinkState.Paused)
+            val support = harness.lifecycleSupport
+            harness.lifecycleCallbacks.resumeTransportFailure = IllegalStateException("boom")
 
-        // Act
-        val error = kotlin.test.assertFailsWith<IllegalStateException> { support.resume() }
+            // Act
+            val error = kotlin.test.assertFailsWith<IllegalStateException> { support.resume() }
 
-        // Assert
-        assertEquals("boom", error.message)
-        assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
-        assertEquals(1, harness.lifecycleCallbacks.resumeTransportCalls)
-        assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
-        assertEquals(MeshLinkState.Paused, harness.runtimeSurface.state.value)
-        assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
-    }
+            // Assert
+            assertEquals("boom", error.message)
+            assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.resumeTransportCalls)
+            assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
+            assertEquals(MeshLinkState.Paused, harness.runtimeSurface.state.value)
+            assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
+        }
 }
 
 private data class LifecycleHarness(
@@ -274,7 +280,8 @@ private data class LifecycleHarness(
 private fun lifecycleHarness(meshState: MeshLinkState): LifecycleHarness {
     val runtimeSurface = MeshEngineRuntimeSurface()
     when (meshState) {
-        MeshLinkState.Uninitialized -> Unit
+        MeshLinkState.Uninitialized -> {}
+        MeshLinkState.Configured -> {}
         MeshLinkState.Running -> runtimeSurface.beginHardRun()
         MeshLinkState.Paused -> {
             runtimeSurface.beginHardRun()
@@ -400,4 +407,4 @@ private class RecordingLifecycleDiagnostics {
 }
 
 private val noOpPowerPolicyDiagnostics =
-    MeshEnginePowerPolicyDiagnostics(emitPowerModeChanged = { _, _, _ -> Unit })
+    MeshEnginePowerPolicyDiagnostics(emitPowerModeChanged = { _, _, _ -> })

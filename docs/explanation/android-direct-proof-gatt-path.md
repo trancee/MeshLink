@@ -139,9 +139,9 @@ For the current branch, the safe reading is:
 
 - Passing run summary: `/tmp/meshlink-direct-proof.fan2g1/summary.html`
 - Passing run JSON: `/tmp/meshlink-direct-proof.fan2g1/summary.json`
-- Latest fleet rerun matrix report: `reports/android-direct-proof-fleet/runs/20260618T144214/matrix-report.md`
-- Low-API xcover sender logcat: `reports/android-direct-proof-fleet/runs/20260618T144214/02_a065_xcover_initial/sender_logcat.log`
-- Low-API xcover summary JSON: `reports/android-direct-proof-fleet/runs/20260618T144214/02_a065_xcover_initial/summary.json`
+- Fleet report guide: [Android direct-proof fleet reports](../reference/android-direct-proof-fleet-reports.md)
+- Bundle layout guide: [Android direct-proof fleet report layout](../reference/android-direct-proof-fleet-report-layout.md)
+- Repository report index: [Reports index](../../reports/INDEX.md)
 - Failed run summary: `/tmp/meshlink-direct-proof.QgIbA1/summary.html`
 - Failed run JSON: `/tmp/meshlink-direct-proof.QgIbA1/summary.json`
 

@@ -29,91 +29,93 @@ class DirectMessagingIntegrationTest {
     }
 
     @Test
-    fun `two trusted peers can exchange a direct offline message`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val receiver = harness.createNode("peer-b")
-        val payload = "hello mesh".encodeToByteArray()
+    fun `two trusted peers can exchange a direct offline message`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val receiver = harness.createNode("peer-b")
+            val payload = "hello mesh".encodeToByteArray()
 
-        sender.meshLink.start()
-        receiver.meshLink.start()
-        testDelay(250)
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
-            }
+            sender.meshLink.start()
+            receiver.meshLink.start()
+            testDelay(250)
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
+                }
 
-        // Act
-        val beforeSendAtEpochMillis = currentEpochMillis()
-        val sendResult = sender.meshLink.send(receiver.peerId, payload)
-        val receivedMessage = receivedMessageDeferred.await()
-        val afterReceiveAtEpochMillis = currentEpochMillis()
+            // Act
+            val beforeSendAtEpochMillis = currentEpochMillis()
+            val sendResult = sender.meshLink.send(receiver.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
+            val afterReceiveAtEpochMillis = currentEpochMillis()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertContentEquals(payload, receivedMessage.payload)
-        assertTrue(
-            receivedMessage.receivedAtEpochMillis in
-                beforeSendAtEpochMillis..afterReceiveAtEpochMillis
-        )
-        assertEquals(MeshLinkState.Running, receiver.meshLink.state.value)
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+            assertTrue(
+                receivedMessage.receivedAtEpochMillis in
+                    beforeSendAtEpochMillis..afterReceiveAtEpochMillis
+            )
+            assertEquals(MeshLinkState.Running, receiver.meshLink.state.value)
+        }
 
     @Test
-    fun `persisted trust survives sdk restart`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val receiver = harness.createNode("peer-b")
-        sender.meshLink.start()
-        receiver.meshLink.start()
-        testDelay(250)
-        val firstMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
-            }
-        sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
-        firstMessageDeferred.await()
-        receiver.meshLink.stop()
+    fun `persisted trust survives sdk restart`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val receiver = harness.createNode("peer-b")
+            sender.meshLink.start()
+            receiver.meshLink.start()
+            testDelay(250)
+            val firstMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
+                }
+            sender.meshLink.send(receiver.peerId, "first".encodeToByteArray())
+            firstMessageDeferred.await()
+            receiver.meshLink.stop()
 
-        // Act
-        val restartedReceiver = harness.restartNode(receiver)
-        val senderRediscoveredReceiverDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(2_000) {
-                    sender.meshLink.peerEvents.first { event ->
-                        event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
+            // Act
+            val restartedReceiver = harness.restartNode(receiver)
+            val senderRediscoveredReceiverDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) {
+                        sender.meshLink.peerEvents.first { event ->
+                            event is PeerEvent.Found && event.peerId == restartedReceiver.peerId
+                        }
                     }
                 }
-            }
-        val restartedReceiverFoundSenderDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(2_000) {
-                    restartedReceiver.meshLink.peerEvents.first { event ->
-                        event is PeerEvent.Found && event.peerId == sender.peerId
+            val restartedReceiverFoundSenderDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) {
+                        restartedReceiver.meshLink.peerEvents.first { event ->
+                            event is PeerEvent.Found && event.peerId == sender.peerId
+                        }
                     }
                 }
-            }
-        restartedReceiver.meshLink.start()
-        senderRediscoveredReceiverDeferred.await()
-        restartedReceiverFoundSenderDeferred.await()
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(2_000) { restartedReceiver.meshLink.messages.first() }
-            }
-        val sendResult =
-            sender.meshLink.send(restartedReceiver.peerId, "second".encodeToByteArray())
-        val receivedMessage = receivedMessageDeferred.await()
+            restartedReceiver.meshLink.start()
+            senderRediscoveredReceiverDeferred.await()
+            restartedReceiverFoundSenderDeferred.await()
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) { restartedReceiver.meshLink.messages.first() }
+                }
+            val sendResult =
+                sender.meshLink.send(restartedReceiver.peerId, "second".encodeToByteArray())
+            val receivedMessage = receivedMessageDeferred.await()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertEquals("second", receivedMessage.payload.decodeToString())
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertEquals("second", receivedMessage.payload.decodeToString())
+        }
 
     @Test
     fun `forgetPeer forces fresh trust establishment before the same identity can deliver again`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -170,7 +172,7 @@ class DirectMessagingIntegrationTest {
 
     @Test
     fun `runtime secure storage keeps trust metadata without persisting plaintext or peer ids`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -200,67 +202,70 @@ class DirectMessagingIntegrationTest {
         }
 
     @Test
-    fun `transport frames do not expose plaintext payloads`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val receiver = harness.createNode("peer-b")
-        val plaintext = "secret message"
+    fun `transport frames do not expose plaintext payloads`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val receiver = harness.createNode("peer-b")
+            val plaintext = "secret message"
 
-        sender.meshLink.start()
-        receiver.meshLink.start()
-        testDelay(250)
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
-            }
+            sender.meshLink.start()
+            receiver.meshLink.start()
+            testDelay(250)
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
+                }
 
-        // Act
-        val sendResult = sender.meshLink.send(receiver.peerId, plaintext.encodeToByteArray())
-        val lastFrame = harness.lastDeliveredFrame()
+            // Act
+            val sendResult = sender.meshLink.send(receiver.peerId, plaintext.encodeToByteArray())
+            val lastFrame = harness.lastDeliveredFrame()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertNotNull(lastFrame)
-        assertFalse(lastFrame.decodeToString().contains(plaintext))
-        val receivedMessage: InboundMessage = receivedMessageDeferred.await()
-        assertEquals(plaintext, receivedMessage.payload.decodeToString())
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertNotNull(lastFrame)
+            assertFalse(lastFrame.decodeToString().contains(plaintext))
+            val receivedMessage: InboundMessage = receivedMessageDeferred.await()
+            assertEquals(plaintext, receivedMessage.payload.decodeToString())
+        }
 
     @Test
-    fun `large inline sends suspend discovery until delivery finishes`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val receiver = harness.createNode("peer-b")
-        val payload = ByteArray(65_536) { index -> (index % 251).toByte() }
-        harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
+    fun `large inline sends suspend discovery until delivery finishes`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val receiver = harness.createNode("peer-b")
+            val payload = ByteArray(65_536) { index -> (index % 251).toByte() }
+            harness.setMaximumPayloadBytesPerDelivery(128 * 1024)
 
-        sender.meshLink.start()
-        receiver.meshLink.start()
-        testDelay(250)
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { receiver.meshLink.messages.first() }
-            }
+            sender.meshLink.start()
+            receiver.meshLink.start()
+            testDelay(250)
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { receiver.meshLink.messages.first() }
+                }
 
-        // Act
-        val sendResult = sender.meshLink.send(receiver.peerId, payload)
-        val receivedMessage = receivedMessageDeferred.await()
+            // Act
+            val sendResult = sender.meshLink.send(receiver.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertContentEquals(payload, receivedMessage.payload)
-        assertEquals(listOf(true, false), harness.discoverySuspendedTransitions(sender))
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+            assertEquals(listOf(true, false), harness.discoverySuspendedTransitions(sender))
+        }
 
     private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
 
     @AfterTest
-    fun tearDown(): Unit = runBlocking {
-        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
-        harnesses.clear()
-    }
+    fun tearDown(): Unit =
+        runBlocking<Unit> {
+            harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+            harnesses.clear()
+        }
 
     private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 

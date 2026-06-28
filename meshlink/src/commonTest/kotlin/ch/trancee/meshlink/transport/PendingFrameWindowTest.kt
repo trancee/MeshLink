@@ -12,28 +12,29 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class PendingFrameWindowTest {
     @Test
-    fun `acquire waits until reserved frame capacity is released`() = runBlocking {
-        // Arrange
-        val window = PendingFrameWindow(maxPendingFrames = 2, maxPendingBytes = 128)
-        assertTrue(window.acquire(frameBytes = 64))
-        assertTrue(window.acquire(frameBytes = 32))
-        val blockedAcquire = async { window.acquire(frameBytes = 16) }
+    fun `acquire waits until reserved frame capacity is released`() =
+        runBlocking<Unit> {
+            // Arrange
+            val window = PendingFrameWindow(maxPendingFrames = 2, maxPendingBytes = 128)
+            assertTrue(window.acquire(frameBytes = 64))
+            assertTrue(window.acquire(frameBytes = 32))
+            val blockedAcquire = async { window.acquire(frameBytes = 16) }
 
-        // Act
-        val resultBeforeRelease = withTimeoutOrNull(20.milliseconds) { blockedAcquire.await() }
-        window.release(frameBytes = 64)
-        val resultAfterRelease = blockedAcquire.await()
+            // Act
+            val resultBeforeRelease = withTimeoutOrNull(20.milliseconds) { blockedAcquire.await() }
+            window.release(frameBytes = 64)
+            val resultAfterRelease = blockedAcquire.await()
 
-        // Assert
-        assertEquals(null, resultBeforeRelease)
-        assertTrue(resultAfterRelease)
-        assertEquals(2, window.snapshot().pendingFrames)
-        assertEquals(48, window.snapshot().pendingBytes)
-    }
+            // Assert
+            assertEquals(null, resultBeforeRelease)
+            assertTrue(resultAfterRelease)
+            assertEquals(2, window.snapshot().pendingFrames)
+            assertEquals(48, window.snapshot().pendingBytes)
+        }
 
     @Test
     fun `acquire allows an oversized first frame when the window is otherwise empty`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val window = PendingFrameWindow(maxPendingFrames = 2, maxPendingBytes = 128)
 
@@ -53,19 +54,20 @@ class PendingFrameWindowTest {
         }
 
     @Test
-    fun `close wakes suspended acquirers and reports failure`() = runBlocking {
-        // Arrange
-        val window = PendingFrameWindow(maxPendingFrames = 1, maxPendingBytes = 32)
-        assertTrue(window.acquire(frameBytes = 32))
-        val blockedAcquire = async { window.acquire(frameBytes = 8) }
-        delay(10)
+    fun `close wakes suspended acquirers and reports failure`() =
+        runBlocking<Unit> {
+            // Arrange
+            val window = PendingFrameWindow(maxPendingFrames = 1, maxPendingBytes = 32)
+            assertTrue(window.acquire(frameBytes = 32))
+            val blockedAcquire = async { window.acquire(frameBytes = 8) }
+            delay(10)
 
-        // Act
-        window.close()
-        val acquireResult = blockedAcquire.await()
+            // Act
+            window.close()
+            val acquireResult = blockedAcquire.await()
 
-        // Assert
-        assertFalse(acquireResult)
-        assertTrue(window.snapshot().closed)
-    }
+            // Assert
+            assertFalse(acquireResult)
+            assertTrue(window.snapshot().closed)
+        }
 }

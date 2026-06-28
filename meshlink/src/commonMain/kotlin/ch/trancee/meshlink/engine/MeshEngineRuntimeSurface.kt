@@ -75,16 +75,16 @@ internal interface MeshEngineCompatibilityRuntimeSurface {
 
 private data class MeshEngineRuntimeGateSnapshot(val state: MeshLinkState, val hardRunEpoch: Long)
 
-internal class MeshEngineRuntimeSurface(diagnosticSink: DiagnosticSink? = null) :
+internal class MeshEngineRuntimeSurface(
+    initialState: MeshLinkState = MeshLinkState.Uninitialized,
+    diagnosticSink: DiagnosticSink? = null,
+) :
     MeshEnginePublishedRuntimeSurface,
     MeshEngineCompatibilityRuntimeSurface,
     MeshEngineRuntimeGate {
-    private val mutableState: MutableStateFlow<MeshLinkState> =
-        MutableStateFlow(MeshLinkState.Uninitialized)
+    private val mutableState: MutableStateFlow<MeshLinkState> = MutableStateFlow(initialState)
     private val mutableGateSnapshot: MutableStateFlow<MeshEngineRuntimeGateSnapshot> =
-        MutableStateFlow(
-            MeshEngineRuntimeGateSnapshot(state = MeshLinkState.Uninitialized, hardRunEpoch = 0L)
-        )
+        MutableStateFlow(MeshEngineRuntimeGateSnapshot(state = initialState, hardRunEpoch = 0L))
     override val mutablePeerEvents: MutableSharedFlow<PeerEvent> =
         MutableSharedFlow(extraBufferCapacity = 16)
     override val mutableMessages: MutableSharedFlow<InboundMessage> =

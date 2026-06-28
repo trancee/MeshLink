@@ -8,7 +8,6 @@ import android.os.PowerManager
 import android.util.Log
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.MeshLink
-import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
@@ -16,7 +15,7 @@ import kotlin.time.Duration.Companion.seconds
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
-import ch.trancee.meshlink.api.meshLink
+import ch.trancee.meshlink.api.android.meshLink as androidMeshLink
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServices
 import ch.trancee.meshlink.reference.platform.DefaultPlatformServicesOptions
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
@@ -55,7 +54,11 @@ private const val BYTE_MASK: UInt = 0xFFu
 private const val USHORT_MASK: UInt = 0xFFFFu
 private const val FNV_FOLD_SHIFT: Int = 16
 
-internal fun createPlatformServices(context: Context, appId: String): AndroidPlatformServices {
+internal fun createPlatformServices(
+    context: Context,
+    appId: String,
+    targetPeerId: String? = null,
+): AndroidPlatformServices {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.begin scripted")
     val meshHash = computeAppMeshHash(appId)
     Log.i(
@@ -74,19 +77,64 @@ internal fun createPlatformServices(context: Context, appId: String): AndroidPla
         readinessGuidance = readinessGuidance(),
         readinessBlockersFactory = { readinessBlockers(context) },
         meshLinkControllerFactory = {
-            val bootstrap = createMeshLinkBootstrap(context)
-            createPublicMeshLinkController(
-                PublicMeshLinkControllerArgs(
-                    appId = appId,
-                    authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                    scenarioId = "direct-guided",
-                    storageSubdirectory = "default",
-                    bootstrap = bootstrap,
-                    currentTimeMillis = { System.currentTimeMillis() },
-                ),
+            createDirectGuidedMeshLinkController(
+                context = context,
+                appId = appId,
+                targetPeerId = targetPeerId,
             )
         },
     )
+}
+
+private fun createDirectGuidedMeshLinkController(
+    context: Context,
+    appId: String,
+    targetPeerId: String?,
+): ReferenceMeshLinkController {
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.factory.begin appId=")
+            append(appId)
+            append(" scenario=")
+            append("direct-guided")
+            append(" storage=")
+            append("default")
+        },
+    )
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.bootstrap.begin appId=")
+            append(appId)
+            append(" scenario=")
+            append("direct-guided")
+        },
+    )
+    val controller =
+        createPublicMeshLinkController(
+            PublicMeshLinkControllerArgs(
+                appId = appId,
+                authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
+                scenarioId = "direct-guided",
+                storageSubdirectory = "default",
+                androidContext = context.applicationContext,
+                currentTimeMillis = { System.currentTimeMillis() },
+                targetPeerId = targetPeerId,
+            ),
+        )
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.factory.end appId=")
+            append(appId)
+            append(" scenario=")
+            append("direct-guided")
+            append(" storage=")
+            append("default")
+        },
+    )
+    return controller
 }
 
 private data class PublicMeshLinkControllerArgs(
@@ -94,14 +142,26 @@ private data class PublicMeshLinkControllerArgs(
     val authorityMode: String,
     val scenarioId: String,
     val storageSubdirectory: String,
-    val bootstrap: ch.trancee.meshlink.api.MeshLinkBootstrap,
+    val androidContext: Context,
     val currentTimeMillis: () -> Long,
+    val targetPeerId: String? = null,
 )
 
 @Suppress("LongMethod")
 private fun createPublicMeshLinkController(
     args: PublicMeshLinkControllerArgs,
 ): ReferenceMeshLinkController {
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.controller.begin appId=")
+            append(args.appId)
+            append(" scenario=")
+            append(args.scenarioId)
+            append(" storage=")
+            append(args.storageSubdirectory)
+        },
+    )
     val controller =
         PublicMeshLinkController(
             meshLinkRuntimeFactory = {
@@ -128,7 +188,7 @@ private fun createPublicMeshLinkController(
                     },
                 )
                 val runtime =
-                    meshLink(
+                    androidMeshLink(
                         config =
                             MeshLinkConfig(
                                 appId = args.appId,
@@ -136,7 +196,7 @@ private fun createPublicMeshLinkController(
                                 powerMode = PowerMode.Automatic,
                                 deliveryRetryDeadline = 15.seconds,
                             ),
-                        bootstrap = args.bootstrap,
+                        context = args.androidContext,
                     )
                 Log.i(
                     AUTOMATION_LOG_TAG,
@@ -167,14 +227,27 @@ private fun createPublicMeshLinkController(
             scenarioId = args.scenarioId,
             storageSubdirectory = args.storageSubdirectory,
             appId = args.appId,
+            targetPeerId = args.targetPeerId,
         )
+    Log.i(
+        AUTOMATION_LOG_TAG,
+        buildString {
+            append("REFERENCE_AUTOMATION android.meshlink.controller.end appId=")
+            append(args.appId)
+            append(" scenario=")
+            append(args.scenarioId)
+            append(" storage=")
+            append(args.storageSubdirectory)
+        },
+    )
     return controller
 }
 
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 private class PublicMeshLinkController(
     private val meshLinkRuntimeFactory: () -> MeshLink,
     private val currentTimeMillis: () -> Long,
+    private val targetPeerId: String?,
     authorityMode: String,
     scenarioId: String,
     storageSubdirectory: String,
@@ -185,8 +258,29 @@ private class PublicMeshLinkController(
     @Volatile private var meshLinkRuntime: MeshLink? = null
     @Volatile private var runtimeCollectorsStarted: Boolean = false
     @Volatile private var discoveryWatchScheduled: Boolean = false
-    private val sessionId = "$appId-${currentTimeMillis()}"
-    private val startedAt = currentTimeMillis()
+    private fun tracedCurrentTime(label: String): Long {
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION android.meshlink.controller.currentTime.begin label=")
+                append(label)
+            },
+        )
+        val value = currentTimeMillis()
+        Log.i(
+            AUTOMATION_LOG_TAG,
+            buildString {
+                append("REFERENCE_AUTOMATION android.meshlink.controller.currentTime.end label=")
+                append(label)
+                append(" value=")
+                append(value)
+            },
+        )
+        return value
+    }
+    private val sessionId = "$appId-${tracedCurrentTime("sessionId")}"
+    private val targetPeerSuffix: String? = targetPeerId?.takeLast(PEER_SUFFIX_LENGTH)
+    private val startedAt = tracedCurrentTime("startedAt")
     private val peers: LinkedHashMap<String, PeerSnapshot> = linkedMapOf()
     private val timeline: MutableList<TimelineEntry> = mutableListOf()
     private val updateSnapshot: ((ReferenceControllerSnapshot) -> ReferenceControllerSnapshot) -> Unit =
@@ -290,6 +384,7 @@ private class PublicMeshLinkController(
             runtime.peerEvents.collect { event ->
                 when (event) {
                     is PeerEvent.Found -> {
+                        if (!shouldTrackPeer(event.peerId.value)) return@collect
                         Log.i(
                             AUTOMATION_LOG_TAG,
                             buildString {
@@ -302,6 +397,7 @@ private class PublicMeshLinkController(
                         updatePeer(event.peerId.value, event.state, "found")
                     }
                     is PeerEvent.StateChanged -> {
+                        if (!shouldTrackPeer(event.peerId.value)) return@collect
                         Log.i(
                             AUTOMATION_LOG_TAG,
                             buildString {
@@ -314,6 +410,7 @@ private class PublicMeshLinkController(
                         updatePeer(event.peerId.value, event.state, "state-changed")
                     }
                     is PeerEvent.Lost -> {
+                        if (!shouldTrackPeer(event.peerId.value)) return@collect
                         Log.i(
                             AUTOMATION_LOG_TAG,
                             buildString {
@@ -332,6 +429,7 @@ private class PublicMeshLinkController(
         scope.launch {
             Log.i(AUTOMATION_LOG_TAG, "REFERENCE_AUTOMATION runtime.diagnosticEvents.collect.begin")
             runtime.diagnosticEvents.collect { event ->
+                if (!shouldTrackPeerSuffix(event.peerSuffix)) return@collect
                 Log.i(
                     AUTOMATION_LOG_TAG,
                     buildString {
@@ -500,6 +598,14 @@ private class PublicMeshLinkController(
                 append(current.peers.joinToString(prefix = "[", postfix = "]") { it.peerSuffix })
             },
         )
+    }
+
+    private fun shouldTrackPeer(peerId: String): Boolean {
+        return targetPeerId == null || peerId == targetPeerId
+    }
+
+    private fun shouldTrackPeerSuffix(peerSuffix: String?): Boolean {
+        return targetPeerSuffix == null || peerSuffix == targetPeerSuffix
     }
 
     private fun updatePeer(

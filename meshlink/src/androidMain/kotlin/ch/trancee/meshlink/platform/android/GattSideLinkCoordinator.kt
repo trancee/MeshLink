@@ -2,7 +2,6 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
-import ch.trancee.meshlink.transport.TransportMode
 
 internal interface GattSideLinkClient : PreferredGattSendClient {
     fun start(): Unit

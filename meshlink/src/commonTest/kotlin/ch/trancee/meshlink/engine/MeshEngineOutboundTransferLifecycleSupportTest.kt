@@ -17,7 +17,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineOutboundTransferLifecycleSupportTest {
     @Test
     fun `resolveActiveOrPrepareSession registers a prepared session and marks acknowledgements`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val outboundTransfers = mutableMapOf<String, OutboundTransferSession>()
             val preparedSession = outboundTransferSession(PeerId("destination-abcdef"))
@@ -57,7 +57,7 @@ class MeshEngineOutboundTransferLifecycleSupportTest {
 
     @Test
     fun `resolveActiveOrPrepareSession schedules retry when route preparation is pending`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
             val peerId = PeerId("destination-abcdef")

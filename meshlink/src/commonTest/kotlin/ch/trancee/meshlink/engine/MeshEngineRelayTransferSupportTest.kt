@@ -11,57 +11,59 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineRelayTransferSupportTest {
     @Test
-    fun `handleTransferStart creates a relay session and forwards the start frame`() = runBlocking {
-        // Arrange
-        val relayTransfers = mutableMapOf<String, RelayTransferSession>()
-        val callbacks = RecordingRelayTransferCallbacks()
-        val support = relayTransferSupport(relayTransfers = relayTransfers, callbacks = callbacks)
-        val sourcePeerId = PeerId("upstream")
-        val hardRunToken = MeshEngineHardRunToken(epoch = 4)
-        val frame =
-            WireFrame.TransferStart(
-                route =
-                    WireFrame.TransferStartRoute(
-                        transferId = "transfer-1",
-                        messageId = "message-1",
-                        originPeerId = PeerId("origin"),
-                        destinationPeerId = PeerId("destination"),
-                    ),
-                sizing =
-                    WireFrame.TransferStartSizing(
-                        totalBytes = 2,
-                        totalChunks = 2,
-                        maxChunkPayloadBytes = 1,
-                    ),
+    fun `handleTransferStart creates a relay session and forwards the start frame`() =
+        runBlocking<Unit> {
+            // Arrange
+            val relayTransfers = mutableMapOf<String, RelayTransferSession>()
+            val callbacks = RecordingRelayTransferCallbacks()
+            val support =
+                relayTransferSupport(relayTransfers = relayTransfers, callbacks = callbacks)
+            val sourcePeerId = PeerId("upstream")
+            val hardRunToken = MeshEngineHardRunToken(epoch = 4)
+            val frame =
+                WireFrame.TransferStart(
+                    route =
+                        WireFrame.TransferStartRoute(
+                            transferId = "transfer-1",
+                            messageId = "message-1",
+                            originPeerId = PeerId("origin"),
+                            destinationPeerId = PeerId("destination"),
+                        ),
+                    sizing =
+                        WireFrame.TransferStartSizing(
+                            totalBytes = 2,
+                            totalChunks = 2,
+                            maxChunkPayloadBytes = 1,
+                        ),
+                )
+
+            // Act
+            support.handleTransferStart(
+                peerId = sourcePeerId,
+                frame = frame,
+                hardRunToken = hardRunToken,
             )
 
-        // Act
-        support.handleTransferStart(
-            peerId = sourcePeerId,
-            frame = frame,
-            hardRunToken = hardRunToken,
-        )
-
-        // Assert
-        val relaySession = relayTransfers.getValue(frame.transferId)
-        assertEquals(sourcePeerId, relaySession.upstreamPeerId)
-        assertEquals(frame.destinationPeerId, relaySession.destinationPeerId)
-        assertEquals(
-            listOf(
-                RecordedRelayFrame(
-                    peerId = frame.destinationPeerId,
-                    action = "transfer.forward.start",
-                    transferId = frame.transferId,
-                    hardRunEpoch = hardRunToken.epoch,
-                )
-            ),
-            callbacks.routedFrames,
-        )
-    }
+            // Assert
+            val relaySession = relayTransfers.getValue(frame.transferId)
+            assertEquals(sourcePeerId, relaySession.upstreamPeerId)
+            assertEquals(frame.destinationPeerId, relaySession.destinationPeerId)
+            assertEquals(
+                listOf(
+                    RecordedRelayFrame(
+                        peerId = frame.destinationPeerId,
+                        action = "transfer.forward.start",
+                        transferId = frame.transferId,
+                        hardRunEpoch = hardRunToken.epoch,
+                    )
+                ),
+                callbacks.routedFrames,
+            )
+        }
 
     @Test
     fun `handleTransferStart refreshes the upstream peer for an existing relay session`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val existingSession =
                 RelayTransferSession(
@@ -118,7 +120,7 @@ class MeshEngineRelayTransferSupportTest {
 
     @Test
     fun `handleTransferChunk and handleTransferAck forward along the stored relay path`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val relaySession =
                 RelayTransferSession(
@@ -178,104 +180,110 @@ class MeshEngineRelayTransferSupportTest {
         }
 
     @Test
-    fun `terminal relay frames forward once and remove the relay session`() = runBlocking {
-        // Arrange
-        val completedSession =
-            RelayTransferSession(
-                transferId = "transfer-complete",
-                messageId = "message-complete",
-                originPeerId = PeerId("origin"),
-                destinationPeerId = PeerId("destination-complete"),
-                upstreamPeerId = PeerId("upstream-complete"),
-                hardRunToken = MeshEngineHardRunToken(epoch = 6),
-            )
-        val abortedSession =
-            RelayTransferSession(
-                transferId = "transfer-abort",
-                messageId = "message-abort",
-                originPeerId = PeerId("origin"),
-                destinationPeerId = PeerId("destination-abort"),
-                upstreamPeerId = PeerId("upstream-abort"),
-                hardRunToken = MeshEngineHardRunToken(epoch = 8),
-            )
-        val relayTransfers =
-            mutableMapOf(
-                completedSession.transferId to completedSession,
-                abortedSession.transferId to abortedSession,
-            )
-        val callbacks = RecordingRelayTransferCallbacks()
-        val support = relayTransferSupport(relayTransfers = relayTransfers, callbacks = callbacks)
+    fun `terminal relay frames forward once and remove the relay session`() =
+        runBlocking<Unit> {
+            // Arrange
+            val completedSession =
+                RelayTransferSession(
+                    transferId = "transfer-complete",
+                    messageId = "message-complete",
+                    originPeerId = PeerId("origin"),
+                    destinationPeerId = PeerId("destination-complete"),
+                    upstreamPeerId = PeerId("upstream-complete"),
+                    hardRunToken = MeshEngineHardRunToken(epoch = 6),
+                )
+            val abortedSession =
+                RelayTransferSession(
+                    transferId = "transfer-abort",
+                    messageId = "message-abort",
+                    originPeerId = PeerId("origin"),
+                    destinationPeerId = PeerId("destination-abort"),
+                    upstreamPeerId = PeerId("upstream-abort"),
+                    hardRunToken = MeshEngineHardRunToken(epoch = 8),
+                )
+            val relayTransfers =
+                mutableMapOf(
+                    completedSession.transferId to completedSession,
+                    abortedSession.transferId to abortedSession,
+                )
+            val callbacks = RecordingRelayTransferCallbacks()
+            val support =
+                relayTransferSupport(relayTransfers = relayTransfers, callbacks = callbacks)
 
-        // Act
-        val completeHandled =
-            support.handleTransferComplete(WireFrame.TransferComplete(completedSession.transferId))
-        val abortHandled =
-            support.handleTransferAbort(
-                WireFrame.TransferAbort(transferId = abortedSession.transferId, reasonCode = 1)
-            )
+            // Act
+            val completeHandled =
+                support.handleTransferComplete(
+                    WireFrame.TransferComplete(completedSession.transferId)
+                )
+            val abortHandled =
+                support.handleTransferAbort(
+                    WireFrame.TransferAbort(transferId = abortedSession.transferId, reasonCode = 1)
+                )
 
-        // Assert
-        assertTrue(completeHandled)
-        assertTrue(abortHandled)
-        assertFalse(relayTransfers.containsKey(completedSession.transferId))
-        assertFalse(relayTransfers.containsKey(abortedSession.transferId))
-        assertEquals(
-            listOf(
-                RecordedRelayFrame(
-                    peerId = completedSession.destinationPeerId,
-                    action = "transfer.forward.complete",
-                    transferId = completedSession.transferId,
-                    hardRunEpoch = completedSession.hardRunToken.epoch,
+            // Assert
+            assertTrue(completeHandled)
+            assertTrue(abortHandled)
+            assertFalse(relayTransfers.containsKey(completedSession.transferId))
+            assertFalse(relayTransfers.containsKey(abortedSession.transferId))
+            assertEquals(
+                listOf(
+                    RecordedRelayFrame(
+                        peerId = completedSession.destinationPeerId,
+                        action = "transfer.forward.complete",
+                        transferId = completedSession.transferId,
+                        hardRunEpoch = completedSession.hardRunToken.epoch,
+                    ),
+                    RecordedRelayFrame(
+                        peerId = abortedSession.destinationPeerId,
+                        action = "transfer.forward.abort",
+                        transferId = abortedSession.transferId,
+                        hardRunEpoch = abortedSession.hardRunToken.epoch,
+                    ),
                 ),
-                RecordedRelayFrame(
-                    peerId = abortedSession.destinationPeerId,
-                    action = "transfer.forward.abort",
-                    transferId = abortedSession.transferId,
-                    hardRunEpoch = abortedSession.hardRunToken.epoch,
-                ),
-            ),
-            callbacks.routedFrames,
-        )
-    }
+                callbacks.routedFrames,
+            )
+        }
 
     @Test
-    fun `relay handlers ignore unknown transfer ids`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingRelayTransferCallbacks()
-        val support = relayTransferSupport(relayTransfers = mutableMapOf(), callbacks = callbacks)
+    fun `relay handlers ignore unknown transfer ids`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingRelayTransferCallbacks()
+            val support =
+                relayTransferSupport(relayTransfers = mutableMapOf(), callbacks = callbacks)
 
-        // Act
-        val chunkHandled =
-            support.handleTransferChunk(
-                WireFrame.TransferChunk(
-                    transferId = "missing-transfer",
-                    chunkIndex = 0,
-                    payload = byteArrayOf(1),
+            // Act
+            val chunkHandled =
+                support.handleTransferChunk(
+                    WireFrame.TransferChunk(
+                        transferId = "missing-transfer",
+                        chunkIndex = 0,
+                        payload = byteArrayOf(1),
+                    )
                 )
-            )
-        val ackHandled =
-            support.handleTransferAck(
-                WireFrame.TransferAck(
-                    transferId = "missing-transfer",
-                    highestContiguousAck = 0,
-                    selectiveRanges = byteArrayOf(),
+            val ackHandled =
+                support.handleTransferAck(
+                    WireFrame.TransferAck(
+                        transferId = "missing-transfer",
+                        highestContiguousAck = 0,
+                        selectiveRanges = byteArrayOf(),
+                    )
                 )
-            )
-        val completeHandled =
-            support.handleTransferComplete(WireFrame.TransferComplete("missing-transfer"))
-        val abortHandled =
-            support.handleTransferAbort(
-                WireFrame.TransferAbort(transferId = "missing-transfer", reasonCode = 1)
-            )
+            val completeHandled =
+                support.handleTransferComplete(WireFrame.TransferComplete("missing-transfer"))
+            val abortHandled =
+                support.handleTransferAbort(
+                    WireFrame.TransferAbort(transferId = "missing-transfer", reasonCode = 1)
+                )
 
-        // Assert
-        assertFalse(chunkHandled)
-        assertFalse(ackHandled)
-        assertFalse(completeHandled)
-        assertFalse(abortHandled)
-        assertTrue(callbacks.encryptedFrames.isEmpty())
-        assertTrue(callbacks.routedFrames.isEmpty())
-    }
+            // Assert
+            assertFalse(chunkHandled)
+            assertFalse(ackHandled)
+            assertFalse(completeHandled)
+            assertFalse(abortHandled)
+            assertTrue(callbacks.encryptedFrames.isEmpty())
+            assertTrue(callbacks.routedFrames.isEmpty())
+        }
 }
 
 private fun relayTransferSupport(

@@ -24,50 +24,52 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineRuntimeFacadeAssemblyTest {
     @Test
-    fun `facade assembly send delegates to transfer phase sendPayload`() = runBlocking {
-        // Arrange
-        val harness = runtimeFacadeAssemblyHarness()
-        harness.runtimeSurface.beginHardRun()
-        val payload = ByteArray(2_048) { 0x01 }
+    fun `facade assembly send delegates to transfer phase sendPayload`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = runtimeFacadeAssemblyHarness()
+            harness.runtimeSurface.beginHardRun()
+            val payload = ByteArray(2_048) { 0x01 }
 
-        // Act
-        val result =
-            harness.facadeOperations.send(
-                peerId = PeerId("peer-abcdef"),
-                payload = payload,
-                priority = DeliveryPriority.HIGH,
-            )
-
-        // Assert
-        assertEquals(SendResult.Sent, result)
-        assertEquals(
-            listOf(
-                RecordedFacadeSendPayload(
-                    mode = MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
-                    peerIdValue = "peer-abcdef",
-                    payloadBytes = payload.size,
+            // Act
+            val result =
+                harness.facadeOperations.send(
+                    peerId = PeerId("peer-abcdef"),
+                    payload = payload,
                     priority = DeliveryPriority.HIGH,
-                    hardRunEpoch = 1L,
                 )
-            ),
-            harness.sendPayloadCalls,
-        )
-    }
+
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            assertEquals(
+                listOf(
+                    RecordedFacadeSendPayload(
+                        mode = MeshEngineOutboundDeliveryMode.LARGE_TRANSFER,
+                        peerIdValue = "peer-abcdef",
+                        payloadBytes = payload.size,
+                        priority = DeliveryPriority.HIGH,
+                        hardRunEpoch = 1L,
+                    )
+                ),
+                harness.sendPayloadCalls,
+            )
+        }
 
     @Test
-    fun `facade assembly stop delegates to transfer abort and clear operations`() = runBlocking {
-        // Arrange
-        val harness = runtimeFacadeAssemblyHarness()
-        harness.runtimeSurface.beginHardRun()
+    fun `facade assembly stop delegates to transfer abort and clear operations`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = runtimeFacadeAssemblyHarness()
+            harness.runtimeSurface.beginHardRun()
 
-        // Act
-        val result = harness.facadeOperations.stop()
+            // Act
+            val result = harness.facadeOperations.stop()
 
-        // Assert
-        assertEquals(StopResult.Stopped, result)
-        assertEquals(listOf(TransferAbortReasonCode.RUNTIME_STOPPED), harness.abortReasons)
-        assertEquals(1, harness.clearOutboundTransfersCalls.size)
-    }
+            // Assert
+            assertEquals(StopResult.Stopped, result)
+            assertEquals(listOf(TransferAbortReasonCode.RUNTIME_STOPPED), harness.abortReasons)
+            assertEquals(1, harness.clearOutboundTransfersCalls.size)
+        }
 }
 
 private data class RuntimeFacadeAssemblyHarness(
@@ -113,14 +115,14 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             sendEncryptedWireFrame = { _, _, _, _ -> false },
             sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
             decryptHopPayload = { _, payload -> payload },
-            emitHopSessionFailed = { _, _, _, _ -> Unit },
-            prewarmHopSession = { _ -> Unit },
-            forwardMessageToNextHop = { _, _ -> Unit },
+            emitHopSessionFailed = { _, _, _, _ -> },
+            prewarmHopSession = { _ -> },
+            forwardMessageToNextHop = { _, _ -> },
             shouldAttemptLargeInlineSend = { false },
             isLocalPeerId = { false },
-            handleHandshakeMessage1 = { _, _ -> Unit },
-            handleHandshakeMessage2 = { _, _ -> Unit },
-            handleHandshakeMessage3 = { _, _ -> Unit },
+            handleHandshakeMessage1 = { _, _ -> },
+            handleHandshakeMessage2 = { _, _ -> },
+            handleHandshakeMessage3 = { _, _ -> },
         )
     val transferAndInbound =
         MeshEngineRuntimeTransferAndInboundPhase(
@@ -135,7 +137,7 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
                     )
                 SendResult.Sent
             },
-            handleEncryptedDataFrame = { _, _ -> Unit },
+            handleEncryptedDataFrame = { _, _ -> },
             abortLocalTransfers = { reasonCode -> abortReasons += reasonCode },
             clearOutboundTransfers = { clearOutboundTransfersCalls += Unit },
         )
