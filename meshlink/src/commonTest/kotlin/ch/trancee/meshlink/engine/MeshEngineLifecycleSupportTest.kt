@@ -275,6 +275,7 @@ private fun lifecycleHarness(meshState: MeshLinkState): LifecycleHarness {
     val runtimeSurface = MeshEngineRuntimeSurface()
     when (meshState) {
         MeshLinkState.Uninitialized -> Unit
+        MeshLinkState.Configured -> Unit
         MeshLinkState.Running -> runtimeSurface.beginHardRun()
         MeshLinkState.Paused -> {
             runtimeSurface.beginHardRun()

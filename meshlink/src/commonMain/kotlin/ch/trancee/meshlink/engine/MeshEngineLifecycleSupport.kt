@@ -61,6 +61,7 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Running -> StartResult.AlreadyRunning
             MeshLinkState.Paused -> StartResult.InvalidState(currentState)
             MeshLinkState.Uninitialized,
+            MeshLinkState.Configured,
             MeshLinkState.Stopped -> {
                 callbacks.ensureTransportCollector()
                 try {
@@ -93,6 +94,7 @@ internal class MeshEngineLifecycleSupport(
                 PauseResult.Paused
             }
             MeshLinkState.Uninitialized,
+            MeshLinkState.Configured,
             MeshLinkState.Stopped -> PauseResult.InvalidState(currentState)
         }
     }
@@ -114,6 +116,7 @@ internal class MeshEngineLifecycleSupport(
                 ResumeResult.Resumed
             }
             MeshLinkState.Uninitialized,
+            MeshLinkState.Configured,
             MeshLinkState.Stopped -> ResumeResult.InvalidState(currentState)
         }
     }
@@ -121,7 +124,8 @@ internal class MeshEngineLifecycleSupport(
     internal suspend fun stop(): StopResult {
         return when (state.runtimeSurface.currentState()) {
             MeshLinkState.Stopped -> StopResult.AlreadyStopped
-            MeshLinkState.Uninitialized -> {
+            MeshLinkState.Uninitialized,
+            MeshLinkState.Configured -> {
                 callbacks.clearOutboundTransfers()
                 state.transferRegistry.clearInboundSessions()
                 state.transferRegistry.clearRelaySessions()

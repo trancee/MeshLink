@@ -26,6 +26,9 @@ public class PeerId public constructor(public val value: String) {
 public sealed class MeshLinkState {
     public data object Uninitialized : MeshLinkState()
 
+    /** Runtime has been created and configured, but not started yet. */
+    public data object Configured : MeshLinkState()
+
     public data object Running : MeshLinkState()
 
     public data object Paused : MeshLinkState()

@@ -218,7 +218,7 @@ class MeshLinkContractTest {
             )
 
         // Assert
-        assertEquals(MeshLinkState.Uninitialized, meshLink.state.value)
+        assertEquals(MeshLinkState.Configured, meshLink.state.value)
         assertEquals(0, transport.startCalls)
         assertEquals(0, transport.pauseCalls)
         assertEquals(0, transport.resumeCalls)
@@ -232,7 +232,7 @@ class MeshLinkContractTest {
         val meshLink = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
 
         // Act
-        val stopFromUninitialized = meshLink.stop()
+        val stopFromConfigured = meshLink.stop()
         val restartFromStopped = meshLink.start()
         val pauseFromRunning = meshLink.pause()
         val startFromPaused = meshLink.start()
@@ -242,7 +242,7 @@ class MeshLinkContractTest {
         val resumeFromStopped = meshLink.resume()
 
         // Assert
-        assertEquals(StopResult.Stopped, stopFromUninitialized)
+        assertEquals(StopResult.Stopped, stopFromConfigured)
         assertEquals(StartResult.Started, restartFromStopped)
         assertEquals(PauseResult.Paused, pauseFromRunning)
         assertEquals(
