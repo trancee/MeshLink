@@ -214,11 +214,9 @@ internal object MeshLinkProofRuntime {
     }
 
     fun togglePeerDetails(): Unit {
-        val visible = synchronized(this) {
+        synchronized(this) {
             peerDetailsVisible = !peerDetailsVisible
-            peerDetailsVisible
         }
-        appendLog("peer details ${if (visible) "expanded" else "collapsed"}")
         updatesFlow.tryEmit(Unit)
     }
 

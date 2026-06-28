@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     private lateinit var lifecycleLabel: TextView
     private lateinit var peersDetailsLabel: TextView
     private lateinit var peersToggleButton: Button
+    private var previousPeerCount: Int = 0
     private lateinit var logLabel: TextView
     private lateinit var startStopButton: Button
     private lateinit var sendHelloButton: Button
@@ -118,6 +119,15 @@ class MainActivity : Activity() {
         runOnUiThread {
             stateLabel.text = "State: ${snapshot.state}"
             peersLabel.text = summarizePeers(snapshot.peers)
+            val peerCount = snapshot.peers.size
+            val peerDetailsVisibleBeforeUpdate = MeshLinkProofRuntime.isPeerDetailsVisible
+            val shouldAutoExpandPeers =
+                peerCount > 0 && previousPeerCount == 0 && !peerDetailsVisibleBeforeUpdate
+            val shouldCollapsePeers = peerCount == 0 && peerDetailsVisibleBeforeUpdate
+            previousPeerCount = peerCount
+            if (shouldAutoExpandPeers || shouldCollapsePeers) {
+                MeshLinkProofRuntime.togglePeerDetails()
+            }
             val peerDetailsVisible = MeshLinkProofRuntime.isPeerDetailsVisible
             peersToggleButton.text = if (peerDetailsVisible) "Hide Peers" else "Show Peers"
             peersDetailsLabel.text = summarizePeerDetails(snapshot.peers, peerDetailsVisible)
