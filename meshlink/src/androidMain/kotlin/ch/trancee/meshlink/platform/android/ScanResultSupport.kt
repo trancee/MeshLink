@@ -104,6 +104,5 @@ internal fun shouldConnectAfterDiscovery(
                     remotePlatformFamily = remotePlatformFamily,
                     gattSideLinkReady = gattSideLinkReady,
                 )
-        else -> false
     }
 }

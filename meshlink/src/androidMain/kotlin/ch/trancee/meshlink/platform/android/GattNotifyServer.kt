@@ -90,6 +90,7 @@ internal class BluetoothGattNotifyServer(
                 gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
             }
 
+            @Suppress("DEPRECATION")
             override fun onDescriptorReadRequest(
                 device: BluetoothDevice,
                 requestId: Int,
@@ -187,14 +188,10 @@ internal class BluetoothGattNotifyServer(
                             frameBuffersByAddress.getOrPut(device.address) { L2capFrameBuffer() }
                         val frames = buffer.append(payload)
                         decodedFrames.addAll(frames)
-                        if (peerId == null) {
-                            false
-                        } else {
-                            frames.all { frame -> onFrameReceived(peerId, frame) }
-                        }
+                        frames.all { frame -> onFrameReceived(peerId, frame) }
                     }
                 log(
-                    "GATT notify server write addr=${device.address} peer=${peerHintIdValue?.takeLast(6) ?: "unknown"} prepared=$preparedWrite frames=${decodedFrames.size} accepted=$accepted"
+                    "GATT notify server write addr=${device.address} peer=${peerHintIdValue.takeLast(6)} prepared=$preparedWrite frames=${decodedFrames.size} accepted=$accepted"
                 )
                 if (responseNeeded) {
                     gattServer.sendResponse(
