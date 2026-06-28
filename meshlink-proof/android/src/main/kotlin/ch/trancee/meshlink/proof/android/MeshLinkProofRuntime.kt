@@ -63,9 +63,14 @@ internal object MeshLinkProofRuntime {
     private var runtimeStateText: String = MeshLinkState.Uninitialized.toString()
     private var meshStartRequestedAtNanos: Long? = null
     private var meshStartCompletedAtNanos: Long? = null
+    @Volatile
+    private var peerDetailsVisible: Boolean = false
     private var benchmarkTokenCounter: Long = 0L
 
     val updates: Flow<Unit> = updatesFlow.asSharedFlow()
+
+    val isPeerDetailsVisible: Boolean
+        get() = synchronized(this) { peerDetailsVisible }
 
     val isRunning: Boolean
         get() = running
@@ -109,6 +114,7 @@ internal object MeshLinkProofRuntime {
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
                 meshStartRequestedAtNanos = null
                 meshStartCompletedAtNanos = null
+                peerDetailsVisible = false
                 synchronized(knownPeers) { knownPeers.clear() }
                 synchronized(routeReadyPeers) { routeReadyPeers.clear() }
                 synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
@@ -156,6 +162,7 @@ internal object MeshLinkProofRuntime {
         return scope.launch {
             val startedAtNanos = SystemClock.elapsedRealtimeNanos()
             meshStartRequestedAtNanos = startedAtNanos
+            peerDetailsVisible = false
             appendLog("mesh.start() requested elapsedMs=0")
             val result = runCatching { requireMeshLink().start() }
             result.onSuccess { startResult ->
@@ -206,6 +213,15 @@ internal object MeshLinkProofRuntime {
         }
     }
 
+    fun togglePeerDetails(): Unit {
+        val visible = synchronized(this) {
+            peerDetailsVisible = !peerDetailsVisible
+            peerDetailsVisible
+        }
+        appendLog("peer details ${if (visible) "expanded" else "collapsed"}")
+        updatesFlow.tryEmit(Unit)
+    }
+
     fun stop(): Job {
         return scope.launch {
             appendLog(
@@ -215,6 +231,7 @@ internal object MeshLinkProofRuntime {
                 running = false
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
                 collectorsStarted = false
+                peerDetailsVisible = false
             }
             synchronized(routeReadyPeers) { routeReadyPeers.clear() }
             synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }

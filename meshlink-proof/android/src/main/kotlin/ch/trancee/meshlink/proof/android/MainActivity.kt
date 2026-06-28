@@ -20,6 +20,8 @@ class MainActivity : Activity() {
     private lateinit var stateLabel: TextView
     private lateinit var peersLabel: TextView
     private lateinit var lifecycleLabel: TextView
+    private lateinit var peersDetailsLabel: TextView
+    private lateinit var peersToggleButton: Button
     private lateinit var logLabel: TextView
     private lateinit var startStopButton: Button
     private lateinit var sendHelloButton: Button
@@ -71,6 +73,13 @@ class MainActivity : Activity() {
         stateLabel = TextView(this).apply { textSize = 18f }
         peersLabel = TextView(this)
         lifecycleLabel = TextView(this).apply { textSize = 14f }
+        peersToggleButton = Button(this).apply {
+            text = "Show Peers"
+            setOnClickListener {
+                MeshLinkProofRuntime.togglePeerDetails()
+            }
+        }
+        peersDetailsLabel = TextView(this).apply { setTextIsSelectable(true) }
         startStopButton = Button(this).apply {
             setOnClickListener {
                 if (MeshLinkProofRuntime.isRunning) {
@@ -95,6 +104,8 @@ class MainActivity : Activity() {
             addView(stateLabel)
             addView(peersLabel)
             addView(lifecycleLabel)
+            addView(peersToggleButton)
+            addView(peersDetailsLabel)
             addView(startStopButton)
             addView(sendHelloButton)
             addView(logLabel)
@@ -107,6 +118,9 @@ class MainActivity : Activity() {
         runOnUiThread {
             stateLabel.text = "State: ${snapshot.state}"
             peersLabel.text = summarizePeers(snapshot.peers)
+            val peerDetailsVisible = MeshLinkProofRuntime.isPeerDetailsVisible
+            peersToggleButton.text = if (peerDetailsVisible) "Hide Peers" else "Show Peers"
+            peersDetailsLabel.text = summarizePeerDetails(snapshot.peers, peerDetailsVisible)
             startStopButton.text = if (snapshot.running) "Stop Proof" else "Start Proof"
             sendHelloButton.isEnabled = snapshot.running && snapshot.peers.isNotEmpty()
             lifecycleLabel.text = summarizeLifecycleStatus(snapshot.logs)
@@ -124,6 +138,20 @@ class MainActivity : Activity() {
             "Peers: 0"
         } else {
             "Peers: ${peers.size}"
+        }
+    }
+
+    private fun summarizePeerDetails(peers: List<String>, visible: Boolean): String {
+        if (!visible) {
+            return ""
+        }
+        return if (peers.isEmpty()) {
+            "No peer ids"
+        } else {
+            buildString {
+                appendLine("Peer ids:")
+                peers.forEach { peer -> appendLine("- ${peer.takeLast(6)}") }
+            }.trimEnd()
         }
     }
 
