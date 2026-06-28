@@ -132,10 +132,9 @@ class MainActivity : Activity() {
         val controlLog =
             logs.asReversed().firstOrNull { line ->
                 line.startsWith("runtime stop requested") ||
-                    line.startsWith("PEER collector coroutine exiting") ||
-                    line.startsWith("PEER collector completed") ||
                     line.startsWith("mesh.start() requested") ||
                     line.startsWith("mesh.start() ->") ||
+                    line.startsWith("mesh.start() failed") ||
                     line.contains("Bluetooth preflight blocked") ||
                     line.contains("Bluetooth permissions denied") ||
                     line.contains("Bluetooth permissions granted")
@@ -143,7 +142,22 @@ class MainActivity : Activity() {
         return if (controlLog == null) {
             "Lifecycle: idle"
         } else {
-            "Lifecycle: $controlLog"
+            "Lifecycle: ${compactLifecycleStatus(controlLog)}"
+        }
+    }
+
+    private fun compactLifecycleStatus(logLine: String): String {
+        return when {
+            logLine.startsWith("runtime stop requested") -> "Stop requested"
+            logLine.startsWith("mesh.start() requested") -> "Start requested"
+            logLine.startsWith("mesh.start() ->") -> logLine
+                .removePrefix("mesh.start() -> ")
+                .substringBefore(" elapsedMs=")
+            logLine.startsWith("mesh.start() failed") -> "Start failed"
+            logLine.contains("Bluetooth preflight blocked") -> "Bluetooth blocked"
+            logLine.contains("Bluetooth permissions denied") -> "Permissions denied"
+            logLine.contains("Bluetooth permissions granted") -> "Permissions granted"
+            else -> logLine
         }
     }
 
