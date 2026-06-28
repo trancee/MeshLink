@@ -19,6 +19,7 @@ class MainActivity : Activity() {
 
     private lateinit var stateLabel: TextView
     private lateinit var peersLabel: TextView
+    private lateinit var lifecycleLabel: TextView
     private lateinit var logLabel: TextView
     private lateinit var startStopButton: Button
     private lateinit var sendHelloButton: Button
@@ -69,6 +70,7 @@ class MainActivity : Activity() {
     private fun buildContentView(): ScrollView {
         stateLabel = TextView(this).apply { textSize = 18f }
         peersLabel = TextView(this)
+        lifecycleLabel = TextView(this).apply { textSize = 14f }
         startStopButton = Button(this).apply {
             setOnClickListener {
                 if (MeshLinkProofRuntime.isRunning) {
@@ -92,6 +94,7 @@ class MainActivity : Activity() {
             setPadding(32, 32, 32, 32)
             addView(stateLabel)
             addView(peersLabel)
+            addView(lifecycleLabel)
             addView(startStopButton)
             addView(sendHelloButton)
             addView(logLabel)
@@ -115,12 +118,32 @@ class MainActivity : Activity() {
                 }
             startStopButton.text = if (snapshot.running) "Stop Proof" else "Start Proof"
             sendHelloButton.isEnabled = snapshot.running && snapshot.peers.isNotEmpty()
+            lifecycleLabel.text = summarizeLifecycleStatus(snapshot.logs)
             logLabel.text =
                 if (snapshot.logs.isEmpty()) {
                     "Logs will appear here"
                 } else {
                     snapshot.logs.joinToString(separator = "\n")
                 }
+        }
+    }
+
+    private fun summarizeLifecycleStatus(logs: List<String>): String {
+        val controlLog =
+            logs.asReversed().firstOrNull { line ->
+                line.startsWith("runtime stop requested") ||
+                    line.startsWith("PEER collector coroutine exiting") ||
+                    line.startsWith("PEER collector completed") ||
+                    line.startsWith("mesh.start() requested") ||
+                    line.startsWith("mesh.start() ->") ||
+                    line.contains("Bluetooth preflight blocked") ||
+                    line.contains("Bluetooth permissions denied") ||
+                    line.contains("Bluetooth permissions granted")
+            }
+        return if (controlLog == null) {
+            "Lifecycle: idle"
+        } else {
+            "Lifecycle: $controlLog"
         }
     }
 
