@@ -3,6 +3,7 @@ package ch.trancee.meshlink.proof.android
 import android.app.Activity
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -75,12 +76,16 @@ class MainActivity : Activity() {
         peersLabel = TextView(this)
         lifecycleLabel = TextView(this).apply { textSize = 14f }
         peersToggleButton = Button(this).apply {
-            text = "Show Peers"
+            text = "Show peer IDs"
+            visibility = View.GONE
             setOnClickListener {
                 MeshLinkProofRuntime.togglePeerDetails()
             }
         }
-        peersDetailsLabel = TextView(this).apply { setTextIsSelectable(true) }
+        peersDetailsLabel = TextView(this).apply {
+            setTextIsSelectable(true)
+            visibility = View.GONE
+        }
         startStopButton = Button(this).apply {
             setOnClickListener {
                 if (MeshLinkProofRuntime.isRunning) {
@@ -129,7 +134,10 @@ class MainActivity : Activity() {
                 MeshLinkProofRuntime.togglePeerDetails()
             }
             val peerDetailsVisible = MeshLinkProofRuntime.isPeerDetailsVisible
-            peersToggleButton.text = if (peerDetailsVisible) "Hide Peers" else "Show Peers"
+            val peerDetailsControlVisible = snapshot.peers.isNotEmpty()
+            peersToggleButton.visibility = if (peerDetailsControlVisible) View.VISIBLE else View.GONE
+            peersDetailsLabel.visibility = if (peerDetailsControlVisible) View.VISIBLE else View.GONE
+            peersToggleButton.text = if (peerDetailsVisible) "Hide peer IDs" else "Show peer IDs"
             peersDetailsLabel.text = summarizePeerDetails(snapshot.peers, peerDetailsVisible)
             startStopButton.text = if (snapshot.running) "Stop Proof" else "Start Proof"
             sendHelloButton.isEnabled = snapshot.running && snapshot.peers.isNotEmpty()
@@ -156,10 +164,10 @@ class MainActivity : Activity() {
             return ""
         }
         return if (peers.isEmpty()) {
-            "No peer ids"
+            "No peer IDs"
         } else {
             buildString {
-                appendLine("Peer ids:")
+                appendLine("Peer IDs:")
                 peers.forEach { peer -> appendLine("- ${peer.takeLast(6)}") }
             }.trimEnd()
         }
