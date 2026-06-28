@@ -13,7 +13,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineRuntimeWaitSupportTest {
     @Test
     fun `waitWithRuntimeGate returns completed when the awaited change completes while running`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
@@ -34,7 +34,7 @@ class MeshEngineRuntimeWaitSupportTest {
 
     @Test
     fun `waitWithRuntimeGate returns timed out when the awaited change returns null`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
@@ -54,7 +54,7 @@ class MeshEngineRuntimeWaitSupportTest {
 
     @Test
     fun `waitWithRuntimeGate returns hard run ended when the hard run is already inactive`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
@@ -74,43 +74,44 @@ class MeshEngineRuntimeWaitSupportTest {
         }
 
     @Test
-    fun `waitWithRuntimeGate resumes after a pause and retries the awaited change`() = runBlocking {
-        // Arrange
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.beginHardRun()
-        val firstAttemptStarted = CompletableDeferred<Unit>()
-        var attempts = 0
-        val resultDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                waitWithRuntimeGate(
-                    runtimeGate = runtimeSurface.runtimeGate,
-                    hardRunToken = hardRunToken,
-                    maximumActiveWait = 500.milliseconds,
-                    awaitChange = {
-                        attempts += 1
-                        if (attempts == 1) {
-                            firstAttemptStarted.complete(Unit)
-                            delay(1_000)
-                            "first-attempt"
-                        } else {
-                            "second-attempt"
-                        }
-                    },
-                )
-            }
+    fun `waitWithRuntimeGate resumes after a pause and retries the awaited change`() =
+        runBlocking<Unit> {
+            // Arrange
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            val firstAttemptStarted = CompletableDeferred<Unit>()
+            var attempts = 0
+            val resultDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    waitWithRuntimeGate(
+                        runtimeGate = runtimeSurface.runtimeGate,
+                        hardRunToken = hardRunToken,
+                        maximumActiveWait = 500.milliseconds,
+                        awaitChange = {
+                            attempts += 1
+                            if (attempts == 1) {
+                                firstAttemptStarted.complete(Unit)
+                                delay(1_000)
+                                "first-attempt"
+                            } else {
+                                "second-attempt"
+                            }
+                        },
+                    )
+                }
 
-        // Act
-        firstAttemptStarted.await()
-        runtimeSurface.setLifecycleState(MeshLinkState.Paused)
-        delay(10)
-        runtimeSurface.setLifecycleState(MeshLinkState.Running)
-        val result = resultDeferred.await()
+            // Act
+            firstAttemptStarted.await()
+            runtimeSurface.setLifecycleState(MeshLinkState.Paused)
+            delay(10)
+            runtimeSurface.setLifecycleState(MeshLinkState.Running)
+            val result = resultDeferred.await()
 
-        // Assert
-        val completed = assertCompleted(result)
-        assertEquals("second-attempt", completed)
-        assertEquals(2, attempts)
-    }
+            // Assert
+            val completed = assertCompleted(result)
+            assertEquals("second-attempt", completed)
+            assertEquals(2, attempts)
+        }
 }
 
 private fun <T> assertCompleted(result: MeshEngineRuntimeTimedWaitResult<T>): T {

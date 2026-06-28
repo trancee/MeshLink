@@ -22,7 +22,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineMessageDeliverySupportTest {
     @Test
     fun `deliverInnerEnvelope emits an inbound message when the hard run is active`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val recipientIdentity = LocalIdentity.fromAppId("message-delivery-recipient")
             val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")
@@ -71,42 +71,43 @@ class MeshEngineMessageDeliverySupportTest {
         }
 
     @Test
-    fun `deliverInnerEnvelope returns early when the hard run already ended`() = runBlocking {
-        // Arrange
-        val recipientIdentity = LocalIdentity.fromAppId("message-delivery-recipient")
-        val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.captureHardRunToken()
-        val fixture =
-            messageDeliveryFixture(
-                recipientIdentity = recipientIdentity,
-                runtimeSurface = runtimeSurface,
-            )
-        val envelope =
-            sealedEnvelopeFor(
-                senderIdentity = senderIdentity,
-                recipientIdentity = recipientIdentity,
-                plaintext = "hello".encodeToByteArray(),
+    fun `deliverInnerEnvelope returns early when the hard run already ended`() =
+        runBlocking<Unit> {
+            // Arrange
+            val recipientIdentity = LocalIdentity.fromAppId("message-delivery-recipient")
+            val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.captureHardRunToken()
+            val fixture =
+                messageDeliveryFixture(
+                    recipientIdentity = recipientIdentity,
+                    runtimeSurface = runtimeSurface,
+                )
+            val envelope =
+                sealedEnvelopeFor(
+                    senderIdentity = senderIdentity,
+                    recipientIdentity = recipientIdentity,
+                    plaintext = "hello".encodeToByteArray(),
+                )
+
+            // Act
+            fixture.support.deliverInnerEnvelope(
+                immediatePeerId = PeerId("relay-peer"),
+                originPeerId = senderIdentity.peerId,
+                encryptedPayload = envelope,
+                priority = DeliveryPriority.NORMAL,
+                hardRunToken = hardRunToken,
             )
 
-        // Act
-        fixture.support.deliverInnerEnvelope(
-            immediatePeerId = PeerId("relay-peer"),
-            originPeerId = senderIdentity.peerId,
-            encryptedPayload = envelope,
-            priority = DeliveryPriority.NORMAL,
-            hardRunToken = hardRunToken,
-        )
-
-        // Assert
-        assertTrue(fixture.mutableMessages.replayCache.isEmpty())
-        assertTrue(fixture.hopFailures.isEmpty())
-        assertTrue(fixture.diagnostics.isEmpty())
-    }
+            // Assert
+            assertTrue(fixture.mutableMessages.replayCache.isEmpty())
+            assertTrue(fixture.hopFailures.isEmpty())
+            assertTrue(fixture.diagnostics.isEmpty())
+        }
 
     @Test
     fun `deliverInnerEnvelope emits a hop session failure when envelope decoding fails`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val recipientIdentity = LocalIdentity.fromAppId("message-delivery-recipient")
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -143,7 +144,7 @@ class MeshEngineMessageDeliverySupportTest {
 
     @Test
     fun `deliverInnerEnvelope emits trust failure when the ciphertext cannot be opened`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val recipientIdentity = LocalIdentity.fromAppId("message-delivery-recipient")
             val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")

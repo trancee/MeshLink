@@ -22,71 +22,74 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineTransferSupportTest {
     @Test
-    fun `handleTransferStart routes local destinations to inbound support`() = runBlocking {
-        // Arrange
-        val upstreamPeerId = PeerId("upstream")
-        val frame =
-            transferSupportNewTransferStartFrame(
-                transferId = "transfer-1",
-                destinationPeerId = PeerId("self"),
-            )
-        val fixture = transferSupportFixture(isLocalPeerId = { peerId -> peerId.value == "self" })
-
-        // Act
-        fixture.support.handleTransferStart(peerId = upstreamPeerId, frame = frame)
-
-        // Assert
-        assertTrue(fixture.inboundTransfers.containsKey(frame.transferId))
-        assertEquals(
-            listOf(
-                RecordedTransferSupportInboundAck(
-                    peerIdValue = upstreamPeerId.value,
-                    action = "transfer.ack.start",
-                    transferId = frame.transferId,
-                    highestContiguousAck = -1,
-                    hardRunEpoch = fixture.hardRunToken.epoch,
+    fun `handleTransferStart routes local destinations to inbound support`() =
+        runBlocking<Unit> {
+            // Arrange
+            val upstreamPeerId = PeerId("upstream")
+            val frame =
+                transferSupportNewTransferStartFrame(
+                    transferId = "transfer-1",
+                    destinationPeerId = PeerId("self"),
                 )
-            ),
-            fixture.inboundAcks,
-        )
-        assertTrue(fixture.relayRoutedFrames.isEmpty())
-    }
+            val fixture =
+                transferSupportFixture(isLocalPeerId = { peerId -> peerId.value == "self" })
+
+            // Act
+            fixture.support.handleTransferStart(peerId = upstreamPeerId, frame = frame)
+
+            // Assert
+            assertTrue(fixture.inboundTransfers.containsKey(frame.transferId))
+            assertEquals(
+                listOf(
+                    RecordedTransferSupportInboundAck(
+                        peerIdValue = upstreamPeerId.value,
+                        action = "transfer.ack.start",
+                        transferId = frame.transferId,
+                        highestContiguousAck = -1,
+                        hardRunEpoch = fixture.hardRunToken.epoch,
+                    )
+                ),
+                fixture.inboundAcks,
+            )
+            assertTrue(fixture.relayRoutedFrames.isEmpty())
+        }
 
     @Test
-    fun `handleTransferStart routes remote destinations to relay support`() = runBlocking {
-        // Arrange
-        val upstreamPeerId = PeerId("upstream")
-        val frame =
-            transferSupportNewTransferStartFrame(
-                transferId = "transfer-2",
-                destinationPeerId = PeerId("destination"),
-            )
-        val fixture = transferSupportFixture(isLocalPeerId = { false })
-
-        // Act
-        fixture.support.handleTransferStart(peerId = upstreamPeerId, frame = frame)
-
-        // Assert
-        val relaySession = fixture.relayTransfers.getValue(frame.transferId)
-        assertEquals(upstreamPeerId.value, relaySession.upstreamPeerId.value)
-        assertEquals(frame.destinationPeerId.value, relaySession.destinationPeerId.value)
-        assertEquals(
-            listOf(
-                RecordedTransferSupportRelayFrame(
-                    peerIdValue = frame.destinationPeerId.value,
-                    action = "transfer.forward.start",
-                    transferId = frame.transferId,
-                    hardRunEpoch = fixture.hardRunToken.epoch,
+    fun `handleTransferStart routes remote destinations to relay support`() =
+        runBlocking<Unit> {
+            // Arrange
+            val upstreamPeerId = PeerId("upstream")
+            val frame =
+                transferSupportNewTransferStartFrame(
+                    transferId = "transfer-2",
+                    destinationPeerId = PeerId("destination"),
                 )
-            ),
-            fixture.relayRoutedFrames,
-        )
-        assertTrue(fixture.inboundAcks.isEmpty())
-    }
+            val fixture = transferSupportFixture(isLocalPeerId = { false })
+
+            // Act
+            fixture.support.handleTransferStart(peerId = upstreamPeerId, frame = frame)
+
+            // Assert
+            val relaySession = fixture.relayTransfers.getValue(frame.transferId)
+            assertEquals(upstreamPeerId.value, relaySession.upstreamPeerId.value)
+            assertEquals(frame.destinationPeerId.value, relaySession.destinationPeerId.value)
+            assertEquals(
+                listOf(
+                    RecordedTransferSupportRelayFrame(
+                        peerIdValue = frame.destinationPeerId.value,
+                        action = "transfer.forward.start",
+                        transferId = frame.transferId,
+                        hardRunEpoch = fixture.hardRunToken.epoch,
+                    )
+                ),
+                fixture.relayRoutedFrames,
+            )
+            assertTrue(fixture.inboundAcks.isEmpty())
+        }
 
     @Test
     fun `handleTransferChunk forwards to relay when inbound support does not own the transfer id`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val relaySession =
                 transferSupportNewRelaySession(
@@ -124,7 +127,7 @@ class MeshEngineTransferSupportTest {
 
     @Test
     fun `handleTransferAck acknowledges outbound transfers before consulting relay support`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val outboundSession =
                 transferSupportNewOutboundSession(
@@ -159,7 +162,7 @@ class MeshEngineTransferSupportTest {
 
     @Test
     fun `handleTransferComplete routes complete local sessions to inbound delivery`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val upstreamPeerId = PeerId("upstream")
             val inboundSession =
@@ -207,7 +210,7 @@ class MeshEngineTransferSupportTest {
 
     @Test
     fun `handleTransferAbort falls back to outbound transfer removal and diagnostic emission`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val outboundSession =
                 transferSupportNewOutboundSession(
@@ -247,57 +250,58 @@ class MeshEngineTransferSupportTest {
         }
 
     @Test
-    fun `abortLocalTransfers delegates to the abort support`() = runBlocking {
-        // Arrange
-        val outboundSession =
-            transferSupportNewOutboundSession(
-                transferId = "transfer-7",
-                destinationPeerId = PeerId("destination"),
-            )
-        val inboundSession =
-            transferSupportNewInboundSession(
-                transferId = "transfer-8",
-                upstreamPeerId = PeerId("upstream"),
-                destinationPeerId = PeerId("self"),
-                totalChunks = 1,
-                totalBytes = 1,
-            )
-        val relaySession =
-            transferSupportNewRelaySession(
-                transferId = "transfer-9",
-                destinationPeerId = PeerId("relay-destination"),
-                upstreamPeerId = PeerId("relay-upstream"),
-            )
-        val fixture =
-            transferSupportFixture(
-                outboundTransfers = mutableMapOf(outboundSession.transferId to outboundSession),
-                inboundTransfers = mutableMapOf(inboundSession.transferId to inboundSession),
-                relayTransfers = mutableMapOf(relaySession.transferId to relaySession),
-            )
+    fun `abortLocalTransfers delegates to the abort support`() =
+        runBlocking<Unit> {
+            // Arrange
+            val outboundSession =
+                transferSupportNewOutboundSession(
+                    transferId = "transfer-7",
+                    destinationPeerId = PeerId("destination"),
+                )
+            val inboundSession =
+                transferSupportNewInboundSession(
+                    transferId = "transfer-8",
+                    upstreamPeerId = PeerId("upstream"),
+                    destinationPeerId = PeerId("self"),
+                    totalChunks = 1,
+                    totalBytes = 1,
+                )
+            val relaySession =
+                transferSupportNewRelaySession(
+                    transferId = "transfer-9",
+                    destinationPeerId = PeerId("relay-destination"),
+                    upstreamPeerId = PeerId("relay-upstream"),
+                )
+            val fixture =
+                transferSupportFixture(
+                    outboundTransfers = mutableMapOf(outboundSession.transferId to outboundSession),
+                    inboundTransfers = mutableMapOf(inboundSession.transferId to inboundSession),
+                    relayTransfers = mutableMapOf(relaySession.transferId to relaySession),
+                )
 
-        // Act
-        fixture.support.abortLocalTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
+            // Act
+            fixture.support.abortLocalTransfers(TransferAbortReasonCode.RUNTIME_STOPPED)
 
-        // Assert
-        assertTrue(fixture.outboundTransfers.isEmpty())
-        assertTrue(fixture.inboundTransfers.isEmpty())
-        assertTrue(fixture.relayTransfers.isEmpty())
-        assertEquals(
-            listOf(
-                RecordedTransferSupportAbortFrame(
-                    peerIdValue = outboundSession.destinationPeerId.value,
-                    action = "transfer.abort.runtimeStop",
-                    transferId = outboundSession.transferId,
+            // Assert
+            assertTrue(fixture.outboundTransfers.isEmpty())
+            assertTrue(fixture.inboundTransfers.isEmpty())
+            assertTrue(fixture.relayTransfers.isEmpty())
+            assertEquals(
+                listOf(
+                    RecordedTransferSupportAbortFrame(
+                        peerIdValue = outboundSession.destinationPeerId.value,
+                        action = "transfer.abort.runtimeStop",
+                        transferId = outboundSession.transferId,
+                    ),
+                    RecordedTransferSupportAbortFrame(
+                        peerIdValue = relaySession.destinationPeerId.value,
+                        action = "transfer.abort.runtimeStop.downstream",
+                        transferId = relaySession.transferId,
+                    ),
                 ),
-                RecordedTransferSupportAbortFrame(
-                    peerIdValue = relaySession.destinationPeerId.value,
-                    action = "transfer.abort.runtimeStop.downstream",
-                    transferId = relaySession.transferId,
-                ),
-            ),
-            fixture.abortRoutedFrames,
-        )
-    }
+                fixture.abortRoutedFrames,
+            )
+        }
 }
 
 private data class TransferSupportFixture(
@@ -344,7 +348,7 @@ private fun transferSupportFixture(
                     prepareOutboundTransferSession = { _, _, _ ->
                         error("unexpected outbound transfer preparation")
                     },
-                    scheduleRetryDiagnostic = { _, _ -> Unit },
+                    scheduleRetryDiagnostic = { _, _ -> },
                 ),
         )
     val inboundSupport =
@@ -380,7 +384,7 @@ private fun transferSupportFixture(
                             )
                     },
                     routeMetadata = { _, metadata -> metadata + ("route" to "available") },
-                    emitDiagnostic = { _, _, _, _, _, _ -> Unit },
+                    emitDiagnostic = { _, _, _, _, _, _ -> },
                 ),
         )
     val relaySupport =

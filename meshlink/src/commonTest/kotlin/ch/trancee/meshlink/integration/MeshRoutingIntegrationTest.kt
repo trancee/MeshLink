@@ -36,170 +36,174 @@ class MeshRoutingIntegrationTest {
     }
 
     @Test
-    fun `a sender can reach a destination through a single relay hop`() = runBlocking {
-        if (!supportsRelayRoutingStressScenarios()) {
-            return@runBlocking
-        }
-
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val relay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val payload = "hello through relay".encodeToByteArray()
-
-        harness.linkPeers(sender, relay)
-        harness.linkPeers(relay, recipient)
-
-        relay.meshLink.start()
-        recipient.meshLink.start()
-        sender.meshLink.start()
-        testDelay(250)
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-            timeoutMillis = 5_000,
-        )
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+    fun `a sender can reach a destination through a single relay hop`() =
+        runBlocking<Unit> {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
             }
 
-        // Act
-        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = "hello through relay".encodeToByteArray()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        val receivedMessage = receivedMessageDeferred.await()
-        assertContentEquals(payload, receivedMessage.payload)
-    }
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            sender.meshLink.start()
+            testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+                }
+
+            // Act
+            val sendResult =
+                testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            val receivedMessage = receivedMessageDeferred.await()
+            assertContentEquals(payload, receivedMessage.payload)
+        }
 
     @Test
-    fun `relay forwarding emits diagnostics and recipient delivery is observable`() = runBlocking {
-        if (!supportsRelayRoutingStressScenarios()) {
-            return@runBlocking
-        }
-
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val relay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val payload = "relay diagnostics".encodeToByteArray()
-
-        harness.linkPeers(sender, relay)
-        harness.linkPeers(relay, recipient)
-
-        relay.meshLink.start()
-        recipient.meshLink.start()
-        sender.meshLink.start()
-        testDelay(250)
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-            timeoutMillis = 5_000,
-        )
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+    fun `relay forwarding emits diagnostics and recipient delivery is observable`() =
+        runBlocking<Unit> {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
             }
 
-        // Act
-        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = "relay diagnostics".encodeToByteArray()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        val receivedMessage = receivedMessageDeferred.await()
-        assertContentEquals(payload, receivedMessage.payload)
-        val relayDiagnostics = relay.diagnosticSink.events()
-        val relayQueued = relayDiagnostics.firstOrNull { event ->
-            event.code == DiagnosticCode.DELIVERY_QUEUED &&
-                event.stage == "forward.message.queued" &&
-                event.metadata["peerId"] == recipient.peerId.value &&
-                event.metadata["originPeerId"] == sender.peerId.value &&
-                event.metadata["routeAvailable"] == "true"
-        }
-        val relayDelivered = relayDiagnostics.firstOrNull { event ->
-            event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
-                event.stage == "forward.message.delivered" &&
-                event.metadata["peerId"] == recipient.peerId.value &&
-                event.metadata["originPeerId"] == sender.peerId.value &&
-                event.metadata["routeAvailable"] == "true"
-        }
-        val recipientDelivered =
-            recipient.diagnosticSink.events().firstOrNull { event ->
-                event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
-                    event.stage == "transport.data.deliver" &&
-                    event.metadata["peerId"] == sender.peerId.value &&
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            sender.meshLink.start()
+            testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+                }
+
+            // Act
+            val sendResult =
+                testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            val receivedMessage = receivedMessageDeferred.await()
+            assertContentEquals(payload, receivedMessage.payload)
+            val relayDiagnostics = relay.diagnosticSink.events()
+            val relayQueued = relayDiagnostics.firstOrNull { event ->
+                event.code == DiagnosticCode.DELIVERY_QUEUED &&
+                    event.stage == "forward.message.queued" &&
+                    event.metadata["peerId"] == recipient.peerId.value &&
                     event.metadata["originPeerId"] == sender.peerId.value &&
-                    event.metadata["immediatePeerId"] == relay.peerId.value &&
-                    event.metadata["payloadBytes"] == payload.size.toString()
+                    event.metadata["routeAvailable"] == "true"
             }
-        assertNotNull(relayQueued, "Expected relay to log queued forwarding diagnostics")
-        assertNotNull(relayDelivered, "Expected relay to log successful forwarding diagnostics")
-        assertNotNull(
-            recipientDelivered,
-            "Expected recipient to log delivery diagnostics after inbound message emission",
-        )
-        Unit
-    }
-
-    @Test
-    fun `routing reconverges onto an alternate relay after a topology change`() = runBlocking {
-        if (!supportsRelayRoutingStressScenarios()) {
-            return@runBlocking
+            val relayDelivered = relayDiagnostics.firstOrNull { event ->
+                event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
+                    event.stage == "forward.message.delivered" &&
+                    event.metadata["peerId"] == recipient.peerId.value &&
+                    event.metadata["originPeerId"] == sender.peerId.value &&
+                    event.metadata["routeAvailable"] == "true"
+            }
+            val recipientDelivered =
+                recipient.diagnosticSink.events().firstOrNull { event ->
+                    event.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
+                        event.stage == "transport.data.deliver" &&
+                        event.metadata["peerId"] == sender.peerId.value &&
+                        event.metadata["originPeerId"] == sender.peerId.value &&
+                        event.metadata["immediatePeerId"] == relay.peerId.value &&
+                        event.metadata["payloadBytes"] == payload.size.toString()
+                }
+            assertNotNull(relayQueued, "Expected relay to log queued forwarding diagnostics")
+            assertNotNull(relayDelivered, "Expected relay to log successful forwarding diagnostics")
+            assertNotNull(
+                recipientDelivered,
+                "Expected recipient to log delivery diagnostics after inbound message emission",
+            )
         }
 
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val firstRelay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val alternateRelay = harness.createNode("peer-d")
-        val firstPayload = "path-one".encodeToByteArray()
-        val secondPayload = "path-two".encodeToByteArray()
-
-        harness.linkPeers(sender, firstRelay)
-        harness.linkPeers(firstRelay, recipient)
-
-        sender.meshLink.start()
-        firstRelay.meshLink.start()
-        recipient.meshLink.start()
-        alternateRelay.meshLink.start()
-        testDelay(250)
-
-        val firstMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
-            }
-        sender.meshLink.send(recipient.peerId, firstPayload)
-        firstMessageDeferred.await()
-
-        harness.unlinkPeers(firstRelay, recipient)
-        harness.linkPeers(sender, alternateRelay)
-        harness.linkPeers(alternateRelay, recipient)
-        testDelay(250)
-        val secondMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+    @Test
+    fun `routing reconverges onto an alternate relay after a topology change`() =
+        runBlocking<Unit> {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
             }
 
-        // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, secondPayload)
-        val receivedMessage = secondMessageDeferred.await()
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val firstRelay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val alternateRelay = harness.createNode("peer-d")
+            val firstPayload = "path-one".encodeToByteArray()
+            val secondPayload = "path-two".encodeToByteArray()
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertContentEquals(secondPayload, receivedMessage.payload)
-    }
+            harness.linkPeers(sender, firstRelay)
+            harness.linkPeers(firstRelay, recipient)
+
+            sender.meshLink.start()
+            firstRelay.meshLink.start()
+            recipient.meshLink.start()
+            alternateRelay.meshLink.start()
+            testDelay(250)
+
+            val firstMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+                }
+            sender.meshLink.send(recipient.peerId, firstPayload)
+            firstMessageDeferred.await()
+
+            harness.unlinkPeers(firstRelay, recipient)
+            harness.linkPeers(sender, alternateRelay)
+            harness.linkPeers(alternateRelay, recipient)
+            testDelay(250)
+            val secondMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+                }
+
+            // Act
+            val sendResult = sender.meshLink.send(recipient.peerId, secondPayload)
+            val receivedMessage = secondMessageDeferred.await()
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(secondPayload, receivedMessage.payload)
+        }
 
     @Test
     fun `send retries immediately when a route appears before the delivery deadline expires`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -231,7 +235,7 @@ class MeshRoutingIntegrationTest {
 
     @Test
     fun `send returns unreachable when no route appears before the configured deadline`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender =
@@ -266,7 +270,7 @@ class MeshRoutingIntegrationTest {
 
     @Test
     fun `pending no route retries do not survive runtime restart until the host resubmits`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (!supportsRelayRoutingStressScenarios()) {
                 return@runBlocking
             }
@@ -338,242 +342,250 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
-    fun `gatt-only peers can complete a send after discovery`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender =
-            harness.createNode(
-                peerIdValue = "peer-a",
-                configOverride =
-                    meshLinkConfig {
-                        appId = "peer-a-gatt-accept"
-                        deliveryRetryDeadline = 500.milliseconds
-                    },
+    fun `gatt-only peers can complete a send after discovery`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride =
+                        meshLinkConfig {
+                            appId = "peer-a-gatt-accept"
+                            deliveryRetryDeadline = 500.milliseconds
+                        },
+                )
+            val recipient = harness.createNode("peer-b")
+            val payload = "gatt-only".encodeToByteArray()
+
+            harness.linkPeers(sender, recipient, mode = TransportMode.GATT)
+
+            sender.meshLink.start()
+            recipient.meshLink.start()
+            testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
             )
-        val recipient = harness.createNode("peer-b")
-        val payload = "gatt-only".encodeToByteArray()
 
-        harness.linkPeers(sender, recipient, mode = TransportMode.GATT)
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(5_000) { recipient.meshLink.messages.first() }
+                }
 
-        sender.meshLink.start()
-        recipient.meshLink.start()
-        testDelay(250)
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-            timeoutMillis = 5_000,
-        )
+            // Act
+            val sendResult =
+                testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
+            val receivedMessage = receivedMessageDeferred.await()
 
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(5_000) { recipient.meshLink.messages.first() }
-            }
-
-        // Act
-        val sendResult = testWithTimeout(5_000) { sender.meshLink.send(recipient.peerId, payload) }
-        val receivedMessage = receivedMessageDeferred.await()
-
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertNotNull(receivedMessage)
-        assertContentEquals(payload, receivedMessage.payload)
-        assertTrue(
-            sender.diagnosticSink.events().none { diagnostic ->
-                diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
-                    diagnostic.stage == "transport.peerDiscovered.rejected"
-            },
-            "Expected GATT discovery to remain accepted in the transport path",
-        )
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertNotNull(receivedMessage)
+            assertContentEquals(payload, receivedMessage.payload)
+            assertTrue(
+                sender.diagnosticSink.events().none { diagnostic ->
+                    diagnostic.code == DiagnosticCode.TRANSPORT_MODE_CHANGED &&
+                        diagnostic.stage == "transport.peerDiscovered.rejected"
+                },
+                "Expected GATT discovery to remain accepted in the transport path",
+            )
+        }
 
     @Test
-    fun `direct route diagnostics record peer rediscovery before send succeeds`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender =
-            harness.createNode(
-                peerIdValue = "peer-a",
-                configOverride =
-                    meshLinkConfig {
-                        appId = "peer-a-reconnect"
-                        deliveryRetryDeadline = 3.seconds
-                    },
+    fun `direct route diagnostics record peer rediscovery before send succeeds`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride =
+                        meshLinkConfig {
+                            appId = "peer-a-reconnect"
+                            deliveryRetryDeadline = 3.seconds
+                        },
+                )
+            val recipient = harness.createNode("peer-b")
+            val payload = "peer rediscovery".encodeToByteArray()
+
+            harness.linkPeers(sender, recipient)
+
+            sender.meshLink.start()
+            recipient.meshLink.start()
+            prewarmRoute(sender = sender, recipient = recipient)
+            harness.unlinkPeers(sender, recipient)
+            testDelay(100)
+            val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) { recipient.meshLink.messages.first() }
+                }
+
+            // Act
+            testDelay(250)
+            harness.linkPeers(sender, recipient)
+            val sendResult = sendResultDeferred.await()
+            val receivedMessage = receivedMessageDeferred.await()
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+            val diagnostics = sender.diagnosticSink.events()
+            val routeExpiredIndex =
+                diagnostics.indexOfFirstForPeer(
+                    code = DiagnosticCode.ROUTE_EXPIRED,
+                    peerIdValue = recipient.peerId.value,
+                )
+            val routeRediscoveredIndex =
+                diagnostics.indexOfFirstForPeerAfter(
+                    startExclusive = routeExpiredIndex,
+                    code = DiagnosticCode.ROUTE_DISCOVERED,
+                    peerIdValue = recipient.peerId.value,
+                    routeAvailable = true,
+                )
+            val deliverySucceededIndex =
+                diagnostics.indexOfFirstForPeerAfter(
+                    startExclusive = routeRediscoveredIndex,
+                    code = DiagnosticCode.DELIVERY_SUCCEEDED,
+                    peerIdValue = recipient.peerId.value,
+                    routeAvailable = true,
+                )
+            assertTrue(
+                routeExpiredIndex >= 0,
+                "Expected a ROUTE_EXPIRED diagnostic for the rediscovered peer",
             )
-        val recipient = harness.createNode("peer-b")
-        val payload = "peer rediscovery".encodeToByteArray()
+            assertTrue(
+                routeRediscoveredIndex > routeExpiredIndex,
+                "Expected ROUTE_DISCOVERED after ROUTE_EXPIRED when the peer reappears",
+            )
+            assertTrue(
+                deliverySucceededIndex > routeRediscoveredIndex,
+                "Expected DELIVERY_SUCCEEDED after the route reappears",
+            )
+        }
 
-        harness.linkPeers(sender, recipient)
+    @Test
+    fun `direct route diagnostics record expiry before send becomes unreachable`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride =
+                        meshLinkConfig {
+                            appId = "peer-a-expiry"
+                            deliveryRetryDeadline = 500.milliseconds
+                        },
+                )
+            val recipient = harness.createNode("peer-b")
+            val payload = "route expired".encodeToByteArray()
 
-        sender.meshLink.start()
-        recipient.meshLink.start()
-        prewarmRoute(sender = sender, recipient = recipient)
-        harness.unlinkPeers(sender, recipient)
-        testDelay(100)
-        val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(2_000) { recipient.meshLink.messages.first() }
-            }
+            harness.linkPeers(sender, recipient)
 
-        // Act
-        testDelay(250)
-        harness.linkPeers(sender, recipient)
-        val sendResult = sendResultDeferred.await()
-        val receivedMessage = receivedMessageDeferred.await()
-
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertContentEquals(payload, receivedMessage.payload)
-        val diagnostics = sender.diagnosticSink.events()
-        val routeExpiredIndex =
-            diagnostics.indexOfFirstForPeer(
+            sender.meshLink.start()
+            recipient.meshLink.start()
+            prewarmRoute(sender = sender, recipient = recipient)
+            harness.unlinkPeers(sender, recipient)
+            testDelay(100)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
                 code = DiagnosticCode.ROUTE_EXPIRED,
                 peerIdValue = recipient.peerId.value,
+                routeAvailable = false,
             )
-        val routeRediscoveredIndex =
-            diagnostics.indexOfFirstForPeerAfter(
-                startExclusive = routeExpiredIndex,
+
+            // Act
+            val sendResult = sender.meshLink.send(recipient.peerId, payload)
+
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(sendResult)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            val diagnostics = sender.diagnosticSink.events()
+            val routeExpiredIndex =
+                diagnostics.indexOfFirstForPeer(
+                    code = DiagnosticCode.ROUTE_EXPIRED,
+                    peerIdValue = recipient.peerId.value,
+                )
+            val deliveryUnreachableIndex =
+                diagnostics.indexOfFirstForPeerAfter(
+                    startExclusive = routeExpiredIndex,
+                    code = DiagnosticCode.DELIVERY_UNREACHABLE,
+                    peerIdValue = recipient.peerId.value,
+                    routeAvailable = false,
+                )
+            assertTrue(
+                routeExpiredIndex >= 0,
+                "Expected a ROUTE_EXPIRED diagnostic after unlinking the peer",
+            )
+            assertTrue(
+                deliveryUnreachableIndex > routeExpiredIndex,
+                "Expected DELIVERY_UNREACHABLE with routeAvailable=false after the route expires",
+            )
+        }
+
+    @Test
+    fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() =
+        runBlocking<Unit> {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
+            }
+
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val plaintext = "private mesh payload"
+
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
                 code = DiagnosticCode.ROUTE_DISCOVERED,
                 peerIdValue = recipient.peerId.value,
                 routeAvailable = true,
             )
-        val deliverySucceededIndex =
-            diagnostics.indexOfFirstForPeerAfter(
-                startExclusive = routeRediscoveredIndex,
-                code = DiagnosticCode.DELIVERY_SUCCEEDED,
-                peerIdValue = recipient.peerId.value,
-                routeAvailable = true,
-            )
-        assertTrue(
-            routeExpiredIndex >= 0,
-            "Expected a ROUTE_EXPIRED diagnostic for the rediscovered peer",
-        )
-        assertTrue(
-            routeRediscoveredIndex > routeExpiredIndex,
-            "Expected ROUTE_DISCOVERED after ROUTE_EXPIRED when the peer reappears",
-        )
-        assertTrue(
-            deliverySucceededIndex > routeRediscoveredIndex,
-            "Expected DELIVERY_SUCCEEDED after the route reappears",
-        )
-    }
+            val relayMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeoutOrNull(500) { relay.meshLink.messages.first() }
+                }
+            val recipientMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(1_000) { recipient.meshLink.messages.first() }
+                }
 
-    @Test
-    fun `direct route diagnostics record expiry before send becomes unreachable`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender =
-            harness.createNode(
-                peerIdValue = "peer-a",
-                configOverride =
-                    meshLinkConfig {
-                        appId = "peer-a-expiry"
-                        deliveryRetryDeadline = 500.milliseconds
-                    },
-            )
-        val recipient = harness.createNode("peer-b")
-        val payload = "route expired".encodeToByteArray()
+            // Act
+            val sendResult = sender.meshLink.send(recipient.peerId, plaintext.encodeToByteArray())
+            val relayMessage = relayMessageDeferred.await()
+            val recipientMessage: InboundMessage = recipientMessageDeferred.await()
+            val relayFramesContainPlaintext =
+                harness.sentFrames(relay).any { frame ->
+                    frame.decodeToString().contains(plaintext)
+                }
 
-        harness.linkPeers(sender, recipient)
-
-        sender.meshLink.start()
-        recipient.meshLink.start()
-        prewarmRoute(sender = sender, recipient = recipient)
-        harness.unlinkPeers(sender, recipient)
-        testDelay(100)
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_EXPIRED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = false,
-        )
-
-        // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, payload)
-
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(sendResult)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        val diagnostics = sender.diagnosticSink.events()
-        val routeExpiredIndex =
-            diagnostics.indexOfFirstForPeer(
-                code = DiagnosticCode.ROUTE_EXPIRED,
-                peerIdValue = recipient.peerId.value,
-            )
-        val deliveryUnreachableIndex =
-            diagnostics.indexOfFirstForPeerAfter(
-                startExclusive = routeExpiredIndex,
-                code = DiagnosticCode.DELIVERY_UNREACHABLE,
-                peerIdValue = recipient.peerId.value,
-                routeAvailable = false,
-            )
-        assertTrue(
-            routeExpiredIndex >= 0,
-            "Expected a ROUTE_EXPIRED diagnostic after unlinking the peer",
-        )
-        assertTrue(
-            deliveryUnreachableIndex > routeExpiredIndex,
-            "Expected DELIVERY_UNREACHABLE with routeAvailable=false after the route expires",
-        )
-    }
-
-    @Test
-    fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() = runBlocking {
-        if (!supportsRelayRoutingStressScenarios()) {
-            return@runBlocking
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertNull(relayMessage)
+            assertFalse(relayFramesContainPlaintext)
+            assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
         }
-
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val relay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val plaintext = "private mesh payload"
-
-        harness.linkPeers(sender, relay)
-        harness.linkPeers(relay, recipient)
-
-        sender.meshLink.start()
-        relay.meshLink.start()
-        recipient.meshLink.start()
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-        )
-        val relayMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeoutOrNull(500) { relay.meshLink.messages.first() }
-            }
-        val recipientMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(1_000) { recipient.meshLink.messages.first() }
-            }
-
-        // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, plaintext.encodeToByteArray())
-        val relayMessage = relayMessageDeferred.await()
-        val recipientMessage: InboundMessage = recipientMessageDeferred.await()
-        val relayFramesContainPlaintext =
-            harness.sentFrames(relay).any { frame -> frame.decodeToString().contains(plaintext) }
-
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertNull(relayMessage)
-        assertFalse(relayFramesContainPlaintext)
-        assertContentEquals(plaintext.encodeToByteArray(), recipientMessage.payload)
-    }
 
     private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
 
     @AfterTest
-    fun tearDown(): Unit = runBlocking {
-        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
-        harnesses.clear()
-    }
+    fun tearDown(): Unit =
+        runBlocking<Unit> {
+            harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+            harnesses.clear()
+        }
 
     private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 

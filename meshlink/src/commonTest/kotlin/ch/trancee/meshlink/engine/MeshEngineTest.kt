@@ -14,26 +14,27 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineTest {
     @Test
-    fun `create wires the provided transport into the returned MeshLink lifecycle`() = runBlocking {
-        // Arrange
-        val transport = RecordingMeshEngineBleTransport()
-        val meshLink =
-            MeshEngine.create(
-                config = meshLinkConfig { appId = "mesh-engine-test" },
-                bleTransport = transport,
-            )
+    fun `create wires the provided transport into the returned MeshLink lifecycle`() =
+        runBlocking<Unit> {
+            // Arrange
+            val transport = RecordingMeshEngineBleTransport()
+            val meshLink =
+                MeshEngine.create(
+                    config = meshLinkConfig { appId = "mesh-engine-test" },
+                    bleTransport = transport,
+                )
 
-        // Act
-        val startResult = meshLink.start()
-        val stopResult = meshLink.stop()
+            // Act
+            val startResult = meshLink.start()
+            val stopResult = meshLink.stop()
 
-        // Assert
-        assertEquals(ch.trancee.meshlink.api.StartResult.Started, startResult)
-        assertEquals(ch.trancee.meshlink.api.StopResult.Stopped, stopResult)
-        assertEquals(1, transport.startCalls)
-        assertEquals(1, transport.stopCalls)
-        assertEquals(MeshLinkState.Stopped, meshLink.state.value)
-    }
+            // Assert
+            assertEquals(ch.trancee.meshlink.api.StartResult.Started, startResult)
+            assertEquals(ch.trancee.meshlink.api.StopResult.Stopped, stopResult)
+            assertEquals(1, transport.startCalls)
+            assertEquals(1, transport.stopCalls)
+            assertEquals(MeshLinkState.Stopped, meshLink.state.value)
+        }
 }
 
 private class RecordingMeshEngineBleTransport : BleTransport {

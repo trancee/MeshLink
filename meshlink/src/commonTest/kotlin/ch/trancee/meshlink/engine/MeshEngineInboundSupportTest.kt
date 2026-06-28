@@ -17,7 +17,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineInboundSupportTest {
     @Test
     fun `handleEncryptedDataFrame resolves aliased peers before delivering a local message`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val temporaryPeerId = PeerId("bt-aabbccddeeff")
@@ -69,7 +69,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame forwards non local routed messages instead of delivering them`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -107,7 +107,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame delivers a local message addressed to the advertisement hash`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -155,7 +155,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame emits decrypt failure when hop payload decryption throws`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -194,7 +194,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame emits decode failure when a decrypted payload is invalid`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -227,7 +227,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame dispatches transfer start frames to transfer callbacks`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -278,7 +278,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame dispatches transfer chunk frames to transfer callbacks`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -320,7 +320,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame dispatches transfer ack frames to transfer callbacks`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -362,7 +362,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame dispatches transfer complete frames to transfer callbacks`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -397,7 +397,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame dispatches transfer abort frames to transfer callbacks`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -434,7 +434,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame applies route update frames to the route coordinator`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -469,7 +469,7 @@ class MeshEngineInboundSupportTest {
 
     @Test
     fun `handleEncryptedDataFrame applies route retraction frames to the route coordinator`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -506,96 +506,99 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
-    fun `handleEncryptedDataFrame ignores hello frames after decryption`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("inbound-local")
-        val peerId = PeerId("peer-abcdef")
-        val sessionRegistry = MeshEngineSessionRegistry()
-        seedInboundSession(
-            localIdentity = localIdentity,
-            sessionRegistry = sessionRegistry,
-            peerId = peerId,
-        )
-        val fixture =
-            inboundSupportFixture(
+    fun `handleEncryptedDataFrame ignores hello frames after decryption`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
                 localIdentity = localIdentity,
                 sessionRegistry = sessionRegistry,
-                decryptedFrame = WireFrame.Hello(peerId = peerId, helloIntervalMillis = 5_000),
+                peerId = peerId,
             )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = WireFrame.Hello(peerId = peerId, helloIntervalMillis = 5_000),
+                )
 
-        // Act
-        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
 
-        // Assert
-        assertTrue(fixture.failures.isEmpty())
-        assertTrue(fixture.forwardedMessages.isEmpty())
-        assertTrue(fixture.deliveredMessages.isEmpty())
-        assertTrue(fixture.transferEvents.isEmpty())
-    }
+            // Assert
+            assertTrue(fixture.failures.isEmpty())
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertTrue(fixture.transferEvents.isEmpty())
+        }
 
     @Test
-    fun `handleEncryptedDataFrame ignores ihu frames after decryption`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("inbound-local")
-        val peerId = PeerId("peer-abcdef")
-        val sessionRegistry = MeshEngineSessionRegistry()
-        seedInboundSession(
-            localIdentity = localIdentity,
-            sessionRegistry = sessionRegistry,
-            peerId = peerId,
-        )
-        val fixture =
-            inboundSupportFixture(
+    fun `handleEncryptedDataFrame ignores ihu frames after decryption`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
                 localIdentity = localIdentity,
                 sessionRegistry = sessionRegistry,
-                decryptedFrame = WireFrame.Ihu(peerId = peerId, receiveCost = 1),
+                peerId = peerId,
             )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = WireFrame.Ihu(peerId = peerId, receiveCost = 1),
+                )
 
-        // Act
-        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
 
-        // Assert
-        assertTrue(fixture.failures.isEmpty())
-        assertTrue(fixture.forwardedMessages.isEmpty())
-        assertTrue(fixture.deliveredMessages.isEmpty())
-        assertTrue(fixture.transferEvents.isEmpty())
-    }
+            // Assert
+            assertTrue(fixture.failures.isEmpty())
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertTrue(fixture.transferEvents.isEmpty())
+        }
 
     @Test
-    fun `handleEncryptedDataFrame ignores seqno request frames after decryption`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("inbound-local")
-        val peerId = PeerId("peer-abcdef")
-        val sessionRegistry = MeshEngineSessionRegistry()
-        seedInboundSession(
-            localIdentity = localIdentity,
-            sessionRegistry = sessionRegistry,
-            peerId = peerId,
-        )
-        val fixture =
-            inboundSupportFixture(
+    fun `handleEncryptedDataFrame ignores seqno request frames after decryption`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
                 localIdentity = localIdentity,
                 sessionRegistry = sessionRegistry,
-                decryptedFrame =
-                    WireFrame.SeqNoRequest(
-                        destinationPeerId = PeerId("remote-route"),
-                        requestedSeqNo = 9L,
-                    ),
+                peerId = peerId,
             )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame =
+                        WireFrame.SeqNoRequest(
+                            destinationPeerId = PeerId("remote-route"),
+                            requestedSeqNo = 9L,
+                        ),
+                )
 
-        // Act
-        fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
 
-        // Assert
-        assertTrue(fixture.failures.isEmpty())
-        assertTrue(fixture.forwardedMessages.isEmpty())
-        assertTrue(fixture.deliveredMessages.isEmpty())
-        assertTrue(fixture.transferEvents.isEmpty())
-    }
+            // Assert
+            assertTrue(fixture.failures.isEmpty())
+            assertTrue(fixture.forwardedMessages.isEmpty())
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertTrue(fixture.transferEvents.isEmpty())
+        }
 
     @Test
     fun `handleEncryptedDataFrame emits no session when no active hop session exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
@@ -656,7 +659,7 @@ private fun inboundSupportFixture(
             runtimeGate = runtimeSurface.runtimeGate,
             coroutineScope =
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
-            emitDiagnostic = { _, _, _, _, _, _ -> Unit },
+            emitDiagnostic = { _, _, _, _, _, _ -> },
             sendEncryptedWireFrame = { _, _, _, _ -> true },
         )
     val recordedDeliverInnerEnvelope =

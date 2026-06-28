@@ -11,65 +11,67 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineHandshakeSupportTest {
     @Test
-    fun `handshake callback builder preserves all supplied callbacks`() = runBlocking {
-        // Arrange
-        var sendCall: Triple<String, String, String>? = null
-        var establishedCall: Pair<String, String>? = null
-        var failedCall: HandshakeFailureCall? = null
-        var promotedCall: Pair<String, String>? = null
-        val callbacks =
-            buildMeshEngineRuntimeHandshakeCallbacks(
-                sendDirectWireFrame = { peerId, _, action, _ ->
-                    sendCall = Triple(peerId.value, "HandshakeMessage1", action)
-                    TransportSendResult.Delivered
-                },
-                emitHopSessionEstablished = { peerId, stage ->
-                    establishedCall = peerId.value to stage
-                },
-                emitHopSessionFailed = { peerId, stage, reason, metadata ->
-                    failedCall =
-                        HandshakeFailureCall(
-                            peerIdValue = peerId.value,
-                            stage = stage,
-                            reason = reason,
-                            metadata = metadata,
-                        )
-                },
-                promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
-                    promotedCall = temporaryPeerId.value to canonicalPeerId.value
-                },
+    fun `handshake callback builder preserves all supplied callbacks`() =
+        runBlocking<Unit> {
+            // Arrange
+            var sendCall: Triple<String, String, String>? = null
+            var establishedCall: Pair<String, String>? = null
+            var failedCall: HandshakeFailureCall? = null
+            var promotedCall: Pair<String, String>? = null
+            val callbacks =
+                buildMeshEngineRuntimeHandshakeCallbacks(
+                    sendDirectWireFrame = { peerId, _, action, _ ->
+                        sendCall = Triple(peerId.value, "HandshakeMessage1", action)
+                        TransportSendResult.Delivered
+                    },
+                    emitHopSessionEstablished = { peerId, stage ->
+                        establishedCall = peerId.value to stage
+                    },
+                    emitHopSessionFailed = { peerId, stage, reason, metadata ->
+                        failedCall =
+                            HandshakeFailureCall(
+                                peerIdValue = peerId.value,
+                                stage = stage,
+                                reason = reason,
+                                metadata = metadata,
+                            )
+                    },
+                    promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                        promotedCall = temporaryPeerId.value to canonicalPeerId.value
+                    },
+                )
+            val peerId = PeerId("peer-abcdef")
+            val temporaryPeerId = PeerId("temporary")
+            val canonicalPeerId = PeerId("canonical")
+            val frame = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01))
+
+            // Act
+            val sendResult =
+                callbacks.sendDirectWireFrame(peerId, frame, "handshake.message1", null)
+            callbacks.emitHopSessionEstablished(peerId, "handshake.established")
+            callbacks.emitHopSessionFailed(
+                peerId,
+                "handshake.failed",
+                DiagnosticReason.TRUST_FAILURE,
+                mapOf("cause" to "test"),
             )
-        val peerId = PeerId("peer-abcdef")
-        val temporaryPeerId = PeerId("temporary")
-        val canonicalPeerId = PeerId("canonical")
-        val frame = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01))
+            callbacks.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
 
-        // Act
-        val sendResult = callbacks.sendDirectWireFrame(peerId, frame, "handshake.message1", null)
-        callbacks.emitHopSessionEstablished(peerId, "handshake.established")
-        callbacks.emitHopSessionFailed(
-            peerId,
-            "handshake.failed",
-            DiagnosticReason.TRUST_FAILURE,
-            mapOf("cause" to "test"),
-        )
-        callbacks.promoteTemporaryPeer(temporaryPeerId, canonicalPeerId)
-
-        // Assert
-        assertSame(TransportSendResult.Delivered, sendResult)
-        assertEquals(Triple("peer-abcdef", "HandshakeMessage1", "handshake.message1"), sendCall)
-        assertEquals("peer-abcdef" to "handshake.established", establishedCall)
-        assertEquals(
-            HandshakeFailureCall(
-                peerIdValue = "peer-abcdef",
-                stage = "handshake.failed",
-                reason = DiagnosticReason.TRUST_FAILURE,
-                metadata = mapOf("cause" to "test"),
-            ),
-            failedCall,
-        )
-        assertEquals("temporary" to "canonical", promotedCall)
-    }
+            // Assert
+            assertSame(TransportSendResult.Delivered, sendResult)
+            assertEquals(Triple("peer-abcdef", "HandshakeMessage1", "handshake.message1"), sendCall)
+            assertEquals("peer-abcdef" to "handshake.established", establishedCall)
+            assertEquals(
+                HandshakeFailureCall(
+                    peerIdValue = "peer-abcdef",
+                    stage = "handshake.failed",
+                    reason = DiagnosticReason.TRUST_FAILURE,
+                    metadata = mapOf("cause" to "test"),
+                ),
+                failedCall,
+            )
+            assertEquals("temporary" to "canonical", promotedCall)
+        }
 
     @Test
     fun `handshake state and routing context preserve their collaborators`() {

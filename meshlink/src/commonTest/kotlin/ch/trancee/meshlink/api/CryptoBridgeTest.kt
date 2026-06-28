@@ -22,7 +22,6 @@ class CryptoBridgeTest {
         CryptoBridgeRegistry.clear()
 
         // Assert
-        Unit
     }
 
     @Test

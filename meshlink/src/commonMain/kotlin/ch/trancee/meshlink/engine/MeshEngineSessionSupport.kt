@@ -126,15 +126,12 @@ internal class MeshEngineSessionSupport(
                         hardRunToken = hardRunToken,
                         maximumActiveWait = HANDSHAKE_MESSAGE1_RETRY_DELAY,
                         awaitChange = { activeWait ->
-                            withTimeoutOrNull(activeWait) {
-                                delay(activeWait)
-                                Unit
-                            }
+                            withTimeoutOrNull(activeWait) { delay(activeWait) }
                         },
                     )
                 ) {
                     is MeshEngineRuntimeTimedWaitResult.Completed,
-                    MeshEngineRuntimeTimedWaitResult.TimedOut -> Unit
+                    MeshEngineRuntimeTimedWaitResult.TimedOut -> {}
                     MeshEngineRuntimeTimedWaitResult.HardRunEnded -> {
                         return TransportSendResult.Dropped("MeshLink hard run ended")
                     }

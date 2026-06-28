@@ -8,7 +8,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineDiscoverySuspensionSupportTest {
     @Test
     fun `withDiscoverySuspended returns the block result without toggling when suspension is disabled`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val calls = mutableListOf<Boolean>()
             val support = discoverySuspensionSupport(calls)
@@ -24,7 +24,7 @@ class MeshEngineDiscoverySuspensionSupportTest {
 
     @Test
     fun `withDiscoverySuspended toggles discovery around the block when suspension is enabled`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val calls = mutableListOf<Boolean>()
             val support = discoverySuspensionSupport(calls)
@@ -38,21 +38,22 @@ class MeshEngineDiscoverySuspensionSupportTest {
         }
 
     @Test
-    fun `withDiscoverySuspended resumes discovery when the block throws`() = runBlocking {
-        // Arrange
-        val calls = mutableListOf<Boolean>()
-        val support = discoverySuspensionSupport(calls)
+    fun `withDiscoverySuspended resumes discovery when the block throws`() =
+        runBlocking<Unit> {
+            // Arrange
+            val calls = mutableListOf<Boolean>()
+            val support = discoverySuspensionSupport(calls)
 
-        // Act
-        val error =
-            assertFailsWith<IllegalStateException> {
-                support.withDiscoverySuspended { throw IllegalStateException("boom") }
-            }
+            // Act
+            val error =
+                assertFailsWith<IllegalStateException> {
+                    support.withDiscoverySuspended { throw IllegalStateException("boom") }
+                }
 
-        // Assert
-        assertEquals("boom", error.message)
-        assertEquals(listOf(true, false), calls)
-    }
+            // Assert
+            assertEquals("boom", error.message)
+            assertEquals(listOf(true, false), calls)
+        }
 }
 
 private fun discoverySuspensionSupport(

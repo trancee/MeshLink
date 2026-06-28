@@ -35,41 +35,41 @@ import kotlinx.coroutines.withTimeout
 
 class MeshEngineRuntimeTransferAssemblyTest {
     @Test
-    fun `transfer assembly sendPayload uses the assembled inline delivery path`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
-        val recipientIdentity = LocalIdentity.fromAppId("transfer-assembly-recipient")
-        val harness = runtimeTransferAssemblyHarness(localIdentity = localIdentity)
-        val hardRunToken = harness.runtimeSurface.beginHardRun()
-        seedEstablishedHopSession(
-            localIdentity = localIdentity,
-            sessionRegistry = harness.foundation.sharedState.sessionRegistry,
-            peerId = recipientIdentity.peerId,
-            session = hopSession(keyByte = 0x11),
-        )
-        harness.environment.trustStore.write(trustRecordFor(recipientIdentity))
-
-        // Act
-        val result =
-            harness.transferAndInbound.sendPayload(
-                MeshEngineOutboundDeliveryMode.INLINE,
-                recipientIdentity.peerId,
-                "hello".encodeToByteArray(),
-                DeliveryPriority.NORMAL,
-                hardRunToken,
+    fun `transfer assembly sendPayload uses the assembled inline delivery path`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
+            val recipientIdentity = LocalIdentity.fromAppId("transfer-assembly-recipient")
+            val harness = runtimeTransferAssemblyHarness(localIdentity = localIdentity)
+            val hardRunToken = harness.runtimeSurface.beginHardRun()
+            seedEstablishedHopSession(
+                localIdentity = localIdentity,
+                sessionRegistry = harness.foundation.sharedState.sessionRegistry,
+                peerId = recipientIdentity.peerId,
+                session = hopSession(keyByte = 0x11),
             )
+            harness.environment.trustStore.write(trustRecordFor(recipientIdentity))
 
-        // Assert
-        assertEquals(SendResult.Sent, result)
-        val outbound = harness.transport.sentFrames.single()
-        assertEquals(recipientIdentity.peerId.value, outbound.peerIdValue)
-        assertIs<DirectWireFrame.Data>(DirectWireFrame.decode(outbound.payload))
-        Unit
-    }
+            // Act
+            val result =
+                harness.transferAndInbound.sendPayload(
+                    MeshEngineOutboundDeliveryMode.INLINE,
+                    recipientIdentity.peerId,
+                    "hello".encodeToByteArray(),
+                    DeliveryPriority.NORMAL,
+                    hardRunToken,
+                )
+
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            val outbound = harness.transport.sentFrames.single()
+            assertEquals(recipientIdentity.peerId.value, outbound.peerIdValue)
+            assertIs<DirectWireFrame.Data>(DirectWireFrame.decode(outbound.payload))
+        }
 
     @Test
     fun `transfer assembly handleEncryptedDataFrame delivers messages through the assembled inbound path`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
             val senderIdentity = LocalIdentity.fromAppId("transfer-assembly-sender")
@@ -141,7 +141,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
 
     @Test
     fun `transfer assembly sendPayload uses the assembled large transfer delivery path`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
             val recipientIdentity = LocalIdentity.fromAppId("transfer-assembly-recipient")
@@ -218,7 +218,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
 
     @Test
     fun `transfer assembly relays transfer frames through the assembled downstream path`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("transfer-assembly-local")
             val upstreamIdentity = LocalIdentity.fromAppId("transfer-assembly-upstream")

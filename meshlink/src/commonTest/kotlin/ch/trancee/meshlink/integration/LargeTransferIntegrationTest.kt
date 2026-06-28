@@ -37,7 +37,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `a 64 KiB payload can cross a relay hop when the network requires chunking`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (!supportsRelayLargeTransferStressScenarios()) {
                 return@runBlocking
             }
@@ -80,7 +80,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `a 64 KiB payload stays on the inline direct path when the transport budget allows it`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")
@@ -121,7 +121,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `a large transfer resumes after the active route changes before the retry deadline expires`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (!supportsRelayLargeTransferStressScenarios()) {
                 return@runBlocking
             }
@@ -176,7 +176,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `large transfers return unreachable when no route appears before the configured deadline`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val sender =
@@ -211,7 +211,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `pending large-transfer retries do not survive runtime restart until the host resubmits`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (!supportsRelayLargeTransferStressScenarios()) {
                 return@runBlocking
             }
@@ -283,7 +283,7 @@ class LargeTransferIntegrationTest {
 
     @Test
     fun `duplicate and out-of-order chunk delivery does not corrupt or redeliver the payload`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (
                 !supportsSyntheticOutOfOrderChunkDelivery() ||
                     !supportsRelayLargeTransferStressScenarios()
@@ -345,97 +345,100 @@ class LargeTransferIntegrationTest {
         }
 
     @Test
-    fun `partial acknowledgements still allow the sender to complete the transfer`() = runBlocking {
-        if (!supportsRelayLargeTransferStressScenarios()) {
-            return@runBlocking
-        }
-
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val relay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val payload = ByteArray(64 * 1024) { index -> ((index * 13) % 251).toByte() }
-
-        harness.linkPeers(sender, relay)
-        harness.linkPeers(relay, recipient)
-        harness.setMaximumPayloadBytesPerDelivery(512)
-
-        sender.meshLink.start()
-        relay.meshLink.start()
-        recipient.meshLink.start()
-        testDelay(250)
-        awaitDiagnosticForPeer(
-            diagnostics = sender.diagnosticSink::events,
-            code = DiagnosticCode.ROUTE_DISCOVERED,
-            peerIdValue = recipient.peerId.value,
-            routeAvailable = true,
-            timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
-        )
-        val receivedMessageDeferred =
-            async(start = CoroutineStart.UNDISPATCHED) {
-                testWithTimeout(10_000) { recipient.meshLink.messages.first() }
+    fun `partial acknowledgements still allow the sender to complete the transfer`() =
+        runBlocking<Unit> {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
             }
-        val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
 
-        // Act
-        testWithTimeout(5_000) {
-            while (harness.sentFrames(recipient).size < 3) {
-                testDelay(10)
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val payload = ByteArray(64 * 1024) { index -> ((index * 13) % 251).toByte() }
+
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+            harness.setMaximumPayloadBytesPerDelivery(512)
+
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            testDelay(250)
+            awaitDiagnosticForPeer(
+                diagnostics = sender.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = recipient.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = ROUTE_DISCOVERY_TIMEOUT_MILLIS,
+            )
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(10_000) { recipient.meshLink.messages.first() }
+                }
+            val sendResultDeferred = async { sender.meshLink.send(recipient.peerId, payload) }
+
+            // Act
+            testWithTimeout(5_000) {
+                while (harness.sentFrames(recipient).size < 3) {
+                    testDelay(10)
+                }
             }
-        }
-        harness.dropNextDeliveries(relay, sender, count = 2)
-        harness.dropNextDeliveries(recipient, relay, count = 2)
-        val receivedMessage = receivedMessageDeferred.await()
-        val sendResult = testWithTimeout(10_000) { sendResultDeferred.await() }
+            harness.dropNextDeliveries(relay, sender, count = 2)
+            harness.dropNextDeliveries(recipient, relay, count = 2)
+            val receivedMessage = receivedMessageDeferred.await()
+            val sendResult = testWithTimeout(10_000) { sendResultDeferred.await() }
 
-        // Assert
-        assertIs<SendResult.Sent>(sendResult)
-        assertContentEquals(payload, receivedMessage.payload)
-    }
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+        }
 
     @Test
-    fun `timed out large transfers clear queued outbound frames before returning`() = runBlocking {
-        if (!supportsRelayLargeTransferStressScenarios()) {
-            return@runBlocking
+    fun `timed out large transfers clear queued outbound frames before returning`() =
+        runBlocking<Unit> {
+            if (!supportsRelayLargeTransferStressScenarios()) {
+                return@runBlocking
+            }
+
+            // Arrange
+            val harness = harness()
+            val sender =
+                harness.createNode(
+                    peerIdValue = "peer-a",
+                    configOverride =
+                        meshLinkConfig {
+                            appId = "peer-a-transfer-timeout"
+                            deliveryRetryDeadline = 750.milliseconds
+                        },
+                )
+            val recipient = harness.createNode("peer-b")
+            val payload = ByteArray(64 * 1024) { index -> ((index * 19) % 251).toByte() }
+
+            harness.linkPeers(sender, recipient)
+            harness.setMaximumPayloadBytesPerDelivery(512)
+
+            sender.meshLink.start()
+            recipient.meshLink.start()
+            testDelay(250)
+            prewarmRoute(sender = sender, recipient = recipient)
+            harness.dropNextDeliveries(recipient, sender, count = 256)
+
+            // Act
+            val sendResult =
+                testWithTimeout(10_000) { sender.meshLink.send(recipient.peerId, payload) }
+            val clearedPeers = harness.clearedQueuedOutboundPeers(sender)
+
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(sendResult)
+            assertEquals(SendFailureReason.TRANSFER_TIMED_OUT, notSent.reason)
+            assertEquals(listOf(recipient.peerId.value), clearedPeers.map(PeerId::value))
         }
-
-        // Arrange
-        val harness = harness()
-        val sender =
-            harness.createNode(
-                peerIdValue = "peer-a",
-                configOverride =
-                    meshLinkConfig {
-                        appId = "peer-a-transfer-timeout"
-                        deliveryRetryDeadline = 750.milliseconds
-                    },
-            )
-        val recipient = harness.createNode("peer-b")
-        val payload = ByteArray(64 * 1024) { index -> ((index * 19) % 251).toByte() }
-
-        harness.linkPeers(sender, recipient)
-        harness.setMaximumPayloadBytesPerDelivery(512)
-
-        sender.meshLink.start()
-        recipient.meshLink.start()
-        testDelay(250)
-        prewarmRoute(sender = sender, recipient = recipient)
-        harness.dropNextDeliveries(recipient, sender, count = 256)
-
-        // Act
-        val sendResult = testWithTimeout(10_000) { sender.meshLink.send(recipient.peerId, payload) }
-        val clearedPeers = harness.clearedQueuedOutboundPeers(sender)
-
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(sendResult)
-        assertEquals(SendFailureReason.TRANSFER_TIMED_OUT, notSent.reason)
-        assertEquals(listOf(recipient.peerId.value), clearedPeers.map(PeerId::value))
-    }
 
     @Test
     fun `chunked transfers emit recipient acknowledgement bursts before completion`() =
-        runBlocking {
+        runBlocking<Unit> {
             if (!supportsRelayLargeTransferStressScenarios()) {
                 return@runBlocking
             }
@@ -484,41 +487,43 @@ class LargeTransferIntegrationTest {
         }
 
     @Test
-    fun `payloads larger than 64 KiB are rejected before any transfer starts`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val sender = harness.createNode("peer-a")
-        val relay = harness.createNode("peer-b")
-        val recipient = harness.createNode("peer-c")
-        val oversizedPayload = ByteArray((64 * 1024) + 1) { 0x55 }
+    fun `payloads larger than 64 KiB are rejected before any transfer starts`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val sender = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val recipient = harness.createNode("peer-c")
+            val oversizedPayload = ByteArray((64 * 1024) + 1) { 0x55 }
 
-        harness.linkPeers(sender, relay)
-        harness.linkPeers(relay, recipient)
-        harness.setMaximumPayloadBytesPerDelivery(512)
+            harness.linkPeers(sender, relay)
+            harness.linkPeers(relay, recipient)
+            harness.setMaximumPayloadBytesPerDelivery(512)
 
-        sender.meshLink.start()
-        relay.meshLink.start()
-        recipient.meshLink.start()
-        testDelay(250)
-        val frameCountBeforeSend = harness.sentFrames(sender).size
+            sender.meshLink.start()
+            relay.meshLink.start()
+            recipient.meshLink.start()
+            testDelay(250)
+            val frameCountBeforeSend = harness.sentFrames(sender).size
 
-        // Act
-        val sendResult = sender.meshLink.send(recipient.peerId, oversizedPayload)
+            // Act
+            val sendResult = sender.meshLink.send(recipient.peerId, oversizedPayload)
 
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(sendResult)
-        assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
-        assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
-        assertNull(testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() })
-    }
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(sendResult)
+            assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
+            assertFalse(harness.sentFrames(sender).size > frameCountBeforeSend)
+            assertNull(testWithTimeoutOrNull(500) { recipient.meshLink.messages.first() })
+        }
 
     private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
 
     @AfterTest
-    fun tearDown(): Unit = runBlocking {
-        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
-        harnesses.clear()
-    }
+    fun tearDown(): Unit =
+        runBlocking<Unit> {
+            harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+            harnesses.clear()
+        }
 
     private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 

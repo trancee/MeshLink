@@ -23,45 +23,46 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineInlineOutboundDeliveryAdapterTest {
     @Test
-    fun `attemptOutboundDelivery returns completed sent when dispatch delivers`() = runBlocking {
-        // Arrange
-        val adapter =
-            inlineOutboundDeliveryAdapter(
-                prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
-                    MeshEngineOutboundInlineMessagePreparation.Ready(
-                        WireFrame.Message(
-                            messageId = "message-1",
-                            originPeerId = PeerId("origin-abcdef"),
-                            destinationPeerId = peerId,
-                            priority = priority,
-                            ttlMillis = ttlMillis,
-                            encryptedPayload = byteArrayOf(0x01),
+    fun `attemptOutboundDelivery returns completed sent when dispatch delivers`() =
+        runBlocking<Unit> {
+            // Arrange
+            val adapter =
+                inlineOutboundDeliveryAdapter(
+                    prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
+                        MeshEngineOutboundInlineMessagePreparation.Ready(
+                            WireFrame.Message(
+                                messageId = "message-1",
+                                originPeerId = PeerId("origin-abcdef"),
+                                destinationPeerId = peerId,
+                                priority = priority,
+                                ttlMillis = ttlMillis,
+                                encryptedPayload = byteArrayOf(0x01),
+                            )
                         )
-                    )
-                },
-                ensureHopSession = { _, _ ->
-                    SessionEstablishmentOutcome.Established(
-                        HopSession(
-                            sendKey = ByteArray(32) { 0x01 },
-                            receiveKey = ByteArray(32) { 0x02 },
+                    },
+                    ensureHopSession = { _, _ ->
+                        SessionEstablishmentOutcome.Established(
+                            HopSession(
+                                sendKey = ByteArray(32) { 0x01 },
+                                receiveKey = ByteArray(32) { 0x02 },
+                            )
                         )
-                    )
-                },
-                sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
-            )
-        val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
+                    },
+                    sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
+                )
+            val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
 
-        // Act
-        val outcome = adapter.attemptOutboundDelivery(Unit, context)
+            // Act
+            val outcome = adapter.attemptOutboundDelivery(Unit, context)
 
-        // Assert
-        val completed = assertIs<MeshEngineOutboundDeliveryAttemptOutcome.Completed>(outcome)
-        assertEquals(SendResult.Sent, completed.result)
-    }
+            // Assert
+            val completed = assertIs<MeshEngineOutboundDeliveryAttemptOutcome.Completed>(outcome)
+            assertEquals(SendResult.Sent, completed.result)
+        }
 
     @Test
     fun `attemptOutboundDelivery returns completed trust failure when preparation reports missing trust`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val diagnostics = mutableListOf<RecordedInlineOutboundDeliveryDiagnostic>()
             val adapter =
@@ -95,43 +96,44 @@ class MeshEngineInlineOutboundDeliveryAdapterTest {
         }
 
     @Test
-    fun `attemptOutboundDelivery returns await retry when dispatch requests retry`() = runBlocking {
-        // Arrange
-        val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
-        val adapter =
-            inlineOutboundDeliveryAdapter(
-                retryDiagnostics = retryDiagnostics,
-                prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
-                    MeshEngineOutboundInlineMessagePreparation.Ready(
-                        WireFrame.Message(
-                            messageId = "message-1",
-                            originPeerId = PeerId("origin-abcdef"),
-                            destinationPeerId = peerId,
-                            priority = priority,
-                            ttlMillis = ttlMillis,
-                            encryptedPayload = byteArrayOf(0x01),
+    fun `attemptOutboundDelivery returns await retry when dispatch requests retry`() =
+        runBlocking<Unit> {
+            // Arrange
+            val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+            val adapter =
+                inlineOutboundDeliveryAdapter(
+                    retryDiagnostics = retryDiagnostics,
+                    prepareOutboundInlineMessage = { peerId, _, priority, ttlMillis ->
+                        MeshEngineOutboundInlineMessagePreparation.Ready(
+                            WireFrame.Message(
+                                messageId = "message-1",
+                                originPeerId = PeerId("origin-abcdef"),
+                                destinationPeerId = peerId,
+                                priority = priority,
+                                ttlMillis = ttlMillis,
+                                encryptedPayload = byteArrayOf(0x01),
+                            )
                         )
-                    )
-                },
-                ensureHopSession = { _, _ -> SessionEstablishmentOutcome.Unreachable },
-            )
-        val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
+                    },
+                    ensureHopSession = { _, _ -> SessionEstablishmentOutcome.Unreachable },
+                )
+            val context = inlineAttemptContext(payload = ByteArray(32) { 0x01 })
 
-        // Act
-        val outcome = adapter.attemptOutboundDelivery(Unit, context)
+            // Act
+            val outcome = adapter.attemptOutboundDelivery(Unit, context)
 
-        // Assert
-        val awaitRetry =
-            assertIs<MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<Unit>>(outcome)
-        assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
-        assertEquals("delivery.retryScheduled", awaitRetry.retryPolicy.profile.scheduledStage)
-        assertEquals("delivery.retrying", awaitRetry.retryPolicy.profile.retryingStage)
-        assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
-    }
+            // Assert
+            val awaitRetry =
+                assertIs<MeshEngineOutboundDeliveryAttemptOutcome.AwaitRetry<Unit>>(outcome)
+            assertEquals(listOf(context.peerId to context.priority), retryDiagnostics)
+            assertEquals("delivery.retryScheduled", awaitRetry.retryPolicy.profile.scheduledStage)
+            assertEquals("delivery.retrying", awaitRetry.retryPolicy.profile.retryingStage)
+            assertEquals(true, awaitRetry.retryPolicy.emitDiagnostics)
+        }
 
     @Test
     fun `withDiscoveryPolicy suspends discovery for payloads above the inline threshold`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val discoveryTransitions = mutableListOf<Boolean>()
             val adapter = inlineOutboundDeliveryAdapter(discoveryTransitions = discoveryTransitions)

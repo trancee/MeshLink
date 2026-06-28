@@ -21,59 +21,61 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEnginePeerFlowSupportTest {
     @Test
-    fun `prewarmHopSession ensures later peers during an active hard run`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("peer-b")
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.beginHardRun()
-        val ensuredPeers = mutableListOf<String>()
-        val fixture =
-            peerFlowFixture(
-                localIdentity = localIdentity,
-                runtimeSurface = runtimeSurface,
-                captureHardRunToken = { hardRunToken },
-                ensureHopSession = { peerId ->
-                    ensuredPeers += peerId.value
-                    SessionEstablishmentOutcome.Unreachable
-                },
-            )
+    fun `prewarmHopSession ensures later peers during an active hard run`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("peer-b")
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            val ensuredPeers = mutableListOf<String>()
+            val fixture =
+                peerFlowFixture(
+                    localIdentity = localIdentity,
+                    runtimeSurface = runtimeSurface,
+                    captureHardRunToken = { hardRunToken },
+                    ensureHopSession = { peerId ->
+                        ensuredPeers += peerId.value
+                        SessionEstablishmentOutcome.Unreachable
+                    },
+                )
 
-        // Act
-        fixture.support.prewarmHopSession(PeerId("peer-c"))
+            // Act
+            fixture.support.prewarmHopSession(PeerId("peer-c"))
 
-        // Assert
-        assertEquals(listOf("peer-c"), ensuredPeers)
-    }
+            // Assert
+            assertEquals(listOf("peer-c"), ensuredPeers)
+        }
 
     @Test
-    fun `prewarmHopSession skips peers at or below the local peer id`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("peer-b")
-        val runtimeSurface = MeshEngineRuntimeSurface()
-        val hardRunToken = runtimeSurface.beginHardRun()
-        var ensureCalls = 0
-        val fixture =
-            peerFlowFixture(
-                localIdentity = localIdentity,
-                runtimeSurface = runtimeSurface,
-                captureHardRunToken = { hardRunToken },
-                ensureHopSession = {
-                    ensureCalls += 1
-                    SessionEstablishmentOutcome.Unreachable
-                },
-            )
+    fun `prewarmHopSession skips peers at or below the local peer id`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("peer-b")
+            val runtimeSurface = MeshEngineRuntimeSurface()
+            val hardRunToken = runtimeSurface.beginHardRun()
+            var ensureCalls = 0
+            val fixture =
+                peerFlowFixture(
+                    localIdentity = localIdentity,
+                    runtimeSurface = runtimeSurface,
+                    captureHardRunToken = { hardRunToken },
+                    ensureHopSession = {
+                        ensureCalls += 1
+                        SessionEstablishmentOutcome.Unreachable
+                    },
+                )
 
-        // Act
-        fixture.support.prewarmHopSession(PeerId("peer-a"))
-        fixture.support.prewarmHopSession(PeerId("peer-b"))
+            // Act
+            fixture.support.prewarmHopSession(PeerId("peer-a"))
+            fixture.support.prewarmHopSession(PeerId("peer-b"))
 
-        // Assert
-        assertEquals(0, ensureCalls)
-    }
+            // Assert
+            assertEquals(0, ensureCalls)
+        }
 
     @Test
     fun `forwardMessageToNextHop emits queued and delivered diagnostics when relay forwarding succeeds`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("relay-local")
             val destinationIdentity = LocalIdentity.fromAppId("relay-destination")
@@ -121,7 +123,7 @@ class MeshEnginePeerFlowSupportTest {
 
     @Test
     fun `forwardMessageToNextHop emits no route when the destination is unreachable`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("relay-local")
             val runtimeSurface = MeshEngineRuntimeSurface()
@@ -155,7 +157,7 @@ class MeshEnginePeerFlowSupportTest {
 
     @Test
     fun `shouldAttemptLargeInlineSend requires a direct peer with enough transport budget`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("relay-local")
             val destinationIdentity = LocalIdentity.fromAppId("inline-destination")

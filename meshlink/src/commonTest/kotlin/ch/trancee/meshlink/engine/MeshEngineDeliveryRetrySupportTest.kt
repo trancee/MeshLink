@@ -15,7 +15,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineDeliveryRetrySupportTest {
     @Test
     fun `awaitRetry emits scheduled and retrying diagnostics when the retry timer elapses`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
                 RetryWakeup.TimerElapsed(9)
@@ -74,63 +74,71 @@ class MeshEngineDeliveryRetrySupportTest {
         }
 
     @Test
-    fun `awaitRetry resets the attempt after a topology change`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
-            RetryWakeup.TopologyChanged(11)
-        }
-        val support = retrySupport(callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val state = MeshEngineDeliveryRetryState(attempt = 4, topologyVersion = 8)
-
-        // Act
-        val result =
-            support.awaitRetry(
-                peerId = peerId,
-                state = state,
-                remainingBudget = 500.milliseconds,
-                hardRunToken = MeshEngineHardRunToken(epoch = 6),
-                profile = DELIVERY_RETRY_PROFILE,
-            )
-
-        // Assert
-        val woke = assertIs<MeshEngineDeliveryRetryResult.Woke>(result)
-        assertEquals(MeshEngineDeliveryRetryState(attempt = 0, topologyVersion = 11), woke.state)
-        assertTrue(
-            callbacks.diagnostics.any { diagnostic ->
-                diagnostic.stage == "delivery.retrying" && diagnostic.metadata["attempt"] == "0"
+    fun `awaitRetry resets the attempt after a topology change`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
+                RetryWakeup.TopologyChanged(11)
             }
-        )
-    }
+            val support = retrySupport(callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val state = MeshEngineDeliveryRetryState(attempt = 4, topologyVersion = 8)
+
+            // Act
+            val result =
+                support.awaitRetry(
+                    peerId = peerId,
+                    state = state,
+                    remainingBudget = 500.milliseconds,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 6),
+                    profile = DELIVERY_RETRY_PROFILE,
+                )
+
+            // Assert
+            val woke = assertIs<MeshEngineDeliveryRetryResult.Woke>(result)
+            assertEquals(
+                MeshEngineDeliveryRetryState(attempt = 0, topologyVersion = 11),
+                woke.state,
+            )
+            assertTrue(
+                callbacks.diagnostics.any { diagnostic ->
+                    diagnostic.stage == "delivery.retrying" && diagnostic.metadata["attempt"] == "0"
+                }
+            )
+        }
 
     @Test
-    fun `awaitRetry suppresses retry diagnostics when disabled`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
-            RetryWakeup.TimerElapsed(13)
-        }
-        val support = retrySupport(callbacks)
+    fun `awaitRetry suppresses retry diagnostics when disabled`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
+                RetryWakeup.TimerElapsed(13)
+            }
+            val support = retrySupport(callbacks)
 
-        // Act
-        val result =
-            support.awaitRetry(
-                peerId = PeerId("peer-abcdef"),
-                state = MeshEngineDeliveryRetryState(attempt = 1, topologyVersion = 2),
-                remainingBudget = 250.milliseconds,
-                hardRunToken = MeshEngineHardRunToken(epoch = 7),
-                profile = DELIVERY_RETRY_PROFILE,
-                emitDiagnostics = false,
+            // Act
+            val result =
+                support.awaitRetry(
+                    peerId = PeerId("peer-abcdef"),
+                    state = MeshEngineDeliveryRetryState(attempt = 1, topologyVersion = 2),
+                    remainingBudget = 250.milliseconds,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 7),
+                    profile = DELIVERY_RETRY_PROFILE,
+                    emitDiagnostics = false,
+                )
+
+            // Assert
+            val woke = assertIs<MeshEngineDeliveryRetryResult.Woke>(result)
+            assertEquals(
+                MeshEngineDeliveryRetryState(attempt = 2, topologyVersion = 13),
+                woke.state,
             )
-
-        // Assert
-        val woke = assertIs<MeshEngineDeliveryRetryResult.Woke>(result)
-        assertEquals(MeshEngineDeliveryRetryState(attempt = 2, topologyVersion = 13), woke.state)
-        assertTrue(callbacks.diagnostics.isEmpty())
-    }
+            assertTrue(callbacks.diagnostics.isEmpty())
+        }
 
     @Test
     fun `awaitRetry returns deadline expired without emitting retrying diagnostics`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
                 RetryWakeup.DeadlineExpired(3)
@@ -154,26 +162,29 @@ class MeshEngineDeliveryRetrySupportTest {
         }
 
     @Test
-    fun `awaitRetry returns hard run ended without emitting retrying diagnostics`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ -> RetryWakeup.HardRunEnded }
-        val support = retrySupport(callbacks)
+    fun `awaitRetry returns hard run ended without emitting retrying diagnostics`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingDeliveryRetryCallbacks { _, _, _, _ ->
+                RetryWakeup.HardRunEnded
+            }
+            val support = retrySupport(callbacks)
 
-        // Act
-        val result =
-            support.awaitRetry(
-                peerId = PeerId("peer-abcdef"),
-                state = MeshEngineDeliveryRetryState(attempt = 1, topologyVersion = 3),
-                remainingBudget = 300.milliseconds,
-                hardRunToken = MeshEngineHardRunToken(epoch = 9),
-                profile = DELIVERY_RETRY_PROFILE,
-            )
+            // Act
+            val result =
+                support.awaitRetry(
+                    peerId = PeerId("peer-abcdef"),
+                    state = MeshEngineDeliveryRetryState(attempt = 1, topologyVersion = 3),
+                    remainingBudget = 300.milliseconds,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 9),
+                    profile = DELIVERY_RETRY_PROFILE,
+                )
 
-        // Assert
-        assertEquals(MeshEngineDeliveryRetryResult.HardRunEnded, result)
-        assertEquals(1, callbacks.diagnostics.size)
-        assertEquals("delivery.retryScheduled", callbacks.diagnostics.single().stage)
-    }
+            // Assert
+            assertEquals(MeshEngineDeliveryRetryResult.HardRunEnded, result)
+            assertEquals(1, callbacks.diagnostics.size)
+            assertEquals("delivery.retryScheduled", callbacks.diagnostics.single().stage)
+        }
 }
 
 private fun retrySupport(

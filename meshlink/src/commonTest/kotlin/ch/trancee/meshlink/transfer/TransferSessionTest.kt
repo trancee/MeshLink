@@ -81,7 +81,7 @@ class TransferSessionTest {
 
     @Test
     fun `awaitAcknowledgementSettlement waits for an acknowledgement burst before returning`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
@@ -125,7 +125,7 @@ class TransferSessionTest {
 
     @Test
     fun `awaitAcknowledgementSettlement stops at the idle window when the next acknowledgement arrives late`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()

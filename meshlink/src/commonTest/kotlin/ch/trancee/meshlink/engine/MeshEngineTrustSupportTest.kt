@@ -18,91 +18,93 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineTrustSupportTest {
     @Test
-    fun `verifyAndPersistTrust pins new trust when the remote fingerprint matches`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("trust-local")
-        val remoteIdentity = LocalIdentity.fromAppId("trust-remote")
-        val storage = InMemorySecureStorage()
-        val trustStore = TofuTrustStore(storage)
-        val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
-        val support =
-            trustSupport(
-                localIdentity = localIdentity,
-                trustStore = trustStore,
-                diagnostics = diagnostics,
-            )
+    fun `verifyAndPersistTrust pins new trust when the remote fingerprint matches`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("trust-local")
+            val remoteIdentity = LocalIdentity.fromAppId("trust-remote")
+            val storage = InMemorySecureStorage()
+            val trustStore = TofuTrustStore(storage)
+            val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
+            val support =
+                trustSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    diagnostics = diagnostics,
+                )
 
-        // Act
-        val verified =
-            support.verifyAndPersistTrust(
-                peerId = remoteIdentity.peerId,
-                remoteEd25519PublicKey = remoteIdentity.ed25519PublicKey,
-                remoteX25519PublicKey = remoteIdentity.x25519PublicKey,
-                expectedFingerprintBytes = remoteIdentity.identityFingerprintBytes,
-            )
-        val persisted = trustStore.read(remoteIdentity.peerId.value)
+            // Act
+            val verified =
+                support.verifyAndPersistTrust(
+                    peerId = remoteIdentity.peerId,
+                    remoteEd25519PublicKey = remoteIdentity.ed25519PublicKey,
+                    remoteX25519PublicKey = remoteIdentity.x25519PublicKey,
+                    expectedFingerprintBytes = remoteIdentity.identityFingerprintBytes,
+                )
+            val persisted = trustStore.read(remoteIdentity.peerId.value)
 
-        // Assert
-        assertNotNull(verified)
-        assertNotNull(persisted)
-        assertEquals(remoteIdentity.peerId.value, verified.peerIdValue)
-        assertContentEquals(
-            remoteIdentity.identityFingerprintBytes,
-            verified.identityFingerprintBytes,
-        )
-        assertContentEquals(
-            remoteIdentity.identityFingerprintBytes,
-            persisted.identityFingerprintBytes,
-        )
-        assertEquals(verified.firstSeenAtEpochMillis, verified.lastVerifiedAtEpochMillis)
-        assertTrue(
-            diagnostics.any { diagnostic ->
-                diagnostic.code == DiagnosticCode.TRUST_ESTABLISHED &&
-                    diagnostic.stage == "trust.pin" &&
-                    diagnostic.reason == DiagnosticReason.STATE_CHANGE
-            }
-        )
-    }
+            // Assert
+            assertNotNull(verified)
+            assertNotNull(persisted)
+            assertEquals(remoteIdentity.peerId.value, verified.peerIdValue)
+            assertContentEquals(
+                remoteIdentity.identityFingerprintBytes,
+                verified.identityFingerprintBytes,
+            )
+            assertContentEquals(
+                remoteIdentity.identityFingerprintBytes,
+                persisted.identityFingerprintBytes,
+            )
+            assertEquals(verified.firstSeenAtEpochMillis, verified.lastVerifiedAtEpochMillis)
+            assertTrue(
+                diagnostics.any { diagnostic ->
+                    diagnostic.code == DiagnosticCode.TRUST_ESTABLISHED &&
+                        diagnostic.stage == "trust.pin" &&
+                        diagnostic.reason == DiagnosticReason.STATE_CHANGE
+                }
+            )
+        }
 
     @Test
-    fun `verifyAndPersistTrust rejects mismatched expected fingerprints`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("trust-local")
-        val remoteIdentity = LocalIdentity.fromAppId("trust-remote")
-        val trustStore = TofuTrustStore(InMemorySecureStorage())
-        val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
-        val support =
-            trustSupport(
-                localIdentity = localIdentity,
-                trustStore = trustStore,
-                diagnostics = diagnostics,
-            )
+    fun `verifyAndPersistTrust rejects mismatched expected fingerprints`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("trust-local")
+            val remoteIdentity = LocalIdentity.fromAppId("trust-remote")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
+            val support =
+                trustSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    diagnostics = diagnostics,
+                )
 
-        // Act
-        val verified =
-            support.verifyAndPersistTrust(
-                peerId = remoteIdentity.peerId,
-                remoteEd25519PublicKey = remoteIdentity.ed25519PublicKey,
-                remoteX25519PublicKey = remoteIdentity.x25519PublicKey,
-                expectedFingerprintBytes = byteArrayOf(0x00),
-            )
-        val persisted = trustStore.read(remoteIdentity.peerId.value)
+            // Act
+            val verified =
+                support.verifyAndPersistTrust(
+                    peerId = remoteIdentity.peerId,
+                    remoteEd25519PublicKey = remoteIdentity.ed25519PublicKey,
+                    remoteX25519PublicKey = remoteIdentity.x25519PublicKey,
+                    expectedFingerprintBytes = byteArrayOf(0x00),
+                )
+            val persisted = trustStore.read(remoteIdentity.peerId.value)
 
-        // Assert
-        assertNull(verified)
-        assertNull(persisted)
-        assertTrue(
-            diagnostics.any { diagnostic ->
-                diagnostic.code == DiagnosticCode.TRUST_FAILURE &&
-                    diagnostic.stage == "trust.verify.fingerprint" &&
-                    diagnostic.reason == DiagnosticReason.TRUST_FAILURE
-            }
-        )
-    }
+            // Assert
+            assertNull(verified)
+            assertNull(persisted)
+            assertTrue(
+                diagnostics.any { diagnostic ->
+                    diagnostic.code == DiagnosticCode.TRUST_FAILURE &&
+                        diagnostic.stage == "trust.verify.fingerprint" &&
+                        diagnostic.reason == DiagnosticReason.TRUST_FAILURE
+                }
+            )
+        }
 
     @Test
     fun `verifyAndPersistTrust rejects existing trust that no longer matches the remote identity`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("trust-local")
             val remoteIdentity = LocalIdentity.fromAppId("trust-remote")
@@ -157,7 +159,7 @@ class MeshEngineTrustSupportTest {
 
     @Test
     fun `verifyAndPersistTrust refreshes matching trust without changing first seen`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("trust-local")
             val remoteIdentity = LocalIdentity.fromAppId("trust-remote")

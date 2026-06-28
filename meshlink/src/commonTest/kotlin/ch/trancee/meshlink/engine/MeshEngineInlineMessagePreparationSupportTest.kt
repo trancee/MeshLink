@@ -16,73 +16,78 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineInlineMessagePreparationSupportTest {
     @Test
-    fun `prepare returns a ready routed message when trust already exists`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("outbound-inline-sender")
-        val recipientIdentity = LocalIdentity.fromAppId("outbound-inline-recipient")
-        val trustStore = TofuTrustStore(InMemorySecureStorage())
-        trustStore.write(trustRecordFor(identity = recipientIdentity))
-        val encryptFailures = mutableListOf<Pair<PeerId, String>>()
-        val support =
-            inlineMessagePreparationSupport(
-                localIdentity = localIdentity,
-                trustStore = trustStore,
-                emitEncryptFailure = { peerId, cause -> encryptFailures += peerId to cause },
-            )
-        val payload = "hello".encodeToByteArray()
+    fun `prepare returns a ready routed message when trust already exists`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("outbound-inline-sender")
+            val recipientIdentity = LocalIdentity.fromAppId("outbound-inline-recipient")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            trustStore.write(trustRecordFor(identity = recipientIdentity))
+            val encryptFailures = mutableListOf<Pair<PeerId, String>>()
+            val support =
+                inlineMessagePreparationSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    emitEncryptFailure = { peerId, cause -> encryptFailures += peerId to cause },
+                )
+            val payload = "hello".encodeToByteArray()
 
-        // Act
-        val preparation =
-            support.prepare(
-                peerId = recipientIdentity.peerId,
-                payload = payload,
-                priority = DeliveryPriority.HIGH,
-                ttlMillis = 1234,
-            )
+            // Act
+            val preparation =
+                support.prepare(
+                    peerId = recipientIdentity.peerId,
+                    payload = payload,
+                    priority = DeliveryPriority.HIGH,
+                    ttlMillis = 1234,
+                )
 
-        // Assert
-        val ready = assertIs<MeshEngineOutboundInlineMessagePreparation.Ready>(preparation)
-        val message = ready.message
-        assertEquals("message-1", message.messageId)
-        assertEquals(localIdentity.peerId.value, message.originPeerId.value)
-        assertEquals(recipientIdentity.peerId.value, message.destinationPeerId.value)
-        assertEquals(DeliveryPriority.HIGH, message.priority)
-        assertEquals(1234, message.ttlMillis)
-        val envelope = DirectMessageEnvelope.decode(message.encryptedPayload)
-        assertEquals(localIdentity.peerId.value, envelope.senderPeerId.value)
-        assertContentEquals(localIdentity.identityFingerprintBytes, envelope.senderFingerprintBytes)
-        assertContentEquals(localIdentity.ed25519PublicKey, envelope.senderEd25519PublicKey)
-        assertContentEquals(localIdentity.x25519PublicKey, envelope.senderX25519PublicKey)
-        assertTrue(envelope.ciphertext.isNotEmpty())
-        assertTrue(encryptFailures.isEmpty())
-    }
+            // Assert
+            val ready = assertIs<MeshEngineOutboundInlineMessagePreparation.Ready>(preparation)
+            val message = ready.message
+            assertEquals("message-1", message.messageId)
+            assertEquals(localIdentity.peerId.value, message.originPeerId.value)
+            assertEquals(recipientIdentity.peerId.value, message.destinationPeerId.value)
+            assertEquals(DeliveryPriority.HIGH, message.priority)
+            assertEquals(1234, message.ttlMillis)
+            val envelope = DirectMessageEnvelope.decode(message.encryptedPayload)
+            assertEquals(localIdentity.peerId.value, envelope.senderPeerId.value)
+            assertContentEquals(
+                localIdentity.identityFingerprintBytes,
+                envelope.senderFingerprintBytes,
+            )
+            assertContentEquals(localIdentity.ed25519PublicKey, envelope.senderEd25519PublicKey)
+            assertContentEquals(localIdentity.x25519PublicKey, envelope.senderX25519PublicKey)
+            assertTrue(envelope.ciphertext.isNotEmpty())
+            assertTrue(encryptFailures.isEmpty())
+        }
 
     @Test
-    fun `prepare reports missing trust when no trust or route exists`() = runBlocking {
-        // Arrange
-        val localIdentity = LocalIdentity.fromAppId("outbound-inline-missing-trust")
-        val trustStore = TofuTrustStore(InMemorySecureStorage())
-        val encryptFailures = mutableListOf<Pair<PeerId, String>>()
-        val support =
-            inlineMessagePreparationSupport(
-                localIdentity = localIdentity,
-                trustStore = trustStore,
-                emitEncryptFailure = { peerId, cause -> encryptFailures += peerId to cause },
-            )
+    fun `prepare reports missing trust when no trust or route exists`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("outbound-inline-missing-trust")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            val encryptFailures = mutableListOf<Pair<PeerId, String>>()
+            val support =
+                inlineMessagePreparationSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    emitEncryptFailure = { peerId, cause -> encryptFailures += peerId to cause },
+                )
 
-        // Act
-        val preparation =
-            support.prepare(
-                peerId = PeerId("unknown-recipient"),
-                payload = "hello".encodeToByteArray(),
-                priority = DeliveryPriority.NORMAL,
-                ttlMillis = 4321,
-            )
+            // Act
+            val preparation =
+                support.prepare(
+                    peerId = PeerId("unknown-recipient"),
+                    payload = "hello".encodeToByteArray(),
+                    priority = DeliveryPriority.NORMAL,
+                    ttlMillis = 4321,
+                )
 
-        // Assert
-        assertEquals(MeshEngineOutboundInlineMessagePreparation.MissingTrust, preparation)
-        assertTrue(encryptFailures.isEmpty())
-    }
+            // Assert
+            assertEquals(MeshEngineOutboundInlineMessagePreparation.MissingTrust, preparation)
+            assertTrue(encryptFailures.isEmpty())
+        }
 }
 
 private fun inlineMessagePreparationSupport(

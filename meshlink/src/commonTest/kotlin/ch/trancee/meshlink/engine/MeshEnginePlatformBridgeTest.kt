@@ -45,22 +45,23 @@ class MeshEnginePlatformBridgeTest {
             )
 
         // Act / Assert
-        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking { bridge.start() } }
+        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking<Unit> { bridge.start() } }
     }
 
     @Test
-    fun `send returns dropped when no transport is available`() = runBlocking {
-        // Arrange
-        val bridge = MeshEnginePlatformBridge(bleTransport = null)
-        val frame = OutboundFrame(peerId = PeerId("peer-abcdef"), payload = byteArrayOf(0x01))
+    fun `send returns dropped when no transport is available`() =
+        runBlocking<Unit> {
+            // Arrange
+            val bridge = MeshEnginePlatformBridge(bleTransport = null)
+            val frame = OutboundFrame(peerId = PeerId("peer-abcdef"), payload = byteArrayOf(0x01))
 
-        // Act
-        val result = bridge.send(frame = frame, action = "delivery.send")
+            // Act
+            val result = bridge.send(frame = frame, action = "delivery.send")
 
-        // Assert
-        val dropped = result as TransportSendResult.Dropped
-        assertEquals("BLE transport is unavailable", dropped.reason)
-    }
+            // Assert
+            val dropped = result as TransportSendResult.Dropped
+            assertEquals("BLE transport is unavailable", dropped.reason)
+        }
 
     @Test
     fun `send wraps platform exceptions as platform failures`() {
@@ -88,7 +89,7 @@ class MeshEnginePlatformBridgeTest {
 
         // Act / Assert
         assertFailsWith<MeshLinkException.PlatformFailure> {
-            runBlocking { bridge.send(frame = frame, action = "delivery.send") }
+            runBlocking<Unit> { bridge.send(frame = frame, action = "delivery.send") }
         }
     }
 
@@ -132,7 +133,7 @@ class MeshEnginePlatformBridgeTest {
 
         // Act
         val availableMaximum = bridge.maximumPayloadBytesPerDelivery(PeerId("peer-abcdef"))
-        runBlocking { bridge.updatePowerPolicy(powerPolicy) }
+        runBlocking<Unit> { bridge.updatePowerPolicy(powerPolicy) }
         val absentMaximum = absentBridge.maximumPayloadBytesPerDelivery(PeerId("peer-abcdef"))
 
         // Assert

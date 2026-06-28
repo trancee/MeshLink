@@ -18,7 +18,7 @@ import kotlinx.coroutines.withTimeout
 class CrossPlatformParityTest {
     @Test
     fun `android and ios expose matching lifecycle transitions and power diagnostic payloads`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             installFactoryTestBridges()
             val config = meshLinkConfig {

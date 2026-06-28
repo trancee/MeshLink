@@ -20,36 +20,36 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineInlineDispatchSupportTest {
     @Test
-    fun `resolveDispatch returns ready when the hop session is established`() = runBlocking {
-        // Arrange
-        val support =
-            inlineDispatchSupport(
-                ensureHopSession = { _, _ ->
-                    SessionEstablishmentOutcome.Established(
-                        HopSession(
-                            sendKey = ByteArray(32) { 0x01 },
-                            receiveKey = ByteArray(32) { 0x02 },
+    fun `resolveDispatch returns ready when the hop session is established`() =
+        runBlocking<Unit> {
+            // Arrange
+            val support =
+                inlineDispatchSupport(
+                    ensureHopSession = { _, _ ->
+                        SessionEstablishmentOutcome.Established(
+                            HopSession(
+                                sendKey = ByteArray(32) { 0x01 },
+                                receiveKey = ByteArray(32) { 0x02 },
+                            )
                         )
-                    )
-                }
-            )
+                    }
+                )
 
-        // Act
-        val resolution =
-            support.resolveDispatch(
-                peerId = PeerId("peer-abcdef"),
-                priority = DeliveryPriority.HIGH,
-                hardRunToken = MeshEngineHardRunToken(epoch = 5L),
-            )
+            // Act
+            val resolution =
+                support.resolveDispatch(
+                    peerId = PeerId("peer-abcdef"),
+                    priority = DeliveryPriority.HIGH,
+                    hardRunToken = MeshEngineHardRunToken(epoch = 5L),
+                )
 
-        // Assert
-        assertIs<MeshEngineInlineDispatchResolution.Ready>(resolution)
-        Unit
-    }
+            // Assert
+            assertIs<MeshEngineInlineDispatchResolution.Ready>(resolution)
+        }
 
     @Test
     fun `resolveDispatch returns await retry when no hop session can be established`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
             val support =
@@ -74,7 +74,7 @@ class MeshEngineInlineDispatchSupportTest {
 
     @Test
     fun `resolveDispatch returns trust failure when hop session establishment reports trust failure`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val support =
                 inlineDispatchSupport(
@@ -94,51 +94,52 @@ class MeshEngineInlineDispatchSupportTest {
         }
 
     @Test
-    fun `dispatchPreparedMessage returns delivered when the transport delivers`() = runBlocking {
-        // Arrange
-        val diagnostics = mutableListOf<RecordedInlineDispatchDiagnostic>()
-        val support =
-            inlineDispatchSupport(
-                diagnostics = diagnostics,
-                ensureHopSession = { _, _ ->
-                    SessionEstablishmentOutcome.Established(
-                        HopSession(
-                            sendKey = ByteArray(32) { 0x01 },
-                            receiveKey = ByteArray(32) { 0x02 },
+    fun `dispatchPreparedMessage returns delivered when the transport delivers`() =
+        runBlocking<Unit> {
+            // Arrange
+            val diagnostics = mutableListOf<RecordedInlineDispatchDiagnostic>()
+            val support =
+                inlineDispatchSupport(
+                    diagnostics = diagnostics,
+                    ensureHopSession = { _, _ ->
+                        SessionEstablishmentOutcome.Established(
+                            HopSession(
+                                sendKey = ByteArray(32) { 0x01 },
+                                receiveKey = ByteArray(32) { 0x02 },
+                            )
                         )
+                    },
+                    sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
+                )
+            val resolution =
+                assertIs<MeshEngineInlineDispatchResolution.Ready>(
+                    support.resolveDispatch(
+                        peerId = PeerId("peer-abcdef"),
+                        priority = DeliveryPriority.HIGH,
+                        hardRunToken = MeshEngineHardRunToken(epoch = 5L),
                     )
-                },
-                sendEncryptedDirectWireFrame = { _, _, _, _ -> TransportSendResult.Delivered },
-            )
-        val resolution =
-            assertIs<MeshEngineInlineDispatchResolution.Ready>(
-                support.resolveDispatch(
+                )
+
+            // Act
+            val result =
+                support.dispatchPreparedMessage(
                     peerId = PeerId("peer-abcdef"),
                     priority = DeliveryPriority.HIGH,
-                    hardRunToken = MeshEngineHardRunToken(epoch = 5L),
+                    routedMessage = inlineMessage(PeerId("peer-abcdef"), DeliveryPriority.HIGH),
+                    resolution = resolution,
                 )
-            )
 
-        // Act
-        val result =
-            support.dispatchPreparedMessage(
-                peerId = PeerId("peer-abcdef"),
-                priority = DeliveryPriority.HIGH,
-                routedMessage = inlineMessage(PeerId("peer-abcdef"), DeliveryPriority.HIGH),
-                resolution = resolution,
+            // Assert
+            assertEquals(MeshEngineInlineDispatchResult.Delivered, result)
+            assertEquals(
+                listOf(DiagnosticCode.DELIVERY_SUCCEEDED to "delivery.send"),
+                diagnostics.map { it.code to it.stage },
             )
-
-        // Assert
-        assertEquals(MeshEngineInlineDispatchResult.Delivered, result)
-        assertEquals(
-            listOf(DiagnosticCode.DELIVERY_SUCCEEDED to "delivery.send"),
-            diagnostics.map { it.code to it.stage },
-        )
-    }
+        }
 
     @Test
     fun `dispatchPreparedMessage returns await retry when transport encryption throws`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val hopSessionFailures = mutableListOf<RecordedHopSessionFailure>()
             val support =

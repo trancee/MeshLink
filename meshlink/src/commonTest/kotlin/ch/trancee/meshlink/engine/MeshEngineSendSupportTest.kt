@@ -17,77 +17,85 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineSendSupportTest {
     @Test
-    fun `send throws invalid state when the runtime is not running`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks(currentLifecycleState = MeshLinkState.Paused)
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(32) { 0x01 }
+    fun `send throws invalid state when the runtime is not running`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingSendCallbacks(currentLifecycleState = MeshLinkState.Paused)
+            val support = sendSupport(callbacks = callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val payload = ByteArray(32) { 0x01 }
 
-        // Act
-        val error =
-            assertFailsWith<MeshLinkException.InvalidStateTransition> {
-                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.HIGH)
-            }
+            // Act
+            val error =
+                assertFailsWith<MeshLinkException.InvalidStateTransition> {
+                    support.send(
+                        peerId = peerId,
+                        payload = payload,
+                        priority = DeliveryPriority.HIGH,
+                    )
+                }
 
-        // Assert
-        assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
-        assertEquals(emptyList(), callbacks.sendModes)
-    }
-
-    @Test
-    fun `send rejects payloads that exceed the configured size limit`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks()
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(MAX_SUPPORTED_PAYLOAD_BYTES + 1) { 0x01 }
-
-        // Act
-        val result =
-            support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
-
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
-        assertEquals(
-            listOf(
-                RecordingDiagnostic(
-                    code = DiagnosticCode.SIZE_LIMIT_REJECTED,
-                    severity = DiagnosticSeverity.WARN,
-                    stage = "delivery.send",
-                    peerSuffix = "abcdef",
-                    reason = DiagnosticReason.SIZE_LIMIT,
-                    metadata = mapOf("payloadBytes" to (MAX_SUPPORTED_PAYLOAD_BYTES + 1).toString()),
-                )
-            ),
-            callbacks.diagnostics,
-        )
-        assertEquals(emptyList(), callbacks.sendModes)
-    }
+            // Assert
+            assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
+            assertEquals(emptyList(), callbacks.sendModes)
+        }
 
     @Test
-    fun `send schedules a retry when the transport is unavailable`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks(hasTransport = false)
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(32) { 0x01 }
+    fun `send rejects payloads that exceed the configured size limit`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingSendCallbacks()
+            val support = sendSupport(callbacks = callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val payload = ByteArray(MAX_SUPPORTED_PAYLOAD_BYTES + 1) { 0x01 }
 
-        // Act
-        val result =
-            support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.LOW)
+            // Act
+            val result =
+                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
 
-        // Assert
-        val notSent = assertIs<SendResult.NotSent>(result)
-        assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
-        assertEquals(listOf(peerId to DeliveryPriority.LOW), callbacks.retryDiagnostics)
-        assertEquals(emptyList(), callbacks.sendModes)
-    }
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.PAYLOAD_TOO_LARGE, notSent.reason)
+            assertEquals(
+                listOf(
+                    RecordingDiagnostic(
+                        code = DiagnosticCode.SIZE_LIMIT_REJECTED,
+                        severity = DiagnosticSeverity.WARN,
+                        stage = "delivery.send",
+                        peerSuffix = "abcdef",
+                        reason = DiagnosticReason.SIZE_LIMIT,
+                        metadata =
+                            mapOf("payloadBytes" to (MAX_SUPPORTED_PAYLOAD_BYTES + 1).toString()),
+                    )
+                ),
+                callbacks.diagnostics,
+            )
+            assertEquals(emptyList(), callbacks.sendModes)
+        }
+
+    @Test
+    fun `send schedules a retry when the transport is unavailable`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingSendCallbacks(hasTransport = false)
+            val support = sendSupport(callbacks = callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val payload = ByteArray(32) { 0x01 }
+
+            // Act
+            val result =
+                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.LOW)
+
+            // Assert
+            val notSent = assertIs<SendResult.NotSent>(result)
+            assertEquals(SendFailureReason.UNREACHABLE, notSent.reason)
+            assertEquals(listOf(peerId to DeliveryPriority.LOW), callbacks.retryDiagnostics)
+            assertEquals(emptyList(), callbacks.sendModes)
+        }
 
     @Test
     fun `send uses the inline path for small payloads and passes the hard run token`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val callbacks = RecordingSendCallbacks()
             val support = sendSupport(callbacks = callbacks)
@@ -105,25 +113,26 @@ class MeshEngineSendSupportTest {
         }
 
     @Test
-    fun `send uses the inline path when the peer flow prefers a large inline send`() = runBlocking {
-        // Arrange
-        val callbacks = RecordingSendCallbacks(shouldAttemptLargeInlineSend = true)
-        val support = sendSupport(callbacks = callbacks)
-        val peerId = PeerId("peer-abcdef")
-        val payload = ByteArray(INLINE_MESSAGE_PAYLOAD_BYTES + 1) { 0x01 }
+    fun `send uses the inline path when the peer flow prefers a large inline send`() =
+        runBlocking<Unit> {
+            // Arrange
+            val callbacks = RecordingSendCallbacks(shouldAttemptLargeInlineSend = true)
+            val support = sendSupport(callbacks = callbacks)
+            val peerId = PeerId("peer-abcdef")
+            val payload = ByteArray(INLINE_MESSAGE_PAYLOAD_BYTES + 1) { 0x01 }
 
-        // Act
-        val result =
-            support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
+            // Act
+            val result =
+                support.send(peerId = peerId, payload = payload, priority = DeliveryPriority.NORMAL)
 
-        // Assert
-        assertEquals(SendResult.Sent, result)
-        assertEquals(listOf(MeshEngineOutboundDeliveryMode.INLINE), callbacks.sendModes)
-    }
+            // Assert
+            assertEquals(SendResult.Sent, result)
+            assertEquals(listOf(MeshEngineOutboundDeliveryMode.INLINE), callbacks.sendModes)
+        }
 
     @Test
     fun `send uses the large-transfer path when the payload exceeds the inline budget`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val callbacks = RecordingSendCallbacks()
             val support = sendSupport(callbacks = callbacks)

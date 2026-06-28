@@ -117,41 +117,44 @@ class MeshLinkContractTest {
     }
 
     @Test
-    fun `android and ios factories expose matching lifecycle results`() = runBlocking {
-        // Arrange
-        installFactoryTestBridges()
-        val config = meshLinkConfig { appId = "demo.meshlink.${kotlin.random.Random.nextInt()}" }
-        val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
-        val iosMeshLink = createIosFactoryParityMeshLink(config = config)
+    fun `android and ios factories expose matching lifecycle results`() =
+        runBlocking<Unit> {
+            // Arrange
+            installFactoryTestBridges()
+            val config = meshLinkConfig {
+                appId = "demo.meshlink.${kotlin.random.Random.nextInt()}"
+            }
+            val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
+            val iosMeshLink = createIosFactoryParityMeshLink(config = config)
 
-        // Act
-        val androidResults =
-            listOf(
-                androidMeshLink.start(),
-                androidMeshLink.pause(),
-                androidMeshLink.resume(),
-                androidMeshLink.stop(),
-            )
-        val iosResults =
-            listOf(
-                iosMeshLink.start(),
-                iosMeshLink.pause(),
-                iosMeshLink.resume(),
-                iosMeshLink.stop(),
-            )
+            // Act
+            val androidResults =
+                listOf(
+                    androidMeshLink.start(),
+                    androidMeshLink.pause(),
+                    androidMeshLink.resume(),
+                    androidMeshLink.stop(),
+                )
+            val iosResults =
+                listOf(
+                    iosMeshLink.start(),
+                    iosMeshLink.pause(),
+                    iosMeshLink.resume(),
+                    iosMeshLink.stop(),
+                )
 
-        // Assert
-        assertEquals(
-            androidResults.map { it::class.simpleName },
-            iosResults.map { it::class.simpleName },
-        )
-        assertEquals(MeshLinkState.Stopped, androidMeshLink.state.value)
-        assertEquals(MeshLinkState.Stopped, iosMeshLink.state.value)
-    }
+            // Assert
+            assertEquals(
+                androidResults.map { it::class.simpleName },
+                iosResults.map { it::class.simpleName },
+            )
+            assertEquals(MeshLinkState.Stopped, androidMeshLink.state.value)
+            assertEquals(MeshLinkState.Stopped, iosMeshLink.state.value)
+        }
 
     @Test
     fun `android and ios factories honor the same non default shared configuration`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             installFactoryTestBridges()
             val config = meshLinkConfig {
@@ -227,57 +230,60 @@ class MeshLinkContractTest {
     }
 
     @Test
-    fun `lifecycle methods enforce the documented state machine`() = runBlocking {
-        // Arrange
-        val meshLink = MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
+    fun `lifecycle methods enforce the documented state machine`() =
+        runBlocking<Unit> {
+            // Arrange
+            val meshLink =
+                MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
 
-        // Act
-        val stopFromConfigured = meshLink.stop()
-        val restartFromStopped = meshLink.start()
-        val pauseFromRunning = meshLink.pause()
-        val startFromPaused = meshLink.start()
-        val resumeFromPaused = meshLink.resume()
-        val stopFromRunning = meshLink.stop()
-        val pauseFromStopped = meshLink.pause()
-        val resumeFromStopped = meshLink.resume()
+            // Act
+            val stopFromConfigured = meshLink.stop()
+            val restartFromStopped = meshLink.start()
+            val pauseFromRunning = meshLink.pause()
+            val startFromPaused = meshLink.start()
+            val resumeFromPaused = meshLink.resume()
+            val stopFromRunning = meshLink.stop()
+            val pauseFromStopped = meshLink.pause()
+            val resumeFromStopped = meshLink.resume()
 
-        // Assert
-        assertEquals(StopResult.Stopped, stopFromConfigured)
-        assertEquals(StartResult.Started, restartFromStopped)
-        assertEquals(PauseResult.Paused, pauseFromRunning)
-        assertEquals(
-            MeshLinkState.Paused,
-            (startFromPaused as StartResult.InvalidState).currentState,
-        )
-        assertEquals(ResumeResult.Resumed, resumeFromPaused)
-        assertEquals(StopResult.Stopped, stopFromRunning)
-        assertEquals(
-            MeshLinkState.Stopped,
-            (pauseFromStopped as PauseResult.InvalidState).currentState,
-        )
-        assertEquals(
-            MeshLinkState.Stopped,
-            (resumeFromStopped as ResumeResult.InvalidState).currentState,
-        )
-    }
+            // Assert
+            assertEquals(StopResult.Stopped, stopFromConfigured)
+            assertEquals(StartResult.Started, restartFromStopped)
+            assertEquals(PauseResult.Paused, pauseFromRunning)
+            assertEquals(
+                MeshLinkState.Paused,
+                (startFromPaused as StartResult.InvalidState).currentState,
+            )
+            assertEquals(ResumeResult.Resumed, resumeFromPaused)
+            assertEquals(StopResult.Stopped, stopFromRunning)
+            assertEquals(
+                MeshLinkState.Stopped,
+                (pauseFromStopped as PauseResult.InvalidState).currentState,
+            )
+            assertEquals(
+                MeshLinkState.Stopped,
+                (resumeFromStopped as ResumeResult.InvalidState).currentState,
+            )
+        }
 
     @Test
-    fun `send throws invalid state when meshlink is not running`() = runBlocking {
-        // Arrange
-        val meshLink =
-            MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
-        meshLink.start()
-        meshLink.pause()
+    fun `send throws invalid state when meshlink is not running`() =
+        runBlocking<Unit> {
+            // Arrange
+            val meshLink =
+                MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
+            meshLink.start()
+            meshLink.pause()
 
-        // Act
-        val error =
-            assertFailsWith<MeshLinkException.InvalidStateTransition> {
-                meshLink.send(PeerId("peer-abcdef"), "hello".encodeToByteArray())
-            }
+            // Act
+            val error =
+                assertFailsWith<MeshLinkException.InvalidStateTransition> {
+                    meshLink.send(PeerId("peer-abcdef"), "hello".encodeToByteArray())
+                }
 
-        // Assert
-        assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
-    }
+            // Assert
+            assertEquals("send() requires MeshLinkState.Running but was Paused", error.message)
+        }
 
     @Test
     fun `start wraps permission exceptions as permission denied`() {
@@ -306,7 +312,9 @@ class MeshLinkContractTest {
             )
 
         // Act / Assert
-        assertFailsWith<MeshLinkException.PermissionDenied> { runBlocking { meshLink.start() } }
+        assertFailsWith<MeshLinkException.PermissionDenied> {
+            runBlocking<Unit> { meshLink.start() }
+        }
     }
 
     @Test
@@ -334,12 +342,14 @@ class MeshLinkContractTest {
             )
 
         // Act / Assert
-        assertFailsWith<MeshLinkException.PlatformFailure> { runBlocking { meshLink.start() } }
+        assertFailsWith<MeshLinkException.PlatformFailure> {
+            runBlocking<Unit> { meshLink.start() }
+        }
     }
 
     @Test
     fun `successful trust verification preserves first seen and refreshes last verified timestamp`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val receiver = harness.createNode("peer-receiver")
@@ -390,7 +400,7 @@ class MeshLinkContractTest {
 
     @Test
     fun `forgetPeer deletes trust and same identity is treated as fresh tofu on recontact`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val harness = harness()
             val receiver = harness.createNode("peer-receiver")
@@ -449,39 +459,45 @@ class MeshLinkContractTest {
         }
 
     @Test
-    fun `identity change emits trust failure diagnostics`() = runBlocking {
-        // Arrange
-        val harness = harness()
-        val receiver = harness.createNode("peer-receiver")
-        val trustedSender = harness.createNode("peer-sender")
+    fun `identity change emits trust failure diagnostics`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val receiver = harness.createNode("peer-receiver")
+            val trustedSender = harness.createNode("peer-sender")
 
-        receiver.meshLink.start()
-        trustedSender.meshLink.start()
-        trustedSender.meshLink.send(receiver.peerId, "hello".encodeToByteArray())
+            receiver.meshLink.start()
+            trustedSender.meshLink.start()
+            trustedSender.meshLink.send(receiver.peerId, "hello".encodeToByteArray())
 
-        val replacedSender = harness.createNode("peer-sender", identityLabel = "rotated")
-        replacedSender.meshLink.start()
-        val trustFailure = async {
-            withTimeout(1_000) {
-                receiver.meshLink.diagnosticEvents.first { it.code == DiagnosticCode.TRUST_FAILURE }
+            val replacedSender = harness.createNode("peer-sender", identityLabel = "rotated")
+            replacedSender.meshLink.start()
+            val trustFailure = async {
+                withTimeout(1_000) {
+                    receiver.meshLink.diagnosticEvents.first {
+                        it.code == DiagnosticCode.TRUST_FAILURE
+                    }
+                }
             }
+
+            // Act
+            replacedSender.meshLink.send(receiver.peerId, "hello-again".encodeToByteArray())
+
+            // Assert
+            assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)
+            assertTrue(
+                receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE }
+            )
         }
-
-        // Act
-        replacedSender.meshLink.send(receiver.peerId, "hello-again".encodeToByteArray())
-
-        // Assert
-        assertEquals(DiagnosticCode.TRUST_FAILURE, trustFailure.await().code)
-        assertTrue(receiver.diagnosticSink.events().any { it.code == DiagnosticCode.TRUST_FAILURE })
-    }
 
     private val harnesses: MutableList<MeshTestHarness> = mutableListOf()
 
     @AfterTest
-    fun tearDownHarnesses(): Unit = runBlocking {
-        harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
-        harnesses.clear()
-    }
+    fun tearDownHarnesses(): Unit =
+        runBlocking<Unit> {
+            harnesses.asReversed().forEach { harness -> runCatching { harness.stopAll() } }
+            harnesses.clear()
+        }
 
     private fun harness(): MeshTestHarness = MeshTestHarness().also(harnesses::add)
 

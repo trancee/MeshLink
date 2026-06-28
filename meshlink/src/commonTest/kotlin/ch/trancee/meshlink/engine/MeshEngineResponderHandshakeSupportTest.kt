@@ -26,7 +26,7 @@ import kotlinx.coroutines.runBlocking
 class MeshEngineResponderHandshakeSupportTest {
     @Test
     fun `handleHandshakeMessage1 sends message2 and stores the pending responder handshake`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
             val temporaryPeerId = PeerId("cb-aabbccddeeff")
@@ -49,7 +49,7 @@ class MeshEngineResponderHandshakeSupportTest {
 
     @Test
     fun `handleHandshakeMessage3 promotes temporary peers to canonical ids and completes the handshake`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
             val initiatorIdentity = LocalIdentity.fromAppId("responder-handshake-initiator")
@@ -106,12 +106,11 @@ class MeshEngineResponderHandshakeSupportTest {
             )
             assertNotNull(fixture.trustStore.read(expectedCanonicalPeerId.value))
             assertTrue(fixture.failures.isEmpty())
-            Unit
         }
 
     @Test
     fun `handleHandshakeMessage1 clears the pending responder handshake when message2 delivery fails`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
             val temporaryPeerId = PeerId("cb-aabbccddeeff")
@@ -142,7 +141,7 @@ class MeshEngineResponderHandshakeSupportTest {
 
     @Test
     fun `handleHandshakeMessage3 reports unexpected payloads when no pending responder handshake exists`() =
-        runBlocking {
+        runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
             val temporaryPeerId = PeerId("cb-aabbccddeeff")
