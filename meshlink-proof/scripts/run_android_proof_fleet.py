@@ -169,7 +169,11 @@ def collect_devices() -> list[DeviceRecord]:
         listed_id = str(entry.get("id") or "").strip()
         if not listed_id:
             continue
-        resolved_serial, info = normalize_android_serial(listed_id)
+        try:
+            resolved_serial, info = normalize_android_serial(listed_id)
+        except RuntimeError as error:
+            print(f"[warn] skipping unresolved Android device {listed_id!r}: {error}", file=sys.stderr)
+            continue
         if resolved_serial in seen:
             continue
         seen.add(resolved_serial)

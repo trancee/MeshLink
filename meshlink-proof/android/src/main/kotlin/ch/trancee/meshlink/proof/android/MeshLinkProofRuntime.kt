@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -324,16 +325,22 @@ internal object MeshLinkProofRuntime {
                 "PEER collector subscribed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
             )
             var firstPeerEventLogged = false
-            mesh.peerEvents.collectLatest { event ->
-                val (eventLabel, eventPeerIdValue) =
-                    when (event) {
-                        is PeerEvent.Found -> "found" to event.peerId.value
-                        is PeerEvent.StateChanged -> "state-changed" to event.peerId.value
-                        is PeerEvent.Lost -> "lost" to event.peerId.value
-                    }
-                appendLog(
-                    "PEER collector event received type=$eventLabel peer=${eventPeerIdValue.takeLast(6)} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
-                )
+            mesh.peerEvents
+                .onCompletion { cause: Throwable? ->
+                    appendLog(
+                        "PEER collector completed cause=${cause?.javaClass?.simpleName ?: "none"} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                    )
+                }
+                .collectLatest { event ->
+                    val (eventLabel, eventPeerIdValue) =
+                        when (event) {
+                            is PeerEvent.Found -> "found" to event.peerId.value
+                            is PeerEvent.StateChanged -> "state-changed" to event.peerId.value
+                            is PeerEvent.Lost -> "lost" to event.peerId.value
+                        }
+                    appendLog(
+                        "PEER collector event received type=$eventLabel peer=${eventPeerIdValue.takeLast(6)} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                    )
                 if (!firstPeerEventLogged) {
                     firstPeerEventLogged = true
                     val meshStartRequestedAtNanos = this@MeshLinkProofRuntime.meshStartRequestedAtNanos
