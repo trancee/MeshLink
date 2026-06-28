@@ -106,16 +106,7 @@ class MainActivity : Activity() {
         val snapshot = MeshLinkProofRuntime.snapshot
         runOnUiThread {
             stateLabel.text = "State: ${snapshot.state}"
-            peersLabel.text =
-                if (snapshot.peers.isEmpty()) {
-                    "Peers: none"
-                } else {
-                    buildString {
-                            appendLine("Peers:")
-                            snapshot.peers.forEach { peer -> appendLine("- $peer") }
-                        }
-                        .trimEnd()
-                }
+            peersLabel.text = summarizePeers(snapshot.peers)
             startStopButton.text = if (snapshot.running) "Stop Proof" else "Start Proof"
             sendHelloButton.isEnabled = snapshot.running && snapshot.peers.isNotEmpty()
             lifecycleLabel.text = summarizeLifecycleStatus(snapshot.logs)
@@ -125,6 +116,19 @@ class MainActivity : Activity() {
                 } else {
                     snapshot.logs.joinToString(separator = "\n")
                 }
+        }
+    }
+
+    private fun summarizePeers(peers: List<String>): String {
+        return if (peers.isEmpty()) {
+            "Peers: none"
+        } else {
+            buildString {
+                append("Peers (")
+                append(peers.size)
+                append("): ")
+                append(peers.joinToString(separator = ", ") { peer -> peer.takeLast(6) })
+            }
         }
     }
 
