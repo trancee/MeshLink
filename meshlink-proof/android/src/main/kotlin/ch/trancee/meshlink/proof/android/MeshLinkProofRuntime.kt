@@ -325,6 +325,15 @@ internal object MeshLinkProofRuntime {
             )
             var firstPeerEventLogged = false
             mesh.peerEvents.collectLatest { event ->
+                val (eventLabel, eventPeerIdValue) =
+                    when (event) {
+                        is PeerEvent.Found -> "found" to event.peerId.value
+                        is PeerEvent.StateChanged -> "state-changed" to event.peerId.value
+                        is PeerEvent.Lost -> "lost" to event.peerId.value
+                    }
+                appendLog(
+                    "PEER collector event received type=$eventLabel peer=${eventPeerIdValue.takeLast(6)} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                )
                 if (!firstPeerEventLogged) {
                     firstPeerEventLogged = true
                     val meshStartRequestedAtNanos = this@MeshLinkProofRuntime.meshStartRequestedAtNanos
