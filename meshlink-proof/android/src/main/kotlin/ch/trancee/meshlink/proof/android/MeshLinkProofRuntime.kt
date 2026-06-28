@@ -25,6 +25,7 @@ import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -299,7 +300,7 @@ internal object MeshLinkProofRuntime {
             }
         appendLog("DIAG ${event.code} stage=${event.stage} reason=${event.reason}$metadataSuffix")
         if (event.code == DiagnosticCode.ROUTE_DISCOVERED || event.code == DiagnosticCode.HOP_SESSION_ESTABLISHED) {
-            markRouteReady(event.peerSuffix, event.code.name)
+            markRouteReady(resolveDiagnosticPeerId(event), event.code.name)
         }
     }
 
@@ -337,7 +338,7 @@ internal object MeshLinkProofRuntime {
         val collectorsStartedAtNanos = SystemClock.elapsedRealtimeNanos()
 
         synchronized(collectorJobs) {
-            collectorJobs["state"] = scope.launch {
+            collectorJobs["state"] = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 mesh.state.collectLatest { state ->
                     runtimeStateText = state.toString()
                     running = state == MeshLinkState.Running
@@ -346,7 +347,7 @@ internal object MeshLinkProofRuntime {
             }
         }
         synchronized(collectorJobs) {
-            collectorJobs["peer"] = scope.launch {
+            collectorJobs["peer"] = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 val peerCollectorSubscribedAtNanos = SystemClock.elapsedRealtimeNanos()
                 appendLog(
                     "PEER collector subscribed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
@@ -400,14 +401,14 @@ internal object MeshLinkProofRuntime {
             }
         }
         synchronized(collectorJobs) {
-            collectorJobs["diagnostic"] = scope.launch {
+            collectorJobs["diagnostic"] = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 mesh.diagnosticEvents.collectLatest { event ->
                     appendDiagnostic(event)
                 }
             }
         }
         synchronized(collectorJobs) {
-            collectorJobs["inbound"] = scope.launch {
+            collectorJobs["inbound"] = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 appendLog("INBOUND collector subscribed")
                 var firstInboundMessageLogged = false
                 mesh.messages.collectLatest { message ->
@@ -489,7 +490,7 @@ internal object MeshLinkProofRuntime {
                     rememberKnownPeer(peerId, source = event.code.name)
                     scheduleAutoHello(peerId, PeerConnectionState.CONNECTED, event.code.name)
                 }
-                markRouteReady(event.peerSuffix, event.code.name)
+                markRouteReady(resolveDiagnosticPeerId(event), event.code.name)
             }
             DiagnosticCode.TRUST_ESTABLISHED -> {
                 val peerIdValue = event.metadata["peerId"]
@@ -669,27 +670,33 @@ internal object MeshLinkProofRuntime {
         maybeStartAutoHello(peerId, source)
     }
 
-    private fun markRouteReady(peerSuffix: String?, source: String): Unit {
-        if (peerSuffix == null) {
+    private fun markRouteReady(peerIdValue: String?, source: String): Unit {
+        if (peerIdValue == null) {
             return
         }
-        val peerId =
-            synchronized(knownPeers) {
-                knownPeers.values.firstOrNull { knownPeer ->
-                    knownPeer.peerId.value.endsWith(peerSuffix)
-                }?.peerId
-            } ?: return
+        val peerId = PeerId(peerIdValue)
         synchronized(routeReadyPeers) {
             routeReadyPeers.add(peerId.value)
         }
+        val describedPeerId =
+            synchronized(knownPeers) {
+                knownPeers[peerId.value]?.peerId
+                    ?: knownPeers.values.firstOrNull { knownPeer ->
+                        knownPeer.peerId.value.endsWith(peerId.value)
+                    }?.peerId
+            } ?: peerId
         appendLog(
-            "auto-send route ready for ${peerId.value.takeLast(6)} source=$source ${describeRouteState(peerId)}"
+            "auto-send route ready for ${describedPeerId.value.takeLast(6)} source=$source ${describeRouteState(describedPeerId)}"
         )
         maybeStartAutoHello(peerId, source)
     }
 
     private suspend fun awaitRouteReady(peerId: PeerId, source: String): Boolean {
         if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
+            return true
+        }
+        if (synchronized(routeReadyPeers) { routeReadyPeers.isNotEmpty() }) {
+            appendLog("route ready fallback via existing route ${describeRouteState(peerId)} source=$source")
             return true
         }
         appendLog("route ready wait start ${describeRouteState(peerId)} source=$source")
@@ -707,6 +714,13 @@ internal object MeshLinkProofRuntime {
                 )
             }
         } == true
+    }
+
+    private fun resolveDiagnosticPeerId(event: DiagnosticEvent): String? {
+        return event.metadata["peerId"]
+            ?: event.metadata["connectedPeerId"]
+            ?: event.metadata["destinationPeerId"]
+            ?: event.peerSuffix
     }
 
     private fun describeRouteState(peerId: PeerId): String {
@@ -914,6 +928,9 @@ internal object MeshLinkProofRuntime {
     }
 
     private fun shouldInitiateHello(peerId: PeerId): Boolean {
+        if (launchConfig.benchmarkPayloadBytes == null) {
+            return true
+        }
         if (launchConfig.forceInitiator) {
             return true
         }
@@ -953,10 +970,10 @@ internal object MeshLinkProofRuntime {
         return String.format(Locale.US, "%.2f", kibPerSecond)
     }
 
-    private const val AUTO_SEND_ATTEMPTS: Int = 6
+    private const val AUTO_SEND_ATTEMPTS: Int = 10
     private const val AUTO_SEND_RETRY_DELAY_MS: Long = 2_000
     private const val ROUTE_READY_POLL_INTERVAL_MS: Long = 50L
-    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 10_000L
+    private const val ROUTE_READY_WAIT_TIMEOUT_MS: Long = 20_000L
     private const val BENCHMARK_RECEIPT_TIMEOUT_MS: Long = 20_000L
     private const val BENCHMARK_MAGIC: String = "MLBM1000"
     private const val BENCHMARK_RECEIPT_PREFIX: String = "MLBM1_ACK:"
