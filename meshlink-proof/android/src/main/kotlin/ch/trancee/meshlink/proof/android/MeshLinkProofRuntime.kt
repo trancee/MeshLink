@@ -47,6 +47,7 @@ internal object MeshLinkProofRuntime {
     private val routeReadyPeers: LinkedHashSet<String> = linkedSetOf()
     private val pendingAutoSendPeers: LinkedHashSet<String> = linkedSetOf()
     private val passiveReceiptRetryJobs: LinkedHashMap<String, Job> = linkedMapOf()
+    private val collectorJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val pendingBenchmarkReceipts: LinkedHashMap<String, CompletableDeferred<BenchmarkReceipt>> =
         linkedMapOf()
     private val logLines: ArrayDeque<String> = ArrayDeque()
@@ -207,9 +208,13 @@ internal object MeshLinkProofRuntime {
 
     fun stop(): Job {
         return scope.launch {
+            appendLog(
+                "runtime stop requested collectorJobs=${synchronized(collectorJobs) { collectorJobs.keys.joinToString(prefix = "[", postfix = "]") }}"
+            )
             synchronized(this@MeshLinkProofRuntime) {
                 running = false
                 runtimeStateText = MeshLinkState.Uninitialized.toString()
+                collectorsStarted = false
             }
             synchronized(routeReadyPeers) { routeReadyPeers.clear() }
             synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
@@ -220,6 +225,10 @@ internal object MeshLinkProofRuntime {
             synchronized(passiveReceiptRetryJobs) {
                 passiveReceiptRetryJobs.values.forEach(Job::cancel)
                 passiveReceiptRetryJobs.clear()
+            }
+            synchronized(collectorJobs) {
+                collectorJobs.values.forEach(Job::cancel)
+                collectorJobs.clear()
             }
             runCatching { meshLink?.stop() }
             updatesFlow.tryEmit(Unit)
@@ -312,83 +321,90 @@ internal object MeshLinkProofRuntime {
         val mesh = requireMeshLink()
         val collectorsStartedAtNanos = SystemClock.elapsedRealtimeNanos()
 
-        scope.launch {
-            mesh.state.collectLatest { state ->
-                runtimeStateText = state.toString()
-                running = state == MeshLinkState.Running
-                updatesFlow.tryEmit(Unit)
+        synchronized(collectorJobs) {
+            collectorJobs["state"] = scope.launch {
+                mesh.state.collectLatest { state ->
+                    runtimeStateText = state.toString()
+                    running = state == MeshLinkState.Running
+                    updatesFlow.tryEmit(Unit)
+                }
             }
         }
-        scope.launch {
-            val peerCollectorSubscribedAtNanos = SystemClock.elapsedRealtimeNanos()
-            appendLog(
-                "PEER collector subscribed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
-            )
-            var firstPeerEventLogged = false
-            try {
-                mesh.peerEvents
-                    .onCompletion { cause: Throwable? ->
-                        appendLog(
-                            "PEER collector completed cause=${cause?.javaClass?.simpleName ?: "none"} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
-                        )
-                    }
-                    .collectLatest { event ->
-                        val (eventLabel, eventPeerIdValue) =
-                            when (event) {
-                                is PeerEvent.Found -> "found" to event.peerId.value
-                                is PeerEvent.StateChanged -> "state-changed" to event.peerId.value
-                                is PeerEvent.Lost -> "lost" to event.peerId.value
-                            }
-                        appendLog(
-                            "PEER collector event received type=$eventLabel peer=${eventPeerIdValue.takeLast(6)} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
-                        )
-                        if (!firstPeerEventLogged) {
-                            firstPeerEventLogged = true
-                            val meshStartRequestedAtNanos = this@MeshLinkProofRuntime.meshStartRequestedAtNanos
-                            val meshStartCompletedAtNanos = this@MeshLinkProofRuntime.meshStartCompletedAtNanos
-                            val meshStartRequestedDeltaMs =
-                                meshStartRequestedAtNanos?.let(::elapsedMillisSince)
-                            val meshStartCompletedDeltaMs =
-                                meshStartCompletedAtNanos?.let(::elapsedMillisSince)
+        synchronized(collectorJobs) {
+            collectorJobs["peer"] = scope.launch {
+                val peerCollectorSubscribedAtNanos = SystemClock.elapsedRealtimeNanos()
+                appendLog(
+                    "PEER collector subscribed elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                )
+                var firstPeerEventLogged = false
+                try {
+                    mesh.peerEvents
+                        .onCompletion { cause: Throwable? ->
                             appendLog(
-                                buildString {
-                                    append("PEER collector first event observed elapsedMs=")
-                                    append(elapsedMillisSince(collectorsStartedAtNanos))
-                                    append(" sinceSubscribeMs=")
-                                    append(elapsedMillisSince(peerCollectorSubscribedAtNanos))
-                                    append(" sinceMeshStartRequestedMs=")
-                                    append(meshStartRequestedDeltaMs ?: "n/a")
-                                    append(" sinceMeshStartCompletedMs=")
-                                    append(meshStartCompletedDeltaMs ?: "n/a")
-                                }
+                                "PEER collector completed cause=${cause?.javaClass?.simpleName ?: "none"} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
                             )
                         }
-                        handlePeerEvent(event)
-                    }
-            } finally {
-                appendLog(
-                    "PEER collector coroutine exiting elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
-                )
-            }
-        }
-
-        scope.launch {
-            mesh.diagnosticEvents.collectLatest { event ->
-                appendDiagnostic(event)
-            }
-        }
-        scope.launch {
-            appendLog("INBOUND collector subscribed")
-            var firstInboundMessageLogged = false
-            mesh.messages.collectLatest { message ->
-                if (!firstInboundMessageLogged) {
-                    firstInboundMessageLogged = true
-                    appendLog("INBOUND collector first message observed")
+                        .collectLatest { event ->
+                            val (eventLabel, eventPeerIdValue) =
+                                when (event) {
+                                    is PeerEvent.Found -> "found" to event.peerId.value
+                                    is PeerEvent.StateChanged -> "state-changed" to event.peerId.value
+                                    is PeerEvent.Lost -> "lost" to event.peerId.value
+                                }
+                            appendLog(
+                                "PEER collector event received type=$eventLabel peer=${eventPeerIdValue.takeLast(6)} elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                            )
+                            if (!firstPeerEventLogged) {
+                                firstPeerEventLogged = true
+                                val meshStartRequestedAtNanos = this@MeshLinkProofRuntime.meshStartRequestedAtNanos
+                                val meshStartCompletedAtNanos = this@MeshLinkProofRuntime.meshStartCompletedAtNanos
+                                val meshStartRequestedDeltaMs =
+                                    meshStartRequestedAtNanos?.let(::elapsedMillisSince)
+                                val meshStartCompletedDeltaMs =
+                                    meshStartCompletedAtNanos?.let(::elapsedMillisSince)
+                                appendLog(
+                                    buildString {
+                                        append("PEER collector first event observed elapsedMs=")
+                                        append(elapsedMillisSince(collectorsStartedAtNanos))
+                                        append(" sinceSubscribeMs=")
+                                        append(elapsedMillisSince(peerCollectorSubscribedAtNanos))
+                                        append(" sinceMeshStartRequestedMs=")
+                                        append(meshStartRequestedDeltaMs ?: "n/a")
+                                        append(" sinceMeshStartCompletedMs=")
+                                        append(meshStartCompletedDeltaMs ?: "n/a")
+                                    }
+                                )
+                            }
+                            handlePeerEvent(event)
+                        }
+                } finally {
+                    appendLog(
+                        "PEER collector coroutine exiting elapsedMs=${elapsedMillisSince(collectorsStartedAtNanos)}"
+                    )
                 }
-                appendLog(
-                    "INBOUND message origin=${message.originPeerId.value.takeLast(6)} bytes=${message.payload.size} receivedAt=${message.receivedAtEpochMillis}",
-                )
-                handleInboundMessage(message)
+            }
+        }
+        synchronized(collectorJobs) {
+            collectorJobs["diagnostic"] = scope.launch {
+                mesh.diagnosticEvents.collectLatest { event ->
+                    appendDiagnostic(event)
+                }
+            }
+        }
+        synchronized(collectorJobs) {
+            collectorJobs["inbound"] = scope.launch {
+                appendLog("INBOUND collector subscribed")
+                var firstInboundMessageLogged = false
+                mesh.messages.collectLatest { message ->
+                    if (!firstInboundMessageLogged) {
+                        firstInboundMessageLogged = true
+                        appendLog("INBOUND collector first message observed")
+                    }
+                    appendLog(
+                        "INBOUND message origin=${message.originPeerId.value.takeLast(6)} bytes=${message.payload.size} receivedAt=${message.receivedAtEpochMillis}",
+                    )
+                    handleInboundMessage(message)
+                }
             }
         }
     }
