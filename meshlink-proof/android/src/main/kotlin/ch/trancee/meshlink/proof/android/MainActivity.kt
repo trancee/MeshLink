@@ -121,14 +121,9 @@ class MainActivity : Activity() {
 
     private fun summarizePeers(peers: List<String>): String {
         return if (peers.isEmpty()) {
-            "Peers: none"
+            "Peers: 0"
         } else {
-            buildString {
-                append("Peers (")
-                append(peers.size)
-                append("): ")
-                append(peers.joinToString(separator = ", ") { peer -> peer.takeLast(6) })
-            }
+            "Peers: ${peers.size}"
         }
     }
 
