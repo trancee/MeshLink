@@ -78,6 +78,58 @@ class MeshEngineInitiatorHandshakeSupportTest {
         }
 
     @Test
+    fun `handleHandshakeMessage2 promotes temporary peers to their canonical ids`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-temporary-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-temporary-responder")
+            val temporaryPeerId = PeerId("bt-aabbccddeeff")
+            val canonicalPeerId =
+                canonicalPeerIdForTemporaryTransportPeer(
+                    peerId = temporaryPeerId,
+                    remoteEd25519PublicKey = responderIdentity.ed25519PublicKey,
+                    remoteX25519PublicKey = responderIdentity.x25519PublicKey,
+                    cryptoProvider = localIdentity.cryptoProvider,
+                )
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val seededHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = temporaryPeerId,
+                    initiatorManager = initiatorManager,
+                )
+            val responderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message2 =
+                responderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    seededHandshake.message1,
+                )
+
+            // Act
+            fixture.support.handleHandshakeMessage2(peerId = temporaryPeerId, payload = message2)
+
+            // Assert
+            val sentMessage = fixture.sentFrames.single()
+            assertEquals(canonicalPeerId.value, sentMessage.peerIdValue)
+            assertEquals("handshake.message3", sentMessage.action)
+            assertIs<DirectWireFrame.HandshakeMessage3>(sentMessage.frame)
+            val outcome = seededHandshake.sessionDeferred.await()
+            assertIs<SessionEstablishmentOutcome.Established>(outcome)
+            assertEquals(listOf(temporaryPeerId.value to canonicalPeerId.value), fixture.promotions)
+            assertEquals(
+                canonicalPeerId.value,
+                fixture.sessionRegistry.resolvePeerId(temporaryPeerId).value,
+            )
+            assertNotNull(fixture.sessionRegistry.hopSession(canonicalPeerId))
+            val selectedRoute = fixture.routeCoordinator.routeFor(canonicalPeerId)
+            assertNotNull(selectedRoute)
+            assertEquals(canonicalPeerId.value, selectedRoute.destinationPeerId.value)
+            assertNotNull(fixture.trustStore.read(canonicalPeerId.value))
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
     fun `handleHandshakeMessage2 fails the pending initiator handshake when message3 delivery fails`() =
         runBlocking<Unit> {
             // Arrange
@@ -208,6 +260,7 @@ private data class InitiatorHandshakeFixture(
     val established: MutableList<RecordedInitiatorHandshakeEstablished>,
     val failures: MutableList<RecordedInitiatorHandshakeFailure>,
     val diagnostics: MutableList<RecordedInitiatorHandshakeDiagnostic>,
+    val promotions: MutableList<Pair<String, String>>,
 )
 
 private data class SeededPendingInitiatorHandshake(
@@ -230,6 +283,7 @@ private fun initiatorHandshakeFixture(
     val established = mutableListOf<RecordedInitiatorHandshakeEstablished>()
     val failures = mutableListOf<RecordedInitiatorHandshakeFailure>()
     val diagnostics = mutableListOf<RecordedInitiatorHandshakeDiagnostic>()
+    val promotions = mutableListOf<Pair<String, String>>()
     val routingSupport =
         MeshEngineRoutingSupport(
             routeCoordinator = routeCoordinator,
@@ -301,7 +355,9 @@ private fun initiatorHandshakeFixture(
                                 metadata = metadata,
                             )
                     },
-                    promoteTemporaryPeer = { _, _ -> error("unexpected temporary peer promotion") },
+                    promoteTemporaryPeer = { temporaryPeerId, canonicalPeerId ->
+                        promotions += temporaryPeerId.value to canonicalPeerId.value
+                    },
                 ),
         )
     return InitiatorHandshakeFixture(
@@ -313,6 +369,7 @@ private fun initiatorHandshakeFixture(
         established = established,
         failures = failures,
         diagnostics = diagnostics,
+        promotions = promotions,
     )
 }
 

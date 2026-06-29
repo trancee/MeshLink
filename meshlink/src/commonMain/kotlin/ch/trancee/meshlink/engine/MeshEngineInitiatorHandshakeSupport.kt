@@ -21,15 +21,21 @@ internal class MeshEngineInitiatorHandshakeSupport(
             val result =
                 processHandshakeMessage2(peerId = peerId, payload = payload, pending = pending)
             if (result != null) {
+                val resolvedPeerId =
+                    rebindTemporaryInitiatorPeerIfNeeded(
+                        peerId = peerId,
+                        pending = pending,
+                        result = result,
+                    ) ?: return
                 val trustRecord =
                     verifyHandshakeMessage2Trust(
-                        peerId = peerId,
+                        peerId = resolvedPeerId,
                         pending = pending,
                         result = result,
                     )
                 if (trustRecord != null) {
                     sendHandshakeMessage3(
-                        peerId = peerId,
+                        peerId = resolvedPeerId,
                         pending = pending,
                         result = result,
                         trustRecord = trustRecord,
@@ -80,6 +86,40 @@ internal class MeshEngineInitiatorHandshakeSupport(
                 )
                 null
             }
+    }
+
+    private suspend fun rebindTemporaryInitiatorPeerIfNeeded(
+        peerId: PeerId,
+        pending: PendingInitiatorHandshake,
+        result: NoiseXXHandshakeResult,
+    ): PeerId? {
+        val canonicalPeerId =
+            canonicalPeerIdForTemporaryTransportPeer(
+                peerId = peerId,
+                remoteEd25519PublicKey = result.remoteEd25519PublicKey,
+                remoteX25519PublicKey = result.remoteStaticPublicKey,
+                cryptoProvider = localIdentity.cryptoProvider,
+            )
+        if (canonicalPeerId.value == peerId.value) {
+            return peerId
+        }
+        val rebound =
+            state.sessionRegistry.rebindPendingInitiatorHandshake(
+                fromPeerId = peerId,
+                toPeerId = canonicalPeerId,
+                pendingHandshake = pending,
+            )
+        if (!rebound) {
+            callbacks.emitHopSessionFailed(
+                peerId,
+                "transport.handshake.message2.rebind",
+                DiagnosticReason.DELIVERY_FAILURE,
+                mapOf("canonicalPeerId" to canonicalPeerId.value),
+            )
+            return null
+        }
+        callbacks.promoteTemporaryPeer(peerId, canonicalPeerId)
+        return canonicalPeerId
     }
 
     private suspend fun verifyHandshakeMessage2Trust(

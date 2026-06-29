@@ -79,6 +79,31 @@ internal class MeshEngineSessionRegistry {
         }
     }
 
+    suspend fun rebindPendingInitiatorHandshake(
+        fromPeerId: PeerId,
+        toPeerId: PeerId,
+        pendingHandshake: PendingInitiatorHandshake,
+    ): Boolean {
+        return sessionMutex.withLock {
+            if (fromPeerId.value == toPeerId.value) {
+                return@withLock pendingInitiatorHandshakes[fromPeerId.value] === pendingHandshake
+            }
+            if (pendingInitiatorHandshakes[fromPeerId.value] !== pendingHandshake) {
+                return@withLock false
+            }
+            if (
+                pendingInitiatorHandshakes.containsKey(toPeerId.value) ||
+                    hopSessions.containsKey(toPeerId.value)
+            ) {
+                return@withLock false
+            }
+            pendingInitiatorHandshakes.remove(fromPeerId.value)
+            pendingInitiatorHandshakes[toPeerId.value] = pendingHandshake
+            peerAliases[fromPeerId.value] = toPeerId.value
+            true
+        }
+    }
+
     suspend fun failInitiatorHandshake(
         peerId: PeerId,
         pendingHandshake: PendingInitiatorHandshake,
