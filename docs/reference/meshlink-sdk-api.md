@@ -67,10 +67,11 @@ fun meshLinkBootstrap(context: Context): MeshLinkBootstrap
 | `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `meshLinkBootstrap(context)` and pass an application context. |
 | `MeshLinkBootstrap` | platform bootstrap carrier | Abstract public type used by platform-specific helpers. |
 
-Construction creates a runtime in `MeshLinkState.Uninitialized`. It does not
-start transport activity, emit lifecycle diagnostics, or begin peer or session
-work before `start()` is called. Construction may still load or create local
-identity material so MeshLink can derive its stable peer identity.
+Construction begins with `MeshLinkState.Uninitialized` and returns a runtime
+in `MeshLinkState.Configured`. It does not start transport activity, emit
+lifecycle diagnostics, or begin peer or session work before `start()` is
+called. Construction may still load or create local identity material so
+MeshLink can derive its stable peer identity.
 
 ### Example
 
@@ -179,10 +180,10 @@ screen-local when you need full operator visibility.
 
 | Method | Success result | Other result(s) | Notes |
 |---|---|---|---|
-| `start()` | `StartResult.Started` | `StartResult.AlreadyRunning`; `StartResult.InvalidState(Paused)` | Starts a new hard run from `Uninitialized` or `Stopped`. |
+| `start()` | `StartResult.Started` | `StartResult.AlreadyRunning`; `StartResult.InvalidState(Paused)` | Starts a new hard run from `Configured` or `Stopped`. |
 | `pause()` | `PauseResult.Paused` | `PauseResult.AlreadyPaused`; `PauseResult.InvalidState(currentState)` | Valid only from `Running`. |
 | `resume()` | `ResumeResult.Resumed` | `ResumeResult.AlreadyRunning`; `ResumeResult.InvalidState(currentState)` | Valid only from `Paused`. |
-| `stop()` | `StopResult.Stopped` | `StopResult.AlreadyStopped` | Stops MeshLink and clears the current hard run's in-memory runtime state. |
+| `stop()` | `StopResult.Stopped` | `StopResult.AlreadyStopped` | Stops MeshLink from `Configured`, `Running`, or `Paused`, and clears the current hard run's in-memory runtime state. |
 
 ### `send(peerId, payload, priority)`
 
@@ -233,7 +234,7 @@ val result = meshLink.send(
 
 | Type | Shape or values | Notes |
 |---|---|---|
-| `MeshLinkState` | `Uninitialized`, `Running`, `Paused`, `Stopped` | Public lifecycle state. |
+| `MeshLinkState` | `Uninitialized`, `Configured`, `Running`, `Paused`, `Stopped` | Public lifecycle state. `Uninitialized` is the construction-start state; `Configured` is the constructed-but-not-started state returned after creation completes. |
 | `PeerId` | `class PeerId(val value: String)` | `value` must not be blank. `toString()` redacts the full identifier and prints only the suffix. |
 | `BatterySnapshot` | `class BatterySnapshot(level: Float, val isCharging: Boolean)` | `level` is clamped into `0.0..1.0`. |
 | `DeliveryPriority` | `HIGH`, `NORMAL`, `LOW` | Public delivery priority. |

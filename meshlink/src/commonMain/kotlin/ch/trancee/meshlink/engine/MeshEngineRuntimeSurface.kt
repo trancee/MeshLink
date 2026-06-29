@@ -75,6 +75,13 @@ internal interface MeshEngineCompatibilityRuntimeSurface {
 
 private data class MeshEngineRuntimeGateSnapshot(val state: MeshLinkState, val hardRunEpoch: Long)
 
+/**
+ * Shared runtime surface used by the runtime assembly and test helpers.
+ *
+ * The default `Uninitialized` state models the construction-start boundary. Production runtime
+ * assembly explicitly passes `Configured` once construction completes, so this helper's default
+ * does not redefine the public lifecycle.
+ */
 internal class MeshEngineRuntimeSurface(
     initialState: MeshLinkState = MeshLinkState.Uninitialized,
     diagnosticSink: DiagnosticSink? = null,

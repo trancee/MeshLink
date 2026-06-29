@@ -60,19 +60,21 @@ That is why runtime creation belongs in an app-owned service boundary rather
 than in a transient UI callback.
 
 MeshLink also distinguishes between runtime construction and an active mesh run.
-Internally, `start()` begins a new hard run. `pause()` and `resume()` stay
-inside that run. `stop()` ends it.
+Construction begins in `Uninitialized`, completes in `Configured`, `start()`
+begins a new hard run, `pause()` and `resume()` stay inside that run, and
+`stop()` ends it.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> Uninitialized: create runtime
-    Uninitialized --> Running: start() - new hard run
+    Uninitialized --> Configured: construction completes
+    Configured --> Running: start() - new hard run
     Running --> Paused: pause()
     Paused --> Running: resume() - same hard run
     Running --> Stopped: stop() - end hard run
     Paused --> Stopped: stop() - end hard run
-    Uninitialized --> Stopped: stop()
+    Configured --> Stopped: stop()
     Stopped --> Running: start() - new hard run
 ```
 
@@ -80,7 +82,7 @@ A useful way to think about the lifecycle boundaries is:
 
 | Boundary | What it means |
 |---|---|
-| create runtime | no transport work yet, but the runtime object and supporting state now exist |
+| create runtime | starts in `Uninitialized` while the runtime surface is being built, then returns a configured runtime object once construction completes |
 | `pause()` | a soft boundary inside the current hard run |
 | `stop()` | a hard boundary that ends the current run and abandons volatile transport state |
 
