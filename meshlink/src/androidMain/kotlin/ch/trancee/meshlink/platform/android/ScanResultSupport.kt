@@ -36,6 +36,7 @@ private const val L2capSupportedSdkInt: Int = 34
 
 internal fun parseDiscoveryScanResultOrNull(
     serviceUuids: List<String>?,
+    serviceData: Map<String, ByteArray>? = null,
     deviceAddress: String,
     localMeshHash: UShort,
     localKeyHash: ByteArray,
@@ -44,6 +45,9 @@ internal fun parseDiscoveryScanResultOrNull(
 ): DiscoveryScanResult? {
     val payloadUuid =
         serviceUuids?.firstOrNull { uuid -> !BleDiscoveryContract.isAdvertisementServiceUuid(uuid) }
+            ?: serviceData?.keys?.firstOrNull { uuid ->
+                !BleDiscoveryContract.isAdvertisementServiceUuid(uuid)
+            }
             ?: run {
                 log("ignoring scan result without discovery payload addr=$deviceAddress")
                 return null

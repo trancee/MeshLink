@@ -36,6 +36,37 @@ class ScanResultSupportTest {
     }
 
     @Test
+    fun parseDiscoveryScanResultOrNullFallsBackToServiceDataWhenPayloadUuidIsMissing(): Unit {
+        // Arrange
+        val payload =
+            BleDiscoveryPayload(
+                protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
+                powerMode = BlePowerMode.BALANCED,
+                meshHash = BleDiscoveryContract.computeMeshHash(APP_ID),
+                l2capPsm = 192u,
+                keyHash = keyHash(seed = 3),
+                platformFamily = BleDiscoveryPlatformFamily.IOS,
+            )
+        val serviceUuids = listOf(BleDiscoveryContract.ADVERTISEMENT_SERVICE_UUID_EXPANDED)
+        val serviceData = mapOf(payload.payloadUuidString() to payload.encode())
+
+        // Act
+        val discovery =
+            parseDiscoveryScanResultOrNull(
+                serviceUuids = serviceUuids,
+                serviceData = serviceData,
+                deviceAddress = DEVICE_ADDRESS,
+                localMeshHash = BleDiscoveryContract.computeMeshHash(APP_ID),
+                localKeyHash = keyHash(seed = 1),
+                log = {},
+            )
+
+        // Assert
+        requireNotNull(discovery)
+        assertEquals(payload.payloadUuidString(), discovery.payload.payloadUuidString())
+    }
+
+    @Test
     fun parseDiscoveryScanResultOrNullLogsAndRejectsUnsupportedProtocolVersions(): Unit {
         // Arrange
         val logMessages = mutableListOf<String>()

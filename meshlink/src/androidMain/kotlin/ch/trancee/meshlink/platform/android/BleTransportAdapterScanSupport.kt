@@ -20,6 +20,10 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
         parseDiscoveryScanResultOrNull(
             serviceUuids =
                 result.scanRecord?.serviceUuids?.map { parcelUuid -> parcelUuid.uuid.toString() },
+            serviceData =
+                result.scanRecord?.serviceData?.mapKeys { serviceUuid ->
+                    serviceUuid.key.uuid.toString()
+                },
             deviceAddress = result.device.address,
             localMeshHash = currentDiscoveryPayload.meshHash,
             localKeyHash = localKeyHash,
