@@ -46,6 +46,7 @@ internal fun resolveMaximumPayloadBytesPerDelivery(
     }
 }
 
+private const val AUTOMATION_ENABLED_PREF_KEY = "automation:enabled"
 private const val AUTOMATION_TARGET_PEER_ID_PREF_KEY = "automation:targetPeerId"
 
 internal class BleTransportAdapter(
@@ -56,15 +57,31 @@ internal class BleTransportAdapter(
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
+    private val automationPreferences =
+        context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
+    internal val automationEnabled: Boolean =
+        automationPreferences.getBoolean(AUTOMATION_ENABLED_PREF_KEY, false)
     internal val automationTargetPeerId: String? =
-        context
-            .getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
-            .getString(AUTOMATION_TARGET_PEER_ID_PREF_KEY, null)
+        if (automationEnabled) {
+            automationPreferences
+                .getString(AUTOMATION_TARGET_PEER_ID_PREF_KEY, null)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+        } else {
+            null
+        }
     internal val transportDebugLoggingEnabled: Boolean =
         Log.isLoggable(LOG_TAG, Log.DEBUG) ||
             ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(bindings = peerBindings)
+
+    init {
+        log(
+            "automation mode enabled=${automationEnabled} target peer id=${automationTargetPeerId ?: "none"}"
+        )
+    }
+
     internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
     internal val l2capReconnectGuard = L2capReconnectGuard()
     internal val gattSideLinks =

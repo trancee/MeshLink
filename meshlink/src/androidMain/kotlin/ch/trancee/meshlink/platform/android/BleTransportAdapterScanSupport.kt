@@ -39,7 +39,7 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             }
 
     val targetPeerId = automationTargetPeerId
-    if (targetPeerId != null && discovery.hintPeerId.value != targetPeerId) {
+    if (automationEnabled && targetPeerId != null && discovery.hintPeerId.value != targetPeerId) {
         scanTargetMismatchCount.incrementAndGet()
         log(
             "scan discovery target mismatch addr=${result.device.address} rssi=${result.rssi} targetPeerId=$targetPeerId peerId=${discovery.hintPeerId.value} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} targetMismatch=${scanTargetMismatchCount.get()}"
