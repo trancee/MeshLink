@@ -180,6 +180,59 @@ class MeshEngineInlineDispatchSupportTest {
             assertEquals(DiagnosticReason.DELIVERY_FAILURE, hopSessionFailures.single().reason)
             assertEquals("IllegalStateException", hopSessionFailures.single().metadata["cause"])
         }
+
+    @Test
+    fun `dispatchPreparedMessage emits hop session failure when the transport drops the send`() =
+        runBlocking<Unit> {
+            // Arrange
+            val diagnostics = mutableListOf<RecordedInlineDispatchDiagnostic>()
+            val retryDiagnostics = mutableListOf<Pair<PeerId, DeliveryPriority>>()
+            val hopSessionFailures = mutableListOf<RecordedHopSessionFailure>()
+            val support =
+                inlineDispatchSupport(
+                    diagnostics = diagnostics,
+                    retryDiagnostics = retryDiagnostics,
+                    hopSessionFailures = hopSessionFailures,
+                    ensureHopSession = { _, _ ->
+                        SessionEstablishmentOutcome.Established(
+                            HopSession(
+                                sendKey = ByteArray(32) { 0x01 },
+                                receiveKey = ByteArray(32) { 0x02 },
+                            )
+                        )
+                    },
+                    sendEncryptedDirectWireFrame = { _, _, _, _ ->
+                        TransportSendResult.Dropped("mock")
+                    },
+                )
+            val resolution =
+                assertIs<MeshEngineInlineDispatchResolution.Ready>(
+                    support.resolveDispatch(
+                        peerId = PeerId("peer-drop"),
+                        priority = DeliveryPriority.NORMAL,
+                        hardRunToken = MeshEngineHardRunToken(epoch = 5L),
+                    )
+                )
+
+            // Act
+            val result =
+                support.dispatchPreparedMessage(
+                    peerId = PeerId("peer-drop"),
+                    priority = DeliveryPriority.NORMAL,
+                    routedMessage = inlineMessage(PeerId("peer-drop"), DeliveryPriority.NORMAL),
+                    resolution = resolution,
+                )
+
+            // Assert
+            assertEquals(MeshEngineInlineDispatchResult.AwaitRetry, result)
+            assertEquals(1, hopSessionFailures.size)
+            assertEquals("delivery.send.transportDrop", hopSessionFailures.single().stage)
+            assertEquals(DiagnosticReason.DELIVERY_FAILURE, hopSessionFailures.single().reason)
+            assertEquals("Dropped", hopSessionFailures.single().metadata["transportSendResult"])
+            assertEquals(1, retryDiagnostics.size)
+            assertEquals("peer-drop", retryDiagnostics.single().first.value)
+            assertEquals(DeliveryPriority.NORMAL, retryDiagnostics.single().second)
+        }
 }
 
 private fun inlineDispatchSupport(

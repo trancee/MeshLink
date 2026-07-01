@@ -3,9 +3,11 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.PeerConnectionState
 import ch.trancee.meshlink.api.PeerEvent
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.TransportEvent
@@ -205,6 +207,47 @@ class MeshEngineTransportSupportTest {
         }
 
     @Test
+    fun `peer lost still clears an established session`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = transportSupportHarness()
+            val peerId = PeerId("peer-churn")
+            val localIdentity = LocalIdentity.fromAppId("peer-churn-test")
+            val pending =
+                PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
+            harness.presenceTracker.onPeerConnected(peerId)
+            harness.routeCoordinator.onPeerConnected(
+                peerId = peerId,
+                trustRecord = trustRecord(peerId = peerId, seed = 5),
+            )
+            harness.sessionRegistry.storePendingResponderHandshake(peerId, pending)
+            harness.sessionRegistry.completeResponderHandshake(
+                peerId = peerId,
+                pendingHandshake = pending,
+                session = HopSession(sendKey = byteArrayOf(1), receiveKey = byteArrayOf(2)),
+            )
+
+            // Act
+            harness.support.handleTransportEvent(TransportEvent.PeerLost(peerId))
+
+            // Assert
+            assertEquals(
+                listOf(peerId.value),
+                harness.mutablePeerEvents.replayCache.filterIsInstance<PeerEvent.Lost>().map {
+                    it.peerId.value
+                },
+            )
+            assertNull(harness.routeCoordinator.routeFor(peerId))
+            assertNull(harness.sessionRegistry.hopSession(peerId))
+            assertNotNull(
+                harness.diagnostics.firstOrNull { diagnostic ->
+                    diagnostic.code == DiagnosticCode.ROUTE_EXPIRED &&
+                        diagnostic.stage == "transport.peerLost.routeExpired"
+                }
+            )
+        }
+
+    @Test
     fun `frame received routes all direct wire frame types to the matching callbacks`() =
         runBlocking<Unit> {
             // Arrange
@@ -253,6 +296,7 @@ private data class TransportSupportHarness(
     val mutablePeerEvents: MutableSharedFlow<PeerEvent>,
     val diagnostics: MutableList<RecordedTransportSupportDiagnostic>,
     val prewarmedPeerIds: MutableList<String>,
+    val sessionRegistry: MeshEngineSessionRegistry,
     val handshakeMessage1Calls: MutableList<Pair<String, List<Byte>>>,
     val handshakeMessage2Calls: MutableList<Pair<String, List<Byte>>>,
     val handshakeMessage3Calls: MutableList<Pair<String, List<Byte>>>,
@@ -265,6 +309,7 @@ private fun transportSupportHarness(): TransportSupportHarness {
     val mutablePeerEvents = MutableSharedFlow<PeerEvent>(replay = 16, extraBufferCapacity = 16)
     val diagnostics = mutableListOf<RecordedTransportSupportDiagnostic>()
     val prewarmedPeerIds = mutableListOf<String>()
+    val sessionRegistry = MeshEngineSessionRegistry()
     val handshakeMessage1Calls = mutableListOf<Pair<String, List<Byte>>>()
     val handshakeMessage2Calls = mutableListOf<Pair<String, List<Byte>>>()
     val handshakeMessage3Calls = mutableListOf<Pair<String, List<Byte>>>()
@@ -275,7 +320,7 @@ private fun transportSupportHarness(): TransportSupportHarness {
                 MeshEngineTransportPeerState(
                     presenceTracker = presenceTracker,
                     mutablePeerEvents = mutablePeerEvents,
-                    sessionRegistry = MeshEngineSessionRegistry(),
+                    sessionRegistry = sessionRegistry,
                 ),
             routingContext =
                 MeshEngineTransportRoutingContext(
@@ -317,6 +362,7 @@ private fun transportSupportHarness(): TransportSupportHarness {
         mutablePeerEvents = mutablePeerEvents,
         diagnostics = diagnostics,
         prewarmedPeerIds = prewarmedPeerIds,
+        sessionRegistry = sessionRegistry,
         handshakeMessage1Calls = handshakeMessage1Calls,
         handshakeMessage2Calls = handshakeMessage2Calls,
         handshakeMessage3Calls = handshakeMessage3Calls,

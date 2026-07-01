@@ -96,6 +96,15 @@ internal class MeshEngineInlineDispatchSupport(
         val refreshedNextHopPeerId =
             routingContext.routeCoordinator.nextHopFor(peerId) ?: resolution.nextHopPeerId
         if (refreshedNextHopPeerId != resolution.nextHopPeerId) {
+            dependencies.emitHopSessionFailed(
+                peerId,
+                "delivery.send.routeRefreshed",
+                DiagnosticReason.DELIVERY_FAILURE,
+                mapOf(
+                    "resolvedNextHopPeerId" to resolution.nextHopPeerId.value,
+                    "refreshedNextHopPeerId" to refreshedNextHopPeerId.value,
+                ),
+            )
             dependencies.scheduleRetryDiagnostic(peerId, priority)
             return MeshEngineInlineDispatchResult.AwaitRetry
         }
@@ -130,6 +139,15 @@ internal class MeshEngineInlineDispatchSupport(
                 MeshEngineInlineDispatchResult.Delivered
             }
             is TransportSendResult.Dropped -> {
+                dependencies.emitHopSessionFailed(
+                    peerId,
+                    "delivery.send.transportDrop",
+                    DiagnosticReason.DELIVERY_FAILURE,
+                    mapOf(
+                        "nextHopPeerId" to refreshedNextHopPeerId.value,
+                        "transportSendResult" to "Dropped",
+                    ),
+                )
                 dependencies.scheduleRetryDiagnostic(peerId, priority)
                 MeshEngineInlineDispatchResult.AwaitRetry
             }
