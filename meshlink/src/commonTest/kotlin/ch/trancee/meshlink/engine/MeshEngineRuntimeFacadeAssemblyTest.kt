@@ -118,6 +118,7 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             emitHopSessionFailed = { _, _, _, _ -> },
             prewarmHopSession = { _ -> },
             forwardMessageToNextHop = { _, _ -> },
+            forwardEndToEndHandshakeFrame = { _, _ -> },
             shouldAttemptLargeInlineSend = { false },
             isLocalPeerId = { false },
             handleHandshakeMessage1 = { _, _ -> },

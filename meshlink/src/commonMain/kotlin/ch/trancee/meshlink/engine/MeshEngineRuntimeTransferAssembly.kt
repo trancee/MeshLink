@@ -3,7 +3,9 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
@@ -86,6 +88,25 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
             forwardMessageToNextHop = session.forwardMessageToNextHop,
             deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+            forwardEndToEndHandshakeFrame = session.forwardEndToEndHandshakeFrame,
+            handleLocalEndToEndHandshakeFrame = { peerId, frame ->
+                // The relayed end-to-end (multi-hop) Noise XX handshake processor is not wired
+                // up yet: relaying (this file) lands before the destination-keyed handshake
+                // completion logic. Until that follow-up phase lands, locally-addressed frames
+                // are reported as unsupported rather than silently dropped.
+                support.emitDiagnostic(
+                    DiagnosticCode.TRANSPORT_FRAME_REJECTED,
+                    DiagnosticSeverity.WARN,
+                    "transport.e2eHandshake.unsupported",
+                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    DiagnosticReason.DELIVERY_FAILURE,
+                    mapOf(
+                        "handshakeId" to frame.handshakeId,
+                        "originPeerId" to frame.originPeerId.value,
+                        "cause" to "endToEndHandshakeProcessingNotYetImplemented",
+                    ),
+                )
+            },
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(

@@ -16,6 +16,8 @@ internal data class MeshEngineRuntimeSessionAssembly(
         suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val prewarmHopSession: (PeerId) -> Unit,
     val forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val forwardEndToEndHandshakeFrame:
+        suspend (WireFrame.EndToEndHandshakeFrame, MeshEngineHardRunToken) -> Unit,
     val shouldAttemptLargeInlineSend: suspend (PeerId) -> Boolean,
     val isLocalPeerId: (PeerId) -> Boolean,
     val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
@@ -132,6 +134,7 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
         prewarmHopSession = peerFlowSupport::prewarmHopSession,
         forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
+        forwardEndToEndHandshakeFrame = peerFlowSupport::forwardEndToEndHandshakeFrame,
         shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
         isLocalPeerId = peerFlowSupport::isLocalPeerId,
         handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
