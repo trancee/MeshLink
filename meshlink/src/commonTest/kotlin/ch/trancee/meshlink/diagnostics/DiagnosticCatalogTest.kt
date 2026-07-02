@@ -58,6 +58,7 @@ class DiagnosticCatalogTest {
                 DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
                 DiagnosticCode.DELIVERY_RETRYING,
                 DiagnosticCode.SIZE_LIMIT_REJECTED,
+                DiagnosticCode.TRANSPORT_FRAME_REJECTED,
             )
 
         // Act / Assert

@@ -646,6 +646,7 @@ public final class ch/trancee/meshlink/diagnostics/DiagnosticCode : java/lang/En
 	public static final field TRANSFER_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSFER_PROGRESS Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSFER_STARTED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
+	public static final field TRANSPORT_FRAME_REJECTED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSPORT_MODE_CHANGED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRUST_ESTABLISHED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRUST_FAILURE Lch/trancee/meshlink/diagnostics/DiagnosticCode;

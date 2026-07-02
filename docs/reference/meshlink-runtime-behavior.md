@@ -263,7 +263,7 @@ flowchart TD
 | trust and sessions | `TRUST_ESTABLISHED`, `TRUST_FAILURE`, `HOP_SESSION_ESTABLISHED`, `HOP_SESSION_FAILED` |
 | routing | `ROUTE_DISCOVERED`, `ROUTE_UPDATED`, `ROUTE_RETRACTED`, `ROUTE_EXPIRED`, `ROUTE_CONVERGED`, `NO_ROUTE_AVAILABLE` |
 | delivery and transfer | `DELIVERY_QUEUED`, `DELIVERY_RETRY_SCHEDULED`, `DELIVERY_RETRYING`, `DELIVERY_SUCCEEDED`, `DELIVERY_UNREACHABLE`, `TRANSFER_STARTED`, `TRANSFER_PROGRESS`, `TRANSFER_COMPLETED`, `TRANSFER_FAILED`, `SIZE_LIMIT_REJECTED` |
-| transport and power | `TRANSPORT_MODE_CHANGED`, `POWER_MODE_CHANGED` |
+| transport and power | `TRANSPORT_MODE_CHANGED`, `POWER_MODE_CHANGED`, `TRANSPORT_FRAME_REJECTED` |
 
 ## Operational limits and guarantees
 
@@ -276,6 +276,7 @@ flowchart TD
 | bearer posture | L2CAP is preferred when available; GATT stays enabled as a concurrent fallback/side bearer when supported |
 | trust continuity | persisted locally; not replaced silently on mismatch |
 | event replay | only `state` replays the latest value |
+| malformed inbound frames | dropped and reported via `TRANSPORT_FRAME_REJECTED`; never crash the host app |
 
 ## Related docs
 

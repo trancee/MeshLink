@@ -188,7 +188,20 @@ internal class MeshEngineTransportSupport(
     }
 
     private suspend fun handleInboundFrame(event: TransportEvent.FrameReceived): Unit {
-        when (val frame = DirectWireFrame.decode(event.payload)) {
+        val frame =
+            runCatching { DirectWireFrame.decode(event.payload) }
+                .getOrElse { exception ->
+                    emitDiagnostic(
+                        DiagnosticCode.TRANSPORT_FRAME_REJECTED,
+                        DiagnosticSeverity.WARN,
+                        "transport.frame.malformed",
+                        event.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        DiagnosticReason.DELIVERY_FAILURE,
+                        mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        when (frame) {
             is DirectWireFrame.HandshakeMessage1 ->
                 callbacks.handleHandshakeMessage1(event.peerId, frame.payload)
             is DirectWireFrame.HandshakeMessage2 ->
