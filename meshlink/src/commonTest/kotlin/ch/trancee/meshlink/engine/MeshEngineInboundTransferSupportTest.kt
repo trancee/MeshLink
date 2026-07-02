@@ -362,7 +362,7 @@ private fun inboundTransferSupport(
 private fun newTransferStartFrame(
     transferId: String,
     totalChunks: Int,
-    totalBytes: Int = 5,
+    totalBytes: Int = totalChunks * 5,
 ): WireFrame.TransferStart {
     return WireFrame.TransferStart(
         route =

@@ -41,6 +41,22 @@ internal class MeshEngineInboundTransferSupport(
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
         val existingSession = transferRegistry.inboundSession(frame.transferId)
+        if (existingSession == null && !frame.isWithinInboundTransferSizeLimits()) {
+            callbacks.emitDiagnostic(
+                DiagnosticCode.SIZE_LIMIT_REJECTED,
+                DiagnosticSeverity.WARN,
+                "transfer.receive.start",
+                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.SIZE_LIMIT,
+                mapOf(
+                    "transferId" to frame.transferId,
+                    "totalBytes" to frame.totalBytes.toString(),
+                    "totalChunks" to frame.totalChunks.toString(),
+                    "maxChunkPayloadBytes" to frame.maxChunkPayloadBytes.toString(),
+                ),
+            )
+            return
+        }
         val inboundSession =
             if (existingSession != null) {
                 existingSession.upstreamPeerId = peerId
