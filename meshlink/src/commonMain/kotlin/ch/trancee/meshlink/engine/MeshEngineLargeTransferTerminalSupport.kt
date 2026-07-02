@@ -16,7 +16,7 @@ internal data class MeshEngineLargeTransferTerminalDependencies(
 )
 
 internal data class MeshEngineLargeTransferTerminalCallbacks(
-    val routeMetadata: (PeerId) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId) -> Map<String, String>,
     val emitDiagnostic:
         (
             DiagnosticCode,

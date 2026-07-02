@@ -18,7 +18,7 @@ internal data class MeshEngineRuntimeTransferAndInboundPhase(
         ) -> SendResult,
     val handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
     val abortLocalTransfers: suspend (TransferAbortReasonCode) -> Unit,
-    val clearOutboundTransfers: () -> Unit,
+    val clearOutboundTransfers: suspend () -> Unit,
 )
 
 internal fun buildMeshEngineRuntimeTransferAndInboundPhase(

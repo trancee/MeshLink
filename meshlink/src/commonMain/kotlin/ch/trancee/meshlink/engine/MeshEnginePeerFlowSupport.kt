@@ -34,7 +34,7 @@ internal data class MeshEnginePeerFlowCallbacks(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    val peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
 internal class MeshEnginePeerFlowSupport(
@@ -67,7 +67,7 @@ internal class MeshEnginePeerFlowSupport(
         }
     }
 
-    fun forwardMessageToNextHop(
+    suspend fun forwardMessageToNextHop(
         frame: WireFrame.Message,
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
@@ -120,7 +120,7 @@ internal class MeshEnginePeerFlowSupport(
         }
     }
 
-    fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
+    suspend fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
         val nextHopPeerId = context.routeCoordinator.nextHopFor(peerId) ?: peerId
         return nextHopPeerId.value == peerId.value &&
             (callbacks.maximumPayloadBytesPerDelivery(nextHopPeerId)?.let { transportBudget ->
@@ -152,7 +152,7 @@ internal fun buildMeshEngineRuntimePeerFlowSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 ): MeshEnginePeerFlowSupport {
     return MeshEnginePeerFlowSupport(
         localIdentity = localIdentity,

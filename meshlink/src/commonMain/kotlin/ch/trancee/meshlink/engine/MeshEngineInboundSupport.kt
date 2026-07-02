@@ -16,13 +16,14 @@ internal data class MeshEngineInboundRoutingContext(
 )
 
 internal data class MeshEngineInboundTransport(
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
 )
 
 internal data class MeshEngineInboundMessageCallbacks(
     val captureHardRunToken: () -> MeshEngineHardRunToken,
-    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
 )
@@ -70,7 +71,7 @@ internal class MeshEngineInboundSupport(
         return session
     }
 
-    private fun decryptInboundWireFrame(
+    private suspend fun decryptInboundWireFrame(
         peerId: PeerId,
         session: HopSession,
         payload: ByteArray,
@@ -87,7 +88,7 @@ internal class MeshEngineInboundSupport(
             }
     }
 
-    private fun decodeInboundWireFrame(peerId: PeerId, payload: ByteArray): WireFrame? {
+    private suspend fun decodeInboundWireFrame(peerId: PeerId, payload: ByteArray): WireFrame? {
         return runCatching { WireCodec.decode(payload) }
             .getOrElse { exception ->
                 transport.emitHopSessionFailed(
@@ -155,10 +156,10 @@ internal fun buildMeshEngineRuntimeInboundSupport(
     sessionRegistry: MeshEngineSessionRegistry,
     routeCoordinator: RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
-    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
     captureHardRunToken: () -> MeshEngineHardRunToken,
-    forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
     transferSupport: MeshEngineTransferSupport,

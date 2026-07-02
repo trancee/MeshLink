@@ -114,7 +114,7 @@ internal class MeshEngineHopTransportSupport(
         return plaintext
     }
 
-    fun emitHopSessionEstablished(peerId: PeerId, stage: String): Unit {
+    suspend fun emitHopSessionEstablished(peerId: PeerId, stage: String): Unit {
         emitDiagnostic(
             DiagnosticCode.HOP_SESSION_ESTABLISHED,
             DiagnosticSeverity.DEBUG,
@@ -125,7 +125,7 @@ internal class MeshEngineHopTransportSupport(
         )
     }
 
-    fun emitHopSessionFailed(
+    suspend fun emitHopSessionFailed(
         peerId: PeerId,
         stage: String,
         reason: DiagnosticReason,

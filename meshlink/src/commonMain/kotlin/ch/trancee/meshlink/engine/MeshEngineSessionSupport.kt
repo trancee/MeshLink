@@ -27,7 +27,8 @@ internal data class MeshEngineSessionCallbacks(
         suspend (
             PeerId, DirectWireFrame, String, ch.trancee.meshlink.transport.TransportMode?,
         ) -> TransportSendResult,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
 internal class MeshEngineSessionSupport(
@@ -232,7 +233,7 @@ internal fun buildMeshEngineRuntimeSessionSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 ): MeshEngineSessionSupport {
     return MeshEngineSessionSupport(
         localIdentity = localIdentity,

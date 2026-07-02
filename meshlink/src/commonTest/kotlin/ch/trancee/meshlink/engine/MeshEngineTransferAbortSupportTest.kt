@@ -51,8 +51,8 @@ class MeshEngineTransferAbortSupportTest {
 
             // Assert
             assertTrue(outboundTransfers.isEmpty())
-            assertTrue(state.inboundTransfers.isEmpty())
-            assertTrue(state.relayTransfers.isEmpty())
+            assertTrue(state.inboundTransfers().isEmpty())
+            assertTrue(state.relayTransfers().isEmpty())
             assertEquals(
                 listOf(
                     ClearedOutboundFrames(

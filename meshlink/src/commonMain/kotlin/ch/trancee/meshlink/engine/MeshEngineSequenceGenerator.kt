@@ -1,20 +1,30 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.identity.LocalIdentity
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal class MeshEngineSequenceGenerator(
     private val localIdentity: LocalIdentity,
     private var nextSequenceNumber: Long = 1L,
 ) {
-    fun createMessageId(): String {
-        val current = nextSequenceNumber
-        nextSequenceNumber += 1L
+    private val sequenceMutex = Mutex()
+
+    suspend fun createMessageId(): String {
+        val current = nextSequence()
         return "${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
     }
 
-    fun createTransferId(): String {
-        val current = nextSequenceNumber
-        nextSequenceNumber += 1L
+    suspend fun createTransferId(): String {
+        val current = nextSequence()
         return "transfer-${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
+    }
+
+    private suspend fun nextSequence(): Long {
+        return sequenceMutex.withLock {
+            val current = nextSequenceNumber
+            nextSequenceNumber += 1L
+            current
+        }
     }
 }

@@ -14,7 +14,7 @@ internal data class MeshEngineInboundTransferSupportCallbacks(
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    val routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     val emitDiagnostic:
         (
             DiagnosticCode,
@@ -131,7 +131,7 @@ internal class MeshEngineInboundTransferSupport(
         return true
     }
 
-    fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
+    suspend fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
         return transferRegistry.removeInboundSession(frame.transferId) != null
     }
 
@@ -195,7 +195,7 @@ internal class MeshEngineInboundTransferSupport(
         )
     }
 
-    private fun emitInboundTransferProgress(
+    private suspend fun emitInboundTransferProgress(
         stage: String,
         peerId: PeerId,
         session: ch.trancee.meshlink.transfer.InboundTransferSession,
@@ -217,7 +217,7 @@ internal fun buildMeshEngineRuntimeInboundTransferSupport(
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     emitDiagnostic:
         (
             DiagnosticCode,

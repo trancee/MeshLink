@@ -162,8 +162,8 @@ class MeshEngineRuntimeTransferAssemblyTest {
                         is WireFrame.TransferChunk -> {
                             observedFrames += "chunk:${outerFrame.chunkIndex}"
                             val activeSession =
-                                harness.foundation.sharedState.outboundTransfers[
-                                        outerFrame.transferId]
+                                harness.foundation.sharedState
+                                    .outboundTransfers()[outerFrame.transferId]
                             if (
                                 activeSession != null &&
                                     acknowledgedTransferId == null &&
@@ -213,7 +213,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
                 recipientIdentity.peerId.value,
                 harness.transport.clearedQueuedPeerIds.single(),
             )
-            assertTrue(harness.foundation.sharedState.outboundTransfers.isEmpty())
+            assertTrue(harness.foundation.sharedState.outboundTransfers().isEmpty())
         }
 
     @Test
@@ -316,7 +316,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
             assertEquals(0, forwardedChunk.chunkIndex)
             assertContentEquals("hello".encodeToByteArray(), forwardedChunk.payload)
             assertIs<WireFrame.TransferComplete>(forwardedFrames[2])
-            assertTrue(harness.foundation.sharedState.relayTransfers.isEmpty())
+            assertTrue(harness.foundation.sharedState.relayTransfers().isEmpty())
         }
 }
 

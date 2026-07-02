@@ -6,8 +6,8 @@ import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineInlineMessagePreparationCallbacks(
-    val createMessageId: () -> String,
-    val emitEncryptFailure: (PeerId, String) -> Unit,
+    val createMessageId: suspend () -> String,
+    val emitEncryptFailure: suspend (PeerId, String) -> Unit,
 )
 
 internal sealed class MeshEngineOutboundInlineMessagePreparation {
@@ -60,8 +60,8 @@ internal class MeshEngineInlineMessagePreparationSupport(
 internal fun buildMeshEngineRuntimeInlineMessagePreparationSupport(
     localIdentity: LocalIdentity,
     directEnvelopeSupport: MeshEngineOutboundDirectEnvelopeSupport,
-    createMessageId: () -> String,
-    emitEncryptFailure: (PeerId, String) -> Unit,
+    createMessageId: suspend () -> String,
+    emitEncryptFailure: suspend (PeerId, String) -> Unit,
 ): MeshEngineInlineMessagePreparationSupport {
     return MeshEngineInlineMessagePreparationSupport(
         localIdentity = localIdentity,

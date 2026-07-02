@@ -176,12 +176,12 @@ private class RecordingTransferPreparationCallbacks {
     private var messageCounter: Int = 0
     private var transferCounter: Int = 0
 
-    fun createMessageId(): String {
+    suspend fun createMessageId(): String {
         messageCounter += 1
         return "message-$messageCounter"
     }
 
-    fun createTransferId(): String {
+    suspend fun createTransferId(): String {
         transferCounter += 1
         return "transfer-$transferCounter"
     }

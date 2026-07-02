@@ -2,6 +2,8 @@ package ch.trancee.meshlink.power
 
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 internal enum class PowerTier {
     PERFORMANCE,
@@ -47,6 +49,33 @@ private data class AutomaticTierState(
     val lastTier: PowerTier?,
 )
 
+/**
+ * Mutable fields of [PowerPolicyController] captured as a single immutable snapshot so that every
+ * observation (battery update, mesh start, policy read) is applied atomically via
+ * [AtomicReference.compareAndSetLoop] instead of touching several unsynchronized fields
+ * independently. This keeps `updateBattery` non-suspend (it is called from arbitrary host threads,
+ * e.g. a system battery broadcast receiver) while still being safe under concurrent access from the
+ * engine's multi-threaded [kotlinx.coroutines.Dispatchers.Default] scope.
+ */
+private data class PowerPolicyControllerState(
+    val batteryLevel: Float = 1.0f,
+    val charging: Boolean = false,
+    val bootstrapStartedAtMillis: Long? = null,
+    val lastTier: PowerTier? = null,
+)
+
+@OptIn(ExperimentalAtomicApi::class)
+private fun <T> AtomicReference<T>.compareAndSetLoop(transform: (T) -> T): T {
+    while (true) {
+        val previous = load()
+        val next = transform(previous)
+        if (compareAndSet(previous, next)) {
+            return next
+        }
+    }
+}
+
+@OptIn(ExperimentalAtomicApi::class)
 internal class PowerPolicyController
 internal constructor(
     private val configuredMode: PowerMode,
@@ -63,14 +92,15 @@ internal constructor(
             hysteresisBand = hysteresisBand,
             bootstrapDurationMillis = bootstrapDurationMillis,
         )
-    private var batteryLevel: Float = 1.0f
-    private var charging: Boolean = false
-    private var bootstrapStartedAtMillis: Long? = null
-    private var lastTier: PowerTier? = null
+    private val state = AtomicReference(PowerPolicyControllerState())
 
     internal fun onMeshStarted(nowMillis: Long): PowerPolicy {
-        if (bootstrapStartedAtMillis == null) {
-            bootstrapStartedAtMillis = nowMillis
+        state.compareAndSetLoop { current ->
+            if (current.bootstrapStartedAtMillis == null) {
+                current.copy(bootstrapStartedAtMillis = nowMillis)
+            } else {
+                current
+            }
         }
         return currentPolicy(nowMillis)
     }
@@ -80,14 +110,15 @@ internal constructor(
         isCharging: Boolean,
         nowMillis: Long,
     ): PowerPolicy {
-        batteryLevel = level.coerceIn(0.0f, 1.0f)
-        charging = isCharging
+        state.compareAndSetLoop { current ->
+            current.copy(batteryLevel = level.coerceIn(0.0f, 1.0f), charging = isCharging)
+        }
         return currentPolicy(nowMillis)
     }
 
     internal fun currentPolicy(nowMillis: Long): PowerPolicy {
         val tier = resolveTier(nowMillis)
-        lastTier = tier
+        state.compareAndSetLoop { current -> current.copy(lastTier = tier) }
         return clampForRegion(basePolicyFor(tier))
     }
 
@@ -101,14 +132,15 @@ internal constructor(
     }
 
     private fun resolveAutomaticTier(nowMillis: Long): PowerTier {
+        val snapshot = state.load()
         return resolveAutomaticTier(
             nowMillis = nowMillis,
             state =
                 AutomaticTierState(
-                    batteryLevel = batteryLevel,
-                    charging = charging,
-                    bootstrapStartedAtMillis = bootstrapStartedAtMillis,
-                    lastTier = lastTier,
+                    batteryLevel = snapshot.batteryLevel,
+                    charging = snapshot.charging,
+                    bootstrapStartedAtMillis = snapshot.bootstrapStartedAtMillis,
+                    lastTier = snapshot.lastTier,
                 ),
             config = automaticTierConfig,
         )

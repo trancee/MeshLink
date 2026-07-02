@@ -20,7 +20,7 @@ internal class MeshEngineOutboundDirectEnvelopeSupport(
     suspend fun prepare(
         peerId: PeerId,
         payload: ByteArray,
-        emitEncryptFailure: (PeerId, String) -> Unit,
+        emitEncryptFailure: suspend (PeerId, String) -> Unit,
     ): MeshEngineOutboundDirectEnvelopePreparation {
         val recipientTrust = recipientTrustSupport.resolveRecipientTrust(peerId)
         if (recipientTrust == null) {

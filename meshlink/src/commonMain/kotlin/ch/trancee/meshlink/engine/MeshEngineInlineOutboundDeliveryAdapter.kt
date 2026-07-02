@@ -169,11 +169,11 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
     ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
     sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
-    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     inlineMessagePreparationSupport: MeshEngineInlineMessagePreparationSupport,
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     ttlMillisFor: (DeliveryPriority) -> Int,
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
     emitDiagnostic:
         (
             DiagnosticCode,

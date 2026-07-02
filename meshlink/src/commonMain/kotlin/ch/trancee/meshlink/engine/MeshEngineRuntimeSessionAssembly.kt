@@ -12,10 +12,11 @@ internal data class MeshEngineRuntimeSessionAssembly(
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val prewarmHopSession: (PeerId) -> Unit,
-    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
-    val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    val forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val shouldAttemptLargeInlineSend: suspend (PeerId) -> Boolean,
     val isLocalPeerId: (PeerId) -> Boolean,
     val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
