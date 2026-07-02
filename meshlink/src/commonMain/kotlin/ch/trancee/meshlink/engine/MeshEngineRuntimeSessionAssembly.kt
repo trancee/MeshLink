@@ -97,7 +97,14 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
                             canonicalPeerId,
                         )
                     }
-                    .getOrElse {}
+                    .getOrElse { exception ->
+                        hopTransportSupport.emitHopSessionFailed(
+                            temporaryPeerId,
+                            "transport.handshake.promoteTemporaryPeer",
+                            DiagnosticReason.DELIVERY_FAILURE,
+                            mapOf("cause" to exception::class.simpleName.orEmpty()),
+                        )
+                    }
             },
         )
     val initiatorHandshakeSupport =
