@@ -3,39 +3,26 @@ package ch.trancee.meshlink.api.android
 import android.content.Context
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
+import ch.trancee.meshlink.api.meshLink
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.platform.android.BleTransportAdapter
-import ch.trancee.meshlink.platform.android.JcaCryptoProviderFactory
-import ch.trancee.meshlink.platform.android.PreferencesSecureStorage
-import ch.trancee.meshlink.platform.loadOrCreateLocalIdentityBlocking
 
-/** Returns an Android bootstrap handle backed by the application context. */
+/**
+ * Returns an Android bootstrap handle backed by the application context.
+ *
+ * Prefer the single-step [meshLink] overload below for typical integrations. Use this helper only
+ * when the bootstrap handle must be constructed ahead of [meshLink] (for example, in
+ * dependency-injection setups).
+ */
 public fun meshLinkBootstrap(context: Context): MeshLinkBootstrap {
     return AndroidMeshLinkBootstrap(context.applicationContext)
 }
 
-/** Creates a MeshLink runtime directly from an Android application context. */
+/**
+ * Creates a MeshLink runtime directly from an Android application context.
+ *
+ * This is the recommended entry point for Android integrators; it is equivalent to
+ * `meshLink(config, meshLinkBootstrap(context))`.
+ */
 public fun meshLink(config: MeshLinkConfig, context: Context): MeshLink {
-    val appContext = context.applicationContext
-    val secureStorage = PreferencesSecureStorage(appContext, config.appId)
-    val cryptoProvider = JcaCryptoProviderFactory.create()
-    val localIdentity =
-        loadOrCreateLocalIdentityBlocking(
-            appId = config.appId,
-            secureStorage = secureStorage,
-            provider = cryptoProvider,
-        )
-    return MeshEngine.create(
-        config = config,
-        platformContext = appContext,
-        localIdentity = localIdentity,
-        secureStorage = secureStorage,
-        bleTransport =
-            BleTransportAdapter(
-                context = appContext,
-                appId = config.appId,
-                advertisementKeyHash = localIdentity.advertisementKeyHash,
-            ),
-    )
+    return meshLink(config = config, bootstrap = meshLinkBootstrap(context))
 }

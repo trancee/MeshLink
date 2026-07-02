@@ -58,13 +58,15 @@ fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
 
 // Android only
+fun meshLink(config: MeshLinkConfig, context: Context): MeshLink
 fun meshLinkBootstrap(context: Context): MeshLinkBootstrap
 ```
 
 | API | Use | Notes |
 |---|---|---|
 | `meshLink(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
-| `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `meshLinkBootstrap(context)` and pass an application context. |
+| `meshLink(config, context)` | Android | **Recommended default on Android.** One-step factory backed by an application `Context`. |
+| `meshLink(config, bootstrap)` | Android (advanced) | Two-step form for callers that must construct the bootstrap handle ahead of the runtime, e.g. dependency-injection graphs. Obtain `bootstrap` from `meshLinkBootstrap(context)`. Produces an identical runtime to `meshLink(config, context)`. |
 | `MeshLinkBootstrap` | platform bootstrap carrier | Abstract public type used by platform-specific helpers. |
 
 Construction begins with `MeshLinkState.Uninitialized` and returns a runtime
@@ -486,6 +488,10 @@ Notes:
   immediately when topology updates reveal a valid route
 - Android and iOS expose the same public configuration fields, states, events,
   diagnostics, and error categories
+- platform bootstrap/setup mechanics are intentionally platform-specific: Android uses a
+  `Context`-based factory (see [Factory entry points](#factory-entry-points)) and iOS uses the
+  bridge helpers (see [iOS bridge entry points](#ios-bridge-entry-points)); this asymmetry is
+  expected and does not affect runtime behavior once construction succeeds
 
 ## Related docs
 

@@ -68,25 +68,28 @@ devices to discover each other.
 
 ## 2. Create the runtime on Android
 
-On Android, create the runtime with an application `Context` wrapped in the
-Android bootstrap helper.
+On Android, create the runtime directly from an application `Context`:
 
 ```kotlin
 import android.content.Context
-import ch.trancee.meshlink.api.android.meshLinkBootstrap
-import ch.trancee.meshlink.api.meshLink
+import ch.trancee.meshlink.api.android.meshLink
 import ch.trancee.meshlink.api.MeshLink
 
 fun createAndroidRuntime(context: Context): MeshLink {
     return meshLink(
         config = meshLinkConfiguration(),
-        bootstrap = meshLinkBootstrap(context.applicationContext),
+        context = context.applicationContext,
     )
 }
 ```
 
 Do this once for the app-owned MeshLink service or controller that will manage
 the runtime.
+
+Only reach for the two-step `meshLinkBootstrap(context)` + `meshLink(config,
+bootstrap)` form if you need to construct the bootstrap handle ahead of the
+runtime itself (for example, threading it through a dependency-injection
+graph). Both forms produce an identical runtime.
 
 ## 3. Create the runtime on iOS
 
