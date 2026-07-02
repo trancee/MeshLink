@@ -126,10 +126,11 @@ Your `installMeshLinkCrypto()` wrapper should call
 `CryptoBridge.shared.install(callbacks: ...)` with app-owned crypto
 callbacks.
 
-If you need the iPhone-hosted GATT-notify bearer, install the optional
-`BleTransportBridge` during startup as well. Prefer `installData(...)` when
-that path can work directly with Swift `Data` or `NSData`, because it avoids an
-extra per-byte bridge copy back into Kotlin.
+If you need the iPhone-hosted GATT-notify bearer, call
+`BleTransportBridge.shared.enableGattNotifyBearer()` during startup as well.
+The real GATT-notify send path already uses native CoreBluetooth types
+internally, so there is no callback to wire up — this call is just a feature
+flag that tells MeshLink the bearer is available.
 
 For the full Swift-facing bridge details, use
 [How to use MeshLink from Swift](use-meshlink-from-swift.md).

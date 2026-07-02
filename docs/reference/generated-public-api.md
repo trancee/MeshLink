@@ -62,7 +62,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 
 | Type | Kind | Public surface |
 |---|---|---|
-| `ch.trancee.meshlink.api.apple.BleTransportBridge` | object | `install()`, `installData()` |
+| `ch.trancee.meshlink.api.apple.BleTransportBridge` | object | `disableGattNotifyBearer()`, `enableGattNotifyBearer()` |
 | `ch.trancee.meshlink.api.apple.ChaCha20Poly1305Callbacks` | class | `open`, `seal` |
 | `ch.trancee.meshlink.api.apple.CryptoBridge` | object | `install()` |
 | `ch.trancee.meshlink.api.apple.CryptoCallbacks` | class | `chacha20Poly1305`, `ed25519`, `hashes`, `keyGeneration`, `randomBytes`, `x25519` |

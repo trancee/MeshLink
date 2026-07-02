@@ -461,21 +461,19 @@ Notes:
 
 ```kotlin
 object BleTransportBridge {
-    fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean)
-    fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean)
+    fun enableGattNotifyBearer()
+    fun disableGattNotifyBearer()
 }
 ```
 
 Notes:
 
-- optional bridge for iPhone-hosted bearer paths that still need native
-  CoreBluetooth bridging
-- opaque arguments are native iOS handles and must only be cast in app-owned
-  iOS code
-- `installData(...)` avoids copying into a Kotlin `ByteArray` when the host app
-  can work directly with Swift `Data` or `NSData`
-- when the side bearer is enabled, prefer `installData(...)` unless the host
-  app truly needs the Kotlin `ByteArray` form
+- optional feature flag for the iPhone-hosted GATT-notify bearer path
+- the real GATT-notify send path already uses native CoreBluetooth types
+  (`CBPeripheralManager`, `CBMutableCharacteristic`, `CBCentral`) directly, so
+  there is no callback to install or opaque handle to bridge
+- `enableGattNotifyBearer()` tells MeshLink the bearer is available;
+  `disableGattNotifyBearer()` turns it back off
 - GATT and L2CAP are both expected to stay active when the platform supports
   them; L2CAP remains the preferred connection path and GATT remains available
   for older peers or fallback delivery

@@ -17,7 +17,7 @@ class BleTransportMaximumPayloadTest {
     }
 
     @Test
-    fun maximumPayloadBytesPerDeliveryReturnsNullWhenTheBridgeIsMissing(): Unit {
+    fun maximumPayloadBytesPerDeliveryReturnsNullWhenTheGattNotifyBearerIsDisabled(): Unit {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-android")
@@ -45,7 +45,7 @@ class BleTransportMaximumPayloadTest {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-android")
-        BleTransportBridge.install { _, _, _, _ -> true }
+        BleTransportBridge.enableGattNotifyBearer()
         transport.peerRegistry.upsertDiscovery(
             hintPeerId = peerId,
             discovery =
@@ -66,12 +66,12 @@ class BleTransportMaximumPayloadTest {
     }
 
     @Test
-    fun maximumPayloadBytesPerDeliveryReturnsGattLimitForSamePlatformPeersEvenWhenBridgeExists():
+    fun maximumPayloadBytesPerDeliveryReturnsGattLimitForSamePlatformPeersEvenWhenBearerEnabled():
         Unit {
         // Arrange
         val transport = testTransport()
         val peerId = PeerId("peer-ios")
-        BleTransportBridge.install { _, _, _, _ -> true }
+        BleTransportBridge.enableGattNotifyBearer()
         transport.peerRegistry.upsertDiscovery(
             hintPeerId = peerId,
             discovery =
