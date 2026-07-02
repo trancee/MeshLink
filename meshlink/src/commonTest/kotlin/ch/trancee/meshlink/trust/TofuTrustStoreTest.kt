@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.trust
 
 import ch.trancee.meshlink.test.InMemorySecureStorage
+import ch.trancee.meshlink.wire.WriteBuffer
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -126,5 +127,59 @@ class TofuTrustStoreTest {
                 restored.lastVerifiedAtEpochMillis,
             )
             assertEquals(1, storage.snapshot().size)
+        }
+
+    @Test
+    fun `read rejects a stored record whose embedded peer id does not match the lookup key`() =
+        runBlocking<Unit> {
+            // Arrange
+            val storage = InMemorySecureStorage()
+            val store = TofuTrustStore(storage)
+            val storedPeerIdBytes = "peer-stored".encodeToByteArray()
+            val buffer = WriteBuffer()
+            buffer.writeIntLittleEndian(2)
+            buffer.writeBytes(byteArrayOf(0x0a, 0x0b))
+            buffer.writeIntLittleEndian(1)
+            buffer.writeBytes(byteArrayOf(0x0c))
+            buffer.writeIntLittleEndian(1)
+            buffer.writeBytes(byteArrayOf(0x0d))
+            buffer.writeLongLittleEndian(1L)
+            buffer.writeLongLittleEndian(2L)
+            buffer.writeIntLittleEndian(storedPeerIdBytes.size)
+            buffer.writeBytes(storedPeerIdBytes)
+            storage.write(store.keyForTest("peer-requested"), buffer.toByteArray())
+
+            // Act
+            val restored = store.read("peer-requested")
+
+            // Assert
+            assertNull(restored)
+        }
+
+    @Test
+    fun `read trusts legacy records written before peer id verification existed`() =
+        runBlocking<Unit> {
+            // Arrange
+            val storage = InMemorySecureStorage()
+            val store = TofuTrustStore(storage)
+            val fingerprintBytes = byteArrayOf(0x0a, 0x0b)
+            val buffer = WriteBuffer()
+            buffer.writeIntLittleEndian(fingerprintBytes.size)
+            buffer.writeBytes(fingerprintBytes)
+            buffer.writeIntLittleEndian(1)
+            buffer.writeBytes(byteArrayOf(0x0c))
+            buffer.writeIntLittleEndian(1)
+            buffer.writeBytes(byteArrayOf(0x0d))
+            buffer.writeLongLittleEndian(30L)
+            buffer.writeLongLittleEndian(40L)
+            storage.write(store.keyForTest("peer-legacy"), buffer.toByteArray())
+
+            // Act
+            val restored = store.read("peer-legacy")
+
+            // Assert
+            assertNotNull(restored)
+            assertEquals("peer-legacy", restored.peerIdValue)
+            assertContentEquals(fingerprintBytes, restored.identityFingerprintBytes)
         }
 }
