@@ -109,4 +109,57 @@ class LocalIdentityTest {
         assertEquals(explicitPeerId.value, overridden.peerId.value)
         assertSame(PlaceholderCryptoProvider, derived.cryptoProvider)
     }
+
+    @Test
+    fun `meshDomainHash defaults to an empty prologue when not specified`() {
+        // Arrange & Act
+        val identity = LocalIdentity.fromAppId("demo.meshlink.mesh-domain-default")
+
+        // Assert
+        assertContentEquals(ByteArray(0), identity.meshDomainHash)
+    }
+
+    @Test
+    fun `computeMeshDomainHash is deterministic for the same app id and diverges across app ids`() {
+        // Arrange
+        val appId = "mesh-a"
+        val otherAppId = "mesh-b"
+
+        // Act
+        val first = LocalIdentity.computeMeshDomainHash(appId, PlaceholderCryptoProvider)
+        val second = LocalIdentity.computeMeshDomainHash(appId, PlaceholderCryptoProvider)
+        val other = LocalIdentity.computeMeshDomainHash(otherAppId, PlaceholderCryptoProvider)
+
+        // Assert
+        assertContentEquals(first, second)
+        assertFalse(first.contentEquals(other))
+    }
+
+    @Test
+    fun `factories thread an explicit meshDomainHash through to the identity`() {
+        // Arrange
+        val meshDomainHash =
+            LocalIdentity.computeMeshDomainHash("demo.mesh", PlaceholderCryptoProvider)
+
+        // Act
+        val fromAppId =
+            LocalIdentity.fromAppId(appId = "demo.mesh", meshDomainHash = meshDomainHash)
+        val fromPeerId =
+            LocalIdentity.fromPeerId(
+                peerId = PeerId("demo-peer"),
+                identitySeed = "demo-seed",
+                meshDomainHash = meshDomainHash,
+            )
+        val fromNoiseIdentity =
+            LocalIdentity.fromNoiseIdentity(
+                noiseIdentity = NoiseIdentity.generate(PlaceholderCryptoProvider),
+                provider = PlaceholderCryptoProvider,
+                meshDomainHash = meshDomainHash,
+            )
+
+        // Assert
+        assertContentEquals(meshDomainHash, fromAppId.meshDomainHash)
+        assertContentEquals(meshDomainHash, fromPeerId.meshDomainHash)
+        assertContentEquals(meshDomainHash, fromNoiseIdentity.meshDomainHash)
+    }
 }

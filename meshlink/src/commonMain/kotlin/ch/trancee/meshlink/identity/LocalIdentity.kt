@@ -15,6 +15,7 @@ internal constructor(
     internal val noiseIdentity: NoiseIdentity,
     internal val cryptoProvider: CryptoProvider,
     advertisementKeyHash: ByteArray,
+    meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
 ) {
     private var identityFingerprintText: String? = identityFingerprint
     internal val identityFingerprintBytes: ByteArray = identityFingerprintBytes.copyOf()
@@ -27,12 +28,33 @@ internal constructor(
     internal val ed25519PublicKey: ByteArray = noiseIdentity.ed25519KeyPair.publicKey.copyOf()
     internal val x25519PublicKey: ByteArray = noiseIdentity.x25519KeyPair.publicKey.copyOf()
 
+    /**
+     * Cryptographically identifies the mesh this identity belongs to. Mixed into every Noise XX
+     * handshake this identity performs (see [ch.trancee.meshlink.crypto.NoiseXXHandshakeManager])
+     * so that handshakes can only complete between peers configured with the same mesh domain (i.e.
+     * the same [ch.trancee.meshlink.config.MeshLinkConfig.appId]). Defaults to an empty prologue,
+     * which reproduces the historical "any peer can complete the handshake" behavior for callers
+     * (mostly tests) that construct identities without an explicit mesh domain.
+     */
+    internal val meshDomainHash: ByteArray = meshDomainHash.copyOf()
+
     internal companion object {
-        internal fun fromAppId(appId: String): LocalIdentity {
-            return fromPeerId(peerId = PeerId(appId), identitySeed = appId)
+        internal fun fromAppId(
+            appId: String,
+            meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
+        ): LocalIdentity {
+            return fromPeerId(
+                peerId = PeerId(appId),
+                identitySeed = appId,
+                meshDomainHash = meshDomainHash,
+            )
         }
 
-        internal fun fromPeerId(peerId: PeerId, identitySeed: String): LocalIdentity {
+        internal fun fromPeerId(
+            peerId: PeerId,
+            identitySeed: String,
+            meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
+        ): LocalIdentity {
             val noiseIdentity =
                 NoiseIdentity(
                     ed25519KeyPair =
@@ -61,6 +83,7 @@ internal constructor(
                 cryptoProvider = PlaceholderCryptoProvider,
                 advertisementKeyHash =
                     publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+                meshDomainHash = meshDomainHash,
             )
         }
 
@@ -68,6 +91,7 @@ internal constructor(
             noiseIdentity: NoiseIdentity,
             provider: CryptoProvider,
             peerId: PeerId? = null,
+            meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
         ): LocalIdentity {
             val publicKeyHash =
                 provider.sha256(
@@ -82,9 +106,23 @@ internal constructor(
                 cryptoProvider = provider,
                 advertisementKeyHash =
                     publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
+                meshDomainHash = meshDomainHash,
             )
         }
 
+        /**
+         * Derives a stable mesh-domain-binding hash from [appId] using [provider]. Two identities
+         * built with the same [appId] (and a provider whose [CryptoProvider.sha256] is
+         * deterministic for identical input, which is true of every real implementation) always
+         * derive the same value, so peers configured for the same mesh can complete Noise XX
+         * handshakes with each other, while peers configured for different meshes cannot.
+         */
+        internal fun computeMeshDomainHash(appId: String, provider: CryptoProvider): ByteArray {
+            return provider.sha256((MESH_DOMAIN_PROLOGUE_PREFIX + appId).encodeToByteArray())
+        }
+
+        private const val MESH_DOMAIN_PROLOGUE_PREFIX: String = "MeshLink-mesh-domain-v1:"
+        private val DEFAULT_MESH_DOMAIN_HASH: ByteArray = ByteArray(0)
         private const val ADVERTISEMENT_KEY_HASH_SIZE_BYTES: Int = 12
         private const val KEY_SIZE_BYTES: Int = 32
         private const val PEER_ID_SIZE_BYTES: Int = 20

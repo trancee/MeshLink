@@ -74,7 +74,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
         peerId: PeerId
     ): CreatedEndToEndInitiatorHandshake {
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-        val message1 = manager.createMessage1()
+        val message1 = manager.createMessage1(meshDomainHash = localIdentity.meshDomainHash)
         val handshakeId = callbacks.createHandshakeId()
         return CreatedEndToEndInitiatorHandshake(
             pendingHandshake =
@@ -125,8 +125,9 @@ internal class MeshEngineEndToEndHandshakeSupport(
         val message2 =
             runCatching {
                     manager.processMessage1AndCreateMessage2(
-                        localIdentity.noiseIdentity,
-                        frame.payload,
+                        responderIdentity = localIdentity.noiseIdentity,
+                        message1 = frame.payload,
+                        meshDomainHash = localIdentity.meshDomainHash,
                     )
                 }
                 .getOrElse { exception ->

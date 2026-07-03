@@ -14,6 +14,7 @@ internal object LocalIdentityStore {
         provider: CryptoProvider,
     ): LocalIdentity {
         val storedKeys = readStoredKeys(appId = appId, secureStorage = secureStorage)
+        val meshDomainHash = LocalIdentity.computeMeshDomainHash(appId = appId, provider = provider)
 
         return when {
             storedKeys.isEmpty() ->
@@ -21,12 +22,14 @@ internal object LocalIdentityStore {
                     appId = appId,
                     secureStorage = secureStorage,
                     provider = provider,
+                    meshDomainHash = meshDomainHash,
                 )
             storedKeys.isIncomplete() -> throwIncompleteIdentityFailure(appId)
             else ->
                 LocalIdentity.fromNoiseIdentity(
                     noiseIdentity = storedKeys.toNoiseIdentity(),
                     provider = provider,
+                    meshDomainHash = meshDomainHash,
                 )
         }
     }
@@ -44,8 +47,14 @@ internal object LocalIdentityStore {
         appId: String,
         secureStorage: SecureStorage,
         provider: CryptoProvider,
+        meshDomainHash: ByteArray,
     ): LocalIdentity {
-        val identity = LocalIdentity.fromNoiseIdentity(NoiseIdentity.generate(provider), provider)
+        val identity =
+            LocalIdentity.fromNoiseIdentity(
+                noiseIdentity = NoiseIdentity.generate(provider),
+                provider = provider,
+                meshDomainHash = meshDomainHash,
+            )
         persist(appId = appId, secureStorage = secureStorage, identity = identity)
         return identity
     }
