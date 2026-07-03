@@ -1091,17 +1091,30 @@ def build_timing_snapshot(
     }
 
 
-def transport_failure_reason(run_dir: Path) -> str | None:
+def route_stall_failure_reason(run_dir: Path) -> str | None:
+    """Detect genuinely terminal route-level failures that are safe to raise
+    immediately, even before the full capture timeout elapses.
+
+    This only fires once a peer has actually been discovered by either role
+    and its most recent route-stage marker indicates a real regression (e.g.
+    a hop/handshake failure). It deliberately does NOT fire on the one-time
+    "discovery.stalled" diagnostic checkpoint that GuidedFirstExchangeViewModel
+    emits ~3 seconds after startup (see GuidedFirstExchangeViewModel.kt,
+    maybeLogDiscoveryStalled()): that marker is routine telemetry, not a
+    terminal failure, and BLE discovery on real hardware can easily take
+    longer than 3 seconds while still succeeding well within the configured
+    android-ready/capture-timeout budget."""
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
-    combined_log = sender_log + "\n" + passive_log
-    combined_log_lower = combined_log.lower()
+    combined_log_lower = (sender_log + "\n" + passive_log).lower()
     sender_route_stage, sender_route_evidence = extract_route_observation(sender_log)
     passive_route_stage, passive_route_evidence = extract_route_observation(passive_log)
     peer_discovered = (
         "peer.discovered role=passive" in combined_log_lower
         or "peer.discovered role=sender" in combined_log_lower
     )
+    if not peer_discovered:
+        return None
     route_stage = sender_route_stage or passive_route_stage
     route_failure_stages = {
         "handshake-message1-send",
@@ -1112,18 +1125,35 @@ def transport_failure_reason(run_dir: Path) -> str | None:
         "sender-discovery-stalled",
         "sender-discovery-pending",
     }
-    if peer_discovered:
-        if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
-            return (
-                "Android direct proof stalled at route stage "
-                f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
-                f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
-            )
-        if route_stage is None:
-            return (
-                "Android direct proof discovered a peer but never emitted a route-stage marker; "
-                "sender stalled before route stabilization"
-            )
+    if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    if route_stage is None:
+        return (
+            "Android direct proof discovered a peer but never emitted a route-stage marker; "
+            "sender stalled before route stabilization"
+        )
+    return None
+
+
+def transport_failure_reason(run_dir: Path) -> str | None:
+    """Full failure classification, including non-terminal diagnostic
+    checkpoints such as the one-time "discovery.stalled" marker.
+
+    This should only be used to build a descriptive failure message AFTER
+    the caller has already decided to give up (e.g. after the full capture
+    timeout has elapsed) — see route_stall_failure_reason() for the subset
+    of checks that are safe to use as an early-exit signal while polling."""
+    reason = route_stall_failure_reason(run_dir)
+    if reason is not None:
+        return reason
+    sender_log = read_text(sender_log_path(run_dir))
+    passive_log = read_text(passive_log_path(run_dir))
+    combined_log = sender_log + "\n" + passive_log
+    combined_log_lower = combined_log.lower()
     if "sender.discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof sender stalled before peer discovery; "
@@ -1173,9 +1203,9 @@ def wait_for_android_completions(
             )
         if completions.sender_completion:
             return completions
-        transport_reason = transport_failure_reason(run_dir)
-        if transport_reason is not None:
-            raise SystemExit(transport_reason)
+        route_stall_reason = route_stall_failure_reason(run_dir)
+        if route_stall_reason is not None:
+            raise SystemExit(route_stall_reason)
         if time.monotonic() >= no_peer_deadline:
             # Keep the explicit no-peer guard for runs that never emit route diagnostics,
             # but fall through to the standard timeout message when no transport reason exists.

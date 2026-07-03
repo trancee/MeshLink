@@ -313,6 +313,55 @@ class AndroidDirectProofTests(unittest.TestCase):
             # Assert
             self.assertIsNone(reason)
 
+    def test_route_stall_failure_reason_ignores_discovery_stalled_checkpoint_before_peer_discovery(
+        self,
+    ) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "06-21 13:29:10.900  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION discovery.stalled role=PASSIVE count=0 selectedPeerId=none elapsedSeconds=3.0\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.route_stall_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNone(reason)
+
+    def test_transport_failure_reason_still_reports_discovery_stalled_for_final_message(
+        self,
+    ) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / "sender_logcat.log").write_text(
+                "06-21 13:29:07.724 27541 27573 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER\n",
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "06-21 13:29:10.900  2302  2389 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION discovery.stalled role=PASSIVE count=0 selectedPeerId=none elapsedSeconds=3.0\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.transport_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNotNone(reason)
+            self.assertIn("classified as a capture stall", reason)
+
     def test_transport_failure_reason_ignores_route_discovered_success(self) -> None:
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -353,7 +402,7 @@ class AndroidDirectProofTests(unittest.TestCase):
                 return_value=android_direct_proof.AndroidDirectCompletions(),
             ), patch.object(
                 android_direct_proof,
-                "transport_failure_reason",
+                "route_stall_failure_reason",
                 return_value="Android direct proof stalled at route stage sender=peer-discovered passive=hop-failed; senderEvidence=n/a passiveEvidence=n/a",
             ), patch.object(android_direct_proof.time, "monotonic", return_value=0.0):
                 # Act / Assert
@@ -365,6 +414,44 @@ class AndroidDirectProofTests(unittest.TestCase):
                         passive_android_serial="passive-1",
                     )
                 self.assertIn("route stage", str(raised.exception))
+
+    def test_wait_for_android_completions_does_not_fail_fast_on_discovery_stalled_checkpoint(
+        self,
+    ) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            monotonic_values = iter([0.0, 0.1, 40.0])
+            with patch.object(
+                android_direct_proof,
+                "collect_android_completions",
+                return_value=android_direct_proof.AndroidDirectCompletions(),
+            ), patch.object(
+                android_direct_proof,
+                "route_stall_failure_reason",
+                return_value=None,
+            ), patch.object(
+                android_direct_proof,
+                "transport_failure_reason",
+                return_value=(
+                    "Android direct proof reached startup but discovery stalled before peer "
+                    "discovery or route readiness; classified as a capture stall"
+                ),
+            ), patch.object(
+                android_direct_proof.time, "monotonic", side_effect=monotonic_values
+            ), patch.object(android_direct_proof.time, "sleep"):
+                # Act / Assert
+                with self.assertRaises(SystemExit) as raised:
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir=run_dir,
+                        timeout_seconds=30.0,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
+                # The discovery-stalled diagnostic checkpoint must not short-circuit the
+                # poll loop; only the real timeout should surface the descriptive reason.
+                self.assertIn("discovery stalled", str(raised.exception))
 
     def test_read_passive_peer_id_reads_target_peer_from_shared_prefs(self) -> None:
         # Arrange
