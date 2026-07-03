@@ -16,13 +16,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / "tools" / "android"
 APK = ROOT / "meshlink-proof" / "android" / "build" / "outputs" / "apk" / "debug" / "android-debug.apk"
 PACKAGE_NAME = "ch.trancee.meshlink.proof.android"
 ACTIVITY_NAME = ".MainActivity"
 DEFAULT_POWER_MODE = "performance"
 DEFAULT_PAYLOAD_BYTES = 64
-DEFAULT_WAIT_SECONDS = 120
+DEFAULT_WAIT_SECONDS = 30
 DEFAULT_RUN_ROOT = ROOT / "reports" / "android-proof-fleet" / "runs"
 MESH_MODE_RE = re.compile(r"\bmode=([A-Z_][A-Z0-9_\-]*)\b")
 TRANSPORT_RE = re.compile(r"\btransport(?:Mode)?=([A-Z_][A-Z0-9_\-]*)\b")
@@ -79,7 +78,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Only run the named pair label(s). May be repeated.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--device",
+        action="append",
+        dest="devices",
+        default=[],
+        help=(
+            "Force an explicit initiator/receiver pair by adb serial or listed device id, "
+            "bypassing fleet-wide cross-generation pairing. Pass exactly twice: "
+            "first occurrence is the initiator, second is the receiver. "
+            "Cannot be combined with --pair-label."
+        ),
+    )
+    args = parser.parse_args(argv)
+    if args.devices and args.pair_labels:
+        parser.error("--device cannot be combined with --pair-label")
+    if args.devices and len(args.devices) != 2:
+        parser.error("--device must be passed exactly twice (initiator, then receiver)")
+    return args
 
 
 def run_command(command: list[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -94,16 +110,47 @@ def run_command(command: list[str], *, check: bool = False) -> subprocess.Comple
     return completed
 
 
+DEVICE_LINE_RE = re.compile(r"^(?P<id>\S+)\s+(?P<state>\S+)(?P<rest>.*)$")
+MODEL_TOKEN_RE = re.compile(r"model:(\S+)")
+KNOWN_STATES = ("device", "offline", "unauthorized", "no permissions", "recovery", "sideload", "bootloader")
+# adb can assign a "name (N)" de-dup suffix (with a literal space) to wireless
+# device IDs when it sees a duplicate mDNS advertisement, so the id itself may
+# contain whitespace. Split on the first known state keyword instead of the
+# first whitespace run to avoid truncating those IDs.
+DEVICE_LINE_RE = re.compile(
+    r"^(?P<id>.+?)\s+(?P<state>" + "|".join(re.escape(state) for state in KNOWN_STATES) + r")\b(?P<rest>.*)$"
+)
+
+
 def android_devices() -> list[dict[str, Any]]:
-    completed = run_command([str(TOOLS), "device", "list", "--json"], check=True)
-    payload = json.loads(completed.stdout)
-    return payload.get("devices", [])
+    completed = run_command(["adb", "devices", "-l"], check=True)
+    devices: list[dict[str, Any]] = []
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("List of devices"):
+            continue
+        match = DEVICE_LINE_RE.match(line)
+        if not match:
+            continue
+        if match.group("state") != "device":
+            continue
+        model_match = MODEL_TOKEN_RE.search(match.group("rest"))
+        devices.append(
+            {
+                "id": match.group("id"),
+                "state": match.group("state"),
+                "model": model_match.group(1) if model_match else None,
+                "raw": line,
+            }
+        )
+    return devices
 
 
 @lru_cache(maxsize=None)
 def device_info(serial: str) -> dict[str, Any]:
-    completed = run_command([str(TOOLS), "device", "info", "--device", serial, "--json"], check=True)
-    return json.loads(completed.stdout)
+    model = run_command(["adb", "-s", serial, "shell", "getprop", "ro.product.model"], check=True).stdout.strip()
+    api_level_raw = run_command(["adb", "-s", serial, "shell", "getprop", "ro.build.version.sdk"], check=True).stdout.strip()
+    return {"model": model, "apiLevel": int(api_level_raw) if api_level_raw.isdigit() else 0}
 
 
 def normalize_android_serial(listed_id: str) -> tuple[str, dict[str, Any]]:
@@ -162,12 +209,24 @@ def ensure_bluetooth_on(device: DeviceRecord) -> dict[str, Any]:
     }
 
 
+DUP_SUFFIX_RE = re.compile(r"\s+\(\d+\)(?=\._adb-tls-connect\._tcp$)")
+
+
 def collect_devices() -> list[DeviceRecord]:
     seen: set[str] = set()
     records: list[DeviceRecord] = []
-    for entry in android_devices():
+    entries = android_devices()
+    # adb assigns a "id (N)" de-dup suffix to a wireless device when it has more
+    # than one mDNS registration for the same physical device. Prefer the
+    # canonical (unsuffixed) id when both are present so we don't double-count
+    # a single physical device as two fleet entries.
+    listed_ids = {str(entry.get("id") or "").strip() for entry in entries}
+    for entry in entries:
         listed_id = str(entry.get("id") or "").strip()
         if not listed_id:
+            continue
+        canonical_id = DUP_SUFFIX_RE.sub("", listed_id)
+        if canonical_id != listed_id and canonical_id in listed_ids:
             continue
         try:
             resolved_serial, info = normalize_android_serial(listed_id)
@@ -209,17 +268,7 @@ def slugify(value: str) -> str:
 
 
 def install_apk(serial: str) -> dict[str, Any]:
-    completed = run_command([
-        str(TOOLS),
-        "app",
-        "install",
-        "--device",
-        serial,
-        "--apk",
-        str(APK),
-        "--package",
-        PACKAGE_NAME,
-    ])
+    completed = run_command(["adb", "-s", serial, "install", "-r", str(APK)])
     return {
         "serial": serial,
         "returncode": completed.returncode,
@@ -313,7 +362,7 @@ def capture_proof_log(serial: str, *, run_root: Path) -> dict[str, Any]:
 
 
 def capture_transport_mode(serial: str) -> dict[str, Any]:
-    completed = run_command([str(TOOLS), "debug", "logs", "--device", serial, "--lines", "2000"])
+    completed = run_command(["adb", "-s", serial, "logcat", "-d", "-t", "2000"])
     text = completed.stdout + ("\n" + completed.stderr if completed.stderr else "")
     for line in text.splitlines():
         if "MeshLinkReferenceAutomation:" not in line:
@@ -417,7 +466,31 @@ def main(argv: list[str] | None = None) -> int:
 
     devices = collect_devices()
     all_pairs = cross_generation_pairs(devices)
-    if args.pair_labels:
+    if args.devices:
+        device_lookup = {device.resolved_serial: device for device in devices}
+        device_lookup.update({device.listed_id: device for device in devices})
+        resolved: list[DeviceRecord] = []
+        for token in args.devices:
+            device = device_lookup.get(token)
+            if device is None:
+                try:
+                    listed_id, info = normalize_android_serial(token)
+                except RuntimeError as error:
+                    raise SystemExit(f"Unknown --device {token!r}: {error}")
+                device = DeviceRecord(
+                    listed_id=listed_id,
+                    resolved_serial=listed_id,
+                    model=str(info.get("model") or token),
+                    api_level=int(info.get("apiLevel") or 0),
+                    raw="",
+                )
+            resolved.append(device)
+        initiator, receiver = resolved
+        initiator_slug = slugify(initiator.model)
+        receiver_slug = slugify(receiver.model)
+        label = f"{initiator_slug}__{receiver_slug}" if initiator_slug != receiver_slug else f"{initiator_slug}_pair"
+        selected_pairs = [PairRecord(label=label, initiator=initiator, receiver=receiver)]
+    elif args.pair_labels:
         pair_lookup = {pair.label: pair for pair in all_pairs}
         missing = [label for label in args.pair_labels if label not in pair_lookup]
         if missing:
