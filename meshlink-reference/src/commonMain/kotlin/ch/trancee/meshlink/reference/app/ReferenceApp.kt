@@ -11,6 +11,7 @@ import ch.trancee.meshlink.reference.design.ReferenceTheme
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeScreen
 import ch.trancee.meshlink.reference.guided.GuidedFirstExchangeViewModel
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
 
 /** Root composable for the MeshLink reference app. */
 @Composable
@@ -72,6 +73,7 @@ public fun ReferenceApp(
                         autoSendHello = autoSendHello,
                         emitAutomationLog = emitAutomationLog,
                         currentTimeMillis = currentTimeMillis,
+                        automationDocumentStore = documentStore as? ReferenceDocumentStore,
                     )
                 }
             emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.afterRemember")
