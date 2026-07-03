@@ -11,15 +11,12 @@ internal data class MeshEngineOutboundTransferLifecycleState(
     constructor(
         outboundTransfers: MutableMap<String, ch.trancee.meshlink.transfer.OutboundTransferSession>
     ) : this(MeshEngineTransferRegistry(outboundTransfers = outboundTransfers))
-
-    val outboundTransfers: Map<String, ch.trancee.meshlink.transfer.OutboundTransferSession>
-        get() = transferRegistry.outboundTransfersSnapshot()
 }
 
 internal data class MeshEngineOutboundTransferLifecycleDependencies(
     val prepareOutboundTransferSession:
         suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
 )
 
 internal sealed class MeshEngineOutboundTransferLifecycleResolution {
@@ -66,22 +63,24 @@ internal class MeshEngineOutboundTransferLifecycleSupport(
         }
     }
 
-    fun markAcknowledged(frame: WireFrame.TransferAck): Boolean {
+    suspend fun markAcknowledged(frame: WireFrame.TransferAck): Boolean {
         val outboundSession =
             state.transferRegistry.outboundSession(frame.transferId) ?: return false
         outboundSession.markAcknowledged(frame)
         return true
     }
 
-    fun removeSession(transferId: String): ch.trancee.meshlink.transfer.OutboundTransferSession? {
+    suspend fun removeSession(
+        transferId: String
+    ): ch.trancee.meshlink.transfer.OutboundTransferSession? {
         return state.transferRegistry.removeOutboundSession(transferId)
     }
 
-    fun takeAllSessions(): List<ch.trancee.meshlink.transfer.OutboundTransferSession> {
+    suspend fun takeAllSessions(): List<ch.trancee.meshlink.transfer.OutboundTransferSession> {
         return state.transferRegistry.takeAllOutboundSessions()
     }
 
-    fun clearAll(): Unit {
+    suspend fun clearAll(): Unit {
         state.transferRegistry.clearOutboundSessions()
     }
 }
@@ -90,7 +89,7 @@ internal fun buildMeshEngineRuntimeOutboundTransferLifecycleSupport(
     transferRegistry: MeshEngineTransferRegistry,
     prepareOutboundTransferSession:
         suspend (PeerId, ByteArray, MeshEngineHardRunToken) -> OutboundTransferPreparation,
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
 ): MeshEngineOutboundTransferLifecycleSupport {
     return MeshEngineOutboundTransferLifecycleSupport(
         state = MeshEngineOutboundTransferLifecycleState(transferRegistry = transferRegistry),

@@ -7,7 +7,6 @@ import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -24,11 +23,8 @@ class MeshEngineOutboundDirectEnvelopeSupportTest {
             trustStore.write(trustRecordFor(recipientIdentity))
             val recipientTrustSupport =
                 MeshEngineOutboundRecipientTrustSupport(
-                    localIdentity = localIdentity,
                     trustStore = trustStore,
-                    routeCoordinator =
-                        ch.trancee.meshlink.routing.RouteCoordinator(localIdentity.peerId),
-                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
                 )
             val support =
                 MeshEngineOutboundDirectEnvelopeSupport(
@@ -49,12 +45,6 @@ class MeshEngineOutboundDirectEnvelopeSupportTest {
             val ready = assertIs<MeshEngineOutboundDirectEnvelopePreparation.Ready>(preparation)
             val envelope = DirectMessageEnvelope.decode(ready.envelopeBytes)
             assertEquals(localIdentity.peerId.value, envelope.senderPeerId.value)
-            assertContentEquals(
-                localIdentity.identityFingerprintBytes,
-                envelope.senderFingerprintBytes,
-            )
-            assertContentEquals(localIdentity.ed25519PublicKey, envelope.senderEd25519PublicKey)
-            assertContentEquals(localIdentity.x25519PublicKey, envelope.senderX25519PublicKey)
             assertTrue(envelope.ciphertext.isNotEmpty())
             assertTrue(encryptFailures.isEmpty())
         }
@@ -67,11 +57,8 @@ class MeshEngineOutboundDirectEnvelopeSupportTest {
             val trustStore = TofuTrustStore(InMemorySecureStorage())
             val recipientTrustSupport =
                 MeshEngineOutboundRecipientTrustSupport(
-                    localIdentity = localIdentity,
                     trustStore = trustStore,
-                    routeCoordinator =
-                        ch.trancee.meshlink.routing.RouteCoordinator(localIdentity.peerId),
-                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
                 )
             val support =
                 MeshEngineOutboundDirectEnvelopeSupport(

@@ -1,24 +1,23 @@
 package ch.trancee.meshlink.piolium
 
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
+import ch.trancee.meshlink.engine.EndToEndSessionEstablishmentOutcome
 import ch.trancee.meshlink.engine.MeshEngineOutboundRecipientTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore
-import ch.trancee.meshlink.trust.TrustPublicKeys
-import ch.trancee.meshlink.trust.TrustRecord
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-/** Confirm H1: route updates seed durable recipient trust before authenticated first contact. */
+/**
+ * Regression for H1: route-gossiped destination keys can no longer seed recipient trust. Trust is
+ * only ever pinned as the outcome of a cryptographically authenticated end-to-end Noise XX
+ * handshake ([EndToEndSessionEstablishmentOutcome.Established]); route metadata (which any relay on
+ * the path can forge) is not consulted at all by [MeshEngineOutboundRecipientTrustSupport] anymore.
+ */
 class H1RouteSeededTofuTrustConfirm441bfd37Test {
     @Test
     fun test_confirm_route_seeded_tofu_trust_441bfd37() = runBlocking {
@@ -30,18 +29,17 @@ class H1RouteSeededTofuTrustConfirm441bfd37Test {
             val attackerChosenIdentity = LocalIdentity.fromAppId("piolium.h1.attacker-chosen-keys")
             val trustStore = TofuTrustStore(InMemorySecureStorage())
             val routeCoordinator = RouteCoordinator(victimIdentity.peerId)
-            val diagnostics = mutableListOf<Pair<DiagnosticCode, String>>()
+            var ensureEndToEndSessionCalls = 0
             val support =
                 MeshEngineOutboundRecipientTrustSupport(
-                    localIdentity = victimIdentity,
                     trustStore = trustStore,
-                    routeCoordinator = routeCoordinator,
-                    emitDiagnostic = { code, _, stage, _, _, _ -> diagnostics += code to stage },
+                    ensureEndToEndSession = {
+                        // Simulates the attacker-controlled relay never actually completing a
+                        // cryptographically authenticated handshake with the claimed recipient.
+                        ensureEndToEndSessionCalls++
+                        EndToEndSessionEstablishmentOutcome.Unreachable
+                    },
                 )
-            routeCoordinator.onPeerConnected(
-                peerId = attackerRelayIdentity.peerId,
-                trustRecord = trustRecordFor(attackerRelayIdentity),
-            )
             routeCoordinator.onRouteUpdate(
                 fromPeerId = attackerRelayIdentity.peerId,
                 update =
@@ -68,58 +66,16 @@ class H1RouteSeededTofuTrustConfirm441bfd37Test {
             val persistedTrust = trustStore.read(claimedRecipientIdentity.peerId.value)
 
             // Assert
-            assertNotNull(
+            assertNull(
                 resolvedTrust,
-                "The routed first contact should learn trust from attacker-controlled route metadata",
+                "Route-gossiped attacker keys must never be resolved as recipient trust",
             )
-            assertNotNull(persistedTrust, "The learned trust should be persisted for future sends")
-            assertEquals(claimedRecipientIdentity.peerId.value, resolvedTrust.peerIdValue)
-            assertEquals(claimedRecipientIdentity.peerId.value, persistedTrust.peerIdValue)
-            assertContentEquals(
-                attackerChosenIdentity.identityFingerprintBytes,
-                resolvedTrust.identityFingerprintBytes,
-            )
-            assertContentEquals(
-                attackerChosenIdentity.ed25519PublicKey,
-                resolvedTrust.ed25519PublicKey,
-            )
-            assertContentEquals(
-                attackerChosenIdentity.x25519PublicKey,
-                resolvedTrust.x25519PublicKey,
-            )
-            assertFalse(
-                resolvedTrust.ed25519PublicKey.contentEquals(
-                    claimedRecipientIdentity.ed25519PublicKey
-                ),
-                "The claimed destination should not have been replaced by attacker keys",
-            )
-            assertFalse(
-                resolvedTrust.x25519PublicKey.contentEquals(
-                    claimedRecipientIdentity.x25519PublicKey
-                ),
-                "The claimed destination should not have been replaced by attacker keys",
-            )
-            assertEquals(
-                listOf(DiagnosticCode.TRUST_ESTABLISHED to "trust.routeUpdate"),
-                diagnostics,
-            )
+            assertNull(persistedTrust, "No trust should be persisted from route metadata alone")
             println(
-                "CONFIRM H1 claimedPeer=${claimedRecipientIdentity.peerId.value} persistedPeer=${persistedTrust.peerIdValue} attackerFingerprint=${attackerChosenIdentity.identityFingerprintBytes.toHexString()} persistedFingerprint=${persistedTrust.identityFingerprintBytes.toHexString()} matchesClaimed=${persistedTrust.identityFingerprintBytes.contentEquals(claimedRecipientIdentity.identityFingerprintBytes)}"
+                "CONFIRM H1 fixed: claimedPeer=${claimedRecipientIdentity.peerId.value} " +
+                    "ensureEndToEndSessionCalls=$ensureEndToEndSessionCalls " +
+                    "resolvedTrust=$resolvedTrust persistedTrust=$persistedTrust"
             )
         }
-    }
-
-    private fun trustRecordFor(identity: LocalIdentity): TrustRecord {
-        return TrustRecord(
-            peerIdValue = identity.peerId.value,
-            identityFingerprintBytes = identity.identityFingerprintBytes,
-            firstSeenAtEpochMillis = 1L,
-            lastVerifiedAtEpochMillis = 1L,
-            publicKeys =
-                TrustPublicKeys(
-                    ed25519PublicKey = identity.ed25519PublicKey,
-                    x25519PublicKey = identity.x25519PublicKey,
-                ),
-        )
     }
 }

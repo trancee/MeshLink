@@ -118,11 +118,14 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             emitHopSessionFailed = { _, _, _, _ -> },
             prewarmHopSession = { _ -> },
             forwardMessageToNextHop = { _, _ -> },
+            forwardEndToEndHandshakeFrame = { _, _ -> },
             shouldAttemptLargeInlineSend = { false },
             isLocalPeerId = { false },
             handleHandshakeMessage1 = { _, _ -> },
             handleHandshakeMessage2 = { _, _ -> },
             handleHandshakeMessage3 = { _, _ -> },
+            ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
+            handleLocalEndToEndHandshakeFrame = { _ -> },
         )
     val transferAndInbound =
         MeshEngineRuntimeTransferAndInboundPhase(

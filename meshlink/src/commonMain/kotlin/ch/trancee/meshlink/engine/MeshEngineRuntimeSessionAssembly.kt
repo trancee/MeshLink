@@ -12,14 +12,19 @@ internal data class MeshEngineRuntimeSessionAssembly(
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val prewarmHopSession: (PeerId) -> Unit,
-    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
-    val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    val forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val forwardEndToEndHandshakeFrame:
+        suspend (WireFrame.EndToEndHandshakeFrame, MeshEngineHardRunToken) -> Unit,
+    val shouldAttemptLargeInlineSend: suspend (PeerId) -> Boolean,
     val isLocalPeerId: (PeerId) -> Boolean,
     val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
+    val ensureEndToEndSession: suspend (PeerId) -> EndToEndSessionEstablishmentOutcome,
+    val handleLocalEndToEndHandshakeFrame: suspend (WireFrame.EndToEndHandshakeFrame) -> Unit,
 )
 
 internal fun buildMeshEngineRuntimeSessionAssembly(
@@ -97,7 +102,14 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
                             canonicalPeerId,
                         )
                     }
-                    .getOrElse {}
+                    .getOrElse { exception ->
+                        hopTransportSupport.emitHopSessionFailed(
+                            temporaryPeerId,
+                            "transport.handshake.promoteTemporaryPeer",
+                            DiagnosticReason.DELIVERY_FAILURE,
+                            mapOf("cause" to exception::class.simpleName.orEmpty()),
+                        )
+                    }
             },
         )
     val initiatorHandshakeSupport =
@@ -116,6 +128,27 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
             routingContext = handshakeRoutingContext,
             callbacks = handshakeCallbacks,
         )
+    val endToEndHandshakeSupport =
+        buildMeshEngineRuntimeEndToEndHandshakeSupport(
+            localIdentity = environment.localIdentity,
+            trustSupport = routingAndTrust.trustSupport,
+            registry = sharedState.endToEndSessionRegistry,
+            callbacks =
+                MeshEngineEndToEndHandshakeCallbacks(
+                    sendFrameTowardsPeer = { peerId, frame, action ->
+                        val route = sharedState.routeCoordinator.routeFor(peerId)
+                        val nextHopPeerId = route?.nextHopPeerId ?: peerId
+                        hopTransportSupport.sendEncryptedWireFrame(
+                            nextHopPeerId,
+                            frame,
+                            action,
+                            null,
+                        )
+                    },
+                    createHandshakeId = sharedState.sequenceGenerator::createHandshakeId,
+                    emitDiagnostic = support.emitDiagnostic,
+                ),
+        )
     return MeshEngineRuntimeSessionAssembly(
         ensureHopSession = sessionSupport::ensureHopSession,
         sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
@@ -124,10 +157,14 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         emitHopSessionFailed = hopTransportSupport::emitHopSessionFailed,
         prewarmHopSession = peerFlowSupport::prewarmHopSession,
         forwardMessageToNextHop = peerFlowSupport::forwardMessageToNextHop,
+        forwardEndToEndHandshakeFrame = peerFlowSupport::forwardEndToEndHandshakeFrame,
         shouldAttemptLargeInlineSend = peerFlowSupport::shouldAttemptLargeInlineSend,
         isLocalPeerId = peerFlowSupport::isLocalPeerId,
         handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
         handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
         handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
+        ensureEndToEndSession = endToEndHandshakeSupport::ensureEndToEndSession,
+        handleLocalEndToEndHandshakeFrame =
+            endToEndHandshakeSupport::handleLocalEndToEndHandshakeFrame,
     )
 }

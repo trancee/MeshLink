@@ -30,6 +30,10 @@ internal suspend fun sendViaPreferredGattNotifyLinkOrNull(
     context: PreferredGattSendContext,
     dependencies: PreferredGattSendDependencies,
 ): TransportSendResult? {
+    // Unlike the Android GATT side link (see `platform.android.PreferredGattSendSupport`), this
+    // path does not poll a readiness flag before handing the frame off: `GattNotifyLink.enqueue`
+    // already owns an internal pump queue that holds frames and drains them once the remote
+    // central subscribes, so an external readiness wait here would be redundant.
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
     if (directFrame == null) {
         return null

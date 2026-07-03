@@ -116,6 +116,7 @@ class CrossPlatformParityTest {
                 "SIZE_LIMIT_REJECTED",
                 "TRANSPORT_MODE_CHANGED",
                 "POWER_MODE_CHANGED",
+                "TRANSPORT_FRAME_REJECTED",
             )
         val expectedSeverities =
             mapOf(
@@ -145,6 +146,7 @@ class CrossPlatformParityTest {
                 DiagnosticCode.SIZE_LIMIT_REJECTED to DiagnosticSeverity.WARN,
                 DiagnosticCode.TRANSPORT_MODE_CHANGED to DiagnosticSeverity.INFO,
                 DiagnosticCode.POWER_MODE_CHANGED to DiagnosticSeverity.INFO,
+                DiagnosticCode.TRANSPORT_FRAME_REJECTED to DiagnosticSeverity.WARN,
             )
         val expectedFailureReasons =
             listOf(

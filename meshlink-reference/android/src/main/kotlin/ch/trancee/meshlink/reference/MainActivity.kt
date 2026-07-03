@@ -2,6 +2,7 @@
 
 package ch.trancee.meshlink.reference
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -24,8 +25,39 @@ private const val EXTRA_ROLE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATIO
 private const val EXTRA_SCENARIO = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
 private const val EXTRA_TARGET_PEER_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
 
+private const val AUTOMATION_ENABLED_PREF_KEY = "automation:enabled"
+private const val AUTOMATION_TARGET_PEER_ID_PREF_KEY = "automation:targetPeerId"
+
 private fun logActivityStage(stage: String): Unit {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION activity.stage=$stage")
+}
+
+private fun updateAutomationPreferences(
+    context: Context,
+    appId: String,
+    extras: Bundle?,
+): Unit {
+    val isAutomation = extras?.getBoolean(EXTRA_UI_AUTOMATION, false) == true
+    val targetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)?.trim()?.takeIf { it.isNotEmpty() }
+    context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
+        .edit()
+        .apply {
+            if (isAutomation) {
+                putBoolean(AUTOMATION_ENABLED_PREF_KEY, true)
+            } else {
+                remove(AUTOMATION_ENABLED_PREF_KEY)
+            }
+            if (isAutomation && targetPeerId != null) {
+                putString(AUTOMATION_TARGET_PEER_ID_PREF_KEY, targetPeerId)
+            } else {
+                remove(AUTOMATION_TARGET_PEER_ID_PREF_KEY)
+            }
+            apply()
+        }
+    Log.i(
+        "MeshLinkReferenceAutomation",
+        "REFERENCE_AUTOMATION prefs enabled=$isAutomation targetPeerId=${targetPeerId ?: "none"} appId=$appId",
+    )
 }
 
 private fun logAutomationStartupStage(extras: Bundle?): Unit {
@@ -89,6 +121,7 @@ public class MainActivity : ComponentActivity() {
         val targetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
         logActivityStage("onCreate")
         logAutomationStartupStage(extras)
+        updateAutomationPreferences(applicationContext, automationAppId, extras)
 
         val platformServices = createPlatformServices(applicationContext, automationAppId, targetPeerId)
         launchRetainedDiscoverySeedProbe(

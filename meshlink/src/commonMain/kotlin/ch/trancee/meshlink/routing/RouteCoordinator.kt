@@ -6,8 +6,18 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
+/**
+ * All routing-table mutations and reads are serialized behind [routingMutex] because the engine's
+ * default coroutine scope runs on [kotlinx.coroutines.Dispatchers.Default], a genuinely
+ * multi-threaded pool, and routing frames for different peers can be handled concurrently. The
+ * [topologyVersion] `StateFlow` remains readable without the mutex since `StateFlow.value` is
+ * already a safe, atomic snapshot read.
+ */
 internal class RouteCoordinator internal constructor(private val localPeerId: PeerId) {
+    private val routingMutex = Mutex()
     private val connectedPeers: MutableSet<String> = linkedSetOf()
     private val directRouteSeqNos: MutableMap<String, Long> = linkedMapOf()
     private val selectedRoutes: MutableMap<String, RouteEntry> = linkedMapOf()
@@ -17,7 +27,10 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
-    internal fun onPeerConnected(peerId: PeerId, trustRecord: TrustRecord): RoutingMutation {
+    internal suspend fun onPeerConnected(
+        peerId: PeerId,
+        trustRecord: TrustRecord,
+    ): RoutingMutation = routingMutex.withLock {
         connectedPeers += peerId.value
 
         val seqNo = (directRouteSeqNos[peerId.value] ?: 0L) + 1L
@@ -61,48 +74,49 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
             } else {
                 RouteSelectionChange.Updated(route = directRoute, previousRoute = previousRoute)
             }
-        return RoutingMutation(advertisements = advertisements, routeChanges = listOf(routeChange))
+        RoutingMutation(advertisements = advertisements, routeChanges = listOf(routeChange))
     }
 
-    internal fun onPeerDisconnected(peerId: PeerId): RoutingMutation {
-        connectedPeers -= peerId.value
+    internal suspend fun onPeerDisconnected(peerId: PeerId): RoutingMutation =
+        routingMutex.withLock {
+            connectedPeers -= peerId.value
 
-        val removedRoutes =
-            selectedRoutes.values
-                .filter { route ->
-                    route.destinationPeerId.value == peerId.value ||
-                        route.nextHopPeerId.value == peerId.value
+            val removedRoutes =
+                selectedRoutes.values
+                    .filter { route ->
+                        route.destinationPeerId.value == peerId.value ||
+                            route.nextHopPeerId.value == peerId.value
+                    }
+                    .toList()
+            removedRoutes.forEach { route ->
+                selectedRoutes.remove(route.destinationPeerId.value)
+                feasibilityDistances.remove(route.destinationPeerId.value)
+            }
+
+            val advertisements =
+                if (removedRoutes.isNotEmpty()) {
+                    removedRoutes.forEach { route ->
+                        routeDigestTracker.remove(route.destinationPeerId.value)
+                    }
+                    advanceTopologyVersion()
+                    RouteAdvertisementPlanner.forPeerDisconnected(
+                        removedRoutes = removedRoutes,
+                        connectedPeerIds = connectedPeers,
+                        routeDigestTracker = routeDigestTracker,
+                        localPeerId = localPeerId,
+                    )
+                } else {
+                    emptyList()
                 }
-                .toList()
-        removedRoutes.forEach { route ->
-            selectedRoutes.remove(route.destinationPeerId.value)
-            feasibilityDistances.remove(route.destinationPeerId.value)
+            RoutingMutation(
+                advertisements = advertisements,
+                routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
+            )
         }
 
-        val advertisements =
-            if (removedRoutes.isNotEmpty()) {
-                removedRoutes.forEach { route ->
-                    routeDigestTracker.remove(route.destinationPeerId.value)
-                }
-                advanceTopologyVersion()
-                RouteAdvertisementPlanner.forPeerDisconnected(
-                    removedRoutes = removedRoutes,
-                    connectedPeerIds = connectedPeers,
-                    routeDigestTracker = routeDigestTracker,
-                    localPeerId = localPeerId,
-                )
-            } else {
-                emptyList()
-            }
-        return RoutingMutation(
-            advertisements = advertisements,
-            routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
-        )
-    }
-
-    internal fun clearConnectedPeers(): RoutingMutation {
+    internal suspend fun clearConnectedPeers(): RoutingMutation = routingMutex.withLock {
         if (connectedPeers.isEmpty() && selectedRoutes.isEmpty()) {
-            return RoutingMutation.EMPTY
+            return@withLock RoutingMutation.EMPTY
         }
 
         connectedPeers.clear()
@@ -113,13 +127,16 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         if (removedRoutes.isNotEmpty()) {
             advanceTopologyVersion()
         }
-        return RoutingMutation(
+        RoutingMutation(
             advertisements = emptyList(),
             routeChanges = removedRoutes.map(RouteSelectionChange::Removed),
         )
     }
 
-    internal fun onRouteUpdate(fromPeerId: PeerId, update: WireFrame.RouteUpdate): RoutingMutation {
+    internal suspend fun onRouteUpdate(
+        fromPeerId: PeerId,
+        update: WireFrame.RouteUpdate,
+    ): RoutingMutation = routingMutex.withLock {
         val candidate =
             RouteEntry(
                 destinationPeerId = update.destinationPeerId,
@@ -143,7 +160,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 (!isFeasible(candidate) && current?.nextHopPeerId?.value != fromPeerId.value) ||
                 !shouldSelect(candidate, current)
 
-        return if (shouldIgnoreUpdate) {
+        if (shouldIgnoreUpdate) {
             RoutingMutation.EMPTY
         } else {
             selectedRoutes[update.destinationPeerId.value] = candidate
@@ -168,15 +185,15 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
     }
 
-    internal fun onRouteRetraction(
+    internal suspend fun onRouteRetraction(
         fromPeerId: PeerId,
         retraction: WireFrame.RouteRetraction,
-    ): RoutingMutation {
+    ): RoutingMutation = routingMutex.withLock {
         val current = selectedRoutes[retraction.destinationPeerId.value]
         val shouldIgnoreRetraction =
             current == null || current.nextHopPeerId.value != fromPeerId.value
 
-        return if (shouldIgnoreRetraction) {
+        if (shouldIgnoreRetraction) {
             RoutingMutation.EMPTY
         } else {
             selectedRoutes.remove(retraction.destinationPeerId.value)
@@ -201,13 +218,12 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     @Suppress("UNUSED_PARAMETER")
     internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {}
 
-    internal fun nextHopFor(destinationPeerId: PeerId): PeerId? {
-        val route = selectedRoutes[destinationPeerId.value] ?: return null
-        return route.nextHopPeerId
+    internal suspend fun nextHopFor(destinationPeerId: PeerId): PeerId? = routingMutex.withLock {
+        selectedRoutes[destinationPeerId.value]?.nextHopPeerId
     }
 
-    internal fun routeFor(destinationPeerId: PeerId): RouteEntry? {
-        return selectedRoutes[destinationPeerId.value]
+    internal suspend fun routeFor(destinationPeerId: PeerId): RouteEntry? = routingMutex.withLock {
+        selectedRoutes[destinationPeerId.value]
     }
 
     private fun isFeasible(candidate: RouteEntry): Boolean {

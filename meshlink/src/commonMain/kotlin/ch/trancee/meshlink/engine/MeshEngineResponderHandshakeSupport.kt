@@ -20,7 +20,11 @@ internal class MeshEngineResponderHandshakeSupport(
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         val message2 =
             runCatching {
-                    manager.processMessage1AndCreateMessage2(localIdentity.noiseIdentity, payload)
+                    manager.processMessage1AndCreateMessage2(
+                        responderIdentity = localIdentity.noiseIdentity,
+                        message1 = payload,
+                        meshDomainHash = localIdentity.meshDomainHash,
+                    )
                 }
                 .getOrElse { exception ->
                     callbacks.emitHopSessionFailed(

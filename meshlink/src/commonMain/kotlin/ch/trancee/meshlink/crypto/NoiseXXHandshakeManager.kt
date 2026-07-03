@@ -24,8 +24,19 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
     private var initiatorState: HandshakeState? = null
     private var responderState: HandshakeState? = null
 
-    internal fun createMessage1(): ByteArray {
-        val state = HandshakeState.initialize(cryptoProvider)
+    /**
+     * Starts a Noise XX handshake as the initiator.
+     *
+     * [meshDomainHash] is mixed into the handshake transcript as the Noise "prologue" before any
+     * other handshake material, cryptographically binding the resulting session keys to a specific
+     * mesh. Peers that supply a different [meshDomainHash] (i.e. a different mesh/`appId`) derive a
+     * divergent transcript hash and will fail authentication when processing message 2 or 3, so a
+     * handshake can only complete between peers that agree on the same mesh domain. Defaults to an
+     * empty prologue, which reproduces the pre-domain-binding behavior (any peer can complete the
+     * handshake) for callers that do not have a mesh domain to bind.
+     */
+    internal fun createMessage1(meshDomainHash: ByteArray = ByteArray(0)): ByteArray {
+        val state = HandshakeState.initialize(cryptoProvider, meshDomainHash)
         val ephemeralKeyPair = cryptoProvider.generateX25519KeyPair()
         state.localEphemeralKeyPair = ephemeralKeyPair
         state.mixHash(ephemeralKeyPair.publicKey)
@@ -33,14 +44,22 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
         return ephemeralKeyPair.publicKey.copyOf()
     }
 
+    /**
+     * Processes an initiator's message 1 and produces message 2 as the responder.
+     *
+     * See [createMessage1] for the mesh-domain-binding contract: [meshDomainHash] must match the
+     * value the initiator used, or the handshake will fail closed once the initiator processes this
+     * message 2.
+     */
     internal fun processMessage1AndCreateMessage2(
         responderIdentity: NoiseIdentity,
         message1: ByteArray,
+        meshDomainHash: ByteArray = ByteArray(0),
     ): ByteArray {
         require(message1.size == KEY_SIZE_BYTES) {
             "Noise XX message 1 must contain one X25519 public key"
         }
-        val state = HandshakeState.initialize(cryptoProvider)
+        val state = HandshakeState.initialize(cryptoProvider, meshDomainHash)
         state.remoteEphemeralPublicKey = message1.copyOf()
         state.mixHash(message1)
 
@@ -266,7 +285,13 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
         }
 
         companion object {
-            fun initialize(cryptoProvider: CryptoProvider): HandshakeState {
+            /**
+             * Initializes handshake state and mixes in [prologue] as the Noise prologue, before any
+             * other handshake material. Two peers that initialize with different prologues derive
+             * different chaining keys/transcript hashes and can never complete a handshake
+             * together, even if their static/ephemeral keys are otherwise compatible.
+             */
+            fun initialize(cryptoProvider: CryptoProvider, prologue: ByteArray): HandshakeState {
                 val protocolName = NOISE_PROTOCOL_NAME.encodeToByteArray()
                 val handshakeHash =
                     if (protocolName.size <= HASH_LEN_BYTES) {
@@ -275,10 +300,11 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
                         cryptoProvider.sha256(protocolName)
                     }
                 return HandshakeState(
-                    cryptoProvider = cryptoProvider,
-                    chainingKey = handshakeHash.copyOf(),
-                    handshakeHash = handshakeHash,
-                )
+                        cryptoProvider = cryptoProvider,
+                        chainingKey = handshakeHash.copyOf(),
+                        handshakeHash = handshakeHash,
+                    )
+                    .apply { mixHash(prologue) }
             }
         }
     }

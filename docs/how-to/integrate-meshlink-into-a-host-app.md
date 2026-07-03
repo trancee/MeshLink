@@ -68,25 +68,28 @@ devices to discover each other.
 
 ## 2. Create the runtime on Android
 
-On Android, create the runtime with an application `Context` wrapped in the
-Android bootstrap helper.
+On Android, create the runtime directly from an application `Context`:
 
 ```kotlin
 import android.content.Context
-import ch.trancee.meshlink.api.android.meshLinkBootstrap
-import ch.trancee.meshlink.api.meshLink
+import ch.trancee.meshlink.api.android.meshLink
 import ch.trancee.meshlink.api.MeshLink
 
 fun createAndroidRuntime(context: Context): MeshLink {
     return meshLink(
         config = meshLinkConfiguration(),
-        bootstrap = meshLinkBootstrap(context.applicationContext),
+        context = context.applicationContext,
     )
 }
 ```
 
 Do this once for the app-owned MeshLink service or controller that will manage
 the runtime.
+
+Only reach for the two-step `meshLinkBootstrap(context)` + `meshLink(config,
+bootstrap)` form if you need to construct the bootstrap handle ahead of the
+runtime itself (for example, threading it through a dependency-injection
+graph). Both forms produce an identical runtime.
 
 ## 3. Create the runtime on iOS
 
@@ -123,10 +126,11 @@ Your `installMeshLinkCrypto()` wrapper should call
 `CryptoBridge.shared.install(callbacks: ...)` with app-owned crypto
 callbacks.
 
-If you need the iPhone-hosted GATT-notify bearer, install the optional
-`BleTransportBridge` during startup as well. Prefer `installData(...)` when
-that path can work directly with Swift `Data` or `NSData`, because it avoids an
-extra per-byte bridge copy back into Kotlin.
+If you need the iPhone-hosted GATT-notify bearer, call
+`BleTransportBridge.shared.enableGattNotifyBearer()` during startup as well.
+The real GATT-notify send path already uses native CoreBluetooth types
+internally, so there is no callback to wire up — this call is just a feature
+flag that tells MeshLink the bearer is available.
 
 For the full Swift-facing bridge details, use
 [How to use MeshLink from Swift](use-meshlink-from-swift.md).

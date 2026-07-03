@@ -8,7 +8,7 @@ internal data class MeshEnginePeerForgetCallbacks(
     val deleteTrust: suspend (PeerId) -> Unit,
     val clearPeer: suspend (PeerId) -> PendingInitiatorHandshake?,
     val dispatchPeerDisconnected: suspend (PeerId, Map<String, String>) -> Unit,
-    val markPeerDisconnected: (PeerId) -> Boolean,
+    val markPeerDisconnected: suspend (PeerId) -> Boolean,
     val emitPeerLost: suspend (PeerId) -> Unit,
 )
 
@@ -43,7 +43,7 @@ internal fun buildMeshEngineRuntimePeerForgetSupport(
     deleteTrust: suspend (PeerId) -> Unit,
     clearPeer: suspend (PeerId) -> PendingInitiatorHandshake?,
     dispatchPeerDisconnected: suspend (PeerId, Map<String, String>) -> Unit,
-    markPeerDisconnected: (PeerId) -> Boolean,
+    markPeerDisconnected: suspend (PeerId) -> Boolean,
     emitPeerLost: suspend (PeerId) -> Unit,
 ): MeshEnginePeerForgetSupport {
     return MeshEnginePeerForgetSupport(

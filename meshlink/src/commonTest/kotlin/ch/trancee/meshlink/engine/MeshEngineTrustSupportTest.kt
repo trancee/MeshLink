@@ -203,6 +203,76 @@ class MeshEngineTrustSupportTest {
             assertTrue(persisted.lastVerifiedAtEpochMillis >= 20L)
             assertTrue(diagnostics.isEmpty())
         }
+
+    @Test
+    fun `verifyEstablishedTrust rejects a peer with no existing trust record`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("trust-local")
+            val remoteIdentity = LocalIdentity.fromAppId("trust-remote-untrusted")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
+            val support =
+                trustSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    diagnostics = diagnostics,
+                )
+
+            // Act
+            val verified = support.verifyEstablishedTrust(remoteIdentity.peerId)
+            val persisted = trustStore.read(remoteIdentity.peerId.value)
+
+            // Assert
+            assertNull(verified)
+            assertNull(persisted, "First contact must never pin trust via this method")
+            assertTrue(
+                diagnostics.any { diagnostic ->
+                    diagnostic.code == DiagnosticCode.TRUST_FAILURE &&
+                        diagnostic.stage == "trust.verify.untrusted"
+                }
+            )
+        }
+
+    @Test
+    fun `verifyEstablishedTrust refreshes trust that matches an existing record`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("trust-local")
+            val remoteIdentity = LocalIdentity.fromAppId("trust-remote-established")
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            trustStore.write(
+                TrustRecord(
+                    peerIdValue = remoteIdentity.peerId.value,
+                    identityFingerprintBytes = remoteIdentity.identityFingerprintBytes,
+                    firstSeenAtEpochMillis = 10L,
+                    lastVerifiedAtEpochMillis = 20L,
+                    publicKeys =
+                        TrustPublicKeys(
+                            ed25519PublicKey = remoteIdentity.ed25519PublicKey,
+                            x25519PublicKey = remoteIdentity.x25519PublicKey,
+                        ),
+                )
+            )
+            val diagnostics = mutableListOf<RecordedTrustDiagnostic>()
+            val support =
+                trustSupport(
+                    localIdentity = localIdentity,
+                    trustStore = trustStore,
+                    diagnostics = diagnostics,
+                )
+
+            // Act
+            val verified = support.verifyEstablishedTrust(remoteIdentity.peerId)
+            val persisted = trustStore.read(remoteIdentity.peerId.value)
+
+            // Assert
+            assertNotNull(verified)
+            assertNotNull(persisted)
+            assertEquals(10L, verified.firstSeenAtEpochMillis)
+            assertTrue(verified.lastVerifiedAtEpochMillis >= 20L)
+            assertTrue(diagnostics.isEmpty())
+        }
 }
 
 private fun trustSupport(

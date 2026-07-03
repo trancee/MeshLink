@@ -87,26 +87,27 @@ class MeshEngineOutboundTransferLifecycleSupportTest {
         }
 
     @Test
-    fun `takeAllSessions snapshots and clears registered outbound sessions`() {
-        // Arrange
-        val firstSession =
-            outboundTransferSession(PeerId("destination-first"), transferId = "transfer-1")
-        val secondSession =
-            outboundTransferSession(PeerId("destination-second"), transferId = "transfer-2")
-        val outboundTransfers =
-            linkedMapOf(
-                firstSession.transferId to firstSession,
-                secondSession.transferId to secondSession,
-            )
-        val support = outboundTransferLifecycleSupport(outboundTransfers = outboundTransfers)
+    fun `takeAllSessions snapshots and clears registered outbound sessions`() =
+        runBlocking<Unit> {
+            // Arrange
+            val firstSession =
+                outboundTransferSession(PeerId("destination-first"), transferId = "transfer-1")
+            val secondSession =
+                outboundTransferSession(PeerId("destination-second"), transferId = "transfer-2")
+            val outboundTransfers =
+                linkedMapOf(
+                    firstSession.transferId to firstSession,
+                    secondSession.transferId to secondSession,
+                )
+            val support = outboundTransferLifecycleSupport(outboundTransfers = outboundTransfers)
 
-        // Act
-        val sessions = support.takeAllSessions()
+            // Act
+            val sessions = support.takeAllSessions()
 
-        // Assert
-        assertEquals(listOf(firstSession, secondSession), sessions)
-        assertTrue(outboundTransfers.isEmpty())
-    }
+            // Assert
+            assertEquals(listOf(firstSession, secondSession), sessions)
+            assertTrue(outboundTransfers.isEmpty())
+        }
 }
 
 private fun outboundTransferLifecycleSupport(

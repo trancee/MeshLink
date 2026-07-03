@@ -294,8 +294,8 @@ public final class ch/trancee/meshlink/api/StopResult$Stopped : ch/trancee/meshl
 
 public final class ch/trancee/meshlink/api/apple/BleTransportBridge {
 	public static final field INSTANCE Lch/trancee/meshlink/api/apple/BleTransportBridge;
-	public final fun install (Lkotlin/jvm/functions/Function4;)V
-	public final fun installData (Lkotlin/jvm/functions/Function4;)V
+	public final fun disableGattNotifyBearer ()V
+	public final fun enableGattNotifyBearer ()V
 }
 
 public final class ch/trancee/meshlink/api/apple/ChaCha20Poly1305Callbacks {
@@ -646,6 +646,7 @@ public final class ch/trancee/meshlink/diagnostics/DiagnosticCode : java/lang/En
 	public static final field TRANSFER_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSFER_PROGRESS Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSFER_STARTED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
+	public static final field TRANSPORT_FRAME_REJECTED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRANSPORT_MODE_CHANGED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRUST_ESTABLISHED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field TRUST_FAILURE Lch/trancee/meshlink/diagnostics/DiagnosticCode;

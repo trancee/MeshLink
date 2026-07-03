@@ -15,17 +15,20 @@ import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-/** Confirm H4: inner envelope sender metadata seeds TOFU trust before outer-origin binding. */
+/**
+ * Regression for H4: self-asserted inner envelope sender metadata can no longer seed TOFU trust.
+ * [MeshEngineMessageDeliverySupport] now verifies inner-envelope sender claims against trust
+ * already pinned via an authenticated channel (e.g. an end-to-end Noise handshake) using
+ * [MeshEngineTrustSupport.verifyEstablishedTrust], which refuses to pin trust on first contact. An
+ * envelope claiming to be from a peer with no existing trust record is rejected and never
+ * delivered.
+ */
 class H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test {
     @Test
     fun test_confirm_inner_envelope_seeded_tofu_trust_441bfd37() = runBlocking {
@@ -61,10 +64,6 @@ class H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test {
             val envelope =
                 DirectMessageEnvelope(
                         senderPeerId = spoofedInnerSenderIdentity.peerId,
-                        senderFingerprintBytes =
-                            spoofedInnerSenderIdentity.identityFingerprintBytes,
-                        senderEd25519PublicKey = spoofedInnerSenderIdentity.ed25519PublicKey,
-                        senderX25519PublicKey = spoofedInnerSenderIdentity.x25519PublicKey,
                         ciphertext =
                             MessageSealer.seal(
                                 plaintext = "spoofed hello".encodeToByteArray(),
@@ -84,39 +83,29 @@ class H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test {
             )
             val pinnedTrust = trustStore.read(spoofedInnerSenderIdentity.peerId.value)
             val outerOriginTrust = trustStore.read(outerOriginPeerId.value)
-            val deliveredMessage = mutableMessages.replayCache.single()
 
             // Assert
-            assertNotNull(
+            assertNull(
                 pinnedTrust,
-                "The inner sender identity should be pinned into TOFU storage",
+                "A self-asserted inner sender identity with no prior authenticated trust must " +
+                    "never be pinned into TOFU storage",
             )
             assertNull(outerOriginTrust, "No trust should be recorded for the outer origin peer ID")
-            assertEquals(outerOriginPeerId.value, deliveredMessage.originPeerId.value)
-            assertEquals(spoofedInnerSenderIdentity.peerId.value, pinnedTrust.peerIdValue)
-            assertNotEquals(deliveredMessage.originPeerId.value, pinnedTrust.peerIdValue)
-            assertContentEquals(
-                spoofedInnerSenderIdentity.ed25519PublicKey,
-                pinnedTrust.ed25519PublicKey,
-            )
-            assertContentEquals(
-                spoofedInnerSenderIdentity.x25519PublicKey,
-                pinnedTrust.x25519PublicKey,
+            assertTrue(
+                mutableMessages.replayCache.isEmpty(),
+                "The spoofed envelope must not be delivered to the application",
             )
             assertTrue(
                 diagnostics.any {
-                    it.first == DiagnosticCode.TRUST_ESTABLISHED && it.second == "trust.pin"
-                }
-            )
-            assertTrue(
-                diagnostics.any {
-                    it.first == DiagnosticCode.DELIVERY_SUCCEEDED &&
-                        it.second == "transport.data.deliver"
-                }
+                    it.first == DiagnosticCode.TRUST_FAILURE &&
+                        it.second == "trust.verify.untrusted"
+                },
+                "A trust-verification failure diagnostic should be emitted for the unknown sender",
             )
             assertTrue(hopFailures.isEmpty())
             println(
-                "CONFIRM H4 outerOrigin=${deliveredMessage.originPeerId.value} pinnedInnerSender=${pinnedTrust.peerIdValue} payload=${deliveredMessage.payload.decodeToString()}"
+                "CONFIRM H4 fixed: spoofedSender=${spoofedInnerSenderIdentity.peerId.value} " +
+                    "pinnedTrust=$pinnedTrust delivered=${mutableMessages.replayCache.isNotEmpty()}"
             )
         }
     }

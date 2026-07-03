@@ -98,3 +98,9 @@ internal const val TRANSFER_COMPLETE_ID_FIELD_INDEX: Int = 0
 internal const val TRANSFER_ABORT_FIELD_COUNT: Int = 2
 internal const val TRANSFER_ABORT_ID_FIELD_INDEX: Int = 0
 internal const val TRANSFER_ABORT_REASON_FIELD_INDEX: Int = 1
+
+internal const val E2E_HANDSHAKE_FIELD_COUNT: Int = 4
+internal const val E2E_HANDSHAKE_ID_FIELD_INDEX: Int = 0
+internal const val E2E_HANDSHAKE_ORIGIN_FIELD_INDEX: Int = 1
+internal const val E2E_HANDSHAKE_DESTINATION_FIELD_INDEX: Int = 2
+internal const val E2E_HANDSHAKE_PAYLOAD_FIELD_INDEX: Int = 3

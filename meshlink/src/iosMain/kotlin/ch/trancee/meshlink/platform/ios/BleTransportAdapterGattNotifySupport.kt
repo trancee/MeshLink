@@ -58,7 +58,7 @@ internal fun BleTransportAdapter.ensureGattNotifyLink(
 ): GattNotifyLink? {
     val identifier = central.identifier.UUIDString.lowercase()
     val hintPeerIdValue =
-        if (BleTransportBridgeRegistry.currentCallbacksOrNull() != null) {
+        if (BleTransportBridgeRegistry.isGattNotifyBearerEnabled()) {
             resolveGattNotifyHintPeerIdValue(identifier)
         } else {
             null
@@ -224,7 +224,7 @@ internal fun BleTransportAdapter.activeGattNotifyLinkFor(peer: DiscoveredPeer): 
             supportsIosGattNotifyBearer(
                 localPlatformFamily = currentDiscoveryPayload.platformFamily,
                 remotePlatformFamily = peer.platformFamily,
-                hasBridge = BleTransportBridgeRegistry.currentCallbacksOrNull() != null,
+                hasBridge = BleTransportBridgeRegistry.isGattNotifyBearerEnabled(),
             ),
     )
 }

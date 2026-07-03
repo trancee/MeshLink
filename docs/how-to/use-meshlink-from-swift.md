@@ -96,10 +96,12 @@ Bridge rules to keep in mind:
 The older flat `CryptoBridge.shared.install(...)` overload still exists, but
 the grouped form is easier to maintain.
 
-`BleTransportBridge` is optional. Install it only when you need the
-iPhone-hosted GATT-notify bearer. Prefer `installData(...)` when the host app
-can work directly with Swift `Data` or `NSData`, because it avoids an extra
-per-byte bridge copy back into Kotlin.
+`BleTransportBridge` is optional. Call
+`BleTransportBridge.shared.enableGattNotifyBearer()` only when you need the
+iPhone-hosted GATT-notify bearer, and call
+`BleTransportBridge.shared.disableGattNotifyBearer()` to turn it back off.
+There is no callback to install — GATT-notify sends already use native
+CoreBluetooth types internally, so this is just an enable/disable flag.
 
 Also make sure the app has a Bluetooth usage description and that the first-run
 Bluetooth prompt is cleared before you debug discovery or delivery. If you need

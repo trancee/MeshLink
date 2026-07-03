@@ -28,6 +28,7 @@ public enum class DiagnosticCode {
     SIZE_LIMIT_REJECTED,
     TRANSPORT_MODE_CHANGED,
     POWER_MODE_CHANGED,
+    TRANSPORT_FRAME_REJECTED,
 }
 
 /** Operator-facing severity level assigned to a [DiagnosticEvent]. */

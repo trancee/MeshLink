@@ -29,7 +29,7 @@ internal class MeshEngineRoutingSupport(
     private val sendEncryptedWireFrame:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 ) {
-    fun dispatchMutation(
+    suspend fun dispatchMutation(
         mutation: RoutingMutation,
         stage: String,
         removalCode: DiagnosticCode = DiagnosticCode.ROUTE_RETRACTED,
@@ -44,17 +44,18 @@ internal class MeshEngineRoutingSupport(
         dispatchRoutingAdvertisements(mutation.advertisements)
     }
 
-    fun peerRouteMetadata(
+    suspend fun peerRouteMetadata(
         peerId: PeerId,
-        route: RouteEntry? = routeCoordinator.routeFor(peerId),
+        route: RouteEntry? = null,
         previousRoute: RouteEntry? = null,
         metadata: Map<String, String> = emptyMap(),
     ): Map<String, String> {
+        val resolvedRoute = route ?: routeCoordinator.routeFor(peerId)
         return buildMap {
             put("peerId", peerId.value)
             put("topologyVersion", routeCoordinator.topologyVersion.value.toString())
-            put("routeAvailable", (route != null).toString())
-            route?.let { selectedRoute ->
+            put("routeAvailable", (resolvedRoute != null).toString())
+            resolvedRoute?.let { selectedRoute ->
                 put("destinationPeerId", selectedRoute.destinationPeerId.value)
                 put("nextHopPeerId", selectedRoute.nextHopPeerId.value)
                 put("routeMetric", selectedRoute.metric.toString())
@@ -72,7 +73,7 @@ internal class MeshEngineRoutingSupport(
         }
     }
 
-    private fun emitRouteSelectionDiagnostics(
+    private suspend fun emitRouteSelectionDiagnostics(
         changes: List<RouteSelectionChange>,
         stage: String,
         removalCode: DiagnosticCode,
@@ -88,7 +89,7 @@ internal class MeshEngineRoutingSupport(
         }
     }
 
-    private fun emitRouteSelectionDiagnostic(
+    private suspend fun emitRouteSelectionDiagnostic(
         change: RouteSelectionChange,
         stage: String,
         removalCode: DiagnosticCode,
@@ -109,7 +110,7 @@ internal class MeshEngineRoutingSupport(
         }
     }
 
-    private fun emitAvailableRouteDiagnostic(
+    private suspend fun emitAvailableRouteDiagnostic(
         change: RouteSelectionChange.Available,
         stage: String,
         metadata: Map<String, String>,
@@ -128,7 +129,7 @@ internal class MeshEngineRoutingSupport(
         )
     }
 
-    private fun emitUpdatedRouteDiagnostic(
+    private suspend fun emitUpdatedRouteDiagnostic(
         change: RouteSelectionChange.Updated,
         stage: String,
         metadata: Map<String, String>,
@@ -148,7 +149,7 @@ internal class MeshEngineRoutingSupport(
         )
     }
 
-    private fun emitRemovedRouteDiagnostic(
+    private suspend fun emitRemovedRouteDiagnostic(
         change: RouteSelectionChange.Removed,
         stage: String,
         removalCode: DiagnosticCode,

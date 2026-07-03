@@ -106,6 +106,88 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
+    fun `handleEncryptedDataFrame forwards non local end-to-end handshake frames`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val destinationPeerId = PeerId("destination-peer")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val handshakeFrame =
+                WireFrame.EndToEndHandshakeMessage1(
+                    route =
+                        WireFrame.EndToEndHandshakeRoute(
+                            handshakeId = "handshake-1",
+                            originPeerId = PeerId("origin-peer"),
+                            destinationPeerId = destinationPeerId,
+                        ),
+                    payload = byteArrayOf(1, 2, 3),
+                )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = handshakeFrame,
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            val forwarded = fixture.forwardedEndToEndHandshakeFrames.single()
+            assertEquals(destinationPeerId.value, forwarded.destinationPeerId.value)
+            assertEquals("handshake-1", forwarded.handshakeId)
+            assertTrue(fixture.localEndToEndHandshakeFrames.isEmpty())
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleEncryptedDataFrame hands locally addressed end-to-end handshake frames to the local handler`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val originPeerId = PeerId("origin-peer")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val handshakeFrame =
+                WireFrame.EndToEndHandshakeMessage2(
+                    route =
+                        WireFrame.EndToEndHandshakeRoute(
+                            handshakeId = "handshake-2",
+                            originPeerId = originPeerId,
+                            destinationPeerId = localIdentity.peerId,
+                        ),
+                    payload = byteArrayOf(4, 5, 6),
+                )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptedFrame = handshakeFrame,
+                )
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
+
+            // Assert
+            val (recordedPeerId, recordedFrame) = fixture.localEndToEndHandshakeFrames.single()
+            assertEquals(peerId.value, recordedPeerId.value)
+            assertEquals("handshake-2", recordedFrame.handshakeId)
+            assertTrue(fixture.forwardedEndToEndHandshakeFrames.isEmpty())
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
     fun `handleEncryptedDataFrame delivers a local message addressed to the advertisement hash`() =
         runBlocking<Unit> {
             // Arrange
@@ -634,6 +716,8 @@ private data class InboundSupportFixture(
     val forwardedMessages: MutableList<RecordedInboundSupportForwardedMessage>,
     val deliveredMessages: MutableList<RecordedInboundSupportDelivery>,
     val transferEvents: MutableList<RecordedInboundTransferEvent>,
+    val forwardedEndToEndHandshakeFrames: MutableList<WireFrame.EndToEndHandshakeFrame>,
+    val localEndToEndHandshakeFrames: MutableList<Pair<PeerId, WireFrame.EndToEndHandshakeFrame>>,
 )
 
 private fun inboundSupportFixture(
@@ -650,6 +734,9 @@ private fun inboundSupportFixture(
     val forwardedMessages = mutableListOf<RecordedInboundSupportForwardedMessage>()
     val deliveredMessages = mutableListOf<RecordedInboundSupportDelivery>()
     val transferEvents = mutableListOf<RecordedInboundTransferEvent>()
+    val forwardedEndToEndHandshakeFrames = mutableListOf<WireFrame.EndToEndHandshakeFrame>()
+    val localEndToEndHandshakeFrames =
+        mutableListOf<Pair<PeerId, WireFrame.EndToEndHandshakeFrame>>()
     val runtimeSurface = MeshEngineRuntimeSurface()
     val hardRunToken = runtimeSurface.beginHardRun()
     val routeCoordinator = RouteCoordinator(localIdentity.peerId)
@@ -759,6 +846,15 @@ private fun inboundSupportFixture(
                     },
                     deliverInnerEnvelope = recordedDeliverInnerEnvelope,
                 ),
+            endToEndHandshakeCallbacks =
+                MeshEngineInboundEndToEndHandshakeCallbacks(
+                    forwardEndToEndHandshakeFrame = { frame, _ ->
+                        forwardedEndToEndHandshakeFrames += frame
+                    },
+                    handleLocalEndToEndHandshakeFrame = { peerId, frame ->
+                        localEndToEndHandshakeFrames += peerId to frame
+                    },
+                ),
             transferCallbacks = recordedTransferCallbacks,
         )
     return InboundSupportFixture(
@@ -768,6 +864,8 @@ private fun inboundSupportFixture(
         forwardedMessages = forwardedMessages,
         deliveredMessages = deliveredMessages,
         transferEvents = transferEvents,
+        forwardedEndToEndHandshakeFrames = forwardedEndToEndHandshakeFrames,
+        localEndToEndHandshakeFrames = localEndToEndHandshakeFrames,
     )
 }
 

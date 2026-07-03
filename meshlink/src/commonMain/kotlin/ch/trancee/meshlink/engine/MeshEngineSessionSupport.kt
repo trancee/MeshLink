@@ -27,7 +27,8 @@ internal data class MeshEngineSessionCallbacks(
         suspend (
             PeerId, DirectWireFrame, String, ch.trancee.meshlink.transport.TransportMode?,
         ) -> TransportSendResult,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
 internal class MeshEngineSessionSupport(
@@ -63,7 +64,7 @@ internal class MeshEngineSessionSupport(
     private suspend fun reserveInitiatorHandshake(peerId: PeerId): InitiatorHandshakeReservation {
         return state.sessionRegistry.initiatorHandshakeReservation(peerId) {
             val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
-            val message1 = manager.createMessage1()
+            val message1 = manager.createMessage1(meshDomainHash = localIdentity.meshDomainHash)
             val pendingHandshake =
                 PendingInitiatorHandshake(
                     manager = manager,
@@ -232,7 +233,7 @@ internal fun buildMeshEngineRuntimeSessionSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 ): MeshEngineSessionSupport {
     return MeshEngineSessionSupport(
         localIdentity = localIdentity,

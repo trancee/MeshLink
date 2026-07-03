@@ -19,7 +19,7 @@ internal data class MeshEngineSendCallbacks(
     val currentLifecycleState: () -> MeshLinkState,
     val captureHardRunToken: () -> MeshEngineHardRunToken,
     val hasTransport: () -> Boolean,
-    val shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    val shouldAttemptLargeInlineSend: suspend (PeerId) -> Boolean,
     val sendPayload:
         suspend (
             MeshEngineOutboundDeliveryMode,
@@ -28,7 +28,7 @@ internal data class MeshEngineSendCallbacks(
             DeliveryPriority,
             MeshEngineHardRunToken,
         ) -> SendResult,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
     val emitDiagnostic:
         (
             code: DiagnosticCode,
@@ -102,7 +102,7 @@ internal fun buildMeshEngineRuntimeSendSupport(
     captureHardRunToken: () -> MeshEngineHardRunToken,
     hasTransport: () -> Boolean,
     inlineMessagePayloadBytes: Int,
-    shouldAttemptLargeInlineSend: (PeerId) -> Boolean,
+    shouldAttemptLargeInlineSend: suspend (PeerId) -> Boolean,
     sendPayload:
         suspend (
             MeshEngineOutboundDeliveryMode,
@@ -111,7 +111,7 @@ internal fun buildMeshEngineRuntimeSendSupport(
             DeliveryPriority,
             MeshEngineHardRunToken,
         ) -> SendResult,
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
     emitDiagnostic:
         (
             code: DiagnosticCode,

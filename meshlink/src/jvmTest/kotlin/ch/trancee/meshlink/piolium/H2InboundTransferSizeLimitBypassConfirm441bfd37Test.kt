@@ -11,12 +11,17 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-/** Confirm H2: inbound transfer metadata bypasses the documented 64 KiB payload limit. */
+/**
+ * Regression for H2: inbound transfer metadata used to bypass the documented 64 KiB payload limit.
+ * [WireFrame.TransferStart.isWithinInboundTransferSizeLimits] now rejects any `TransferStart` whose
+ * `totalBytes` exceeds [MAX_SUPPORTED_PAYLOAD_BYTES], or whose `totalChunks` is inconsistent with
+ * `totalBytes`/`maxChunkPayloadBytes`, before an [InboundTransferSession] is ever allocated.
+ */
 class H2InboundTransferSizeLimitBypassConfirm441bfd37Test {
     @Test
     fun test_confirm_inbound_transfer_size_limit_bypass_441bfd37() = runBlocking {
@@ -82,21 +87,26 @@ class H2InboundTransferSizeLimitBypassConfirm441bfd37Test {
             val delivered = deliveredPayload
 
             // Assert
-            assertTrue(handled, "The oversized inbound chunk should still be processed")
-            assertNotNull(delivered, "An oversized inbound payload should have been delivered")
-            assertEquals(oversizedBytes, delivered.size)
-            assertEquals("attacker-origin", deliveredOrigin?.value)
-            assertEquals(DeliveryPriority.NORMAL, deliveredPriority)
-            assertEquals(2, acks.size)
-            assertEquals(0, acks.last().highestContiguousAck)
+            assertFalse(
+                handled,
+                "The oversized TransferStart should have been rejected, so there is no session " +
+                    "to accept a chunk into",
+            )
+            assertNull(delivered, "An oversized inbound payload must never be delivered")
+            assertEquals(null, deliveredOrigin)
+            assertEquals(null, deliveredPriority)
+            assertTrue(acks.isEmpty(), "No ack should be sent for a rejected TransferStart")
             assertFalse(
                 inboundTransfers.containsKey(startFrame.transferId),
-                "The oversized transfer should complete normally",
+                "No session should be allocated for an oversized TransferStart",
             )
-            assertTrue(diagnostics.contains("transfer.receive.start"))
-            assertTrue(diagnostics.contains("transfer.receive.complete"))
+            assertTrue(
+                diagnostics.contains("transfer.receive.start"),
+                "A rejection diagnostic should still be emitted for the oversized TransferStart",
+            )
+            assertFalse(diagnostics.contains("transfer.receive.complete"))
             println(
-                "CONFIRM H2 outboundLimit=$MAX_SUPPORTED_PAYLOAD_BYTES inboundTotalBytes=${startFrame.totalBytes} deliveredBytes=${delivered.size} ackCount=${acks.size}"
+                "CONFIRM H2 FIXED outboundLimit=$MAX_SUPPORTED_PAYLOAD_BYTES inboundTotalBytes=${startFrame.totalBytes} rejected=true"
             )
         }
     }

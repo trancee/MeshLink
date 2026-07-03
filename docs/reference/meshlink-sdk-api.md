@@ -58,13 +58,15 @@ fun meshLink(config: MeshLinkConfig, bootstrap: MeshLinkBootstrap): MeshLink
 abstract class MeshLinkBootstrap
 
 // Android only
+fun meshLink(config: MeshLinkConfig, context: Context): MeshLink
 fun meshLinkBootstrap(context: Context): MeshLinkBootstrap
 ```
 
 | API | Use | Notes |
 |---|---|---|
 | `meshLink(config)` | iOS and platforms that do not need extra bootstrap input | Recommended default for Swift and Kotlin callers that do not need platform bootstrap input. |
-| `meshLink(config, bootstrap)` | Android | Obtain `bootstrap` from `meshLinkBootstrap(context)` and pass an application context. |
+| `meshLink(config, context)` | Android | **Recommended default on Android.** One-step factory backed by an application `Context`. |
+| `meshLink(config, bootstrap)` | Android (advanced) | Two-step form for callers that must construct the bootstrap handle ahead of the runtime, e.g. dependency-injection graphs. Obtain `bootstrap` from `meshLinkBootstrap(context)`. Produces an identical runtime to `meshLink(config, context)`. |
 | `MeshLinkBootstrap` | platform bootstrap carrier | Abstract public type used by platform-specific helpers. |
 
 Construction begins with `MeshLinkState.Uninitialized` and returns a runtime
@@ -459,21 +461,19 @@ Notes:
 
 ```kotlin
 object BleTransportBridge {
-    fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean)
-    fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean)
+    fun enableGattNotifyBearer()
+    fun disableGattNotifyBearer()
 }
 ```
 
 Notes:
 
-- optional bridge for iPhone-hosted bearer paths that still need native
-  CoreBluetooth bridging
-- opaque arguments are native iOS handles and must only be cast in app-owned
-  iOS code
-- `installData(...)` avoids copying into a Kotlin `ByteArray` when the host app
-  can work directly with Swift `Data` or `NSData`
-- when the side bearer is enabled, prefer `installData(...)` unless the host
-  app truly needs the Kotlin `ByteArray` form
+- optional feature flag for the iPhone-hosted GATT-notify bearer path
+- the real GATT-notify send path already uses native CoreBluetooth types
+  (`CBPeripheralManager`, `CBMutableCharacteristic`, `CBCentral`) directly, so
+  there is no callback to install or opaque handle to bridge
+- `enableGattNotifyBearer()` tells MeshLink the bearer is available;
+  `disableGattNotifyBearer()` turns it back off
 - GATT and L2CAP are both expected to stay active when the platform supports
   them; L2CAP remains the preferred connection path and GATT remains available
   for older peers or fallback delivery
@@ -486,6 +486,10 @@ Notes:
   immediately when topology updates reveal a valid route
 - Android and iOS expose the same public configuration fields, states, events,
   diagnostics, and error categories
+- platform bootstrap/setup mechanics are intentionally platform-specific: Android uses a
+  `Context`-based factory (see [Factory entry points](#factory-entry-points)) and iOS uses the
+  bridge helpers (see [iOS bridge entry points](#ios-bridge-entry-points)); this asymmetry is
+  expected and does not affect runtime behavior once construction succeeds
 
 ## Related docs
 

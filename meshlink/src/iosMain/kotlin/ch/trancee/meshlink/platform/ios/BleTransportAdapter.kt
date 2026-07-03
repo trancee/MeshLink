@@ -102,8 +102,8 @@ internal class BleTransportAdapter(internal val appId: String, advertisementKeyH
     }
 
     override fun maximumPayloadBytesPerDelivery(peerId: PeerId): Int? {
-        val gattCallbacksInstalled = BleTransportBridgeRegistry.currentCallbacksOrNull() != null
-        val peer = if (gattCallbacksInstalled) resolvePeer(peerId) else null
+        val gattNotifyBearerEnabled = BleTransportBridgeRegistry.isGattNotifyBearerEnabled()
+        val peer = if (gattNotifyBearerEnabled) resolvePeer(peerId) else null
         val supportsGattNotifyBearer =
             peer != null &&
                 shouldUseMixedPlatformGattNotifyBearer(

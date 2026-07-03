@@ -34,7 +34,7 @@ internal data class MeshEnginePeerFlowCallbacks(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    val peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
 internal class MeshEnginePeerFlowSupport(
@@ -67,12 +67,46 @@ internal class MeshEnginePeerFlowSupport(
         }
     }
 
-    fun forwardMessageToNextHop(
+    suspend fun forwardMessageToNextHop(
         frame: WireFrame.Message,
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
-        val destinationPeerId = frame.destinationPeerId
-        val originPeerId = frame.originPeerId
+        forwardFrameToNextHop(
+            destinationPeerId = frame.destinationPeerId,
+            originPeerId = frame.originPeerId,
+            frame = frame,
+            action = "forward.message",
+            hardRunToken = hardRunToken,
+        )
+    }
+
+    /**
+     * Relays an end-to-end (multi-hop) Noise XX handshake frame one hop closer to
+     * [WireFrame.EndToEndHandshakeFrame.destinationPeerId]. Intermediate relays never decode
+     * [WireFrame.EndToEndHandshakeFrame.payload]; they only look at routing metadata, so the
+     * handshake stays authenticated end-to-end between
+     * [WireFrame.EndToEndHandshakeFrame.originPeerId] and the destination.
+     */
+    suspend fun forwardEndToEndHandshakeFrame(
+        frame: WireFrame.EndToEndHandshakeFrame,
+        hardRunToken: MeshEngineHardRunToken,
+    ): Unit {
+        forwardFrameToNextHop(
+            destinationPeerId = frame.destinationPeerId,
+            originPeerId = frame.originPeerId,
+            frame = frame as WireFrame,
+            action = "forward.e2eHandshake",
+            hardRunToken = hardRunToken,
+        )
+    }
+
+    private suspend fun forwardFrameToNextHop(
+        destinationPeerId: PeerId,
+        originPeerId: PeerId,
+        frame: WireFrame,
+        action: String,
+        hardRunToken: MeshEngineHardRunToken,
+    ): Unit {
         val peerSuffix = destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)
         val diagnosticMetadata =
             mapOf("originPeerId" to originPeerId.value, "forwardAction" to "relay")
@@ -81,7 +115,7 @@ internal class MeshEnginePeerFlowSupport(
             callbacks.emitDiagnostic(
                 DiagnosticCode.DELIVERY_UNREACHABLE,
                 DiagnosticSeverity.ERROR,
-                "forward.message.noRoute",
+                "$action.noRoute",
                 peerSuffix,
                 DiagnosticReason.DELIVERY_FAILURE,
                 callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
@@ -92,19 +126,14 @@ internal class MeshEnginePeerFlowSupport(
         callbacks.emitDiagnostic(
             DiagnosticCode.DELIVERY_QUEUED,
             DiagnosticSeverity.INFO,
-            "forward.message.queued",
+            "$action.queued",
             peerSuffix,
             null,
             callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
         )
         context.coroutineScope.launch {
             val forwarded =
-                callbacks.sendEncryptedWireFrame(
-                    nextHopPeerId,
-                    frame,
-                    "forward.message",
-                    hardRunToken,
-                )
+                callbacks.sendEncryptedWireFrame(nextHopPeerId, frame, action, hardRunToken)
             if (!callbacks.runtimeGate.isHardRunActive(hardRunToken) && !forwarded) {
                 return@launch
             }
@@ -112,7 +141,7 @@ internal class MeshEnginePeerFlowSupport(
                 if (forwarded) DiagnosticCode.DELIVERY_SUCCEEDED
                 else DiagnosticCode.DELIVERY_UNREACHABLE,
                 if (forwarded) DiagnosticSeverity.INFO else DiagnosticSeverity.ERROR,
-                if (forwarded) "forward.message.delivered" else "forward.message.failed",
+                if (forwarded) "$action.delivered" else "$action.failed",
                 peerSuffix,
                 if (forwarded) null else DiagnosticReason.DELIVERY_FAILURE,
                 callbacks.peerRouteMetadata(destinationPeerId, diagnosticMetadata),
@@ -120,7 +149,7 @@ internal class MeshEnginePeerFlowSupport(
         }
     }
 
-    fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
+    suspend fun shouldAttemptLargeInlineSend(peerId: PeerId): Boolean {
         val nextHopPeerId = context.routeCoordinator.nextHopFor(peerId) ?: peerId
         return nextHopPeerId.value == peerId.value &&
             (callbacks.maximumPayloadBytesPerDelivery(nextHopPeerId)?.let { transportBudget ->
@@ -152,7 +181,7 @@ internal fun buildMeshEngineRuntimePeerFlowSupport(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    peerRouteMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 ): MeshEnginePeerFlowSupport {
     return MeshEnginePeerFlowSupport(
         localIdentity = localIdentity,

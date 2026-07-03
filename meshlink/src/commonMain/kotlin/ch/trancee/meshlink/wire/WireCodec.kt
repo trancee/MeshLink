@@ -117,6 +117,53 @@ internal sealed class WireFrame {
 
     internal class TransferAbort
     internal constructor(public val transferId: String, public val reasonCode: Int) : WireFrame()
+
+    /**
+     * Common fields shared by every end-to-end (multi-hop) Noise XX handshake message. Relays
+     * forward these frames hop-by-hop toward [destinationPeerId] without inspecting [payload]; only
+     * the frame's origin and final destination establish an authenticated session directly with
+     * each other, so intermediate relays never learn the resulting session keys.
+     */
+    internal interface EndToEndHandshakeFrame {
+        public val handshakeId: String
+        public val originPeerId: PeerId
+        public val destinationPeerId: PeerId
+        public val payload: ByteArray
+    }
+
+    internal class EndToEndHandshakeRoute
+    internal constructor(
+        public val handshakeId: String,
+        public val originPeerId: PeerId,
+        public val destinationPeerId: PeerId,
+    )
+
+    internal class EndToEndHandshakeMessage1
+    internal constructor(route: EndToEndHandshakeRoute, payload: ByteArray) :
+        WireFrame(), EndToEndHandshakeFrame {
+        public override val handshakeId: String = route.handshakeId
+        public override val originPeerId: PeerId = route.originPeerId
+        public override val destinationPeerId: PeerId = route.destinationPeerId
+        public override val payload: ByteArray = payload.copyOf()
+    }
+
+    internal class EndToEndHandshakeMessage2
+    internal constructor(route: EndToEndHandshakeRoute, payload: ByteArray) :
+        WireFrame(), EndToEndHandshakeFrame {
+        public override val handshakeId: String = route.handshakeId
+        public override val originPeerId: PeerId = route.originPeerId
+        public override val destinationPeerId: PeerId = route.destinationPeerId
+        public override val payload: ByteArray = payload.copyOf()
+    }
+
+    internal class EndToEndHandshakeMessage3
+    internal constructor(route: EndToEndHandshakeRoute, payload: ByteArray) :
+        WireFrame(), EndToEndHandshakeFrame {
+        public override val handshakeId: String = route.handshakeId
+        public override val originPeerId: PeerId = route.originPeerId
+        public override val destinationPeerId: PeerId = route.destinationPeerId
+        public override val payload: ByteArray = payload.copyOf()
+    }
 }
 
 /**
@@ -160,6 +207,10 @@ internal object WireCodec {
             WireEnvelopeType.TRANSFER_ACK,
             WireEnvelopeType.TRANSFER_COMPLETE,
             WireEnvelopeType.TRANSFER_ABORT -> TransferPayloadCodec.decode(type, table)
+            WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_1,
+            WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_2,
+            WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_3 ->
+                EndToEndHandshakePayloadCodec.decode(type, table)
         }
     }
 
@@ -177,6 +228,9 @@ internal object WireCodec {
             is WireFrame.TransferAck,
             is WireFrame.TransferComplete,
             is WireFrame.TransferAbort -> TransferPayloadCodec.encode(frame)
+            is WireFrame.EndToEndHandshakeMessage1,
+            is WireFrame.EndToEndHandshakeMessage2,
+            is WireFrame.EndToEndHandshakeMessage3 -> EndToEndHandshakePayloadCodec.encode(frame)
         }
     }
 
@@ -194,6 +248,9 @@ internal object WireCodec {
             is WireFrame.TransferAck -> WireEnvelopeType.TRANSFER_ACK
             is WireFrame.TransferComplete -> WireEnvelopeType.TRANSFER_COMPLETE
             is WireFrame.TransferAbort -> WireEnvelopeType.TRANSFER_ABORT
+            is WireFrame.EndToEndHandshakeMessage1 -> WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_1
+            is WireFrame.EndToEndHandshakeMessage2 -> WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_2
+            is WireFrame.EndToEndHandshakeMessage3 -> WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_3
         }
     }
 }

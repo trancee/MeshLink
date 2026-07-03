@@ -62,6 +62,22 @@ class L2capSendSupportTest {
     }
 
     @Test
+    fun sendViaIosL2capWhenReadyDeliversOnceTheLinkAppearsWhileWaiting(): Unit = runBlocking {
+        // Arrange
+        val link = FakeL2capSendLink(hintPeerId = PeerId("link-peer"), enqueueResult = true)
+        val fixture = L2capSendFixture(shouldInitiateL2cap = true, linkAppearsAfterPolls = 2)
+        val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
+
+        // Act
+        val result = fixture.runWithDeferredLink(frame = frame, link = link)
+
+        // Assert
+        assertEquals(TransportSendResult.Delivered, result)
+        assertEquals(1, link.enqueueCalls)
+        assertEquals(1, fixture.connectCalls)
+    }
+
+    @Test
     fun sendViaIosL2capWhenReadyClosesTheLinkWhenTheQueueRejectsTheFrame(): Unit = runBlocking {
         // Arrange
         val fixture = L2capSendFixture()
@@ -99,10 +115,14 @@ class L2capSendSupportTest {
     }
 }
 
-private class L2capSendFixture(private val shouldInitiateL2cap: Boolean = true) {
+private class L2capSendFixture(
+    private val shouldInitiateL2cap: Boolean = true,
+    private val linkAppearsAfterPolls: Int = -1,
+) {
     val context = L2capSendContext(hintPeerId = PeerId("peer-ios"))
     var connectCalls: Int = 0
     val closedLinks: MutableList<String> = mutableListOf()
+    private var pollCount: Int = 0
 
     suspend fun run(frame: OutboundFrame, link: FakeL2capSendLink?): TransportSendResult {
         return sendViaL2capWhenReady(
@@ -111,6 +131,27 @@ private class L2capSendFixture(private val shouldInitiateL2cap: Boolean = true) 
             dependencies =
                 L2capSendDependencies(
                     currentLink = { link },
+                    ensureConnectAttempt = { connectCalls += 1 },
+                    shouldInitiateL2cap = { shouldInitiateL2cap },
+                    closeLink = { hintPeer, reason -> closedLinks += "$hintPeer|$reason" },
+                    log = {},
+                ),
+        )
+    }
+
+    suspend fun runWithDeferredLink(
+        frame: OutboundFrame,
+        link: FakeL2capSendLink,
+    ): TransportSendResult {
+        return sendViaL2capWhenReady(
+            frame = frame,
+            context = context,
+            dependencies =
+                L2capSendDependencies(
+                    currentLink = {
+                        pollCount += 1
+                        if (pollCount > linkAppearsAfterPolls) link else null
+                    },
                     ensureConnectAttempt = { connectCalls += 1 },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
                     closeLink = { hintPeer, reason -> closedLinks += "$hintPeer|$reason" },
