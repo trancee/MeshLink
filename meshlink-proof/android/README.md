@@ -191,6 +191,28 @@ Then relaunch the proof app on that device (and its pair partner) and rerun
 the scenario. This clears stuck advertiser/scanner slots without needing a
 full device reboot.
 
+### BLE_ON limbo state
+
+`dumpsys bluetooth_manager` can report a third state beyond `ON`/`OFF`:
+`BLE_ON`, a hybrid state where "classic" Bluetooth is disabled
+(`enabled: false`) but a BLE-only client registration (scan/advertise/GATT)
+keeps the stack partially alive. This was reproduced on a Nothing A063 right
+after a proof-app run: issuing `cmd bluetooth_manager disable` while the proof
+app still held a live BLE registration left the device stuck in `BLE_ON`
+instead of transitioning fully to `OFF`, and `wait-for-state:STATE_OFF` fails
+outright with exit status 255 in that case rather than waiting or timing out.
+
+Manual recovery is simple - from `BLE_ON`, `cmd bluetooth_manager enable` +
+`wait-for-state:STATE_ON` brings the device straight back to a clean `ON`
+state, exactly as it would from `OFF`. `run_android_proof_fleet.py`'s
+automatic recovery (below) is hardened against this: it force-stops the proof
+app *before* issuing `disable` (releasing any BLE registration the app itself
+holds), then polls `dumpsys bluetooth_manager` directly and accepts either
+`OFF` or `BLE_ON` as a valid "disabled enough" outcome before re-enabling,
+instead of relying on the brittle `wait-for-state` subcommand. See
+[the BLE_ON limbo state finding](../../docs/explanation/reference-app-physical-integration-findings.md#3-the-bluetooth-stack-can-settle-into-a-ble_on-limbo-state-after-disable)
+for the full investigation.
+
 If you drive fleet runs through
 `meshlink-proof/scripts/run_android_proof_fleet.py`, this recovery is
 automatic: the script inspects each device's captured `proof.log` for the

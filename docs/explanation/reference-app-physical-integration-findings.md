@@ -315,6 +315,56 @@ the fleet run showed `transport.data.deliver` (true inbound delivery
 confirmation, not just local send success) for the first time, across two
 consecutive live runs on Nokia X20 ↔ Nothing A063.
 
+### 3. The Bluetooth stack can settle into a `BLE_ON` limbo state after `disable`
+
+The fleet script recovers a device whose advertise/scan retries are exhausted
+(see "Recover a device whose advertise or scan retries are exhausted" in
+`meshlink-proof/android/README.md`) by fully disabling and re-enabling its
+Bluetooth stack:
+
+```bash
+adb -s <serial> shell cmd bluetooth_manager disable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_OFF
+adb -s <serial> shell cmd bluetooth_manager enable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_ON
+```
+
+Running this automatically at the end of a fleet run (as part of hardening
+the "always force-stop the proof app" cleanup step) surfaced a third
+Bluetooth state beyond the expected `ON`/`OFF`: `BLE_ON`. `dumpsys
+bluetooth_manager` reports `BLE_ON` as a hybrid state where "classic"
+Bluetooth is disabled (`enabled: false`) but a BLE-only client registration
+(scan/advertise/GATT) keeps the stack partially alive.
+
+This was reproduced repeatedly on a Nothing A063 immediately after a proof-app
+run in the same script invocation: the proof app was still holding a live BLE
+scan/advertise/GATT client registration when `cmd bluetooth_manager disable`
+was issued, so the stack settled into `BLE_ON` instead of transitioning fully
+to `OFF`. `cmd bluetooth_manager wait-for-state:STATE_OFF` does not treat this
+as an intermediate state worth waiting through — it fails outright with exit
+status 255, which crashed the whole fleet run before the per-device cleanup
+hardening was in place to protect against it.
+
+Manual recovery from `BLE_ON` turned out to be simple: `cmd bluetooth_manager
+enable` followed by `wait-for-state:STATE_ON` brings the device straight back
+to a clean `ON` state, exactly as it would from a true `OFF`. So the fix was
+not a new recovery path, just tolerance for an outcome the rigid
+`wait-for-state` check refused to accept:
+
+- Force-stop the proof app **before** issuing `disable`, releasing any BLE
+  client registration held by our own app so it cannot be the cause of the
+  limbo state.
+- Replace the `wait-for-state:STATE_OFF`/`wait-for-state:STATE_ON` shell
+  subcommands with a polling helper (`poll_bluetooth_state`) that queries
+  `dumpsys bluetooth_manager` directly on a bounded timeout, and accepts
+  either `OFF` or `BLE_ON` as a valid "disabled enough" outcome before
+  re-enabling.
+
+This was verified by deliberately reproducing the `BLE_ON` limbo state on the
+A063 and confirming the hardened `restart_bluetooth_stack()` now recovers
+automatically (landing in `BLE_ON` as an intermediate step, then reaching a
+clean `ON`) instead of crashing the run.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.

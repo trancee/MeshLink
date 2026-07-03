@@ -30,6 +30,30 @@ proof app for every pair that includes it, waits again, and recaptures logs
 before finalizing the summary. Pass --no-auto-recover-bluetooth to disable
 this and inspect the raw first-pass failure instead.
 
+Troubleshooting: the BLE_ON limbo state
+----------------------------------------
+`dumpsys bluetooth_manager` can report a third state beyond `ON`/`OFF`:
+`BLE_ON`, a hybrid state where "classic" Bluetooth is disabled
+(`enabled: false`) but a BLE-only client registration (scan/advertise/GATT)
+keeps the stack partially alive. This was observed reproducibly on a Nothing
+A063 right after a proof-app run: issuing `cmd bluetooth_manager disable`
+while the proof app still held a live BLE registration left the device stuck
+in `BLE_ON` instead of transitioning fully to `OFF`. The naive
+`cmd bluetooth_manager wait-for-state:STATE_OFF` command does not tolerate
+this - it fails outright with exit status 255 rather than waiting/timing out,
+crashing the whole run.
+
+Manual recovery from `BLE_ON` is simple (`cmd bluetooth_manager enable` +
+`wait-for-state:STATE_ON` brings the device straight back to a clean `ON`
+state), so [restart_bluetooth_stack] is hardened against this: it force-stops
+the proof app *before* issuing `disable` (releasing any BLE registration held
+by our own app), and uses [poll_bluetooth_state] - which polls
+`dumpsys bluetooth_manager` directly instead of relying on the brittle
+`wait-for-state` subcommand - to accept either `OFF` or `BLE_ON` as a valid
+"disabled enough" outcome before re-enabling. See
+docs/explanation/reference-app-physical-integration-findings.md for the full
+investigation.
+
 Logcat evidence
 ---------------
 Every run also persists the full MeshLinkReferenceAutomation-tagged logcat per
@@ -299,18 +323,62 @@ def proof_log_shows_stuck_bluetooth_stack(proof_log_text: str) -> bool:
     return any(STUCK_BLUETOOTH_STACK_RE.search(line) for line in proof_log_text.splitlines())
 
 
+def poll_bluetooth_state(
+    serial: str, acceptable_states: set[str], *, timeout_seconds: float = 10.0, poll_interval_seconds: float = 0.5
+) -> dict[str, Any]:
+    """Poll `dumpsys bluetooth_manager` until `state` is one of
+    [acceptable_states] or [timeout_seconds] elapses, returning the final
+    observed state either way (never raises). Used instead of the
+    `bluetooth_manager wait-for-state:...` shell subcommand, which fails
+    outright (exit 255) rather than waiting/timing out gracefully when the
+    stack settles into a state the subcommand doesn't recognize as terminal
+    (see BLE_ON limbo state notes on [restart_bluetooth_stack])."""
+    deadline = time.monotonic() + timeout_seconds
+    state = bluetooth_manager_state(serial)
+    while state["state"] not in acceptable_states and time.monotonic() < deadline:
+        time.sleep(poll_interval_seconds)
+        state = bluetooth_manager_state(serial)
+    return state
+
+
 def restart_bluetooth_stack(serial: str) -> dict[str, Any]:
     """Recover a device whose Bluetooth stack is holding stuck advertiser/scanner
-    slots by fully disabling then re-enabling it (see module docstring)."""
+    slots by fully disabling then re-enabling it (see module docstring).
+
+    Hardened against the BLE_ON limbo state: after `disable`, a device can
+    settle into `state=BLE_ON` (Android's "classic Bluetooth is off but a
+    BLE-only client is still registered" hybrid state) instead of fully `OFF`,
+    if some component still holds an active BLE scan/advertise/GATT
+    registration when `disable` is issued. The most likely holder is the proof
+    app itself, so it is force-stopped before `disable` to release its own
+    registrations. `wait-for-state:STATE_OFF` treats anything other than a
+    literal `OFF` transition as a hard failure (exit 255) rather than timing
+    out gracefully, so this uses [poll_bluetooth_state] instead and accepts
+    `BLE_ON` as an equally valid "disabled enough" outcome - re-enabling from
+    `BLE_ON` works exactly the same as from `OFF`. See
+    docs/explanation/reference-app-physical-integration-findings.md for the
+    full investigation.
+    """
     before = bluetooth_manager_state(serial)
+    run_command(["adb", "-s", serial, "shell", "am", "force-stop", PACKAGE_NAME])
     run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "disable"], check=True)
-    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "wait-for-state:STATE_OFF"], check=True)
+    off_state = poll_bluetooth_state(serial, {"OFF", "BLE_ON"})
+    if off_state["state"] not in {"OFF", "BLE_ON"}:
+        raise RuntimeError(
+            f"Bluetooth restart failed to reach OFF/BLE_ON for {serial}: "
+            f"before={before['state']!r}/{before['enabled']!r} stuckAt={off_state['state']!r}/{off_state['enabled']!r}"
+        )
     run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "enable"], check=True)
-    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "wait-for-state:STATE_ON"], check=True)
-    after = bluetooth_manager_state(serial)
+    after = poll_bluetooth_state(serial, {"ON"})
+    if after["enabled"] is not True or after["state"] != "ON":
+        raise RuntimeError(
+            f"Bluetooth restart failed to reach ON for {serial}: "
+            f"before={before['state']!r}/{before['enabled']!r} after={after['state']!r}/{after['enabled']!r}"
+        )
     return {
         "serial": serial,
         "before": {"enabled": before["enabled"], "state": before["state"]},
+        "intermediate": {"enabled": off_state["enabled"], "state": off_state["state"]},
         "after": {"enabled": after["enabled"], "state": after["state"]},
     }
 
