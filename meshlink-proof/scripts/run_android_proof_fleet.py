@@ -392,6 +392,9 @@ def poll_bluetooth_state(
     return state
 
 
+_BLUETOOTH_MANAGER_CMD_UNSUPPORTED_MARKER = "No shell command implementation."
+
+
 def restart_bluetooth_stack(serial: str) -> dict[str, Any]:
     """Recover a device whose Bluetooth stack is holding stuck advertiser/scanner
     slots by fully disabling then re-enabling it (see module docstring).
@@ -409,17 +412,45 @@ def restart_bluetooth_stack(serial: str) -> dict[str, Any]:
     `BLE_ON` works exactly the same as from `OFF`. See
     docs/explanation/reference-app-physical-integration-findings.md for the
     full investigation.
+
+    Also detects a distinct, unrelated failure mode: on some devices
+    (observed on Xiaomi/POCO/Samsung/Huawei models at API level <= 31 in this
+    fleet, e.g. POCOPHONE F1 SDK 29) the `cmd bluetooth_manager` shell
+    interface itself is not implemented at all - `adb shell cmd
+    bluetooth_manager disable` exits 0 but prints "No shell command
+    implementation." and never changes the Bluetooth state. Left undetected,
+    this looks identical to the BLE_ON limbo state (both eventually report
+    "stuck at ON") but has a completely different root cause and cannot be
+    recovered by retrying the same command. This is checked for immediately
+    after issuing `disable` so it fails fast with an actionable message
+    instead of waiting out the full poll timeout.
     """
     before = bluetooth_manager_state(serial)
     run_command(["adb", "-s", serial, "shell", "am", "force-stop", PACKAGE_NAME])
-    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "disable"], check=True)
+    disable_result = run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "disable"], check=True)
+    if _BLUETOOTH_MANAGER_CMD_UNSUPPORTED_MARKER in (disable_result.stdout or "") or _BLUETOOTH_MANAGER_CMD_UNSUPPORTED_MARKER in (disable_result.stderr or ""):
+        raise RuntimeError(
+            f"Bluetooth restart is unsupported on {serial}: the `cmd bluetooth_manager` "
+            "shell interface is not implemented on this device/OS version (observed on "
+            "some Xiaomi/POCO/Samsung/Huawei models at API level <= 31 in this fleet). "
+            "This is not the BLE_ON limbo state - the disable command silently no-ops "
+            "rather than changing state, so retrying will not help. Exclude this device "
+            "from auto-recovery or restart Bluetooth manually via the device UI instead."
+        )
     off_state = poll_bluetooth_state(serial, {"OFF", "BLE_ON"})
     if off_state["state"] not in {"OFF", "BLE_ON"}:
         raise RuntimeError(
             f"Bluetooth restart failed to reach OFF/BLE_ON for {serial}: "
             f"before={before['state']!r}/{before['enabled']!r} stuckAt={off_state['state']!r}/{off_state['enabled']!r}"
         )
-    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "enable"], check=True)
+    enable_result = run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "enable"], check=True)
+    if _BLUETOOTH_MANAGER_CMD_UNSUPPORTED_MARKER in (enable_result.stdout or "") or _BLUETOOTH_MANAGER_CMD_UNSUPPORTED_MARKER in (enable_result.stderr or ""):
+        raise RuntimeError(
+            f"Bluetooth restart is unsupported on {serial}: the `cmd bluetooth_manager` "
+            "shell interface is not implemented on this device/OS version. The device was "
+            "left disabled by the preceding `disable` step - re-enable Bluetooth manually "
+            "via the device UI."
+        )
     after = poll_bluetooth_state(serial, {"ON"})
     if after["enabled"] is not True or after["state"] != "ON":
         raise RuntimeError(
@@ -432,6 +463,7 @@ def restart_bluetooth_stack(serial: str) -> dict[str, Any]:
         "intermediate": {"enabled": off_state["enabled"], "state": off_state["state"]},
         "after": {"enabled": after["enabled"], "state": after["state"]},
     }
+
 
 
 DUP_SUFFIX_RE = re.compile(r"\s+\(\d+\)(?=\._adb-tls-connect\._tcp$)")
