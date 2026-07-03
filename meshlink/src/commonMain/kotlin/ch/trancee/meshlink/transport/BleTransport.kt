@@ -47,6 +47,14 @@ internal sealed class TransportEvent {
         internal val willRetry: Boolean,
         internal val attempt: Int,
     ) : TransportEvent()
+
+    internal class ScanFailed
+    internal constructor(
+        internal val errorCode: Int,
+        internal val errorName: String,
+        internal val willRetry: Boolean,
+        internal val attempt: Int,
+    ) : TransportEvent()
 }
 
 internal interface BleTransport {

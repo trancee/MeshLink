@@ -150,6 +150,22 @@ internal class BleTransportAdapter(
                     )
                 )
             },
+            scheduleScanRetry = { delayMillis, retry ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    retry()
+                }
+            },
+            onScanFailed = { errorCode, errorName, willRetry, attempt ->
+                mutableEvents.tryEmit(
+                    TransportEvent.ScanFailed(
+                        errorCode = errorCode,
+                        errorName = errorName,
+                        willRetry = willRetry,
+                        attempt = attempt,
+                    )
+                )
+            },
         )
 
     internal val currentDiscoveryPayload: BleDiscoveryPayload

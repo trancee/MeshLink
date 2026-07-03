@@ -30,6 +30,7 @@ public enum class DiagnosticCode {
     POWER_MODE_CHANGED,
     TRANSPORT_FRAME_REJECTED,
     DISCOVERY_ADVERTISE_FAILED,
+    DISCOVERY_SCAN_FAILED,
 }
 
 /** Operator-facing severity level assigned to a [DiagnosticEvent]. */

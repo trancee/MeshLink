@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.ScanCallback
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyProfile
@@ -220,6 +221,155 @@ class BleTransportDiscoveryLifecycleTest {
         // Assert
         assertFalse(fixture.advertiseFailedCalls.last().willRetry)
     }
+
+    @Test
+    fun scanFailureWithRetryableErrorSchedulesARetryThatRestartsScanning(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+        )
+
+        // Assert
+        assertEquals(1, fixture.scheduledScanRetryDelaysMillis.size)
+        fixture.runScheduledScanRetries()
+        assertEquals(2, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanFailureWithNonRetryableErrorDoesNotScheduleARetry(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        fixture.lifecycle.scanCallback.onScanFailed(ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED)
+
+        // Assert
+        assertTrue(fixture.scheduledScanRetryDelaysMillis.isEmpty())
+    }
+
+    @Test
+    fun scanRetryStopsAfterTheMaximumAttemptCount(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        repeat(5) {
+            fixture.lifecycle.scanCallback.onScanFailed(
+                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+            )
+            fixture.runScheduledScanRetries()
+        }
+
+        // Assert
+        assertEquals(3, fixture.scheduledScanRetryDelaysMillis.size)
+    }
+
+    @Test
+    fun stopCancelsPendingScanRetries(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+        )
+
+        // Act
+        fixture.lifecycle.stop(fixture.hardware)
+        fixture.runScheduledScanRetries()
+
+        // Assert
+        assertEquals(1, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanRetryStopsScanningBeforeStartingAgainToAvoidAlreadyStartedFailures(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+        )
+
+        // Act
+        fixture.runScheduledScanRetries()
+
+        // Assert
+        assertEquals(2, fixture.stopScanCalls)
+        assertEquals(2, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanErrorCodeNameMapsKnownAndUnknownErrorCodes(): Unit {
+        // Assert
+        assertEquals(
+            "SCAN_FAILED_ALREADY_STARTED",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_ALREADY_STARTED),
+        )
+        assertEquals(
+            "SCAN_FAILED_APPLICATION_REGISTRATION_FAILED",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED),
+        )
+        assertEquals(
+            "SCAN_FAILED_INTERNAL_ERROR",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_INTERNAL_ERROR),
+        )
+        assertEquals(
+            "SCAN_FAILED_FEATURE_UNSUPPORTED",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED),
+        )
+        assertEquals(
+            "SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES),
+        )
+        assertEquals(
+            "SCAN_FAILED_SCANNING_TOO_FREQUENTLY",
+            scanErrorCodeName(ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY),
+        )
+        assertEquals("SCAN_FAILED_UNKNOWN", scanErrorCodeName(-1))
+    }
+
+    @Test
+    fun scanFailureNotifiesTheDiagnosticsCallbackWithErrorDetails(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+        )
+
+        // Assert
+        val call = fixture.scanFailedCalls.single()
+        assertEquals(ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES, call.errorCode)
+        assertEquals("SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES", call.errorName)
+        assertTrue(call.willRetry)
+        assertEquals(1, call.attempt)
+    }
+
+    @Test
+    fun scanFailureNotifiesNoRetryOnceMaxAttemptsAreExhausted(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        repeat(4) {
+            fixture.lifecycle.scanCallback.onScanFailed(
+                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+            )
+            fixture.runScheduledScanRetries()
+        }
+
+        // Assert
+        assertFalse(fixture.scanFailedCalls.last().willRetry)
+    }
 }
 
 private class BleTransportDiscoveryLifecycleFixture {
@@ -232,6 +382,9 @@ private class BleTransportDiscoveryLifecycleFixture {
     val scheduledRetryDelaysMillis = mutableListOf<Long>()
     private val pendingRetries = mutableListOf<() -> Unit>()
     val advertiseFailedCalls = mutableListOf<AdvertiseFailedCall>()
+    val scheduledScanRetryDelaysMillis = mutableListOf<Long>()
+    private val pendingScanRetries = mutableListOf<() -> Unit>()
+    val scanFailedCalls = mutableListOf<ScanFailedCall>()
 
     val hardware =
         BleTransportDiscoveryHardware(
@@ -267,6 +420,19 @@ private class BleTransportDiscoveryLifecycleFixture {
                         attempt = attempt,
                     )
             },
+            scheduleScanRetry = { delayMillis, retry ->
+                scheduledScanRetryDelaysMillis += delayMillis
+                pendingScanRetries += retry
+            },
+            onScanFailed = { errorCode, errorName, willRetry, attempt ->
+                scanFailedCalls +=
+                    ScanFailedCall(
+                        errorCode = errorCode,
+                        errorName = errorName,
+                        willRetry = willRetry,
+                        attempt = attempt,
+                    )
+            },
         )
 
     fun runScheduledRetries(): Unit {
@@ -274,9 +440,22 @@ private class BleTransportDiscoveryLifecycleFixture {
         pendingRetries.clear()
         retries.forEach { it() }
     }
+
+    fun runScheduledScanRetries(): Unit {
+        val retries = pendingScanRetries.toList()
+        pendingScanRetries.clear()
+        retries.forEach { it() }
+    }
 }
 
 private data class AdvertiseFailedCall(
+    val errorCode: Int,
+    val errorName: String,
+    val willRetry: Boolean,
+    val attempt: Int,
+)
+
+private data class ScanFailedCall(
     val errorCode: Int,
     val errorName: String,
     val willRetry: Boolean,

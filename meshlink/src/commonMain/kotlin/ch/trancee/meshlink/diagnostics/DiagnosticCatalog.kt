@@ -29,7 +29,8 @@ internal object DiagnosticCatalog {
             DiagnosticCode.DELIVERY_RETRYING,
             DiagnosticCode.SIZE_LIMIT_REJECTED,
             DiagnosticCode.TRANSPORT_FRAME_REJECTED,
-            DiagnosticCode.DISCOVERY_ADVERTISE_FAILED -> DiagnosticSeverity.WARN
+            DiagnosticCode.DISCOVERY_ADVERTISE_FAILED,
+            DiagnosticCode.DISCOVERY_SCAN_FAILED -> DiagnosticSeverity.WARN
 
             DiagnosticCode.TRUST_FAILURE,
             DiagnosticCode.DELIVERY_UNREACHABLE,

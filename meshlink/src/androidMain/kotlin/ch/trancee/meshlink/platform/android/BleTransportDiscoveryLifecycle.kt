@@ -51,6 +51,39 @@ internal fun advertiseErrorCodeName(errorCode: Int): String {
     }
 }
 
+// Environmental/transient scan-start failures worth retrying: the BLE stack
+// can be temporarily out of scan client slots or hit an internal/hardware
+// error, both of which commonly clear up shortly afterwards without any
+// local state change. ALREADY_STARTED is included because some stacks still
+// consider a failed scan "active" internally until stopScan() is called
+// again, which we do before every retry attempt below.
+private val RETRYABLE_SCAN_ERROR_CODES =
+    setOf(
+        ScanCallback.SCAN_FAILED_ALREADY_STARTED,
+        ScanCallback.SCAN_FAILED_INTERNAL_ERROR,
+        ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES,
+        ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY,
+    )
+private const val MAX_SCAN_RETRY_ATTEMPTS = 3
+private const val SCAN_RETRY_BASE_DELAY_MILLIS = 500L
+
+// ScanCallback only hands back a bare Int error code; map it to its symbolic
+// constant name so logs/diagnostics are actionable without needing to cross
+// reference the Android SDK source (e.g. errorCode=1 -> SCAN_FAILED_ALREADY_STARTED).
+internal fun scanErrorCodeName(errorCode: Int): String {
+    return when (errorCode) {
+        ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "SCAN_FAILED_ALREADY_STARTED"
+        ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED ->
+            "SCAN_FAILED_APPLICATION_REGISTRATION_FAILED"
+        ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> "SCAN_FAILED_INTERNAL_ERROR"
+        ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> "SCAN_FAILED_FEATURE_UNSUPPORTED"
+        ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES ->
+            "SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES"
+        ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> "SCAN_FAILED_SCANNING_TOO_FREQUENTLY"
+        else -> "SCAN_FAILED_UNKNOWN"
+    }
+}
+
 internal class BleTransportDiscoveryLifecycle(
     appId: String,
     localKeyHash: ByteArray,
@@ -64,12 +97,18 @@ internal class BleTransportDiscoveryLifecycle(
         (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit =
         { _, _, _, _ ->
         },
+    private val scheduleScanRetry: (delayMillis: Long, retry: () -> Unit) -> Unit = { _, _ -> },
+    private val onScanFailed:
+        (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit =
+        { _, _, _, _ ->
+        },
 ) {
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
     private val localMeshHash: UShort = BleDiscoveryContract.computeMeshHash(appId)
     private var lastHardware: BleTransportDiscoveryHardware? = null
     private var advertiseRetryAttempt: Int = 0
+    private var scanRetryAttempt: Int = 0
     private var isStopped: Boolean = true
 
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
@@ -109,11 +148,19 @@ internal class BleTransportDiscoveryLifecycle(
     val scanCallback =
         object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
+                scanRetryAttempt = 0
                 handleScanResult(result)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                scanRetryAttempt = 0
                 results.forEach(handleScanResult)
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                log("scan failed errorCode=$errorCode errorName=${scanErrorCodeName(errorCode)}")
+                val willRetry = maybeRetryScan(errorCode)
+                onScanFailed(errorCode, scanErrorCodeName(errorCode), willRetry, scanRetryAttempt)
             }
         }
 
@@ -152,6 +199,7 @@ internal class BleTransportDiscoveryLifecycle(
     fun stop(hardware: BleTransportDiscoveryHardware): Unit {
         isStopped = true
         advertiseRetryAttempt = 0
+        scanRetryAttempt = 0
         hardware.stopScan(scanCallback)
         hardware.stopAdvertising(advertiseCallback)
     }
@@ -160,6 +208,7 @@ internal class BleTransportDiscoveryLifecycle(
         lastHardware = hardware
         isStopped = !started
         advertiseRetryAttempt = 0
+        scanRetryAttempt = 0
         log(
             "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
@@ -224,6 +273,41 @@ internal class BleTransportDiscoveryLifecycle(
         // the retry can itself fail with ADVERTISE_FAILED_ALREADY_STARTED.
         hardware.stopAdvertising(advertiseCallback)
         hardware.startAdvertising(currentPowerProfile, currentDiscoveryPayload, advertiseCallback)
+    }
+
+    private fun maybeRetryScan(errorCode: Int): Boolean {
+        val hardware = lastHardware
+        if (
+            hardware == null ||
+                isStopped ||
+                isDiscoverySuspended ||
+                !hardware.hasScanner ||
+                errorCode !in RETRYABLE_SCAN_ERROR_CODES ||
+                scanRetryAttempt >= MAX_SCAN_RETRY_ATTEMPTS
+        ) {
+            return false
+        }
+        scanRetryAttempt += 1
+        val delayMillis = SCAN_RETRY_BASE_DELAY_MILLIS shl (scanRetryAttempt - 1)
+        log(
+            "scan retry scheduled attempt=$scanRetryAttempt delayMillis=$delayMillis errorCode=$errorCode errorName=${scanErrorCodeName(errorCode)}"
+        )
+        scheduleScanRetry(delayMillis) { retryScan() }
+        return true
+    }
+
+    private fun retryScan(): Unit {
+        val hardware = lastHardware
+        if (hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner) {
+            log("scan retry skipped stopped=$isStopped suspended=$isDiscoverySuspended")
+            return
+        }
+        log("scan retry invoked attempt=$scanRetryAttempt")
+        // Some BLE stacks still treat a failed scan as "active" internally
+        // until stopScan() is called again; without this the retry can
+        // itself fail with SCAN_FAILED_ALREADY_STARTED.
+        hardware.stopScan(scanCallback)
+        hardware.startScan(currentPowerProfile, scanCallback)
     }
 
     private fun buildPayload(l2capPsm: UByte): BleDiscoveryPayload {

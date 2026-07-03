@@ -60,6 +60,7 @@ internal class MeshEngineTransportSupport(
                 )
             is TransportEvent.TransportModeChanged -> handleTransportModeChanged(event)
             is TransportEvent.AdvertiseFailed -> handleAdvertiseFailed(event)
+            is TransportEvent.ScanFailed -> handleScanFailed(event)
         }
     }
 
@@ -183,6 +184,22 @@ internal class MeshEngineTransportSupport(
             DiagnosticCode.DISCOVERY_ADVERTISE_FAILED,
             DiagnosticSeverity.WARN,
             "transport.discovery.advertiseFailed",
+            null,
+            DiagnosticReason.TRANSPORT_CHANGE,
+            mapOf(
+                "errorCode" to event.errorCode.toString(),
+                "errorName" to event.errorName,
+                "willRetry" to event.willRetry.toString(),
+                "attempt" to event.attempt.toString(),
+            ),
+        )
+    }
+
+    private fun handleScanFailed(event: TransportEvent.ScanFailed): Unit {
+        emitDiagnostic(
+            DiagnosticCode.DISCOVERY_SCAN_FAILED,
+            DiagnosticSeverity.WARN,
+            "transport.discovery.scanFailed",
             null,
             DiagnosticReason.TRANSPORT_CHANGE,
             mapOf(
