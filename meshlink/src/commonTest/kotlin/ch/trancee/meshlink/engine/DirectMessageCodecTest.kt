@@ -11,21 +11,9 @@ class DirectMessageCodecTest {
     @Test
     fun `direct message envelope round-trips and copies constructor arrays`() {
         // Arrange
-        val fingerprint = byteArrayOf(1, 2, 3, 4)
-        val ed25519 = byteArrayOf(5, 6, 7, 8)
-        val x25519 = byteArrayOf(9, 10, 11, 12)
         val ciphertext = byteArrayOf(13, 14, 15, 16)
         val envelope =
-            DirectMessageEnvelope(
-                senderPeerId = PeerId("sender-peer"),
-                senderFingerprintBytes = fingerprint,
-                senderEd25519PublicKey = ed25519,
-                senderX25519PublicKey = x25519,
-                ciphertext = ciphertext,
-            )
-        fingerprint[0] = 99
-        ed25519[0] = 98
-        x25519[0] = 97
+            DirectMessageEnvelope(senderPeerId = PeerId("sender-peer"), ciphertext = ciphertext)
         ciphertext[0] = 96
 
         // Act
@@ -33,9 +21,6 @@ class DirectMessageCodecTest {
 
         // Assert
         assertEquals("sender-peer", decoded.senderPeerId.value)
-        assertContentEquals(byteArrayOf(1, 2, 3, 4), decoded.senderFingerprintBytes)
-        assertContentEquals(byteArrayOf(5, 6, 7, 8), decoded.senderEd25519PublicKey)
-        assertContentEquals(byteArrayOf(9, 10, 11, 12), decoded.senderX25519PublicKey)
         assertContentEquals(byteArrayOf(13, 14, 15, 16), decoded.ciphertext)
     }
 

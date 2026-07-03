@@ -56,4 +56,54 @@ class NoiseXXHandshakeManagerTest {
             initiator.processMessage2AndCreateMessage3(initiatorIdentity, tamperedMessage2)
         }
     }
+
+    @Test
+    fun `matching mesh domain hashes complete the handshake`() {
+        // Arrange
+        val initiatorIdentity = NoiseIdentity.generate(provider)
+        val responderIdentity = NoiseIdentity.generate(provider)
+        val initiator = NoiseXXHandshakeManager(provider)
+        val responder = NoiseXXHandshakeManager(provider)
+        val meshDomainHash = provider.sha256("shared-mesh-domain".encodeToByteArray())
+
+        // Act
+        val message1 = initiator.createMessage1(meshDomainHash = meshDomainHash)
+        val message2 =
+            responder.processMessage1AndCreateMessage2(
+                responderIdentity,
+                message1,
+                meshDomainHash = meshDomainHash,
+            )
+        val initiatorResult =
+            initiator.processMessage2AndCreateMessage3(initiatorIdentity, message2)
+        val responderResult = responder.processMessage3(initiatorResult.message3)
+
+        // Assert
+        assertContentEquals(initiatorResult.sendKey, responderResult.receiveKey)
+        assertContentEquals(initiatorResult.receiveKey, responderResult.sendKey)
+    }
+
+    @Test
+    fun `mismatched mesh domain hashes fail the handshake closed`() {
+        // Arrange
+        val initiatorIdentity = NoiseIdentity.generate(provider)
+        val responderIdentity = NoiseIdentity.generate(provider)
+        val initiator = NoiseXXHandshakeManager(provider)
+        val responder = NoiseXXHandshakeManager(provider)
+
+        // Act
+        val message1 =
+            initiator.createMessage1(meshDomainHash = provider.sha256("mesh-a".encodeToByteArray()))
+        val message2 =
+            responder.processMessage1AndCreateMessage2(
+                responderIdentity,
+                message1,
+                meshDomainHash = provider.sha256("mesh-b".encodeToByteArray()),
+            )
+
+        // Assert
+        assertFailsWith<Exception> {
+            initiator.processMessage2AndCreateMessage3(initiatorIdentity, message2)
+        }
+    }
 }

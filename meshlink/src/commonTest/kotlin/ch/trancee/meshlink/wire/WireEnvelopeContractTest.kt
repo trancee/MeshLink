@@ -126,6 +126,58 @@ class WireEnvelopeContractTest {
     }
 
     @Test
+    fun `end-to-end handshake frames round-trip through the shared wire codec`() {
+        // Arrange
+        val frames =
+            listOf<WireFrame>(
+                WireFrame.EndToEndHandshakeMessage1(
+                    route =
+                        WireFrame.EndToEndHandshakeRoute(
+                            handshakeId = "handshake-001",
+                            originPeerId = PeerId("origin-peer-e2e-001"),
+                            destinationPeerId = PeerId("destination-peer-e2e-001"),
+                        ),
+                    payload = byteArrayOf(1, 2, 3, 4),
+                ),
+                WireFrame.EndToEndHandshakeMessage2(
+                    route =
+                        WireFrame.EndToEndHandshakeRoute(
+                            handshakeId = "handshake-001",
+                            originPeerId = PeerId("origin-peer-e2e-001"),
+                            destinationPeerId = PeerId("destination-peer-e2e-001"),
+                        ),
+                    payload = byteArrayOf(5, 6, 7, 8, 9),
+                ),
+                WireFrame.EndToEndHandshakeMessage3(
+                    route =
+                        WireFrame.EndToEndHandshakeRoute(
+                            handshakeId = "handshake-001",
+                            originPeerId = PeerId("origin-peer-e2e-001"),
+                            destinationPeerId = PeerId("destination-peer-e2e-001"),
+                        ),
+                    payload = byteArrayOf(10, 11),
+                ),
+            )
+
+        // Act
+        val decodedFrames = frames.map { frame -> WireCodec.decode(WireCodec.encode(frame)) }
+
+        // Assert
+        frames.zip(decodedFrames).forEach { (expected, actual) ->
+            assertFrameEquals(expected, actual)
+        }
+        val envelopeTypes = frames.map { frame -> WireCodec.encodeEnvelope(frame).type }
+        assertEquals(
+            listOf(
+                WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_1,
+                WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_2,
+                WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_3,
+            ),
+            envelopeTypes,
+        )
+    }
+
+    @Test
     fun `decoder ignores unknown future envelope fields`() {
         // Arrange
         val payload = byteArrayOf(0x01, 0x02, 0x03)
@@ -400,6 +452,30 @@ class WireEnvelopeContractTest {
                 val decoded = actual as WireFrame.TransferAbort
                 assertEquals(expected.transferId, decoded.transferId)
                 assertEquals(expected.reasonCode, decoded.reasonCode)
+            }
+
+            is WireFrame.EndToEndHandshakeMessage1 -> {
+                val decoded = actual as WireFrame.EndToEndHandshakeMessage1
+                assertEquals(expected.handshakeId, decoded.handshakeId)
+                assertEquals(expected.originPeerId.value, decoded.originPeerId.value)
+                assertEquals(expected.destinationPeerId.value, decoded.destinationPeerId.value)
+                assertContentEquals(expected.payload, decoded.payload)
+            }
+
+            is WireFrame.EndToEndHandshakeMessage2 -> {
+                val decoded = actual as WireFrame.EndToEndHandshakeMessage2
+                assertEquals(expected.handshakeId, decoded.handshakeId)
+                assertEquals(expected.originPeerId.value, decoded.originPeerId.value)
+                assertEquals(expected.destinationPeerId.value, decoded.destinationPeerId.value)
+                assertContentEquals(expected.payload, decoded.payload)
+            }
+
+            is WireFrame.EndToEndHandshakeMessage3 -> {
+                val decoded = actual as WireFrame.EndToEndHandshakeMessage3
+                assertEquals(expected.handshakeId, decoded.handshakeId)
+                assertEquals(expected.originPeerId.value, decoded.originPeerId.value)
+                assertEquals(expected.destinationPeerId.value, decoded.destinationPeerId.value)
+                assertContentEquals(expected.payload, decoded.payload)
             }
         }
     }

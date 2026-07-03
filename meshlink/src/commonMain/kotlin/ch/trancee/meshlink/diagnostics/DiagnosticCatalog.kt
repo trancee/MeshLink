@@ -27,7 +27,8 @@ internal object DiagnosticCatalog {
             DiagnosticCode.NO_ROUTE_AVAILABLE,
             DiagnosticCode.DELIVERY_RETRY_SCHEDULED,
             DiagnosticCode.DELIVERY_RETRYING,
-            DiagnosticCode.SIZE_LIMIT_REJECTED -> DiagnosticSeverity.WARN
+            DiagnosticCode.SIZE_LIMIT_REJECTED,
+            DiagnosticCode.TRANSPORT_FRAME_REJECTED -> DiagnosticSeverity.WARN
 
             DiagnosticCode.TRUST_FAILURE,
             DiagnosticCode.DELIVERY_UNREACHABLE,

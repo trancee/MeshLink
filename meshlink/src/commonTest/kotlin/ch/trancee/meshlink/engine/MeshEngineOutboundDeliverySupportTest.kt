@@ -208,7 +208,10 @@ class MeshEngineOutboundDeliverySupportTest {
                                     is WireFrame.RouteUpdate,
                                     is WireFrame.RouteRetraction,
                                     is WireFrame.SeqNoRequest,
-                                    is WireFrame.RouteDigest -> true
+                                    is WireFrame.RouteDigest,
+                                    is WireFrame.EndToEndHandshakeMessage1,
+                                    is WireFrame.EndToEndHandshakeMessage2,
+                                    is WireFrame.EndToEndHandshakeMessage3 -> true
                                 }
                             },
                             clearQueuedOutboundFrames = { clearedPeerId, action ->

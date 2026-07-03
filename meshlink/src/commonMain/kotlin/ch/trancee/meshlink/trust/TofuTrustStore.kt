@@ -25,6 +25,22 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
                     } else {
                         firstSeenAtEpochMillis
                     }
+                // Records written after the opaque storage key collision fix carry the original
+                // peer id alongside the record. Because `key()` reduces the peer id to a 64-bit
+                // hash, two different peer ids could theoretically collide on the same storage
+                // slot. Verifying the embedded peer id guards against silently returning (and
+                // later overwriting) another peer's trust record on collision. Records written
+                // before this fix have no embedded peer id and are trusted as-is for backward
+                // compatibility.
+                val storedPeerIdValue =
+                    if (buffer.remaining() > 0) {
+                        buffer.readBytes(buffer.readIntLittleEndian()).decodeToString()
+                    } else {
+                        peerIdValue
+                    }
+                if (storedPeerIdValue != peerIdValue) {
+                    return null
+                }
                 TrustRecord(
                     peerIdValue = peerIdValue,
                     identityFingerprintBytes = fingerprintBytes,
@@ -42,6 +58,7 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
 
     internal suspend fun write(record: TrustRecord): Unit {
         val fingerprintBytes = record.identityFingerprintBytes
+        val peerIdBytes = record.peerIdValue.encodeToByteArray()
         val buffer = WriteBuffer()
         buffer.writeIntLittleEndian(fingerprintBytes.size)
         buffer.writeBytes(fingerprintBytes)
@@ -51,6 +68,8 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
         buffer.writeBytes(record.x25519PublicKey)
         buffer.writeLongLittleEndian(record.firstSeenAtEpochMillis)
         buffer.writeLongLittleEndian(record.lastVerifiedAtEpochMillis)
+        buffer.writeIntLittleEndian(peerIdBytes.size)
+        buffer.writeBytes(peerIdBytes)
         secureStorage.write(key(record.peerIdValue), buffer.toByteArray())
     }
 
@@ -60,6 +79,14 @@ internal class TofuTrustStore internal constructor(private val secureStorage: Se
 
     private fun key(peerIdValue: String): String {
         return "trust:${opaquePeerKey(peerIdValue)}"
+    }
+
+    /**
+     * Exposes the storage key derivation for tests exercising opaque-key collisions. Not for
+     * production use outside this module.
+     */
+    internal fun keyForTest(peerIdValue: String): String {
+        return key(peerIdValue)
     }
 
     private fun opaquePeerKey(peerIdValue: String): String {

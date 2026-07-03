@@ -16,9 +16,9 @@ internal data class MeshEngineOutboundTransferPreparationRoutingContext(
 )
 
 internal data class MeshEngineOutboundTransferPreparationCallbacks(
-    val createMessageId: () -> String,
-    val createTransferId: () -> String,
-    val emitEncryptFailure: (PeerId, String) -> Unit,
+    val createMessageId: suspend () -> String,
+    val createTransferId: suspend () -> String,
+    val emitEncryptFailure: suspend (PeerId, String) -> Unit,
     val emitDiagnostic:
         (
             DiagnosticCode,
@@ -68,7 +68,7 @@ internal class MeshEngineOutboundTransferPreparationSupport(
         }
     }
 
-    private fun createOutboundTransferSession(
+    private suspend fun createOutboundTransferSession(
         peerId: PeerId,
         envelopeBytes: ByteArray,
         @Suppress("UNUSED_PARAMETER") hardRunToken: MeshEngineHardRunToken,
@@ -90,7 +90,7 @@ internal class MeshEngineOutboundTransferPreparationSupport(
         )
     }
 
-    private fun emitTransferStartedDiagnostic(peerId: PeerId): Unit {
+    private suspend fun emitTransferStartedDiagnostic(peerId: PeerId): Unit {
         callbacks.emitDiagnostic(
             DiagnosticCode.TRANSFER_STARTED,
             DiagnosticSeverity.INFO,
@@ -110,9 +110,9 @@ internal fun buildMeshEngineRuntimeOutboundTransferPreparationSupport(
     localIdentity: LocalIdentity,
     directEnvelopeSupport: MeshEngineOutboundDirectEnvelopeSupport,
     routingSupport: MeshEngineRoutingSupport,
-    createMessageId: () -> String,
-    createTransferId: () -> String,
-    emitEncryptFailure: (PeerId, String) -> Unit,
+    createMessageId: suspend () -> String,
+    createTransferId: suspend () -> String,
+    emitEncryptFailure: suspend (PeerId, String) -> Unit,
     emitDiagnostic:
         (
             DiagnosticCode,

@@ -3,93 +3,106 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.transfer.RelayTransferSession
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Concentrates transfer-session mutation behind one runtime seam.
  *
  * The runtime still keeps separate inbound, outbound, and relay transfer lifecycles, but they no
- * longer own raw mutable maps directly.
+ * longer own raw mutable maps directly. All mutations are serialized behind [registryMutex] because
+ * the engine's default coroutine scope runs on [kotlinx.coroutines.Dispatchers.Default], a
+ * genuinely multi-threaded pool, and inbound/outbound/relay transfer handling can run concurrently
+ * for different peers.
  */
 internal class MeshEngineTransferRegistry(
     private val outboundTransfers: MutableMap<String, OutboundTransferSession> = linkedMapOf(),
     private val inboundTransfers: MutableMap<String, InboundTransferSession> = linkedMapOf(),
     private val relayTransfers: MutableMap<String, RelayTransferSession> = linkedMapOf(),
 ) {
-    fun outboundSession(transferId: String): OutboundTransferSession? {
-        return outboundTransfers[transferId]
+    private val registryMutex = Mutex()
+
+    suspend fun outboundSession(transferId: String): OutboundTransferSession? {
+        return registryMutex.withLock { outboundTransfers[transferId] }
     }
 
-    fun storeOutboundSession(session: OutboundTransferSession): Unit {
-        outboundTransfers[session.transferId] = session
+    suspend fun storeOutboundSession(session: OutboundTransferSession): Unit {
+        registryMutex.withLock { outboundTransfers[session.transferId] = session }
     }
 
-    fun removeOutboundSession(transferId: String): OutboundTransferSession? {
-        return outboundTransfers.remove(transferId)
+    suspend fun removeOutboundSession(transferId: String): OutboundTransferSession? {
+        return registryMutex.withLock { outboundTransfers.remove(transferId) }
     }
 
-    fun takeAllOutboundSessions(): List<OutboundTransferSession> {
-        val sessions = outboundTransfers.values.toList()
-        outboundTransfers.clear()
-        return sessions
+    suspend fun takeAllOutboundSessions(): List<OutboundTransferSession> {
+        return registryMutex.withLock {
+            val sessions = outboundTransfers.values.toList()
+            outboundTransfers.clear()
+            sessions
+        }
     }
 
-    fun clearOutboundSessions(): Unit {
-        outboundTransfers.clear()
+    suspend fun clearOutboundSessions(): Unit {
+        registryMutex.withLock { outboundTransfers.clear() }
     }
 
-    fun inboundSession(transferId: String): InboundTransferSession? {
-        return inboundTransfers[transferId]
+    suspend fun inboundSession(transferId: String): InboundTransferSession? {
+        return registryMutex.withLock { inboundTransfers[transferId] }
     }
 
-    fun storeInboundSession(session: InboundTransferSession): Unit {
-        inboundTransfers[session.transferId] = session
+    suspend fun storeInboundSession(session: InboundTransferSession): Unit {
+        registryMutex.withLock { inboundTransfers[session.transferId] = session }
     }
 
-    fun removeInboundSession(transferId: String): InboundTransferSession? {
-        return inboundTransfers.remove(transferId)
+    suspend fun removeInboundSession(transferId: String): InboundTransferSession? {
+        return registryMutex.withLock { inboundTransfers.remove(transferId) }
     }
 
-    fun takeAllInboundSessions(): List<InboundTransferSession> {
-        val sessions = inboundTransfers.values.toList()
-        inboundTransfers.clear()
-        return sessions
+    suspend fun takeAllInboundSessions(): List<InboundTransferSession> {
+        return registryMutex.withLock {
+            val sessions = inboundTransfers.values.toList()
+            inboundTransfers.clear()
+            sessions
+        }
     }
 
-    fun clearInboundSessions(): Unit {
-        inboundTransfers.clear()
+    suspend fun clearInboundSessions(): Unit {
+        registryMutex.withLock { inboundTransfers.clear() }
     }
 
-    fun relaySession(transferId: String): RelayTransferSession? {
-        return relayTransfers[transferId]
+    suspend fun relaySession(transferId: String): RelayTransferSession? {
+        return registryMutex.withLock { relayTransfers[transferId] }
     }
 
-    fun storeRelaySession(session: RelayTransferSession): Unit {
-        relayTransfers[session.transferId] = session
+    suspend fun storeRelaySession(session: RelayTransferSession): Unit {
+        registryMutex.withLock { relayTransfers[session.transferId] = session }
     }
 
-    fun removeRelaySession(transferId: String): RelayTransferSession? {
-        return relayTransfers.remove(transferId)
+    suspend fun removeRelaySession(transferId: String): RelayTransferSession? {
+        return registryMutex.withLock { relayTransfers.remove(transferId) }
     }
 
-    fun takeAllRelaySessions(): List<RelayTransferSession> {
-        val sessions = relayTransfers.values.toList()
-        relayTransfers.clear()
-        return sessions
+    suspend fun takeAllRelaySessions(): List<RelayTransferSession> {
+        return registryMutex.withLock {
+            val sessions = relayTransfers.values.toList()
+            relayTransfers.clear()
+            sessions
+        }
     }
 
-    fun clearRelaySessions(): Unit {
-        relayTransfers.clear()
+    suspend fun clearRelaySessions(): Unit {
+        registryMutex.withLock { relayTransfers.clear() }
     }
 
-    fun outboundTransfersSnapshot(): Map<String, OutboundTransferSession> {
-        return outboundTransfers.toMap()
+    suspend fun outboundTransfersSnapshot(): Map<String, OutboundTransferSession> {
+        return registryMutex.withLock { outboundTransfers.toMap() }
     }
 
-    fun inboundTransfersSnapshot(): Map<String, InboundTransferSession> {
-        return inboundTransfers.toMap()
+    suspend fun inboundTransfersSnapshot(): Map<String, InboundTransferSession> {
+        return registryMutex.withLock { inboundTransfers.toMap() }
     }
 
-    fun relayTransfersSnapshot(): Map<String, RelayTransferSession> {
-        return relayTransfers.toMap()
+    suspend fun relayTransfersSnapshot(): Map<String, RelayTransferSession> {
+        return registryMutex.withLock { relayTransfers.toMap() }
     }
 }

@@ -61,6 +61,29 @@ internal fun chunkTransferPayload(payload: ByteArray, chunkSize: Int): List<Byte
     }
 }
 
+/**
+ * Rejects [WireFrame.TransferStart] frames whose sizing fields would let a peer force an oversized
+ * allocation before a single chunk byte has actually been received.
+ *
+ * [InboundTransferSession] eagerly allocates `totalChunks`-sized arrays up front, so `totalChunks`
+ * must be consistent with `totalBytes` and `maxChunkPayloadBytes` (matching the same
+ * ceiling-division chunking [chunkTransferPayload] uses on the sending side), and `totalBytes` must
+ * not exceed [MAX_SUPPORTED_PAYLOAD_BYTES], the same limit already enforced on outbound sends.
+ */
+internal fun WireFrame.TransferStart.isWithinInboundTransferSizeLimits(): Boolean {
+    if (totalBytes <= 0 || totalBytes > MAX_SUPPORTED_PAYLOAD_BYTES) {
+        return false
+    }
+    if (maxChunkPayloadBytes <= 0) {
+        return false
+    }
+    if (totalChunks <= 0 || totalChunks > totalBytes) {
+        return false
+    }
+    val expectedTotalChunks = (totalBytes + maxChunkPayloadBytes - 1) / maxChunkPayloadBytes
+    return totalChunks == expectedTotalChunks
+}
+
 internal fun inboundTransferChunkStage(acceptance: InboundChunkAcceptance): String {
     return if (acceptance.accepted) {
         "transfer.receive.chunk"

@@ -13,7 +13,7 @@ internal data class MeshEngineTransferAbortCallbacks(
     val sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
-    val routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
 internal class MeshEngineTransferAbortSupport(
@@ -162,7 +162,7 @@ internal fun buildMeshEngineRuntimeTransferAbortSupport(
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
-    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     emitDiagnostic:
         (
             DiagnosticCode,

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.test.InMemorySecureStorage
@@ -20,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -94,6 +96,67 @@ class MeshEngineRuntimeSessionAssemblyTest {
                 responder.transport.sentFrames.map { frame -> frame.action },
             )
         }
+
+    @Test
+    fun `promoteTemporaryPeer transport failure is reported as a diagnostic instead of being swallowed`() =
+        runBlocking<Unit> {
+            // Arrange
+            val initiator =
+                runtimeSessionAssemblyHarness(LocalIdentity.fromAppId("session-assembly-c"))
+            val responder =
+                runtimeSessionAssemblyHarness(
+                    LocalIdentity.fromAppId("session-assembly-d"),
+                    promoteTemporaryPeer = { _, _ ->
+                        throw IllegalStateException("platform rejected promotion")
+                    },
+                )
+            val temporaryPeerId = PeerId("bt-temporary-peer")
+            val initiatorHardRunToken = initiator.runtimeSurface.beginHardRun()
+            val establishment =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) {
+                        initiator.session.ensureHopSession(
+                            responder.localIdentity.peerId,
+                            initiatorHardRunToken,
+                        )
+                    }
+                }
+            val message1 =
+                assertIs<DirectWireFrame.HandshakeMessage1>(
+                    DirectWireFrame.decode(initiator.transport.sentFrames.single().payload)
+                )
+            val diagnosticDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(1_000) {
+                        responder.runtimeSurface.diagnosticEvents.first { event ->
+                            event.stage == "transport.handshake.promoteTemporaryPeer"
+                        }
+                    }
+                }
+
+            // Act
+            responder.session.handleHandshakeMessage1(temporaryPeerId, message1.payload)
+            val message2 =
+                assertIs<DirectWireFrame.HandshakeMessage2>(
+                    DirectWireFrame.decode(responder.transport.sentFrames.single().payload)
+                )
+            initiator.session.handleHandshakeMessage2(
+                responder.localIdentity.peerId,
+                message2.payload,
+            )
+            val message3 =
+                assertIs<DirectWireFrame.HandshakeMessage3>(
+                    initiator.transport.sentFrames
+                        .map { sentFrame -> DirectWireFrame.decode(sentFrame.payload) }
+                        .first { frame -> frame is DirectWireFrame.HandshakeMessage3 }
+                )
+            responder.session.handleHandshakeMessage3(temporaryPeerId, message3.payload)
+            val event = diagnosticDeferred.await()
+            establishment.await()
+
+            // Assert
+            assertEquals("PlatformFailure", event.metadata["cause"])
+        }
 }
 
 private data class RuntimeSessionAssemblyHarness(
@@ -107,10 +170,11 @@ private data class RuntimeSessionAssemblyHarness(
 )
 
 private fun runtimeSessionAssemblyHarness(
-    localIdentity: LocalIdentity
+    localIdentity: LocalIdentity,
+    promoteTemporaryPeer: suspend (PeerId, PeerId) -> Unit = { _, _ -> },
 ): RuntimeSessionAssemblyHarness {
     val runtimeSurface = MeshEngineRuntimeSurface()
-    val transport = RecordingRuntimeSessionAssemblyBleTransport()
+    val transport = RecordingRuntimeSessionAssemblyBleTransport(promoteTemporaryPeer)
     val environment =
         MeshEngineRuntimeAssemblyEnvironment(
             config = meshLinkConfig { appId = localIdentity.peerId.value },
@@ -161,7 +225,9 @@ private fun runtimeSessionAssemblyHarness(
     )
 }
 
-private class RecordingRuntimeSessionAssemblyBleTransport : BleTransport {
+private class RecordingRuntimeSessionAssemblyBleTransport(
+    private val promoteTemporaryPeerCallback: suspend (PeerId, PeerId) -> Unit = { _, _ -> }
+) : BleTransport {
     override val events: Flow<TransportEvent> = emptyFlow()
     val sentFrames: MutableList<RecordedRuntimeSessionAssemblyFrame> = mutableListOf()
 
@@ -175,6 +241,11 @@ private class RecordingRuntimeSessionAssemblyBleTransport : BleTransport {
 
     override suspend fun send(frame: OutboundFrame): TransportSendResult =
         TransportSendResult.Delivered
+
+    override suspend fun promoteTemporaryPeer(
+        temporaryPeerId: PeerId,
+        canonicalPeerId: PeerId,
+    ): Unit = promoteTemporaryPeerCallback(temporaryPeerId, canonicalPeerId)
 }
 
 private data class RecordedRuntimeSessionAssemblyFrame(

@@ -17,8 +17,9 @@ internal data class MeshEngineInlineDispatchDependencies(
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
 internal data class MeshEngineInlineDispatchCallbacks(
@@ -58,7 +59,7 @@ internal class MeshEngineInlineDispatchSupport(
         return routingContext.routeCoordinator.topologyVersion.value
     }
 
-    fun routeMetadata(peerId: PeerId): Map<String, String> {
+    suspend fun routeMetadata(peerId: PeerId): Map<String, String> {
         return routingContext.routingSupport.peerRouteMetadata(peerId)
     }
 

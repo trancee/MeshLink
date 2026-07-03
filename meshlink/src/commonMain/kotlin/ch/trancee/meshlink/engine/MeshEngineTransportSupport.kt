@@ -17,6 +17,7 @@ internal data class MeshEngineTransportPeerState(
     val presenceTracker: PeerPresenceTracker,
     val mutablePeerEvents: MutableSharedFlow<PeerEvent>,
     val sessionRegistry: MeshEngineSessionRegistry,
+    val endToEndSessionRegistry: MeshEngineEndToEndSessionRegistry,
 )
 
 internal data class MeshEngineTransportRoutingContext(
@@ -131,6 +132,11 @@ internal class MeshEngineTransportSupport(
         peerState.sessionRegistry.clear().forEach { pendingHandshake ->
             pendingHandshake.sessionDeferred.complete(SessionEstablishmentOutcome.Unreachable)
         }
+        peerState.endToEndSessionRegistry.clear().forEach { pendingHandshake ->
+            pendingHandshake.sessionDeferred.complete(
+                EndToEndSessionEstablishmentOutcome.Unreachable
+            )
+        }
         val clearedPeers = peerState.presenceTracker.clear()
         routingContext.routingSupport.dispatchMutation(
             mutation = routingContext.routeCoordinator.clearConnectedPeers(),
@@ -142,6 +148,11 @@ internal class MeshEngineTransportSupport(
     }
 
     private suspend fun clearPeerTransportState(peerId: PeerId): Unit {
+        // Deliberately does not clear peerState.endToEndSessionRegistry here: an end-to-end
+        // session's destination peer may still be reachable through a different hop after this
+        // one disconnects, so tearing it down eagerly on every direct-connection loss would
+        // force needless handshake churn. End-to-end sessions are invalidated separately once
+        // the destination becomes truly unreachable (no route at all) or via clearRuntimeView.
         peerState.sessionRegistry
             .clearPeer(peerId)
             ?.sessionDeferred
@@ -188,7 +199,20 @@ internal class MeshEngineTransportSupport(
     }
 
     private suspend fun handleInboundFrame(event: TransportEvent.FrameReceived): Unit {
-        when (val frame = DirectWireFrame.decode(event.payload)) {
+        val frame =
+            runCatching { DirectWireFrame.decode(event.payload) }
+                .getOrElse { exception ->
+                    emitDiagnostic(
+                        DiagnosticCode.TRANSPORT_FRAME_REJECTED,
+                        DiagnosticSeverity.WARN,
+                        "transport.frame.malformed",
+                        event.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        DiagnosticReason.DELIVERY_FAILURE,
+                        mapOf("cause" to exception::class.simpleName.orEmpty()),
+                    )
+                    return
+                }
+        when (frame) {
             is DirectWireFrame.HandshakeMessage1 ->
                 callbacks.handleHandshakeMessage1(event.peerId, frame.payload)
             is DirectWireFrame.HandshakeMessage2 ->
@@ -205,6 +229,7 @@ internal fun buildMeshEngineRuntimeTransportSupport(
     presenceTracker: PeerPresenceTracker,
     mutablePeerEvents: MutableSharedFlow<PeerEvent>,
     sessionRegistry: MeshEngineSessionRegistry,
+    endToEndSessionRegistry: MeshEngineEndToEndSessionRegistry,
     routeCoordinator: RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
     prewarmHopSession: (PeerId) -> Unit,
@@ -228,6 +253,7 @@ internal fun buildMeshEngineRuntimeTransportSupport(
                 presenceTracker = presenceTracker,
                 mutablePeerEvents = mutablePeerEvents,
                 sessionRegistry = sessionRegistry,
+                endToEndSessionRegistry = endToEndSessionRegistry,
             ),
         routingContext =
             MeshEngineTransportRoutingContext(

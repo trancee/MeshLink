@@ -19,11 +19,12 @@ internal data class MeshEngineTransferState(val transferRegistry: MeshEngineTran
         )
     )
 
-    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
-        get() = transferRegistry.inboundTransfersSnapshot()
+    suspend fun inboundTransfers():
+        Map<String, ch.trancee.meshlink.transfer.InboundTransferSession> =
+        transferRegistry.inboundTransfersSnapshot()
 
-    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
-        get() = transferRegistry.relayTransfersSnapshot()
+    suspend fun relayTransfers(): Map<String, ch.trancee.meshlink.transfer.RelayTransferSession> =
+        transferRegistry.relayTransfersSnapshot()
 }
 
 internal data class MeshEngineTransferCallbacks(
@@ -123,7 +124,7 @@ internal fun buildMeshEngineRuntimeTransferSupport(
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     emitDiagnostic:
         (
             DiagnosticCode,

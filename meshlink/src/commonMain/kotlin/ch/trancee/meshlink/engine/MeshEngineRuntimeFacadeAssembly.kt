@@ -43,6 +43,7 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             presenceTracker = sharedState.presenceTracker,
             mutablePeerEvents = environment.compatibilitySurface.mutablePeerEvents,
             sessionRegistry = sharedState.sessionRegistry,
+            endToEndSessionRegistry = sharedState.endToEndSessionRegistry,
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
             prewarmHopSession = session.prewarmHopSession,

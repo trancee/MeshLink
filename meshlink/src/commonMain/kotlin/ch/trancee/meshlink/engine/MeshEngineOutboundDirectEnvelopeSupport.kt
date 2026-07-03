@@ -20,7 +20,7 @@ internal class MeshEngineOutboundDirectEnvelopeSupport(
     suspend fun prepare(
         peerId: PeerId,
         payload: ByteArray,
-        emitEncryptFailure: (PeerId, String) -> Unit,
+        emitEncryptFailure: suspend (PeerId, String) -> Unit,
     ): MeshEngineOutboundDirectEnvelopePreparation {
         val recipientTrust = recipientTrustSupport.resolveRecipientTrust(peerId)
         if (recipientTrust == null) {
@@ -46,9 +46,6 @@ internal class MeshEngineOutboundDirectEnvelopeSupport(
     private fun createOutboundDirectEnvelope(sealedPayload: ByteArray): ByteArray {
         return DirectMessageEnvelope(
                 senderPeerId = localIdentity.peerId,
-                senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                senderX25519PublicKey = localIdentity.x25519PublicKey,
                 ciphertext = sealedPayload,
             )
             .encode()

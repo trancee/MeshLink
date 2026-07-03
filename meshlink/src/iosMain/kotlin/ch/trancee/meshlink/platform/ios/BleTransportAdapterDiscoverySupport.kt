@@ -52,9 +52,9 @@ internal fun BleTransportAdapter.installGattNotifyServiceIfReady(
     peripheral: CBPeripheralManager
 ): Unit {
     val bluetoothReady = peripheral.state == CBManagerStatePoweredOn
-    val hasCryptoBridge = BleTransportBridgeRegistry.currentCallbacksOrNull() != null
+    val gattNotifyBearerEnabled = BleTransportBridgeRegistry.isGattNotifyBearerEnabled()
     val canInstallGattNotifyService =
-        started && bluetoothReady && !gattNotifyServiceInstalled && hasCryptoBridge
+        started && bluetoothReady && !gattNotifyServiceInstalled && gattNotifyBearerEnabled
     if (!canInstallGattNotifyService) {
         return
     }

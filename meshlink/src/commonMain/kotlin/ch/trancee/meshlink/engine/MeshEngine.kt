@@ -2,6 +2,7 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.config.MeshLinkConfig
+import ch.trancee.meshlink.crypto.PlaceholderCryptoProvider
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.storage.InMemorySecureStorage
@@ -16,7 +17,15 @@ internal object MeshEngine {
     internal fun create(
         config: MeshLinkConfig,
         platformContext: Any? = null,
-        localIdentity: LocalIdentity = LocalIdentity.fromAppId(config.appId),
+        localIdentity: LocalIdentity =
+            LocalIdentity.fromAppId(
+                appId = config.appId,
+                meshDomainHash =
+                    LocalIdentity.computeMeshDomainHash(
+                        appId = config.appId,
+                        provider = PlaceholderCryptoProvider,
+                    ),
+            ),
         secureStorage: SecureStorage = InMemorySecureStorage(),
         bleTransport: BleTransport? = null,
         diagnosticSink: DiagnosticSink? = null,

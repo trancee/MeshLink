@@ -17,7 +17,7 @@ internal data class MeshEngineLargeTransferProgressConfig(
 
 internal data class MeshEngineLargeTransferProgressDependencies(
     val runtimeGate: MeshEngineRuntimeGate,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
     val sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 )
@@ -32,7 +32,7 @@ internal data class MeshEngineLargeTransferProgressCallbacks(
             DiagnosticReason?,
             Map<String, String>,
         ) -> Unit,
-    val routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
 internal data class MeshEngineLargeTransferProgressResult(
@@ -95,7 +95,9 @@ internal class MeshEngineLargeTransferProgressSupport(
         )
     }
 
-    private fun emitLargeTransferProgressDiagnostic(session: OutboundTransferSession): Unit {
+    private suspend fun emitLargeTransferProgressDiagnostic(
+        session: OutboundTransferSession
+    ): Unit {
         callbacks.emitDiagnostic(
             DiagnosticCode.TRANSFER_PROGRESS,
             DiagnosticSeverity.DEBUG,

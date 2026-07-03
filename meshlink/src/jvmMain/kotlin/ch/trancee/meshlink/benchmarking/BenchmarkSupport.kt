@@ -36,6 +36,7 @@ import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 private val benchmarkCryptoProvider = JvmCryptoProvider()
 
@@ -268,21 +269,21 @@ public class BenchmarkRouteCoordinator public constructor(localPeerId: PeerId) {
     public fun onPeerConnected(
         peerId: PeerId,
         trustRecord: BenchmarkTrustRecord,
-    ): List<BenchmarkAdvertisement> {
-        return delegate
+    ): List<BenchmarkAdvertisement> = runBlocking {
+        delegate
             .onPeerConnected(peerId = peerId, trustRecord = trustRecord.toInternal())
             .toBenchmarkAdvertisements()
     }
 
-    public fun onPeerDisconnected(peerId: PeerId): List<BenchmarkAdvertisement> {
-        return delegate.onPeerDisconnected(peerId = peerId).toBenchmarkAdvertisements()
+    public fun onPeerDisconnected(peerId: PeerId): List<BenchmarkAdvertisement> = runBlocking {
+        delegate.onPeerDisconnected(peerId = peerId).toBenchmarkAdvertisements()
     }
 
     public fun onRouteUpdate(
         fromPeerId: PeerId,
         update: BenchmarkWireFrame.RouteUpdate,
-    ): List<BenchmarkAdvertisement> {
-        return delegate
+    ): List<BenchmarkAdvertisement> = runBlocking {
+        delegate
             .onRouteUpdate(fromPeerId = fromPeerId, update = update.toInternal())
             .toBenchmarkAdvertisements()
     }
@@ -290,8 +291,8 @@ public class BenchmarkRouteCoordinator public constructor(localPeerId: PeerId) {
     public fun onRouteRetraction(
         fromPeerId: PeerId,
         retraction: BenchmarkWireFrame.RouteRetraction,
-    ): List<BenchmarkAdvertisement> {
-        return delegate
+    ): List<BenchmarkAdvertisement> = runBlocking {
+        delegate
             .onRouteRetraction(fromPeerId = fromPeerId, retraction = retraction.toInternal())
             .toBenchmarkAdvertisements()
     }
@@ -300,12 +301,12 @@ public class BenchmarkRouteCoordinator public constructor(localPeerId: PeerId) {
         delegate.onRouteDigest(fromPeerId = fromPeerId, frame = digest.toInternal())
     }
 
-    public fun nextHopFor(destinationPeerId: PeerId): PeerId? {
-        return delegate.nextHopFor(destinationPeerId = destinationPeerId)
+    public fun nextHopFor(destinationPeerId: PeerId): PeerId? = runBlocking {
+        delegate.nextHopFor(destinationPeerId = destinationPeerId)
     }
 
-    public fun hasRoute(destinationPeerId: PeerId): Boolean {
-        return delegate.routeFor(destinationPeerId = destinationPeerId) != null
+    public fun hasRoute(destinationPeerId: PeerId): Boolean = runBlocking {
+        delegate.routeFor(destinationPeerId = destinationPeerId) != null
     }
 }
 

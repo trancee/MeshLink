@@ -62,7 +62,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 
 | Type | Kind | Public surface |
 |---|---|---|
-| `ch.trancee.meshlink.api.apple.BleTransportBridge` | object | `install()`, `installData()` |
+| `ch.trancee.meshlink.api.apple.BleTransportBridge` | object | `disableGattNotifyBearer()`, `enableGattNotifyBearer()` |
 | `ch.trancee.meshlink.api.apple.ChaCha20Poly1305Callbacks` | class | `open`, `seal` |
 | `ch.trancee.meshlink.api.apple.CryptoBridge` | object | `install()` |
 | `ch.trancee.meshlink.api.apple.CryptoCallbacks` | class | `chacha20Poly1305`, `ed25519`, `hashes`, `keyGeneration`, `randomBytes`, `x25519` |
@@ -128,7 +128,7 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 
 | Type | Kind | Public surface |
 |---|---|---|
-| `ch.trancee.meshlink.diagnostics.DiagnosticCode` | enum | constants: `DELIVERY_QUEUED`, `DELIVERY_RETRYING`, `DELIVERY_RETRY_SCHEDULED`, `DELIVERY_SUCCEEDED`, `DELIVERY_UNREACHABLE`, `HOP_SESSION_ESTABLISHED`, `HOP_SESSION_FAILED`, `MESH_PAUSED`, `MESH_RESUMED`, `MESH_STARTED`, `MESH_STOPPED`, `NO_ROUTE_AVAILABLE`, `POWER_MODE_CHANGED`, `ROUTE_CONVERGED`, `ROUTE_DISCOVERED`, `ROUTE_EXPIRED`, `ROUTE_RETRACTED`, `ROUTE_UPDATED`, `SIZE_LIMIT_REJECTED`, `TRANSFER_COMPLETED`, `TRANSFER_FAILED`, `TRANSFER_PROGRESS`, `TRANSFER_STARTED`, `TRANSPORT_MODE_CHANGED`, `TRUST_ESTABLISHED`, `TRUST_FAILURE` |
+| `ch.trancee.meshlink.diagnostics.DiagnosticCode` | enum | constants: `DELIVERY_QUEUED`, `DELIVERY_RETRYING`, `DELIVERY_RETRY_SCHEDULED`, `DELIVERY_SUCCEEDED`, `DELIVERY_UNREACHABLE`, `HOP_SESSION_ESTABLISHED`, `HOP_SESSION_FAILED`, `MESH_PAUSED`, `MESH_RESUMED`, `MESH_STARTED`, `MESH_STOPPED`, `NO_ROUTE_AVAILABLE`, `POWER_MODE_CHANGED`, `ROUTE_CONVERGED`, `ROUTE_DISCOVERED`, `ROUTE_EXPIRED`, `ROUTE_RETRACTED`, `ROUTE_UPDATED`, `SIZE_LIMIT_REJECTED`, `TRANSFER_COMPLETED`, `TRANSFER_FAILED`, `TRANSFER_PROGRESS`, `TRANSFER_STARTED`, `TRANSPORT_FRAME_REJECTED`, `TRANSPORT_MODE_CHANGED`, `TRUST_ESTABLISHED`, `TRUST_FAILURE` |
 | `ch.trancee.meshlink.diagnostics.DiagnosticEvent` | class | `init`, `code`, `metadata`, `peerSuffix`, `reason`, `severity`, `stage` |
 | `ch.trancee.meshlink.diagnostics.DiagnosticReason` | enum | constants: `DELIVERY_FAILURE`, `DELIVERY_RETRY`, `POWER_CHANGE`, `ROUTE_CHANGE`, `SIZE_LIMIT`, `STATE_CHANGE`, `TRANSFER_FAILURE`, `TRANSPORT_CHANGE`, `TRUST_FAILURE` |
 | `ch.trancee.meshlink.diagnostics.DiagnosticSeverity` | enum | constants: `DEBUG`, `ERROR`, `INFO`, `WARN` |

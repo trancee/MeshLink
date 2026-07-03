@@ -75,6 +75,9 @@ class MeshEngineRuntimeTransferAssemblyTest {
             val senderIdentity = LocalIdentity.fromAppId("transfer-assembly-sender")
             val harness = runtimeTransferAssemblyHarness(localIdentity = localIdentity)
             harness.runtimeSurface.beginHardRun()
+            // The sender's trust must already be pinned via an authenticated channel (e.g. an
+            // end-to-end handshake) before an inner envelope from that sender can be accepted.
+            harness.environment.trustStore.write(trustRecordFor(senderIdentity))
             val hopSession = hopSession(keyByte = 0x22)
             seedEstablishedHopSession(
                 localIdentity = localIdentity,
@@ -85,9 +88,6 @@ class MeshEngineRuntimeTransferAssemblyTest {
             val envelope =
                 DirectMessageEnvelope(
                         senderPeerId = senderIdentity.peerId,
-                        senderFingerprintBytes = senderIdentity.identityFingerprintBytes,
-                        senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
-                        senderX25519PublicKey = senderIdentity.x25519PublicKey,
                         ciphertext =
                             MessageSealer.seal(
                                 plaintext = "hello".encodeToByteArray(),
@@ -162,8 +162,8 @@ class MeshEngineRuntimeTransferAssemblyTest {
                         is WireFrame.TransferChunk -> {
                             observedFrames += "chunk:${outerFrame.chunkIndex}"
                             val activeSession =
-                                harness.foundation.sharedState.outboundTransfers[
-                                        outerFrame.transferId]
+                                harness.foundation.sharedState
+                                    .outboundTransfers()[outerFrame.transferId]
                             if (
                                 activeSession != null &&
                                     acknowledgedTransferId == null &&
@@ -213,7 +213,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
                 recipientIdentity.peerId.value,
                 harness.transport.clearedQueuedPeerIds.single(),
             )
-            assertTrue(harness.foundation.sharedState.outboundTransfers.isEmpty())
+            assertTrue(harness.foundation.sharedState.outboundTransfers().isEmpty())
         }
 
     @Test
@@ -316,7 +316,7 @@ class MeshEngineRuntimeTransferAssemblyTest {
             assertEquals(0, forwardedChunk.chunkIndex)
             assertContentEquals("hello".encodeToByteArray(), forwardedChunk.payload)
             assertIs<WireFrame.TransferComplete>(forwardedFrames[2])
-            assertTrue(harness.foundation.sharedState.relayTransfers.isEmpty())
+            assertTrue(harness.foundation.sharedState.relayTransfers().isEmpty())
         }
 }
 

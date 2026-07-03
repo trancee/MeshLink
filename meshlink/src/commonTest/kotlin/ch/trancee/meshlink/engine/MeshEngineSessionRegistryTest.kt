@@ -12,6 +12,45 @@ import kotlinx.coroutines.runBlocking
 
 class MeshEngineSessionRegistryTest {
     @Test
+    fun `rebind pending initiator handshake moves it to the canonical peer id`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-initiator-rebind-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val temporaryPeerId = PeerId("bt-aabbccddeeff")
+            val canonicalPeerId = PeerId("00112233445566778899aabb")
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = initiatorManager,
+                    sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                )
+            val reservation =
+                sessionRegistry.initiatorHandshakeReservation(temporaryPeerId) {
+                    CreatedInitiatorHandshake(
+                        pendingHandshake = pendingHandshake,
+                        message1 = initiatorManager.createMessage1(),
+                    )
+                }
+            assertTrue(reservation is InitiatorHandshakeReservation.Created)
+
+            // Act
+            val rebound =
+                sessionRegistry.rebindPendingInitiatorHandshake(
+                    fromPeerId = temporaryPeerId,
+                    toPeerId = canonicalPeerId,
+                    pendingHandshake = pendingHandshake,
+                )
+
+            // Assert
+            assertTrue(rebound)
+            val reboundReservation = sessionRegistry.initiatorHandshakeReservation(canonicalPeerId)
+            assertTrue(reboundReservation is InitiatorHandshakeReservation.Pending)
+            assertSame(pendingHandshake, reboundReservation.pendingHandshake)
+            assertNull(sessionRegistry.initiatorHandshakeReservation(temporaryPeerId))
+        }
+
+    @Test
     fun `rebind pending responder handshake moves it to the canonical peer id`() =
         runBlocking<Unit> {
             // Arrange

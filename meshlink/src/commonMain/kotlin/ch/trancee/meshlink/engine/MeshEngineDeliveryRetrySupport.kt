@@ -24,7 +24,7 @@ internal sealed class MeshEngineDeliveryRetryResult {
 
 internal data class MeshEngineDeliveryRetryCallbacks(
     val awaitRetry: suspend (Int, Duration, Long, MeshEngineHardRunToken) -> RetryWakeup,
-    val routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     val emitDiagnostic:
         (
             DiagnosticCode,
@@ -96,7 +96,7 @@ internal class MeshEngineDeliveryRetrySupport(
         return wakeupResult
     }
 
-    private fun emitRetryDiagnostic(
+    private suspend fun emitRetryDiagnostic(
         code: DiagnosticCode,
         stage: String,
         peerId: PeerId,
@@ -115,7 +115,7 @@ internal class MeshEngineDeliveryRetrySupport(
 
 internal fun buildMeshEngineRuntimeDeliveryRetrySupport(
     awaitRetry: suspend (Int, Duration, Long, MeshEngineHardRunToken) -> RetryWakeup,
-    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     emitDiagnostic:
         (
             DiagnosticCode,

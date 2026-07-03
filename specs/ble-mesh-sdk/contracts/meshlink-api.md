@@ -48,20 +48,20 @@ object CryptoBridge {
 }
 
 object BleTransportBridge {
-    fun install(
-        gattNotifySend: (peripheralManager: Any, notifyCharacteristic: Any, central: Any, payload: ByteArray) -> Boolean,
-    )
+    fun enableGattNotifyBearer()
+    fun disableGattNotifyBearer()
 }
 ```
 
 **Contract notes**
 - `CryptoBridge` remains the required iOS-native cryptography install point.
-- `BleTransportBridge` is currently optional and exists to support future
-  iPhone-hosted bearer experiments without exposing Core Bluetooth classes
-  directly through the public Kotlin API.
-- The transport bridge callback receives opaque iOS-native handles. Callers may
-  cast them only inside app-owned iOS code.
-- If the transport bridge is not installed, MeshLink continues on the existing
+- `BleTransportBridge` is currently optional and only needed for the
+  iPhone-hosted GATT-notify side bearer. The real GATT-notify send path
+  already uses native CoreBluetooth types internally, so there is no callback
+  to install and no opaque handles cross the public Kotlin API.
+- `enableGattNotifyBearer()` opts in to the GATT-notify bearer;
+  `disableGattNotifyBearer()` opts back out. The bearer defaults to disabled.
+- If the transport bridge is not enabled, MeshLink continues on the existing
   transport path.
 
 ### Configuration DSL

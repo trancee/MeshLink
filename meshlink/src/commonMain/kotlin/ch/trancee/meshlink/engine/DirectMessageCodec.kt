@@ -5,30 +5,23 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.wire.ReadBuffer
 import ch.trancee.meshlink.wire.WriteBuffer
 
+/**
+ * A sealed direct message addressed to [senderPeerId]'s peer. Only [senderPeerId] and [ciphertext]
+ * are carried on the wire: the sender's cryptographic identity is never self-asserted here. The
+ * recipient resolves [senderPeerId] to an already-pinned [ch.trancee.meshlink.trust.TrustRecord]
+ * (established only through an authenticated Noise handshake) and uses that record's keys to open
+ * [ciphertext] via [ch.trancee.meshlink.crypto.MessageSealer]. This deliberately prevents a relay
+ * or attacker from seeding trust by asserting arbitrary key material in the envelope itself.
+ */
 internal class DirectMessageEnvelope
-internal constructor(
-    internal val senderPeerId: PeerId,
-    senderFingerprintBytes: ByteArray,
-    senderEd25519PublicKey: ByteArray,
-    senderX25519PublicKey: ByteArray,
-    ciphertext: ByteArray,
-) {
+internal constructor(internal val senderPeerId: PeerId, ciphertext: ByteArray) {
     private val senderPeerIdBytes: ByteArray = senderPeerId.value.encodeToByteArray()
-    internal val senderFingerprintBytes: ByteArray = senderFingerprintBytes.copyOf()
-    internal val senderEd25519PublicKey: ByteArray = senderEd25519PublicKey.copyOf()
-    internal val senderX25519PublicKey: ByteArray = senderX25519PublicKey.copyOf()
     internal val ciphertext: ByteArray = ciphertext.copyOf()
 
     internal fun encode(): ByteArray {
         val buffer = WriteBuffer()
         buffer.writeIntLittleEndian(senderPeerIdBytes.size)
         buffer.writeBytes(senderPeerIdBytes)
-        buffer.writeIntLittleEndian(senderFingerprintBytes.size)
-        buffer.writeBytes(senderFingerprintBytes)
-        buffer.writeIntLittleEndian(senderEd25519PublicKey.size)
-        buffer.writeBytes(senderEd25519PublicKey)
-        buffer.writeIntLittleEndian(senderX25519PublicKey.size)
-        buffer.writeBytes(senderX25519PublicKey)
         buffer.writeIntLittleEndian(ciphertext.size)
         buffer.writeBytes(ciphertext)
         return buffer.toByteArray()
@@ -38,15 +31,9 @@ internal constructor(
         internal fun decode(bytes: ByteArray): DirectMessageEnvelope {
             val buffer = ReadBuffer(bytes)
             val senderBytes = buffer.readBytes(buffer.readIntLittleEndian())
-            val fingerprintBytes = buffer.readBytes(buffer.readIntLittleEndian())
-            val senderEd25519PublicKey = buffer.readBytes(buffer.readIntLittleEndian())
-            val senderX25519PublicKey = buffer.readBytes(buffer.readIntLittleEndian())
             val ciphertext = buffer.readBytes(buffer.readIntLittleEndian())
             return DirectMessageEnvelope(
                 senderPeerId = PeerId(senderBytes.decodeToString()),
-                senderFingerprintBytes = fingerprintBytes,
-                senderEd25519PublicKey = senderEd25519PublicKey,
-                senderX25519PublicKey = senderX25519PublicKey,
                 ciphertext = ciphertext,
             )
         }

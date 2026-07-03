@@ -287,6 +287,32 @@ class MeshEngineTransportSupportTest {
             assertEquals(listOf(peerId.value to message3.toList()), harness.handshakeMessage3Calls)
             assertEquals(listOf(peerId.value to data.toList()), harness.encryptedDataCalls)
         }
+
+    @Test
+    fun `malformed frame is reported as a diagnostic instead of throwing`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = transportSupportHarness()
+            val peerId = PeerId("peer-malformed")
+            val malformedPayload = byteArrayOf(0x7f)
+
+            // Act
+            harness.support.handleTransportEvent(
+                TransportEvent.FrameReceived(peerId, malformedPayload)
+            )
+
+            // Assert
+            assertTrue(harness.handshakeMessage1Calls.isEmpty())
+            assertTrue(harness.handshakeMessage2Calls.isEmpty())
+            assertTrue(harness.handshakeMessage3Calls.isEmpty())
+            assertTrue(harness.encryptedDataCalls.isEmpty())
+            assertNotNull(
+                harness.diagnostics.firstOrNull { diagnostic ->
+                    diagnostic.code == DiagnosticCode.TRANSPORT_FRAME_REJECTED &&
+                        diagnostic.stage == "transport.frame.malformed"
+                }
+            )
+        }
 }
 
 private data class TransportSupportHarness(
@@ -321,6 +347,7 @@ private fun transportSupportHarness(): TransportSupportHarness {
                     presenceTracker = presenceTracker,
                     mutablePeerEvents = mutablePeerEvents,
                     sessionRegistry = sessionRegistry,
+                    endToEndSessionRegistry = MeshEngineEndToEndSessionRegistry(),
                 ),
             routingContext =
                 MeshEngineTransportRoutingContext(

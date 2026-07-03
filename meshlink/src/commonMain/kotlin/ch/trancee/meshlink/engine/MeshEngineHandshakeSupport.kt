@@ -16,8 +16,9 @@ internal data class MeshEngineHandshakeRoutingContext(
 internal data class MeshEngineHandshakeCallbacks(
     val sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
-    val emitHopSessionEstablished: (PeerId, String) -> Unit,
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionEstablished: suspend (PeerId, String) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val promoteTemporaryPeer: suspend (PeerId, PeerId) -> Unit,
 )
 
@@ -31,8 +32,8 @@ internal data class PendingInitiatorHandshakeFailure(
 internal fun buildMeshEngineRuntimeHandshakeCallbacks(
     sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
-    emitHopSessionEstablished: (PeerId, String) -> Unit,
-    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitHopSessionEstablished: suspend (PeerId, String) -> Unit,
+    emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     promoteTemporaryPeer: suspend (PeerId, PeerId) -> Unit,
 ): MeshEngineHandshakeCallbacks {
     return MeshEngineHandshakeCallbacks(

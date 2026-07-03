@@ -78,24 +78,28 @@ class MeshEngineRuntimeFoundationAssemblyTest {
         }
 
     @Test
-    fun `foundation assembly retry diagnostic reflects the configured deadline`() {
-        // Arrange
-        val harness = runtimeFoundationAssemblyHarness()
-        val peerId = PeerId("peer-abcdef")
+    fun `foundation assembly retry diagnostic reflects the configured deadline`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = runtimeFoundationAssemblyHarness()
+            val peerId = PeerId("peer-abcdef")
 
-        // Act
-        harness.foundation.routingAndTrust.scheduleRetryDiagnostic(peerId, DeliveryPriority.HIGH)
+            // Act
+            harness.foundation.routingAndTrust.scheduleRetryDiagnostic(
+                peerId,
+                DeliveryPriority.HIGH,
+            )
 
-        // Assert
-        assertEquals(1, harness.diagnostics.size)
-        val diagnostic = harness.diagnostics.single()
-        assertEquals("delivery.noRoute", diagnostic.stage)
-        assertEquals("HIGH", diagnostic.metadata["priority"])
-        assertEquals("9000", diagnostic.metadata["retryDeadlineMs"])
-        assertEquals("250", diagnostic.metadata["retryBackoffBaseMs"])
-        assertEquals("false", diagnostic.metadata["routeAvailable"])
-        assertEquals("0", diagnostic.metadata["topologyVersion"])
-    }
+            // Assert
+            assertEquals(1, harness.diagnostics.size)
+            val diagnostic = harness.diagnostics.single()
+            assertEquals("delivery.noRoute", diagnostic.stage)
+            assertEquals("HIGH", diagnostic.metadata["priority"])
+            assertEquals("9000", diagnostic.metadata["retryDeadlineMs"])
+            assertEquals("250", diagnostic.metadata["retryBackoffBaseMs"])
+            assertEquals("false", diagnostic.metadata["routeAvailable"])
+            assertEquals("0", diagnostic.metadata["topologyVersion"])
+        }
 }
 
 private data class RuntimeFoundationAssemblyHarness(

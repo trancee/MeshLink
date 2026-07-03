@@ -122,6 +122,42 @@ A good default path is:
 That keeps new capability local instead of teaching the public shell about one
 more internal detail.
 
+## When to split a `*Support` file, and when to merge one back in
+
+Within a subsystem, engine code is further decomposed into small
+`MeshEngine*Support` collaborators (handshake, routing, transfer, trust, and
+so on). This granularity exists to satisfy two constitutional constraints at
+once: Detekt complexity limits on individual functions/classes, and 100%
+line/branch coverage that stays practical to reason about per collaborator.
+It is easy to over-apply this pattern, so use these criteria explicitly
+instead of splitting by habit:
+
+**Split into a new `*Support` file when:**
+
+- the code owns a distinct lifecycle stage with its own failure modes (for
+  example, "process handshake message 2" versus "send handshake message 3"
+  have different retry/diagnostic semantics)
+- the collaborator needs its own focused unit tests with fakes that would
+  otherwise have to be shared with unrelated behavior
+- splitting removes a real Detekt complexity violation, not just a stylistic
+  preference
+
+**Keep code in the same file (or merge two files back together) when:**
+
+- two collaborators are always constructed together, take the same inputs,
+  and are never invoked independently of each other (mechanical wiring/
+  "assembly" layers are the most common offender here — see
+  `MeshEngineRuntime*Assembly` for an example of pass-through composition
+  that does not need its own file per phase)
+- the split only exists to separate "the builder" from "the thing it
+  builds," with no independent behavior or test seam in the builder itself
+- merging would not push any function over the Detekt complexity threshold
+  and would not force coverage of unrelated branches into the same test class
+
+When in doubt, prefer the smallest number of files that keeps each file's
+Detekt complexity and test focus honest. A large number of near-empty
+wiring files is not, by itself, a sign of good decomposition.
+
 ## Related docs
 
 - [About how MeshLink works](about-how-meshlink-works.md)

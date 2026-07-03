@@ -18,7 +18,7 @@ internal class MeshEngineMessageDeliverySupport(
     private val trustSupport: MeshEngineTrustSupport,
     private val mutableMessages: MutableSharedFlow<InboundMessage>,
     private val emitHopSessionFailed:
-        (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     private val emitDiagnostic:
         (
             DiagnosticCode,
@@ -57,7 +57,7 @@ internal class MeshEngineMessageDeliverySupport(
         }
     }
 
-    private fun decodeInnerEnvelope(
+    private suspend fun decodeInnerEnvelope(
         immediatePeerId: PeerId,
         encryptedPayload: ByteArray,
     ): DirectMessageEnvelope? {
@@ -76,12 +76,7 @@ internal class MeshEngineMessageDeliverySupport(
     private suspend fun verifyInnerEnvelopeSenderTrust(
         envelope: DirectMessageEnvelope
     ): TrustRecord? {
-        return trustSupport.verifyAndPersistTrust(
-            peerId = envelope.senderPeerId,
-            remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
-            remoteX25519PublicKey = envelope.senderX25519PublicKey,
-            expectedFingerprintBytes = envelope.senderFingerprintBytes,
-        )
+        return trustSupport.verifyEstablishedTrust(envelope.senderPeerId)
     }
 
     private fun openInnerEnvelope(
@@ -143,7 +138,7 @@ internal fun buildMeshEngineRuntimeMessageDeliverySupport(
     runtimeGate: MeshEngineRuntimeGate,
     trustSupport: MeshEngineTrustSupport,
     mutableMessages: MutableSharedFlow<InboundMessage>,
-    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     emitDiagnostic:
         (
             DiagnosticCode,

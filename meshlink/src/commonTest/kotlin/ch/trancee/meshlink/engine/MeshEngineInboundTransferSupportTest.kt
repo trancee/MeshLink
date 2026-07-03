@@ -285,31 +285,32 @@ class MeshEngineInboundTransferSupportTest {
         }
 
     @Test
-    fun `handleTransferAbort removes the tracked inbound session`() {
-        // Arrange
-        val session =
-            newInboundSession(
-                transferId = "transfer-1",
-                upstreamPeerId = PeerId("upstream"),
-                totalChunks = 1,
-            )
-        val inboundTransfers = mutableMapOf(session.transferId to session)
-        val callbacks = RecordingInboundTransferCallbacks()
-        val support =
-            inboundTransferSupport(inboundTransfers = inboundTransfers, callbacks = callbacks)
+    fun `handleTransferAbort removes the tracked inbound session`() =
+        runBlocking<Unit> {
+            // Arrange
+            val session =
+                newInboundSession(
+                    transferId = "transfer-1",
+                    upstreamPeerId = PeerId("upstream"),
+                    totalChunks = 1,
+                )
+            val inboundTransfers = mutableMapOf(session.transferId to session)
+            val callbacks = RecordingInboundTransferCallbacks()
+            val support =
+                inboundTransferSupport(inboundTransfers = inboundTransfers, callbacks = callbacks)
 
-        // Act
-        val handled =
-            support.handleTransferAbort(
-                WireFrame.TransferAbort(transferId = session.transferId, reasonCode = 1)
-            )
+            // Act
+            val handled =
+                support.handleTransferAbort(
+                    WireFrame.TransferAbort(transferId = session.transferId, reasonCode = 1)
+                )
 
-        // Assert
-        assertTrue(handled)
-        assertFalse(inboundTransfers.containsKey(session.transferId))
-        assertTrue(callbacks.acks.isEmpty())
-        assertTrue(callbacks.deliveries.isEmpty())
-    }
+            // Assert
+            assertTrue(handled)
+            assertFalse(inboundTransfers.containsKey(session.transferId))
+            assertTrue(callbacks.acks.isEmpty())
+            assertTrue(callbacks.deliveries.isEmpty())
+        }
 }
 
 private fun inboundTransferSupport(
@@ -361,7 +362,7 @@ private fun inboundTransferSupport(
 private fun newTransferStartFrame(
     transferId: String,
     totalChunks: Int,
-    totalBytes: Int = 5,
+    totalBytes: Int = totalChunks * 5,
 ): WireFrame.TransferStart {
     return WireFrame.TransferStart(
         route =

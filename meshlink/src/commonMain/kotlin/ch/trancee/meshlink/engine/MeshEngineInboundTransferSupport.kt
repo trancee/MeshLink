@@ -14,7 +14,7 @@ internal data class MeshEngineInboundTransferSupportCallbacks(
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    val routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     val emitDiagnostic:
         (
             DiagnosticCode,
@@ -41,6 +41,22 @@ internal class MeshEngineInboundTransferSupport(
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
         val existingSession = transferRegistry.inboundSession(frame.transferId)
+        if (existingSession == null && !frame.isWithinInboundTransferSizeLimits()) {
+            callbacks.emitDiagnostic(
+                DiagnosticCode.SIZE_LIMIT_REJECTED,
+                DiagnosticSeverity.WARN,
+                "transfer.receive.start",
+                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.SIZE_LIMIT,
+                mapOf(
+                    "transferId" to frame.transferId,
+                    "totalBytes" to frame.totalBytes.toString(),
+                    "totalChunks" to frame.totalChunks.toString(),
+                    "maxChunkPayloadBytes" to frame.maxChunkPayloadBytes.toString(),
+                ),
+            )
+            return
+        }
         val inboundSession =
             if (existingSession != null) {
                 existingSession.upstreamPeerId = peerId
@@ -131,7 +147,7 @@ internal class MeshEngineInboundTransferSupport(
         return true
     }
 
-    fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
+    suspend fun handleTransferAbort(frame: WireFrame.TransferAbort): Boolean {
         return transferRegistry.removeInboundSession(frame.transferId) != null
     }
 
@@ -195,7 +211,7 @@ internal class MeshEngineInboundTransferSupport(
         )
     }
 
-    private fun emitInboundTransferProgress(
+    private suspend fun emitInboundTransferProgress(
         stage: String,
         peerId: PeerId,
         session: ch.trancee.meshlink.transfer.InboundTransferSession,
@@ -217,7 +233,7 @@ internal fun buildMeshEngineRuntimeInboundTransferSupport(
     sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
-    routeMetadata: (PeerId, Map<String, String>) -> Map<String, String>,
+    routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
     emitDiagnostic:
         (
             DiagnosticCode,

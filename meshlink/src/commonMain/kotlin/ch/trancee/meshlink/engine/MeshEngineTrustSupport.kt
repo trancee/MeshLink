@@ -68,6 +68,29 @@ internal class MeshEngineTrustSupport(
         }
     }
 
+    /**
+     * Verifies that [peerId] already has trust pinned through a cryptographically authenticated
+     * channel (an end-to-end or hop-level Noise handshake), refreshing its
+     * [TrustRecord.lastVerifiedAtEpochMillis] on success. Unlike [verifyAndPersistTrust], this
+     * never pins trust on first contact: if [peerId] has no existing trust record, it is rejected
+     * outright, since only an authenticated handshake may establish trust for a peer.
+     */
+    suspend fun verifyEstablishedTrust(peerId: PeerId): TrustRecord? {
+        val existingTrust = trustStore.read(peerId.value)
+        if (existingTrust == null) {
+            emitDiagnostic(
+                DiagnosticCode.TRUST_FAILURE,
+                DiagnosticSeverity.WARN,
+                "trust.verify.untrusted",
+                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                DiagnosticReason.TRUST_FAILURE,
+                emptyMap(),
+            )
+            return null
+        }
+        return refreshVerifiedTrust(existingTrust)
+    }
+
     private fun fingerprintMatchesExpected(
         peerId: PeerId,
         expectedFingerprintBytes: ByteArray?,

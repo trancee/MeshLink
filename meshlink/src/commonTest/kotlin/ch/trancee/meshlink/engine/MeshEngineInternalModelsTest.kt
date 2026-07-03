@@ -36,6 +36,70 @@ class MeshEngineInternalModelsTest {
     }
 
     @Test
+    fun `isWithinInboundTransferSizeLimits accepts a consistent well-sized frame`() {
+        // Arrange
+        val frame = transferStartFrame(totalBytes = 1_000, maxChunkPayloadBytes = 392)
+
+        // Act
+        val withinLimits = frame.isWithinInboundTransferSizeLimits()
+
+        // Assert
+        assertEquals(3, frame.totalChunks)
+        assertEquals(true, withinLimits)
+    }
+
+    @Test
+    fun `isWithinInboundTransferSizeLimits rejects totalBytes above the supported payload limit`() {
+        // Arrange
+        val oversizedBytes = MAX_SUPPORTED_PAYLOAD_BYTES + 1
+        val frame =
+            transferStartFrame(
+                totalBytes = oversizedBytes,
+                maxChunkPayloadBytes = oversizedBytes,
+                totalChunksOverride = 1,
+            )
+
+        // Act
+        val withinLimits = frame.isWithinInboundTransferSizeLimits()
+
+        // Assert
+        assertEquals(false, withinLimits)
+    }
+
+    @Test
+    fun `isWithinInboundTransferSizeLimits rejects totalChunks inflated beyond totalBytes`() {
+        // Arrange
+        val frame =
+            transferStartFrame(totalBytes = 1, maxChunkPayloadBytes = 1, totalChunksOverride = 100)
+
+        // Act
+        val withinLimits = frame.isWithinInboundTransferSizeLimits()
+
+        // Assert
+        assertEquals(false, withinLimits)
+    }
+
+    @Test
+    fun `isWithinInboundTransferSizeLimits rejects non-positive sizing fields`() {
+        // Arrange / Act / Assert
+        assertEquals(
+            false,
+            transferStartFrame(totalBytes = 0, maxChunkPayloadBytes = 392)
+                .isWithinInboundTransferSizeLimits(),
+        )
+        assertEquals(
+            false,
+            transferStartFrame(totalBytes = 100, maxChunkPayloadBytes = 0, totalChunksOverride = 1)
+                .isWithinInboundTransferSizeLimits(),
+        )
+        assertEquals(
+            false,
+            transferStartFrame(totalBytes = 100, maxChunkPayloadBytes = 50, totalChunksOverride = 0)
+                .isWithinInboundTransferSizeLimits(),
+        )
+    }
+
+    @Test
     fun `preferredTransportModeForEncryptedFrame prefers gatt for transfer acknowledgements`() {
         // Arrange
         val transferAck =
@@ -124,4 +188,33 @@ class MeshEngineInternalModelsTest {
         assertEquals("PERFORMANCE", withWarnings["tier"])
         assertEquals("EU", withWarnings["region"])
     }
+}
+
+private fun transferStartFrame(
+    totalBytes: Int,
+    maxChunkPayloadBytes: Int,
+    totalChunksOverride: Int? = null,
+): WireFrame.TransferStart {
+    val totalChunks =
+        totalChunksOverride
+            ?: if (maxChunkPayloadBytes > 0) {
+                (totalBytes + maxChunkPayloadBytes - 1) / maxChunkPayloadBytes
+            } else {
+                0
+            }
+    return WireFrame.TransferStart(
+        route =
+            WireFrame.TransferStartRoute(
+                transferId = "transfer-1",
+                messageId = "message-1",
+                originPeerId = ch.trancee.meshlink.api.PeerId("origin"),
+                destinationPeerId = ch.trancee.meshlink.api.PeerId("destination"),
+            ),
+        sizing =
+            WireFrame.TransferStartSizing(
+                totalBytes = totalBytes,
+                totalChunks = totalChunks,
+                maxChunkPayloadBytes = maxChunkPayloadBytes,
+            ),
+    )
 }

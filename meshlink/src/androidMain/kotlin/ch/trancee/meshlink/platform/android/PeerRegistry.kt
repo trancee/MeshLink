@@ -52,51 +52,67 @@ internal constructor(val hintPeerId: PeerId, state: DiscoveredPeerState) {
 internal class PeerDiscoveryUpdate
 internal constructor(internal val peer: DiscoveredPeer, internal val events: List<TransportEvent>)
 
+/**
+ * Mutated from multiple independent Android BLE callback sources (scan callback thread, GATT server
+ * Binder thread, L2CAP accept coroutine), so every access is guarded by [lock] to avoid torn
+ * reads/writes and `ConcurrentModificationException` on the backing maps.
+ */
 internal class PeerBindings {
+    private val lock = Any()
     private val peerHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val devicesByAddress: MutableMap<String, BluetoothDevice> = linkedMapOf()
 
     internal fun retainDevice(address: String, device: BluetoothDevice): Unit {
-        devicesByAddress[address] = device
+        synchronized(lock) { devicesByAddress[address] = device }
     }
 
     internal fun deviceFor(address: String): BluetoothDevice? {
-        return devicesByAddress[address]
+        return synchronized(lock) { devicesByAddress[address] }
     }
 
     internal fun hintForAddress(address: String): String? {
-        return peerHintByAddress[address]
+        return synchronized(lock) { peerHintByAddress[address] }
     }
 
     internal fun bindHintToAddress(address: String, hintPeerIdValue: String): Unit {
-        peerHintByAddress[address] = hintPeerIdValue
+        synchronized(lock) { peerHintByAddress[address] = hintPeerIdValue }
     }
 
     internal fun temporaryHintForAddress(address: String): String? {
-        return temporaryHintByAddress[address]
+        return synchronized(lock) { temporaryHintByAddress[address] }
     }
 
     internal fun removeTemporaryHint(address: String): String? {
-        return temporaryHintByAddress.remove(address)
+        return synchronized(lock) { temporaryHintByAddress.remove(address) }
     }
 
     internal fun temporaryPeerId(address: String): PeerId {
         val temporaryHint =
-            temporaryHintByAddress.getOrPut(address) {
-                TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
+            synchronized(lock) {
+                temporaryHintByAddress.getOrPut(address) {
+                    TEMPORARY_PEER_PREFIX + address.lowercase().replace(":", "")
+                }
             }
         return PeerId(temporaryHint)
     }
 
     internal fun clear(): Unit {
-        peerHintByAddress.clear()
-        temporaryHintByAddress.clear()
-        devicesByAddress.clear()
+        synchronized(lock) {
+            peerHintByAddress.clear()
+            temporaryHintByAddress.clear()
+            devicesByAddress.clear()
+        }
     }
 }
 
+/**
+ * Mutated from multiple independent Android BLE callback sources (scan callback thread, GATT server
+ * Binder thread, L2CAP accept coroutine), so every access is guarded by [lock] to avoid torn
+ * reads/writes and `ConcurrentModificationException` on the backing map.
+ */
 internal class PeerRegistry(private val bindings: PeerBindings) {
+    private val lock = Any()
     private val discoveredPeers: MutableMap<String, DiscoveredPeer> = linkedMapOf()
 
     internal fun upsertDiscovery(
@@ -104,23 +120,26 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
         discovery: DiscoveredPeerDiscovery,
         announcePresence: Boolean = true,
     ): PeerDiscoveryUpdate {
-        val existingPeer = discoveredPeers[hintPeerId.value]
-        return if (existingPeer == null) {
-            createDiscoveredPeer(
-                hintPeerId = hintPeerId,
-                discovery = discovery,
-                announcePresence = announcePresence,
-            )
-        } else {
-            refreshDiscoveredPeer(
-                existingPeer = existingPeer,
-                hintPeerId = hintPeerId,
-                discovery = discovery,
-                announcePresence = announcePresence,
-            )
+        return synchronized(lock) {
+            val existingPeer = discoveredPeers[hintPeerId.value]
+            if (existingPeer == null) {
+                createDiscoveredPeer(
+                    hintPeerId = hintPeerId,
+                    discovery = discovery,
+                    announcePresence = announcePresence,
+                )
+            } else {
+                refreshDiscoveredPeer(
+                    existingPeer = existingPeer,
+                    hintPeerId = hintPeerId,
+                    discovery = discovery,
+                    announcePresence = announcePresence,
+                )
+            }
         }
     }
 
+    /** Callers must hold [lock]. */
     private fun createDiscoveredPeer(
         hintPeerId: PeerId,
         discovery: DiscoveredPeerDiscovery,
@@ -157,6 +176,7 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
         )
     }
 
+    /** Callers must hold [lock]. */
     private fun refreshDiscoveredPeer(
         existingPeer: DiscoveredPeer,
         hintPeerId: PeerId,
@@ -189,35 +209,37 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
     }
 
     internal fun discoveredPeerCount(): Int {
-        return discoveredPeers.size
+        return synchronized(lock) { discoveredPeers.size }
     }
 
     internal fun peer(hintPeerIdValue: String): DiscoveredPeer? {
-        return discoveredPeers[hintPeerIdValue]
+        return synchronized(lock) { discoveredPeers[hintPeerIdValue] }
     }
 
     internal fun removePeer(hintPeerIdValue: String): DiscoveredPeer? {
-        return discoveredPeers.remove(hintPeerIdValue)
+        return synchronized(lock) { discoveredPeers.remove(hintPeerIdValue) }
     }
 
     internal fun resolve(peerId: PeerId): DiscoveredPeer? {
-        discoveredPeers[peerId.value]?.let { peer ->
-            return peer
-        }
-        return discoveredPeers.values.firstOrNull { discoveredPeer ->
-            peerId.value.hexStartsWith(discoveredPeer.keyHash)
+        return synchronized(lock) {
+            discoveredPeers[peerId.value]
+                ?: discoveredPeers.values.firstOrNull { discoveredPeer ->
+                    peerId.value.hexStartsWith(discoveredPeer.keyHash)
+                }
         }
     }
 
     internal fun setRediscoveryLoggedWithoutLink(hintPeerIdValue: String, logged: Boolean): Unit {
-        discoveredPeers[hintPeerIdValue]?.rediscoveryLoggedWithoutLink = logged
+        synchronized(lock) {
+            discoveredPeers[hintPeerIdValue]?.rediscoveryLoggedWithoutLink = logged
+        }
     }
 
     internal fun setPresenceAnnounced(hintPeerIdValue: String, announced: Boolean): Unit {
-        discoveredPeers[hintPeerIdValue]?.presenceAnnounced = announced
+        synchronized(lock) { discoveredPeers[hintPeerIdValue]?.presenceAnnounced = announced }
     }
 
     internal fun clear(): Unit {
-        discoveredPeers.clear()
+        synchronized(lock) { discoveredPeers.clear() }
     }
 }

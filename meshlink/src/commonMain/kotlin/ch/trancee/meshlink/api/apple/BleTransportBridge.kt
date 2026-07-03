@@ -1,68 +1,42 @@
 package ch.trancee.meshlink.api.apple
 
-import ch.trancee.meshlink.api.MeshLinkException
+import kotlin.concurrent.Volatile
 
 /**
- * Registers iOS-native CoreBluetooth callbacks for future MeshLink transport experiments.
+ * Enables the optional iOS GATT-notify peripheral bearer.
  *
- * Install these callbacks during iOS application startup when the host app wants to enable
- * iPhone-hosted transport bearers that still need Apple-native bridging from KMP. The current
- * release keeps this bridge optional; when it is not installed, MeshLink continues on the existing
- * transport path.
+ * MeshLink can act as a Bluetooth LE GATT peripheral that notifies subscribed centrals directly, in
+ * addition to the default L2CAP bearer. The CoreBluetooth plumbing for this bearer is fully
+ * implemented inside MeshLink; host apps do not need to supply any native callbacks. Call
+ * [enableGattNotifyBearer] once during app startup, before
+ * [MeshLink][ch.trancee.meshlink.api.MeshLink] is started, to opt in.
  *
- * `gattNotifySend` receives opaque platform handles for the active `CBPeripheralManager`, the
- * `CBMutableCharacteristic` used for notifications, the subscribed `CBCentral`, and the raw frame
- * bytes to send. It must return whether Core Bluetooth accepted the notification immediately.
+ * Leave the bearer disabled (the default) if the host app only needs the L2CAP bearer.
  */
 public object BleTransportBridge {
-    public fun install(gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean): Unit {
-        BleTransportBridgeRegistry.install(BleTransportCallbacks(gattNotifySend = gattNotifySend))
+    /** Opts in to the iOS GATT-notify peripheral bearer. */
+    public fun enableGattNotifyBearer(): Unit {
+        BleTransportBridgeRegistry.setGattNotifyBearerEnabled(true)
     }
 
-    /**
-     * Installs a more efficient iOS-native bridge variant that receives the GATT notification
-     * payload as a platform data object instead of a Kotlin [ByteArray].
-     *
-     * Host apps may cast `payloadData` to `platform.Foundation.NSData` / Swift `Data` and hand it
-     * directly to `CBPeripheralManager.updateValue(...)` to avoid per-byte bridge iteration.
-     */
-    public fun installData(gattNotifySendData: (Any, Any, Any, Any) -> Boolean): Unit {
-        BleTransportBridgeRegistry.install(
-            BleTransportCallbacks(
-                gattNotifySend = { _, _, _, _ -> false },
-                gattNotifySendData = gattNotifySendData,
-            )
-        )
+    /** Opts back out of the iOS GATT-notify peripheral bearer. */
+    public fun disableGattNotifyBearer(): Unit {
+        BleTransportBridgeRegistry.setGattNotifyBearerEnabled(false)
     }
 }
 
-internal class BleTransportCallbacks
-internal constructor(
-    internal val gattNotifySend: (Any, Any, Any, ByteArray) -> Boolean,
-    internal val gattNotifySendData: ((Any, Any, Any, Any) -> Boolean)? = null,
-)
-
 internal object BleTransportBridgeRegistry {
-    private var callbacks: BleTransportCallbacks? = null
+    @Volatile private var gattNotifyBearerEnabled: Boolean = false
 
-    internal fun install(callbacks: BleTransportCallbacks): Unit {
-        this.callbacks = callbacks
+    internal fun setGattNotifyBearerEnabled(enabled: Boolean): Unit {
+        gattNotifyBearerEnabled = enabled
+    }
+
+    internal fun isGattNotifyBearerEnabled(): Boolean {
+        return gattNotifyBearerEnabled
     }
 
     internal fun clear(): Unit {
-        callbacks = null
-    }
-
-    internal fun currentCallbacksOrNull(): BleTransportCallbacks? {
-        return callbacks
-    }
-
-    internal fun requireCallbacks(): BleTransportCallbacks {
-        return callbacks
-            ?: throw MeshLinkException.PlatformFailure(
-                message =
-                    "iOS BLE transport bridge is not installed. " +
-                        "Call BleTransportBridge.install(...) during app startup."
-            )
+        gattNotifyBearerEnabled = false
     }
 }

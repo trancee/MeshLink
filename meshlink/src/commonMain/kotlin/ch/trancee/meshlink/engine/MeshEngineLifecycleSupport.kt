@@ -26,12 +26,6 @@ internal data class MeshEngineLifecycleState(
                 relayTransfers = relayTransfers,
             ),
     )
-
-    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
-        get() = transferRegistry.inboundTransfersSnapshot()
-
-    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
-        get() = transferRegistry.relayTransfersSnapshot()
 }
 
 internal data class MeshEngineLifecycleCallbacks(
@@ -43,7 +37,7 @@ internal data class MeshEngineLifecycleCallbacks(
     val stopTransport: suspend () -> Unit,
     val clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     val abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
-    val clearOutboundTransfers: () -> Unit,
+    val clearOutboundTransfers: suspend () -> Unit,
 )
 
 internal data class MeshEngineLifecycleDiagnostics(
@@ -165,7 +159,7 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
     stopTransport: suspend () -> Unit,
     clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
-    clearOutboundTransfers: () -> Unit,
+    clearOutboundTransfers: suspend () -> Unit,
     emitDiagnostic:
         (
             DiagnosticCode,

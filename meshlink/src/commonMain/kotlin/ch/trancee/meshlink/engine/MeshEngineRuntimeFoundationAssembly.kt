@@ -21,24 +21,27 @@ internal data class MeshEngineRuntimeSharedState(
     val deliveryRetryScheduler: DeliveryRetryScheduler,
     val powerPolicyController: PowerPolicyController,
     val sessionRegistry: MeshEngineSessionRegistry,
+    val endToEndSessionRegistry: MeshEngineEndToEndSessionRegistry,
     val transferRegistry: MeshEngineTransferRegistry,
     val sequenceGenerator: MeshEngineSequenceGenerator,
     val runtimePolicies: MeshEngineRuntimePolicies,
 ) {
-    val outboundTransfers: Map<String, ch.trancee.meshlink.transfer.OutboundTransferSession>
-        get() = transferRegistry.outboundTransfersSnapshot()
+    suspend fun outboundTransfers():
+        Map<String, ch.trancee.meshlink.transfer.OutboundTransferSession> =
+        transferRegistry.outboundTransfersSnapshot()
 
-    val inboundTransfers: Map<String, ch.trancee.meshlink.transfer.InboundTransferSession>
-        get() = transferRegistry.inboundTransfersSnapshot()
+    suspend fun inboundTransfers():
+        Map<String, ch.trancee.meshlink.transfer.InboundTransferSession> =
+        transferRegistry.inboundTransfersSnapshot()
 
-    val relayTransfers: Map<String, ch.trancee.meshlink.transfer.RelayTransferSession>
-        get() = transferRegistry.relayTransfersSnapshot()
+    suspend fun relayTransfers(): Map<String, ch.trancee.meshlink.transfer.RelayTransferSession> =
+        transferRegistry.relayTransfersSnapshot()
 }
 
 internal data class MeshEngineRuntimeRoutingAndTrustPhase(
     val routingSupport: MeshEngineRoutingSupport,
     val trustSupport: MeshEngineTrustSupport,
-    val scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
 )
 
 internal fun buildMeshEngineRuntimeFoundationAssembly(
@@ -75,6 +78,7 @@ private fun buildMeshEngineRuntimeSharedState(
                 region = environment.config.regulatoryRegion,
             ),
         sessionRegistry = MeshEngineSessionRegistry(),
+        endToEndSessionRegistry = MeshEngineEndToEndSessionRegistry(),
         transferRegistry = MeshEngineTransferRegistry(),
         sequenceGenerator = MeshEngineSequenceGenerator(environment.localIdentity),
         runtimePolicies =
@@ -124,7 +128,7 @@ internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
     deliveryPolicy: MeshEngineRuntimeDeliveryPolicy,
     support: MeshEngineRuntimeAssemblySupport,
     routingSupport: MeshEngineRoutingSupport,
-): (PeerId, DeliveryPriority) -> Unit {
+): suspend (PeerId, DeliveryPriority) -> Unit {
     return { peerId, priority ->
         support.emitDiagnostic(
             DiagnosticCode.NO_ROUTE_AVAILABLE,

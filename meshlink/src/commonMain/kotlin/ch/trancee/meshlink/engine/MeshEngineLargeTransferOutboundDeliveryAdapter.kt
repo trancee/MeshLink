@@ -13,7 +13,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal data class MeshEngineLargeTransferOutboundDeliveryAdapterDependencies(
     val currentTopologyVersion: () -> Long,
     val discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
-    val shouldSuspendDiscovery: (PeerId) -> Boolean,
+    val shouldSuspendDiscovery: suspend (PeerId) -> Boolean,
     val progressSupport: MeshEngineLargeTransferProgressSupport,
     val terminalSupport: MeshEngineLargeTransferTerminalSupport,
 )
@@ -137,7 +137,7 @@ internal fun buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
     currentTopologyVersion: () -> Long,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
-    scheduleRetryDiagnostic: (PeerId, DeliveryPriority) -> Unit,
+    scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,

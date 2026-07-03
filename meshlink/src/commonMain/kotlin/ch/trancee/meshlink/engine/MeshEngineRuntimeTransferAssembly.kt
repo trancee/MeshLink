@@ -18,7 +18,7 @@ internal data class MeshEngineRuntimeTransferAndInboundPhase(
         ) -> SendResult,
     val handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
     val abortLocalTransfers: suspend (TransferAbortReasonCode) -> Unit,
-    val clearOutboundTransfers: () -> Unit,
+    val clearOutboundTransfers: suspend () -> Unit,
 )
 
 internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
@@ -86,6 +86,10 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
             captureHardRunToken = environment.compatibilitySurface.runtimeGate::captureHardRunToken,
             forwardMessageToNextHop = session.forwardMessageToNextHop,
             deliverInnerEnvelope = messageDeliverySupport::deliverInnerEnvelope,
+            forwardEndToEndHandshakeFrame = session.forwardEndToEndHandshakeFrame,
+            handleLocalEndToEndHandshakeFrame = { _, frame ->
+                session.handleLocalEndToEndHandshakeFrame(frame)
+            },
             transferSupport = transferSupport,
         )
     return MeshEngineRuntimeTransferAndInboundPhase(
@@ -124,10 +128,8 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
 ): MeshEngineRuntimeTransferOutboundDeliveryPhase {
     val outboundRecipientTrustSupport =
         buildMeshEngineRuntimeOutboundRecipientTrustSupport(
-            localIdentity = environment.localIdentity,
             trustStore = environment.trustStore,
-            routeCoordinator = sharedState.routeCoordinator,
-            emitDiagnostic = support.emitDiagnostic,
+            ensureEndToEndSession = session.ensureEndToEndSession,
         )
     val outboundDirectEnvelopeSupport =
         buildMeshEngineRuntimeOutboundDirectEnvelopeSupport(

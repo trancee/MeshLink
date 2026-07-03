@@ -16,15 +16,30 @@ internal data class MeshEngineInboundRoutingContext(
 )
 
 internal data class MeshEngineInboundTransport(
-    val emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    val emitHopSessionFailed:
+        suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
 )
 
 internal data class MeshEngineInboundMessageCallbacks(
     val captureHardRunToken: () -> MeshEngineHardRunToken,
-    val forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    val forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+)
+
+/**
+ * Callbacks for the relayed end-to-end (multi-hop) Noise XX handshake frame family. Frames not
+ * addressed to the local peer are relayed hop-by-hop toward [WireFrame.EndToEndHandshakeFrame]'s
+ * `destinationPeerId`; frames addressed to the local peer are handed to the end-to-end handshake
+ * processor to advance (or complete) the destination-keyed session, per
+ * [handleLocalEndToEndHandshakeFrame].
+ */
+internal data class MeshEngineInboundEndToEndHandshakeCallbacks(
+    val forwardEndToEndHandshakeFrame:
+        suspend (WireFrame.EndToEndHandshakeFrame, MeshEngineHardRunToken) -> Unit,
+    val handleLocalEndToEndHandshakeFrame:
+        suspend (PeerId, WireFrame.EndToEndHandshakeFrame) -> Unit,
 )
 
 internal data class MeshEngineInboundTransferCallbacks(
@@ -41,6 +56,7 @@ internal class MeshEngineInboundSupport(
     private val routingContext: MeshEngineInboundRoutingContext,
     private val transport: MeshEngineInboundTransport,
     private val messageCallbacks: MeshEngineInboundMessageCallbacks,
+    private val endToEndHandshakeCallbacks: MeshEngineInboundEndToEndHandshakeCallbacks,
     private val transferCallbacks: MeshEngineInboundTransferCallbacks,
 ) {
     suspend fun handleEncryptedDataFrame(peerId: PeerId, payload: ByteArray): Unit {
@@ -70,7 +86,7 @@ internal class MeshEngineInboundSupport(
         return session
     }
 
-    private fun decryptInboundWireFrame(
+    private suspend fun decryptInboundWireFrame(
         peerId: PeerId,
         session: HopSession,
         payload: ByteArray,
@@ -87,7 +103,7 @@ internal class MeshEngineInboundSupport(
             }
     }
 
-    private fun decodeInboundWireFrame(peerId: PeerId, payload: ByteArray): WireFrame? {
+    private suspend fun decodeInboundWireFrame(peerId: PeerId, payload: ByteArray): WireFrame? {
         return runCatching { WireCodec.decode(payload) }
             .getOrElse { exception ->
                 transport.emitHopSessionFailed(
@@ -125,7 +141,21 @@ internal class MeshEngineInboundSupport(
             is WireFrame.TransferAck -> transferCallbacks.handleTransferAck(peerId, frame)
             is WireFrame.TransferComplete -> transferCallbacks.handleTransferComplete(peerId, frame)
             is WireFrame.TransferAbort -> transferCallbacks.handleTransferAbort(peerId, frame)
+            is WireFrame.EndToEndHandshakeFrame ->
+                handleEndToEndHandshakeFrame(peerId = peerId, frame = frame)
         }
+    }
+
+    private suspend fun handleEndToEndHandshakeFrame(
+        peerId: PeerId,
+        frame: WireFrame.EndToEndHandshakeFrame,
+    ): Unit {
+        val hardRunToken = messageCallbacks.captureHardRunToken()
+        if (!isLocalPeerId(frame.destinationPeerId)) {
+            endToEndHandshakeCallbacks.forwardEndToEndHandshakeFrame(frame, hardRunToken)
+            return
+        }
+        endToEndHandshakeCallbacks.handleLocalEndToEndHandshakeFrame(peerId, frame)
     }
 
     private suspend fun handleRoutedMessageFrame(peerId: PeerId, frame: WireFrame.Message): Unit {
@@ -155,12 +185,15 @@ internal fun buildMeshEngineRuntimeInboundSupport(
     sessionRegistry: MeshEngineSessionRegistry,
     routeCoordinator: RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
-    emitHopSessionFailed: (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
+    emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
     captureHardRunToken: () -> MeshEngineHardRunToken,
-    forwardMessageToNextHop: (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
+    forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
+    forwardEndToEndHandshakeFrame:
+        suspend (WireFrame.EndToEndHandshakeFrame, MeshEngineHardRunToken) -> Unit,
+    handleLocalEndToEndHandshakeFrame: suspend (PeerId, WireFrame.EndToEndHandshakeFrame) -> Unit,
     transferSupport: MeshEngineTransferSupport,
 ): MeshEngineInboundSupport {
     return MeshEngineInboundSupport(
@@ -181,6 +214,11 @@ internal fun buildMeshEngineRuntimeInboundSupport(
                 captureHardRunToken = captureHardRunToken,
                 forwardMessageToNextHop = forwardMessageToNextHop,
                 deliverInnerEnvelope = deliverInnerEnvelope,
+            ),
+        endToEndHandshakeCallbacks =
+            MeshEngineInboundEndToEndHandshakeCallbacks(
+                forwardEndToEndHandshakeFrame = forwardEndToEndHandshakeFrame,
+                handleLocalEndToEndHandshakeFrame = handleLocalEndToEndHandshakeFrame,
             ),
         transferCallbacks =
             MeshEngineInboundTransferCallbacks(

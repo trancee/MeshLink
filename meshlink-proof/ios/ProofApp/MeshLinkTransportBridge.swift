@@ -1,44 +1,12 @@
-import CoreBluetooth
 import Foundation
 import MeshLink
 
 enum MeshLinkProofTransportBridge {
     static func install() {
-        BleTransportBridge.shared.installData(
-            gattNotifySendData: { peripheralManagerHandle, notifyCharacteristicHandle, centralHandle, payloadDataHandle in
-                guard
-                    let peripheralManager = peripheralManagerHandle as? CBPeripheralManager,
-                    let notifyCharacteristic = notifyCharacteristicHandle as? CBMutableCharacteristic,
-                    let central = centralHandle as? CBCentral,
-                    let payload = Self.resolvePayloadData(payloadDataHandle)
-                else {
-                    return KotlinBoolean(bool: false)
-                }
-                let send = {
-                    peripheralManager.updateValue(
-                        payload,
-                        for: notifyCharacteristic,
-                        onSubscribedCentrals: [central]
-                    )
-                }
-                let accepted: Bool
-                if Thread.isMainThread {
-                    accepted = send()
-                } else {
-                    accepted = DispatchQueue.main.sync { send() }
-                }
-                return KotlinBoolean(bool: accepted)
-            }
-        )
-    }
-
-    private static func resolvePayloadData(_ payloadDataHandle: Any) -> Data? {
-        if let data = payloadDataHandle as? Data {
-            return data
-        }
-        if let nsData = payloadDataHandle as? NSData {
-            return nsData as Data
-        }
-        return nil
+        // The real GATT-notify send path already uses native CoreBluetooth
+        // types internally, so there is no callback to wire up here — this
+        // just tells MeshLink the iPhone-hosted GATT-notify bearer is
+        // available.
+        BleTransportBridge.shared.enableGattNotifyBearer()
     }
 }
