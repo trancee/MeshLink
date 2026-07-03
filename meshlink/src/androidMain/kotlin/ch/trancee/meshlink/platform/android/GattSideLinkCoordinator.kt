@@ -11,6 +11,7 @@ internal interface GattSideLinkClient : PreferredGattSendClient {
 
 internal class GattSideLinkCoordinatorDependencies
 internal constructor(
+    internal val localHintPeerId: PeerId,
     internal val deviceForPeer: (DiscoveredPeer) -> Any?,
     internal val hasActiveL2capLink: (String) -> Boolean,
     internal val setPresenceAnnounced: (String, Boolean) -> Unit,
@@ -19,6 +20,7 @@ internal constructor(
     internal val createClient:
         (
             peerHintId: PeerId,
+            localHintPeerId: PeerId,
             device: Any,
             onFrameReceived: (PeerId, ByteArray) -> Boolean,
             onDisconnected: (PeerId) -> Unit,
@@ -53,6 +55,7 @@ internal class GattSideLinkCoordinator(
         val client =
             dependencies.createClient(
                 peer.hintPeerId,
+                dependencies.localHintPeerId,
                 device,
                 dependencies.onFrameReceived,
                 ::handleDisconnected,
@@ -120,6 +123,7 @@ internal fun createGattSideLinkClient(
     context: Any,
     appId: String,
     peerHintId: PeerId,
+    localHintPeerId: PeerId,
     device: Any,
     log: (String) -> Unit,
     onFrameReceived: (PeerId, ByteArray) -> Boolean,
@@ -130,6 +134,7 @@ internal fun createGattSideLinkClient(
             context = context,
             appId = appId,
             peerHintId = peerHintId,
+            localHintPeerId = localHintPeerId,
             device = device,
             log = log,
             onFrameReceived = onFrameReceived,

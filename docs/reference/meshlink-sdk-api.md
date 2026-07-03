@@ -318,7 +318,7 @@ class DiagnosticEvent(
 | Trust and sessions | `TRUST_ESTABLISHED`, `TRUST_FAILURE`, `HOP_SESSION_ESTABLISHED`, `HOP_SESSION_FAILED` |
 | Routing | `ROUTE_DISCOVERED`, `ROUTE_UPDATED`, `ROUTE_RETRACTED`, `ROUTE_EXPIRED`, `ROUTE_CONVERGED`, `NO_ROUTE_AVAILABLE` |
 | Delivery and transfer | `DELIVERY_QUEUED`, `DELIVERY_RETRY_SCHEDULED`, `DELIVERY_RETRYING`, `DELIVERY_SUCCEEDED`, `DELIVERY_UNREACHABLE`, `TRANSFER_STARTED`, `TRANSFER_PROGRESS`, `TRANSFER_COMPLETED`, `TRANSFER_FAILED`, `SIZE_LIMIT_REJECTED` |
-| Transport and power | `TRANSPORT_MODE_CHANGED`, `POWER_MODE_CHANGED` |
+| Transport and power | `TRANSPORT_MODE_CHANGED`, `POWER_MODE_CHANGED`, `TRANSPORT_FRAME_REJECTED`, `DISCOVERY_ADVERTISE_FAILED`, `DISCOVERY_SCAN_FAILED` |
 
 ### `POWER_MODE_CHANGED` metadata keys
 
@@ -335,6 +335,18 @@ class DiagnosticEvent(
 - `region`
 
 `clampWarnings` is present only when MeshLink applied a regional clamp.
+
+### `DISCOVERY_ADVERTISE_FAILED` and `DISCOVERY_SCAN_FAILED` metadata keys
+
+Android BLE advertise-start and scan-start failures are retried with backoff
+and reported at `WARN` severity with these metadata keys:
+
+- `errorCode` — the platform's raw `AdvertiseCallback`/`ScanCallback` error code
+- `errorName` — the symbolic constant name (for example
+  `ADVERTISE_FAILED_TOO_MANY_ADVERTISERS`, `SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES`)
+- `willRetry` — `"true"` while retries remain, `"false"` once the retry budget
+  is exhausted
+- `attempt` — the 1-based retry attempt number
 
 ## Exceptions
 

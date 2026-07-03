@@ -34,6 +34,7 @@ internal fun BleTransportAdapter.handleGattNotifyUnsubscribed(
         characteristic.UUID.UUIDString.lowercase() ==
             BleDiscoveryContract.GATT_NOTIFY_CHARACTERISTIC_UUID
     val identifier = central.identifier.UUIDString.lowercase()
+    pendingGattWriteBuffersByIdentifier.remove(identifier)
     val hintPeerIdValue =
         if (isNotifyCharacteristic) peerBindings.hintForIdentifier(identifier) else null
     if (hintPeerIdValue != null) {
@@ -97,29 +98,87 @@ internal fun BleTransportAdapter.processGattWriteRequests(
     firstRequest: CBATTRequest,
 ): Unit {
     val central = firstRequest.central
-    val link = ensureGattNotifyLink(central = central, replaceExisting = false)
-    if (link == null) {
-        reportLog(
-            "GATT write request rejected: no active side link for " +
-                "central=${central.identifier.UUIDString.lowercase()} requests=${typedRequests.size}"
-        )
-        peripheralManager?.respondToRequest(firstRequest, withResult = CBATTErrorUnlikelyError)
-        return
-    }
+    val identifier = central.identifier.UUIDString.lowercase()
+    val boundHintPeerIdValue =
+        peerBindings.hintForIdentifier(identifier)
+            ?: peerBindings.temporaryHintForIdentifier(identifier)
+    val knownLink =
+        if (boundHintPeerIdValue != null) {
+            ensureGattNotifyLink(central = central, replaceExisting = false)
+        } else {
+            null
+        }
     val decodedFrames = mutableListOf<ByteArray>()
-    val allRequestsAccepted = typedRequests.all { request ->
-        acceptsGattWriteRequest(request, link, decodedFrames)
-    }
+    var resolvedPeerId: PeerId? = knownLink?.hintPeerId
+    val allRequestsAccepted =
+        if (knownLink != null) {
+            typedRequests.all { request ->
+                acceptsGattWriteRequest(request, knownLink, decodedFrames)
+            }
+        } else {
+            val requestChunks = typedRequests.mapNotNull { request ->
+                if (
+                    request.characteristic.UUID.UUIDString.lowercase() ==
+                        BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID &&
+                        request.offset.toInt() == 0
+                ) {
+                    request.value?.toByteArray()
+                } else {
+                    null
+                }
+            }
+            if (requestChunks.size != typedRequests.size) {
+                false
+            } else {
+                val pendingBuffer =
+                    pendingGattWriteBuffersByIdentifier.getOrPut(identifier) { L2capFrameBuffer() }
+                val result =
+                    processUnknownGattWriteChunks(
+                        identifier = identifier,
+                        chunks = requestChunks,
+                        buffer = pendingBuffer,
+                        peerBindings = peerBindings,
+                        log = ::reportLog,
+                    )
+                if (!result.accepted) {
+                    pendingGattWriteBuffersByIdentifier.remove(identifier)
+                    false
+                } else {
+                    result.claimedHintPeerIdValue?.let { claimedHintPeerIdValue ->
+                        promoteTemporaryL2capLinkIfPossible(
+                            identifier = identifier,
+                            resolvedHintPeerIdValue = claimedHintPeerIdValue,
+                        )
+                        gattNotifyRegistry.removeLinkForCentralIdentifier(identifier)?.close()
+                        val link =
+                            reuseOrCreateGattNotifyLink(
+                                central = central,
+                                identifier = identifier,
+                                hintPeerIdValue = claimedHintPeerIdValue,
+                                replaceExisting = false,
+                                incomingFrames = pendingBuffer,
+                            )
+                        resolvedPeerId = link.hintPeerId
+                        pendingGattWriteBuffersByIdentifier.remove(identifier)
+                    }
+                    decodedFrames += result.decodedFrames
+                    true
+                }
+            }
+        }
     reportLog(
-        "GATT write request for ${link.hintPeerId.logSuffix()} requests=${typedRequests.size} " +
-            "decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
+        "GATT write request for " +
+            "${peerBindings.hintForIdentifier(identifier)?.logSuffix() ?: identifier.takeLast(6)} " +
+            "requests=${typedRequests.size} decodedFrames=${decodedFrames.size} accepted=$allRequestsAccepted"
     )
     peripheralManager?.respondToRequest(
         firstRequest,
         withResult = if (allRequestsAccepted) CBATTErrorSuccess else CBATTErrorUnlikelyError,
     )
     if (allRequestsAccepted && decodedFrames.isNotEmpty()) {
-        emitDecodedGattFrames(peerId = link.hintPeerId, decodedFrames = decodedFrames)
+        resolvedPeerId?.let { peerId ->
+            emitDecodedGattFrames(peerId = peerId, decodedFrames = decodedFrames)
+        }
     }
 }
 
@@ -153,6 +212,7 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
     identifier: String,
     hintPeerIdValue: String,
     replaceExisting: Boolean,
+    incomingFrames: L2capFrameBuffer = L2capFrameBuffer(),
 ): GattNotifyLink {
     if (!replaceExisting) {
         gattNotifyRegistry.currentLink(hintPeerIdValue)?.let { existingLink ->
@@ -170,6 +230,7 @@ internal fun BleTransportAdapter.reuseOrCreateGattNotifyLink(
                 ),
             dependencies =
                 GattNotifyDependencies(
+                    incomingFrames = incomingFrames,
                     peripheralAdapterProvider = {
                         val manager = peripheralManager
                         val characteristic = gattNotifyServiceCharacteristic

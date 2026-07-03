@@ -61,6 +61,25 @@ internal class MeshEngineSessionSupport(
             ?: SessionEstablishmentOutcome.Unreachable
     }
 
+    private suspend fun awaitHandshakeRetryDelay(hardRunToken: MeshEngineHardRunToken?): Boolean {
+        if (hardRunToken == null) {
+            delay(HANDSHAKE_RETRY_DELAY)
+            return true
+        }
+        return when (
+            waitWithRuntimeGate(
+                runtimeGate = state.runtimeGate,
+                hardRunToken = hardRunToken,
+                maximumActiveWait = HANDSHAKE_RETRY_DELAY,
+                awaitChange = { activeWait -> withTimeoutOrNull(activeWait) { delay(activeWait) } },
+            )
+        ) {
+            is MeshEngineRuntimeTimedWaitResult.Completed,
+            MeshEngineRuntimeTimedWaitResult.TimedOut -> true
+            MeshEngineRuntimeTimedWaitResult.HardRunEnded -> false
+        }
+    }
+
     private suspend fun reserveInitiatorHandshake(peerId: PeerId): InitiatorHandshakeReservation {
         return state.sessionRegistry.initiatorHandshakeReservation(peerId) {
             val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
@@ -78,6 +97,7 @@ internal class MeshEngineSessionSupport(
         peerId: PeerId,
         reservation: InitiatorHandshakeReservation.Created,
         hardRunToken: MeshEngineHardRunToken?,
+        attempt: Int = 1,
     ): SessionEstablishmentOutcome {
         return when (
             sendHandshakeMessage1(
@@ -86,8 +106,26 @@ internal class MeshEngineSessionSupport(
                 hardRunToken = hardRunToken,
             )
         ) {
-            TransportSendResult.Delivered ->
-                awaitSessionEstablishment(peerId, reservation.pendingHandshake, hardRunToken)
+            TransportSendResult.Delivered -> {
+                val outcome =
+                    awaitSessionEstablishment(peerId, reservation.pendingHandshake, hardRunToken)
+                // message1 was delivered, so a failure here means the peer's reply never arrived
+                // in time -- often because of a transient transport hiccup (for example a BLE
+                // GATT link that drops with a generic `status=133` disconnect mid-handshake and
+                // then reconnects a few seconds later). Nothing else re-triggers a fresh handshake
+                // attempt for an already-discovered peer, so retry a bounded number of times here
+                // as long as the transport is still available, rather than failing permanently.
+                if (
+                    outcome is SessionEstablishmentOutcome.Established ||
+                        attempt >= HANDSHAKE_RETRY_ATTEMPTS ||
+                        !callbacks.hasTransport() ||
+                        !awaitHandshakeRetryDelay(hardRunToken)
+                ) {
+                    outcome
+                } else {
+                    retryHandshakeAfterTransientTimeout(peerId, hardRunToken, attempt)
+                }
+            }
             is TransportSendResult.Dropped -> {
                 failPendingInitiatorHandshake(
                     peerId = peerId,
@@ -95,6 +133,26 @@ internal class MeshEngineSessionSupport(
                     stage = "transport.handshake.message1.send",
                 )
             }
+        }
+    }
+
+    private suspend fun retryHandshakeAfterTransientTimeout(
+        peerId: PeerId,
+        hardRunToken: MeshEngineHardRunToken?,
+        previousAttempt: Int,
+    ): SessionEstablishmentOutcome {
+        return when (val nextReservation = reserveInitiatorHandshake(peerId)) {
+            is InitiatorHandshakeReservation.Established ->
+                SessionEstablishmentOutcome.Established(nextReservation.session)
+            is InitiatorHandshakeReservation.Pending ->
+                awaitSessionEstablishment(peerId, nextReservation.pendingHandshake, hardRunToken)
+            is InitiatorHandshakeReservation.Created ->
+                initiateReservedHopSession(
+                    peerId,
+                    nextReservation,
+                    hardRunToken,
+                    previousAttempt + 1,
+                )
         }
     }
 
@@ -274,3 +332,10 @@ private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
 
 private val HANDSHAKE_TIMEOUT = 3.seconds
 private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds
+
+/**
+ * Total handshake attempts made by [MeshEngineSessionSupport.ensureHopSession], including the
+ * first.
+ */
+private const val HANDSHAKE_RETRY_ATTEMPTS = 3
+private val HANDSHAKE_RETRY_DELAY = 500.milliseconds

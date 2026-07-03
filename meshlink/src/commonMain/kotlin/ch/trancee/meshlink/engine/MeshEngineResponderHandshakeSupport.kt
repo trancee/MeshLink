@@ -8,6 +8,10 @@ import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+import kotlinx.coroutines.delay
 
 internal class MeshEngineResponderHandshakeSupport(
     private val localIdentity: LocalIdentity,
@@ -37,14 +41,7 @@ internal class MeshEngineResponderHandshakeSupport(
                 }
         val pendingHandshake = PendingResponderHandshake(manager)
         state.sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
-        when (
-            callbacks.sendDirectWireFrame(
-                peerId,
-                DirectWireFrame.HandshakeMessage2(message2),
-                "handshake.message2",
-                TransportMode.GATT,
-            )
-        ) {
+        when (sendHandshakeMessage2(peerId, message2)) {
             TransportSendResult.Delivered -> Unit
             is TransportSendResult.Dropped -> {
                 state.sessionRegistry.removePendingResponderHandshake(peerId, pendingHandshake)
@@ -55,6 +52,33 @@ internal class MeshEngineResponderHandshakeSupport(
                     emptyMap(),
                 )
             }
+        }
+    }
+
+    // Same shape of retry as the initiator's `sendHandshakeMessage1`: a transient "link not
+    // ready" drop (for example a BLE GATT link mid-reconnect right as the reply is sent) is
+    // retried within a bounded window instead of permanently failing the handshake on the first
+    // attempt. Any other drop reason returns immediately, unretried.
+    private suspend fun sendHandshakeMessage2(
+        peerId: PeerId,
+        message2: ByteArray,
+    ): TransportSendResult {
+        val retryWindow = TimeSource.Monotonic.markNow()
+        while (true) {
+            val result =
+                callbacks.sendDirectWireFrame(
+                    peerId,
+                    DirectWireFrame.HandshakeMessage2(message2),
+                    "handshake.message2",
+                    TransportMode.GATT,
+                )
+            if (result !is TransportSendResult.Dropped || !result.isTransientLinkNotReady()) {
+                return result
+            }
+            if (retryWindow.elapsedNow() >= MESSAGE2_SEND_RETRY_WINDOW) {
+                return result
+            }
+            delay(MESSAGE2_SEND_RETRY_DELAY)
         }
     }
 
@@ -229,3 +253,10 @@ internal fun buildMeshEngineRuntimeResponderHandshakeSupport(
         callbacks = callbacks,
     )
 }
+
+private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
+    return reason.contains("L2CAP connection is not ready")
+}
+
+private val MESSAGE2_SEND_RETRY_WINDOW = 3.seconds
+private val MESSAGE2_SEND_RETRY_DELAY = 100.milliseconds

@@ -176,6 +176,7 @@ private class GattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean = false
         GattSideLinkCoordinator(
             dependencies =
                 GattSideLinkCoordinatorDependencies(
+                    localHintPeerId = PeerId("local-hint-id"),
                     deviceForPeer = { Any() },
                     hasActiveL2capLink = { hasActiveL2capLink },
                     setPresenceAnnounced = { hintPeerIdValue, announced ->
@@ -183,7 +184,7 @@ private class GattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean = false
                     },
                     onFrameReceived = { _, _ -> true },
                     onPeerLost = { peerId -> lostPeerIds += peerId.value },
-                    createClient = { _, _, _, _ ->
+                    createClient = { _, _, _, _, _ ->
                         createClientCalls += 1
                         queuedClients.removeFirst()
                     },

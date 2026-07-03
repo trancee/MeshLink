@@ -163,7 +163,95 @@ Run the benchmark-only suite with:
 
 Use physical devices for meaningful transport and power evidence.
 
-## 6. Keep evidence and release posture in the right docs
+## 6. Recover a device whose advertise or scan retries are exhausted
+
+Use this when a device's `proof.log` shows repeated
+
+```
+DIAG DISCOVERY_ADVERTISE_FAILED ... errorName=ADVERTISE_FAILED_TOO_MANY_ADVERTISERS willRetry=true
+DIAG DISCOVERY_ADVERTISE_FAILED ... willRetry=false
+```
+
+or the scan-side equivalent (`DIAG DISCOVERY_SCAN_FAILED ... errorName=SCAN_FAILED_* willRetry=false`),
+followed by `HOP_SESSION_FAILED` with `routeAvailable=false`. A device that has
+advertised or scanned for a long time can hold stuck advertiser/scanner slots
+in its Bluetooth stack even while `dumpsys bluetooth_manager` still reports
+`enabled: true` / `state: ON`.
+
+Restart the device's Bluetooth stack:
+
+```bash
+adb -s <serial> shell cmd bluetooth_manager disable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_OFF
+adb -s <serial> shell cmd bluetooth_manager enable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_ON
+```
+
+Then relaunch the proof app on that device (and its pair partner) and rerun
+the scenario. This clears stuck advertiser/scanner slots without needing a
+full device reboot.
+
+### BLE_ON limbo state
+
+`dumpsys bluetooth_manager` can report a third state beyond `ON`/`OFF`:
+`BLE_ON`, a hybrid state where "classic" Bluetooth is disabled
+(`enabled: false`) but a BLE-only client registration (scan/advertise/GATT)
+keeps the stack partially alive. This was reproduced on a Nothing A063 right
+after a proof-app run: issuing `cmd bluetooth_manager disable` while the proof
+app still held a live BLE registration left the device stuck in `BLE_ON`
+instead of transitioning fully to `OFF`, and `wait-for-state:STATE_OFF` fails
+outright with exit status 255 in that case rather than waiting or timing out.
+
+Manual recovery is simple - from `BLE_ON`, `cmd bluetooth_manager enable` +
+`wait-for-state:STATE_ON` brings the device straight back to a clean `ON`
+state, exactly as it would from `OFF`. `run_android_proof_fleet.py`'s
+automatic recovery (below) is hardened against this: it force-stops the proof
+app *before* issuing `disable` (releasing any BLE registration the app itself
+holds), then polls `dumpsys bluetooth_manager` directly and accepts either
+`OFF` or `BLE_ON` as a valid "disabled enough" outcome before re-enabling,
+instead of relying on the brittle `wait-for-state` subcommand. See
+[the BLE_ON limbo state finding](../../docs/explanation/reference-app-physical-integration-findings.md#3-the-bluetooth-stack-can-settle-into-a-ble_on-limbo-state-after-disable)
+for the full investigation.
+
+If you drive fleet runs through
+`meshlink-proof/scripts/run_android_proof_fleet.py`, this recovery is
+automatic: the script inspects each device's captured `proof.log` for the
+exhausted-retry signature above, restarts the affected device's Bluetooth
+stack, relaunches every pair that includes it, and recaptures logs before
+finalizing the summary. The summary report gets a "Bluetooth stack recovery"
+section listing which device(s) were restarted and why. Pass
+`--no-auto-recover-bluetooth` to disable this and inspect the raw first-pass
+failure instead.
+
+Every run also persists the full `MeshLinkReferenceAutomation`-tagged logcat
+per device to `logs/<serial>.logcat.log` (see the "Logcat evidence" section of
+the summary). `proof.log` only contains diagnostics the proof app explicitly
+writes; lower-level BLE/GATT/L2CAP transport detail - including receive-path
+evidence needed to diagnose missing inbound deliveries - only ever reaches
+logcat. Widen the capture window with `--logcat-tail-lines` if the evidence
+you need scrolled out of the default 20000-line tail during a long
+`--wait-seconds` run.
+
+A noisy device (heavy non-MeshLink log traffic from other apps/system
+services, observed on an OPPO CPH2359) can push every tagged line out of even
+a generous tail window, producing a silent, misleading 0-line capture. To
+guard against this, the capture step automatically retries once with a much
+wider 100000-line tail whenever the requested window captures 0 matching
+lines, so this can no longer go unnoticed. See
+[the BLE scan-miss finding](../../docs/explanation/reference-app-physical-integration-findings.md#5-the-ble-scanner-can-silently-miss-a-specific-peers-advertisements-oemchipset-compatibility)
+for the investigation this uncovered.
+
+As its last step, every run force-stops the proof app on every device it
+exercised. Without this, a device left running from a prior run keeps
+scanning/advertising/holding GATT connections under the old run's app ID,
+which can make a later, otherwise-isolated `--device` rerun look like a
+protocol failure when it is really just interference from a still-running
+earlier instance.
+
+For the full list of diagnostic codes and severities, see the
+[MeshLink SDK API reference](../../docs/reference/meshlink-sdk-api.md#diagnostics).
+
+## 7. Keep evidence and release posture in the right docs
 
 Use this guide to run the Android proof app.
 

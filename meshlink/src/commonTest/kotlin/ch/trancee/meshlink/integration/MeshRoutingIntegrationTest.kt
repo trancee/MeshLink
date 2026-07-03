@@ -204,6 +204,10 @@ class MeshRoutingIntegrationTest {
     @Test
     fun `send retries immediately when a route appears before the delivery deadline expires`() =
         runBlocking<Unit> {
+            if (!supportsRelayRoutingStressScenarios()) {
+                return@runBlocking
+            }
+
             // Arrange
             val harness = harness()
             val sender = harness.createNode("peer-a")

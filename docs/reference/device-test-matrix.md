@@ -17,7 +17,7 @@ This matrix is rebuilt from live adb probes and GSMArena device pages.
 
 1. Run `adb devices -l` and identify every currently attached device.
 2. Prefer a USB-attached row when the same hardware appears over both USB and wireless ADB.
-3. Query the live device with `./tools/android device info --device <serial> --json` for Android version, API level, display size, and density.
+3. Query the live device with `adb shell getprop ro.product.model`, `ro.build.version.release`, `ro.build.version.sdk`, and `adb shell wm size` / `wm density` for Android version, API level, display size, and density.
 4. Collect runtime facts with `adb shell getprop`, `cat /proc/meminfo`, `df -k /data`, and `dumpsys display`.
 5. Read the Bluetooth hardware/chipset model with `adb shell getprop ro.boot.hardware.chipname`.
 6. If that returns nothing, fall back to `adb shell getprop ro.board.platform`.

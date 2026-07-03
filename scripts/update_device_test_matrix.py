@@ -58,7 +58,16 @@ def adb_devices() -> list[dict]:
 
 
 def live_device_info(serial: str) -> dict:
-    info = json.loads(run(["./tools/android", "device", "info", "--device", serial, "--json"]))
+    info = {
+        "model": run(["adb", "-s", serial, "shell", "getprop", "ro.product.model"]),
+        "androidVersion": run(["adb", "-s", serial, "shell", "getprop", "ro.build.version.release"]),
+        "apiLevel": run(["adb", "-s", serial, "shell", "getprop", "ro.build.version.sdk"]),
+        "build": run(["adb", "-s", serial, "shell", "getprop", "ro.build.display.id"]),
+    }
+    size_match = re.search(r"(\d+x\d+)", run(["adb", "-s", serial, "shell", "wm", "size"]))
+    density_match = re.search(r"(\d+)", run(["adb", "-s", serial, "shell", "wm", "density"]))
+    info["screenSize"] = size_match.group(1) if size_match else ""
+    info["density"] = density_match.group(1) if density_match else ""
     props = {}
     for key in [
         "ro.build.version.release",
@@ -237,7 +246,7 @@ def render_markdown(rows: list[dict]) -> str:
         "",
         "1. Run `adb devices -l` and identify every currently attached device.",
         "2. Prefer a USB-attached row when the same hardware appears over both USB and wireless ADB.",
-        "3. Query the live device with `./tools/android device info --device <serial> --json` for Android version, API level, display size, and density.",
+        "3. Query the live device with `adb shell getprop ro.product.model`, `ro.build.version.release`, `ro.build.version.sdk`, and `adb shell wm size` / `wm density` for Android version, API level, display size, and density.",
         "4. Collect runtime facts with `adb shell getprop`, `cat /proc/meminfo`, `df -k /data`, and `dumpsys display`.",
         "5. Read the Bluetooth hardware/chipset model with `adb shell getprop ro.boot.hardware.chipname`.",
         "6. If that returns nothing, fall back to `adb shell getprop ro.board.platform`.",

@@ -8,6 +8,7 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
@@ -24,9 +25,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
 internal fun resolveMaximumPayloadBytesPerDelivery(
@@ -88,6 +91,7 @@ internal class BleTransportAdapter(
         GattSideLinkCoordinator(
             dependencies =
                 GattSideLinkCoordinatorDependencies(
+                    localHintPeerId = PeerId(localKeyHash.toHexString()),
                     deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
                     hasActiveL2capLink = linkRegistry::hasActiveLink,
                     setPresenceAnnounced = peerRegistry::setPresenceAnnounced,
@@ -95,11 +99,17 @@ internal class BleTransportAdapter(
                     onPeerLost = { peerId ->
                         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
                     },
-                    createClient = { peerHintId, device, onFrameReceived, onDisconnected ->
+                    createClient = {
+                        peerHintId,
+                        localHintPeerId,
+                        device,
+                        onFrameReceived,
+                        onDisconnected ->
                         createGattSideLinkClient(
                             context = context,
                             appId = appId,
                             peerHintId = peerHintId,
+                            localHintPeerId = localHintPeerId,
                             device = device,
                             log = ::log,
                             onFrameReceived = onFrameReceived,
@@ -132,6 +142,38 @@ internal class BleTransportAdapter(
             ensurePermissionsGranted = ::ensurePermissionsGranted,
             foreignScanIgnoredCount = { foreignScanIgnoredCount.get() },
             log = ::log,
+            scheduleAdvertiseRetry = { delayMillis, retry ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    retry()
+                }
+            },
+            onAdvertiseFailed = { errorCode, errorName, willRetry, attempt ->
+                mutableEvents.tryEmit(
+                    TransportEvent.AdvertiseFailed(
+                        errorCode = errorCode,
+                        errorName = errorName,
+                        willRetry = willRetry,
+                        attempt = attempt,
+                    )
+                )
+            },
+            scheduleScanRetry = { delayMillis, retry ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    retry()
+                }
+            },
+            onScanFailed = { errorCode, errorName, willRetry, attempt ->
+                mutableEvents.tryEmit(
+                    TransportEvent.ScanFailed(
+                        errorCode = errorCode,
+                        errorName = errorName,
+                        willRetry = willRetry,
+                        attempt = attempt,
+                    )
+                )
+            },
         )
 
     internal val currentDiscoveryPayload: BleDiscoveryPayload
@@ -285,7 +327,6 @@ internal class BleTransportAdapter(
                     hintPeerId = peer.hintPeerId,
                     localPlatformFamily = currentDiscoveryPayload.platformFamily,
                     remotePlatformFamily = peer.platformFamily,
-                    localL2capClientSocketsSupported = supportsL2capClientSockets(),
                 ),
             dependencies =
                 PreferredGattSendDependencies(

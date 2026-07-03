@@ -458,6 +458,66 @@ class MeshEngineSessionSupportTest {
                 sessionRegistry.initiatorHandshakeReservation(peerId)
             )
         }
+
+    @Test
+    fun `handshake retries after message1 is delivered but the reply times out`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-support-response-timeout-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("peer-response-timeout")
+            val establishedSession = HopSession(ByteArray(32) { 0x07 }, ByteArray(32) { 0x08 })
+            var sendCallCount = 0
+            val support =
+                MeshEngineSessionSupport(
+                    localIdentity = localIdentity,
+                    state =
+                        MeshEngineSessionState(
+                            sessionRegistry = sessionRegistry,
+                            runtimeGate = MeshEngineRuntimeSurface().runtimeGate,
+                        ),
+                    handshakeTimeout = 200.milliseconds,
+                    callbacks =
+                        MeshEngineSessionCallbacks(
+                            hasTransport = { true },
+                            sendDirectWireFrame = { _, _, _, _ ->
+                                sendCallCount += 1
+                                // message1 is always delivered; the first attempt's reply never
+                                // arrives (simulating a peer that dropped mid-handshake and
+                                // reconnected too late for that attempt's timeout), while the
+                                // second attempt's reply completes the session right away.
+                                if (sendCallCount == 2) {
+                                    val pendingReservation =
+                                        assertIs<InitiatorHandshakeReservation.Pending>(
+                                            sessionRegistry.initiatorHandshakeReservation(peerId)
+                                        )
+                                    sessionRegistry.completeInitiatorHandshake(
+                                        peerId = peerId,
+                                        pendingHandshake = pendingReservation.pendingHandshake,
+                                        session = establishedSession,
+                                    )
+                                    pendingReservation.pendingHandshake.sessionDeferred.complete(
+                                        SessionEstablishmentOutcome.Established(establishedSession)
+                                    )
+                                }
+                                TransportSendResult.Delivered
+                            },
+                            emitHopSessionFailed = { _, _, _, _ -> },
+                        ),
+                )
+
+            // Act
+            val outcome = support.ensureHopSession(peerId)
+
+            // Assert
+            assertEquals(2, sendCallCount)
+            val establishedOutcome = assertIs<SessionEstablishmentOutcome.Established>(outcome)
+            assertContentEquals(establishedSession.sendKey, establishedOutcome.session.sendKey)
+            assertContentEquals(
+                establishedSession.receiveKey,
+                establishedOutcome.session.receiveKey,
+            )
+        }
 }
 
 private class ControllableSessionRuntimeGate(private val activeHardRunEpoch: Long) :

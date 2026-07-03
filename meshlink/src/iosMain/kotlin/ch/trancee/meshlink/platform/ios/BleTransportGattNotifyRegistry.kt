@@ -25,6 +25,14 @@ internal class BleTransportGattNotifyRegistry {
         return linksByHint.remove(hintPeerIdValue)
     }
 
+    internal fun removeLinkForCentralIdentifier(identifier: String): GattNotifyLink? {
+        val entry =
+            linksByHint.entries.firstOrNull { (_, link) -> link.centralIdentifier == identifier }
+                ?: return null
+        linksByHint.remove(entry.key)
+        return entry.value
+    }
+
     internal fun stopAll(): Unit {
         linksByHint.values.forEach(GattNotifyLink::close)
         linksByHint.clear()

@@ -39,12 +39,7 @@ internal suspend fun sendViaPreferredGattNotifyLinkOrNull(
         return null
     }
 
-    val dataBearerMode =
-        resolveGattDataBearerMode(
-            localPlatformFamily = context.localPlatformFamily,
-            remotePlatformFamily = context.remotePlatformFamily,
-            preferredMode = frame.preferredMode,
-        )
+    val dataBearerMode = resolveGattDataBearerMode()
     if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
         return null
     }

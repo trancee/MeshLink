@@ -9,6 +9,8 @@ internal sealed class WireFrame {
     internal constructor(public val peerId: PeerId, public val helloIntervalMillis: Int) :
         WireFrame()
 
+    internal class LinkIdentity internal constructor(public val peerId: PeerId) : WireFrame()
+
     internal class Ihu
     internal constructor(public val peerId: PeerId, public val receiveCost: Int) : WireFrame()
 
@@ -196,6 +198,7 @@ internal object WireCodec {
         val table = FlatBufferTable.fromRoot(payload)
         return when (type) {
             WireEnvelopeType.MESSAGE -> MessagePayloadCodec.decode(table)
+            WireEnvelopeType.LINK_IDENTITY -> LinkIdentityPayloadCodec.decode(table)
             WireEnvelopeType.HELLO,
             WireEnvelopeType.IHU,
             WireEnvelopeType.ROUTE_UPDATE,
@@ -217,6 +220,7 @@ internal object WireCodec {
     private fun encodePayload(frame: WireFrame): ByteArray {
         return when (frame) {
             is WireFrame.Message -> MessagePayloadCodec.encode(frame)
+            is WireFrame.LinkIdentity -> LinkIdentityPayloadCodec.encode(frame)
             is WireFrame.Hello,
             is WireFrame.Ihu,
             is WireFrame.RouteUpdate,
@@ -237,6 +241,7 @@ internal object WireCodec {
     private fun envelopeType(frame: WireFrame): WireEnvelopeType {
         return when (frame) {
             is WireFrame.Hello -> WireEnvelopeType.HELLO
+            is WireFrame.LinkIdentity -> WireEnvelopeType.LINK_IDENTITY
             is WireFrame.Ihu -> WireEnvelopeType.IHU
             is WireFrame.RouteUpdate -> WireEnvelopeType.ROUTE_UPDATE
             is WireFrame.RouteRetraction -> WireEnvelopeType.ROUTE_RETRACTION

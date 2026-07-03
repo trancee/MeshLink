@@ -313,6 +313,66 @@ class MeshEngineTransportSupportTest {
                 }
             )
         }
+
+    @Test
+    fun `advertise failed event is reported as a diagnostic with error details`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = transportSupportHarness()
+
+            // Act
+            harness.support.handleTransportEvent(
+                TransportEvent.AdvertiseFailed(
+                    errorCode = 2,
+                    errorName = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS",
+                    willRetry = true,
+                    attempt = 1,
+                )
+            )
+
+            // Assert
+            val diagnostic =
+                harness.diagnostics.firstOrNull { diagnostic ->
+                    diagnostic.code == DiagnosticCode.DISCOVERY_ADVERTISE_FAILED
+                }
+            assertNotNull(diagnostic)
+            assertEquals("transport.discovery.advertiseFailed", diagnostic.stage)
+            assertEquals(DiagnosticSeverity.WARN, diagnostic.severity)
+            assertEquals("2", diagnostic.metadata["errorCode"])
+            assertEquals("ADVERTISE_FAILED_TOO_MANY_ADVERTISERS", diagnostic.metadata["errorName"])
+            assertEquals("true", diagnostic.metadata["willRetry"])
+            assertEquals("1", diagnostic.metadata["attempt"])
+        }
+
+    @Test
+    fun `scan failed event is reported as a diagnostic with error details`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = transportSupportHarness()
+
+            // Act
+            harness.support.handleTransportEvent(
+                TransportEvent.ScanFailed(
+                    errorCode = 3,
+                    errorName = "SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES",
+                    willRetry = true,
+                    attempt = 1,
+                )
+            )
+
+            // Assert
+            val diagnostic =
+                harness.diagnostics.firstOrNull { diagnostic ->
+                    diagnostic.code == DiagnosticCode.DISCOVERY_SCAN_FAILED
+                }
+            assertNotNull(diagnostic)
+            assertEquals("transport.discovery.scanFailed", diagnostic.stage)
+            assertEquals(DiagnosticSeverity.WARN, diagnostic.severity)
+            assertEquals("3", diagnostic.metadata["errorCode"])
+            assertEquals("SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES", diagnostic.metadata["errorName"])
+            assertEquals("true", diagnostic.metadata["willRetry"])
+            assertEquals("1", diagnostic.metadata["attempt"])
+        }
 }
 
 private data class TransportSupportHarness(

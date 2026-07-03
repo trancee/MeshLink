@@ -40,6 +40,9 @@ internal const val HELLO_FIELD_COUNT: Int = 2
 internal const val HELLO_PEER_ID_FIELD_INDEX: Int = 0
 internal const val HELLO_INTERVAL_FIELD_INDEX: Int = 1
 
+internal const val LINK_IDENTITY_FIELD_COUNT: Int = 1
+internal const val LINK_IDENTITY_PEER_ID_FIELD_INDEX: Int = 0
+
 internal const val IHU_FIELD_COUNT: Int = 2
 internal const val IHU_PEER_ID_FIELD_INDEX: Int = 0
 internal const val IHU_RECEIVE_COST_FIELD_INDEX: Int = 1

@@ -125,7 +125,17 @@ internal constructor(
         private val DEFAULT_MESH_DOMAIN_HASH: ByteArray = ByteArray(0)
         private const val ADVERTISEMENT_KEY_HASH_SIZE_BYTES: Int = 12
         private const val KEY_SIZE_BYTES: Int = 32
-        private const val PEER_ID_SIZE_BYTES: Int = 20
+
+        /**
+         * Must match [ch.trancee.meshlink.transport.BleDiscoveryContract.KEY_HASH_SIZE_BYTES], the
+         * canonical hash-prefix length used everywhere else a peer's identity-derived id is
+         * computed (BLE discovery/advertisement and HOP-level trust pinning via
+         * [canonicalPeerIdForTemporaryTransportPeer]). A prior mismatch here (20 vs. 12 bytes)
+         * caused [ch.trancee.meshlink.api.PeerId] values derived by this function to never match
+         * the canonical id a receiving peer pins trust under, so every direct message failed
+         * `trust.verify.untrusted` despite a successful handshake.
+         */
+        private const val PEER_ID_SIZE_BYTES: Int = 12
     }
 }
 

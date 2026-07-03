@@ -11,11 +11,21 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 
+// Every scan callback previously logged unconditionally at INFO level. In a
+// BLE-dense environment (many nearby devices/apps) this can produce
+// thousands of lines within seconds, which evicts one-time lifecycle logs
+// (advertise/route/DIAG) from the logcat ring buffer before they can be
+// captured for diagnosis. Sample routine per-result lines instead; the
+// cumulative counters embedded in each line still make sampled lines useful.
+private const val SCAN_RESULT_LOG_SAMPLE_INTERVAL = 50
+
 internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
     val scanNumber = scanResultCount.incrementAndGet()
-    log(
-        "scan result#$scanNumber addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} accepted=${scanAcceptedCount.get()} parseSkipped=${scanParseSkippedCount.get()} targetMismatch=${scanTargetMismatchCount.get()}"
-    )
+    if (scanNumber % SCAN_RESULT_LOG_SAMPLE_INTERVAL == 1) {
+        log(
+            "scan result#$scanNumber addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} accepted=${scanAcceptedCount.get()} parseSkipped=${scanParseSkippedCount.get()} targetMismatch=${scanTargetMismatchCount.get()}"
+        )
+    }
     val discovery =
         parseDiscoveryScanResultOrNull(
             serviceUuids =
@@ -31,10 +41,12 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
             log = ::log,
         )
             ?: run {
-                scanParseSkippedCount.incrementAndGet()
-                log(
-                    "scan discovery skipped addr=${result.device.address} rssi=${result.rssi} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} parseSkipped=${scanParseSkippedCount.get()}"
-                )
+                val skippedCount = scanParseSkippedCount.incrementAndGet()
+                if (skippedCount % SCAN_RESULT_LOG_SAMPLE_INTERVAL == 1) {
+                    log(
+                        "scan discovery skipped addr=${result.device.address} rssi=${result.rssi} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} parseSkipped=$skippedCount"
+                    )
+                }
                 return
             }
 
