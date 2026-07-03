@@ -201,6 +201,15 @@ section listing which device(s) were restarted and why. Pass
 `--no-auto-recover-bluetooth` to disable this and inspect the raw first-pass
 failure instead.
 
+Every run also persists the full `MeshLinkReferenceAutomation`-tagged logcat
+per device to `logs/<serial>.logcat.log` (see the "Logcat evidence" section of
+the summary). `proof.log` only contains diagnostics the proof app explicitly
+writes; lower-level BLE/GATT/L2CAP transport detail - including receive-path
+evidence needed to diagnose missing inbound deliveries - only ever reaches
+logcat. Widen the capture window with `--logcat-tail-lines` if the evidence
+you need scrolled out of the default 4000-line tail during a long
+`--wait-seconds` run.
+
 For the full list of diagnostic codes and severities, see the
 [MeshLink SDK API reference](../../docs/reference/meshlink-sdk-api.md#diagnostics).
 

@@ -29,6 +29,15 @@ failures, restarts the Bluetooth stack on any affected device, relaunches the
 proof app for every pair that includes it, waits again, and recaptures logs
 before finalizing the summary. Pass --no-auto-recover-bluetooth to disable
 this and inspect the raw first-pass failure instead.
+
+Logcat evidence
+---------------
+Every run also persists the full MeshLinkReferenceAutomation-tagged logcat per
+device to logs/<serial>.logcat.log. proof.log only contains diagnostics the
+proof app explicitly writes; lower-level BLE/GATT/L2CAP transport detail -
+including the receive-path evidence needed to diagnose a missing inbound
+delivery - only ever reaches logcat. Use --logcat-tail-lines to widen the
+capture window for long --wait-seconds runs.
 """
 
 from __future__ import annotations
@@ -130,6 +139,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Disable automatic Bluetooth stack restart + retry when a device's proof.log shows "
             "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries (default: enabled). "
             "See ADVERTISE_FAILED_TOO_MANY_ADVERTISERS troubleshooting notes at the top of this file."
+        ),
+    )
+    parser.add_argument(
+        "--logcat-tail-lines",
+        type=int,
+        default=4000,
+        help=(
+            "How many recent logcat lines to scan per device when persisting "
+            "MeshLinkReferenceAutomation-tagged logcat evidence to logs/<serial>.logcat.log "
+            "(default: 4000). Increase this if the receive-path evidence you need scrolled "
+            "out of the tail during a long --wait-seconds run."
         ),
     )
     args = parser.parse_args(argv)
@@ -445,6 +465,33 @@ def capture_transport_mode(serial: str) -> dict[str, Any]:
     return {"serial": serial, "mode": None, "line": None}
 
 
+def capture_full_logcat(serial: str, *, run_root: Path, tail_lines: int) -> dict[str, Any]:
+    """Persist every `MeshLinkReferenceAutomation`-tagged logcat line to disk.
+
+    `proof.log` only records the diagnostics the proof app explicitly writes
+    (mesh state, hop sessions, delivery). Lower-level transport detail -
+    including the Android BLE/L2CAP receive-path logging that is the only
+    evidence for diagnosing a missing inbound delivery - is only ever written
+    to Android's own logcat under this tag. capture_transport_mode() reads
+    that logcat but discards every line that isn't a mode/transport match;
+    this function keeps the full filtered stream so it survives the run.
+    """
+    completed = run_command(["adb", "-s", serial, "logcat", "-d", "-t", str(tail_lines)])
+    text = completed.stdout + ("\n" + completed.stderr if completed.stderr else "")
+    filtered_lines = [line for line in text.splitlines() if "MeshLinkReferenceAutomation:" in line]
+    filtered_text = "\n".join(filtered_lines) + ("\n" if filtered_lines else "")
+    if not filtered_text:
+        filtered_text = "(no MeshLinkReferenceAutomation logcat lines captured)\n"
+    logcat_path = run_root / "logs" / f"{serial}.logcat.log"
+    logcat_path.write_text(filtered_text, encoding="utf-8")
+    return {
+        "serial": serial,
+        "path": str(logcat_path),
+        "lines": len(filtered_lines),
+        "bytes": len(filtered_text.encode("utf-8")),
+    }
+
+
 def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
@@ -541,6 +588,19 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
                 f"- {action['serial']} ({action['model']}): reason={action['reason']} "
                 f"before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')}"
             )
+    logcat_results = summary.get("logcatResults", [])
+    if logcat_results:
+        lines.append("")
+        lines.append("## Logcat evidence")
+        lines.append("")
+        lines.append(
+            "Full `MeshLinkReferenceAutomation`-tagged logcat per device, including the "
+            "BLE/L2CAP receive-path detail that proof.log does not capture "
+            "(see `--logcat-tail-lines` to widen the capture window)."
+        )
+        lines.append("")
+        for result in logcat_results:
+            lines.append(f"- {result['serial']}: `{result['path']}` ({result['lines']} lines)")
     return "\n".join(lines)
 
 
@@ -662,6 +722,14 @@ def main(argv: list[str] | None = None) -> int:
     with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
         mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), selected_devices))
 
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        logcat_results = list(
+            executor.map(
+                lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                selected_devices,
+            )
+        )
+
     mode_map = {result["serial"]: result["mode"] for result in mode_results}
     pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
 
@@ -725,6 +793,15 @@ def main(argv: list[str] | None = None) -> int:
             mode_results.extend(retry_mode_results)
             mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
 
+            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                retry_logcat_results = list(
+                    executor.map(
+                        lambda serial: capture_full_logcat(serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                        affected_serials,
+                    )
+                )
+            logcat_results.extend(retry_logcat_results)
+
             recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
             pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
 
@@ -737,6 +814,7 @@ def main(argv: list[str] | None = None) -> int:
         "launchResults": launch_results,
         "captureResults": capture_results,
         "modeResults": mode_results,
+        "logcatResults": logcat_results,
         "pairRows": pair_rows,
     }
     (run_root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
