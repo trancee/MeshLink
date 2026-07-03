@@ -38,6 +38,16 @@ proof app explicitly writes; lower-level BLE/GATT/L2CAP transport detail -
 including the receive-path evidence needed to diagnose a missing inbound
 delivery - only ever reaches logcat. Use --logcat-tail-lines to widen the
 capture window for long --wait-seconds runs.
+
+Post-run cleanup
+-----------------
+As its last step, every run force-stops the proof app (`am force-stop`) on
+every device it exercised. A device left running after a prior run keeps
+scanning/advertising/holding GATT connections in the background under the old
+run's app ID, which produces stray cross-app-id BLE traffic and occupied GATT
+server slots that can make a later, otherwise-isolated `--device` rerun look
+like it is failing for protocol reasons when it is really just interference
+from a still-running earlier instance.
 """
 
 from __future__ import annotations
@@ -161,7 +171,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def run_command(command: list[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(command, capture_output=True, text=True)
+    # `errors="replace"` is required because `adb logcat` output can legitimately
+    # contain non-UTF-8 bytes (e.g. from a native crash dump embedded in a log
+    # line), which would otherwise crash the whole fleet run with a
+    # UnicodeDecodeError deep inside subprocess output decoding.
+    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and completed.returncode != 0:
         raise subprocess.CalledProcessError(
             completed.returncode,
@@ -492,6 +506,24 @@ def capture_full_logcat(serial: str, *, run_root: Path, tail_lines: int) -> dict
     }
 
 
+def stop_proof_app(serial: str) -> dict[str, Any]:
+    """Force-stop the proof app on a device so it never keeps scanning,
+    advertising, or holding GATT connections/foreground services after a run
+    finishes. Without this, a device from an earlier run keeps interfering
+    with later isolated reruns (stray cross-app-id BLE traffic, occupied GATT
+    server slots) even though it is no longer part of the selected devices.
+
+    Always called from a `finally` block for every exercised device, so this
+    must never raise: a single device's adb hiccup must not prevent any other
+    device from being force-stopped.
+    """
+    try:
+        completed = run_command(["adb", "-s", serial, "shell", "am", "force-stop", PACKAGE_NAME])
+        return {"serial": serial, "returncode": completed.returncode}
+    except Exception as error:  # noqa: BLE001 - cleanup must never raise.
+        return {"serial": serial, "returncode": None, "error": str(error)}
+
+
 def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
@@ -696,114 +728,130 @@ def main(argv: list[str] | None = None) -> int:
     }
     (run_root / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
 
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        prep_results = list(executor.map(grant_permissions, selected_devices))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
-
+    install_results: list[dict[str, Any]] = []
+    prep_results: list[dict[str, Any]] = []
+    bluetooth_checks: list[dict[str, Any]] = []
     launch_results: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max(2, len(selected_pairs) * 2)) as executor:
-        futures = []
-        for pair in selected_pairs:
-            futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
-            futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
-        for future in as_completed(futures):
-            launch_results.append(future.result())
-
-    time.sleep(args.wait_seconds)
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), selected_devices))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), selected_devices))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        logcat_results = list(
-            executor.map(
-                lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
-                selected_devices,
-            )
-        )
-
-    mode_map = {result["serial"]: result["mode"] for result in mode_results}
-    pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
-
-    # Auto-recovery: a device whose proof.log shows an exhausted advertise/scan
-    # retry budget almost certainly has a stuck Bluetooth stack (see module
-    # docstring). Restart it, relaunch every pair that includes it, and
-    # recapture logs/transport mode once before finalizing the summary.
+    capture_results: list[dict[str, Any]] = []
+    mode_results: list[dict[str, Any]] = []
+    logcat_results: list[dict[str, Any]] = []
     bluetooth_recovery_actions: list[dict[str, Any]] = []
-    device_by_serial = {device.resolved_serial: device for device in selected_devices}
-    if args.auto_recover_bluetooth:
-        stuck_serials = {
-            device.resolved_serial
-            for device in selected_devices
-            if proof_log_shows_stuck_bluetooth_stack(
-                (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
-                    encoding="utf-8", errors="ignore"
+    pair_rows: list[dict[str, Any]] = []
+
+    try:
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
+
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            prep_results = list(executor.map(grant_permissions, selected_devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+
+        with ThreadPoolExecutor(max_workers=max(2, len(selected_pairs) * 2)) as executor:
+            futures = []
+            for pair in selected_pairs:
+                futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
+                futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
+            for future in as_completed(futures):
+                launch_results.append(future.result())
+
+        time.sleep(args.wait_seconds)
+
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), selected_devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), selected_devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            logcat_results = list(
+                executor.map(
+                    lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                    selected_devices,
                 )
             )
-        }
-        if stuck_serials:
-            with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
-                restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
-            for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
-                device = device_by_serial[serial]
-                bluetooth_recovery_actions.append(
-                    {
-                        "serial": serial,
-                        "model": device.model,
-                        "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
-                        "before": restart_result["before"],
-                        "after": restart_result["after"],
-                    }
-                )
 
-            affected_pairs = [
-                pair
-                for pair in selected_pairs
-                if pair.initiator.resolved_serial in stuck_serials or pair.receiver.resolved_serial in stuck_serials
-            ]
-            affected_serials = sorted(
-                {pair.initiator.resolved_serial for pair in affected_pairs}
-                | {pair.receiver.resolved_serial for pair in affected_pairs}
-            )
+        mode_map = {result["serial"]: result["mode"] for result in mode_results}
+        pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
 
-            with ThreadPoolExecutor(max_workers=max(2, len(affected_pairs) * 2)) as executor:
-                retry_futures = []
-                for pair in affected_pairs:
-                    retry_futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
-                    retry_futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
-                for future in as_completed(retry_futures):
-                    launch_results.append(future.result())
-
-            time.sleep(args.wait_seconds)
-
-            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                retry_capture_results = list(executor.map(lambda serial: capture_proof_log(serial, run_root=run_root), affected_serials))
-            capture_results.extend(retry_capture_results)
-
-            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                retry_mode_results = list(executor.map(capture_transport_mode, affected_serials))
-            mode_results.extend(retry_mode_results)
-            mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
-
-            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                retry_logcat_results = list(
-                    executor.map(
-                        lambda serial: capture_full_logcat(serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
-                        affected_serials,
+        # Auto-recovery: a device whose proof.log shows an exhausted advertise/scan
+        # retry budget almost certainly has a stuck Bluetooth stack (see module
+        # docstring). Restart it, relaunch every pair that includes it, and
+        # recapture logs/transport mode once before finalizing the summary.
+        device_by_serial = {device.resolved_serial: device for device in selected_devices}
+        if args.auto_recover_bluetooth:
+            stuck_serials = {
+                device.resolved_serial
+                for device in selected_devices
+                if proof_log_shows_stuck_bluetooth_stack(
+                    (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
+                        encoding="utf-8", errors="ignore"
                     )
                 )
-            logcat_results.extend(retry_logcat_results)
+            }
+            if stuck_serials:
+                with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
+                    restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
+                for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
+                    device = device_by_serial[serial]
+                    bluetooth_recovery_actions.append(
+                        {
+                            "serial": serial,
+                            "model": device.model,
+                            "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
+                            "before": restart_result["before"],
+                            "after": restart_result["after"],
+                        }
+                    )
 
-            recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
-            pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
+                affected_pairs = [
+                    pair
+                    for pair in selected_pairs
+                    if pair.initiator.resolved_serial in stuck_serials or pair.receiver.resolved_serial in stuck_serials
+                ]
+                affected_serials = sorted(
+                    {pair.initiator.resolved_serial for pair in affected_pairs}
+                    | {pair.receiver.resolved_serial for pair in affected_pairs}
+                )
+
+                with ThreadPoolExecutor(max_workers=max(2, len(affected_pairs) * 2)) as executor:
+                    retry_futures = []
+                    for pair in affected_pairs:
+                        retry_futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
+                        retry_futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
+                    for future in as_completed(retry_futures):
+                        launch_results.append(future.result())
+
+                time.sleep(args.wait_seconds)
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_capture_results = list(executor.map(lambda serial: capture_proof_log(serial, run_root=run_root), affected_serials))
+                capture_results.extend(retry_capture_results)
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_mode_results = list(executor.map(capture_transport_mode, affected_serials))
+                mode_results.extend(retry_mode_results)
+                mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_logcat_results = list(
+                        executor.map(
+                            lambda serial: capture_full_logcat(serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                            affected_serials,
+                        )
+                    )
+                logcat_results.extend(retry_logcat_results)
+
+                recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
+                pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
+    finally:
+        # Always quit the proof app on every exercised device, per device,
+        # regardless of whether the run above succeeded or raised partway
+        # through. A device left running keeps scanning/advertising/holding
+        # GATT connections in the background and interferes with later runs.
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            list(executor.map(stop_proof_app, [device.resolved_serial for device in selected_devices]))
 
     summary = {
         **inventory,

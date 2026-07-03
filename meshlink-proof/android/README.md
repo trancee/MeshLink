@@ -210,6 +210,13 @@ logcat. Widen the capture window with `--logcat-tail-lines` if the evidence
 you need scrolled out of the default 4000-line tail during a long
 `--wait-seconds` run.
 
+As its last step, every run force-stops the proof app on every device it
+exercised. Without this, a device left running from a prior run keeps
+scanning/advertising/holding GATT connections under the old run's app ID,
+which can make a later, otherwise-isolated `--device` rerun look like a
+protocol failure when it is really just interference from a still-running
+earlier instance.
+
 For the full list of diagnostic codes and severities, see the
 [MeshLink SDK API reference](../../docs/reference/meshlink-sdk-api.md#diagnostics).
 
