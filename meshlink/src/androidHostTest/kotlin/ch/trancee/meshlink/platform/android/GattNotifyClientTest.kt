@@ -3,6 +3,8 @@ package ch.trancee.meshlink.platform.android
 import android.bluetooth.BluetoothProfile
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
+import ch.trancee.meshlink.wire.WireCodec
+import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -55,8 +57,11 @@ class GattNotifyClientTest {
     }
 
     @Test
-    fun writeDelegatesToTheSessionAfterNotificationsAreEnabled(): Unit = runBlocking {
+    fun writeAnnouncesLinkIdentityBeforeDelegatingToTheSession(): Unit = runBlocking {
         // Arrange
+        val localHintPeerId = PeerId("local-android")
+        val expectedIdentityChunk =
+            L2capFrameBuffer().encode(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
         val expectedEncodedChunk = L2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
         val session =
             FakeGattNotifySession(
@@ -72,7 +77,7 @@ class GattNotifyClientTest {
             )
             true
         }
-        val client = createGattNotifyClient(factory = factory)
+        val client = createGattNotifyClient(factory = factory, localHintPeerId = localHintPeerId)
         client.start()
         factory.listener.onServicesDiscovered(status = 0)
         factory.listener.onDescriptorWrite(
@@ -84,18 +89,27 @@ class GattNotifyClientTest {
         val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
 
         // Assert
+        val concatenatedWrites =
+            session.writeChunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk }
         assertTrue(client.isReady())
         assertTrue(written)
-        assertEquals(1, session.writeChunks.size)
-        assertEquals(expectedEncodedChunk.toList(), session.writeChunks.single().toList())
+        assertTrue(session.writeChunks.size >= 2)
+        assertEquals(
+            (expectedIdentityChunk + expectedEncodedChunk).toList(),
+            concatenatedWrites.toList(),
+        )
     }
 }
 
-private fun createGattNotifyClient(factory: GattNotifySessionFactory): GattNotifyClient {
+private fun createGattNotifyClient(
+    factory: GattNotifySessionFactory,
+    localHintPeerId: PeerId = PeerId("local-android"),
+): GattNotifyClient {
     return GattNotifyClient(
         context = Any(),
         appId = "app",
         peerHintId = PeerId("peer-android"),
+        localHintPeerId = localHintPeerId,
         device = Any(),
         log = {},
         onFrameReceived = { _, _ -> true },

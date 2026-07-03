@@ -20,6 +20,7 @@ internal fun BleTransportAdapter.stopTransport(clearPeers: Boolean): Unit {
     gattNotifyServiceInstalled = false
     gattNotifyServiceCharacteristic = null
     pendingConnectionsByHint.clear()
+    pendingGattWriteBuffersByIdentifier.clear()
     gattNotifyRegistry.stopAll()
     activeLinksByHint.keys.toList().forEach { hint ->
         closeLink(hintPeer = hint, reason = "transport stopped")

@@ -18,6 +18,7 @@ internal constructor(
 
 internal class GattNotifyDependencies
 internal constructor(
+    internal val incomingFrames: L2capFrameBuffer = L2capFrameBuffer(),
     internal val peripheralAdapterProvider: () -> GattNotifyPeripheralAdapter?,
     internal val runPump: suspend (() -> Boolean) -> Boolean,
     internal val logger: (() -> String) -> Unit,
@@ -33,7 +34,7 @@ internal constructor(peer: GattNotifyPeer, private val dependencies: GattNotifyD
     private val logLabel: String = hintPeerId.value.takeLast(PEER_LOG_SUFFIX_LENGTH)
 
     private val outgoingFrames = L2capFrameBuffer()
-    private val incomingFrames = L2capFrameBuffer()
+    private val incomingFrames = dependencies.incomingFrames
     private val pumpState = GattNotifyPumpState()
     private val stateLock = NSLock()
     private var lowLatencyRequested: Boolean = false

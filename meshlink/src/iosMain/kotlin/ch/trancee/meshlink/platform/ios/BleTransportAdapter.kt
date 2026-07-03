@@ -34,6 +34,8 @@ internal class BleTransportAdapter(internal val appId: String, advertisementKeyH
     internal val peerRegistry = PeerRegistry(peerBindings)
     internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
     internal val gattNotifyRegistry = BleTransportGattNotifyRegistry()
+    internal val pendingGattWriteBuffersByIdentifier: MutableMap<String, L2capFrameBuffer> =
+        linkedMapOf()
     internal val pendingConnectionsByHint: MutableMap<String, String> = linkedMapOf()
 
     internal var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()

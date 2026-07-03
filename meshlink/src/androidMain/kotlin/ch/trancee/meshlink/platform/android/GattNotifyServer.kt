@@ -172,15 +172,6 @@ internal class BluetoothGattNotifyServer(
                     return
                 }
                 val payload = value ?: ByteArray(0)
-                val knownPeerHintIdValue =
-                    peerBindings.hintForAddress(device.address)
-                        ?: peerBindings.temporaryHintForAddress(device.address)
-                val peerId =
-                    knownPeerHintIdValue?.let(::PeerId)
-                        ?: peerBindings.temporaryPeerId(device.address).also { temporaryPeerId ->
-                            onUnknownPeerFrame(temporaryPeerId, device.address)
-                        }
-                val peerHintIdValue = peerId.value
                 val decodedFrames = mutableListOf<ByteArray>()
                 val accepted =
                     synchronized(lock) {
@@ -188,8 +179,27 @@ internal class BluetoothGattNotifyServer(
                             frameBuffersByAddress.getOrPut(device.address) { L2capFrameBuffer() }
                         val frames = buffer.append(payload)
                         decodedFrames.addAll(frames)
-                        frames.all { frame -> onFrameReceived(peerId, frame) }
+                        frames.all { frame ->
+                            when (
+                                val disposition =
+                                    resolveIncomingGattFrameDisposition(
+                                        address = device.address,
+                                        frame = frame,
+                                        peerBindings = peerBindings,
+                                        onUnknownPeerFrame = onUnknownPeerFrame,
+                                        log = log,
+                                    )
+                            ) {
+                                is IncomingGattFrameDisposition.ConsumedLinkIdentity -> true
+                                is IncomingGattFrameDisposition.Deliver ->
+                                    onFrameReceived(disposition.peerId, frame)
+                            }
+                        }
                     }
+                val peerHintIdValue =
+                    peerBindings.hintForAddress(device.address)
+                        ?: peerBindings.temporaryHintForAddress(device.address)
+                        ?: "unbound"
                 log(
                     "GATT notify server write addr=${device.address} peer=${peerHintIdValue.takeLast(6)} prepared=$preparedWrite frames=${decodedFrames.size} accepted=$accepted"
                 )

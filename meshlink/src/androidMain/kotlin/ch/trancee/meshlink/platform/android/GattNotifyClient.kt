@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothProfile
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
+import ch.trancee.meshlink.wire.WireCodec
+import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,6 +24,7 @@ internal class GattNotifyClient(
     private val context: Any,
     @Suppress("UNUSED_PARAMETER") private val appId: String,
     private val peerHintId: PeerId,
+    private val localHintPeerId: PeerId,
     private val device: Any,
     private val log: (String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
@@ -37,6 +40,7 @@ internal class GattNotifyClient(
     private val writeMutex = Mutex()
     private val notificationLock = Any()
     private var pendingWrite: CompletableDeferred<Boolean>? = null
+    @Volatile private var identityAnnounced: Boolean = false
 
     private val sessionListener =
         object : GattNotifySessionListener {
@@ -201,6 +205,7 @@ internal class GattNotifyClient(
         if (session != null) {
             return
         }
+        identityAnnounced = false
         lifecycleState = startedGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
         session = sessionFactory.open(sessionListener)
     }
@@ -212,6 +217,44 @@ internal class GattNotifyClient(
     suspend fun write(payload: ByteArray): Boolean {
         return writeMutex.withLock {
             val session = session
+            if (!identityAnnounced) {
+                val announced =
+                    writeViaGattNotify(
+                        payload = WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)),
+                        context =
+                            GattNotifyWriteContext(
+                                peerLogSuffix = peerHintId.value.takeLast(6),
+                                clientReady = lifecycleState.ready,
+                                hasGatt = session != null,
+                                hasWriteCharacteristic = session?.hasWriteCharacteristic() == true,
+                                maxChunkBytes = maximumWriteChunkBytes(),
+                            ),
+                        dependencies =
+                            GattNotifyWriteDependencies(
+                                encode = frameBuffer::encode,
+                                writeChunk = { payloadBytes, encodedBytes, chunk ->
+                                    if (session == null) {
+                                        false
+                                    } else {
+                                        writeEncodedChunk(
+                                            session = session,
+                                            payloadBytes = payloadBytes,
+                                            encodedBytes = encodedBytes,
+                                            chunk = chunk,
+                                        )
+                                    }
+                                },
+                                log = log,
+                            ),
+                    )
+                if (!announced) {
+                    return@withLock false
+                }
+                identityAnnounced = true
+                log(
+                    "GATT notify side link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
+                )
+            }
             writeViaGattNotify(
                 payload = payload,
                 context =
@@ -253,6 +296,7 @@ internal class GattNotifyClient(
     }
 
     private fun closeInternal(markClosedByOwner: Boolean): Unit {
+        identityAnnounced = false
         lifecycleState =
             closedGattNotifyLifecycle(
                 defaultAttMtuBytes = DEFAULT_ATT_MTU_BYTES,

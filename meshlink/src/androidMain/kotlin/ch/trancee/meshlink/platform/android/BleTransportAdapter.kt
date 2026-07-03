@@ -8,6 +8,7 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
@@ -90,6 +91,7 @@ internal class BleTransportAdapter(
         GattSideLinkCoordinator(
             dependencies =
                 GattSideLinkCoordinatorDependencies(
+                    localHintPeerId = PeerId(localKeyHash.toHexString()),
                     deviceForPeer = { peer -> peerBindings.deviceFor(peer.deviceAddress) },
                     hasActiveL2capLink = linkRegistry::hasActiveLink,
                     setPresenceAnnounced = peerRegistry::setPresenceAnnounced,
@@ -97,11 +99,17 @@ internal class BleTransportAdapter(
                     onPeerLost = { peerId ->
                         mutableEvents.tryEmit(TransportEvent.PeerLost(peerId))
                     },
-                    createClient = { peerHintId, device, onFrameReceived, onDisconnected ->
+                    createClient = {
+                        peerHintId,
+                        localHintPeerId,
+                        device,
+                        onFrameReceived,
+                        onDisconnected ->
                         createGattSideLinkClient(
                             context = context,
                             appId = appId,
                             peerHintId = peerHintId,
+                            localHintPeerId = localHintPeerId,
                             device = device,
                             log = ::log,
                             onFrameReceived = onFrameReceived,

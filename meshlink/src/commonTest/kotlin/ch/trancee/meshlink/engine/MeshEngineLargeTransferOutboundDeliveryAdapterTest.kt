@@ -105,6 +105,7 @@ class MeshEngineLargeTransferOutboundDeliveryAdapterTest {
                             is WireFrame.TransferAbort,
                             is WireFrame.Message,
                             is WireFrame.Hello,
+                            is WireFrame.LinkIdentity,
                             is WireFrame.Ihu,
                             is WireFrame.RouteUpdate,
                             is WireFrame.RouteRetraction,

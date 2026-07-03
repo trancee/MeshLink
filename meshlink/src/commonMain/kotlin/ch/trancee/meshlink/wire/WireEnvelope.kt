@@ -15,7 +15,8 @@ internal enum class WireEnvelopeType private constructor(internal val code: Byte
     TRANSFER_ABORT(TRANSFER_ABORT_CODE),
     E2E_HANDSHAKE_MESSAGE_1(E2E_HANDSHAKE_MESSAGE_1_CODE),
     E2E_HANDSHAKE_MESSAGE_2(E2E_HANDSHAKE_MESSAGE_2_CODE),
-    E2E_HANDSHAKE_MESSAGE_3(E2E_HANDSHAKE_MESSAGE_3_CODE);
+    E2E_HANDSHAKE_MESSAGE_3(E2E_HANDSHAKE_MESSAGE_3_CODE),
+    LINK_IDENTITY(LINK_IDENTITY_CODE);
 
     internal companion object {
         internal fun fromCode(code: Byte): WireEnvelopeType {
@@ -81,3 +82,4 @@ private const val TRANSFER_ABORT_CODE: Byte = 12
 private const val E2E_HANDSHAKE_MESSAGE_1_CODE: Byte = 13
 private const val E2E_HANDSHAKE_MESSAGE_2_CODE: Byte = 14
 private const val E2E_HANDSHAKE_MESSAGE_3_CODE: Byte = 15
+private const val LINK_IDENTITY_CODE: Byte = 16
