@@ -140,6 +140,34 @@ class MeshEngineResponderHandshakeSupportTest {
         }
 
     @Test
+    fun `handleHandshakeMessage1 retries message2 delivery after a transient link-not-ready drop`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
+            val temporaryPeerId = PeerId("cb-aabbccddeeff")
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message1 = initiatorManager.createMessage1()
+            var attempts = 0
+            val fixture =
+                responderHandshakeFixture(localIdentity = localIdentity) { _, _, _, _ ->
+                    attempts += 1
+                    if (attempts == 1) {
+                        TransportSendResult.Dropped("L2CAP connection is not ready")
+                    } else {
+                        TransportSendResult.Delivered
+                    }
+                }
+
+            // Act
+            fixture.support.handleHandshakeMessage1(peerId = temporaryPeerId, payload = message1)
+
+            // Assert
+            assertEquals(2, attempts)
+            assertNotNull(fixture.sessionRegistry.pendingResponderHandshake(temporaryPeerId))
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
     fun `handleHandshakeMessage3 reports unexpected payloads when no pending responder handshake exists`() =
         runBlocking<Unit> {
             // Arrange

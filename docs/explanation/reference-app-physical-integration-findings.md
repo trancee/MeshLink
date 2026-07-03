@@ -652,6 +652,46 @@ reconnect-and-retry specifically around the *initial* GATT connect phase
 real-world evidence shows it would help rather than just delaying the same
 outcome.
 
+### 9. The responder's message2 reply had no retry at all for a transient link-not-ready drop
+
+A full 14-device/7-pair fleet run (batched, `--max-concurrent-pairs=2`)
+surfaced a new genuine failure on `motorola_edge_30_fusion ↔ cph2385`.
+Correlating both devices' proof.logs showed they were describing the same
+handshake attempt from opposite ends:
+
+- CPH2385 (initiator) sent message1 to motorola successfully, then timed out
+  waiting for message2 - the same "delivered, then no reply" shape as finding
+  7 above.
+- Motorola's own log explained why: as the *responder* to CPH2385's message1,
+  it tried to reply with message2, but that send was dropped outright
+  (`DIAG HOP_SESSION_FAILED stage=transport.handshake.message2.send
+  reason=DELIVERY_FAILURE`) - not a timeout, an immediate delivery failure,
+  consistent with a transient GATT hiccup right as the reply was sent.
+
+Unlike message1's send (`sendHandshakeMessage1` already retries within a
+bounded window whenever the drop reason indicates a transient
+"L2CAP connection is not ready" link state) and unlike the initiator's
+overall handshake-timeout retry added in finding 7, the responder's message2
+send in `MeshEngineResponderHandshakeSupport.handleHandshakeMessage1()` had
+**no retry of any kind** - a single dropped send permanently failed that
+handshake attempt, and since only the lexically-smaller-peerId side ever
+calls `prewarmHopSession` (see finding 7's takeaway), the responder itself
+never gets another chance to retry.
+
+**Fix:** added `sendHandshakeMessage2()`, mirroring `sendHandshakeMessage1`'s
+retry shape exactly - it retries within a bounded window
+(`MESSAGE2_SEND_RETRY_WINDOW = 3.seconds`, `MESSAGE2_SEND_RETRY_DELAY =
+100.milliseconds`) whenever the drop reason indicates the same transient
+"link not ready" condition, and returns immediately unretried for any other
+drop reason. See
+`meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineResponderHandshakeSupport.kt`.
+
+This run also reconfirmed finding 6's takeaway: CPH2385's log showed
+advertisement bleed-through from two unrelated devices batched in other
+concurrent pairs, so some of the noise around this failure is expected
+full-fleet RF congestion rather than a protocol defect - the message2-send
+gap above is the one piece of this failure that was a genuine, fixable bug.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.
