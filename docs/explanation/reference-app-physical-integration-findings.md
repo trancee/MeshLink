@@ -255,6 +255,66 @@ step.
 | prefer structured diagnostics over ad-hoc text parsing | makes scenario analysis less dependent on stable log text |
 | keep hardening sender-side recovery scenarios | the remaining direct failures are now honest sender/runtime issues, not passive automation problems |
 
+## What the Android two-device direct fleet run taught us
+
+Running the `meshlink-proof` Android app fleet script against a real two-device
+pair (no simulator, no in-memory transport) surfaced two distinct bugs that no
+existing unit or integration test caught, because both depend on behavior that
+only diverges from the in-memory test harness on physical BLE hardware.
+
+### 1. Unbonded BLE connections can present two different MACs for one peer
+
+MeshLink never Bluetooth-bonds devices (no `createBond`/IRK anywhere in
+`platform/android` or `platform/ios`). Without bonding, a device's outbound
+GATT-client ("side link") connection and its inbound GATT-server connection
+for the same physical peer can legitimately present two different MAC
+addresses. The receiver has no way to know they are the same peer, so it minted
+a throwaway temporary peer ID for the second address that could never be
+promoted to the canonical session peer — every inbound frame on that address
+was dropped as `transport.data.noSession`.
+
+The fix adds a cleartext `LinkIdentity` wire frame: each side announces its
+canonical key-hash peer ID once per GATT connection lifetime. The receiver
+only honors a `LinkIdentity` claim for addresses it has not already bound,
+so an established mapping can never be hijacked by a spoofed claim — a
+spoofed claim could at most cause local misrouting, not a confidentiality
+compromise, since the actual Noise hop-session still requires correct key
+material to decrypt.
+
+### 2. A peer ID byte-length mismatch made every direct message untrusted
+
+After fixing (1), the fleet run kept failing a message a few seconds later with
+`trust.verify.untrusted` on both devices, immediately after each device's own
+local `delivery.send` success. That stage never re-established trust — it is
+the strict, no-first-contact trust check for inbound messages, so it fails
+outright if the sender's peer ID is not already pinned in the trust store.
+
+The root cause was a plain string mismatch, not a missing handshake:
+
+- `LocalIdentity.fromNoiseIdentity()` (the production identity path used by
+  both platforms via `LocalIdentityStore.loadOrCreate()`) derived the local
+  `peerId` from a **20-byte** prefix of `sha256(ed25519Pub + x25519Pub)`.
+- Every other canonical peer ID in the mesh — BLE advertisement, discovery,
+  and HOP-level Noise XX trust pinning — uses a **12-byte** prefix of the same
+  hash (the "canonical 24-hex advertisement peer ID" referenced above).
+- Both are truncated prefixes of the same hash, so they looked related but
+  were different strings. The sender embedded its 40-hex-char self-identity as
+  `envelope.senderPeerId`; the receiver had just pinned HOP trust for that same
+  physical peer under a 24-hex-char canonical ID. The trust-store lookup on
+  the receiver always missed.
+
+This was 100% reproducible on every real two-device run, and invisible in
+`commonTest` integration coverage because that test suite constructs
+identities via `LocalIdentity.fromPeerId()` with an explicit literal peer ID,
+sidestepping the derived-length code path entirely.
+
+The fix aligned `PEER_ID_SIZE_BYTES` to the same 12-byte length used
+everywhere else, so a `fromNoiseIdentity()`-derived local peer ID is always
+identical to the canonical ID a remote peer pins trust under. After the fix,
+the fleet run showed `transport.data.deliver` (true inbound delivery
+confirmation, not just local send success) for the first time, across two
+consecutive live runs on Nokia X20 ↔ Nothing A063.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.

@@ -72,7 +72,7 @@ class LocalIdentityTest {
             )
         val expectedFingerprintBytes =
             PlaceholderCryptoProvider.sha256(originalEd25519PublicKey + originalX25519PublicKey)
-        val expectedDerivedPeerId = expectedFingerprintBytes.copyOfRange(0, 20).toHexString()
+        val expectedDerivedPeerId = expectedFingerprintBytes.copyOfRange(0, 12).toHexString()
         val explicitPeerId = PeerId("override-peer-id")
 
         // Act
