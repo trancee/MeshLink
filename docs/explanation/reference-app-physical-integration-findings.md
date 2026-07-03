@@ -548,6 +548,44 @@ runs when the goal is validating a specific pair or transport path, and treat
 `evidenceVerified: false` rows in any report with reduced confidence until
 re-confirmed.
 
+### 7. A transient BLE GATT disconnect mid-handshake permanently failed the session, even after the link recovered
+
+The `nokia_x20 ↔ e940_2849_00` pair failed genuinely (verified, not cross-talk)
+in a clean, low-noise batched run. Tracing both devices' proof.log and logcat:
+
+- Nokia (initiator) discovered the Gigaset peer quickly (~217ms), sent
+  handshake message1 over its GATT side-link, then timed out 3s later waiting
+  for message2 (`DIAG HOP_SESSION_FAILED stage=transport.handshake.timeout`).
+- The Gigaset's logcat showed the underlying GATT connection dropped with
+  `status=133` (`GATT_ERROR`, a generic/opaque Android BLE stack error) right
+  in this window, then successfully reconnected ~3 seconds later (PHY and MTU
+  renegotiated, side-link marked "ready" again).
+- Despite the transport recovering well within the same test run, **neither
+  device ever retried the handshake.** Nokia's own peer-presence tracker never
+  saw a fresh `lost`/`found` transition for this peer (only the *responder*,
+  Gigaset, saw a brief presence flap - and the responder never initiates a
+  handshake), so the only trigger that starts a new handshake attempt
+  (`prewarmHopSession` on `PeerDiscovered`) never fired again for the
+  initiator. The failed handshake was final for the rest of the run.
+
+**Fix:** `MeshEngineSessionSupport.ensureHopSession()` now retries the
+handshake (up to `HANDSHAKE_RETRY_ATTEMPTS = 3` attempts total, 500ms apart)
+specifically when message1 was delivered successfully but the peer's reply
+timed out - the exact shape of a transient mid-handshake disconnect-and-
+recover. This does not change behavior for outright message1-send failures
+(those already have their own bounded retry) or for concurrent callers that
+are merely awaiting someone else's in-flight reservation, so existing
+dedup/backoff semantics are preserved. See
+`meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineSessionSupport.kt`.
+
+**Takeaway:** peer-presence (`found`/`lost`) and transport-connection health
+are two different signals in this codebase, and only the former currently
+re-triggers handshake attempts. A connection can recover cleanly at the GATT
+layer without the presence layer ever noticing anything happened, so any
+retry logic gated purely on rediscovery will miss this class of transient
+failure - the fix above closes that gap at the handshake layer itself instead
+of depending on presence-layer signals.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.
