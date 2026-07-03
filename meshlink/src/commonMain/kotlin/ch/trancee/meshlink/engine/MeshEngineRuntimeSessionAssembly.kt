@@ -23,6 +23,8 @@ internal data class MeshEngineRuntimeSessionAssembly(
     val handleHandshakeMessage1: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
     val handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
+    val ensureEndToEndSession: suspend (PeerId) -> EndToEndSessionEstablishmentOutcome,
+    val handleLocalEndToEndHandshakeFrame: suspend (WireFrame.EndToEndHandshakeFrame) -> Unit,
 )
 
 internal fun buildMeshEngineRuntimeSessionAssembly(
@@ -126,6 +128,27 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
             routingContext = handshakeRoutingContext,
             callbacks = handshakeCallbacks,
         )
+    val endToEndHandshakeSupport =
+        buildMeshEngineRuntimeEndToEndHandshakeSupport(
+            localIdentity = environment.localIdentity,
+            trustSupport = routingAndTrust.trustSupport,
+            registry = sharedState.endToEndSessionRegistry,
+            callbacks =
+                MeshEngineEndToEndHandshakeCallbacks(
+                    sendFrameTowardsPeer = { peerId, frame, action ->
+                        val route = sharedState.routeCoordinator.routeFor(peerId)
+                        val nextHopPeerId = route?.nextHopPeerId ?: peerId
+                        hopTransportSupport.sendEncryptedWireFrame(
+                            nextHopPeerId,
+                            frame,
+                            action,
+                            null,
+                        )
+                    },
+                    createHandshakeId = sharedState.sequenceGenerator::createHandshakeId,
+                    emitDiagnostic = support.emitDiagnostic,
+                ),
+        )
     return MeshEngineRuntimeSessionAssembly(
         ensureHopSession = sessionSupport::ensureHopSession,
         sendEncryptedWireFrame = hopTransportSupport::sendEncryptedWireFrame,
@@ -140,5 +163,8 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         handleHandshakeMessage1 = responderHandshakeSupport::handleHandshakeMessage1,
         handleHandshakeMessage2 = initiatorHandshakeSupport::handleHandshakeMessage2,
         handleHandshakeMessage3 = responderHandshakeSupport::handleHandshakeMessage3,
+        ensureEndToEndSession = endToEndHandshakeSupport::ensureEndToEndSession,
+        handleLocalEndToEndHandshakeFrame =
+            endToEndHandshakeSupport::handleLocalEndToEndHandshakeFrame,
     )
 }

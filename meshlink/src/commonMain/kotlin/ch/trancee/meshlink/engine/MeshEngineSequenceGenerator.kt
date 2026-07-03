@@ -20,6 +20,11 @@ internal class MeshEngineSequenceGenerator(
         return "transfer-${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
     }
 
+    suspend fun createHandshakeId(): String {
+        val current = nextSequence()
+        return "e2e-handshake-${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
+    }
+
     private suspend fun nextSequence(): Long {
         return sequenceMutex.withLock {
             val current = nextSequenceNumber

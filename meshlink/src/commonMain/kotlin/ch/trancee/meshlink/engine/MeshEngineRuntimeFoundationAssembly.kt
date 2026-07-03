@@ -21,6 +21,7 @@ internal data class MeshEngineRuntimeSharedState(
     val deliveryRetryScheduler: DeliveryRetryScheduler,
     val powerPolicyController: PowerPolicyController,
     val sessionRegistry: MeshEngineSessionRegistry,
+    val endToEndSessionRegistry: MeshEngineEndToEndSessionRegistry,
     val transferRegistry: MeshEngineTransferRegistry,
     val sequenceGenerator: MeshEngineSequenceGenerator,
     val runtimePolicies: MeshEngineRuntimePolicies,
@@ -77,6 +78,7 @@ private fun buildMeshEngineRuntimeSharedState(
                 region = environment.config.regulatoryRegion,
             ),
         sessionRegistry = MeshEngineSessionRegistry(),
+        endToEndSessionRegistry = MeshEngineEndToEndSessionRegistry(),
         transferRegistry = MeshEngineTransferRegistry(),
         sequenceGenerator = MeshEngineSequenceGenerator(environment.localIdentity),
         runtimePolicies =

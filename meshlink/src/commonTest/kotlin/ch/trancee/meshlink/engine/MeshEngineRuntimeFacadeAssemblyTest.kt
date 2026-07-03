@@ -124,6 +124,8 @@ private fun runtimeFacadeAssemblyHarness(): RuntimeFacadeAssemblyHarness {
             handleHandshakeMessage1 = { _, _ -> },
             handleHandshakeMessage2 = { _, _ -> },
             handleHandshakeMessage3 = { _, _ -> },
+            ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
+            handleLocalEndToEndHandshakeFrame = { _ -> },
         )
     val transferAndInbound =
         MeshEngineRuntimeTransferAndInboundPhase(

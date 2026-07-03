@@ -347,6 +347,7 @@ private fun transportSupportHarness(): TransportSupportHarness {
                     presenceTracker = presenceTracker,
                     mutablePeerEvents = mutablePeerEvents,
                     sessionRegistry = sessionRegistry,
+                    endToEndSessionRegistry = MeshEngineEndToEndSessionRegistry(),
                 ),
             routingContext =
                 MeshEngineTransportRoutingContext(
