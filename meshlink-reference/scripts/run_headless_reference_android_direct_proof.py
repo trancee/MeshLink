@@ -302,8 +302,6 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
     sender_accepted_top_peers = sender_discovery_focus.get("topAcceptedPeers") or []
     passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
-    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
-    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
     sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
     passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
     sender_selection_note = (
@@ -1239,20 +1237,25 @@ def ensure_android_preflight(
     permissions_started_at = time.monotonic()
     permission_package = ANDROID_PROOF_PACKAGE if install_profile == "proof" else ANDROID_PACKAGE
     try:
-        if install_profile == "proof":
-            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
-        else:
-            verify_android_runtime_permissions(android_serial)
+        try:
+            if install_profile == "proof":
+                verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+            else:
+                verify_android_runtime_permissions(android_serial)
+        except SystemExit:
+            print(
+                f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
+                flush=True,
+            )
+            grant_android_runtime_permissions(android_serial, permission_package)
+            if install_profile == "proof":
+                verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+            else:
+                verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
-        print(
-            f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
-            flush=True,
-        )
-        grant_android_runtime_permissions(android_serial, permission_package)
-        if install_profile == "proof":
-            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
-        else:
-            verify_android_runtime_permissions(android_serial)
+        raise SystemExit(
+            f"Android runtime-permission verification failed for '{android_serial}': {error}"
+        ) from error
     except subprocess.CalledProcessError as error:
         raise SystemExit(
             "Android runtime-permission verification command failed for "

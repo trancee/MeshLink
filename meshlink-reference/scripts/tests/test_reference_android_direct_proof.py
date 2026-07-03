@@ -233,20 +233,6 @@ class AndroidDirectProofTests(unittest.TestCase):
             if callable(close):
                 close()
 
-    def test_parse_args_defaults_passive_benchmark_transport_to_none(self) -> None:
-        # Arrange / Act
-        args = android_direct_proof.parse_args(
-            [
-                "--sender-android-serial",
-                "sender-1",
-                "--passive-android-serial",
-                "passive-1",
-            ]
-        )
-
-        # Assert
-        self.assertIsNone(args.passive_benchmark_transport)
-
     def test_launch_passive_transport_wait_seconds_uses_20_second_floor(self) -> None:
         # Arrange / Act
         wait_seconds = android_direct_proof.launch_passive_transport_wait_seconds(8.0, 45.0)
@@ -514,7 +500,6 @@ class AndroidDirectProofTests(unittest.TestCase):
                 android_transport_logcat=False,
                 target_peer_id="peer-123",
                 passive_advertisement_carrier="uuid-pair",
-                passive_benchmark_transport=None,
                 sender_advertisement_carrier="uuid-pair-plus-service-data",
             )
 
@@ -666,8 +651,6 @@ class AndroidDirectProofTests(unittest.TestCase):
                         "1",
                         "--advertisement-carrier",
                         "uuid-pair-plus-service-data",
-                        "--passive-benchmark-transport",
-                        "gatt",
                     ]
                 )
 
@@ -1140,15 +1123,20 @@ class AndroidDirectProofTests(unittest.TestCase):
 
     def test_main_records_preflight_failure_with_the_failing_serial(self) -> None:
         # Arrange / Act
+        def verify_permissions_side_effect(android_serial: str) -> None:
+            if android_serial == "sender-1":
+                raise SystemExit("BLUETOOTH_SCAN not granted")
+
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory) / "permission-failure"
             with (
                 patch.object(android_direct_proof, "ensure_android_device_ready"),
                 patch.object(android_direct_proof, "install_android_app"),
+                patch.object(android_direct_proof, "grant_android_runtime_permissions"),
                 patch.object(
                     android_direct_proof,
                     "verify_android_runtime_permissions",
-                    side_effect=[None, SystemExit("BLUETOOTH_SCAN not granted")],
+                    side_effect=verify_permissions_side_effect,
                 ),
             ):
                 with self.assertRaises(SystemExit) as error:

@@ -138,7 +138,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=5,
         help="Stop the run once failures exceed this threshold when fail-fast is disabled",
     )
-    parser.set_defaults(fail_fast=True)
     return parser.parse_args(argv)
 
 
