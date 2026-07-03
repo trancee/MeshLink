@@ -390,6 +390,49 @@ class AndroidDirectProofTests(unittest.TestCase):
         )
         self.assertEqual(read_mock.call_count, 2)
 
+    def test_looks_like_android_shell_error_detects_cat_error_text(self) -> None:
+        # Arrange
+        shell_error_text = "cat: files/automation-discovery-seed.txt: No such file or directory"
+
+        # Act
+        is_shell_error = android_direct_proof.looks_like_android_shell_error(shell_error_text)
+
+        # Assert
+        self.assertTrue(is_shell_error)
+
+    def test_looks_like_android_shell_error_accepts_real_peer_id(self) -> None:
+        # Arrange
+        peer_id_text = "xCgZNwCQn51DsofsPFN+JU/nmH89QQH4SsD45LcHRj8="
+
+        # Act
+        is_shell_error = android_direct_proof.looks_like_android_shell_error(peer_id_text)
+
+        # Assert
+        self.assertFalse(is_shell_error)
+
+    def test_read_passive_peer_id_ignores_corrupted_discovery_seed_shell_error(self) -> None:
+        # Arrange
+        discovery_seed_error_text = "cat: files/automation-discovery-seed.txt: No such file or directory"
+        xml_text = (
+            "<map>"
+            "<string name=\"ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID\">"
+            "passive-peer-654321"
+            "</string>"
+            "<string name=\"x25519-public\">present</string>"
+            "</map>"
+        )
+        with patch.object(
+            android_direct_proof,
+            "read_android_app_file",
+            side_effect=[discovery_seed_error_text, xml_text],
+        ) as read_mock:
+            # Act
+            peer_id = android_direct_proof.read_passive_peer_id("passive-1", "app-123", retries=1, delay_s=0)
+
+        # Assert
+        self.assertEqual(peer_id, "passive-peer-654321")
+        self.assertEqual(read_mock.call_count, 2)
+
     def test_resolve_sender_target_peer_id_prefers_discovered_peer_id(self) -> None:
         # Arrange
         with patch.object(android_direct_proof, "wait_for_discovered_peer_id", return_value="marker-peer-123") as wait_mock:

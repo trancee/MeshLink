@@ -1537,6 +1537,28 @@ def start_android_role_app(
     return process
 
 
+ANDROID_SHELL_ERROR_MARKERS = (
+    "cat:",
+    "run-as:",
+    "No such file or directory",
+    "Permission denied",
+    "is not debuggable",
+    "not accessible",
+)
+
+
+def looks_like_android_shell_error(text: str) -> bool:
+    """adb's exec-out/run-as/cat chain does not always propagate a non-zero
+    exit code when the remote file is missing (a known adb limitation), so a
+    remote shell error message can otherwise be mistaken for real file
+    content (e.g. "cat: files/automation-discovery-seed.txt: No such file or
+    directory" being treated as a discovered peer id)."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return any(stripped.startswith(marker) or marker in stripped for marker in ANDROID_SHELL_ERROR_MARKERS)
+
+
 def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
     discovery_seed_path = "automation-discovery-seed.txt"
     relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
@@ -1545,7 +1567,11 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
             discovery_seed_text = read_android_app_file(android_serial, discovery_seed_path).strip()
         except subprocess.CalledProcessError:
             discovery_seed_text = ""
-        if discovery_seed_text and not discovery_seed_text.lstrip().startswith("<"):
+        if (
+            discovery_seed_text
+            and not discovery_seed_text.lstrip().startswith("<")
+            and not looks_like_android_shell_error(discovery_seed_text)
+        ):
             return discovery_seed_text.splitlines()[0].strip()
         try:
             xml_text = read_android_app_file(android_serial, relative_path)
