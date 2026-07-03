@@ -391,6 +391,59 @@ The fix raised the timeout to 10 seconds
 headroom to finish the handshake sequence while staying comfortably under the
 ~28s window where an unused connection gets torn down locally.
 
+### 5. The BLE scanner can silently miss a specific peer's advertisements (OEM/chipset compatibility)
+
+Isolating a persistently failing pair, OPPO CPH2359 ↔ OnePlus DN2103, showed a
+one-directional discovery gap: DN2103 discovered CPH2359 fine and even
+connected to CPH2359's GATT server (accepted and correlated via `LinkIdentity`
+binding), but CPH2359 never discovered DN2103 at all. When CPH2359 tried to
+reply, `send(...)` failed with `dropped: peer not discovered` because CPH2359
+never had an outbound discovery-registry entry for DN2103 - its scan simply
+never surfaced that peer.
+
+No `SCAN_FAILED_*` diagnostic fired; the scan callback reported success
+(`scan started`) throughout. The investigation had to go around the app layer
+entirely and inspect CPH2359's raw, unfiltered Bluetooth-stack logcat
+(`BtGatt.GattService`) to find the real picture:
+
+- CPH2359's scanner was demonstrably healthy - it was actively receiving
+  `onScanResult()` callbacks for *many other* nearby BLE devices during the
+  same window.
+- DN2103's actual BLE MAC address (obtained from CPH2359's own GATT-server
+  connection logs, since DN2103 connected *to* CPH2359) **never once
+  appeared** in a `onScanResult()` line on CPH2359, across the entire test
+  window.
+- Location services, all three Bluetooth runtime permissions, appops, app
+  standby bucket (ACTIVE), doze state (ACTIVE), and battery-optimization
+  whitelisting were all checked and ruled out as causes.
+
+This points to a genuine radio/RF-level or chipset-specific BLE advertising
+incompatibility between these two specific devices - most likely an
+extended-advertising (BT5 LE Coded/2M PHY) vs. legacy-advertising mismatch, or
+an OPPO ColorOS-specific scan-filter/duty-cycle restriction on this particular
+combination - rather than a bug in MeshLink's transport code. It was not
+possible to conclusively pin down which side (or which specific PHY/interval
+setting) is responsible without a `btsnoop` HCI trace, which was out of scope
+for this pass.
+
+**Takeaway:** treat this as a known physical-fleet limitation of the
+CPH2359 ↔ DN2103 pair specifically, not a MeshLink defect. If it resurfaces
+with other OPPO/OnePlus pairs, a `btsnoop` capture on both sides during the
+failing scan window is the next diagnostic step.
+
+**Related tooling gap found during this investigation:** the fleet script's
+`capture_full_logcat()` reads only the last `--logcat-tail-lines` (previously
+4000) lines of the *entire* device log buffer before filtering for the
+`MeshLinkReferenceAutomation` tag. On a noisy device like CPH2359 - one
+producing heavy non-MeshLink log traffic from other apps/system services -
+this pushed every tagged line out of the tail entirely, producing a silent,
+misleading 0-line capture that looked like "the app logged nothing" when it
+had actually logged plenty, just further back in the buffer. Re-running with
+`--logcat-tail-lines 40000` surfaced the evidence above. The default has since
+been raised to 20000, and `capture_full_logcat()` now automatically retries
+once with a much wider tail (100000 lines) whenever the requested window
+captures 0 matching lines, so this blind spot cannot recur silently.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.

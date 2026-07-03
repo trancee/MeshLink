@@ -61,7 +61,22 @@ device to logs/<serial>.logcat.log. proof.log only contains diagnostics the
 proof app explicitly writes; lower-level BLE/GATT/L2CAP transport detail -
 including the receive-path evidence needed to diagnose a missing inbound
 delivery - only ever reaches logcat. Use --logcat-tail-lines to widen the
-capture window for long --wait-seconds runs.
+capture window for long --wait-seconds runs (default 20000, raised from an
+original 4000).
+
+A noisy device - one producing heavy non-MeshLink log traffic from other
+apps/system services, observed on an OPPO CPH2359 - can push every
+MeshLinkReferenceAutomation-tagged line out of even a generous tail window,
+producing a silent, misleading 0-line capture that looks like "the app
+logged nothing" when it actually logged plenty, just further back in the
+buffer than the requested tail reached. This exact blind spot delayed
+diagnosing a real CPH2359<->DN2103 BLE-scan-miss bug (see
+docs/explanation/reference-app-physical-integration-findings.md, "The BLE
+scanner can silently miss a specific peer's advertisements"). To guard
+against this, capture_full_logcat() automatically retries once with a much
+wider tail (LOGCAT_ZERO_LINE_RETRY_TAIL_LINES, 100000 lines) whenever the
+requested --logcat-tail-lines window captures 0 matching lines, before
+concluding the device genuinely emitted nothing.
 
 Post-run cleanup
 -----------------
@@ -97,6 +112,12 @@ DEFAULT_POWER_MODE = "performance"
 DEFAULT_PAYLOAD_BYTES = 64
 DEFAULT_WAIT_SECONDS = 30
 DEFAULT_RUN_ROOT = ROOT / "reports" / "android-proof-fleet" / "runs"
+DEFAULT_LOGCAT_TAIL_LINES = 20_000
+# Raised from the original 4000 default: a noisy device (heavy non-MeshLink
+# log traffic, observed on an OPPO CPH2359) can push every
+# MeshLinkReferenceAutomation-tagged line out of a short tail entirely,
+# producing a silent, misleading 0-line capture. See capture_full_logcat().
+LOGCAT_ZERO_LINE_RETRY_TAIL_LINES = 100_000
 MESH_MODE_RE = re.compile(r"\bmode=([A-Z_][A-Z0-9_\-]*)\b")
 TRANSPORT_RE = re.compile(r"\btransport(?:Mode)?=([A-Z_][A-Z0-9_\-]*)\b")
 WIRELESS_SUFFIX = "._adb-tls-connect._tcp"
@@ -178,12 +199,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--logcat-tail-lines",
         type=int,
-        default=4000,
+        default=DEFAULT_LOGCAT_TAIL_LINES,
         help=(
             "How many recent logcat lines to scan per device when persisting "
             "MeshLinkReferenceAutomation-tagged logcat evidence to logs/<serial>.logcat.log "
-            "(default: 4000). Increase this if the receive-path evidence you need scrolled "
-            "out of the tail during a long --wait-seconds run."
+            f"(default: {DEFAULT_LOGCAT_TAIL_LINES}). Increase this if the receive-path evidence "
+            "you need scrolled out of the tail during a long --wait-seconds run. Noisy devices "
+            "are also auto-retried at a much wider tail if this window captures 0 matching lines "
+            "- see capture_full_logcat()."
         ),
     )
     args = parser.parse_args(argv)
@@ -547,6 +570,12 @@ def capture_transport_mode(serial: str) -> dict[str, Any]:
     return {"serial": serial, "mode": None, "line": None}
 
 
+def _read_meshlink_logcat_lines(serial: str, tail_lines: int) -> list[str]:
+    completed = run_command(["adb", "-s", serial, "logcat", "-d", "-t", str(tail_lines)])
+    text = completed.stdout + ("\n" + completed.stderr if completed.stderr else "")
+    return [line for line in text.splitlines() if "MeshLinkReferenceAutomation:" in line]
+
+
 def capture_full_logcat(serial: str, *, run_root: Path, tail_lines: int) -> dict[str, Any]:
     """Persist every `MeshLinkReferenceAutomation`-tagged logcat line to disk.
 
@@ -557,10 +586,25 @@ def capture_full_logcat(serial: str, *, run_root: Path, tail_lines: int) -> dict
     to Android's own logcat under this tag. capture_transport_mode() reads
     that logcat but discards every line that isn't a mode/transport match;
     this function keeps the full filtered stream so it survives the run.
+
+    A noisy device (heavy non-MeshLink log traffic from other apps/system
+    services) can push every MeshLinkReferenceAutomation-tagged line out of
+    the last [tail_lines] lines entirely, producing a silent, misleading
+    0-line capture that looks like "the app logged nothing" when it actually
+    logged plenty - just further back in the buffer than we looked. This was
+    the reason a real CPH2359<->DN2103 BLE-scan-miss bug went undiagnosed for
+    a while: the default 4000-line tail captured 0 matching lines on the
+    noisy CPH2359 device, and only widening it (`--logcat-tail-lines 40000`)
+    revealed the actual evidence. So: if the requested tail_lines produced no
+    matching lines at all, automatically retry once with a much wider tail
+    (`LOGCAT_ZERO_LINE_RETRY_TAIL_LINES`) before concluding the device really
+    emitted nothing.
     """
-    completed = run_command(["adb", "-s", serial, "logcat", "-d", "-t", str(tail_lines)])
-    text = completed.stdout + ("\n" + completed.stderr if completed.stderr else "")
-    filtered_lines = [line for line in text.splitlines() if "MeshLinkReferenceAutomation:" in line]
+    filtered_lines = _read_meshlink_logcat_lines(serial, tail_lines)
+    widened = False
+    if not filtered_lines and tail_lines < LOGCAT_ZERO_LINE_RETRY_TAIL_LINES:
+        filtered_lines = _read_meshlink_logcat_lines(serial, LOGCAT_ZERO_LINE_RETRY_TAIL_LINES)
+        widened = True
     filtered_text = "\n".join(filtered_lines) + ("\n" if filtered_lines else "")
     if not filtered_text:
         filtered_text = "(no MeshLinkReferenceAutomation logcat lines captured)\n"
@@ -571,6 +615,7 @@ def capture_full_logcat(serial: str, *, run_root: Path, tail_lines: int) -> dict
         "path": str(logcat_path),
         "lines": len(filtered_lines),
         "bytes": len(filtered_text.encode("utf-8")),
+        "widenedTailLines": LOGCAT_ZERO_LINE_RETRY_TAIL_LINES if widened else None,
     }
 
 

@@ -229,8 +229,17 @@ the summary). `proof.log` only contains diagnostics the proof app explicitly
 writes; lower-level BLE/GATT/L2CAP transport detail - including receive-path
 evidence needed to diagnose missing inbound deliveries - only ever reaches
 logcat. Widen the capture window with `--logcat-tail-lines` if the evidence
-you need scrolled out of the default 4000-line tail during a long
+you need scrolled out of the default 20000-line tail during a long
 `--wait-seconds` run.
+
+A noisy device (heavy non-MeshLink log traffic from other apps/system
+services, observed on an OPPO CPH2359) can push every tagged line out of even
+a generous tail window, producing a silent, misleading 0-line capture. To
+guard against this, the capture step automatically retries once with a much
+wider 100000-line tail whenever the requested window captures 0 matching
+lines, so this can no longer go unnoticed. See
+[the BLE scan-miss finding](../../docs/explanation/reference-app-physical-integration-findings.md#5-the-ble-scanner-can-silently-miss-a-specific-peers-advertisements-oemchipset-compatibility)
+for the investigation this uncovered.
 
 As its last step, every run force-stops the proof app on every device it
 exercised. Without this, a device left running from a prior run keeps
