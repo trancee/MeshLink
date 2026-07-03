@@ -637,6 +637,27 @@ def stop_proof_app(serial: str) -> dict[str, Any]:
         return {"serial": serial, "returncode": None, "error": str(error)}
 
 
+_OWN_KEY_HASH_RE = re.compile(r"\bkeyHash=([0-9a-fA-F]+)")
+
+
+def _extract_own_key_hash(log_lines: list[str]) -> str | None:
+    """Extract a device's own peer identity from its proof.log startup line.
+
+    Every proof.log begins with a line like `... keyHash=<hex>`, printed once at
+    app start. Other devices refer to this identity two ways in their own logs:
+    the full hex value in `DIAG`-style structured lines (`peerId=<hex>`,
+    `destinationPeerId=<hex>`, `originPeerId=<hex>`), and the last 6 hex
+    characters (`peerId.value.takeLast(6)`) in free-text lines like
+    `auto-send attempt 1 -> Sent for <hint>` or `BENCHMARK receipt sent
+    peer=<hint>`. See summarize_pair() for why this matters.
+    """
+    for line in log_lines:
+        match = _OWN_KEY_HASH_RE.search(line)
+        if match:
+            return match.group(1)
+    return None
+
+
 def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
@@ -649,17 +670,46 @@ def canonical_transport_label(modes: list[str | None]) -> str:
 def summarize_pair(pair: PairRecord, run_root: Path, mode_map: dict[str, str | None]) -> dict[str, Any]:
     initiator_log = (run_root / "logs" / f"{pair.initiator.resolved_serial}.proof.log").read_text(encoding="utf-8", errors="ignore").splitlines()
     receiver_log = (run_root / "logs" / f"{pair.receiver.resolved_serial}.proof.log").read_text(encoding="utf-8", errors="ignore").splitlines()
-    combined = initiator_log + receiver_log
-    ack_lines = [
-        line
-        for line in combined
-        if "DELIVERY_SUCCEEDED" in line or "auto-send attempt 1 -> Sent" in line or "SendResult.Sent" in line
-    ]
-    receipt_lines = [
-        line
-        for line in combined
-        if "BENCHMARK receipt sent" in line or "BENCHMARK receipt timeout" in line or "BENCHMARK receipt failed" in line
-    ]
+
+    # In a full-fleet run with 3+ devices, every phone can hear BLE traffic
+    # from *other* pairs as well as its own assigned partner. Naively scanning
+    # for generic marker strings anywhere in either device's log (the original
+    # approach) can pick up unrelated cross-talk and report false-positive
+    # ACK/receipt evidence for a pair whose actual handshake failed. Scope the
+    # search to lines that also reference the *other side's own peer identity*
+    # (full keyHash for structured DIAG lines, or its last-6-char hint form for
+    # free-text lines) so evidence is only counted if it truly involves this
+    # pair. See docs/explanation/reference-app-physical-integration-findings.md
+    # for the investigation that found this (motorola edge 30 fusion <->
+    # CPH2385: report showed "ACK: yes" from an unrelated DN2103 delivery that
+    # CPH2385's proof.log happened to also contain).
+    initiator_own_hash = _extract_own_key_hash(initiator_log)
+    receiver_own_hash = _extract_own_key_hash(receiver_log)
+
+    def scoped_lines(log_lines: list[str], markers: tuple[str, ...], other_own_hash: str | None) -> list[str]:
+        matches = [line for line in log_lines if any(marker in line for marker in markers)]
+        if not other_own_hash:
+            # Could not establish the other side's identity (e.g. a truncated
+            # or missing startup line) - fall back to unscoped matching rather
+            # than silently reporting no evidence at all.
+            return matches
+        other_hint = other_own_hash[-6:]
+        return [line for line in matches if other_own_hash in line or other_hint in line]
+
+    ack_markers = ("DELIVERY_SUCCEEDED", "auto-send attempt 1 -> Sent", "SendResult.Sent")
+    receipt_markers = ("BENCHMARK receipt sent", "BENCHMARK receipt confirmed")
+    receipt_failure_markers = ("BENCHMARK receipt timeout", "BENCHMARK receipt failed")
+
+    ack_lines = scoped_lines(initiator_log, ack_markers, receiver_own_hash) + scoped_lines(
+        receiver_log, ack_markers, initiator_own_hash
+    )
+    receipt_lines = scoped_lines(initiator_log, receipt_markers, receiver_own_hash) + scoped_lines(
+        receiver_log, receipt_markers, initiator_own_hash
+    )
+    receipt_failure_lines = scoped_lines(initiator_log, receipt_failure_markers, receiver_own_hash) + scoped_lines(
+        receiver_log, receipt_failure_markers, initiator_own_hash
+    )
+
     transport_modes = [mode_map.get(pair.initiator.resolved_serial), mode_map.get(pair.receiver.resolved_serial)]
     return {
         "label": pair.label,
@@ -677,6 +727,16 @@ def summarize_pair(pair: PairRecord, run_root: Path, mode_map: dict[str, str | N
         "transportModes": sorted({mode for mode in transport_modes if mode}),
         "ackLines": ack_lines[:8],
         "receiptLines": receipt_lines[:8],
+        "receiptFailureLines": receipt_failure_lines[:8],
+        # True only when *both* devices' own keyHash startup lines were found,
+        # meaning ack/receipt evidence above was scoped to this pair's actual
+        # peer identities. False means one side's startup line was missing
+        # (e.g. truncated by logcat buffer wraparound in a busy fleet run) and
+        # matching silently fell back to unscoped search for that direction -
+        # evidence should be treated with reduced confidence in that case.
+        "evidenceVerified": bool(initiator_own_hash) and bool(receiver_own_hash),
+        "initiatorOwnKeyHash": initiator_own_hash,
+        "receiverOwnKeyHash": receiver_own_hash,
         "initiatorLog": str(run_root / "logs" / f"{pair.initiator.resolved_serial}.proof.log"),
         "receiverLog": str(run_root / "logs" / f"{pair.receiver.resolved_serial}.proof.log"),
     }
@@ -697,14 +757,15 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Pairs")
     lines.append("")
-    lines.append("| Pair | Initiator | Receiver | Transport | ACK evidence | Receipt evidence |")
-    lines.append("|---|---|---|---|---|---|")
+    lines.append("| Pair | Initiator | Receiver | Transport | ACK evidence | Receipt evidence | Peer identity verified |")
+    lines.append("|---|---|---|---|---|---|---|")
     for row in summary["pairRows"]:
         transport = row.get("transportMode") or "unknown"
         ack = "yes" if row["ackLines"] else "no"
         receipt = "yes" if row["receiptLines"] else "no"
+        verified = "yes" if row.get("evidenceVerified") else "no (reduced confidence)"
         lines.append(
-            f"| {row['label']} | {row['initiator']['model']} | {row['receiver']['model']} | {transport} | {ack} | {receipt} |"
+            f"| {row['label']} | {row['initiator']['model']} | {row['receiver']['model']} | {transport} | {ack} | {receipt} | {verified} |"
         )
     lines.append("")
     lines.append("## Bluetooth preflight")
