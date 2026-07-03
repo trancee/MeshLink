@@ -2,6 +2,7 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.engine.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
@@ -28,6 +29,16 @@ internal suspend fun BleTransportAdapter.sendWhenStarted(
     )
 }
 
+/**
+ * Resolves the outbound frame's bearer mode (see
+ * [ch.trancee.meshlink.engine.resolveGattDataBearerMode]) and routes it to exactly one bearer:
+ * - [GattDataBearerMode.GATT_ONLY] (handshake/control frames): the GATT notify link is attempted
+ *   first, falling back to the L2CAP connect-and-wait path only if GATT is unavailable.
+ * - [GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK] (data frames): an already-connected
+ *   L2CAP link is used immediately (non-blocking check - `sendViaL2capWhenReady` checks for an
+ *   existing link before ever waiting). Otherwise GATT is used, falling back further to the
+ *   blocking L2CAP connect-and-wait path only if GATT is also unavailable.
+ */
 internal suspend fun BleTransportAdapter.sendToPeer(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
@@ -41,32 +52,27 @@ internal suspend fun BleTransportAdapter.sendToPeer(
     }
 
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    val gattSendResult =
-        sendViaGattNotifyLinkOrNull(frame = frame, peer = peer, directFrame = directFrame)
-    return if (gattSendResult != null) {
-        gattSendResult
-    } else {
-        sendViaL2capWhenReady(frame = frame, peer = peer)
-    }
-}
+    val bearerMode = resolveGattDataBearerMode(directFrame = directFrame)
 
-internal fun BleTransportAdapter.resolveSendDataBearerMode(
-    frame: OutboundFrame,
-    peer: DiscoveredPeer,
-    directFrame: DirectWireFrame?,
-): GattDataBearerMode {
-    return resolveIosGattDataBearerMode(
-        directFrame = directFrame,
-        localPlatformFamily = currentDiscoveryPayload.platformFamily,
-        remotePlatformFamily = peer.platformFamily,
-        preferredMode = frame.preferredMode,
-    )
+    return when (bearerMode) {
+        GattDataBearerMode.GATT_ONLY ->
+            sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
+                ?: sendViaL2capWhenReady(frame = frame, peer = peer)
+        GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
+            val readyLink = activeLinkFor(peer)
+            if (readyLink != null) {
+                sendViaL2capWhenReady(frame = frame, peer = peer)
+            } else {
+                sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
+                    ?: sendViaL2capWhenReady(frame = frame, peer = peer)
+            }
+        }
+    }
 }
 
 internal suspend fun BleTransportAdapter.sendViaGattNotifyLinkOrNull(
     frame: OutboundFrame,
     peer: DiscoveredPeer,
-    directFrame: DirectWireFrame?,
 ): TransportSendResult? {
     return sendViaPreferredGattNotifyLinkOrNull(
         frame = frame,
@@ -79,15 +85,13 @@ internal suspend fun BleTransportAdapter.sendViaGattNotifyLinkOrNull(
         dependencies =
             PreferredGattSendDependencies(
                 currentLink = {
-                    activeGattNotifyLinkFor(peer)
-                        ?.takeIf { directFrame is DirectWireFrame.Data }
-                        ?.let { link ->
-                            object : PreferredGattSendLink {
-                                override suspend fun enqueue(payload: ByteArray): Boolean {
-                                    return link.enqueue(payload)
-                                }
+                    activeGattNotifyLinkFor(peer)?.let { link ->
+                        object : PreferredGattSendLink {
+                            override suspend fun enqueue(payload: ByteArray): Boolean {
+                                return link.enqueue(payload)
                             }
                         }
+                    }
                 },
                 log = ::log,
             ),

@@ -7,12 +7,15 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.engine.resolveGattDataBearerMode
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
+import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.L2capReconnectGuard
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
@@ -83,6 +86,11 @@ internal class BleTransportAdapter(
         log(
             "automation mode enabled=${automationEnabled} target peer id=${automationTargetPeerId ?: "none"}"
         )
+        peerBindings.attachRebindLogger { address, previousHint, newHint ->
+            log(
+                "peer binding conflict addr=$address previousPeerId=$previousHint newPeerId=$newHint"
+            )
+        }
     }
 
     internal val linkRegistry = BleTransportLinkRegistry<L2capLink>(bindings = peerBindings)
@@ -273,38 +281,7 @@ internal class BleTransportAdapter(
                 SendDispatchDependencies(
                     sendToResolvedPeerOrNull = {
                         val peer = resolvePeer(frame.peerId) ?: return@SendDispatchDependencies null
-                        tryPreferredGattSend(peer, frame)
-                            ?: sendViaL2capWhenReady(
-                                frame = frame,
-                                context =
-                                    L2capSendContext(
-                                        hintPeerId = peer.hintPeerId,
-                                        transportMode = peer.transportMode,
-                                        advertisedL2capPsm = peer.l2capPsm,
-                                    ),
-                                dependencies =
-                                    L2capSendDependencies(
-                                        currentLink = {
-                                            activeLinkFor(peer)?.let { link ->
-                                                object : L2capSendLink {
-                                                    override suspend fun send(
-                                                        frame: OutboundFrame
-                                                    ): TransportSendResult {
-                                                        return sendViaConnectedLink(
-                                                            frame = frame,
-                                                            link = link,
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        shouldInitiateL2cap = {
-                                            shouldInitiateL2cap(peer.keyHash, peer.platformFamily)
-                                        },
-                                        triggerConnectIfNeeded = { connectIfNeeded(peer) },
-                                        log = ::log,
-                                    ),
-                            )
+                        sendToPeerUsingBearerPolicy(peer, frame)
                     },
                     sendToTemporaryLinkOrNull = {
                         linkRegistry.activeLink(frame.peerId.value)?.let { temporaryLink ->
@@ -314,6 +291,70 @@ internal class BleTransportAdapter(
                     log = ::log,
                 ),
         )
+    }
+
+    /**
+     * Resolves the outbound frame's bearer mode (see
+     * [ch.trancee.meshlink.engine.resolveGattDataBearerMode]) and routes it to exactly one bearer:
+     * - [GattDataBearerMode.GATT_ONLY] (handshake/control frames): GATT is attempted first (with
+     *   its own readiness wait), falling back to the blocking L2CAP connect-and-wait path only if
+     *   GATT is genuinely unavailable.
+     * - [GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK] (data frames): an already-connected
+     *   L2CAP link is used immediately (non-blocking check - never waits for or initiates a new
+     *   L2CAP connection here, since discovery-driven connects already handle that independently,
+     *   see BleTransportAdapterScanSupport.kt). Otherwise GATT is used, falling back further to the
+     *   blocking L2CAP connect-and-wait path only if GATT is also unavailable.
+     */
+    private suspend fun sendToPeerUsingBearerPolicy(
+        peer: DiscoveredPeer,
+        frame: OutboundFrame,
+    ): TransportSendResult? {
+        val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
+        val bearerMode = resolveGattDataBearerMode(directFrame = directFrame)
+        val l2capContext =
+            L2capSendContext(
+                hintPeerId = peer.hintPeerId,
+                transportMode = peer.transportMode,
+                advertisedL2capPsm = peer.l2capPsm,
+            )
+        val l2capDependencies =
+            L2capSendDependencies(
+                currentLink = {
+                    activeLinkFor(peer)?.let { link ->
+                        object : L2capSendLink {
+                            override suspend fun send(frame: OutboundFrame): TransportSendResult {
+                                return sendViaConnectedLink(frame = frame, link = link)
+                            }
+                        }
+                    }
+                },
+                shouldInitiateL2cap = { shouldInitiateL2cap(peer.keyHash, peer.platformFamily) },
+                triggerConnectIfNeeded = { connectIfNeeded(peer) },
+                log = ::log,
+            )
+
+        return when (bearerMode) {
+            GattDataBearerMode.GATT_ONLY ->
+                tryPreferredGattSend(peer, frame)
+                    ?: sendViaL2capWhenReady(
+                        frame = frame,
+                        context = l2capContext,
+                        dependencies = l2capDependencies,
+                    )
+            GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
+                val readyLink = l2capDependencies.currentLink()
+                if (readyLink != null) {
+                    readyLink.send(frame)
+                } else {
+                    tryPreferredGattSend(peer, frame)
+                        ?: sendViaL2capWhenReady(
+                            frame = frame,
+                            context = l2capContext,
+                            dependencies = l2capDependencies,
+                        )
+                }
+            }
+        }
     }
 
     private suspend fun tryPreferredGattSend(
