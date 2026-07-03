@@ -43,47 +43,7 @@ DEFAULT_PRIMARY_TRANSPORT = "meshlink"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MATRIX_RUN_ROOT = REPO_ROOT / "reports" / "android-direct-proof-fleet" / "runs"
 
-PAIRS = [
-    {"label": "a065_nam_lx9", "sender": "1f1dad34", "passive": "2ASVB21B09005117"},
-    {"label": "a065_xcover", "sender": "1f1dad34", "passive": "42004386e43c8589"},
-    {"label": "a065_mi_note3", "sender": "1f1dad34", "passive": "42c2cf"},
-    {"label": "a065_cph2359", "sender": "1f1dad34", "passive": "EQUGS85LJNEIO7Z5"},
-    {"label": "a065_e940", "sender": "1f1dad34", "passive": "GX6CTR500184"},
-    {"label": "nam_lx9_a065", "sender": "2ASVB21B09005117", "passive": "1f1dad34"},
-    {"label": "nam_lx9_xcover", "sender": "2ASVB21B09005117", "passive": "42004386e43c8589"},
-    {"label": "nam_lx9_mi_note3", "sender": "2ASVB21B09005117", "passive": "42c2cf"},
-    {"label": "nam_lx9_cph2359", "sender": "2ASVB21B09005117", "passive": "EQUGS85LJNEIO7Z5"},
-    {"label": "nam_lx9_e940", "sender": "2ASVB21B09005117", "passive": "GX6CTR500184"},
-    {"label": "xcover_a065", "sender": "42004386e43c8589", "passive": "1f1dad34"},
-    {"label": "xcover_nam_lx9", "sender": "42004386e43c8589", "passive": "2ASVB21B09005117"},
-    {"label": "xcover_mi_note3", "sender": "42004386e43c8589", "passive": "42c2cf"},
-    {"label": "xcover_cph2359", "sender": "42004386e43c8589", "passive": "EQUGS85LJNEIO7Z5"},
-    {"label": "xcover_e940", "sender": "42004386e43c8589", "passive": "GX6CTR500184"},
-    {"label": "mi_note3_a065", "sender": "42c2cf", "passive": "1f1dad34"},
-    {"label": "mi_note3_nam_lx9", "sender": "42c2cf", "passive": "2ASVB21B09005117"},
-    {"label": "mi_note3_xcover", "sender": "42c2cf", "passive": "42004386e43c8589"},
-    {"label": "mi_note3_cph2359", "sender": "42c2cf", "passive": "EQUGS85LJNEIO7Z5"},
-    {"label": "mi_note3_e940", "sender": "42c2cf", "passive": "GX6CTR500184"},
-    {"label": "cph2359_a065", "sender": "EQUGS85LJNEIO7Z5", "passive": "1f1dad34"},
-    {"label": "cph2359_nam_lx9", "sender": "EQUGS85LJNEIO7Z5", "passive": "2ASVB21B09005117"},
-    {"label": "cph2359_xcover", "sender": "EQUGS85LJNEIO7Z5", "passive": "42004386e43c8589"},
-    {"label": "cph2359_mi_note3", "sender": "EQUGS85LJNEIO7Z5", "passive": "42c2cf"},
-    {"label": "cph2359_e940", "sender": "EQUGS85LJNEIO7Z5", "passive": "GX6CTR500184"},
-    {"label": "e940_a065", "sender": "GX6CTR500184", "passive": "1f1dad34"},
-    {"label": "e940_nam_lx9", "sender": "GX6CTR500184", "passive": "2ASVB21B09005117"},
-    {"label": "e940_xcover", "sender": "GX6CTR500184", "passive": "42004386e43c8589"},
-    {"label": "e940_mi_note3", "sender": "GX6CTR500184", "passive": "42c2cf"},
-    {"label": "e940_cph2359", "sender": "GX6CTR500184", "passive": "EQUGS85LJNEIO7Z5"},
-]
-
-ANDROID_MODELS = {
-    "1f1dad34": "A065",
-    "2ASVB21B09005117": "NAM-LX9",
-    "42004386e43c8589": "SM-G390F",
-    "42c2cf": "Mi Note 3",
-    "EQUGS85LJNEIO7Z5": "CPH2359",
-    "GX6CTR500184": "E940-2849-00",
-}
+ANDROID_MODELS: dict[str, str] = {}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -141,14 +101,125 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+KNOWN_ADB_STATES = ("device", "offline", "unauthorized", "no permissions", "recovery", "sideload", "bootloader")
+# adb can assign a "name (N)" de-dup suffix (with a literal space) to wireless
+# device IDs when it sees a duplicate mDNS advertisement, so the id itself may
+# contain whitespace. Split on the first known state keyword instead of the
+# first whitespace run to avoid truncating those IDs.
+DEVICE_LINE_RE = re.compile(
+    r"^(?P<id>.+?)\s+(?P<state>" + "|".join(re.escape(state) for state in KNOWN_ADB_STATES) + r")\b(?:\s+.*)?$"
+)
+
+
 def adb_devices() -> list[str]:
     result = subprocess.run(["adb", "devices"], check=True, capture_output=True, text=True)
     devices: list[str] = []
     for line in result.stdout.splitlines()[1:]:
-        parts = line.split()
-        if len(parts) >= 2 and parts[1] == "device":
-            devices.append(parts[0])
-    return devices
+        stripped = line.strip()
+        if not stripped:
+            continue
+        match = DEVICE_LINE_RE.match(stripped)
+        if match is not None and match.group("state") == "device":
+            devices.append(match.group("id"))
+    return dedupe_wireless_mdns_duplicates(devices)
+
+
+MDNS_DUPLICATE_SUFFIX_RE = re.compile(r"\s\(\d+\)")
+
+
+def dedupe_wireless_mdns_duplicates(device_ids: list[str]) -> list[str]:
+    """Collapse duplicate mDNS advertisements of the same wireless device.
+
+    adb can list the same wireless device more than once when it observes a
+    duplicate mDNS advertisement, appending a "<host> (N)" de-dup suffix to
+    one of the entries (e.g. "adb-XYZ (2)._adb-tls-connect._tcp" alongside
+    the canonical "adb-XYZ._adb-tls-connect._tcp"). Both ids resolve to the
+    same physical hardware, so treating them as separate devices would
+    generate bogus self-pairs. Dedupe by the device's real hardware serial
+    number, preferring the id without the "(N)" suffix when both are seen.
+    """
+    canonical_id_by_hardware_serial: dict[str, str] = {}
+    ordered_ids: list[str] = []
+    for device_id in device_ids:
+        hardware_serial = adb_device_serialno(device_id) or device_id
+        existing_id = canonical_id_by_hardware_serial.get(hardware_serial)
+        if existing_id is None:
+            canonical_id_by_hardware_serial[hardware_serial] = device_id
+            ordered_ids.append(device_id)
+        elif MDNS_DUPLICATE_SUFFIX_RE.search(existing_id) and not MDNS_DUPLICATE_SUFFIX_RE.search(device_id):
+            canonical_id_by_hardware_serial[hardware_serial] = device_id
+            ordered_ids[ordered_ids.index(existing_id)] = device_id
+    return ordered_ids
+
+
+@lru_cache(maxsize=None)
+def adb_device_serialno(device_id: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["adb", "-s", device_id, "shell", "getprop", "ro.serialno"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    serial = result.stdout.strip()
+    return serial or None
+
+
+@lru_cache(maxsize=None)
+def adb_device_model(serial: str) -> str:
+    try:
+        result = subprocess.run(
+            ["adb", "-s", serial, "shell", "getprop", "ro.product.model"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return serial
+    model = result.stdout.strip()
+    return model or serial
+
+
+def slugify_device_label(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", value).strip("_").lower()
+    return slug or "device"
+
+
+def build_device_labels(attached_devices: list[str], android_models: dict[str, str]) -> dict[str, str]:
+    slug_counts: dict[str, int] = {}
+    for serial in attached_devices:
+        slug = slugify_device_label(android_models.get(serial, serial))
+        slug_counts[slug] = slug_counts.get(slug, 0) + 1
+
+    labels: dict[str, str] = {}
+    seen: dict[str, int] = {}
+    for serial in attached_devices:
+        slug = slugify_device_label(android_models.get(serial, serial))
+        if slug_counts[slug] > 1:
+            seen[slug] = seen.get(slug, 0) + 1
+            labels[serial] = f"{slug}_{seen[slug]}"
+        else:
+            labels[serial] = slug
+    return labels
+
+
+def build_pairs(attached_devices: list[str], android_models: dict[str, str]) -> list[dict[str, str]]:
+    device_labels = build_device_labels(attached_devices, android_models)
+    pairs: list[dict[str, str]] = []
+    for sender in attached_devices:
+        for passive in attached_devices:
+            if sender == passive:
+                continue
+            pairs.append(
+                {
+                    "label": f"{device_labels[sender]}_{device_labels[passive]}",
+                    "sender": sender,
+                    "passive": passive,
+                }
+            )
+    return pairs
 
 
 @lru_cache(maxsize=None)
@@ -894,8 +965,9 @@ def load_progress(path: Path) -> list[dict[str, Any]]:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     attached_devices = adb_devices()
-    device_set = set(attached_devices)
-    available_pairs = [pair for pair in PAIRS if pair["sender"] in device_set and pair["passive"] in device_set]
+    ANDROID_MODELS.clear()
+    ANDROID_MODELS.update({serial: adb_device_model(serial) for serial in attached_devices})
+    available_pairs = build_pairs(attached_devices, ANDROID_MODELS)
     if args.sender_passive_limit is not None:
         available_pairs = available_pairs[: args.sender_passive_limit]
 
