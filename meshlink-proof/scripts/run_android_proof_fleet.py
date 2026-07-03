@@ -1,4 +1,35 @@
 #!/usr/bin/env python3
+"""Run the MeshLink proof app across the attached Android fleet.
+
+Troubleshooting: ADVERTISE_FAILED_TOO_MANY_ADVERTISERS / SCAN_FAILED_*
+-----------------------------------------------------------------------
+A device that has been advertising/scanning for a long time (many hours) can
+accumulate stuck BLE advertiser/scanner registrations in its Bluetooth stack,
+even though `dumpsys bluetooth_manager` reports `enabled: true` / `state: ON`.
+This shows up in the proof app's own diagnostics log (`proof.log`) as repeated
+
+    DIAG DISCOVERY_ADVERTISE_FAILED ... errorName=ADVERTISE_FAILED_TOO_MANY_ADVERTISERS willRetry=true
+    DIAG DISCOVERY_ADVERTISE_FAILED ... willRetry=false   <- retry budget exhausted
+
+(or the scan-side equivalent, `DISCOVERY_SCAN_FAILED` with
+`errorName=SCAN_FAILED_*`), followed by `HOP_SESSION_FAILED` /
+`routeAvailable=false` because the affected device can never re-advertise or
+re-scan long enough to complete the handshake.
+
+The reliable fix observed on the bench (confirmed on a Nothing A063 stuck for
+76+ hours) is a full Bluetooth stack restart on the affected device:
+
+    adb -s <serial> shell cmd bluetooth_manager disable
+    adb -s <serial> shell cmd bluetooth_manager enable
+
+This clears the stuck advertiser/scanner slots without needing a full device
+reboot. This script automates that recovery: after the first capture pass, it
+scans each device's proof.log for exhausted (`willRetry=false`) advertise/scan
+failures, restarts the Bluetooth stack on any affected device, relaunches the
+proof app for every pair that includes it, waits again, and recaptures logs
+before finalizing the summary. Pass --no-auto-recover-bluetooth to disable
+this and inspect the raw first-pass failure instead.
+"""
 
 from __future__ import annotations
 
@@ -88,6 +119,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "bypassing fleet-wide cross-generation pairing. Pass exactly twice: "
             "first occurrence is the initiator, second is the receiver. "
             "Cannot be combined with --pair-label."
+        ),
+    )
+    parser.add_argument(
+        "--no-auto-recover-bluetooth",
+        action="store_false",
+        dest="auto_recover_bluetooth",
+        default=True,
+        help=(
+            "Disable automatic Bluetooth stack restart + retry when a device's proof.log shows "
+            "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries (default: enabled). "
+            "See ADVERTISE_FAILED_TOO_MANY_ADVERTISERS troubleshooting notes at the top of this file."
         ),
     )
     args = parser.parse_args(argv)
@@ -204,6 +246,36 @@ def ensure_bluetooth_on(device: DeviceRecord) -> dict[str, Any]:
         "model": device.model,
         "apiLevel": device.api_level,
         "action": action,
+        "before": {"enabled": before["enabled"], "state": before["state"]},
+        "after": {"enabled": after["enabled"], "state": after["state"]},
+    }
+
+
+# Matches an exhausted (no further retry) advertise or scan failure diagnostic
+# line, e.g.:
+#   DIAG DISCOVERY_ADVERTISE_FAILED ... errorName=ADVERTISE_FAILED_TOO_MANY_ADVERTISERS willRetry=false
+#   DIAG DISCOVERY_SCAN_FAILED ... errorName=SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES willRetry=false
+# See the module docstring for why this happens and how the restart fixes it.
+STUCK_BLUETOOTH_STACK_RE = re.compile(
+    r"DIAG DISCOVERY_(?:ADVERTISE|SCAN)_FAILED\b.*\bwillRetry=false\b"
+)
+
+
+def proof_log_shows_stuck_bluetooth_stack(proof_log_text: str) -> bool:
+    return any(STUCK_BLUETOOTH_STACK_RE.search(line) for line in proof_log_text.splitlines())
+
+
+def restart_bluetooth_stack(serial: str) -> dict[str, Any]:
+    """Recover a device whose Bluetooth stack is holding stuck advertiser/scanner
+    slots by fully disabling then re-enabling it (see module docstring)."""
+    before = bluetooth_manager_state(serial)
+    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "disable"], check=True)
+    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "wait-for-state:STATE_OFF"], check=True)
+    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "enable"], check=True)
+    run_command(["adb", "-s", serial, "shell", "cmd", "bluetooth_manager", "wait-for-state:STATE_ON"], check=True)
+    after = bluetooth_manager_state(serial)
+    return {
+        "serial": serial,
         "before": {"enabled": before["enabled"], "state": before["state"]},
         "after": {"enabled": after["enabled"], "state": after["state"]},
     }
@@ -451,6 +523,24 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
         lines.append(
             f"- {check['serial']}: before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')} action={check.get('action')}"
         )
+    recovery_actions = summary.get("bluetoothRecoveryActions", [])
+    if recovery_actions:
+        lines.append("")
+        lines.append("## Bluetooth stack recovery")
+        lines.append("")
+        lines.append(
+            "The following device(s) showed exhausted advertise/scan retries "
+            "(`willRetry=false`) in proof.log, so their Bluetooth stack was "
+            "restarted and the affected pair(s) were relaunched and recaptured."
+        )
+        lines.append("")
+        for action in recovery_actions:
+            before = action.get("before", {})
+            after = action.get("after", {})
+            lines.append(
+                f"- {action['serial']} ({action['model']}): reason={action['reason']} "
+                f"before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')}"
+            )
     return "\n".join(lines)
 
 
@@ -575,11 +665,75 @@ def main(argv: list[str] | None = None) -> int:
     mode_map = {result["serial"]: result["mode"] for result in mode_results}
     pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
 
+    # Auto-recovery: a device whose proof.log shows an exhausted advertise/scan
+    # retry budget almost certainly has a stuck Bluetooth stack (see module
+    # docstring). Restart it, relaunch every pair that includes it, and
+    # recapture logs/transport mode once before finalizing the summary.
+    bluetooth_recovery_actions: list[dict[str, Any]] = []
+    device_by_serial = {device.resolved_serial: device for device in selected_devices}
+    if args.auto_recover_bluetooth:
+        stuck_serials = {
+            device.resolved_serial
+            for device in selected_devices
+            if proof_log_shows_stuck_bluetooth_stack(
+                (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
+                    encoding="utf-8", errors="ignore"
+                )
+            )
+        }
+        if stuck_serials:
+            with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
+                restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
+            for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
+                device = device_by_serial[serial]
+                bluetooth_recovery_actions.append(
+                    {
+                        "serial": serial,
+                        "model": device.model,
+                        "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
+                        "before": restart_result["before"],
+                        "after": restart_result["after"],
+                    }
+                )
+
+            affected_pairs = [
+                pair
+                for pair in selected_pairs
+                if pair.initiator.resolved_serial in stuck_serials or pair.receiver.resolved_serial in stuck_serials
+            ]
+            affected_serials = sorted(
+                {pair.initiator.resolved_serial for pair in affected_pairs}
+                | {pair.receiver.resolved_serial for pair in affected_pairs}
+            )
+
+            with ThreadPoolExecutor(max_workers=max(2, len(affected_pairs) * 2)) as executor:
+                retry_futures = []
+                for pair in affected_pairs:
+                    retry_futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
+                    retry_futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
+                for future in as_completed(retry_futures):
+                    launch_results.append(future.result())
+
+            time.sleep(args.wait_seconds)
+
+            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                retry_capture_results = list(executor.map(lambda serial: capture_proof_log(serial, run_root=run_root), affected_serials))
+            capture_results.extend(retry_capture_results)
+
+            with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                retry_mode_results = list(executor.map(capture_transport_mode, affected_serials))
+            mode_results.extend(retry_mode_results)
+            mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
+
+            recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
+            pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
+
     summary = {
         **inventory,
         "installResults": install_results,
         "prepResults": prep_results,
         "bluetoothChecks": bluetooth_checks,
+        "bluetoothRecoveryActions": bluetooth_recovery_actions,
         "launchResults": launch_results,
         "captureResults": capture_results,
         "modeResults": mode_results,
