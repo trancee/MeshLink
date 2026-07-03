@@ -365,6 +365,32 @@ A063 and confirming the hardened `restart_bluetooth_stack()` now recovers
 automatically (landing in `BLE_ON` as an intermediate step, then reaching a
 clean `ON`) instead of crashing the run.
 
+### 4. A hardcoded 2s GATT-readiness timeout was too short for slower devices
+
+While isolating the A063 ↔ HUAWEI NAM-LX9 pair's fleet-run failure (after
+ruling out stray interference from other still-running proof-app instances,
+see finding 2 above under "What the expanded direct scenarios taught us"),
+logcat showed `preferred GATT side-link waiting for readiness ...
+timeoutMs=2000` immediately followed by `client not ready` and `send(...)
+dropped: peer is GATT-only`, with no retry. The underlying GATT connection
+itself did not fail outright - it disconnected roughly 28 seconds later with
+`status=147` (`GATT_CONN_TERMINATE_LOCAL_HOST`), consistent with the local
+side abandoning a connection that was still mid-negotiation once nothing
+used it.
+
+`PreferredGattSendSupport.kt`'s `sendViaPreferredGattSideLinkOrNull` waits for
+the GATT client to finish connect -> MTU negotiation -> service discovery ->
+CCCD write before the first handshake message can be sent, bounded by a
+single hardcoded `readyWaitTimeoutMillis = 2_000L` with no retry. That budget
+was fine on fast/recent devices but consistently too short for older/slower
+hardware like the NAM-LX9 (API 31) to complete the full sequence, causing the
+entire handshake attempt - and therefore the whole pairing - to fail.
+
+The fix raised the timeout to 10 seconds
+(`PREFERRED_GATT_READY_WAIT_TIMEOUT_MILLIS`), giving slower devices realistic
+headroom to finish the handshake sequence while staying comfortably under the
+~28s window where an unused connection gets torn down locally.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.
