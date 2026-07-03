@@ -163,7 +163,10 @@ flowchart TD
     Inline --> Route["Resolve route / wait for convergence<br/>(bounded by deliveryRetryDeadline)"]
     Transfer --> Route
     Route --> Session["Ensure hop session to next hop"]
-    Session --> Sent["MeshLink completes the delivery path it owns"]
+    Session --> Trust{"Recipient trust already pinned?"}
+    Trust -- No --> E2E["Drive relayed end-to-end Noise XX<br/>handshake to the recipient"]
+    E2E --> Sent
+    Trust -- Yes --> Sent["MeshLink completes the delivery path it owns"]
 ```
 
 ### Delivery-path facts
@@ -176,6 +179,8 @@ flowchart TD
 | Retry survival across `stop()` or restart | does not survive |
 | `SendResult.Sent` means | MeshLink completed the delivery path it owns |
 | `SendResult.Sent` does not imply | remote app persistence, user visibility, read receipt, or application-level acknowledgement |
+| First send to a multi-hop peer with no pinned trust | pays the cost of a round-trip relayed end-to-end handshake before the message is sealed |
+| End-to-end handshake cannot reach the destination | `send()` resolves as `SendResult.NotSent(UNREACHABLE)` |
 
 ## Trust semantics
 
@@ -186,6 +191,9 @@ flowchart TD
 | first verified contact with a peer | MeshLink writes a trust record and emits `TRUST_ESTABLISHED` |
 | later contact with the same verified keys | MeshLink refreshes `lastVerifiedAt` |
 | later contact with different keys for the same trusted peer | MeshLink fails trust verification, emits `TRUST_FAILURE`, and does not overwrite the stored trust record |
+| what can establish or refresh trust | only the outcome of an authenticated Noise XX handshake — hop-to-hop for adjacent peers, or a relayed end-to-end handshake for peers multiple hops away |
+| what cannot establish trust | route-gossip metadata and self-asserted sender fields inside a message envelope; both are verified against pre-existing trust, never used to pin it |
+| sending to a peer with no pinned trust yet, more than one hop away | MeshLink first drives a relayed end-to-end handshake to that peer through intermediate relays before it can seal a payload for them |
 
 ### `forgetPeer(peerId)` effects
 
@@ -254,6 +262,8 @@ flowchart TD
 | Route diagnostics | route discovery, update, retraction, expiry, and convergence are emitted as diagnostics |
 | Relay model | relays forward hop-by-hop while the application payload remains sealed end-to-end |
 | Large relay transfer posture | cut-through forwarding is used when the next hop and transfer state permit it; full reassembly remains the fallback |
+| Multi-hop trust establishment | relays forward end-to-end handshake frames as opaque payloads without terminating them; only the initiator and the destination can complete the handshake |
+| Mesh-domain isolation | `appId` is mixed into every Noise XX handshake as a prologue, so peers configured for different meshes fail authentication even if they reach the handshake stage |
 
 ## Diagnostic categories
 
