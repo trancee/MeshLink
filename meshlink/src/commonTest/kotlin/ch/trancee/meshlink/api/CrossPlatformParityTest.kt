@@ -117,6 +117,7 @@ class CrossPlatformParityTest {
                 "TRANSPORT_MODE_CHANGED",
                 "POWER_MODE_CHANGED",
                 "TRANSPORT_FRAME_REJECTED",
+                "DISCOVERY_ADVERTISE_FAILED",
             )
         val expectedSeverities =
             mapOf(
@@ -147,6 +148,7 @@ class CrossPlatformParityTest {
                 DiagnosticCode.TRANSPORT_MODE_CHANGED to DiagnosticSeverity.INFO,
                 DiagnosticCode.POWER_MODE_CHANGED to DiagnosticSeverity.INFO,
                 DiagnosticCode.TRANSPORT_FRAME_REJECTED to DiagnosticSeverity.WARN,
+                DiagnosticCode.DISCOVERY_ADVERTISE_FAILED to DiagnosticSeverity.WARN,
             )
         val expectedFailureReasons =
             listOf(

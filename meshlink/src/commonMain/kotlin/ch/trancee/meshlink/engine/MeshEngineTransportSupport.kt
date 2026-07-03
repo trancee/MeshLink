@@ -59,6 +59,7 @@ internal class MeshEngineTransportSupport(
                     metadata = mapOf("removedByPeerId" to event.peerId.value),
                 )
             is TransportEvent.TransportModeChanged -> handleTransportModeChanged(event)
+            is TransportEvent.AdvertiseFailed -> handleAdvertiseFailed(event)
         }
     }
 
@@ -175,6 +176,22 @@ internal class MeshEngineTransportSupport(
                 )
             }
         }
+    }
+
+    private fun handleAdvertiseFailed(event: TransportEvent.AdvertiseFailed): Unit {
+        emitDiagnostic(
+            DiagnosticCode.DISCOVERY_ADVERTISE_FAILED,
+            DiagnosticSeverity.WARN,
+            "transport.discovery.advertiseFailed",
+            null,
+            DiagnosticReason.TRANSPORT_CHANGE,
+            mapOf(
+                "errorCode" to event.errorCode.toString(),
+                "errorName" to event.errorName,
+                "willRetry" to event.willRetry.toString(),
+                "attempt" to event.attempt.toString(),
+            ),
+        )
     }
 
     private fun emitTransportModeDiagnostic(

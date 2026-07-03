@@ -48,9 +48,9 @@ class MeshLinkContractTest {
     }
 
     @Test
-    fun `diagnostic catalog exposes 27 stable codes`() {
+    fun `diagnostic catalog exposes 28 stable codes`() {
         // Arrange
-        val expectedCount = 27
+        val expectedCount = 28
 
         // Act
         val entries = DiagnosticCode.entries
@@ -60,6 +60,7 @@ class MeshLinkContractTest {
         assertTrue(entries.contains(DiagnosticCode.TRUST_FAILURE))
         assertTrue(entries.contains(DiagnosticCode.DELIVERY_UNREACHABLE))
         assertTrue(entries.contains(DiagnosticCode.TRANSPORT_FRAME_REJECTED))
+        assertTrue(entries.contains(DiagnosticCode.DISCOVERY_ADVERTISE_FAILED))
     }
 
     @Test

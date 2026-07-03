@@ -39,6 +39,14 @@ internal sealed class TransportEvent {
     internal class TransportModeChanged
     internal constructor(internal val peerId: PeerId, internal val transportMode: TransportMode) :
         TransportEvent()
+
+    internal class AdvertiseFailed
+    internal constructor(
+        internal val errorCode: Int,
+        internal val errorName: String,
+        internal val willRetry: Boolean,
+        internal val attempt: Int,
+    ) : TransportEvent()
 }
 
 internal interface BleTransport {

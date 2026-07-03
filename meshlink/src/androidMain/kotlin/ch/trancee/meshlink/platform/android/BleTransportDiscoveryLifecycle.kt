@@ -19,6 +19,38 @@ internal data class BleTransportDiscoveryHardware(
         },
 )
 
+// Environmental/transient advertise failures that are worth retrying: the BLE
+// stack is often just temporarily out of advertiser slots (many concurrent
+// apps/devices) or hit an internal error, both of which commonly clear up
+// shortly afterwards without any local state change. ALREADY_STARTED is
+// included because some stacks still consider a failed advertise set
+// "active" internally until stopAdvertising() is called again, which we do
+// before every retry attempt below.
+private val RETRYABLE_ADVERTISE_ERROR_CODES =
+    setOf(
+        AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS,
+        AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR,
+        AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED,
+    )
+private const val MAX_ADVERTISE_RETRY_ATTEMPTS = 3
+private const val ADVERTISE_RETRY_BASE_DELAY_MILLIS = 500L
+
+// AdvertiseCallback only hands back a bare Int error code; map it to its
+// symbolic constant name so logs are actionable without needing to cross
+// reference the Android SDK source (e.g. errorCode=2 -> ADVERTISE_FAILED_TOO_MANY_ADVERTISERS).
+internal fun advertiseErrorCodeName(errorCode: Int): String {
+    return when (errorCode) {
+        AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED -> "ADVERTISE_FAILED_ALREADY_STARTED"
+        AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE -> "ADVERTISE_FAILED_DATA_TOO_LARGE"
+        AdvertiseCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED ->
+            "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
+        AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR -> "ADVERTISE_FAILED_INTERNAL_ERROR"
+        AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS ->
+            "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
+        else -> "ADVERTISE_FAILED_UNKNOWN"
+    }
+}
+
 internal class BleTransportDiscoveryLifecycle(
     appId: String,
     localKeyHash: ByteArray,
@@ -26,10 +58,19 @@ internal class BleTransportDiscoveryLifecycle(
     private val ensurePermissionsGranted: () -> Unit,
     private val foreignScanIgnoredCount: () -> Int,
     private val log: (String) -> Unit,
+    private val scheduleAdvertiseRetry: (delayMillis: Long, retry: () -> Unit) -> Unit = { _, _ ->
+    },
+    private val onAdvertiseFailed:
+        (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit =
+        { _, _, _, _ ->
+        },
 ) {
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
     private val localMeshHash: UShort = BleDiscoveryContract.computeMeshHash(appId)
+    private var lastHardware: BleTransportDiscoveryHardware? = null
+    private var advertiseRetryAttempt: Int = 0
+    private var isStopped: Boolean = true
 
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
         private set
@@ -43,6 +84,7 @@ internal class BleTransportDiscoveryLifecycle(
     val advertiseCallback =
         object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                advertiseRetryAttempt = 0
                 log(
                     "advertising started mode=${settingsInEffect.mode} tx=${settingsInEffect.txPowerLevel} connectable=${settingsInEffect.isConnectable}"
                 )
@@ -50,9 +92,16 @@ internal class BleTransportDiscoveryLifecycle(
 
             override fun onStartFailure(errorCode: Int) {
                 log(
-                    "advertising failed errorCode=$errorCode carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} " +
+                    "advertising failed errorCode=$errorCode errorName=${advertiseErrorCodeName(errorCode)} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} " +
                         "mode=${currentPowerProfile.advertiseMode} tx=${currentPowerProfile.txPowerLevel} " +
                         "connectable=true psm=${currentDiscoveryPayload.l2capPsm}"
+                )
+                val willRetry = maybeRetryAdvertising(errorCode)
+                onAdvertiseFailed(
+                    errorCode,
+                    advertiseErrorCodeName(errorCode),
+                    willRetry,
+                    advertiseRetryAttempt,
                 )
             }
         }
@@ -101,18 +150,24 @@ internal class BleTransportDiscoveryLifecycle(
     }
 
     fun stop(hardware: BleTransportDiscoveryHardware): Unit {
+        isStopped = true
+        advertiseRetryAttempt = 0
         hardware.stopScan(scanCallback)
         hardware.stopAdvertising(advertiseCallback)
     }
 
     fun refresh(started: Boolean, hardware: BleTransportDiscoveryHardware): Unit {
+        lastHardware = hardware
+        isStopped = !started
+        advertiseRetryAttempt = 0
         log(
             "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
         log(
             "discovery.summary activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
-        stop(hardware)
+        hardware.stopScan(scanCallback)
+        hardware.stopAdvertising(advertiseCallback)
         if (!started || isDiscoverySuspended) {
             log(
                 "refreshDiscoveryState skipped after stop started=$started suspended=$isDiscoverySuspended"
@@ -134,6 +189,41 @@ internal class BleTransportDiscoveryLifecycle(
         log(
             "advertise requested carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${currentDiscoveryPayload.l2capPsm}"
         )
+    }
+
+    private fun maybeRetryAdvertising(errorCode: Int): Boolean {
+        val hardware = lastHardware
+        if (
+            hardware == null ||
+                isStopped ||
+                isDiscoverySuspended ||
+                !hardware.hasAdvertiser ||
+                errorCode !in RETRYABLE_ADVERTISE_ERROR_CODES ||
+                advertiseRetryAttempt >= MAX_ADVERTISE_RETRY_ATTEMPTS
+        ) {
+            return false
+        }
+        advertiseRetryAttempt += 1
+        val delayMillis = ADVERTISE_RETRY_BASE_DELAY_MILLIS shl (advertiseRetryAttempt - 1)
+        log(
+            "advertise retry scheduled attempt=$advertiseRetryAttempt delayMillis=$delayMillis errorCode=$errorCode errorName=${advertiseErrorCodeName(errorCode)}"
+        )
+        scheduleAdvertiseRetry(delayMillis) { retryAdvertising() }
+        return true
+    }
+
+    private fun retryAdvertising(): Unit {
+        val hardware = lastHardware
+        if (hardware == null || isStopped || isDiscoverySuspended || !hardware.hasAdvertiser) {
+            log("advertise retry skipped stopped=$isStopped suspended=$isDiscoverySuspended")
+            return
+        }
+        log("advertise retry invoked attempt=$advertiseRetryAttempt")
+        // Some BLE stacks still treat a failed advertise set as "active"
+        // internally until stopAdvertising() is called again; without this
+        // the retry can itself fail with ADVERTISE_FAILED_ALREADY_STARTED.
+        hardware.stopAdvertising(advertiseCallback)
+        hardware.startAdvertising(currentPowerProfile, currentDiscoveryPayload, advertiseCallback)
     }
 
     private fun buildPayload(l2capPsm: UByte): BleDiscoveryPayload {

@@ -24,9 +24,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
 internal fun resolveMaximumPayloadBytesPerDelivery(
@@ -132,6 +134,22 @@ internal class BleTransportAdapter(
             ensurePermissionsGranted = ::ensurePermissionsGranted,
             foreignScanIgnoredCount = { foreignScanIgnoredCount.get() },
             log = ::log,
+            scheduleAdvertiseRetry = { delayMillis, retry ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    retry()
+                }
+            },
+            onAdvertiseFailed = { errorCode, errorName, willRetry, attempt ->
+                mutableEvents.tryEmit(
+                    TransportEvent.AdvertiseFailed(
+                        errorCode = errorCode,
+                        errorName = errorName,
+                        willRetry = willRetry,
+                        attempt = attempt,
+                    )
+                )
+            },
         )
 
     internal val currentDiscoveryPayload: BleDiscoveryPayload

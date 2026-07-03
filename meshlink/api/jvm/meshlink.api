@@ -628,6 +628,7 @@ public final class ch/trancee/meshlink/diagnostics/DiagnosticCode : java/lang/En
 	public static final field DELIVERY_RETRY_SCHEDULED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field DELIVERY_SUCCEEDED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field DELIVERY_UNREACHABLE Lch/trancee/meshlink/diagnostics/DiagnosticCode;
+	public static final field DISCOVERY_ADVERTISE_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field HOP_SESSION_ESTABLISHED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field HOP_SESSION_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field MESH_PAUSED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
