@@ -374,14 +374,40 @@ implementation.` to stderr and never touches the Bluetooth state - the
 command silently no-ops. This was confirmed to affect several other
 lower-API-level devices in the fleet too (Mi Note 3 SDK 28, SM-G390F SDK 28,
 NAM-LX9 SDK 31), while every device at API level 33+ in the fleet supports
-the interface. Unlike the `BLE_ON` limbo state, retrying cannot fix this -
-the shell interface genuinely does not exist on these builds.
-`restart_bluetooth_stack()` now checks the `disable`/`enable` commands'
-stdout/stderr for this marker and raises a distinct, actionable error
-immediately, instead of waiting out the full poll timeout and misreporting it
-as the recoverable limbo state. Affected pairs should be re-run with
-`--no-auto-recover-bluetooth` to skip the doomed recovery attempt and collect
-whatever evidence is actually available.
+the interface. `restart_bluetooth_stack()` now checks the `disable`/`enable`
+commands' stdout/stderr for this marker, so it recognizes the no-op
+immediately instead of waiting out the full poll timeout and misreporting it
+as the recoverable limbo state.
+
+**Update: a working fallback recovery path exists after all.** The original
+version of this finding assumed retrying was impossible without the
+`cmd bluetooth_manager` shell interface, and recommended re-running affected
+pairs with `--no-auto-recover-bluetooth`. Investigating a chronic
+`ADVERTISE_FAILED_TOO_MANY_ADVERTISERS` failure on this same POCOPHONE F1
+(see finding 8 below) showed that a full Bluetooth power-cycle *is* still
+possible on these devices via Android's airplane-mode radio toggle, which
+does not depend on `cmd bluetooth_manager` at all:
+
+```bash
+adb -s <serial> shell settings put global airplane_mode_on 1
+# poll dumpsys bluetooth_manager until state reaches OFF or BLE_ON
+adb -s <serial> shell settings put global airplane_mode_on 0
+# poll dumpsys bluetooth_manager until state reaches ON
+```
+
+Writing the `airplane_mode_on` setting is enough on its own to drive the
+platform's radio-power observer through the same
+`BLE_TURNING_OFF -> OFF -> TURNING_ON/BLE_TURNING_ON -> ON` transitions as
+`cmd bluetooth_manager disable`/`enable` - confirmed live via polling
+`dumpsys bluetooth_manager` on the physical device - even though shell is not
+permitted to send the corresponding `AIRPLANE_MODE_CHANGED` broadcast
+(`am broadcast` fails with a `SecurityException`/`Permission Denial`); the
+settings write alone is sufficient to trigger the observer without the
+broadcast. `restart_bluetooth_stack()` now falls back to this
+`restart_bluetooth_stack_via_airplane_mode()` path automatically whenever the
+`cmd bluetooth_manager` unsupported marker is detected, instead of raising.
+`--no-auto-recover-bluetooth` is still available for devices where even this
+fallback proves unreliable, but is no longer the only option.
 
 ### 4. A hardcoded 2s GATT-readiness timeout was too short for slower devices
 
@@ -585,6 +611,46 @@ layer without the presence layer ever noticing anything happened, so any
 retry logic gated purely on rediscovery will miss this class of transient
 failure - the fix above closes that gap at the handshake layer itself instead
 of depending on presence-layer signals.
+
+### 8. POCOPHONE F1's chronic advertiser exhaustion is recoverable, but its BLE connection setup remains unusually slow (OEM/chipset compatibility)
+
+The `rmx3710 ↔ pocophone_f1` pair failed genuinely across multiple runs. Two
+distinct causes were found, in sequence:
+
+- **Cause A - fixed:** POCOPHONE F1's proof.log showed `DIAG
+  DISCOVERY_ADVERTISE_FAILED ... errorName=ADVERTISE_FAILED_TOO_MANY_ADVERTISERS`
+  on every attempt, so the device could never successfully advertise and every
+  handshake it initiated failed outright at `message1.send`. This device is
+  one of the ones affected by the unsupported `cmd bluetooth_manager`
+  interface (see finding 3 above), so the fleet script's usual Bluetooth
+  restart recovery could never run to clear its leaked advertiser
+  registrations. Fixed by the airplane-mode fallback described in finding 3.
+- **Cause B - device limitation, not fixed:** after Cause A was resolved, the
+  pair still failed. RMX3710's logcat showed its GATT connection attempt to
+  POCOPHONE F1 taking about 14.5 seconds to reach `CONNECTED` (well past the
+  10-second readiness timeout from finding 4), preceded by several
+  `state=DISCONNECTED` callbacks for the same address before the connection
+  finally held - and even once established, the link disconnected again with
+  `status=8` (`GATT_CONN_TIMEOUT`) roughly 18 seconds later before
+  reconnecting again. This chronic slow-to-connect, prone-to-timeout pattern
+  is consistent with an aging or otherwise less capable BLE controller on this
+  device (POCOPHONE F1 ships API 29 on now-dated Qualcomm Bluetooth hardware),
+  rather than a bug in MeshLink's session or transport code - it closely
+  parallels the CPH2359 OEM/chipset scan-miss finding above (finding 5) in
+  being an evidence-backed hardware/OEM compatibility limit rather than a
+  protocol defect.
+
+**Takeaway:** clearing Cause A was worth doing since it was a genuine,
+fixable automation gap, but Cause B means this specific pair should be
+treated like the CPH2359 ↔ DN2103 pair - a known, documented OEM/chipset
+compatibility limitation to exclude from pass/fail expectations rather than
+something to keep chasing with protocol-level retries. If this pattern
+recurs on other older/lower-API devices, consider raising
+`PREFERRED_GATT_READY_WAIT_TIMEOUT_MILLIS` further or adding a bounded
+reconnect-and-retry specifically around the *initial* GATT connect phase
+(distinct from the handshake-reply retry added in finding 7), but only if
+real-world evidence shows it would help rather than just delaying the same
+outcome.
 
 ## What should stay out of the physical matrix
 
