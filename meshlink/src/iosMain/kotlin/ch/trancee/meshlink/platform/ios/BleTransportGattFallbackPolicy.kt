@@ -14,11 +14,7 @@ internal fun resolveIosGattDataBearerMode(
     preferredMode: TransportMode?,
 ): GattDataBearerMode {
     return if (directFrame is DirectWireFrame.Data) {
-        resolveGattDataBearerMode(
-            localPlatformFamily = localPlatformFamily,
-            remotePlatformFamily = remotePlatformFamily,
-            preferredMode = preferredMode,
-        )
+        resolveGattDataBearerMode()
     } else {
         GattDataBearerMode.L2CAP_ONLY
     }

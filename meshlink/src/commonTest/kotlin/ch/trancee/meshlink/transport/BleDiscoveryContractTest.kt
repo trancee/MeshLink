@@ -409,35 +409,12 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `mixed platform data bearer mode prefers gatt but still falls back to l2cap`() {
+    fun `data bearer mode always keeps gatt available as an l2cap fallback`() {
         // Arrange
         val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
 
         // Act
-        val actual =
-            resolveGattDataBearerMode(
-                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                remotePlatformFamily = BleDiscoveryPlatformFamily.IOS,
-                preferredMode = null,
-            )
-
-        // Assert
-        assertEquals(expected, actual)
-    }
-
-    @Test
-    fun `android peers without l2cap client sockets fall back to gatt side links`() {
-        // Arrange
-        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-
-        // Act
-        val actual =
-            resolveGattDataBearerMode(
-                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                preferredMode = null,
-                localL2capClientSocketsSupported = false,
-            )
+        val actual = resolveGattDataBearerMode()
 
         // Assert
         assertEquals(expected, actual)
@@ -515,23 +492,5 @@ class BleDiscoveryContractTest {
         assertTrue(androidPair)
         assertTrue(iosPair)
         assertEquals(expected, androidPair && iosPair)
-    }
-
-    @Test
-    fun `same platform peers still resolve to gatt fallback when l2cap is supported`() {
-        // Arrange
-        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-
-        // Act
-        val actual =
-            resolveGattDataBearerMode(
-                localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                preferredMode = null,
-                localL2capClientSocketsSupported = true,
-            )
-
-        // Assert
-        assertEquals(expected, actual)
     }
 }

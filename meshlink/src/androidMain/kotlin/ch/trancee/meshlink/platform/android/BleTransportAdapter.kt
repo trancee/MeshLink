@@ -327,7 +327,6 @@ internal class BleTransportAdapter(
                     hintPeerId = peer.hintPeerId,
                     localPlatformFamily = currentDiscoveryPayload.platformFamily,
                     remotePlatformFamily = peer.platformFamily,
-                    localL2capClientSocketsSupported = supportsL2capClientSockets(),
                 ),
             dependencies =
                 PreferredGattSendDependencies(

@@ -254,12 +254,19 @@ internal enum class GattDataBearerMode {
     GATT_OPTIONAL_WITH_L2CAP_FALLBACK,
 }
 
-internal fun resolveGattDataBearerMode(
-    localPlatformFamily: BleDiscoveryPlatformFamily,
-    remotePlatformFamily: BleDiscoveryPlatformFamily,
-    preferredMode: TransportMode?,
-    localL2capClientSocketsSupported: Boolean = true,
-): GattDataBearerMode {
+/**
+ * Data bearer mode for a discovery-driven BLE peer, once both sides are known to be BLE peers.
+ *
+ * This always resolves to [GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK]: see
+ * [shouldUseMixedPlatformGattNotifyBearer] - GATT is kept available as a fallback bearer for every
+ * known BLE peer pairing (not just mixed iOS/Android pairs), while L2CAP still wins the normal
+ * connection path whenever it is available. An earlier revision of this function chose between
+ * [GattDataBearerMode.L2CAP_ONLY] and the GATT-fallback mode based on platform family, caller
+ * preference, and local L2CAP client-socket support; those parameters no longer affect the outcome
+ * and were removed. [GattDataBearerMode.L2CAP_ONLY] can still be produced independently on iOS by
+ * `resolveIosGattDataBearerMode` for non-data (handshake) frames.
+ */
+internal fun resolveGattDataBearerMode(): GattDataBearerMode {
     return GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
 }
 

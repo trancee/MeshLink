@@ -15,7 +15,6 @@ internal constructor(
     internal val hintPeerId: PeerId,
     internal val localPlatformFamily: BleDiscoveryPlatformFamily,
     internal val remotePlatformFamily: BleDiscoveryPlatformFamily,
-    internal val localL2capClientSocketsSupported: Boolean,
 )
 
 // The full GATT side-link handshake (connect -> MTU negotiation -> service
@@ -55,13 +54,7 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
         return null
     }
 
-    val dataBearerMode =
-        resolveGattDataBearerMode(
-            localPlatformFamily = context.localPlatformFamily,
-            remotePlatformFamily = context.remotePlatformFamily,
-            preferredMode = frame.preferredMode,
-            localL2capClientSocketsSupported = context.localL2capClientSocketsSupported,
-        )
+    val dataBearerMode = resolveGattDataBearerMode()
     dependencies.log(
         "preferred GATT side-link evaluation for ${context.hintPeerId.value.takeLast(6)} mode=$dataBearerMode local=${context.localPlatformFamily} remote=${context.remotePlatformFamily} preferred=${frame.preferredMode ?: "none"}"
     )
