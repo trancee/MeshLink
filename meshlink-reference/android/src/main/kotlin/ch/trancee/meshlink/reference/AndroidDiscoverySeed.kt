@@ -3,13 +3,29 @@ package ch.trancee.meshlink.reference
 import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 
 private const val RETAINED_DISCOVERY_SEED_FILE = "automation-discovery-seed.txt"
 private const val SHARED_PREFS_PREFIX = "meshlink-"
 private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
-private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 20
+
+/**
+ * Must match [ch.trancee.meshlink.identity.LocalIdentity]'s
+ * `ADVERTISEMENT_KEY_HASH_SIZE_BYTES` (12 bytes / 24 hex chars). The retained discovery seed
+ * is consumed by test automation as the "target peer id" to match against BLE-advertised peer
+ * ids, so it must use the exact same hash length as the real over-the-air identity — otherwise
+ * a sender seeded with this value will never find a scan result whose `hintPeerId` equals it,
+ * permanently failing discovery (see the "scan discovery target mismatch" log line in
+ * BleTransportAdapterScanSupport.kt).
+ */
+private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 12
+
+/** Bounded retry budget for waiting on the identity to be written to shared_prefs by the
+ * MeshLinkController bootstrap, which happens asynchronously and races with this probe. */
+private const val RETAINED_DISCOVERY_SEED_MAX_ATTEMPTS = 20
+private const val RETAINED_DISCOVERY_SEED_RETRY_DELAY_MS = 250L
 
 private data class RetainedDiscoverySeedSnapshot(
     val seed: String?,
@@ -27,7 +43,19 @@ internal fun launchRetainedDiscoverySeedProbe(
 ): Unit {
     if (appId.isBlank() || appId == "unknown") return
     scope.launch {
-        val seedSnapshot = inspectRetainedDiscoverySeed(context, appId)
+        // The identity (ed25519/x25519 keys) is written to shared_prefs asynchronously by the
+        // MeshLinkController bootstrap, which races with this probe. A single check right after
+        // onCreate frequently loses that race (confirmed on real devices), leaving this artifact
+        // stale or missing and forcing test automation to fall back to a value that cannot match
+        // the real over-the-air peer id. Poll with a bounded budget instead of giving up after
+        // one attempt.
+        var seedSnapshot = inspectRetainedDiscoverySeed(context, appId)
+        var attempt = 1
+        while (seedSnapshot.seed == null && attempt < RETAINED_DISCOVERY_SEED_MAX_ATTEMPTS) {
+            delay(RETAINED_DISCOVERY_SEED_RETRY_DELAY_MS)
+            seedSnapshot = inspectRetainedDiscoverySeed(context, appId)
+            attempt++
+        }
         if (seedSnapshot.seed == null) {
             emitAutomationLog(
                 buildString {
@@ -41,6 +69,8 @@ internal fun launchRetainedDiscoverySeedProbe(
                     append(seedSnapshot.hasEd25519Public)
                     append(" x25519Public=")
                     append(seedSnapshot.hasX25519Public)
+                    append(" attempts=")
+                    append(attempt)
                 },
             )
             emitAutomationLog(
@@ -51,7 +81,8 @@ internal fun launchRetainedDiscoverySeedProbe(
         val peerId = deriveRetainedDiscoveryPeerId(context, appId) ?: seedSnapshot.seed
         writeRetainedDiscoverySeedArtifact(context, peerId)
         emitAutomationLog(
-            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$peerId source=shared_prefs",
+            "REFERENCE_AUTOMATION retained.discovery-seed appId=$appId peerId=$peerId " +
+                "source=shared_prefs attempts=$attempt",
         )
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=retained.discoverySeed appId=$appId peerId=$peerId",
