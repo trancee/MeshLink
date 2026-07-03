@@ -163,7 +163,48 @@ Run the benchmark-only suite with:
 
 Use physical devices for meaningful transport and power evidence.
 
-## 6. Keep evidence and release posture in the right docs
+## 6. Recover a device whose advertise or scan retries are exhausted
+
+Use this when a device's `proof.log` shows repeated
+
+```
+DIAG DISCOVERY_ADVERTISE_FAILED ... errorName=ADVERTISE_FAILED_TOO_MANY_ADVERTISERS willRetry=true
+DIAG DISCOVERY_ADVERTISE_FAILED ... willRetry=false
+```
+
+or the scan-side equivalent (`DIAG DISCOVERY_SCAN_FAILED ... errorName=SCAN_FAILED_* willRetry=false`),
+followed by `HOP_SESSION_FAILED` with `routeAvailable=false`. A device that has
+advertised or scanned for a long time can hold stuck advertiser/scanner slots
+in its Bluetooth stack even while `dumpsys bluetooth_manager` still reports
+`enabled: true` / `state: ON`.
+
+Restart the device's Bluetooth stack:
+
+```bash
+adb -s <serial> shell cmd bluetooth_manager disable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_OFF
+adb -s <serial> shell cmd bluetooth_manager enable
+adb -s <serial> shell cmd bluetooth_manager wait-for-state:STATE_ON
+```
+
+Then relaunch the proof app on that device (and its pair partner) and rerun
+the scenario. This clears stuck advertiser/scanner slots without needing a
+full device reboot.
+
+If you drive fleet runs through
+`meshlink-proof/scripts/run_android_proof_fleet.py`, this recovery is
+automatic: the script inspects each device's captured `proof.log` for the
+exhausted-retry signature above, restarts the affected device's Bluetooth
+stack, relaunches every pair that includes it, and recaptures logs before
+finalizing the summary. The summary report gets a "Bluetooth stack recovery"
+section listing which device(s) were restarted and why. Pass
+`--no-auto-recover-bluetooth` to disable this and inspect the raw first-pass
+failure instead.
+
+For the full list of diagnostic codes and severities, see the
+[MeshLink SDK API reference](../../docs/reference/meshlink-sdk-api.md#diagnostics).
+
+## 7. Keep evidence and release posture in the right docs
 
 Use this guide to run the Android proof app.
 
