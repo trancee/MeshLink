@@ -444,6 +444,92 @@ been raised to 20000, and `capture_full_logcat()` now automatically retries
 once with a much wider tail (100000 lines) whenever the requested window
 captures 0 matching lines, so this blind spot cannot recur silently.
 
+### 6. Full-fleet ACK/receipt evidence was contaminated by cross-talk, and untamed concurrency masked genuine failures
+
+Re-running the full 14-device/7-pair fleet found two compounding, previously
+hidden problems with the fleet script's own evidence collection - both
+serious enough to call the trustworthiness of *every* prior full-fleet report
+into question.
+
+**Problem 1: `summarize_pair()` matched evidence with no regard for peer
+identity.** The original implementation scanned each device's entire
+`proof.log` for generic marker substrings (`DELIVERY_SUCCEEDED`,
+`auto-send attempt 1 -> Sent`, `BENCHMARK receipt sent`, etc.) across the
+*combined* text of both devices in a pair, without checking which peer the
+matched line actually referenced. In a full-fleet run, every phone can hear
+BLE traffic from *other* pairs as well as its own assigned partner, so a
+device's log could legitimately contain a genuine success from a completely
+unrelated pair - and that got misattributed as "ACK: yes" evidence for
+whichever pair happened to include that device. This was proven concretely:
+motorola edge 30 fusion's own handshake attempt toward CPH2385 failed outright
+(`DIAG HOP_SESSION_FAILED ... reason=DELIVERY_FAILURE`), yet the report showed
+"ACK: yes" purely because CPH2385's log also contained an unrelated
+"hello mesh from DN2103" delivery from a different pair entirely.
+
+The fix (`summarize_pair()` rewrite) extracts each device's own `keyHash` from
+its `proof.log` startup line and scopes marker matching to lines that also
+reference the *other side's* own identity - the full hex hash for structured
+`DIAG` lines, or its last-6-hex-character hint form (`peerId.value.takeLast(6)`)
+for free-text lines. A new `evidenceVerified` flag (plus
+`initiatorOwnKeyHash`/`receiverOwnKeyHash`) is now surfaced per pair so a
+report can flag reduced confidence when one side's own `keyHash` line could
+not be found (e.g. truncated by logcat buffer wraparound) and matching fell
+back to unscoped search for that direction.
+
+Re-analyzing an existing 7-pair fleet run's already-captured logs against the
+corrected, peer-ID-scoped logic found only **1 of 7 pairs** had genuine
+evidence; the other 6 - including every pair the original report had marked
+"ACK: yes / Receipt: yes" - were false positives from cross-talk. Their real,
+scoped handshake attempts showed `DELIVERY_FAILURE`/`routeAvailable=false`.
+
+**Problem 2: running the whole fleet at once causes BLE RF congestion severe
+enough to prevent genuine delivery almost entirely.** With the scoping fix
+applied, a *fresh* 14-device/7-pair run (all 7 pairs launched simultaneously,
+as the script had always done) showed **0 of 7 pairs** completing genuine
+delivery. Digging into one pair's logs directly explained why:
+
+- CPH2359's peer entry for its assigned partner flapped from `found` to
+  `lost` within **5 milliseconds** - nowhere near long enough to establish a
+  connection, let alone complete a handshake.
+- Even devices whose peer entries stayed visible for longer routinely failed
+  handshakes with `AEADBadTagException` (a corrupted/failed AEAD
+  authentication tag) - consistent with BLE packet collisions/corruption
+  under heavy simultaneous RF activity, not a cryptographic logic bug.
+- One device (motorola edge 30 fusion) logged `HOP_SESSION_FAILED` against
+  eight or more different peers within the same short window, ruling out a
+  pair-specific explanation - this was fleet-wide congestion, not a defect
+  isolated to any one pair.
+
+This tracks: with 14 devices simultaneously advertising and scanning, both
+the shared 2.4 GHz airtime and each device's limited concurrent-GATT-
+connection budget (a handful of slots on most Android BLE stacks) are heavily
+oversubscribed, so most pairs never get a stable enough connection window to
+complete a handshake before their peer visibility flaps away again.
+
+**Fix:** the fleet script now runs pairs in sequential batches
+(`--max-concurrent-pairs`, default `2`) instead of launching every pair at
+once. Each batch's proof app is stopped before the next batch launches,
+freeing BLE connection slots and airtime between batches. Re-running the full
+fleet with this fix raised the genuine, peer-ID-verified success rate from
+0/7 to **3/5 completed pairs** in the same run - including the previously-
+failing motorola edge 30 fusion ↔ CPH2385 pair now succeeding outright.
+
+Batching also surfaced a related script fragility worth noting: a single
+batch raising an unrecoverable error (in this run, a device stuck
+mid-Bluetooth-restart during auto-recovery - see finding 3 above) used to
+crash the entire fleet run and lose every other batch's already-captured
+evidence. The batch loop now catches and records such errors in a
+`batchErrors` list surfaced in the compact summary, so the rest of the fleet
+run's results are preserved even when one batch cannot be recovered.
+
+**Takeaway:** full-fleet, all-at-once runs are not a reliable way to judge
+per-pair reliability - they measure fleet-wide RF congestion tolerance more
+than they measure MeshLink's actual protocol correctness. Prefer batched
+(`--max-concurrent-pairs`, small isolated `--pair-label`/`--device` subsets)
+runs when the goal is validating a specific pair or transport path, and treat
+`evidenceVerified: false` rows in any report with reduced confidence until
+re-confirmed.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.
