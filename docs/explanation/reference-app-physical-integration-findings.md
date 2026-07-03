@@ -365,6 +365,24 @@ A063 and confirming the hardened `restart_bluetooth_stack()` now recovers
 automatically (landing in `BLE_ON` as an intermediate step, then reaching a
 clean `ON`) instead of crashing the run.
 
+**Related, distinct failure mode found later: `cmd bluetooth_manager` is not
+implemented on some devices at all.** Investigating a POCOPHONE F1 (SDK 29)
+recovery failure that looked identical to the above ("stuck at ON") turned out
+to have a completely different cause: `adb shell cmd bluetooth_manager
+disable` exits `0` on this device but prints `No shell command
+implementation.` to stderr and never touches the Bluetooth state - the
+command silently no-ops. This was confirmed to affect several other
+lower-API-level devices in the fleet too (Mi Note 3 SDK 28, SM-G390F SDK 28,
+NAM-LX9 SDK 31), while every device at API level 33+ in the fleet supports
+the interface. Unlike the `BLE_ON` limbo state, retrying cannot fix this -
+the shell interface genuinely does not exist on these builds.
+`restart_bluetooth_stack()` now checks the `disable`/`enable` commands'
+stdout/stderr for this marker and raises a distinct, actionable error
+immediately, instead of waiting out the full poll timeout and misreporting it
+as the recoverable limbo state. Affected pairs should be re-run with
+`--no-auto-recover-bluetooth` to skip the doomed recovery attempt and collect
+whatever evidence is actually available.
+
 ### 4. A hardcoded 2s GATT-readiness timeout was too short for slower devices
 
 While isolating the A063 ↔ HUAWEI NAM-LX9 pair's fleet-run failure (after
