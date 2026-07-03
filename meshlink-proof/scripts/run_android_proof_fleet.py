@@ -111,6 +111,15 @@ ACTIVITY_NAME = ".MainActivity"
 DEFAULT_POWER_MODE = "performance"
 DEFAULT_PAYLOAD_BYTES = 64
 DEFAULT_WAIT_SECONDS = 30
+DEFAULT_MAX_CONCURRENT_PAIRS = 2
+# A full-fleet run that launches every pair (and therefore every device)
+# simultaneously was found to cause severe BLE RF congestion: peers flap
+# found/lost within milliseconds and handshakes fail with AEADBadTagException
+# (corrupted crypto payloads consistent with BLE packet collisions), so
+# almost no pair completes a genuine end-to-end delivery. Running only a
+# couple of pairs at a time keeps the airtime/connection-slot pressure low
+# enough for handshakes to actually complete. See
+# docs/explanation/reference-app-physical-integration-findings.md.
 DEFAULT_RUN_ROOT = ROOT / "reports" / "android-proof-fleet" / "runs"
 DEFAULT_LOGCAT_TAIL_LINES = 20_000
 # Raised from the original 4000 default: a noisy device (heavy non-MeshLink
@@ -197,6 +206,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--max-concurrent-pairs",
+        type=int,
+        default=DEFAULT_MAX_CONCURRENT_PAIRS,
+        help=(
+            "How many pairs to launch and run simultaneously (default: "
+            f"{DEFAULT_MAX_CONCURRENT_PAIRS}). A full 14-device/7-pair fleet run with all "
+            "pairs launched at once was found to cause severe BLE congestion: peers flap "
+            "found/lost within a few milliseconds and handshakes fail with "
+            "AEADBadTagException (corrupted crypto payloads consistent with BLE packet "
+            "collisions), so almost no pair completes a genuine delivery. Pairs are run in "
+            "sequential batches of this size, with each batch's proof app stopped before the "
+            "next batch launches, to free BLE connection slots and reduce RF contention. Pass "
+            "a higher value (e.g. the full pair count) to intentionally reproduce the "
+            "congested-fleet scenario."
+        ),
+    )
+    parser.add_argument(
         "--logcat-tail-lines",
         type=int,
         default=DEFAULT_LOGCAT_TAIL_LINES,
@@ -214,6 +240,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--device cannot be combined with --pair-label")
     if args.devices and len(args.devices) != 2:
         parser.error("--device must be passed exactly twice (initiator, then receiver)")
+    if args.max_concurrent_pairs < 1:
+        parser.error("--max-concurrent-pairs must be at least 1")
     return args
 
 
@@ -658,6 +686,149 @@ def _extract_own_key_hash(log_lines: list[str]) -> str | None:
     return None
 
 
+def _run_pair_batch(
+    pairs_batch: list["PairRecord"],
+    *,
+    run_root: Path,
+    app_id: str,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    """Launch, wait, capture, and auto-recover exactly one batch of pairs.
+
+    Only the devices belonging to `pairs_batch` are launched simultaneously -
+    not the whole fleet. This keeps BLE airtime/connection-slot pressure low
+    enough for handshakes to actually complete (see DEFAULT_MAX_CONCURRENT_PAIRS).
+    The proof app is always stopped on this batch's devices before returning,
+    per device, regardless of success or failure, so a later batch does not
+    inherit stray BLE scanning/advertising/GATT connections from this one.
+    """
+    batch_devices: list[DeviceRecord] = []
+    seen_serials: set[str] = set()
+    for pair in pairs_batch:
+        for device in (pair.initiator, pair.receiver):
+            if device.resolved_serial not in seen_serials:
+                seen_serials.add(device.resolved_serial)
+                batch_devices.append(device)
+
+    launch_results: list[dict[str, Any]] = []
+    capture_results: list[dict[str, Any]] = []
+    mode_results: list[dict[str, Any]] = []
+    logcat_results: list[dict[str, Any]] = []
+    bluetooth_recovery_actions: list[dict[str, Any]] = []
+    pair_rows: list[dict[str, Any]] = []
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(2, len(pairs_batch) * 2)) as executor:
+            futures = []
+            for pair in pairs_batch:
+                futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
+                futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
+            for future in as_completed(futures):
+                launch_results.append(future.result())
+
+        time.sleep(args.wait_seconds)
+
+        with ThreadPoolExecutor(max_workers=min(len(batch_devices), 16)) as executor:
+            capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), batch_devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(batch_devices), 16)) as executor:
+            mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), batch_devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(batch_devices), 16)) as executor:
+            logcat_results = list(
+                executor.map(
+                    lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                    batch_devices,
+                )
+            )
+
+        mode_map = {result["serial"]: result["mode"] for result in mode_results}
+        pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in pairs_batch]
+
+        # Auto-recovery: a device whose proof.log shows an exhausted advertise/scan
+        # retry budget almost certainly has a stuck Bluetooth stack (see module
+        # docstring). Restart it, relaunch every pair in this batch that includes
+        # it, and recapture logs/transport mode once before finalizing.
+        device_by_serial = {device.resolved_serial: device for device in batch_devices}
+        if args.auto_recover_bluetooth:
+            stuck_serials = {
+                device.resolved_serial
+                for device in batch_devices
+                if proof_log_shows_stuck_bluetooth_stack(
+                    (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
+                        encoding="utf-8", errors="ignore"
+                    )
+                )
+            }
+            if stuck_serials:
+                with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
+                    restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
+                for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
+                    device = device_by_serial[serial]
+                    bluetooth_recovery_actions.append(
+                        {
+                            "serial": serial,
+                            "model": device.model,
+                            "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
+                            "before": restart_result["before"],
+                            "after": restart_result["after"],
+                        }
+                    )
+
+                affected_pairs = [
+                    pair
+                    for pair in pairs_batch
+                    if pair.initiator.resolved_serial in stuck_serials or pair.receiver.resolved_serial in stuck_serials
+                ]
+                affected_serials = sorted(
+                    {pair.initiator.resolved_serial for pair in affected_pairs}
+                    | {pair.receiver.resolved_serial for pair in affected_pairs}
+                )
+
+                with ThreadPoolExecutor(max_workers=max(2, len(affected_pairs) * 2)) as executor:
+                    retry_futures = []
+                    for pair in affected_pairs:
+                        retry_futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
+                        retry_futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
+                    for future in as_completed(retry_futures):
+                        launch_results.append(future.result())
+
+                time.sleep(args.wait_seconds)
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_capture_results = list(executor.map(lambda serial: capture_proof_log(serial, run_root=run_root), affected_serials))
+                capture_results.extend(retry_capture_results)
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_mode_results = list(executor.map(capture_transport_mode, affected_serials))
+                mode_results.extend(retry_mode_results)
+                mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
+
+                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
+                    retry_logcat_results = list(
+                        executor.map(
+                            lambda serial: capture_full_logcat(serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                            affected_serials,
+                        )
+                    )
+                logcat_results.extend(retry_logcat_results)
+
+                recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
+                pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
+    finally:
+        with ThreadPoolExecutor(max_workers=min(len(batch_devices), 16)) as executor:
+            list(executor.map(stop_proof_app, [device.resolved_serial for device in batch_devices]))
+
+    return {
+        "launchResults": launch_results,
+        "captureResults": capture_results,
+        "modeResults": mode_results,
+        "logcatResults": logcat_results,
+        "bluetoothRecoveryActions": bluetooth_recovery_actions,
+        "pairRows": pair_rows,
+    }
+
+
 def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
@@ -794,6 +965,20 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
                 f"- {action['serial']} ({action['model']}): reason={action['reason']} "
                 f"before={before.get('enabled')}/{before.get('state')} after={after.get('enabled')}/{after.get('state')}"
             )
+    batch_errors = summary.get("batchErrors", [])
+    if batch_errors:
+        lines.append("")
+        lines.append("## Batch errors")
+        lines.append("")
+        lines.append(
+            "The following pair batch(es) raised an unrecoverable error (e.g. a device "
+            "stuck mid-Bluetooth-restart) and were skipped; their proof apps were still "
+            "stopped, but no evidence was captured for the pairs listed. All other "
+            "batches ran unaffected."
+        )
+        lines.append("")
+        for batch_error in batch_errors:
+            lines.append(f"- {', '.join(batch_error['pairLabels'])}: {batch_error['error']}")
     logcat_results = summary.get("logcatResults", [])
     if logcat_results:
         lines.append("")
@@ -911,6 +1096,7 @@ def main(argv: list[str] | None = None) -> int:
     logcat_results: list[dict[str, Any]] = []
     bluetooth_recovery_actions: list[dict[str, Any]] = []
     pair_rows: list[dict[str, Any]] = []
+    batch_errors: list[dict[str, Any]] = []
 
     try:
         with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
@@ -922,110 +1108,44 @@ def main(argv: list[str] | None = None) -> int:
         with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
             bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
 
-        with ThreadPoolExecutor(max_workers=max(2, len(selected_pairs) * 2)) as executor:
-            futures = []
-            for pair in selected_pairs:
-                futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
-                futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
-            for future in as_completed(futures):
-                launch_results.append(future.result())
-
-        time.sleep(args.wait_seconds)
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), selected_devices))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), selected_devices))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            logcat_results = list(
-                executor.map(
-                    lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
-                    selected_devices,
+        # Run pairs in sequential batches rather than all at once. See
+        # DEFAULT_MAX_CONCURRENT_PAIRS / --max-concurrent-pairs: launching every
+        # pair simultaneously floods the shared BLE spectrum and connection
+        # slots, causing peers to flap found/lost within milliseconds and
+        # handshakes to fail with corrupted crypto payloads.
+        for batch_start in range(0, len(selected_pairs), args.max_concurrent_pairs):
+            pairs_batch = selected_pairs[batch_start : batch_start + args.max_concurrent_pairs]
+            try:
+                batch_results = _run_pair_batch(pairs_batch, run_root=run_root, app_id=app_id, args=args)
+            except Exception as error:  # noqa: BLE001 - one batch's failure (e.g. a
+                # device stuck mid-Bluetooth-restart) must not sink every other
+                # batch's already-collected evidence. Record it and keep going;
+                # _run_pair_batch's own finally block has already stopped this
+                # batch's proof apps before the exception reached here.
+                batch_errors.append(
+                    {
+                        "pairLabels": [pair.label for pair in pairs_batch],
+                        "error": str(error),
+                    }
                 )
-            )
-
-        mode_map = {result["serial"]: result["mode"] for result in mode_results}
-        pair_rows = [summarize_pair(pair, run_root, mode_map) for pair in selected_pairs]
-
-        # Auto-recovery: a device whose proof.log shows an exhausted advertise/scan
-        # retry budget almost certainly has a stuck Bluetooth stack (see module
-        # docstring). Restart it, relaunch every pair that includes it, and
-        # recapture logs/transport mode once before finalizing the summary.
-        device_by_serial = {device.resolved_serial: device for device in selected_devices}
-        if args.auto_recover_bluetooth:
-            stuck_serials = {
-                device.resolved_serial
-                for device in selected_devices
-                if proof_log_shows_stuck_bluetooth_stack(
-                    (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
-                        encoding="utf-8", errors="ignore"
-                    )
-                )
-            }
-            if stuck_serials:
-                with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
-                    restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
-                for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
-                    device = device_by_serial[serial]
-                    bluetooth_recovery_actions.append(
-                        {
-                            "serial": serial,
-                            "model": device.model,
-                            "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
-                            "before": restart_result["before"],
-                            "after": restart_result["after"],
-                        }
-                    )
-
-                affected_pairs = [
-                    pair
-                    for pair in selected_pairs
-                    if pair.initiator.resolved_serial in stuck_serials or pair.receiver.resolved_serial in stuck_serials
-                ]
-                affected_serials = sorted(
-                    {pair.initiator.resolved_serial for pair in affected_pairs}
-                    | {pair.receiver.resolved_serial for pair in affected_pairs}
-                )
-
-                with ThreadPoolExecutor(max_workers=max(2, len(affected_pairs) * 2)) as executor:
-                    retry_futures = []
-                    for pair in affected_pairs:
-                        retry_futures.append(executor.submit(launch_app, pair.initiator.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=True, payload_bytes=args.payload_bytes))
-                        retry_futures.append(executor.submit(launch_app, pair.receiver.resolved_serial, app_id=app_id, power_mode=args.power_mode, initiator=False, payload_bytes=args.payload_bytes))
-                    for future in as_completed(retry_futures):
-                        launch_results.append(future.result())
-
-                time.sleep(args.wait_seconds)
-
-                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                    retry_capture_results = list(executor.map(lambda serial: capture_proof_log(serial, run_root=run_root), affected_serials))
-                capture_results.extend(retry_capture_results)
-
-                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                    retry_mode_results = list(executor.map(capture_transport_mode, affected_serials))
-                mode_results.extend(retry_mode_results)
-                mode_map.update({result["serial"]: result["mode"] for result in retry_mode_results})
-
-                with ThreadPoolExecutor(max_workers=min(len(affected_serials), 16)) as executor:
-                    retry_logcat_results = list(
-                        executor.map(
-                            lambda serial: capture_full_logcat(serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
-                            affected_serials,
-                        )
-                    )
-                logcat_results.extend(retry_logcat_results)
-
-                recovered_rows = {pair.label: summarize_pair(pair, run_root, mode_map) for pair in affected_pairs}
-                pair_rows = [recovered_rows.get(row["label"], row) for row in pair_rows]
+                continue
+            launch_results.extend(batch_results["launchResults"])
+            capture_results.extend(batch_results["captureResults"])
+            mode_results.extend(batch_results["modeResults"])
+            logcat_results.extend(batch_results["logcatResults"])
+            bluetooth_recovery_actions.extend(batch_results["bluetoothRecoveryActions"])
+            pair_rows.extend(batch_results["pairRows"])
     finally:
-        # Always quit the proof app on every exercised device, per device,
-        # regardless of whether the run above succeeded or raised partway
-        # through. A device left running keeps scanning/advertising/holding
-        # GATT connections in the background and interferes with later runs.
+        # Safety net: even though each batch already stops its own devices
+        # (per device, regardless of that batch's success/failure), make sure
+        # every selected device is stopped here too in case a device never
+        # reached a batch (e.g. install/prep/Bluetooth-preflight raised before
+        # any batch ran). A device left running keeps scanning/advertising/
+        # holding GATT connections in the background and interferes with
+        # later runs.
         with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
             list(executor.map(stop_proof_app, [device.resolved_serial for device in selected_devices]))
+
 
     summary = {
         **inventory,
@@ -1033,6 +1153,7 @@ def main(argv: list[str] | None = None) -> int:
         "prepResults": prep_results,
         "bluetoothChecks": bluetooth_checks,
         "bluetoothRecoveryActions": bluetooth_recovery_actions,
+        "batchErrors": batch_errors,
         "launchResults": launch_results,
         "captureResults": capture_results,
         "modeResults": mode_results,
