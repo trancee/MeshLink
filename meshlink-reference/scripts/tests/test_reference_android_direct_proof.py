@@ -687,6 +687,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                     stdout=f"Package [{package_name}]\n{permissions}\n",
                     stderr="",
                 )
+            if len(command) >= 5 and command[3] == "shell" and command[4] == "pidof":
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
 
         def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
@@ -1457,6 +1459,8 @@ class AndroidDirectProofTests(unittest.TestCase):
             timeout: float | None = None,
         ) -> subprocess.CompletedProcess[str]:
             del check, capture_output, text, env, timeout
+            if len(command) >= 5 and command[3] == "shell" and command[4] == "pidof":
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
 
         def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):
@@ -1567,6 +1571,8 @@ class AndroidDirectProofTests(unittest.TestCase):
             del check, capture_output, text, env
             if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]:
                 raise subprocess.TimeoutExpired(command, android_direct_proof.ANDROID_START_TIMEOUT_SECONDS)
+            if len(command) >= 5 and command[3] == "shell" and command[4] == "pidof":
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(command, 0, stdout="started\n", stderr="")
 
         def fake_popen(command: list[str], stdout=None, stderr=None, text: bool = True, **kwargs):

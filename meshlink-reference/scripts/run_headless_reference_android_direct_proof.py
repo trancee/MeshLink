@@ -1352,6 +1352,44 @@ def force_stop_android_package(android_serial: str, android_package: str) -> Non
     run(["adb", "-s", android_serial, "shell", "am", "force-stop", android_package], check=False)
 
 
+ANDROID_QUIT_VERIFY_ATTEMPTS: int = 5
+ANDROID_QUIT_VERIFY_DELAY_SECONDS: float = 1.0
+
+
+def android_package_running_pids(android_serial: str, android_package: str) -> str:
+    result = run(
+        ["adb", "-s", android_serial, "shell", "pidof", android_package],
+        check=False,
+        capture_output=True,
+    )
+    return (result.stdout or "").strip()
+
+
+def force_stop_android_package_and_verify_quit(
+    android_serial: str, android_package: str
+) -> None:
+    """Force-stops `android_package` on `android_serial` and polls `pidof` until the
+    process is confirmed gone, retrying `am force-stop` on every attempt. Some OEM
+    builds have been observed to resurrect a just-force-stopped process for a brief
+    window (e.g. a pending BLE GATT callback re-entering the app), so a single
+    fire-and-forget force-stop is not always sufficient to guarantee the app has
+    actually quit by the time the next test run starts on the same device."""
+    for attempt in range(ANDROID_QUIT_VERIFY_ATTEMPTS):
+        force_stop_android_package(android_serial, android_package)
+        pids = android_package_running_pids(android_serial, android_package)
+        if not pids:
+            return
+        if attempt < ANDROID_QUIT_VERIFY_ATTEMPTS - 1:
+            time.sleep(ANDROID_QUIT_VERIFY_DELAY_SECONDS)
+    remaining_pids = android_package_running_pids(android_serial, android_package)
+    if remaining_pids:
+        raise SystemExit(
+            f"Android package '{android_package}' on '{android_serial}' did not quit "
+            f"after {ANDROID_QUIT_VERIFY_ATTEMPTS} force-stop attempts "
+            f"(pids still running: {remaining_pids})"
+        )
+
+
 def verify_android_runtime_permissions_for_package(android_serial: str, android_package: str) -> None:
     result = run(["adb", "-s", android_serial, "shell", "dumpsys", "package", android_package], capture_output=True)
     package_dump = result.stdout
@@ -1431,7 +1469,7 @@ def force_stop_extra_peers(extra_force_stop_serials: list[str]) -> None:
     failures: list[str] = []
     for extra_serial in extra_force_stop_serials:
         try:
-            force_stop_android_package(extra_serial, ANDROID_PACKAGE)
+            force_stop_android_package_and_verify_quit(extra_serial, ANDROID_PACKAGE)
         except Exception as error:
             failures.append(f"{extra_serial}: {error}")
     if failures:
@@ -1464,7 +1502,7 @@ def cleanup_android_direct_run(
     ]:
         for android_package in (ANDROID_PACKAGE, ANDROID_PROOF_PACKAGE):
             try:
-                force_stop_android_package(android_serial, android_package)
+                force_stop_android_package_and_verify_quit(android_serial, android_package)
             except Exception as error:
                 failures.append(f"{android_serial}:{android_package}: {error}")
 
@@ -1488,7 +1526,7 @@ def start_android_role_app(
     disable_auto_send: bool = False,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
-    force_stop_android_package(android_serial, android_package)
+    force_stop_android_package_and_verify_quit(android_serial, android_package)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / role_artifacts.logcat_name
     logcat_file = logcat_path.open("w", encoding="utf-8")
