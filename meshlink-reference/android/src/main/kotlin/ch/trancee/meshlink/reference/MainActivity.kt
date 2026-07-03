@@ -24,6 +24,7 @@ private const val EXTRA_APP_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMAT
 private const val EXTRA_ROLE = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ROLE"
 private const val EXTRA_SCENARIO = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_SCENARIO"
 private const val EXTRA_TARGET_PEER_ID = "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID"
+private const val EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 
 private const val AUTOMATION_ENABLED_PREF_KEY = "automation:enabled"
 private const val AUTOMATION_TARGET_PEER_ID_PREF_KEY = "automation:targetPeerId"
@@ -142,7 +143,8 @@ public class MainActivity : ComponentActivity() {
         val automationScenario = extras?.getString(EXTRA_SCENARIO) ?: "unknown"
         val automationTargetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
         val autoStartMesh = automationRole == "SENDER" || automationRole == "PASSIVE"
-        val autoSendHello = automationRole == "SENDER"
+        val disableAutoSend = extras?.getBoolean(EXTRA_DISABLE_AUTO_SEND, false) == true
+        val autoSendHello = automationRole == "SENDER" && !disableAutoSend
 
         setContent {
             logActivityStage("insideSetContent")
@@ -208,7 +210,8 @@ public class MainActivity : ComponentActivity() {
         val storage = extras.getString(EXTRA_STORAGE) ?: "unknown"
         val targetPeerId = extras.getString(EXTRA_TARGET_PEER_ID)
         val autoStartMesh = role == "SENDER" || role == "PASSIVE"
-        val autoSendHello = role == "SENDER"
+        val disableAutoSend = extras.getBoolean(EXTRA_DISABLE_AUTO_SEND, false)
+        val autoSendHello = role == "SENDER" && !disableAutoSend
         Log.i(
             "MeshLinkReferenceAutomation",
             buildString {

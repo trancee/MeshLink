@@ -703,11 +703,12 @@ class AndroidDirectProofTests(unittest.TestCase):
             events.append(("force_stop", android_serial))
 
         def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
-            self.assertEqual(android_serial, "passive-1")
+            self.assertIn(android_serial, ("passive-1", "sender-1"))
+            own_peer_id = "passive-peer-123456" if android_serial == "passive-1" else "sender-peer-654321"
             if relative_path.endswith("reference/history.json"):
                 return '{"historyStatus": "RETAINED"}'
             if relative_path.endswith("automation-discovery-seed.txt"):
-                return "passive-peer-123456\n"
+                return f"{own_peer_id}\n"
             if relative_path.endswith("exports/session-redacted.json"):
                 return (
                     '{"defaultMode": "redacted-preview", '
@@ -719,7 +720,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
                 return (
                     '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
-                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                    f'{own_peer_id}</string><string name="x25519-public">present</string></map>'
                 )
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
@@ -812,6 +813,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                     for command in run_calls
                     if command[:6] == ["adb", "-s", command[2], "shell", "am", "start"]
                 ]
+                # Phase 1: passive launched unfiltered, sender launched with auto-send disabled
+                # so its own peer id can be read before passive is restarted with a target filter.
                 self.assertEqual(start_commands[0][2], "passive-1")
                 self.assertEqual(start_commands[1][2], "sender-1")
                 self.assertIn(android_direct_proof.ANDROID_ACTIVITY, start_commands[0])
@@ -823,11 +826,16 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertNotIn("meshlink.disableAutoSend", start_commands[0])
                 self.assertNotIn("meshlink.primaryTransport", start_commands[1])
                 self.assertNotIn("meshlink.benchmarkTransport", start_commands[1])
-                sender_start_command = next(
-                    command
-                    for command in run_calls
-                    if command[:6] == ["adb", "-s", "sender-1", "shell", "am", "start"]
-                )
+                self.assertIn("meshlink.disableAutoSend", start_commands[1])
+                # Phase 2: passive is restarted with the sender's own peer id as a target filter,
+                # then the sender is relaunched with auto-send re-enabled for the real handshake.
+                self.assertEqual(start_commands[2][2], "passive-1")
+                self.assertEqual(start_commands[3][2], "sender-1")
+                self.assertIn("sender-peer-654321", start_commands[2])
+                self.assertNotIn("meshlink.disableAutoSend", start_commands[2])
+                self.assertIn("passive-peer-123456", start_commands[3])
+                self.assertNotIn("meshlink.disableAutoSend", start_commands[3])
+                sender_start_command = start_commands[3]
                 self.assertIn(
                     "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_ADVERTISEMENT_CARRIER",
                     sender_start_command,
@@ -835,8 +843,8 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("uuid-pair-plus-service-data", sender_start_command)
                 self.assertNotIn("meshlink.benchmarkTransport", sender_start_command)
                 self.assertNotIn("meshlink.disableAutoSend", sender_start_command)
-                self.assertEqual(force_stop_calls.count("sender-1"), 3)
-                self.assertEqual(force_stop_calls.count("passive-1"), 3)
+                self.assertEqual(force_stop_calls.count("sender-1"), 4)
+                self.assertEqual(force_stop_calls.count("passive-1"), 4)
                 self.assertEqual(force_stop_calls.count("extra-1"), 3)
                 self.assertLess(
                     events.index(("force_stop", "extra-1")),
@@ -1107,6 +1115,48 @@ class AndroidDirectProofTests(unittest.TestCase):
             self.assertIn("route stage", reason)
             self.assertIn("sender=route-unavailable", reason)
             self.assertIn("passive=route-discovered", reason)
+
+    def test_route_stall_failure_reason_ignores_transient_route_unavailable_superseded_by_delivery_succeeded(
+        self,
+    ) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "route-recovered"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "sender_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=141",
+                        "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=ROUTE_DISCOVERED stage=transport.handshake.message2.complete.routeAvailable peer=passive-peer detail=ROUTE_DISCOVERED @ transport.handshake.message2.complete.routeAvailable {peerId=passive-peer, topologyVersion=1, routeAvailable=true}",
+                        # A momentary retry blip: a transient NO_ROUTE_AVAILABLE
+                        # (delivery.send.routeRefreshed) that is resolved
+                        # milliseconds later by a successful delivery -- this must
+                        # not be mistaken for a genuine, unrecovered route stall.
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=NO_ROUTE_AVAILABLE stage=delivery.noRoute peer=passive-peer detail=NO_ROUTE_AVAILABLE @ delivery.noRoute {peerId=passive-peer, topologyVersion=1, routeAvailable=false}",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=DELIVERY_RETRY_SCHEDULED stage=delivery.retryScheduled peer=passive-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=DELIVERY_SUCCEEDED stage=delivery.send peer=passive-peer",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "passive_logcat.log").write_text(
+                "\n".join(
+                    [
+                        "D MeshLinkTransport: start() with l2capPsm=141",
+                        "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=PASSIVE peer=sender-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=HOP_SESSION_ESTABLISHED stage=transport.handshake.message3.complete peer=sender-peer",
+                        "I MeshLinkReferenceAutomation: REFERENCE_RUNTIME diagnostic code=DELIVERY_SUCCEEDED stage=transport.data.deliver peer=sender-peer",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            # Act
+            reason = android_direct_proof.route_stall_failure_reason(run_dir)
+
+            # Assert
+            self.assertIsNone(reason)
 
     def test_failure_summary_exposes_route_boundary_fields(self) -> None:
         # Arrange
@@ -1420,11 +1470,12 @@ class AndroidDirectProofTests(unittest.TestCase):
                 raise RuntimeError("adb cleanup failed")
 
         def fake_read_android_app_file(android_serial: str, relative_path: str) -> str:
-            self.assertEqual(android_serial, "passive-1")
+            self.assertIn(android_serial, ("passive-1", "sender-1"))
+            own_peer_id = "passive-peer-123456" if android_serial == "passive-1" else "sender-peer-654321"
             if relative_path.endswith("reference/history.json"):
                 return '{"historyStatus": "RETAINED"}'
             if relative_path.endswith("automation-discovery-seed.txt"):
-                return "passive-peer-123456\n"
+                return f"{own_peer_id}\n"
             if relative_path.endswith("exports/session-redacted.json"):
                 return (
                     '{"defaultMode": "redacted-preview", '
@@ -1436,7 +1487,7 @@ class AndroidDirectProofTests(unittest.TestCase):
             if "shared_prefs/meshlink-" in relative_path and relative_path.endswith(".xml"):
                 return (
                     '<map><string name="ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID">'
-                    'passive-peer-123456</string><string name="x25519-public">present</string></map>'
+                    f'{own_peer_id}</string><string name="x25519-public">present</string></map>'
                 )
             raise AssertionError(f"Unexpected relative path: {relative_path}")
 
@@ -1602,6 +1653,41 @@ class AndroidDirectProofTests(unittest.TestCase):
         self.assertIsNotNone(completions.sender_completion)
         self.assertIsNotNone(completions.passive_completion)
         self.assertIsNone(completions.export_relative_path)
+
+    def test_verify_sender_log_succeeds_without_stale_started_mode_marker(self) -> None:
+        # Arrange: the Android reference app never emits a literal
+        # "REFERENCE_AUTOMATION started mode=..." line (that marker only ever existed in the
+        # iOS-only verify_ios_sender_log() required-marker list). verify_sender_log() must not
+        # require it, otherwise a genuinely successful Android direct-proof run would still be
+        # reported as a hard failure.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "sender_logcat.log"
+            log_path.write_text(
+                "05-31 10:00:01.010 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER "
+                "scenario=direct-guided appId=demo.meshlink storage=default targetPeerId=peer-123 "
+                "autoStartMesh=true autoSendHello=true\n"
+                "05-31 10:00:01.020 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER "
+                "scenario=direct-guided autoStartMesh=true autoSendHello=true\n"
+                "05-31 10:00:01.100 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION peer.discovered role=SENDER peerId=peer-123 peerSuffix=r-123\n"
+                "05-31 10:00:01.110 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION send.requested role=sender peerId=peer-123\n"
+                "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+                "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 peerId=peer-123\n",
+                encoding="utf-8",
+            )
+
+            # Act
+            completion_line = android_direct_proof.verify_sender_log(log_path)
+
+        # Assert
+        self.assertEqual(
+            completion_line,
+            "05-31 10:00:01.300 I MeshLinkReferenceAutomation: "
+            "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 peerId=peer-123",
+        )
 
     def test_verify_passive_log_accepts_receipt_sent_marker_before_proof_complete(self) -> None:
         # Arrange

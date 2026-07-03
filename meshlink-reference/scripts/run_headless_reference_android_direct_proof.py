@@ -83,8 +83,15 @@ ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
 PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passive"
+# NOTE: The Android reference app (MainActivity.kt's logAutomationStartupStage) never emits a
+# literal "REFERENCE_AUTOMATION started mode=..." line -- that marker only exists in the iOS-only
+# verify_ios_sender_log() required-marker list in run_headless_reference_live_proof.py. It was
+# copied into these Android-only lists but never matched real app output, so verify_sender_log()/
+# verify_passive_log() would always raise SystemExit here regardless of whether the proof actually
+# succeeded. The equivalent Android evidence -- mode + role recorded at startup -- is already
+# covered by the "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=... role=..." marker
+# below, so the stale duplicate is removed rather than reimplemented.
 SENDER_REQUIRED_LOG_MARKERS = [
-    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
     "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
     "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER",
@@ -94,7 +101,6 @@ SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION send.requested role=sender",
 ]
 PASSIVE_REQUIRED_LOG_MARKERS = [
-    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
     "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
     "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE",
@@ -793,6 +799,17 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         elif "HOP_SESSION_ESTABLISHED" in line:
             stage = "hop-established"
             evidence = normalized
+        elif "DELIVERY_SUCCEEDED" in line:
+            # A successful delivery is a recovery signal: it means any prior
+            # transient route-unavailable/hop-failed blip (e.g. the routine
+            # delivery.send.routeRefreshed -> DELIVERY_RETRY_SCHEDULED ->
+            # DELIVERY_SUCCEEDED retry sequence) was resolved, so it must
+            # supersede that earlier stage rather than leaving a stale
+            # "route-unavailable"/"hop-failed" reading that would make
+            # route_stall_failure_reason() bail out on an already-succeeded
+            # exchange.
+            stage = "delivery-succeeded"
+            evidence = normalized
     return stage, evidence
 
 
@@ -1468,6 +1485,7 @@ def start_android_role_app(
     advertisement_carrier: str = "uuid-pair",
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
+    disable_auto_send: bool = False,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
     force_stop_android_package(android_serial, android_package)
@@ -1529,6 +1547,8 @@ def start_android_role_app(
         ]
         if target_peer_id:
             command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
+        if disable_auto_send:
+            command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
         command.extend(
             [
                 "--es",
@@ -1644,6 +1664,7 @@ def launch_android_sender_role_app(
     android_transport_logcat: bool,
     target_peer_id: str,
     sender_advertisement_carrier: str,
+    disable_auto_send: bool = False,
 ) -> BackgroundProcess:
     return start_android_role_app(
         run_dir=run_dir,
@@ -1657,6 +1678,7 @@ def launch_android_sender_role_app(
         advertisement_carrier=sender_advertisement_carrier,
         android_activity=ANDROID_ACTIVITY,
         android_package=ANDROID_PACKAGE,
+        disable_auto_send=disable_auto_send,
     )
 
 
@@ -2265,6 +2287,15 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     discovered_peer_id = sender_target_peer_id
                     print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
+                sender_advertisement_carrier_choice = (
+                    "uuid-pair-plus-service-data"
+                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                    else args.advertisement_carrier
+                )
+                # Phase 1: launch the sender with auto-send disabled so we can read its own
+                # identity (peer id) via the same discovery-seed mechanism already used for the
+                # passive role, without risking a premature send to the wrong peer while many
+                # other fleet devices are simultaneously advertising/scanning.
                 sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
@@ -2272,13 +2303,66 @@ def main(argv: list[str] | None = None) -> int:
                     storage_subdirectory=storage_subdirectory,
                     android_transport_logcat=args.android_transport_logcat,
                     target_peer_id=sender_target_peer_id,
-                    sender_advertisement_carrier=(
-                        "uuid-pair-plus-service-data"
-                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                        else args.advertisement_carrier
-                    ),
+                    sender_advertisement_carrier=sender_advertisement_carrier_choice,
+                    disable_auto_send=True,
                 )
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+                sender_own_peer_id = read_passive_peer_id(
+                    args.sender_android_serial,
+                    app_id,
+                    retries=max(1, int(peer_resolution_wait_seconds)),
+                )
+                if sender_own_peer_id is None:
+                    print(
+                        "==> Sender peer id unavailable after short resolution wait; passive will remain unfiltered"
+                    )
+                else:
+                    print(f"==> Sender peer id resolved for passive target filter: {sender_own_peer_id}")
+                    # Restart the passive role now that we know the sender's peer id, so its BLE
+                    # scan can filter out cross-talk from other simultaneously-connected fleet
+                    # devices (see AndroidPlatformServices.kt's targetPeerId scan filter). The
+                    # restart preserves the passive's own peer id because it force-stops (not
+                    # uninstalls) the app, leaving its persisted identity keys intact.
+                    passive_process = start_android_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.passive_android_serial,
+                        label="passive",
+                        role="passive",
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=sender_own_peer_id,
+                        advertisement_carrier=args.advertisement_carrier,
+                        android_activity=ANDROID_ACTIVITY,
+                        android_package=ANDROID_PACKAGE,
+                    )
+                    print(
+                        f"==> Android passive re-launched with target filter at +{time.monotonic() - run_started_at:.1f}s"
+                    )
+                    passive_restart_transport_observation = wait_for_log_marker_observation(
+                        passive_marker_path,
+                        "advertising started mode=2 tx=3 connectable=true",
+                        passive_transport_timeout_seconds,
+                    )
+                    if passive_restart_transport_observation["observed"]:
+                        time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
+                    else:
+                        raise SystemExit(
+                            f"Android passive transport did not restart within {passive_transport_timeout_seconds} seconds"
+                        )
+                    # Phase 2: relaunch the sender with the real (still-valid) target peer id and
+                    # auto-send re-enabled, now that the passive side is filtered and ready.
+                    sender_process = launch_android_sender_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.sender_android_serial,
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=sender_target_peer_id,
+                        sender_advertisement_carrier=sender_advertisement_carrier_choice,
+                        disable_auto_send=False,
+                    )
+                    print(f"==> Android sender re-launched at +{time.monotonic() - run_started_at:.1f}s")
             if discovered_peer_id is None:
                 print(
                     "==> Passive peer id unavailable before the route phase; proceeding without a seeded target peer"
