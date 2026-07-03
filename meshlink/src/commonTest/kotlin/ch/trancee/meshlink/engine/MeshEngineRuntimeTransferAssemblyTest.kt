@@ -75,6 +75,9 @@ class MeshEngineRuntimeTransferAssemblyTest {
             val senderIdentity = LocalIdentity.fromAppId("transfer-assembly-sender")
             val harness = runtimeTransferAssemblyHarness(localIdentity = localIdentity)
             harness.runtimeSurface.beginHardRun()
+            // The sender's trust must already be pinned via an authenticated channel (e.g. an
+            // end-to-end handshake) before an inner envelope from that sender can be accepted.
+            harness.environment.trustStore.write(trustRecordFor(senderIdentity))
             val hopSession = hopSession(keyByte = 0x22)
             seedEstablishedHopSession(
                 localIdentity = localIdentity,

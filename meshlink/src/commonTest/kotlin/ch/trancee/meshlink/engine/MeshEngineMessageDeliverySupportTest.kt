@@ -28,10 +28,15 @@ class MeshEngineMessageDeliverySupportTest {
             val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            // The sender's trust must already be pinned via an authenticated channel (e.g. an
+            // end-to-end handshake) before an inner envelope from that sender can be accepted.
+            trustStore.write(trustRecordFor(senderIdentity))
             val fixture =
                 messageDeliveryFixture(
                     recipientIdentity = recipientIdentity,
                     runtimeSurface = runtimeSurface,
+                    trustStore = trustStore,
                 )
             val envelope =
                 sealedEnvelopeFor(
@@ -54,12 +59,6 @@ class MeshEngineMessageDeliverySupportTest {
             assertEquals(senderIdentity.peerId.value, message.originPeerId.value)
             assertContentEquals("hello".encodeToByteArray(), message.payload)
             assertEquals(DeliveryPriority.HIGH, message.priority)
-            assertTrue(
-                fixture.diagnostics.any { diagnostic ->
-                    diagnostic.code == DiagnosticCode.TRUST_ESTABLISHED &&
-                        diagnostic.stage == "trust.pin"
-                }
-            )
             assertTrue(
                 fixture.diagnostics.any { diagnostic ->
                     diagnostic.code == DiagnosticCode.DELIVERY_SUCCEEDED &&
@@ -150,10 +149,16 @@ class MeshEngineMessageDeliverySupportTest {
             val senderIdentity = LocalIdentity.fromAppId("message-delivery-sender")
             val runtimeSurface = MeshEngineRuntimeSurface()
             val hardRunToken = runtimeSurface.beginHardRun()
+            val trustStore = TofuTrustStore(InMemorySecureStorage())
+            // The sender's trust must already be pinned via an authenticated channel so that
+            // sender-trust verification itself succeeds and the tampered ciphertext is the only
+            // remaining failure.
+            trustStore.write(trustRecordFor(senderIdentity))
             val fixture =
                 messageDeliveryFixture(
                     recipientIdentity = recipientIdentity,
                     runtimeSurface = runtimeSurface,
+                    trustStore = trustStore,
                 )
             val envelope =
                 tamperedEnvelope(
@@ -195,6 +200,7 @@ private data class MessageDeliveryFixture(
 private fun messageDeliveryFixture(
     recipientIdentity: LocalIdentity,
     runtimeSurface: MeshEngineRuntimeSurface,
+    trustStore: TofuTrustStore = TofuTrustStore(InMemorySecureStorage()),
 ): MessageDeliveryFixture {
     val mutableMessages = MutableSharedFlow<InboundMessage>(replay = 1, extraBufferCapacity = 1)
     val hopFailures = mutableListOf<RecordedMessageDeliveryHopFailure>()
@@ -202,7 +208,7 @@ private fun messageDeliveryFixture(
     val trustSupport =
         MeshEngineTrustSupport(
             localIdentity = recipientIdentity,
-            trustStore = TofuTrustStore(InMemorySecureStorage()),
+            trustStore = trustStore,
             emitDiagnostic = { code, severity, stage, peerSuffix, reason, metadata ->
                 diagnostics +=
                     RecordedMessageDeliveryDiagnostic(

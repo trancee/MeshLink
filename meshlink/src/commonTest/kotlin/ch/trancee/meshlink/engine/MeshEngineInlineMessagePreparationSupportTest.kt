@@ -95,13 +95,10 @@ private fun inlineMessagePreparationSupport(
     trustStore: TofuTrustStore,
     emitEncryptFailure: (PeerId, String) -> Unit,
 ): MeshEngineInlineMessagePreparationSupport {
-    val routeCoordinator = ch.trancee.meshlink.routing.RouteCoordinator(localIdentity.peerId)
     val recipientTrustSupport =
         MeshEngineOutboundRecipientTrustSupport(
-            localIdentity = localIdentity,
             trustStore = trustStore,
-            routeCoordinator = routeCoordinator,
-            emitDiagnostic = { _, _, _, _, _, _ -> },
+            ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
         )
     return MeshEngineInlineMessagePreparationSupport(
         localIdentity = localIdentity,

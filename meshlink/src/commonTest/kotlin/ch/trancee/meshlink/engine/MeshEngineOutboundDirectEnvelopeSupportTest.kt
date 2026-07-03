@@ -24,11 +24,8 @@ class MeshEngineOutboundDirectEnvelopeSupportTest {
             trustStore.write(trustRecordFor(recipientIdentity))
             val recipientTrustSupport =
                 MeshEngineOutboundRecipientTrustSupport(
-                    localIdentity = localIdentity,
                     trustStore = trustStore,
-                    routeCoordinator =
-                        ch.trancee.meshlink.routing.RouteCoordinator(localIdentity.peerId),
-                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
                 )
             val support =
                 MeshEngineOutboundDirectEnvelopeSupport(
@@ -67,11 +64,8 @@ class MeshEngineOutboundDirectEnvelopeSupportTest {
             val trustStore = TofuTrustStore(InMemorySecureStorage())
             val recipientTrustSupport =
                 MeshEngineOutboundRecipientTrustSupport(
-                    localIdentity = localIdentity,
                     trustStore = trustStore,
-                    routeCoordinator =
-                        ch.trancee.meshlink.routing.RouteCoordinator(localIdentity.peerId),
-                    emitDiagnostic = { _, _, _, _, _, _ -> },
+                    ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
                 )
             val support =
                 MeshEngineOutboundDirectEnvelopeSupport(

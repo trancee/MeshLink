@@ -91,10 +91,8 @@ private fun outboundTransferPreparationSupport(
                 localIdentity = localIdentity,
                 recipientTrustSupport =
                     MeshEngineOutboundRecipientTrustSupport(
-                        localIdentity = localIdentity,
                         trustStore = trustStore,
-                        routeCoordinator = routeCoordinator,
-                        emitDiagnostic = { _, _, _, _, _, _ -> },
+                        ensureEndToEndSession = { EndToEndSessionEstablishmentOutcome.Unreachable },
                     ),
             ),
         routingContext =

@@ -76,7 +76,7 @@ internal class MeshEngineMessageDeliverySupport(
     private suspend fun verifyInnerEnvelopeSenderTrust(
         envelope: DirectMessageEnvelope
     ): TrustRecord? {
-        return trustSupport.verifyAndPersistTrust(
+        return trustSupport.verifyEstablishedTrust(
             peerId = envelope.senderPeerId,
             remoteEd25519PublicKey = envelope.senderEd25519PublicKey,
             remoteX25519PublicKey = envelope.senderX25519PublicKey,

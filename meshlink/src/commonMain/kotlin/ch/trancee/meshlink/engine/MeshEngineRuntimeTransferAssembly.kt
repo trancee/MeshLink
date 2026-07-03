@@ -128,10 +128,8 @@ private fun buildMeshEngineRuntimeTransferOutboundDeliveryPhase(
 ): MeshEngineRuntimeTransferOutboundDeliveryPhase {
     val outboundRecipientTrustSupport =
         buildMeshEngineRuntimeOutboundRecipientTrustSupport(
-            localIdentity = environment.localIdentity,
             trustStore = environment.trustStore,
-            routeCoordinator = sharedState.routeCoordinator,
-            emitDiagnostic = support.emitDiagnostic,
+            ensureEndToEndSession = session.ensureEndToEndSession,
         )
     val outboundDirectEnvelopeSupport =
         buildMeshEngineRuntimeOutboundDirectEnvelopeSupport(
