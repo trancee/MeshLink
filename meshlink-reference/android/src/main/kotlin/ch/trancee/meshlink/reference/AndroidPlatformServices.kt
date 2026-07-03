@@ -443,6 +443,14 @@ private class PublicMeshLinkController(
                         append(event.peerSuffix ?: "none")
                         append(" reason=")
                         append(event.reason ?: "none")
+                        if (event.metadata.isNotEmpty()) {
+                            append(" metadata=")
+                            append(
+                                event.metadata.entries.joinToString(separator = ",") { (key, value) ->
+                                    "$key=$value"
+                                },
+                            )
+                        }
                     },
                 )
                 appendTimeline(
