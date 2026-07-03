@@ -13,7 +13,10 @@ MeshLink uses **trust on first use**.
 
 On the first successful authenticated contact with a peer:
 
-1. The hop-to-hop Noise XX handshake completes.
+1. A Noise XX handshake completes — either the hop-to-hop handshake with an
+   adjacent peer, or a relayed end-to-end handshake with a peer that is
+   several hops away (see
+   [Trust can only come from an authenticated handshake](#trust-can-only-come-from-an-authenticated-handshake)).
 2. MeshLink verifies the remote static identity material is internally
    consistent.
 3. The peer's identity is pinned locally as a `TrustRecord`.
@@ -23,6 +26,43 @@ On the first successful authenticated contact with a peer:
 This is the same operational model many developers already know from SSH: the
 first encounter establishes continuity, and later encounters are checked against
 that original pin.
+
+## Trust can only come from an authenticated handshake
+
+Trust is never learned from data a peer merely *asserts* — only from the
+outcome of a Noise XX handshake that MeshLink itself drove and verified.
+Concretely, MeshLink never pins or refreshes trust from:
+
+- routing metadata gossiped by other peers (a route announcement says a peer
+  *exists*, not that its claimed keys are genuine)
+- sender identity fields carried inside a message envelope (a relay or a
+  malicious peer could otherwise claim to be anyone)
+
+Instead, every trust record traces back to one of two handshake types:
+
+- **Hop-to-hop handshake** — runs directly with an adjacent (single-hop) peer
+  over the active transport session.
+- **Relayed end-to-end handshake** — when the destination is multiple hops
+  away, MeshLink drives the same Noise XX handshake with that destination,
+  carried inside opaque handshake frames that intermediate relays forward
+  without terminating. The cryptographic guarantees are identical to the
+  hop-to-hop case; only the transport differs.
+
+Inbound direct messages are checked against this pre-existing,
+handshake-established trust; an envelope can never bootstrap trust for
+itself. If no trust is already pinned for a claimed sender, the message is
+rejected rather than used to seed a new trust record.
+
+## Mesh domain is cryptographically enforced, too
+
+Every Noise XX handshake also mixes in a hash derived from the local
+`appId` as the handshake's prologue, before any key material is exchanged.
+Two peers configured with different `appId`s derive different handshake
+transcripts and fail authentication, even if a discovery-layer coincidence
+(the 16-bit BLE discovery hash) let them reach the handshake stage. Mesh
+isolation is therefore a property of the cryptographic protocol, not just of
+the discovery filter — see
+[About how MeshLink works](about-how-meshlink-works.md#appid-is-a-mesh-boundary-enforced-twice).
 
 ## What is pinned
 

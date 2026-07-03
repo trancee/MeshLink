@@ -110,14 +110,29 @@ flowchart TD
 
 Three pieces of that pipeline matter especially often in host apps:
 
-### `appId` is an early mesh boundary
+### `appId` is a mesh boundary, enforced twice
 
 Before trust or delivery matters, MeshLink uses `appId` as the mesh-domain
-boundary. Devices with different `appId`s are filtered apart before the higher
-layers become relevant.
+boundary, enforced at two independent layers:
+
+1. **Discovery filter.** Devices with different `appId`s are filtered apart at
+   the BLE advertisement layer before the higher layers become relevant. This
+   filter uses a compact 16-bit hash of `appId` and exists purely to avoid
+   wasting radio time connecting to unrelated meshes; it is not a security
+   boundary and different `appId`s can collide in this hash.
+2. **Cryptographic handshake binding.** `appId` is also mixed into every Noise
+   XX handshake (hop-to-hop and end-to-end) as the handshake prologue, before
+   any key material is exchanged. Two peers configured with different
+   `appId`s derive different handshake transcripts and fail authentication
+   outright, even if they somehow reach the handshake stage (for example
+   because of a discovery-hash collision, or because the host app performs its
+   own out-of-band pairing). This means mesh isolation is a real cryptographic
+   guarantee, not just a discovery convenience.
 
 That is why an `appId` mismatch usually looks like "nothing is happening"
-rather than like an authentication failure later.
+rather than like an authentication failure later — but if a handshake attempt
+does reach a peer with a different `appId`, it fails closed instead of quietly
+authenticating across mesh boundaries.
 
 ### Trust is continuity, not global identity proof
 
@@ -125,11 +140,29 @@ MeshLink uses trust on first use (TOFU). On first verified contact, it pins a
 peer's identity locally. On later contact, the same peer must present the same
 keys. If not, MeshLink fails closed.
 
+Trust can only ever come from an **authenticated Noise XX handshake
+completion** — never from route-gossip metadata, and never from a sender's
+self-asserted claims inside a message envelope. Concretely:
+
+- for an adjacent peer (a direct radio link), the hop-to-hop handshake pins
+  trust
+- for a peer that is several hops away, MeshLink transparently drives a
+  **relayed end-to-end Noise XX handshake** to that peer (relays forward
+  opaque handshake frames without terminating them) and pins trust only from
+  that handshake's outcome
+- inbound messages must present a sender identity that already has trust
+  pinned through one of the above; an envelope cannot bootstrap trust for
+  itself
+
 That changes delivery semantics in a practical way:
 
 - first contact can establish trust
 - later contacts refresh trust continuity
 - mismatched identity blocks delivery instead of silently replacing trust
+- the very first `send()` to a new multi-hop peer pays the cost of a
+  round-trip end-to-end handshake before the message can be sealed; if that
+  peer is unreachable, the send resolves as `SendResult.NotSent(UNREACHABLE)`
+  instead of silently falling back to a less-verified trust source
 
 ### Routing is runtime-owned infrastructure
 
@@ -156,7 +189,10 @@ flowchart TD
     Inline --> Route["Resolve route / wait for convergence (bounded by deliveryRetryDeadline)"]
     Transfer --> Route
     Route --> Session["Ensure hop session to next hop"]
-    Session --> Seal["Seal inner envelope for final recipient"]
+    Session --> Trust{"Recipient trust already pinned?"}
+    Trust -- No --> E2E["Drive relayed end-to-end Noise XX handshake to the recipient"]
+    E2E --> Seal
+    Trust -- Yes --> Seal["Seal inner envelope for final recipient"]
     Seal --> Encrypt["Encrypt transport frame for current hop"]
     Encrypt --> Relay["BLE transport sends to next hop; relay may decrypt, re-encrypt, and forward"]
     Relay --> Verify["Destination verifies sender trust and opens the inner envelope"]
@@ -170,7 +206,9 @@ Three practical details are easy to miss:
 - retries are bounded by `deliveryRetryDeadline`, stay in memory, and disappear
   on stop or app restart
 - relays work hop-by-hop on the outside while the application payload stays
-  sealed for the final recipient
+  sealed for the final recipient; when the final recipient has no trust
+  pinned yet, MeshLink drives an end-to-end handshake to that recipient
+  through the relays before it can seal a payload for them
 
 So MeshLink gives the app one send contract over several internal delivery
 paths.
