@@ -2318,11 +2318,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 else:
                     print(f"==> Sender peer id resolved for passive target filter: {sender_own_peer_id}")
-                    # Restart the passive role now that we know the sender's peer id, so its BLE
-                    # scan can filter out cross-talk from other simultaneously-connected fleet
-                    # devices (see AndroidPlatformServices.kt's targetPeerId scan filter). The
-                    # restart preserves the passive's own peer id because it force-stops (not
-                    # uninstalls) the app, leaving its persisted identity keys intact.
+                    # Restart both roles together (passive with the sender's peer id as a target
+                    # filter, sender with auto-send re-enabled) rather than sequentially. Android
+                    # rotates the BLE MAC address and L2CAP PSM whenever a role is force-stopped
+                    # and relaunched. If only the sender were restarted here while passive stayed
+                    # up from phase 1, passive would already be mid-reconnect to the sender's
+                    # stale phase-1 address when it rotates, causing repeated L2CAP connect
+                    # failures and a premature ROUTE_EXPIRED (confirmed on hardware). Restarting
+                    # both together means neither side has an established connection to break.
                     passive_process = start_android_role_app(
                         run_dir=run_dir,
                         android_serial=args.passive_android_serial,
@@ -2339,19 +2342,11 @@ def main(argv: list[str] | None = None) -> int:
                     print(
                         f"==> Android passive re-launched with target filter at +{time.monotonic() - run_started_at:.1f}s"
                     )
-                    passive_restart_transport_observation = wait_for_log_marker_observation(
-                        passive_marker_path,
-                        "advertising started mode=2 tx=3 connectable=true",
-                        passive_transport_timeout_seconds,
-                    )
-                    if passive_restart_transport_observation["observed"]:
-                        time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
-                    else:
-                        raise SystemExit(
-                            f"Android passive transport did not restart within {passive_transport_timeout_seconds} seconds"
-                        )
                     # Phase 2: relaunch the sender with the real (still-valid) target peer id and
-                    # auto-send re-enabled, now that the passive side is filtered and ready.
+                    # auto-send re-enabled, launched immediately after the passive restart above
+                    # (not after waiting for passive's transport marker) so both roles come up
+                    # fresh together instead of one settling in before the other rotates its
+                    # BLE identity.
                     sender_process = launch_android_sender_role_app(
                         run_dir=run_dir,
                         android_serial=args.sender_android_serial,
@@ -2363,6 +2358,17 @@ def main(argv: list[str] | None = None) -> int:
                         disable_auto_send=False,
                     )
                     print(f"==> Android sender re-launched at +{time.monotonic() - run_started_at:.1f}s")
+                    passive_restart_transport_observation = wait_for_log_marker_observation(
+                        passive_marker_path,
+                        "advertising started mode=2 tx=3 connectable=true",
+                        passive_transport_timeout_seconds,
+                    )
+                    if passive_restart_transport_observation["observed"]:
+                        time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
+                    else:
+                        raise SystemExit(
+                            f"Android passive transport did not restart within {passive_transport_timeout_seconds} seconds"
+                        )
             if discovered_peer_id is None:
                 print(
                     "==> Passive peer id unavailable before the route phase; proceeding without a seeded target peer"
