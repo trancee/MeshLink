@@ -165,7 +165,12 @@ class FakeLogcatProcess:
 
     def close(self) -> None:
         _close_stream(self._stdout)
-        _close_stream(self._shared.get("passive_log"))
+        # Only close the shared passive_log stream when it's actually *this* process's own
+        # stdout (i.e. this instance is the passive role). Otherwise stopping an unrelated
+        # (e.g. sender) role's process would prematurely close the still-live passive log
+        # stream that a later relaunch depends on.
+        if self._shared.get("passive_log") is self._stdout:
+            _close_stream(self._shared.get("passive_log"))
 
     def poll(self) -> int | None:
         return None if not self._stopped else 0
@@ -945,7 +950,8 @@ class AndroidDirectProofTests(unittest.TestCase):
 
             def close(self) -> None:
                 _close_stream(self._stdout)
-                _close_stream(self._shared.get("passive_log"))
+                if self._shared.get("passive_log") is self._stdout:
+                    _close_stream(self._shared.get("passive_log"))
 
             def poll(self) -> int | None:
                 return None if not self._stopped else 0

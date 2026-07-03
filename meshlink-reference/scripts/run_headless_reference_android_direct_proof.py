@@ -1478,6 +1478,21 @@ def force_stop_extra_peers(extra_force_stop_serials: list[str]) -> None:
         )
 
 
+def stop_background_process_before_relaunch(process: BackgroundProcess | None) -> None:
+    """Stop a role's previous logcat-capturing BackgroundProcess before replacing the variable
+    with a freshly launched one.
+
+    Without this, relaunching a role (e.g. to seed a target-peer-id filter) orphans the old
+    `adb logcat` subprocess: it keeps its file descriptor open on the same log file path, and
+    since the new process reopens that path in truncating "w" mode (not a new file), the two
+    processes end up writing to the same inode concurrently -- corrupting/interleaving the
+    captured log content and producing hard-to-diagnose false negatives (e.g. a genuine
+    `proof.complete` line silently lost amid interleaved writes from a zombie logcat process).
+    """
+    if process is not None:
+        process.stop()
+
+
 def cleanup_android_direct_run(
     *,
     sender_process: BackgroundProcess | None,
@@ -2364,6 +2379,7 @@ def main(argv: list[str] | None = None) -> int:
                     # stale phase-1 address when it rotates, causing repeated L2CAP connect
                     # failures and a premature ROUTE_EXPIRED (confirmed on hardware). Restarting
                     # both together means neither side has an established connection to break.
+                    stop_background_process_before_relaunch(passive_process)
                     passive_process = start_android_role_app(
                         run_dir=run_dir,
                         android_serial=args.passive_android_serial,
@@ -2385,6 +2401,7 @@ def main(argv: list[str] | None = None) -> int:
                     # (not after waiting for passive's transport marker) so both roles come up
                     # fresh together instead of one settling in before the other rotates its
                     # BLE identity.
+                    stop_background_process_before_relaunch(sender_process)
                     sender_process = launch_android_sender_role_app(
                         run_dir=run_dir,
                         android_serial=args.sender_android_serial,
