@@ -46,9 +46,6 @@ internal class MeshEngineOutboundDirectEnvelopeSupport(
     private fun createOutboundDirectEnvelope(sealedPayload: ByteArray): ByteArray {
         return DirectMessageEnvelope(
                 senderPeerId = localIdentity.peerId,
-                senderFingerprintBytes = localIdentity.identityFingerprintBytes,
-                senderEd25519PublicKey = localIdentity.ed25519PublicKey,
-                senderX25519PublicKey = localIdentity.x25519PublicKey,
                 ciphertext = sealedPayload,
             )
             .encode()

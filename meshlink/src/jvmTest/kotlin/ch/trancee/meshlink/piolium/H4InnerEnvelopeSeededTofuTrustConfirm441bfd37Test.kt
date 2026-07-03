@@ -64,10 +64,6 @@ class H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test {
             val envelope =
                 DirectMessageEnvelope(
                         senderPeerId = spoofedInnerSenderIdentity.peerId,
-                        senderFingerprintBytes =
-                            spoofedInnerSenderIdentity.identityFingerprintBytes,
-                        senderEd25519PublicKey = spoofedInnerSenderIdentity.ed25519PublicKey,
-                        senderX25519PublicKey = spoofedInnerSenderIdentity.x25519PublicKey,
                         ciphertext =
                             MessageSealer.seal(
                                 plaintext = "spoofed hello".encodeToByteArray(),

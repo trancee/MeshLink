@@ -268,13 +268,7 @@ private fun sealedEnvelopeFor(
             senderIdentity = senderIdentity,
             recipientTrust = recipientTrust,
         )
-    return DirectMessageEnvelope(
-            senderPeerId = senderIdentity.peerId,
-            senderFingerprintBytes = senderIdentity.identityFingerprintBytes,
-            senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
-            senderX25519PublicKey = senderIdentity.x25519PublicKey,
-            ciphertext = sealedPayload,
-        )
+    return DirectMessageEnvelope(senderPeerId = senderIdentity.peerId, ciphertext = sealedPayload)
         .encode()
 }
 
@@ -286,9 +280,6 @@ private fun tamperedEnvelope(encodedEnvelope: ByteArray): ByteArray {
         }
     return DirectMessageEnvelope(
             senderPeerId = envelope.senderPeerId,
-            senderFingerprintBytes = envelope.senderFingerprintBytes,
-            senderEd25519PublicKey = envelope.senderEd25519PublicKey,
-            senderX25519PublicKey = envelope.senderX25519PublicKey,
             ciphertext = tamperedCiphertext,
         )
         .encode()

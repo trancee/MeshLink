@@ -69,52 +69,19 @@ internal class MeshEngineTrustSupport(
     }
 
     /**
-     * Verifies self-asserted key material (e.g. from an inner message envelope) against a trust
-     * record that was already pinned through a cryptographically authenticated channel (an
-     * end-to-end or hop-level Noise handshake). Unlike [verifyAndPersistTrust], this never pins
-     * trust on first contact: if [peerId] has no existing trust record, the claim is rejected
-     * rather than trusted, since self-asserted data alone proves nothing about who actually sent
-     * it.
+     * Verifies that [peerId] already has trust pinned through a cryptographically authenticated
+     * channel (an end-to-end or hop-level Noise handshake), refreshing its
+     * [TrustRecord.lastVerifiedAtEpochMillis] on success. Unlike [verifyAndPersistTrust], this
+     * never pins trust on first contact: if [peerId] has no existing trust record, it is rejected
+     * outright, since only an authenticated handshake may establish trust for a peer.
      */
-    suspend fun verifyEstablishedTrust(
-        peerId: PeerId,
-        remoteEd25519PublicKey: ByteArray,
-        remoteX25519PublicKey: ByteArray,
-        expectedFingerprintBytes: ByteArray? = null,
-    ): TrustRecord? {
+    suspend fun verifyEstablishedTrust(peerId: PeerId): TrustRecord? {
         val existingTrust = trustStore.read(peerId.value)
         if (existingTrust == null) {
             emitDiagnostic(
                 DiagnosticCode.TRUST_FAILURE,
                 DiagnosticSeverity.WARN,
                 "trust.verify.untrusted",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
-                DiagnosticReason.TRUST_FAILURE,
-                emptyMap(),
-            )
-            return null
-        }
-        val remoteIdentityHash =
-            localIdentity.cryptoProvider.sha256(remoteEd25519PublicKey + remoteX25519PublicKey)
-        val fingerprintMatches =
-            fingerprintMatchesExpected(
-                peerId = peerId,
-                expectedFingerprintBytes = expectedFingerprintBytes,
-                remoteIdentityHash = remoteIdentityHash,
-            )
-        if (
-            !fingerprintMatches ||
-                !trustMatchesRemoteIdentity(
-                    existingTrust = existingTrust,
-                    remoteIdentityHash = remoteIdentityHash,
-                    remoteEd25519PublicKey = remoteEd25519PublicKey,
-                    remoteX25519PublicKey = remoteX25519PublicKey,
-                )
-        ) {
-            emitDiagnostic(
-                DiagnosticCode.TRUST_FAILURE,
-                DiagnosticSeverity.ERROR,
-                "trust.verify",
                 peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
                 DiagnosticReason.TRUST_FAILURE,
                 emptyMap(),

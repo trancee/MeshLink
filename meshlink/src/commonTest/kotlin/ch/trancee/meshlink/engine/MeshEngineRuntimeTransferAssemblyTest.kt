@@ -88,9 +88,6 @@ class MeshEngineRuntimeTransferAssemblyTest {
             val envelope =
                 DirectMessageEnvelope(
                         senderPeerId = senderIdentity.peerId,
-                        senderFingerprintBytes = senderIdentity.identityFingerprintBytes,
-                        senderEd25519PublicKey = senderIdentity.ed25519PublicKey,
-                        senderX25519PublicKey = senderIdentity.x25519PublicKey,
                         ciphertext =
                             MessageSealer.seal(
                                 plaintext = "hello".encodeToByteArray(),
