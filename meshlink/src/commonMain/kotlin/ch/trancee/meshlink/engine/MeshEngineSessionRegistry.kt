@@ -36,6 +36,11 @@ internal class MeshEngineSessionRegistry {
     // new handshake attempt -- such as a peer reconnecting under the same transport peerId with
     // a rotated identity -- which must still be processed.
     private val lastResponderMessage1: MutableMap<String, ByteArray> = linkedMapOf()
+    // Tracks the exact message2 bytes that completed the current hop session for a peer as
+    // initiator, so a redundant delivery of that same wire frame (again, the redundant
+    // GATT/L2CAP side-link transports) can be silently ignored instead of logged as an
+    // "unexpected" frame once the handshake has already completed.
+    private val lastInitiatorMessage2: MutableMap<String, ByteArray> = linkedMapOf()
     private val peerAliases: MutableMap<String, String> = linkedMapOf()
 
     suspend fun initiatorHandshakeReservation(
@@ -74,6 +79,7 @@ internal class MeshEngineSessionRegistry {
         peerId: PeerId,
         pendingHandshake: PendingInitiatorHandshake,
         session: HopSession,
+        message2: ByteArray,
     ): Boolean {
         return sessionMutex.withLock {
             if (pendingInitiatorHandshakes[peerId.value] !== pendingHandshake) {
@@ -81,8 +87,18 @@ internal class MeshEngineSessionRegistry {
             }
             pendingInitiatorHandshakes.remove(peerId.value)
             hopSessions[peerId.value] = session
+            lastInitiatorMessage2[peerId.value] = message2
             true
         }
+    }
+
+    /**
+     * Returns the message2 bytes that completed the peer's current initiator hop session, if any is
+     * tracked. Used to distinguish a redundant delivery of the same wire frame from a genuinely new
+     * or corrupted frame.
+     */
+    suspend fun lastInitiatorMessage2(peerId: PeerId): ByteArray? {
+        return sessionMutex.withLock { lastInitiatorMessage2[peerId.value] }
     }
 
     suspend fun rebindPendingInitiatorHandshake(
@@ -212,6 +228,7 @@ internal class MeshEngineSessionRegistry {
             val pendingHandshake = pendingInitiatorHandshakes.remove(resolvedPeerIdValue)
             pendingResponderHandshakes.remove(resolvedPeerIdValue)
             lastResponderMessage1.remove(resolvedPeerIdValue)
+            lastInitiatorMessage2.remove(resolvedPeerIdValue)
             peerAliases.remove(peerId.value)
             peerAliases.remove(resolvedPeerIdValue)
             peerAliases.entries.removeAll { (_, canonicalPeerIdValue) ->
@@ -228,6 +245,7 @@ internal class MeshEngineSessionRegistry {
             pendingInitiatorHandshakes.clear()
             pendingResponderHandshakes.clear()
             lastResponderMessage1.clear()
+            lastInitiatorMessage2.clear()
             peerAliases.clear()
             pendingHandshakes
         }

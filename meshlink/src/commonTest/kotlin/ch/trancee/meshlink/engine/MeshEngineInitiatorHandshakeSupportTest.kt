@@ -6,6 +6,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.transport.TransportMode
@@ -75,6 +76,119 @@ class MeshEngineInitiatorHandshakeSupportTest {
             )
             assertNotNull(fixture.trustStore.read(peerId.value))
             assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleHandshakeMessage2 ignores a byte-identical redundant message2 once the session is established`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val seededHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = initiatorManager,
+                )
+            val responderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message2 =
+                responderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    seededHandshake.message1,
+                )
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = message2)
+            assertIs<SessionEstablishmentOutcome.Established>(
+                seededHandshake.sessionDeferred.await()
+            )
+
+            // Act
+            // Simulate MeshLink's redundant GATT/L2CAP side-link transports delivering the exact
+            // same message2 wire frame a second time after the handshake already completed.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = message2)
+
+            // Assert
+            assertEquals(1, fixture.sentFrames.size, "no additional message3 should be sent")
+            assertEquals(1, fixture.established.size, "session should not be re-established")
+            assertEquals(
+                listOf(
+                    RecordedInitiatorHandshakeFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.handshake.message2.duplicateIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "payloadBytes" to message2.size.toString(),
+                                "payloadPrefixHex" to
+                                    message2
+                                        .copyOf(
+                                            minOf(message2.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES)
+                                        )
+                                        .toHexString(),
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
+        }
+
+    @Test
+    fun `handleHandshakeMessage2 reports unexpected for a distinct message2 once the session is established`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val seededHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = initiatorManager,
+                )
+            val responderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message2 =
+                responderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    seededHandshake.message1,
+                )
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = message2)
+            assertIs<SessionEstablishmentOutcome.Established>(
+                seededHandshake.sessionDeferred.await()
+            )
+            val distinctPayload = message2.copyOf().also { it[0] = (it[0] + 1).toByte() }
+
+            // Act
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = distinctPayload)
+
+            // Assert
+            assertEquals(1, fixture.sentFrames.size, "no additional message3 should be sent")
+            assertEquals(
+                listOf(
+                    RecordedInitiatorHandshakeFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.handshake.message2.unexpected",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "payloadBytes" to distinctPayload.size.toString(),
+                                "payloadPrefixHex" to
+                                    distinctPayload
+                                        .copyOf(
+                                            minOf(
+                                                distinctPayload.size,
+                                                UNEXPECTED_FRAME_HEX_SNIPPET_BYTES,
+                                            )
+                                        )
+                                        .toHexString(),
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
         }
 
     @Test

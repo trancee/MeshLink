@@ -40,6 +40,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
                         pending = pending,
                         result = result,
                         trustRecord = trustRecord,
+                        message2 = payload,
                     )
                 }
             }
@@ -58,7 +59,27 @@ internal class MeshEngineInitiatorHandshakeSupport(
             // No pendingInitiatorHandshake exists for this peer -- either this device never
             // reserved one (e.g. this frame is a stray/duplicate delivery), or a hop session is
             // already Established and the retry/rebind bookkeeping in
-            // MeshEngineSessionRegistry dropped the reservation before this frame arrived.
+            // MeshEngineSessionRegistry dropped the reservation before this frame arrived. If the
+            // payload exactly matches the message2 that completed the current session, this is a
+            // confirmed redundant delivery (the same GATT/L2CAP side-link transports that can
+            // duplicate message1 can duplicate message2 too) rather than a genuinely unexpected
+            // frame, so it is logged and ignored quietly instead of as a delivery-failure warning.
+            val lastMessage2 = state.sessionRegistry.lastInitiatorMessage2(peerId)
+            if (lastMessage2 != null && lastMessage2.contentEquals(payload)) {
+                callbacks.emitHopSessionFailed(
+                    peerId,
+                    "transport.handshake.message2.duplicateIgnored",
+                    DiagnosticReason.DELIVERY_FAILURE,
+                    mapOf(
+                        "payloadBytes" to payload.size.toString(),
+                        "payloadPrefixHex" to
+                            payload
+                                .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                                .toHexString(),
+                    ),
+                )
+                return null
+            }
             // Surface enough of the received payload to distinguish those cases from hardware
             // captures without needing a raw wire trace.
             callbacks.emitHopSessionFailed(
@@ -169,6 +190,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
         pending: PendingInitiatorHandshake,
         result: NoiseXXHandshakeResult,
         trustRecord: TrustRecord,
+        message2: ByteArray,
     ): Unit {
         when (
             callbacks.sendDirectWireFrame(
@@ -184,6 +206,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
                     pending = pending,
                     result = result,
                     trustRecord = trustRecord,
+                    message2 = message2,
                 )
             is TransportSendResult.Dropped ->
                 failPendingInitiatorHandshake(
@@ -204,6 +227,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
         pending: PendingInitiatorHandshake,
         result: NoiseXXHandshakeResult,
         trustRecord: TrustRecord,
+        message2: ByteArray,
     ): Unit {
         val session = HopSession(sendKey = result.sendKey, receiveKey = result.receiveKey)
         val completed =
@@ -211,6 +235,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
                 peerId = peerId,
                 pendingHandshake = pending,
                 session = session,
+                message2 = message2,
             )
         if (!completed) {
             return
