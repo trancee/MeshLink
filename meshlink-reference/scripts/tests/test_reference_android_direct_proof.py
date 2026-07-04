@@ -577,6 +577,102 @@ class AndroidDirectProofTests(unittest.TestCase):
                 self.assertIn("route stage", str(raised.exception))
                 self.assertIn("sender=route-unavailable", str(raised.exception))
 
+    def test_wait_for_android_completions_tolerates_discovery_stalled_within_grace_window(
+        self,
+    ) -> None:
+        # Arrange: "discovery.stalled" is a one-shot diagnostic fired by
+        # GuidedFirstExchangeViewModel.maybeLogDiscoveryStalled() at a fixed ~3-second
+        # elapsed-time timer, not proof the connection is dead (see
+        # DISCOVERY_STALL_GRACE_SECONDS); the poll loop must keep waiting instead of
+        # failing fast on the very first sighting.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / android_direct_proof.SENDER_LOGCAT_NAME).write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer",
+                encoding="utf-8",
+            )
+            (run_dir / android_direct_proof.PASSIVE_LOGCAT_NAME).write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION discovery.stalled role=PASSIVE count=0 selectedPeerId=none elapsedSeconds=3.0",
+                encoding="utf-8",
+            )
+            # Order of time.monotonic() calls consumed by wait_for_android_completions:
+            # 1) deadline = now+30 -> 0.0 => deadline=30.0
+            # 2) no_peer_deadline = now+10 -> 0.0 => no_peer_deadline=10.0
+            # 3) loop condition (now < deadline) -> 1.0 (True, enters loop)
+            # 4) grace-arming (now+12) -> 2.0 => grace_deadline=14.0
+            # 5) route_stall_failure_reason's in-grace check (now < 14.0) -> 3.0 (True, tolerated)
+            # 6) no-peer-deadline check (now >= 10.0) -> 4.0 (unused by control flow)
+            # 7) loop condition again (now < deadline) -> 35.0 (False, exits loop)
+            monotonic_values = _monotonic_sequence([0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 35.0])
+            with patch.object(
+                android_direct_proof,
+                "collect_android_completions",
+                return_value=android_direct_proof.AndroidDirectCompletions(),
+            ), patch.object(
+                android_direct_proof,
+                "transport_failure_reason",
+                return_value="Timed out",
+            ), patch.object(
+                android_direct_proof.time, "monotonic", side_effect=monotonic_values
+            ), patch.object(android_direct_proof.time, "sleep"):
+                # Act / Assert
+                with self.assertRaises(SystemExit) as raised:
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir=run_dir,
+                        timeout_seconds=30.0,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
+                # A still-within-grace discovery-stalled reading must not surface as
+                # the failure reason; only the overall timeout should.
+                self.assertEqual(str(raised.exception), "Timed out")
+
+    def test_wait_for_android_completions_fails_after_discovery_stalled_grace_expires(
+        self,
+    ) -> None:
+        # Arrange: once DISCOVERY_STALL_GRACE_SECONDS has elapsed since the
+        # discovery-stalled reading first appeared without a peer ever completing
+        # discovery, it becomes a genuine terminal stall and must fail fast rather
+        # than waiting for the full capture timeout.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir = Path(temporary_directory) / "android-direct-proof"
+            run_dir.mkdir()
+            (run_dir / android_direct_proof.SENDER_LOGCAT_NAME).write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION peer.discovered role=SENDER peer=passive-peer",
+                encoding="utf-8",
+            )
+            (run_dir / android_direct_proof.PASSIVE_LOGCAT_NAME).write_text(
+                "I MeshLinkReferenceAutomation: REFERENCE_AUTOMATION discovery.stalled role=PASSIVE count=0 selectedPeerId=none elapsedSeconds=3.0",
+                encoding="utf-8",
+            )
+            past_grace_deadline = 2.0 + android_direct_proof.DISCOVERY_STALL_GRACE_SECONDS + 1.0
+            # Order of time.monotonic() calls consumed:
+            # 1) deadline = now+30 -> 0.0 => deadline=30.0
+            # 2) no_peer_deadline = now+10 -> 0.0 => no_peer_deadline=10.0
+            # 3) loop condition (now < deadline) -> 1.0 (True, enters loop)
+            # 4) grace-arming (now+12) -> 2.0 => grace_deadline=14.0
+            # 5) route_stall_failure_reason's in-grace check (now < 14.0) -> past_grace_deadline
+            #    (False, no longer tolerated -> terminal, raises immediately)
+            monotonic_values = _monotonic_sequence([0.0, 0.0, 1.0, 2.0, past_grace_deadline])
+            with patch.object(
+                android_direct_proof,
+                "collect_android_completions",
+                return_value=android_direct_proof.AndroidDirectCompletions(),
+            ), patch.object(
+                android_direct_proof.time, "monotonic", side_effect=monotonic_values
+            ), patch.object(android_direct_proof.time, "sleep"):
+                # Act / Assert
+                with self.assertRaises(SystemExit) as raised:
+                    android_direct_proof.wait_for_android_completions(
+                        run_dir=run_dir,
+                        timeout_seconds=30.0,
+                        sender_android_serial="sender-1",
+                        passive_android_serial="passive-1",
+                    )
+                self.assertIn("route stage", str(raised.exception))
+                self.assertIn("passive=discovery-stalled", str(raised.exception))
+
     def test_read_passive_peer_id_reads_target_peer_from_shared_prefs(self) -> None:
         # Arrange
         xml_text = (

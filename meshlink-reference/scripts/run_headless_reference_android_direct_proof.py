@@ -1117,11 +1117,24 @@ def build_timing_snapshot(
 # gets a fair chance to resolve on its own.
 ROUTE_UNAVAILABLE_GRACE_SECONDS = 16.0
 
+# discovery-stalled/discovery-pending (and the sender-prefixed variants) are
+# emitted by GuidedFirstExchangeViewModel.maybeLogDiscoveryStalled() as a
+# one-shot diagnostic fired at a *fixed* ~3-second elapsed-time timer,
+# regardless of whether the underlying BLE connection is still actively
+# progressing. Hardware runs have shown a GATT connection reach
+# CONNECTED -> MTU negotiated -> CCCD-enabled within a couple hundred
+# milliseconds of this marker firing, with the LinkIdentity data frame (and
+# the resulting peer.discovered/route.ready transition) still in flight.
+# Give this marker the same kind of grace window as route-unavailable before
+# treating it as a terminal stall.
+DISCOVERY_STALL_GRACE_SECONDS = 12.0
+
 
 def route_stall_failure_reason(
     run_dir: Path,
     *,
     route_unavailable_grace_deadline: float | None = None,
+    discovery_stall_grace_deadline: float | None = None,
 ) -> str | None:
     """Detect genuinely terminal route-level failures that are safe to raise
     immediately, even before the full capture timeout elapses.
@@ -1145,7 +1158,15 @@ def route_stall_failure_reason(
     post-hoc classification after the full capture timeout has already
     elapsed), a bare route-unavailable reading is treated as terminal
     immediately, since there is no more time left to wait for the retry to
-    resolve."""
+    resolve.
+
+    A bare "discovery-stalled"/"discovery-pending" stage (with no accompanying
+    harder failure signal) gets the same grace treatment via
+    discovery_stall_grace_deadline (see DISCOVERY_STALL_GRACE_SECONDS above):
+    it is a one-shot early diagnostic, not proof the connection is dead, and
+    real hardware has been observed to complete GATT connect/MTU/CCCD/
+    LinkIdentity binding within a couple hundred milliseconds of this marker
+    firing."""
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     combined_log_lower = (sender_log + "\n" + passive_log).lower()
@@ -1161,15 +1182,32 @@ def route_stall_failure_reason(
     hard_route_failure_stages = {
         "handshake-message1-send",
         "hop-failed",
-        "discovery-stalled",
-        "discovery-pending",
-        "sender-discovery-stalled",
-        "sender-discovery-pending",
     }
     if (
         sender_route_stage in hard_route_failure_stages
         or passive_route_stage in hard_route_failure_stages
     ):
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    discovery_stall_stages = {
+        "discovery-stalled",
+        "discovery-pending",
+        "sender-discovery-stalled",
+        "sender-discovery-pending",
+    }
+    discovery_stalled = (
+        sender_route_stage in discovery_stall_stages
+        or passive_route_stage in discovery_stall_stages
+    )
+    if discovery_stalled:
+        if (
+            discovery_stall_grace_deadline is not None
+            and time.monotonic() < discovery_stall_grace_deadline
+        ):
+            return None
         return (
             "Android direct proof stalled at route stage "
             f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
@@ -1253,6 +1291,7 @@ def wait_for_android_completions(
     deadline = time.monotonic() + timeout_seconds
     no_peer_deadline = time.monotonic() + min(timeout_seconds, 10.0)
     route_unavailable_grace_deadline: float | None = None
+    discovery_stall_grace_deadline: float | None = None
     while time.monotonic() < deadline:
         completions = collect_android_completions(run_dir)
         if completions.sender_failed is not None:
@@ -1262,15 +1301,30 @@ def wait_for_android_completions(
             )
         if completions.sender_completion:
             return completions
-        if route_unavailable_grace_deadline is None:
+        if route_unavailable_grace_deadline is None or discovery_stall_grace_deadline is None:
             sender_stage, _ = extract_route_observation(read_text(sender_log_path(run_dir)))
             passive_stage, _ = extract_route_observation(read_text(passive_log_path(run_dir)))
-            if "route-unavailable" in (sender_stage, passive_stage):
+            if route_unavailable_grace_deadline is None and "route-unavailable" in (
+                sender_stage,
+                passive_stage,
+            ):
                 route_unavailable_grace_deadline = (
                     time.monotonic() + ROUTE_UNAVAILABLE_GRACE_SECONDS
                 )
+            discovery_stall_stages = {
+                "discovery-stalled",
+                "discovery-pending",
+                "sender-discovery-stalled",
+                "sender-discovery-pending",
+            }
+            if discovery_stall_grace_deadline is None and (
+                sender_stage in discovery_stall_stages or passive_stage in discovery_stall_stages
+            ):
+                discovery_stall_grace_deadline = time.monotonic() + DISCOVERY_STALL_GRACE_SECONDS
         route_stall_reason = route_stall_failure_reason(
-            run_dir, route_unavailable_grace_deadline=route_unavailable_grace_deadline
+            run_dir,
+            route_unavailable_grace_deadline=route_unavailable_grace_deadline,
+            discovery_stall_grace_deadline=discovery_stall_grace_deadline,
         )
         if route_stall_reason is not None:
             raise SystemExit(route_stall_reason)
