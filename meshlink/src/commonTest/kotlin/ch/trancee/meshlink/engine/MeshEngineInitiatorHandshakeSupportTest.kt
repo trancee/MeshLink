@@ -243,7 +243,7 @@ class MeshEngineInitiatorHandshakeSupportTest {
                         peerIdValue = peerId.value,
                         stage = "transport.handshake.message2.unexpected",
                         reason = DiagnosticReason.DELIVERY_FAILURE,
-                        metadata = emptyMap(),
+                        metadata = mapOf("payloadBytes" to "0", "payloadPrefixHex" to ""),
                     )
                 ),
                 fixture.failures,

@@ -5,6 +5,7 @@ import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
 import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
@@ -83,7 +84,7 @@ internal class MeshEngineResponderHandshakeSupport(
     }
 
     suspend fun handleHandshakeMessage3(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingResponderHandshake(peerId)
+        val pending = pendingResponderHandshake(peerId, payload)
         if (pending != null) {
             val result =
                 processHandshakeMessage3(peerId = peerId, payload = payload, pending = pending)
@@ -146,14 +147,27 @@ internal class MeshEngineResponderHandshakeSupport(
         return canonicalPeerId
     }
 
-    private suspend fun pendingResponderHandshake(peerId: PeerId): PendingResponderHandshake? {
+    private suspend fun pendingResponderHandshake(
+        peerId: PeerId,
+        payload: ByteArray,
+    ): PendingResponderHandshake? {
         val pending = state.sessionRegistry.pendingResponderHandshake(peerId)
         if (pending == null) {
+            // See the matching comment in MeshEngineInitiatorHandshakeSupport's
+            // pendingInitiatorHandshake(): surface the received payload's size/prefix so hardware
+            // captures can distinguish a genuine stray/duplicate frame from a reservation that was
+            // dropped before this frame arrived.
             callbacks.emitHopSessionFailed(
                 peerId,
                 "transport.handshake.message3.unexpected",
                 DiagnosticReason.DELIVERY_FAILURE,
-                emptyMap(),
+                mapOf(
+                    "payloadBytes" to payload.size.toString(),
+                    "payloadPrefixHex" to
+                        payload
+                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                            .toHexString(),
+                ),
             )
         }
         return pending

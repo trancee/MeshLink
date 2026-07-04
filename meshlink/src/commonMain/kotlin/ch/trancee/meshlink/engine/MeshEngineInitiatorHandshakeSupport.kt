@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
@@ -16,7 +17,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
     private val callbacks: MeshEngineHandshakeCallbacks,
 ) {
     suspend fun handleHandshakeMessage2(peerId: PeerId, payload: ByteArray): Unit {
-        val pending = pendingInitiatorHandshake(peerId)
+        val pending = pendingInitiatorHandshake(peerId, payload)
         if (pending != null) {
             val result =
                 processHandshakeMessage2(peerId = peerId, payload = payload, pending = pending)
@@ -45,17 +46,32 @@ internal class MeshEngineInitiatorHandshakeSupport(
         }
     }
 
-    private suspend fun pendingInitiatorHandshake(peerId: PeerId): PendingInitiatorHandshake? {
+    private suspend fun pendingInitiatorHandshake(
+        peerId: PeerId,
+        payload: ByteArray,
+    ): PendingInitiatorHandshake? {
         val pending =
             (state.sessionRegistry.initiatorHandshakeReservation(peerId)
                     as? InitiatorHandshakeReservation.Pending)
                 ?.pendingHandshake
         if (pending == null) {
+            // No pendingInitiatorHandshake exists for this peer -- either this device never
+            // reserved one (e.g. this frame is a stray/duplicate delivery), or a hop session is
+            // already Established and the retry/rebind bookkeeping in
+            // MeshEngineSessionRegistry dropped the reservation before this frame arrived.
+            // Surface enough of the received payload to distinguish those cases from hardware
+            // captures without needing a raw wire trace.
             callbacks.emitHopSessionFailed(
                 peerId,
                 "transport.handshake.message2.unexpected",
                 DiagnosticReason.DELIVERY_FAILURE,
-                emptyMap(),
+                mapOf(
+                    "payloadBytes" to payload.size.toString(),
+                    "payloadPrefixHex" to
+                        payload
+                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                            .toHexString(),
+                ),
             )
         }
         return pending
@@ -237,3 +253,5 @@ internal fun buildMeshEngineRuntimeInitiatorHandshakeSupport(
         callbacks = callbacks,
     )
 }
+
+internal const val UNEXPECTED_FRAME_HEX_SNIPPET_BYTES: Int = 16
