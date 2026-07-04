@@ -1108,7 +1108,21 @@ def build_timing_snapshot(
     }
 
 
-def route_stall_failure_reason(run_dir: Path) -> str | None:
+# NO_ROUTE_AVAILABLE/routeAvailable=false is routine, expected telemetry during
+# the delivery layer's own delivery.send.routeRefreshed -> DELIVERY_RETRY_SCHEDULED
+# -> DELIVERY_SUCCEEDED retry sequence (see the DELIVERY_SUCCEEDED handling in
+# extract_route_observation()); hardware runs have been observed to report
+# retryDeadlineMs=15000 for this retry window. Give a bare "route-unavailable"
+# reading this much grace before treating it as a terminal stall so the retry
+# gets a fair chance to resolve on its own.
+ROUTE_UNAVAILABLE_GRACE_SECONDS = 16.0
+
+
+def route_stall_failure_reason(
+    run_dir: Path,
+    *,
+    route_unavailable_grace_deadline: float | None = None,
+) -> str | None:
     """Detect genuinely terminal route-level failures that are safe to raise
     immediately, even before the full capture timeout elapses.
 
@@ -1120,7 +1134,18 @@ def route_stall_failure_reason(run_dir: Path) -> str | None:
     maybeLogDiscoveryStalled()): that marker is routine telemetry, not a
     terminal failure, and BLE discovery on real hardware can easily take
     longer than 3 seconds while still succeeding well within the configured
-    android-ready/capture-timeout budget."""
+    android-ready/capture-timeout budget.
+
+    A bare "route-unavailable" stage (with no accompanying harder failure
+    signal) is similarly not immediately terminal: it is routine mid-retry
+    telemetry (see ROUTE_UNAVAILABLE_GRACE_SECONDS above). When
+    route_unavailable_grace_deadline is an absolute time.monotonic() deadline,
+    a bare route-unavailable reading only becomes terminal once that deadline
+    has passed. When route_unavailable_grace_deadline is None (e.g. used for
+    post-hoc classification after the full capture timeout has already
+    elapsed), a bare route-unavailable reading is treated as terminal
+    immediately, since there is no more time left to wait for the retry to
+    resolve."""
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
     combined_log_lower = (sender_log + "\n" + passive_log).lower()
@@ -1133,16 +1158,32 @@ def route_stall_failure_reason(run_dir: Path) -> str | None:
     if not peer_discovered:
         return None
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {
+    hard_route_failure_stages = {
         "handshake-message1-send",
         "hop-failed",
-        "route-unavailable",
         "discovery-stalled",
         "discovery-pending",
         "sender-discovery-stalled",
         "sender-discovery-pending",
     }
-    if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
+    if (
+        sender_route_stage in hard_route_failure_stages
+        or passive_route_stage in hard_route_failure_stages
+    ):
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    route_unavailable = (
+        sender_route_stage == "route-unavailable" or passive_route_stage == "route-unavailable"
+    )
+    if route_unavailable:
+        if (
+            route_unavailable_grace_deadline is not None
+            and time.monotonic() < route_unavailable_grace_deadline
+        ):
+            return None
         return (
             "Android direct proof stalled at route stage "
             f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
@@ -1211,6 +1252,7 @@ def wait_for_android_completions(
 ) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
     no_peer_deadline = time.monotonic() + min(timeout_seconds, 10.0)
+    route_unavailable_grace_deadline: float | None = None
     while time.monotonic() < deadline:
         completions = collect_android_completions(run_dir)
         if completions.sender_failed is not None:
@@ -1220,7 +1262,16 @@ def wait_for_android_completions(
             )
         if completions.sender_completion:
             return completions
-        route_stall_reason = route_stall_failure_reason(run_dir)
+        if route_unavailable_grace_deadline is None:
+            sender_stage, _ = extract_route_observation(read_text(sender_log_path(run_dir)))
+            passive_stage, _ = extract_route_observation(read_text(passive_log_path(run_dir)))
+            if "route-unavailable" in (sender_stage, passive_stage):
+                route_unavailable_grace_deadline = (
+                    time.monotonic() + ROUTE_UNAVAILABLE_GRACE_SECONDS
+                )
+        route_stall_reason = route_stall_failure_reason(
+            run_dir, route_unavailable_grace_deadline=route_unavailable_grace_deadline
+        )
         if route_stall_reason is not None:
             raise SystemExit(route_stall_reason)
         if time.monotonic() >= no_peer_deadline:
