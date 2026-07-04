@@ -30,6 +30,12 @@ internal class MeshEngineSessionRegistry {
         linkedMapOf()
     private val pendingResponderHandshakes: MutableMap<String, PendingResponderHandshake> =
         linkedMapOf()
+    // Tracks the exact message1 bytes that produced the current pending responder handshake or
+    // hop session for a peer, so a redundant delivery of that same wire frame (for example via
+    // MeshLink's redundant GATT/L2CAP side-link transports) can be told apart from a genuinely
+    // new handshake attempt -- such as a peer reconnecting under the same transport peerId with
+    // a rotated identity -- which must still be processed.
+    private val lastResponderMessage1: MutableMap<String, ByteArray> = linkedMapOf()
     private val peerAliases: MutableMap<String, String> = linkedMapOf()
 
     suspend fun initiatorHandshakeReservation(
@@ -121,11 +127,24 @@ internal class MeshEngineSessionRegistry {
         return sessionMutex.withLock { pendingResponderHandshakes[peerId.value] }
     }
 
+    /**
+     * Returns the message1 bytes that produced the peer's current pending responder handshake or
+     * established hop session, if any is tracked. Used to distinguish a redundant delivery of the
+     * same wire frame from a genuinely new handshake attempt.
+     */
+    suspend fun lastResponderMessage1(peerId: PeerId): ByteArray? {
+        return sessionMutex.withLock { lastResponderMessage1[resolvePeerIdValue(peerId.value)] }
+    }
+
     suspend fun storePendingResponderHandshake(
         peerId: PeerId,
         pendingHandshake: PendingResponderHandshake,
+        message1: ByteArray,
     ): Unit {
-        sessionMutex.withLock { pendingResponderHandshakes[peerId.value] = pendingHandshake }
+        sessionMutex.withLock {
+            pendingResponderHandshakes[peerId.value] = pendingHandshake
+            lastResponderMessage1[peerId.value] = message1
+        }
     }
 
     suspend fun completeResponderHandshake(
@@ -163,6 +182,9 @@ internal class MeshEngineSessionRegistry {
             }
             pendingResponderHandshakes.remove(fromPeerId.value)
             pendingResponderHandshakes[toPeerId.value] = pendingHandshake
+            lastResponderMessage1.remove(fromPeerId.value)?.let { message1 ->
+                lastResponderMessage1[toPeerId.value] = message1
+            }
             peerAliases[fromPeerId.value] = toPeerId.value
             true
         }
@@ -178,6 +200,7 @@ internal class MeshEngineSessionRegistry {
             if (pendingHandshake != null && currentPendingHandshake !== pendingHandshake) {
                 return@withLock null
             }
+            lastResponderMessage1.remove(peerId.value)
             pendingResponderHandshakes.remove(peerId.value)
         }
     }
@@ -188,6 +211,7 @@ internal class MeshEngineSessionRegistry {
             hopSessions.remove(resolvedPeerIdValue)
             val pendingHandshake = pendingInitiatorHandshakes.remove(resolvedPeerIdValue)
             pendingResponderHandshakes.remove(resolvedPeerIdValue)
+            lastResponderMessage1.remove(resolvedPeerIdValue)
             peerAliases.remove(peerId.value)
             peerAliases.remove(resolvedPeerIdValue)
             peerAliases.entries.removeAll { (_, canonicalPeerIdValue) ->
@@ -203,6 +227,7 @@ internal class MeshEngineSessionRegistry {
             hopSessions.clear()
             pendingInitiatorHandshakes.clear()
             pendingResponderHandshakes.clear()
+            lastResponderMessage1.clear()
             peerAliases.clear()
             pendingHandshakes
         }

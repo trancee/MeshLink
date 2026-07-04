@@ -6,6 +6,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.transport.TransportMode
@@ -105,6 +106,162 @@ class MeshEngineResponderHandshakeSupportTest {
                 fixture.established,
             )
             assertNotNull(fixture.trustStore.read(expectedCanonicalPeerId.value))
+            assertTrue(fixture.failures.isEmpty())
+        }
+
+    @Test
+    fun `handleHandshakeMessage1 ignores a byte-identical redundant message1 while a responder handshake is already pending`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
+            val temporaryPeerId = PeerId("cb-aabbccddeeff")
+            val message1 = NoiseXXHandshakeManager(localIdentity.cryptoProvider).createMessage1()
+            val redundantMessage1 = message1.copyOf()
+            val fixture = responderHandshakeFixture(localIdentity = localIdentity)
+            fixture.support.handleHandshakeMessage1(peerId = temporaryPeerId, payload = message1)
+            val pendingBeforeRedundantDelivery =
+                fixture.sessionRegistry.pendingResponderHandshake(temporaryPeerId)
+
+            // Act
+            fixture.support.handleHandshakeMessage1(
+                peerId = temporaryPeerId,
+                payload = redundantMessage1,
+            )
+
+            // Assert
+            assertEquals(1, fixture.sentFrames.size)
+            assertSame(
+                pendingBeforeRedundantDelivery,
+                fixture.sessionRegistry.pendingResponderHandshake(temporaryPeerId),
+            )
+            assertEquals(
+                listOf(
+                    RecordedResponderHandshakeFailure(
+                        peerIdValue = temporaryPeerId.value,
+                        stage = "transport.handshake.message1.duplicateIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "hasEstablishedSession" to "false",
+                                "hasPendingResponderHandshake" to "true",
+                                "payloadBytes" to redundantMessage1.size.toString(),
+                                "payloadPrefixHex" to
+                                    redundantMessage1
+                                        .copyOf(
+                                            minOf(
+                                                redundantMessage1.size,
+                                                UNEXPECTED_FRAME_HEX_SNIPPET_BYTES,
+                                            )
+                                        )
+                                        .toHexString(),
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
+        }
+
+    @Test
+    fun `handleHandshakeMessage1 ignores a byte-identical redundant message1 once a session is already established`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
+            val initiatorIdentity = LocalIdentity.fromAppId("responder-handshake-initiator")
+            val temporaryPeerId = PeerId("cb-aabbccddeeff")
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message1 = initiatorManager.createMessage1()
+            val fixture = responderHandshakeFixture(localIdentity = localIdentity)
+            fixture.support.handleHandshakeMessage1(peerId = temporaryPeerId, payload = message1)
+            val message2 =
+                assertIs<DirectWireFrame.HandshakeMessage2>(fixture.sentFrames.single().frame)
+            val message3 =
+                initiatorManager.processMessage2AndCreateMessage3(
+                    initiatorIdentity.noiseIdentity,
+                    message2.payload,
+                )
+            fixture.support.handleHandshakeMessage3(
+                peerId = temporaryPeerId,
+                payload = message3.message3,
+            )
+            val establishedSession = fixture.sessionRegistry.hopSession(temporaryPeerId)
+            assertNotNull(establishedSession)
+            val redundantMessage1 = message1.copyOf()
+
+            // Act
+            fixture.support.handleHandshakeMessage1(
+                peerId = temporaryPeerId,
+                payload = redundantMessage1,
+            )
+
+            // Assert
+            assertEquals(1, fixture.sentFrames.size)
+            assertSame(establishedSession, fixture.sessionRegistry.hopSession(temporaryPeerId))
+            assertEquals(
+                listOf(
+                    RecordedResponderHandshakeFailure(
+                        peerIdValue = temporaryPeerId.value,
+                        stage = "transport.handshake.message1.duplicateIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "hasEstablishedSession" to "true",
+                                "hasPendingResponderHandshake" to "false",
+                                "payloadBytes" to redundantMessage1.size.toString(),
+                                "payloadPrefixHex" to
+                                    redundantMessage1
+                                        .copyOf(
+                                            minOf(
+                                                redundantMessage1.size,
+                                                UNEXPECTED_FRAME_HEX_SNIPPET_BYTES,
+                                            )
+                                        )
+                                        .toHexString(),
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
+        }
+
+    @Test
+    fun `handleHandshakeMessage1 still processes a distinct message1 for a peer with an established session`() =
+        runBlocking<Unit> {
+            // Arrange -- simulates a peer reconnecting under the same transport peerId with a
+            // rotated identity: the new message1's bytes differ from the one that established
+            // the current session, so it must be processed as a fresh handshake attempt rather
+            // than ignored as a stale duplicate.
+            val localIdentity = LocalIdentity.fromAppId("responder-handshake-local")
+            val initiatorIdentity = LocalIdentity.fromAppId("responder-handshake-initiator")
+            val temporaryPeerId = PeerId("cb-aabbccddeeff")
+            val initiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val message1 = initiatorManager.createMessage1()
+            val fixture = responderHandshakeFixture(localIdentity = localIdentity)
+            fixture.support.handleHandshakeMessage1(peerId = temporaryPeerId, payload = message1)
+            val message2 =
+                assertIs<DirectWireFrame.HandshakeMessage2>(fixture.sentFrames.single().frame)
+            val message3 =
+                initiatorManager.processMessage2AndCreateMessage3(
+                    initiatorIdentity.noiseIdentity,
+                    message2.payload,
+                )
+            fixture.support.handleHandshakeMessage3(
+                peerId = temporaryPeerId,
+                payload = message3.message3,
+            )
+            assertNotNull(fixture.sessionRegistry.hopSession(temporaryPeerId))
+            val rotatedInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val distinctMessage1 = rotatedInitiatorManager.createMessage1()
+
+            // Act
+            fixture.support.handleHandshakeMessage1(
+                peerId = temporaryPeerId,
+                payload = distinctMessage1,
+            )
+
+            // Assert
+            assertEquals(2, fixture.sentFrames.size)
+            assertIs<DirectWireFrame.HandshakeMessage2>(fixture.sentFrames.last().frame)
+            assertNotNull(fixture.sessionRegistry.pendingResponderHandshake(temporaryPeerId))
             assertTrue(fixture.failures.isEmpty())
         }
 

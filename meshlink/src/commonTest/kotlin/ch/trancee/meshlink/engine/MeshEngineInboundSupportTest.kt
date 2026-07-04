@@ -898,7 +898,7 @@ private suspend fun seedInboundSession(
 ): Unit {
     val pendingHandshake =
         PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
+    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake, byteArrayOf())
     sessionRegistry.completeResponderHandshake(
         peerId = peerId,
         pendingHandshake = pendingHandshake,
@@ -914,7 +914,7 @@ private suspend fun seedAliasedInboundSession(
 ): Unit {
     val pendingHandshake =
         PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-    sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+    sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake, byteArrayOf())
     sessionRegistry.rebindPendingResponderHandshake(
         fromPeerId = temporaryPeerId,
         toPeerId = canonicalPeerId,

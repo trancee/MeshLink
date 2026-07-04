@@ -220,7 +220,7 @@ class MeshEngineTransportSupportTest {
                 peerId = peerId,
                 trustRecord = trustRecord(peerId = peerId, seed = 5),
             )
-            harness.sessionRegistry.storePendingResponderHandshake(peerId, pending)
+            harness.sessionRegistry.storePendingResponderHandshake(peerId, pending, byteArrayOf())
             harness.sessionRegistry.completeResponderHandshake(
                 peerId = peerId,
                 pendingHandshake = pending,

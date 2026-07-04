@@ -22,29 +22,39 @@ internal class MeshEngineResponderHandshakeSupport(
     private val callbacks: MeshEngineHandshakeCallbacks,
 ) {
     suspend fun handleHandshakeMessage1(peerId: PeerId, payload: ByteArray): Unit {
-        // Diagnostic-only instrumentation (no behavior change): a message1 arriving while this
-        // peer already has an established session or an in-flight responder handshake is
-        // suspicious -- it suggests the transport layer delivered the same wire frame more than
-        // once, which would otherwise silently regenerate a fresh (and now stray) message2 below.
-        // Surfacing this before touching any registry state lets a hardware capture confirm
-        // whether that is really happening before any fix is attempted.
+        // Hardware captures confirmed that the redundant GATT/L2CAP side-link transports can
+        // both deliver the exact same initiator message1 wire frame to this peer (see
+        // transport.handshake.message1.duplicateIgnored evidence in bearer-policy verification
+        // runs). Without this guard, every redundant delivery unconditionally built a fresh
+        // NoiseXXHandshakeManager and regenerated a brand new message2, which the initiator -
+        // having already completed (or abandoned) its own handshake attempt for the first
+        // delivery - correctly rejected as "unexpected". Ignore a message1 only when its bytes
+        // exactly match the frame that produced the peer's current pending responder handshake
+        // or established session: a peer reconnecting under the same transport peerId with a
+        // rotated identity sends a genuinely different message1 and must still be processed as a
+        // fresh handshake attempt.
         val existingSession = state.sessionRegistry.hopSession(peerId)
         val existingPendingResponder = state.sessionRegistry.pendingResponderHandshake(peerId)
         if (existingSession != null || existingPendingResponder != null) {
-            callbacks.emitHopSessionFailed(
-                peerId,
-                "transport.handshake.message1.duplicateSuspected",
-                DiagnosticReason.DELIVERY_FAILURE,
-                mapOf(
-                    "hasEstablishedSession" to (existingSession != null).toString(),
-                    "hasPendingResponderHandshake" to (existingPendingResponder != null).toString(),
-                    "payloadBytes" to payload.size.toString(),
-                    "payloadPrefixHex" to
-                        payload
-                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                            .toHexString(),
-                ),
-            )
+            val lastMessage1 = state.sessionRegistry.lastResponderMessage1(peerId)
+            if (lastMessage1 != null && lastMessage1.contentEquals(payload)) {
+                callbacks.emitHopSessionFailed(
+                    peerId,
+                    "transport.handshake.message1.duplicateIgnored",
+                    DiagnosticReason.DELIVERY_FAILURE,
+                    mapOf(
+                        "hasEstablishedSession" to (existingSession != null).toString(),
+                        "hasPendingResponderHandshake" to
+                            (existingPendingResponder != null).toString(),
+                        "payloadBytes" to payload.size.toString(),
+                        "payloadPrefixHex" to
+                            payload
+                                .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                                .toHexString(),
+                    ),
+                )
+                return
+            }
         }
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         val message2 =
@@ -65,7 +75,7 @@ internal class MeshEngineResponderHandshakeSupport(
                     return
                 }
         val pendingHandshake = PendingResponderHandshake(manager)
-        state.sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
+        state.sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake, payload)
         when (sendHandshakeMessage2(peerId, message2)) {
             TransportSendResult.Delivered -> Unit
             is TransportSendResult.Dropped -> {
