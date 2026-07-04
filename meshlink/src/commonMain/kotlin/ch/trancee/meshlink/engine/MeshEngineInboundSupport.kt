@@ -6,6 +6,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
@@ -63,14 +64,48 @@ internal class MeshEngineInboundSupport(
         val canonicalPeerId = sessionRegistry.resolvePeerId(peerId)
         val session = activeHopSession(canonicalPeerId)
         if (session != null) {
+            if (isDuplicateInboundDataFrame(canonicalPeerId, payload)) {
+                return
+            }
             val decryptedEnvelopeBytes = decryptInboundWireFrame(canonicalPeerId, session, payload)
             if (decryptedEnvelopeBytes != null) {
+                sessionRegistry.recordInboundDataFrameCiphertext(canonicalPeerId, payload)
                 val frame = decodeInboundWireFrame(canonicalPeerId, decryptedEnvelopeBytes)
                 if (frame != null) {
                     dispatchInboundWireFrame(canonicalPeerId, frame)
                 }
             }
         }
+    }
+
+    // Hardware captures confirmed that a DirectWireFrame.Data frame can be delivered to this
+    // peer more than once for the same logical send -- either via the redundant GATT/L2CAP
+    // side-link transports both having a ready channel, or via an app-level retry after the
+    // sender's transport misreported a send as failed when it had actually reached the peer
+    // (sendEncryptedDirectWireFrame only advances sendNonce on a confirmed Delivered result, so
+    // such a retry re-encrypts the identical plaintext with the same key and nonce, producing
+    // byte-identical ciphertext). Without this guard, the first delivery decrypts successfully
+    // and advances receiveNonce, and every redundant delivery of that same ciphertext then fails
+    // decryption against the now-advanced nonce, surfacing a spurious AEADBadTagException
+    // instead of being silently ignored like the equivalent message1/message2 handshake guards.
+    private suspend fun isDuplicateInboundDataFrame(peerId: PeerId, payload: ByteArray): Boolean {
+        val lastCiphertext = sessionRegistry.lastInboundDataFrameCiphertext(peerId)
+        if (lastCiphertext == null || !lastCiphertext.contentEquals(payload)) {
+            return false
+        }
+        transport.emitHopSessionFailed(
+            peerId,
+            "transport.data.duplicateIgnored",
+            DiagnosticReason.DELIVERY_FAILURE,
+            mapOf(
+                "payloadBytes" to payload.size.toString(),
+                "payloadPrefixHex" to
+                    payload
+                        .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                        .toHexString(),
+            ),
+        )
+        return true
     }
 
     private suspend fun activeHopSession(peerId: PeerId): HopSession? {

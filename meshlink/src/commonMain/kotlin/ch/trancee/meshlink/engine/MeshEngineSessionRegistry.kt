@@ -54,6 +54,12 @@ internal class MeshEngineSessionRegistry {
     // GATT/L2CAP side-link transports) can be silently ignored instead of logged as an
     // "unexpected" frame once the handshake has already completed.
     private val lastInitiatorMessage2: MutableMap<String, ByteArray> = linkedMapOf()
+    // Tracks the ciphertext of the most recently successfully-decrypted DirectWireFrame.Data
+    // frame per peer, so a redundant delivery of that same wire frame (again, the redundant
+    // GATT/L2CAP side-link transports, or an app-level retry of a send that the sender believed
+    // had failed but which actually reached the peer) can be silently ignored instead of
+    // desyncing receiveNonce and surfacing a spurious AEADBadTagException.
+    private val lastInboundDataFrameCiphertext: MutableMap<String, ByteArray> = linkedMapOf()
     private val peerAliases: MutableMap<String, String> = linkedMapOf()
     // Deferreds registered by the side of a peer pair that is deferring initiation to the other
     // side (see shouldInitiateHandshakeTowards), so it can be woken up once that side's handshake
@@ -156,6 +162,24 @@ internal class MeshEngineSessionRegistry {
      */
     suspend fun lastInitiatorMessage2(peerId: PeerId): ByteArray? {
         return sessionMutex.withLock { lastInitiatorMessage2[peerId.value] }
+    }
+
+    /**
+     * Returns the ciphertext of the peer's most recently successfully-decrypted
+     * DirectWireFrame.Data frame, if any is tracked. Used to distinguish a redundant delivery of
+     * the same wire frame from a genuinely new data frame.
+     */
+    suspend fun lastInboundDataFrameCiphertext(peerId: PeerId): ByteArray? {
+        return sessionMutex.withLock {
+            lastInboundDataFrameCiphertext[resolvePeerIdValue(peerId.value)]
+        }
+    }
+
+    /** Records [ciphertext] as the peer's most recently successfully-decrypted data frame. */
+    suspend fun recordInboundDataFrameCiphertext(peerId: PeerId, ciphertext: ByteArray): Unit {
+        sessionMutex.withLock {
+            lastInboundDataFrameCiphertext[resolvePeerIdValue(peerId.value)] = ciphertext
+        }
     }
 
     suspend fun rebindPendingInitiatorHandshake(
@@ -287,6 +311,7 @@ internal class MeshEngineSessionRegistry {
             pendingResponderHandshakes.remove(resolvedPeerIdValue)
             lastResponderMessage1.remove(resolvedPeerIdValue)
             lastInitiatorMessage2.remove(resolvedPeerIdValue)
+            lastInboundDataFrameCiphertext.remove(resolvedPeerIdValue)
             peerAliases.remove(peerId.value)
             peerAliases.remove(resolvedPeerIdValue)
             peerAliases.entries.removeAll { (_, canonicalPeerIdValue) ->
@@ -306,6 +331,7 @@ internal class MeshEngineSessionRegistry {
             pendingResponderHandshakes.clear()
             lastResponderMessage1.clear()
             lastInitiatorMessage2.clear()
+            lastInboundDataFrameCiphertext.clear()
             peerAliases.clear()
             establishedSessionWaiters.values.forEach { waiters -> waiters.forEach { it.cancel() } }
             establishedSessionWaiters.clear()
