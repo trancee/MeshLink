@@ -13,6 +13,7 @@ import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -313,6 +314,90 @@ class MeshEngineHopTransportSupportTest {
             assertFalse(ensureCalled)
             assertTrue(fixture.sentFrames.isEmpty())
         }
+
+    @Test
+    fun `decryptHopPayload advances receiveNonce and decrypts two distinct ciphertexts in sequence`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x66)
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+            val firstCiphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = hopSession(keyByte = 0x66),
+                    transferId = "transfer-first",
+                )
+            val secondCiphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = hopSession(keyByte = 0x66).also { it.sendNonce = 1uL },
+                    transferId = "transfer-second",
+                )
+
+            // Act
+            val firstPlaintext = fixture.support.decryptHopPayload(session, firstCiphertext)
+            val secondPlaintext = fixture.support.decryptHopPayload(session, secondCiphertext)
+
+            // Assert
+            assertEquals(2u, session.receiveNonce)
+            assertEquals(
+                "transfer-first",
+                assertIs<WireFrame.TransferComplete>(WireCodec.decode(firstPlaintext)).transferId,
+            )
+            assertEquals(
+                "transfer-second",
+                assertIs<WireFrame.TransferComplete>(WireCodec.decode(secondPlaintext)).transferId,
+            )
+        }
+
+    @Test
+    fun `decryptHopPayload throws DuplicateHopPayloadException for a redundant delivery without advancing receiveNonce`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x77)
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+            val ciphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = session,
+                    transferId = "transfer-dup",
+                )
+            fixture.support.decryptHopPayload(session, ciphertext)
+            val receiveNonceAfterFirstDecrypt = session.receiveNonce
+
+            // Act
+            val exception =
+                assertFailsWith<Exception> {
+                    fixture.support.decryptHopPayload(session, ciphertext.copyOf())
+                }
+
+            // Assert
+            assertTrue(exception === DuplicateHopPayloadException)
+            assertEquals(receiveNonceAfterFirstDecrypt, session.receiveNonce)
+        }
+}
+
+private suspend fun encryptedPayloadFor(
+    fixture: HopTransportFixture,
+    peerId: PeerId,
+    session: HopSession,
+    transferId: String,
+): ByteArray {
+    val sentFramesBefore = fixture.sentFrames.size
+    fixture.support.sendEncryptedDirectWireFrame(
+        peerId = peerId,
+        session = session,
+        frame = WireFrame.TransferComplete(transferId),
+        action = "transfer.complete",
+    )
+    return assertIs<DirectWireFrame.Data>(fixture.sentFrames[sentFramesBefore].frame).payload
 }
 
 private data class HopTransportFixture(

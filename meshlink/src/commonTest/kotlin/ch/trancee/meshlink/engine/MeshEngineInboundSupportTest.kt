@@ -679,46 +679,30 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
-    fun `handleEncryptedDataFrame ignores a redundant delivery of the same ciphertext instead of re-decrypting it`() =
+    fun `handleEncryptedDataFrame emits duplicateIgnored and drops the frame when decryptHopPayload signals a redundant delivery`() =
         runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("inbound-local")
             val peerId = PeerId("peer-abcdef")
-            val originPeerId = PeerId("origin-peer")
             val sessionRegistry = MeshEngineSessionRegistry()
             seedInboundSession(
                 localIdentity = localIdentity,
                 sessionRegistry = sessionRegistry,
                 peerId = peerId,
             )
-            var decryptInvocationCount = 0
             val fixture =
                 inboundSupportFixture(
                     localIdentity = localIdentity,
                     sessionRegistry = sessionRegistry,
-                    decryptHopPayload = { _, _ ->
-                        decryptInvocationCount += 1
-                        WireCodec.encode(
-                            WireFrame.Message(
-                                messageId = "message-1",
-                                originPeerId = originPeerId,
-                                destinationPeerId = localIdentity.peerId,
-                                priority = DeliveryPriority.HIGH,
-                                ttlMillis = 1000,
-                                encryptedPayload = "hello".encodeToByteArray(),
-                            )
-                        )
-                    },
+                    decryptHopPayload = { _, _ -> throw DuplicateHopPayloadException },
                 )
             val ciphertext = byteArrayOf(1, 2, 3, 4)
 
             // Act
             fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = ciphertext)
-            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = ciphertext.copyOf())
 
             // Assert
-            assertEquals(1, decryptInvocationCount)
-            assertEquals(1, fixture.deliveredMessages.size)
+            assertTrue(fixture.deliveredMessages.isEmpty())
             assertEquals(
                 listOf(
                     RecordedInboundSupportFailure(
@@ -782,7 +766,7 @@ private fun inboundSupportFixture(
     localIdentity: LocalIdentity,
     sessionRegistry: MeshEngineSessionRegistry,
     decryptedFrame: WireFrame? = null,
-    decryptHopPayload: ((HopSession, ByteArray) -> ByteArray)? = null,
+    decryptHopPayload: (suspend (HopSession, ByteArray) -> ByteArray)? = null,
     deliverInnerEnvelope:
         (suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit)? =
         null,

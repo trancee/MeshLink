@@ -29,7 +29,18 @@ internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: B
     internal val receiveKey: ByteArray = receiveKey.copyOf()
     internal val outboundMutex: Mutex = Mutex()
     internal var sendNonce: ULong = 0u
+    // Guards the inbound decrypt-and-advance sequence below so that two DirectWireFrame.Data
+    // deliveries for this session (whether genuinely concurrent, or redundant deliveries of the
+    // same wire frame over the GATT/L2CAP side-link transports) can never race on receiveNonce.
+    // Without this, two concurrent decrypts could both read the same receiveNonce value before
+    // either advances it, corrupting the nonce sequence and causing the *next* legitimate frame
+    // to fail decryption with AEADBadTagException.
+    internal val inboundMutex: Mutex = Mutex()
     internal var receiveNonce: ULong = 0u
+    // Ciphertext of the most recently successfully-decrypted DirectWireFrame.Data frame, checked
+    // under inboundMutex so a redundant delivery of the exact same wire frame is recognized
+    // atomically with the receiveNonce read/advance instead of racing it.
+    internal var lastInboundCiphertext: ByteArray? = null
 }
 
 internal class PendingInitiatorHandshake

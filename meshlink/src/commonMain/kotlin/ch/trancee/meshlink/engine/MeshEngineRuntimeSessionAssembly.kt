@@ -11,7 +11,7 @@ internal data class MeshEngineRuntimeSessionAssembly(
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
-    val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    val decryptHopPayload: suspend (HopSession, ByteArray) -> ByteArray,
     val emitHopSessionFailed:
         suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
     val prewarmHopSession: (PeerId) -> Unit,
