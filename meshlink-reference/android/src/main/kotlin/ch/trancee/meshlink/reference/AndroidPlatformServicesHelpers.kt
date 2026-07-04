@@ -119,6 +119,12 @@ internal fun appendTimeline(
             payloadSizeBytes = spec.payloadSizeBytes,
         )
     context.timeline += entry
+    // Reflect the mutation into the reactive snapshot StateFlow: appending to `context.timeline`
+    // alone is invisible to anything observing `snapshot` (e.g. the guided-flow view model's
+    // passive-role completion check), so without this the timeline exposed to the app is always
+    // empty even though entries are recorded internally.
+    val timelineSnapshot = context.timeline.toList()
+    context.updateSnapshot { current -> current.copy(timeline = timelineSnapshot) }
     return entry
 }
 
