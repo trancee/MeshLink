@@ -46,6 +46,21 @@ A healthy setup usually means:
 When discovery looks wrong, check `appId` early. A mismatched `appId` often
 looks like "nothing is happening" rather than like a clear error.
 
+## Compare `PeerId` by value, not by holding onto one instance
+
+`PeerId` overrides `equals()`/`hashCode()` based on its underlying value, so it
+is safe to compare two independently-obtained `PeerId` instances with `==`,
+use `PeerId` as a `Map`/`Set` key, or hold onto a `PeerId` from an earlier
+`peerEvents` emission and compare it against one from a later `messages` or
+`state` emission — MeshLink guarantees these all compare equal for the same
+underlying peer, even though they may be distinct object instances.
+
+`PeerId` is still a plain `class`, not a `data class` — it does not expose
+`copy()` or `component1()`. Treat it as an opaque identifier handle: read
+`.value` when you need the underlying string (for logging, persistence, or
+interop), but do not construct or destructure it as if it were a value-object
+you own.
+
 ## Keep the four public streams separate
 
 MeshLink exposes four public streams because each answers a different question:

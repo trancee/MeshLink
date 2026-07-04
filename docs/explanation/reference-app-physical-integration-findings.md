@@ -15,6 +15,7 @@ optimizations are worth keeping or pursuing.
 | relay proof | sender-only success is not enough; `routeIsDirect=false` plus passive completion is the real invariant |
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
 | retained review surface | per-run analysis artifacts, the browser/runtime proof note, and the fleet-test history HTML are much easier to review than raw log scrolling |
+| Android two-device direct proof (round 2) | an unsynchronized `receiveNonce`, a harness relaunch spinning up a second Activity/MeshLink instance, `PeerId` reference-equality, and a silently-dropped timeline-to-snapshot sync each independently masked the next bug until fixed in sequence |
 
 ## Current milestone outcome
 
@@ -691,6 +692,126 @@ advertisement bleed-through from two unrelated devices batched in other
 concurrent pairs, so some of the noise around this failure is expected
 full-fleet RF congestion rather than a protocol defect - the message2-send
 gap above is the one piece of this failure that was a genuine, fixable bug.
+
+### 10. An unsynchronized `receiveNonce` desynced after a route topology change
+
+A two-device direct proof on Nokia X20 (sender) + Nothing A063 (passive) failed
+with `AEADBadTagException` on inbound data frames. Hardware captures showed two
+distinct Route Update frames delivered ~126ms apart, both failing decryption -
+not the already-fixed exact-duplicate-delivery case, but a genuine
+`receiveNonce` race: `decryptHopPayload` read-then-incremented
+`HopSession.receiveNonce` with no synchronization, unlike `sendNonce`, which is
+protected by `outboundMutex`. Two frames arriving close together on the same
+session could interleave their read-decrypt-increment sequences and each
+observe (and decrypt against) a stale nonce.
+
+**Fix:** moved the duplicate-ciphertext check onto `HopSession` itself, guarded
+by a new `inboundMutex`, making the check-decrypt-increment-record sequence for
+inbound `DirectWireFrame.Data` frames atomic per session. A duplicate delivery
+now surfaces as `DuplicateHopPayloadException`, handled distinctly from a
+genuine decrypt failure in `MeshEngineInboundSupport`. See
+`meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/HopSession.kt` and
+`MeshEngineInboundSupport.kt`.
+
+**Takeaway:** any mutable per-session cryptographic state (nonces, sequence
+counters) needs the same synchronization discipline on the inbound path as the
+outbound path - it is easy to add mutex protection when a field is first
+introduced for sending and forget to add the equivalent guard when a symmetric
+receiving field is added later.
+
+### 11. A harness relaunch spun up a second Activity/MeshLink instance under the same peer identity
+
+After fixing finding 10, the same two-device direct proof still failed
+intermittently, alternating between a successful handshake and a concurrent
+"responder success + initiator timeout" race. Logcat showed **two** `onCreate`
+calls and **two** `MeshLink` constructions on the same device during a single
+proof run: `MainActivity` used the default (non-`singleTask`) launch mode, so
+the harness's own practice of re-launching the same role once the target peer
+id becomes known (`run_headless_reference_android_direct_proof.py`, see finding
+2's diagnostic style) spun up a second Activity instance instead of reusing the
+first. Both instances used the same deterministic `appId`-derived local peer
+identity and raced each other for the same BLE peer connection.
+
+**Fix:** declared `MainActivity` as `android:launchMode="singleTask"` and
+implemented `onNewIntent()` to re-run the same initialization `onCreate()`
+does, instead of relying on Android to create a fresh Activity. The previous
+instance's power mitigation is stopped and its MeshLink session/coroutine scope
+torn down (`GuidedFirstExchangeViewModel.close()`, wired via a
+`DisposableEffect` in `ReferenceApp`) before the new intent is processed. See
+`meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/MainActivity.kt`.
+
+**Takeaway:** any host app (proof app, reference app, or a real integration)
+that relies on relaunching the same Activity with a new Intent - for retries,
+deep links, or updated launch parameters - must either declare a launch mode
+that guarantees Activity reuse (`singleTask`/`singleTop`) or explicitly tear
+down the previous instance's MeshLink session before starting a new one.
+Otherwise two sessions under the same local peer identity will race each other
+for the same physical connection, and the resulting failure signature (a
+success and a timeout for the same handshake, arriving concurrently) looks like
+a transport flake rather than a duplicate-instance bug.
+
+### 12. `PeerId` reference equality caused a spurious route-refresh retry loop
+
+After fixing finding 11, the sender side of the direct proof still stalled
+mid-delivery. Diagnostics showed a `HOP_SESSION_FAILED
+stage=delivery.send.routeRefreshed` retry firing repeatedly, even though the
+`resolvedNextHopPeerId` and `refreshedNextHopPeerId` values logged in the
+diagnostic's metadata were textually identical strings.
+
+The root cause: `PeerId` (`meshlink/src/commonMain/kotlin/ch/trancee/meshlink/api/MeshLinkModels.kt`)
+overrode only `toString()`, not `equals()`/`hashCode()`, so `==`/`!=` used
+reference identity. `MeshEngineInlineDispatchSupport.dispatchPreparedMessage`
+compared two independently-resolved `PeerId` instances via `!=` to detect
+whether the next hop had changed since the message was prepared. Because
+`routeCoordinator.nextHopFor(...)` returns a fresh `PeerId` wrapper instance on
+each call - even for the same underlying peer id string - this comparison
+spuriously evaluated as "changed" on nearly every send, triggering an
+unnecessary route-refresh retry that stalled delivery.
+
+**Fix:** gave `PeerId` a manually-overridden `equals()`/`hashCode()` based on
+`.value`. `PeerId` deliberately stayed a plain `class` rather than becoming a
+`data class`, since a `data class` would expose a public `copy()`/`component1()`
+that make no sense for what is meant to be an opaque identifier handle.
+Regenerated `meshlink/api/jvm/meshlink.api` via `:meshlink:apiDump` to include
+the new public members.
+
+**Takeaway:** grep the codebase for direct `==`/`!=` comparisons on any wrapper
+or handle type before assuming it behaves like a value type - a class that only
+overrides `toString()` still uses reference equality, and the failure mode
+(here, a diagnostic that looks like it's comparing "different" values that are
+textually identical) is a strong signal to check for exactly this bug.
+
+### 13. A dropped `updateSnapshot` call kept the app-level timeline permanently empty on Android
+
+After fixing finding 12, the sender side of the direct proof completed
+end-to-end, but the passive side's `proof.complete` marker never appeared,
+even though the transport-level `DELIVERY_SUCCEEDED` diagnostic fired
+correctly. `GuidedFirstExchangeViewModel.maybeCompletePassiveExchange` gates on
+`snapshot.timeline.any { entry.family == TimelineFamily.MESSAGE }`, and that
+condition never became true on Android.
+
+The root cause: `AndroidPlatformServicesHelpers.appendTimeline()` mutated the
+`PublicMeshLinkController`'s private `timeline` `MutableList` directly, but
+never called `context.updateSnapshot(...)` to push that change into the
+reactive `snapshot: StateFlow<ReferenceControllerSnapshot>` the view model
+actually observes. `snapshot.value.timeline` was initialized to `emptyList()`
+and stayed that way for the lifetime of the controller - diagnostics and peer
+events were still visible in Logcat (via a separate, correctly-wired
+`Log.i(...)` call in `observeDiagnosticEvents()`/`observePeerEvents()`), which
+made the bug easy to miss: everything *looked* like it was working except the
+one code path that specifically read `snapshot.timeline`.
+
+**Fix:** `appendTimeline()` now copies the updated `timeline` list into the
+snapshot via `context.updateSnapshot { current -> current.copy(timeline =
+timelineSnapshot) }` immediately after appending. See
+`meshlink-reference/android/src/main/kotlin/ch/trancee/meshlink/reference/AndroidPlatformServicesHelpers.kt`.
+
+**Takeaway:** when a reactive snapshot/state type is composed of a mutable
+list plus a separate "push to StateFlow" step, always keep the two updates in
+the same function - a helper that only mutates the list is trivially forgotten
+half-way through in a follow-up change, and the resulting bug (a permanently
+empty derived field on one platform only) can hide behind other, unrelated
+logging that still works correctly.
 
 ## What should stay out of the physical matrix
 
