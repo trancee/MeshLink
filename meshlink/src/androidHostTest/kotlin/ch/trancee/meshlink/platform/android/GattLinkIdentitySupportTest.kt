@@ -24,6 +24,7 @@ class GattLinkIdentitySupportTest {
         }
         val peerBindings = PeerBindings()
         val provisionalPeers = mutableListOf<PeerId>()
+        val claimedPeers = mutableListOf<PeerId>()
         val deliveredPeers = mutableListOf<PeerId>()
 
         // Act
@@ -35,6 +36,7 @@ class GattLinkIdentitySupportTest {
                         frame = frame,
                         peerBindings = peerBindings,
                         onUnknownPeerFrame = { peerId, _ -> provisionalPeers += peerId },
+                        onClaimedPeerIdentity = { peerId, _ -> claimedPeers += peerId },
                         log = {},
                     )
             ) {
@@ -46,6 +48,11 @@ class GattLinkIdentitySupportTest {
         // Assert
         assertEquals(claimedPeerId.value, peerBindings.hintForAddress(address))
         assertTrue(provisionalPeers.isEmpty(), "LinkIdentity should prevent temporary peer minting")
+        assertEquals(
+            listOf(claimedPeerId.value),
+            claimedPeers.map { it.value },
+            "LinkIdentity claim should register a routable peer for reply sends",
+        )
         assertEquals(listOf(claimedPeerId.value), deliveredPeers.map { it.value })
     }
 
@@ -63,6 +70,7 @@ class GattLinkIdentitySupportTest {
                 frame = byteArrayOf(0x01, 0x02),
                 peerBindings = peerBindings,
                 onUnknownPeerFrame = { _, _ -> error("known peers must not become provisional") },
+                onClaimedPeerIdentity = { _, _ -> error("known peers must not be reclaimed") },
                 log = {},
             )
 

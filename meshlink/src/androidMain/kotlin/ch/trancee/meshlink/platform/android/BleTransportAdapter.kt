@@ -406,6 +406,28 @@ internal class BleTransportAdapter(
     }
 
     internal fun registerProvisionalGattPeer(peerId: PeerId, address: String): Unit {
+        registerGattPeer(peerId = peerId, address = address, announcePresence = false)
+        log("registered provisional GATT peer ${peerId.value.takeLast(6)} addr=$address")
+    }
+
+    /**
+     * Registers/refreshes a [DiscoveredPeer] entry for a peer id claimed via an inbound GATT
+     * LinkIdentity announcement (see [resolveIncomingGattFrameDisposition]). Unlike
+     * [registerProvisionalGattPeer]'s synthetic temporary-peer fallback, this uses the peer's real
+     * claimed id and announces presence, since without it a device that only ever accepts inbound
+     * GATT connections (never independently scan-discovers its peer) would have no route for
+     * outbound replies - resolvePeer() would keep failing with "peer not discovered" - and the
+     * guided reference UI would keep reporting a stalled/empty peer list even once the link is
+     * fully bound and writable.
+     */
+    internal fun registerClaimedGattPeer(peerId: PeerId, address: String): Unit {
+        registerGattPeer(peerId = peerId, address = address, announcePresence = true)
+        log(
+            "registered claimed GATT peer ${peerId.value.takeLast(6)} addr=$address via LinkIdentity"
+        )
+    }
+
+    private fun registerGattPeer(peerId: PeerId, address: String, announcePresence: Boolean): Unit {
         val zeroKeyHash = ByteArray(BleDiscoveryPayload.KEY_HASH_SIZE_BYTES)
         val update =
             peerRegistry.upsertDiscovery(
@@ -418,10 +440,10 @@ internal class BleTransportAdapter(
                         transportMode = TransportMode.GATT,
                         platformFamily = currentDiscoveryPayload.platformFamily,
                     ),
-                announcePresence = false,
+                announcePresence = announcePresence,
             )
         peerBindings.bindHintToAddress(address, update.peer.hintPeerId.value)
-        log("registered provisional GATT peer ${peerId.value.takeLast(6)} addr=$address")
+        update.events.forEach(mutableEvents::tryEmit)
     }
 
     internal fun createInboundFrameQueue(): InboundFrameQueue {

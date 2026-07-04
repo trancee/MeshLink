@@ -29,6 +29,7 @@ internal class BluetoothGattNotifyServer(
     private val context: Context,
     private val peerBindings: PeerBindings,
     private val onUnknownPeerFrame: (PeerId, String) -> Unit,
+    private val onClaimedPeerIdentity: (PeerId, String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
     private val log: (String) -> Unit,
     private val serviceReadyTimeoutMillis: Long = 2_000,
@@ -187,6 +188,7 @@ internal class BluetoothGattNotifyServer(
                                         frame = frame,
                                         peerBindings = peerBindings,
                                         onUnknownPeerFrame = onUnknownPeerFrame,
+                                        onClaimedPeerIdentity = onClaimedPeerIdentity,
                                         log = log,
                                     )
                             ) {
