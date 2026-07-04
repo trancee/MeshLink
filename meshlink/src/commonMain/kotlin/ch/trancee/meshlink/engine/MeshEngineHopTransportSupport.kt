@@ -11,6 +11,16 @@ import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * Signals that [MeshEngineHopTransportSupport.decryptHopPayload] recognized [ciphertext] as a
+ * redundant delivery of an already-processed DirectWireFrame.Data frame (see that function's
+ * documentation), rather than a genuine decrypt failure. Callers should treat this distinctly from
+ * [ch.trancee.meshlink.crypto.CryptoAeadException] -- for example, by silently dropping the frame
+ * instead of surfacing a decrypt-failure diagnostic.
+ */
+internal object DuplicateHopPayloadException :
+    Exception("duplicate DirectWireFrame.Data ciphertext ignored")
+
 internal class MeshEngineHopTransportSupport(
     private val localIdentity: LocalIdentity,
     private val runtimeGate: MeshEngineRuntimeGate,
@@ -102,16 +112,34 @@ internal class MeshEngineHopTransportSupport(
         }
     }
 
-    fun decryptHopPayload(session: HopSession, ciphertext: ByteArray): ByteArray {
-        val plaintext =
-            localIdentity.cryptoProvider.chacha20Poly1305Open(
-                key = session.receiveKey,
-                nonce = hopNonce(session.receiveNonce),
-                aad = byteArrayOf(),
-                ciphertext = ciphertext,
-            )
-        session.receiveNonce += 1u
-        return plaintext
+    // Hardware captures confirmed that a DirectWireFrame.Data frame can be delivered to this
+    // session more than once for the same logical send -- either via the redundant GATT/L2CAP
+    // side-link transports both having a ready channel, or via an app-level retry after the
+    // sender's transport misreported a send as failed when it had actually reached the peer
+    // (sendEncryptedDirectWireFrame only advances sendNonce on a confirmed Delivered result, so
+    // such a retry re-encrypts the identical plaintext with the same key and nonce, producing
+    // byte-identical ciphertext). The whole duplicate-check/decrypt/advance sequence runs under
+    // session.inboundMutex so two deliveries -- redundant or genuinely concurrent -- can never
+    // race on receiveNonce: without that, both could read the same nonce before either advances
+    // it, desyncing the sequence and causing the *next* legitimate frame to fail decryption with
+    // AEADBadTagException instead of the redundant delivery being silently ignored.
+    suspend fun decryptHopPayload(session: HopSession, ciphertext: ByteArray): ByteArray {
+        return session.inboundMutex.withLock {
+            val lastCiphertext = session.lastInboundCiphertext
+            if (lastCiphertext != null && lastCiphertext.contentEquals(ciphertext)) {
+                throw DuplicateHopPayloadException
+            }
+            val plaintext =
+                localIdentity.cryptoProvider.chacha20Poly1305Open(
+                    key = session.receiveKey,
+                    nonce = hopNonce(session.receiveNonce),
+                    aad = byteArrayOf(),
+                    ciphertext = ciphertext,
+                )
+            session.receiveNonce += 1u
+            session.lastInboundCiphertext = ciphertext
+            plaintext
+        }
     }
 
     suspend fun emitHopSessionEstablished(peerId: PeerId, stage: String): Unit {

@@ -108,6 +108,7 @@ class MeshEngineSessionSupportTest {
                                             peerId = peerId,
                                             pendingHandshake = pendingReservation.pendingHandshake,
                                             session = establishedSession,
+                                            message2 = byteArrayOf(),
                                         )
                                         pendingReservation.pendingHandshake.sessionDeferred
                                             .complete(
@@ -182,6 +183,7 @@ class MeshEngineSessionSupportTest {
                                             peerId = peerId,
                                             pendingHandshake = pendingReservation.pendingHandshake,
                                             session = establishedSession,
+                                            message2 = byteArrayOf(),
                                         )
                                         pendingReservation.pendingHandshake.sessionDeferred
                                             .complete(
@@ -257,6 +259,7 @@ class MeshEngineSessionSupportTest {
                                             peerId = peerId,
                                             pendingHandshake = pendingReservation.pendingHandshake,
                                             session = establishedSession,
+                                            message2 = byteArrayOf(),
                                         )
                                         pendingReservation.pendingHandshake.sessionDeferred
                                             .complete(
@@ -345,6 +348,7 @@ class MeshEngineSessionSupportTest {
                 peerId = peerId,
                 pendingHandshake = pendingReservation.pendingHandshake,
                 session = establishedSession,
+                message2 = byteArrayOf(),
             )
             pendingReservation.pendingHandshake.sessionDeferred.complete(
                 SessionEstablishmentOutcome.Established(establishedSession)
@@ -495,6 +499,7 @@ class MeshEngineSessionSupportTest {
                                         peerId = peerId,
                                         pendingHandshake = pendingReservation.pendingHandshake,
                                         session = establishedSession,
+                                        message2 = byteArrayOf(),
                                     )
                                     pendingReservation.pendingHandshake.sessionDeferred.complete(
                                         SessionEstablishmentOutcome.Established(establishedSession)

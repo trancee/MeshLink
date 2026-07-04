@@ -15,6 +15,12 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import run_headless_reference_android_direct_matrix as android_direct_matrix  # noqa: E402
 
+FAKE_ANDROID_MODELS = {
+    "1f1dad34": "A065",
+    "2ASVB21B09005117": "NAM-LX9",
+    "42004386e43c8589": "SM-G390F",
+}
+
 
 class AndroidDirectMatrixScriptTests(unittest.TestCase):
     def test_parse_args_defaults_to_resume_disabled(self) -> None:
@@ -142,6 +148,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix, "adb_device_api_level", side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial)
             ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
                 android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
@@ -213,6 +221,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix,
                 "adb_device_api_level",
                 side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial),
@@ -367,6 +377,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix,
                 "adb_device_api_level",
                 side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36, "42004386e43c8589": 36}.get(serial),
@@ -388,9 +400,9 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertIn("sequenceDiagram", matrix_report_text)
             self.assertIn("autonumber", matrix_report_text)
             self.assertIn("participant Fleet", matrix_report_text)
-            self.assertIn("participant Sweep", matrix_report_text)
+            self.assertIn("participant Run", matrix_report_text)
             self.assertIn("participant Stop", matrix_report_text)
-            self.assertIn("prepare directed sweep", matrix_report_text)
+            self.assertIn("prepare directed run", matrix_report_text)
             self.assertIn("execute pair lane across", matrix_report_text)
             self.assertIn("classify outcomes by failure stage", matrix_report_text)
             self.assertIn("rect rgba(30, 64, 175, 0.40)", matrix_report_text)
@@ -460,6 +472,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix, "adb_device_api_level", side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial)
             ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
                 android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
@@ -536,6 +550,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
                 return "peer-123"
 
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix,
                 "adb_device_api_level",
                 side_effect=lambda serial: {"1f1dad34": 36, "2ASVB21B09005117": 36}.get(serial),
@@ -592,6 +608,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix, "adb_device_api_level", side_effect=fake_api_level
             ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
                 android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id
@@ -675,6 +693,8 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
 
             # Act
             with patch.object(android_direct_matrix, "adb_devices", side_effect=fake_adb_devices), patch.object(
+                android_direct_matrix, "adb_device_model", side_effect=FAKE_ANDROID_MODELS.get
+            ), patch.object(
                 android_direct_matrix, "adb_device_api_level", side_effect=fake_api_level
             ), patch.object(android_direct_matrix, "run_pair", side_effect=fake_run_pair), patch.object(
                 android_direct_matrix, "read_passive_peer_id", side_effect=fake_read_passive_peer_id

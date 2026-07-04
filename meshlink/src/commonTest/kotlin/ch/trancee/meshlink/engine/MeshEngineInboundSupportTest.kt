@@ -679,6 +679,48 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
+    fun `handleEncryptedDataFrame emits duplicateIgnored and drops the frame when decryptHopPayload signals a redundant delivery`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("inbound-local")
+            val peerId = PeerId("peer-abcdef")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            seedInboundSession(
+                localIdentity = localIdentity,
+                sessionRegistry = sessionRegistry,
+                peerId = peerId,
+            )
+            val fixture =
+                inboundSupportFixture(
+                    localIdentity = localIdentity,
+                    sessionRegistry = sessionRegistry,
+                    decryptHopPayload = { _, _ -> throw DuplicateHopPayloadException },
+                )
+            val ciphertext = byteArrayOf(1, 2, 3, 4)
+
+            // Act
+            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = ciphertext)
+
+            // Assert
+            assertTrue(fixture.deliveredMessages.isEmpty())
+            assertEquals(
+                listOf(
+                    RecordedInboundSupportFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.data.duplicateIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "payloadBytes" to ciphertext.size.toString(),
+                                "payloadPrefixHex" to ciphertext.toHexString(),
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
+        }
+
+    @Test
     fun `handleEncryptedDataFrame emits no session when no active hop session exists`() =
         runBlocking<Unit> {
             // Arrange
@@ -724,7 +766,7 @@ private fun inboundSupportFixture(
     localIdentity: LocalIdentity,
     sessionRegistry: MeshEngineSessionRegistry,
     decryptedFrame: WireFrame? = null,
-    decryptHopPayload: ((HopSession, ByteArray) -> ByteArray)? = null,
+    decryptHopPayload: (suspend (HopSession, ByteArray) -> ByteArray)? = null,
     deliverInnerEnvelope:
         (suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit)? =
         null,
@@ -898,7 +940,7 @@ private suspend fun seedInboundSession(
 ): Unit {
     val pendingHandshake =
         PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
+    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake, byteArrayOf())
     sessionRegistry.completeResponderHandshake(
         peerId = peerId,
         pendingHandshake = pendingHandshake,
@@ -914,7 +956,7 @@ private suspend fun seedAliasedInboundSession(
 ): Unit {
     val pendingHandshake =
         PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-    sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+    sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake, byteArrayOf())
     sessionRegistry.rebindPendingResponderHandshake(
         fromPeerId = temporaryPeerId,
         toPeerId = canonicalPeerId,

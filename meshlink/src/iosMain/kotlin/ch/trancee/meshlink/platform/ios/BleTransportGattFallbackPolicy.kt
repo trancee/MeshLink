@@ -1,24 +1,7 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
-import ch.trancee.meshlink.transport.GattDataBearerMode
-import ch.trancee.meshlink.transport.TransportMode
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer
-
-internal fun resolveIosGattDataBearerMode(
-    directFrame: DirectWireFrame?,
-    localPlatformFamily: BleDiscoveryPlatformFamily,
-    remotePlatformFamily: BleDiscoveryPlatformFamily,
-    preferredMode: TransportMode?,
-): GattDataBearerMode {
-    return if (directFrame is DirectWireFrame.Data) {
-        resolveGattDataBearerMode()
-    } else {
-        GattDataBearerMode.L2CAP_ONLY
-    }
-}
 
 internal fun supportsIosGattNotifyBearer(
     localPlatformFamily: BleDiscoveryPlatformFamily,

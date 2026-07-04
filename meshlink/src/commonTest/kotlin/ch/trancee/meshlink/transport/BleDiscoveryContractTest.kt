@@ -409,18 +409,6 @@ class BleDiscoveryContractTest {
     }
 
     @Test
-    fun `data bearer mode always keeps gatt available as an l2cap fallback`() {
-        // Arrange
-        val expected = GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
-
-        // Act
-        val actual = resolveGattDataBearerMode()
-
-        // Assert
-        assertEquals(expected, actual)
-    }
-
-    @Test
     fun `mixed platform peers still allow discovery driven l2cap connects while gatt is ready`() {
         // Arrange
         val expected = true

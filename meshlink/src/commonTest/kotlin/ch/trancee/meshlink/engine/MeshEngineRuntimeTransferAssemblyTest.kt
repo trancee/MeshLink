@@ -415,7 +415,7 @@ private suspend fun seedEstablishedHopSession(
         PendingResponderHandshake(
             ch.trancee.meshlink.crypto.NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         )
-    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake)
+    sessionRegistry.storePendingResponderHandshake(peerId, pendingHandshake, byteArrayOf())
     sessionRegistry.completeResponderHandshake(peerId, pendingHandshake, session)
 }
 

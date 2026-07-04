@@ -4,9 +4,18 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.reference.meshlink.ReferenceControllerSnapshot
 import ch.trancee.meshlink.reference.meshlink.ReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.PeerConnectionSnapshotState
+import ch.trancee.meshlink.reference.model.TimelineFamily
+import ch.trancee.meshlink.reference.session.ExportPayloadPolicy
+import ch.trancee.meshlink.reference.session.JsonSessionArtifactSerializer
+import ch.trancee.meshlink.reference.session.JsonSessionHistoryRepository
+import ch.trancee.meshlink.reference.session.ReferenceDocumentStore
+import ch.trancee.meshlink.reference.timeline.isEligibleForAutomaticRetention
+import ch.trancee.meshlink.reference.timeline.redactedRetainedSnapshot
+import ch.trancee.meshlink.reference.timeline.writeSessionArtifact
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -27,6 +36,7 @@ internal class GuidedFirstExchangeViewModel(
     private val autoSendHello: Boolean = false,
     private val emitAutomationLog: (String) -> Unit = {},
     private val currentTimeMillis: () -> Long,
+    private val automationDocumentStore: ReferenceDocumentStore? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val stateStore: GuidedFirstExchangeStateStore =
@@ -43,7 +53,12 @@ internal class GuidedFirstExchangeViewModel(
     private var discoveryStalledLogged: Boolean = false
     private var routeReadyLogged: Boolean = false
     private var routePendingLogged: Boolean = false
+    private var senderCompletionLogged: Boolean = false
+    private var passiveCompletionTriggered: Boolean = false
     private val initAtEpochMillis: Long = currentTimeMillis()
+    private val isPassiveRole: Boolean =
+        automationRole?.equals("passive", ignoreCase = true) == true
+    private val isSenderRole: Boolean = automationRole?.equals("sender", ignoreCase = true) == true
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -64,6 +79,7 @@ internal class GuidedFirstExchangeViewModel(
                 maybeLogPeerDiscovery(snapshot)
                 maybeLogRouteReadiness(snapshot)
                 maybeAutoSendHello(snapshot)
+                maybeCompletePassiveExchange(snapshot)
             }
         }
         scope.launch {
@@ -108,6 +124,57 @@ internal class GuidedFirstExchangeViewModel(
             )
             emitAutomationLog(
                 "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.end peerId=$peerId"
+            )
+            maybeLogSenderCompletion(peerId)
+        }
+    }
+
+    /**
+     * Logs the sender-role automation completion marker once the guided flow's single automated
+     * hello send has returned without throwing. The Android/iOS direct-proof test harnesses
+     * (`run_headless_reference_android_direct_proof.py`, `run_headless_reference_live_proof.py`)
+     * key their pass/fail decision off this exact "REFERENCE_AUTOMATION proof.complete role=sender"
+     * marker.
+     */
+    private fun maybeLogSenderCompletion(peerId: String): Unit {
+        if (senderCompletionLogged || !isSenderRole) return
+        senderCompletionLogged = true
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 peerId=$peerId"
+        )
+    }
+
+    /**
+     * On the passive role, once an inbound message has been recorded in the live timeline, persists
+     * the session to retained history and writes a redacted export artifact -- mirroring exactly
+     * what the manual "Export session" UI action does (see [writeSessionArtifact]) -- then logs the
+     * "REFERENCE_AUTOMATION proof.complete role=passive ... export=<path>" marker the direct-proof
+     * test harnesses poll for. Without this, the automated "direct-guided" scenario never produced
+     * the completion evidence the harnesses were already checking for, even when the underlying
+     * mesh exchange succeeded end-to-end.
+     */
+    private fun maybeCompletePassiveExchange(snapshot: ReferenceControllerSnapshot): Unit {
+        if (passiveCompletionTriggered || !isPassiveRole) return
+        val documentStore = automationDocumentStore ?: return
+        if (!snapshot.timeline.any { entry -> entry.family == TimelineFamily.MESSAGE }) return
+        if (!snapshot.isEligibleForAutomaticRetention(readinessBlockers)) return
+        passiveCompletionTriggered = true
+        scope.launch {
+            val historyRepository = JsonSessionHistoryRepository(documentStore)
+            val artifactSerializer = JsonSessionArtifactSerializer(documentStore)
+            val retainedSnapshot = snapshot.redactedRetainedSnapshot()
+            historyRepository.retainSnapshot(retainedSnapshot)
+            val exportPath =
+                writeSessionArtifact(
+                    snapshot = retainedSnapshot,
+                    policy = ExportPayloadPolicy.REDACTED_PREVIEW,
+                    artifactSerializer = artifactSerializer,
+                    currentTimeMillis = currentTimeMillis,
+                )
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION proof.complete role=passive " +
+                    "inboundCount=${snapshot.timeline.count { entry -> entry.family == TimelineFamily.MESSAGE }} " +
+                    "export=$exportPath"
             )
         }
     }
@@ -202,6 +269,24 @@ internal class GuidedFirstExchangeViewModel(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${targetPeerId ?: "none"}"
         )
         sendHelloToPeer(peer.peerId)
+    }
+
+    /**
+     * Tears down this view model's underlying MeshLink session and cancels its coroutine scope.
+     * Must be called when the view model is discarded (see the `DisposableEffect` in
+     * [ch.trancee.meshlink.reference.app.ReferenceApp]) so a re-launch of the hosting Activity --
+     * for example the direct-proof test harnesses re-launching with a newly-resolved target peer id
+     * -- cannot leave a previous instance's MeshLink still scanning/advertising and racing a fresh
+     * instance under the same app identity. Runs the shutdown on an independent scope because
+     * [scope] itself is cancelled as part of the shutdown.
+     */
+    internal fun close(): Unit {
+        val shutdownScope = CoroutineScope(Dispatchers.Default)
+        shutdownScope.launch {
+            runCatching { meshLinkController.close() }
+            scope.cancel()
+            shutdownScope.cancel()
+        }
     }
 }
 

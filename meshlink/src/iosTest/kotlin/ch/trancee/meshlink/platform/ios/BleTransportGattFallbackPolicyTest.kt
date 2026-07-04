@@ -1,50 +1,12 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
-import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class BleTransportGattFallbackPolicyTest {
-    @Test
-    fun resolveIosGattDataBearerModeUsesTheGattFallbackForMixedPlatformDataFrames(): Unit {
-        // Arrange
-        val directFrame = DirectWireFrame.Data(ByteArray(32))
-
-        // Act
-        val bearerMode =
-            resolveIosGattDataBearerMode(
-                directFrame = directFrame,
-                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
-                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                preferredMode = null,
-            )
-
-        // Assert
-        assertEquals(GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK, bearerMode)
-    }
-
-    @Test
-    fun resolveIosGattDataBearerModeKeepsHandshakeFramesOnL2cap(): Unit {
-        // Arrange
-        val directFrame = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01, 0x02))
-
-        // Act
-        val bearerMode =
-            resolveIosGattDataBearerMode(
-                directFrame = directFrame,
-                localPlatformFamily = BleDiscoveryPlatformFamily.IOS,
-                remotePlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
-                preferredMode = TransportMode.GATT,
-            )
-
-        // Assert
-        assertEquals(GattDataBearerMode.L2CAP_ONLY, bearerMode)
-    }
-
     @Test
     fun selectGattNotifyHintPeerIdValuePrefersTheBoundHintWhenPresent(): Unit {
         // Arrange

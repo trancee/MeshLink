@@ -6,6 +6,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
+import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
@@ -18,7 +19,7 @@ internal data class MeshEngineInboundRoutingContext(
 internal data class MeshEngineInboundTransport(
     val emitHopSessionFailed:
         suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
-    val decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    val decryptHopPayload: suspend (HopSession, ByteArray) -> ByteArray,
 )
 
 internal data class MeshEngineInboundMessageCallbacks(
@@ -86,6 +87,12 @@ internal class MeshEngineInboundSupport(
         return session
     }
 
+    // decryptHopPayload atomically checks for -- and silently ignores -- a redundant delivery of
+    // an already-processed DirectWireFrame.Data ciphertext (see its documentation), signaling
+    // that outcome via DuplicateHopPayloadException rather than a genuine decrypt failure. That
+    // distinction matters here: a real AEADBadTagException should surface the
+    // "transport.data.decrypt" failure diagnostic, whereas a recognized duplicate should be
+    // dropped without one.
     private suspend fun decryptInboundWireFrame(
         peerId: PeerId,
         session: HopSession,
@@ -93,6 +100,21 @@ internal class MeshEngineInboundSupport(
     ): ByteArray? {
         return runCatching { transport.decryptHopPayload(session, payload) }
             .getOrElse { exception ->
+                if (exception === DuplicateHopPayloadException) {
+                    transport.emitHopSessionFailed(
+                        peerId,
+                        "transport.data.duplicateIgnored",
+                        DiagnosticReason.DELIVERY_FAILURE,
+                        mapOf(
+                            "payloadBytes" to payload.size.toString(),
+                            "payloadPrefixHex" to
+                                payload
+                                    .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                                    .toHexString(),
+                        ),
+                    )
+                    return@getOrElse null
+                }
                 transport.emitHopSessionFailed(
                     peerId,
                     "transport.data.decrypt",
@@ -190,7 +212,7 @@ internal fun buildMeshEngineRuntimeInboundSupport(
     routeCoordinator: RouteCoordinator,
     routingSupport: MeshEngineRoutingSupport,
     emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
-    decryptHopPayload: (HopSession, ByteArray) -> ByteArray,
+    decryptHopPayload: suspend (HopSession, ByteArray) -> ByteArray,
     captureHardRunToken: () -> MeshEngineHardRunToken,
     forwardMessageToNextHop: suspend (WireFrame.Message, MeshEngineHardRunToken) -> Unit,
     deliverInnerEnvelope:

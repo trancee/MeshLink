@@ -1,12 +1,9 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
-import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 
 internal class PreferredGattSendContext
 internal constructor(
@@ -34,16 +31,11 @@ internal suspend fun sendViaPreferredGattNotifyLinkOrNull(
     // path does not poll a readiness flag before handing the frame off: `GattNotifyLink.enqueue`
     // already owns an internal pump queue that holds frames and drains them once the remote
     // central subscribes, so an external readiness wait here would be redundant.
-    val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    if (directFrame == null) {
-        return null
-    }
-
-    val dataBearerMode = resolveGattDataBearerMode()
-    if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
-        return null
-    }
-
+    //
+    // The frame-type/bearer-mode decision (whether GATT should even be attempted for this frame)
+    // is made by the caller via ch.trancee.meshlink.engine.resolveGattDataBearerMode before this
+    // function is invoked - see BleTransportAdapterSendRouting.sendToPeer. This function always
+    // attempts a GATT send once called.
     val link = dependencies.currentLink() ?: return null
     return runCatching {
             dependencies.log(

@@ -8,12 +8,29 @@ import kotlin.native.ObjCName
  * Stable peer handle used for addressing MeshLink operations and events.
  *
  * Treat [value] as opaque. [toString] redacts the identifier to the last six characters.
+ *
+ * [equals]/[hashCode] are overridden to be value-based on [value]: callers that resolve or
+ * re-resolve a [PeerId] from routing/transport state (for example `RouteCoordinator.nextHopFor`)
+ * may return a distinct instance each time even when the underlying peer id string is unchanged.
+ * Reference-based equality previously made those distinct-but-equal instances compare as different,
+ * causing spurious `delivery.send.routeRefreshed` retries whenever two independently resolved
+ * [PeerId] instances for the same peer were compared with `==`/`!=`. This is a plain `class` rather
+ * than a `data class` so the public API surface doesn't gain a `copy`/`component1` that would be
+ * misleading for an opaque handle.
  */
 public class PeerId public constructor(public val value: String) {
     init {
         if (value.isBlank()) {
             throw MeshLinkException.InvalidConfiguration("peerId must not be blank")
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        return this === other || (other is PeerId && value == other.value)
+    }
+
+    override fun hashCode(): Int {
+        return value.hashCode()
     }
 
     override fun toString(): String {

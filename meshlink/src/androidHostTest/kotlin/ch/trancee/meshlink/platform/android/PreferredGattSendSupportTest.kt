@@ -15,6 +15,10 @@ class PreferredGattSendSupportTest {
     @Test
     fun sendViaPreferredGattSideLinkOrNullHandlesHandshakeFrames(): Unit = runBlocking {
         // Arrange
+        // Frame-type gating (handshake vs. data) is now the caller's responsibility, resolved via
+        // ch.trancee.meshlink.engine.resolveGattDataBearerMode and applied in
+        // BleTransportAdapter.sendToPeerUsingBearerPolicy. This function unconditionally attempts
+        // a GATT send whenever it is invoked, regardless of frame type.
         val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(
@@ -93,7 +97,7 @@ class PreferredGattSendSupportTest {
         val frame =
             OutboundFrame(
                 peerId = fixture.context.hintPeerId,
-                payload = DirectWireFrame.HandshakeMessage1(byteArrayOf(0x01)).encode(),
+                payload = DirectWireFrame.Data(ByteArray(8)).encode(),
             )
         val client =
             object : PreferredGattSendClient {

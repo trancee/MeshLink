@@ -83,8 +83,15 @@ ANDROID_EXTRA_DISABLE_AUTO_SEND = "meshlink.disableAutoSend"
 SENDER_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=sender"
 SENDER_PROOF_FAILED_NEEDLE = "REFERENCE_AUTOMATION proof.failed role=sender"
 PASSIVE_PROOF_COMPLETE_NEEDLE = "REFERENCE_AUTOMATION proof.complete role=passive"
+# NOTE: The Android reference app (MainActivity.kt's logAutomationStartupStage) never emits a
+# literal "REFERENCE_AUTOMATION started mode=..." line -- that marker only exists in the iOS-only
+# verify_ios_sender_log() required-marker list in run_headless_reference_live_proof.py. It was
+# copied into these Android-only lists but never matched real app output, so verify_sender_log()/
+# verify_passive_log() would always raise SystemExit here regardless of whether the proof actually
+# succeeded. The equivalent Android evidence -- mode + role recorded at startup -- is already
+# covered by the "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=... role=..." marker
+# below, so the stale duplicate is removed rather than reimplemented.
 SENDER_REQUIRED_LOG_MARKERS = [
-    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=SENDER",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
     "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=SENDER",
     "REFERENCE_AUTOMATION startup-state=activity.onCreate role=SENDER",
@@ -94,7 +101,6 @@ SENDER_REQUIRED_LOG_MARKERS = [
     "REFERENCE_AUTOMATION send.requested role=sender",
 ]
 PASSIVE_REQUIRED_LOG_MARKERS = [
-    "REFERENCE_AUTOMATION started mode=LIVE_PROOF role=PASSIVE",
     f"scenario={DIRECT_GUIDED_SCENARIO}",
     "REFERENCE_AUTOMATION startup stage=activity.onCreate mode=LIVE_PROOF role=PASSIVE",
     "REFERENCE_AUTOMATION startup-state=activity.onCreate role=PASSIVE",
@@ -302,8 +308,6 @@ def render_summary_html(payload: dict[str, Any]) -> str:
     passive_foreign_scan_top_peers = passive_discovery_focus.get("topPeers") or []
     sender_accepted_top_peers = sender_discovery_focus.get("topAcceptedPeers") or []
     passive_accepted_top_peers = passive_discovery_focus.get("topAcceptedPeers") or []
-    sender_first_snapshot_transition = extract_first_peer_snapshot_transition(sender_log_text)
-    passive_first_snapshot_transition = extract_first_peer_snapshot_transition(passive_log_text)
     sender_top_accepted_peer = sender_accepted_top_peers[0] if sender_accepted_top_peers else None
     passive_top_accepted_peer = passive_accepted_top_peers[0] if passive_accepted_top_peers else None
     sender_selection_note = (
@@ -795,6 +799,17 @@ def extract_route_observation(log_text: str) -> tuple[str | None, str | None]:
         elif "HOP_SESSION_ESTABLISHED" in line:
             stage = "hop-established"
             evidence = normalized
+        elif "DELIVERY_SUCCEEDED" in line:
+            # A successful delivery is a recovery signal: it means any prior
+            # transient route-unavailable/hop-failed blip (e.g. the routine
+            # delivery.send.routeRefreshed -> DELIVERY_RETRY_SCHEDULED ->
+            # DELIVERY_SUCCEEDED retry sequence) was resolved, so it must
+            # supersede that earlier stage rather than leaving a stale
+            # "route-unavailable"/"hop-failed" reading that would make
+            # route_stall_failure_reason() bail out on an already-succeeded
+            # exchange.
+            stage = "delivery-succeeded"
+            evidence = normalized
     return stage, evidence
 
 
@@ -1093,39 +1108,148 @@ def build_timing_snapshot(
     }
 
 
-def transport_failure_reason(run_dir: Path) -> str | None:
+# NO_ROUTE_AVAILABLE/routeAvailable=false is routine, expected telemetry during
+# the delivery layer's own delivery.send.routeRefreshed -> DELIVERY_RETRY_SCHEDULED
+# -> DELIVERY_SUCCEEDED retry sequence (see the DELIVERY_SUCCEEDED handling in
+# extract_route_observation()); hardware runs have been observed to report
+# retryDeadlineMs=15000 for this retry window. Give a bare "route-unavailable"
+# reading this much grace before treating it as a terminal stall so the retry
+# gets a fair chance to resolve on its own.
+ROUTE_UNAVAILABLE_GRACE_SECONDS = 16.0
+
+# discovery-stalled/discovery-pending (and the sender-prefixed variants) are
+# emitted by GuidedFirstExchangeViewModel.maybeLogDiscoveryStalled() as a
+# one-shot diagnostic fired at a *fixed* ~3-second elapsed-time timer,
+# regardless of whether the underlying BLE connection is still actively
+# progressing. Hardware runs have shown a GATT connection reach
+# CONNECTED -> MTU negotiated -> CCCD-enabled within a couple hundred
+# milliseconds of this marker firing, with the LinkIdentity data frame (and
+# the resulting peer.discovered/route.ready transition) still in flight.
+# Give this marker the same kind of grace window as route-unavailable before
+# treating it as a terminal stall.
+DISCOVERY_STALL_GRACE_SECONDS = 12.0
+
+
+def route_stall_failure_reason(
+    run_dir: Path,
+    *,
+    route_unavailable_grace_deadline: float | None = None,
+    discovery_stall_grace_deadline: float | None = None,
+) -> str | None:
+    """Detect genuinely terminal route-level failures that are safe to raise
+    immediately, even before the full capture timeout elapses.
+
+    This only fires once a peer has actually been discovered by either role
+    and its most recent route-stage marker indicates a real regression (e.g.
+    a hop/handshake failure). It deliberately does NOT fire on the one-time
+    "discovery.stalled" diagnostic checkpoint that GuidedFirstExchangeViewModel
+    emits ~3 seconds after startup (see GuidedFirstExchangeViewModel.kt,
+    maybeLogDiscoveryStalled()): that marker is routine telemetry, not a
+    terminal failure, and BLE discovery on real hardware can easily take
+    longer than 3 seconds while still succeeding well within the configured
+    android-ready/capture-timeout budget.
+
+    A bare "route-unavailable" stage (with no accompanying harder failure
+    signal) is similarly not immediately terminal: it is routine mid-retry
+    telemetry (see ROUTE_UNAVAILABLE_GRACE_SECONDS above). When
+    route_unavailable_grace_deadline is an absolute time.monotonic() deadline,
+    a bare route-unavailable reading only becomes terminal once that deadline
+    has passed. When route_unavailable_grace_deadline is None (e.g. used for
+    post-hoc classification after the full capture timeout has already
+    elapsed), a bare route-unavailable reading is treated as terminal
+    immediately, since there is no more time left to wait for the retry to
+    resolve.
+
+    A bare "discovery-stalled"/"discovery-pending" stage (with no accompanying
+    harder failure signal) gets the same grace treatment via
+    discovery_stall_grace_deadline (see DISCOVERY_STALL_GRACE_SECONDS above):
+    it is a one-shot early diagnostic, not proof the connection is dead, and
+    real hardware has been observed to complete GATT connect/MTU/CCCD/
+    LinkIdentity binding within a couple hundred milliseconds of this marker
+    firing."""
     sender_log = read_text(sender_log_path(run_dir))
     passive_log = read_text(passive_log_path(run_dir))
-    combined_log = sender_log + "\n" + passive_log
-    combined_log_lower = combined_log.lower()
+    combined_log_lower = (sender_log + "\n" + passive_log).lower()
     sender_route_stage, sender_route_evidence = extract_route_observation(sender_log)
     passive_route_stage, passive_route_evidence = extract_route_observation(passive_log)
     peer_discovered = (
         "peer.discovered role=passive" in combined_log_lower
         or "peer.discovered role=sender" in combined_log_lower
     )
+    if not peer_discovered:
+        return None
     route_stage = sender_route_stage or passive_route_stage
-    route_failure_stages = {
+    hard_route_failure_stages = {
         "handshake-message1-send",
         "hop-failed",
-        "route-unavailable",
+    }
+    if (
+        sender_route_stage in hard_route_failure_stages
+        or passive_route_stage in hard_route_failure_stages
+    ):
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    discovery_stall_stages = {
         "discovery-stalled",
         "discovery-pending",
         "sender-discovery-stalled",
         "sender-discovery-pending",
     }
-    if peer_discovered:
-        if sender_route_stage in route_failure_stages or passive_route_stage in route_failure_stages:
-            return (
-                "Android direct proof stalled at route stage "
-                f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
-                f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
-            )
-        if route_stage is None:
-            return (
-                "Android direct proof discovered a peer but never emitted a route-stage marker; "
-                "sender stalled before route stabilization"
-            )
+    discovery_stalled = (
+        sender_route_stage in discovery_stall_stages
+        or passive_route_stage in discovery_stall_stages
+    )
+    if discovery_stalled:
+        if (
+            discovery_stall_grace_deadline is not None
+            and time.monotonic() < discovery_stall_grace_deadline
+        ):
+            return None
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    route_unavailable = (
+        sender_route_stage == "route-unavailable" or passive_route_stage == "route-unavailable"
+    )
+    if route_unavailable:
+        if (
+            route_unavailable_grace_deadline is not None
+            and time.monotonic() < route_unavailable_grace_deadline
+        ):
+            return None
+        return (
+            "Android direct proof stalled at route stage "
+            f"sender={sender_route_stage or 'none'} passive={passive_route_stage or 'none'}; "
+            f"senderEvidence={sender_route_evidence or 'n/a'} passiveEvidence={passive_route_evidence or 'n/a'}"
+        )
+    if route_stage is None:
+        return (
+            "Android direct proof discovered a peer but never emitted a route-stage marker; "
+            "sender stalled before route stabilization"
+        )
+    return None
+
+
+def transport_failure_reason(run_dir: Path) -> str | None:
+    """Full failure classification, including non-terminal diagnostic
+    checkpoints such as the one-time "discovery.stalled" marker.
+
+    This should only be used to build a descriptive failure message AFTER
+    the caller has already decided to give up (e.g. after the full capture
+    timeout has elapsed) — see route_stall_failure_reason() for the subset
+    of checks that are safe to use as an early-exit signal while polling."""
+    reason = route_stall_failure_reason(run_dir)
+    if reason is not None:
+        return reason
+    sender_log = read_text(sender_log_path(run_dir))
+    passive_log = read_text(passive_log_path(run_dir))
+    combined_log = sender_log + "\n" + passive_log
+    combined_log_lower = combined_log.lower()
     if "sender.discovery.stalled role=" in combined_log_lower:
         return (
             "Android direct proof sender stalled before peer discovery; "
@@ -1166,6 +1290,8 @@ def wait_for_android_completions(
 ) -> AndroidDirectCompletions:
     deadline = time.monotonic() + timeout_seconds
     no_peer_deadline = time.monotonic() + min(timeout_seconds, 10.0)
+    route_unavailable_grace_deadline: float | None = None
+    discovery_stall_grace_deadline: float | None = None
     while time.monotonic() < deadline:
         completions = collect_android_completions(run_dir)
         if completions.sender_failed is not None:
@@ -1175,9 +1301,33 @@ def wait_for_android_completions(
             )
         if completions.sender_completion:
             return completions
-        transport_reason = transport_failure_reason(run_dir)
-        if transport_reason is not None:
-            raise SystemExit(transport_reason)
+        if route_unavailable_grace_deadline is None or discovery_stall_grace_deadline is None:
+            sender_stage, _ = extract_route_observation(read_text(sender_log_path(run_dir)))
+            passive_stage, _ = extract_route_observation(read_text(passive_log_path(run_dir)))
+            if route_unavailable_grace_deadline is None and "route-unavailable" in (
+                sender_stage,
+                passive_stage,
+            ):
+                route_unavailable_grace_deadline = (
+                    time.monotonic() + ROUTE_UNAVAILABLE_GRACE_SECONDS
+                )
+            discovery_stall_stages = {
+                "discovery-stalled",
+                "discovery-pending",
+                "sender-discovery-stalled",
+                "sender-discovery-pending",
+            }
+            if discovery_stall_grace_deadline is None and (
+                sender_stage in discovery_stall_stages or passive_stage in discovery_stall_stages
+            ):
+                discovery_stall_grace_deadline = time.monotonic() + DISCOVERY_STALL_GRACE_SECONDS
+        route_stall_reason = route_stall_failure_reason(
+            run_dir,
+            route_unavailable_grace_deadline=route_unavailable_grace_deadline,
+            discovery_stall_grace_deadline=discovery_stall_grace_deadline,
+        )
+        if route_stall_reason is not None:
+            raise SystemExit(route_stall_reason)
         if time.monotonic() >= no_peer_deadline:
             # Keep the explicit no-peer guard for runs that never emit route diagnostics,
             # but fall through to the standard timeout message when no transport reason exists.
@@ -1239,20 +1389,25 @@ def ensure_android_preflight(
     permissions_started_at = time.monotonic()
     permission_package = ANDROID_PROOF_PACKAGE if install_profile == "proof" else ANDROID_PACKAGE
     try:
-        if install_profile == "proof":
-            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
-        else:
-            verify_android_runtime_permissions(android_serial)
+        try:
+            if install_profile == "proof":
+                verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+            else:
+                verify_android_runtime_permissions(android_serial)
+        except SystemExit:
+            print(
+                f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
+                flush=True,
+            )
+            grant_android_runtime_permissions(android_serial, permission_package)
+            if install_profile == "proof":
+                verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
+            else:
+                verify_android_runtime_permissions(android_serial)
     except SystemExit as error:
-        print(
-            f"==> Android runtime permissions missing after install; retrying grant once for {android_serial}",
-            flush=True,
-        )
-        grant_android_runtime_permissions(android_serial, permission_package)
-        if install_profile == "proof":
-            verify_android_runtime_permissions_for_package(android_serial, ANDROID_PROOF_PACKAGE)
-        else:
-            verify_android_runtime_permissions(android_serial)
+        raise SystemExit(
+            f"Android runtime-permission verification failed for '{android_serial}': {error}"
+        ) from error
     except subprocess.CalledProcessError as error:
         raise SystemExit(
             "Android runtime-permission verification command failed for "
@@ -1300,6 +1455,44 @@ def ensure_extra_force_stop_devices_ready(extra_force_stop_serials: list[str]) -
 
 def force_stop_android_package(android_serial: str, android_package: str) -> None:
     run(["adb", "-s", android_serial, "shell", "am", "force-stop", android_package], check=False)
+
+
+ANDROID_QUIT_VERIFY_ATTEMPTS: int = 5
+ANDROID_QUIT_VERIFY_DELAY_SECONDS: float = 1.0
+
+
+def android_package_running_pids(android_serial: str, android_package: str) -> str:
+    result = run(
+        ["adb", "-s", android_serial, "shell", "pidof", android_package],
+        check=False,
+        capture_output=True,
+    )
+    return (result.stdout or "").strip()
+
+
+def force_stop_android_package_and_verify_quit(
+    android_serial: str, android_package: str
+) -> None:
+    """Force-stops `android_package` on `android_serial` and polls `pidof` until the
+    process is confirmed gone, retrying `am force-stop` on every attempt. Some OEM
+    builds have been observed to resurrect a just-force-stopped process for a brief
+    window (e.g. a pending BLE GATT callback re-entering the app), so a single
+    fire-and-forget force-stop is not always sufficient to guarantee the app has
+    actually quit by the time the next test run starts on the same device."""
+    for attempt in range(ANDROID_QUIT_VERIFY_ATTEMPTS):
+        force_stop_android_package(android_serial, android_package)
+        pids = android_package_running_pids(android_serial, android_package)
+        if not pids:
+            return
+        if attempt < ANDROID_QUIT_VERIFY_ATTEMPTS - 1:
+            time.sleep(ANDROID_QUIT_VERIFY_DELAY_SECONDS)
+    remaining_pids = android_package_running_pids(android_serial, android_package)
+    if remaining_pids:
+        raise SystemExit(
+            f"Android package '{android_package}' on '{android_serial}' did not quit "
+            f"after {ANDROID_QUIT_VERIFY_ATTEMPTS} force-stop attempts "
+            f"(pids still running: {remaining_pids})"
+        )
 
 
 def verify_android_runtime_permissions_for_package(android_serial: str, android_package: str) -> None:
@@ -1381,13 +1574,28 @@ def force_stop_extra_peers(extra_force_stop_serials: list[str]) -> None:
     failures: list[str] = []
     for extra_serial in extra_force_stop_serials:
         try:
-            force_stop_android_package(extra_serial, ANDROID_PACKAGE)
+            force_stop_android_package_and_verify_quit(extra_serial, ANDROID_PACKAGE)
         except Exception as error:
             failures.append(f"{extra_serial}: {error}")
     if failures:
         raise SystemExit(
             "Failed to isolate extra Android peers before launch: " + "; ".join(failures)
         )
+
+
+def stop_background_process_before_relaunch(process: BackgroundProcess | None) -> None:
+    """Stop a role's previous logcat-capturing BackgroundProcess before replacing the variable
+    with a freshly launched one.
+
+    Without this, relaunching a role (e.g. to seed a target-peer-id filter) orphans the old
+    `adb logcat` subprocess: it keeps its file descriptor open on the same log file path, and
+    since the new process reopens that path in truncating "w" mode (not a new file), the two
+    processes end up writing to the same inode concurrently -- corrupting/interleaving the
+    captured log content and producing hard-to-diagnose false negatives (e.g. a genuine
+    `proof.complete` line silently lost amid interleaved writes from a zombie logcat process).
+    """
+    if process is not None:
+        process.stop()
 
 
 def cleanup_android_direct_run(
@@ -1414,7 +1622,7 @@ def cleanup_android_direct_run(
     ]:
         for android_package in (ANDROID_PACKAGE, ANDROID_PROOF_PACKAGE):
             try:
-                force_stop_android_package(android_serial, android_package)
+                force_stop_android_package_and_verify_quit(android_serial, android_package)
             except Exception as error:
                 failures.append(f"{android_serial}:{android_package}: {error}")
 
@@ -1435,9 +1643,10 @@ def start_android_role_app(
     advertisement_carrier: str = "uuid-pair",
     android_activity: str = ANDROID_ACTIVITY,
     android_package: str = ANDROID_PACKAGE,
+    disable_auto_send: bool = False,
 ) -> BackgroundProcess:
     role_artifacts = ROLE_ARTIFACTS[label]
-    force_stop_android_package(android_serial, android_package)
+    force_stop_android_package_and_verify_quit(android_serial, android_package)
     run(["adb", "-s", android_serial, "logcat", "-c"])
     logcat_path = run_dir / role_artifacts.logcat_name
     logcat_file = logcat_path.open("w", encoding="utf-8")
@@ -1496,6 +1705,8 @@ def start_android_role_app(
         ]
         if target_peer_id:
             command.extend(["--es", "ch.trancee.meshlink.reference.extra.UI_AUTOMATION_TARGET_PEER_ID", target_peer_id])
+        if disable_auto_send:
+            command.extend(["--ez", ANDROID_EXTRA_DISABLE_AUTO_SEND, "true"])
         command.extend(
             [
                 "--es",
@@ -1534,6 +1745,28 @@ def start_android_role_app(
     return process
 
 
+ANDROID_SHELL_ERROR_MARKERS = (
+    "cat:",
+    "run-as:",
+    "No such file or directory",
+    "Permission denied",
+    "is not debuggable",
+    "not accessible",
+)
+
+
+def looks_like_android_shell_error(text: str) -> bool:
+    """adb's exec-out/run-as/cat chain does not always propagate a non-zero
+    exit code when the remote file is missing (a known adb limitation), so a
+    remote shell error message can otherwise be mistaken for real file
+    content (e.g. "cat: files/automation-discovery-seed.txt: No such file or
+    directory" being treated as a discovered peer id)."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return any(stripped.startswith(marker) or marker in stripped for marker in ANDROID_SHELL_ERROR_MARKERS)
+
+
 def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, delay_s: float = 1.0) -> str | None:
     discovery_seed_path = "automation-discovery-seed.txt"
     relative_path = f"../shared_prefs/meshlink-{app_id}.xml"
@@ -1542,7 +1775,11 @@ def read_passive_peer_id(android_serial: str, app_id: str, retries: int = 60, de
             discovery_seed_text = read_android_app_file(android_serial, discovery_seed_path).strip()
         except subprocess.CalledProcessError:
             discovery_seed_text = ""
-        if discovery_seed_text and not discovery_seed_text.lstrip().startswith("<"):
+        if (
+            discovery_seed_text
+            and not discovery_seed_text.lstrip().startswith("<")
+            and not looks_like_android_shell_error(discovery_seed_text)
+        ):
             return discovery_seed_text.splitlines()[0].strip()
         try:
             xml_text = read_android_app_file(android_serial, relative_path)
@@ -1585,6 +1822,7 @@ def launch_android_sender_role_app(
     android_transport_logcat: bool,
     target_peer_id: str,
     sender_advertisement_carrier: str,
+    disable_auto_send: bool = False,
 ) -> BackgroundProcess:
     return start_android_role_app(
         run_dir=run_dir,
@@ -1598,6 +1836,7 @@ def launch_android_sender_role_app(
         advertisement_carrier=sender_advertisement_carrier,
         android_activity=ANDROID_ACTIVITY,
         android_package=ANDROID_PACKAGE,
+        disable_auto_send=disable_auto_send,
     )
 
 
@@ -2206,6 +2445,15 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     discovered_peer_id = sender_target_peer_id
                     print(f"==> Passive peer id resolved for sender launch: {sender_target_peer_id}")
+                sender_advertisement_carrier_choice = (
+                    "uuid-pair-plus-service-data"
+                    if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
+                    else args.advertisement_carrier
+                )
+                # Phase 1: launch the sender with auto-send disabled so we can read its own
+                # identity (peer id) via the same discovery-seed mechanism already used for the
+                # passive role, without risking a premature send to the wrong peer while many
+                # other fleet devices are simultaneously advertising/scanning.
                 sender_process = launch_android_sender_role_app(
                     run_dir=run_dir,
                     android_serial=args.sender_android_serial,
@@ -2213,13 +2461,74 @@ def main(argv: list[str] | None = None) -> int:
                     storage_subdirectory=storage_subdirectory,
                     android_transport_logcat=args.android_transport_logcat,
                     target_peer_id=sender_target_peer_id,
-                    sender_advertisement_carrier=(
-                        "uuid-pair-plus-service-data"
-                        if should_prefer_service_data(args.sender_android_serial, args.passive_android_serial)
-                        else args.advertisement_carrier
-                    ),
+                    sender_advertisement_carrier=sender_advertisement_carrier_choice,
+                    disable_auto_send=True,
                 )
                 print(f"==> Android sender launched at +{time.monotonic() - run_started_at:.1f}s")
+                sender_own_peer_id = read_passive_peer_id(
+                    args.sender_android_serial,
+                    app_id,
+                    retries=max(1, int(peer_resolution_wait_seconds)),
+                )
+                if sender_own_peer_id is None:
+                    print(
+                        "==> Sender peer id unavailable after short resolution wait; passive will remain unfiltered"
+                    )
+                else:
+                    print(f"==> Sender peer id resolved for passive target filter: {sender_own_peer_id}")
+                    # Restart both roles together (passive with the sender's peer id as a target
+                    # filter, sender with auto-send re-enabled) rather than sequentially. Android
+                    # rotates the BLE MAC address and L2CAP PSM whenever a role is force-stopped
+                    # and relaunched. If only the sender were restarted here while passive stayed
+                    # up from phase 1, passive would already be mid-reconnect to the sender's
+                    # stale phase-1 address when it rotates, causing repeated L2CAP connect
+                    # failures and a premature ROUTE_EXPIRED (confirmed on hardware). Restarting
+                    # both together means neither side has an established connection to break.
+                    stop_background_process_before_relaunch(passive_process)
+                    passive_process = start_android_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.passive_android_serial,
+                        label="passive",
+                        role="passive",
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=sender_own_peer_id,
+                        advertisement_carrier=args.advertisement_carrier,
+                        android_activity=ANDROID_ACTIVITY,
+                        android_package=ANDROID_PACKAGE,
+                    )
+                    print(
+                        f"==> Android passive re-launched with target filter at +{time.monotonic() - run_started_at:.1f}s"
+                    )
+                    # Phase 2: relaunch the sender with the real (still-valid) target peer id and
+                    # auto-send re-enabled, launched immediately after the passive restart above
+                    # (not after waiting for passive's transport marker) so both roles come up
+                    # fresh together instead of one settling in before the other rotates its
+                    # BLE identity.
+                    stop_background_process_before_relaunch(sender_process)
+                    sender_process = launch_android_sender_role_app(
+                        run_dir=run_dir,
+                        android_serial=args.sender_android_serial,
+                        app_id=app_id,
+                        storage_subdirectory=storage_subdirectory,
+                        android_transport_logcat=args.android_transport_logcat,
+                        target_peer_id=sender_target_peer_id,
+                        sender_advertisement_carrier=sender_advertisement_carrier_choice,
+                        disable_auto_send=False,
+                    )
+                    print(f"==> Android sender re-launched at +{time.monotonic() - run_started_at:.1f}s")
+                    passive_restart_transport_observation = wait_for_log_marker_observation(
+                        passive_marker_path,
+                        "advertising started mode=2 tx=3 connectable=true",
+                        passive_transport_timeout_seconds,
+                    )
+                    if passive_restart_transport_observation["observed"]:
+                        time.sleep(POST_PASSIVE_START_SETTLE_SECONDS)
+                    else:
+                        raise SystemExit(
+                            f"Android passive transport did not restart within {passive_transport_timeout_seconds} seconds"
+                        )
             if discovered_peer_id is None:
                 print(
                     "==> Passive peer id unavailable before the route phase; proceeding without a seeded target peer"

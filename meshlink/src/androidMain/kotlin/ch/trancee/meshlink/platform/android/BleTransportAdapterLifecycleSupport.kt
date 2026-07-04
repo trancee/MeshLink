@@ -59,6 +59,7 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
             context = context,
             peerBindings = peerBindings,
             onUnknownPeerFrame = ::registerProvisionalGattPeer,
+            onClaimedPeerIdentity = ::registerClaimedGattPeer,
             onFrameReceived = ::enqueueInboundFrame,
             log = ::log,
         )

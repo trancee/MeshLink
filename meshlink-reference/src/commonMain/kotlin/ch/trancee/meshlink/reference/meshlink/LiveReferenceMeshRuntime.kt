@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
+import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import kotlinx.coroutines.CoroutineScope
@@ -9,9 +10,9 @@ import kotlinx.coroutines.launch
 /**
  * Live controller runtime that binds MeshLink state into the reference-app snapshot.
  *
- * The runtime intentionally relays peer events through a replaying app-local flow so the first
- * discovery event cannot be lost if it arrives before the snapshot/projector collectors finish
- * attaching.
+ * The runtime intentionally relays peer events and inbound messages through replaying app-local
+ * flows so the first discovery event or inbound message cannot be lost if it arrives before the
+ * snapshot/projector collectors finish attaching.
  */
 internal class LiveReferenceMeshRuntime(
     private val appId: String,
@@ -24,6 +25,8 @@ internal class LiveReferenceMeshRuntime(
     private var flowsBound: Boolean = false
     private val peerEventRelay: MutableSharedFlow<ch.trancee.meshlink.api.PeerEvent> =
         MutableSharedFlow(replay = 1, extraBufferCapacity = 16)
+    private val messageRelay: MutableSharedFlow<InboundMessage> =
+        MutableSharedFlow(replay = MESSAGE_RELAY_REPLAY_CAPACITY, extraBufferCapacity = 16)
 
     suspend fun <T> execute(
         stateStore: ReferenceControllerStateStore,
@@ -52,10 +55,14 @@ internal class LiveReferenceMeshRuntime(
         scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
             meshLink.peerEvents.collect { event -> peerEventRelay.emit(event) }
         }
+        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            meshLink.messages.collect { message -> messageRelay.emit(message) }
+        }
         bindLiveReferenceControllerFlows(
             scope = scope,
             meshLink = meshLink,
             peerEvents = peerEventRelay,
+            messages = messageRelay,
             stateStore = stateStore,
             nowProvider = nowProvider,
             sessionProjector = sessionProjector,
@@ -66,3 +73,5 @@ internal class LiveReferenceMeshRuntime(
         return meshLink ?: meshLinkFactory(appId, meshLinkBootstrap).also { api -> meshLink = api }
     }
 }
+
+private const val MESSAGE_RELAY_REPLAY_CAPACITY: Int = 8

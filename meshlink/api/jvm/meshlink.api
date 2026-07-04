@@ -198,7 +198,9 @@ public final class ch/trancee/meshlink/api/PeerEvent$StateChanged : ch/trancee/m
 
 public final class ch/trancee/meshlink/api/PeerId {
 	public fun <init> (Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 

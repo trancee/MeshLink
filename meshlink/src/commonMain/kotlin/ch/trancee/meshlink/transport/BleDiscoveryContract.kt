@@ -230,8 +230,12 @@ internal fun shouldLocalPeerInitiateL2capConnection(
 }
 
 /**
- * Keep the GATT side bearer available whenever both peers are known BLE peers. L2CAP still wins the
- * normal connection path, but GATT stays up as the fallback.
+ * Keep the GATT side bearer available whenever both peers are known BLE peers. GATT must always be
+ * available as the universal fallback bearer; L2CAP is preferred opportunistically for regular data
+ * frames when a link happens to already be connected. See
+ * [ch.trancee.meshlink.engine.DirectWireFrame] and
+ * `ch.trancee.meshlink.engine.resolveGattDataBearerMode` for the frame-type-aware bearer selection
+ * policy.
  */
 internal fun shouldUseMixedPlatformGattNotifyBearer(
     localPlatformFamily: BleDiscoveryPlatformFamily,
@@ -249,25 +253,25 @@ internal fun shouldInitiateDiscoveryDrivenL2capConnection(
     return true
 }
 
-internal enum class GattDataBearerMode {
-    L2CAP_ONLY,
-    GATT_OPTIONAL_WITH_L2CAP_FALLBACK,
-}
-
 /**
- * Data bearer mode for a discovery-driven BLE peer, once both sides are known to be BLE peers.
+ * Bearer mode for an outbound direct-wire frame, decided once per frame by
+ * `ch.trancee.meshlink.engine.resolveGattDataBearerMode` based on frame type:
+ * - [GATT_ONLY]: handshake/control frames always use GATT. GATT is the one bearer every known BLE
+ *   peer pairing keeps available (see [shouldUseMixedPlatformGattNotifyBearer]), so control traffic
+ *   never has to race an L2CAP link that may not exist yet or may be mid-(re)negotiation.
+ * - [L2CAP_PREFERRED_WITH_GATT_FALLBACK]: regular data frames use an already-connected L2CAP link
+ *   when one exists (higher throughput), and otherwise fall back to GATT.
  *
- * This always resolves to [GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK]: see
- * [shouldUseMixedPlatformGattNotifyBearer] - GATT is kept available as a fallback bearer for every
- * known BLE peer pairing (not just mixed iOS/Android pairs), while L2CAP still wins the normal
- * connection path whenever it is available. An earlier revision of this function chose between
- * [GattDataBearerMode.L2CAP_ONLY] and the GATT-fallback mode based on platform family, caller
- * preference, and local L2CAP client-socket support; those parameters no longer affect the outcome
- * and were removed. [GattDataBearerMode.L2CAP_ONLY] can still be produced independently on iOS by
- * `resolveIosGattDataBearerMode` for non-data (handshake) frames.
+ * Letting a single frame be offered to both bearers at once was the root cause of a hardware-only
+ * bug: a handshake message delivered over both an active L2CAP link and a simultaneously-active
+ * GATT side-link was processed once and then rejected as a duplicate
+ * (`transport.handshake.message2.unexpected`, HOP_SESSION_FAILED), stalling the exchange. Each
+ * frame must resolve to exactly one bearer mode up front instead. See
+ * docs/explanation/reference-app-physical-integration-findings.md for the full investigation.
  */
-internal fun resolveGattDataBearerMode(): GattDataBearerMode {
-    return GattDataBearerMode.GATT_OPTIONAL_WITH_L2CAP_FALLBACK
+internal enum class GattDataBearerMode {
+    GATT_ONLY,
+    L2CAP_PREFERRED_WITH_GATT_FALLBACK,
 }
 
 private fun compareUnsignedKeyHashes(left: ByteArray, right: ByteArray): Int {

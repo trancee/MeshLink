@@ -60,7 +60,11 @@ class MeshEngineSessionRegistryTest {
             val canonicalPeerId = PeerId("00112233445566778899aabb")
             val pendingHandshake =
                 PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
-            sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+            sessionRegistry.storePendingResponderHandshake(
+                temporaryPeerId,
+                pendingHandshake,
+                byteArrayOf(),
+            )
 
             // Act
             val rebound =
@@ -87,7 +91,11 @@ class MeshEngineSessionRegistryTest {
             val pendingHandshake =
                 PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
             val establishedSession = HopSession(ByteArray(32) { 0x01 }, ByteArray(32) { 0x02 })
-            sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+            sessionRegistry.storePendingResponderHandshake(
+                temporaryPeerId,
+                pendingHandshake,
+                byteArrayOf(),
+            )
             sessionRegistry.rebindPendingResponderHandshake(
                 fromPeerId = temporaryPeerId,
                 toPeerId = canonicalPeerId,
@@ -123,7 +131,11 @@ class MeshEngineSessionRegistryTest {
             val pendingHandshake =
                 PendingResponderHandshake(NoiseXXHandshakeManager(localIdentity.cryptoProvider))
             val establishedSession = HopSession(ByteArray(32) { 0x03 }, ByteArray(32) { 0x04 })
-            sessionRegistry.storePendingResponderHandshake(temporaryPeerId, pendingHandshake)
+            sessionRegistry.storePendingResponderHandshake(
+                temporaryPeerId,
+                pendingHandshake,
+                byteArrayOf(),
+            )
             sessionRegistry.rebindPendingResponderHandshake(
                 fromPeerId = temporaryPeerId,
                 toPeerId = canonicalPeerId,

@@ -1,12 +1,9 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
-import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportSendResult
-import ch.trancee.meshlink.transport.resolveGattDataBearerMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -49,22 +46,13 @@ internal suspend fun sendViaPreferredGattSideLinkOrNull(
     context: PreferredGattSendContext,
     dependencies: PreferredGattSendDependencies,
 ): TransportSendResult? {
-    val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
-    if (directFrame == null) {
-        return null
-    }
-
-    val dataBearerMode = resolveGattDataBearerMode()
+    // The frame-type/bearer-mode decision (whether GATT should even be attempted for this frame)
+    // is made by the caller via ch.trancee.meshlink.engine.resolveGattDataBearerMode before this
+    // function is invoked - see BleTransportAdapter.sendToPeerUsingBearerPolicy. This function
+    // always attempts a GATT send once called.
     dependencies.log(
-        "preferred GATT side-link evaluation for ${context.hintPeerId.value.takeLast(6)} mode=$dataBearerMode local=${context.localPlatformFamily} remote=${context.remotePlatformFamily} preferred=${frame.preferredMode ?: "none"}"
+        "GATT side-link send attempt for ${context.hintPeerId.value.takeLast(6)} local=${context.localPlatformFamily} remote=${context.remotePlatformFamily} preferred=${frame.preferredMode ?: "none"}"
     )
-    if (dataBearerMode == GattDataBearerMode.L2CAP_ONLY) {
-        dependencies.log(
-            "preferred GATT side-link bypassed for ${context.hintPeerId.value.takeLast(6)} because bearerMode=L2CAP_ONLY"
-        )
-        return null
-    }
-
     dependencies.ensureSideLink()
     val client =
         dependencies.currentClient()

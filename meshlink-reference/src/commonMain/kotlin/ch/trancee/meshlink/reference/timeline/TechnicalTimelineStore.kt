@@ -172,72 +172,12 @@ internal class TechnicalTimelineStore(
         snapshot: ReferenceControllerSnapshot,
         policy: ExportPayloadPolicy,
     ): String {
-        val createdAtEpochMillis = currentTimeMillis()
-        val artifactPolicy =
-            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                ArtifactPayloadPolicy.FULL_OPT_IN
-            } else {
-                ArtifactPayloadPolicy.REDACTED_PREVIEW
-            }
-        val artifactSuffix =
-            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                "full"
-            } else {
-                "redacted"
-            }
-        val artifact =
-            SessionArtifact(
-                artifactId =
-                    "artifact-${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix",
-                sourceSessionId = snapshot.session.sessionId,
-                createdAtEpochMillis = createdAtEpochMillis,
-                payloadPolicy = artifactPolicy,
-                includesFullPayload =
-                    policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
-                        snapshot.timeline.any { entry -> entry.fullPayload != null },
-                scenarioSummary =
-                    mapOf(
-                        "scenarioId" to snapshot.session.scenarioId,
-                        "title" to referenceScenarioTitle(snapshot.session.scenarioId),
-                        "surface" to
-                            (snapshot.session.configurationSnapshot["surface"] ?: "main-guided"),
-                        "authorityMode" to referenceAuthorityLabel(snapshot.session.authorityMode),
-                    ),
-                peerSummaries =
-                    snapshot.peers.map { peer ->
-                        buildMap {
-                            put("peerSuffix", peer.peerSuffix)
-                            put("trustState", referencePeerTrustLabel(peer.trustState))
-                            put("connectionState", referenceConnectionLabel(peer.connectionState))
-                            peer.lastDeliveryOutcome?.let { outcome ->
-                                put(
-                                    "lastDeliveryOutcome",
-                                    referenceOutcomeLabel(outcome) ?: outcome,
-                                )
-                            }
-                        }
-                    },
-                timelineEntries = snapshot.timeline,
-                storagePath =
-                    "reference/exports/${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix.json",
-            )
-        val serialized =
-            if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
-                artifactSerializer.serializeWithFullPayload(
-                    artifact,
-                    snapshot.session,
-                    snapshot.peers,
-                    snapshot.timeline,
-                )
-            } else {
-                artifactSerializer.serializeRedacted(
-                    artifact,
-                    snapshot.session,
-                    snapshot.peers,
-                    snapshot.timeline,
-                )
-            }
-        return artifactSerializer.writeArtifact(artifact, serialized)
+        return writeSessionArtifact(
+            snapshot = snapshot,
+            policy = policy,
+            artifactSerializer = artifactSerializer,
+            currentTimeMillis = currentTimeMillis,
+        )
     }
 
     internal fun updateState(
@@ -282,6 +222,84 @@ internal class TechnicalTimelineStore(
             )
         }
     }
+}
+
+/**
+ * Builds a session artifact for [snapshot] under [policy] and writes it via [artifactSerializer].
+ * Extracted as a top-level function (rather than kept private to [TechnicalTimelineStore]) so
+ * automation surfaces that don't otherwise construct a full [TechnicalTimelineStore] -- e.g. the
+ * guided first-exchange automation flow's passive-role completion handling -- can write the exact
+ * same redacted export artifact the manual "Export session" UI produces.
+ */
+internal suspend fun writeSessionArtifact(
+    snapshot: ReferenceControllerSnapshot,
+    policy: ExportPayloadPolicy,
+    artifactSerializer: JsonSessionArtifactSerializer,
+    currentTimeMillis: () -> Long,
+): String {
+    val createdAtEpochMillis = currentTimeMillis()
+    val artifactPolicy =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            ArtifactPayloadPolicy.FULL_OPT_IN
+        } else {
+            ArtifactPayloadPolicy.REDACTED_PREVIEW
+        }
+    val artifactSuffix =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            "full"
+        } else {
+            "redacted"
+        }
+    val artifact =
+        SessionArtifact(
+            artifactId =
+                "artifact-${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix",
+            sourceSessionId = snapshot.session.sessionId,
+            createdAtEpochMillis = createdAtEpochMillis,
+            payloadPolicy = artifactPolicy,
+            includesFullPayload =
+                policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN &&
+                    snapshot.timeline.any { entry -> entry.fullPayload != null },
+            scenarioSummary =
+                mapOf(
+                    "scenarioId" to snapshot.session.scenarioId,
+                    "title" to referenceScenarioTitle(snapshot.session.scenarioId),
+                    "surface" to
+                        (snapshot.session.configurationSnapshot["surface"] ?: "main-guided"),
+                    "authorityMode" to referenceAuthorityLabel(snapshot.session.authorityMode),
+                ),
+            peerSummaries =
+                snapshot.peers.map { peer ->
+                    buildMap {
+                        put("peerSuffix", peer.peerSuffix)
+                        put("trustState", referencePeerTrustLabel(peer.trustState))
+                        put("connectionState", referenceConnectionLabel(peer.connectionState))
+                        peer.lastDeliveryOutcome?.let { outcome ->
+                            put("lastDeliveryOutcome", referenceOutcomeLabel(outcome) ?: outcome)
+                        }
+                    }
+                },
+            timelineEntries = snapshot.timeline,
+            storagePath =
+                "reference/exports/${snapshot.session.sessionId}-$createdAtEpochMillis-$artifactSuffix.json",
+        )
+    val serialized =
+        if (policy == ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN) {
+            artifactSerializer.serializeWithFullPayload(
+                artifact,
+                snapshot.session,
+                snapshot.peers,
+                snapshot.timeline,
+            )
+        } else {
+            artifactSerializer.serializeRedacted(
+                artifact,
+                snapshot.session,
+                snapshot.peers,
+                snapshot.timeline,
+            )
+        }
+    return artifactSerializer.writeArtifact(artifact, serialized)
 }
 
 internal data class TechnicalTimelineUiState(

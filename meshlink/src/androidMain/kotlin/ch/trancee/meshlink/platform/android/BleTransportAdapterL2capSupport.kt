@@ -7,6 +7,9 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
+import ch.trancee.meshlink.wire.WireCodec
+import ch.trancee.meshlink.wire.WireFrame
+import ch.trancee.meshlink.wire.decodeLinkIdentityPeerIdOrNull
 import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
@@ -130,6 +133,7 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     val link =
         L2capLink(
             peerHintId = hintPeerId,
+            localHintPeerId = PeerId(localKeyHash.toHexString()),
             socket = socket,
             incomingFrames = L2capFrameBuffer(),
             log = ::log,
@@ -190,6 +194,11 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                         )
                         return@forEachIndexed
                     }
+                    val claimedPeerId = decodeLinkIdentityPeerIdOrNull(payload)
+                    if (claimedPeerId != null) {
+                        bindL2capLinkIdentity(link = link, claimedPeerId = claimedPeerId)
+                        return@forEachIndexed
+                    }
                     mutableEvents.emit(
                         TransportEvent.FrameReceived(peerId = currentPeerId, payload = payload)
                     )
@@ -199,6 +208,31 @@ internal fun BleTransportAdapter.registerConnectedSocket(
             closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
         }
     }
+}
+
+/**
+ * Consumes an in-band [WireFrame.LinkIdentity] announcement received over an L2CAP socket.
+ *
+ * BLE address rotation can cause a connection's socket-level address to differ from the address a
+ * peer was originally scan-discovered under, leaving [launchAcceptLoop] unable to resolve the real
+ * peer id and falling back to a synthetic temporary one. Mirroring the GATT notify-side mechanism
+ * (see [GattLinkIdentitySupport]), both ends of an L2CAP socket announce their own hint peer id as
+ * the first frame written (see [L2capLink.write]); this lets the accepting side self-correct the
+ * address binding once the claim arrives, independent of which address the socket connected on.
+ */
+internal fun BleTransportAdapter.bindL2capLinkIdentity(
+    link: L2capLink,
+    claimedPeerId: PeerId,
+): Unit {
+    if (link.peerHintId == claimedPeerId) {
+        return
+    }
+    val address = link.remoteDevice.address
+    peerBindings.bindHintToAddress(address, claimedPeerId.value)
+    log(
+        "bound L2CAP link ${link.peerHintId.value.takeLast(6)} -> ${claimedPeerId.value.takeLast(6)} addr=$address via LinkIdentity"
+    )
+    promoteTemporaryLink(address = address, hintPeerId = claimedPeerId)
 }
 
 internal fun BleTransportAdapter.activeLinkFor(peer: DiscoveredPeer): L2capLink? {
@@ -280,6 +314,7 @@ private const val L2CAP_RECONNECT_BACKOFF_MS: Long = 500L
 
 internal class L2capLink(
     internal var peerHintId: PeerId,
+    private val localHintPeerId: PeerId,
     private val socket: BluetoothSocket,
     internal val incomingFrames: L2capFrameBuffer,
     private val log: (String) -> Unit,
@@ -290,8 +325,20 @@ internal class L2capLink(
     internal val maxTransmitPacketSize: Int = socket.maxTransmitPacketSize
     internal var readLoopJob: Job? = null
     private val outputStream = socket.outputStream
+    @Volatile private var identityAnnounced: Boolean = false
 
     internal suspend fun write(payload: ByteArray): Unit {
+        if (!identityAnnounced) {
+            writeFrame(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+            identityAnnounced = true
+            log(
+                "L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
+            )
+        }
+        writeFrame(payload)
+    }
+
+    private fun writeFrame(payload: ByteArray): Unit {
         val encoded = L2capFrameBuffer().encode(payload)
         log(
             "L2CAP write ${peerHintId.value.takeLast(6)} payloadBytes=${payload.size} encodedBytes=${encoded.size} payloadPrefix=${payload.copyOf(minOf(payload.size, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
