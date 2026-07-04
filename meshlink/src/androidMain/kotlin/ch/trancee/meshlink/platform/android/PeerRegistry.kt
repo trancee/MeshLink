@@ -63,6 +63,26 @@ internal class PeerBindings {
     private val temporaryHintByAddress: MutableMap<String, String> = linkedMapOf()
     private val devicesByAddress: MutableMap<String, BluetoothDevice> = linkedMapOf()
 
+    /**
+     * Diagnostic hook invoked whenever [bindHintToAddress] silently replaces an address's existing
+     * hint with a *different* peer id. Such a rebind is expected when an address is genuinely
+     * reused across a disconnect/reconnect for the same peer, but if it happens for a *different*
+     * peer id it means an inbound frame (or unauthenticated LinkIdentity claim; see
+     * [resolveIncomingGattFrameDisposition]) is being attributed to the wrong logical peer/session
+     * -- worth surfacing explicitly rather than debugging blind when co-located devices with a
+     * colliding 16-bit meshHash are nearby. No-op by default; wired up via [attachRebindLogger].
+     */
+    private var onConflictingRebind:
+        (address: String, previousHint: String, newHint: String) -> Unit =
+        { _, _, _ ->
+        }
+
+    internal fun attachRebindLogger(
+        onConflictingRebind: (address: String, previousHint: String, newHint: String) -> Unit
+    ): Unit {
+        this.onConflictingRebind = onConflictingRebind
+    }
+
     internal fun retainDevice(address: String, device: BluetoothDevice): Unit {
         synchronized(lock) { devicesByAddress[address] = device }
     }
@@ -76,7 +96,10 @@ internal class PeerBindings {
     }
 
     internal fun bindHintToAddress(address: String, hintPeerIdValue: String): Unit {
-        synchronized(lock) { peerHintByAddress[address] = hintPeerIdValue }
+        val previousHint = synchronized(lock) { peerHintByAddress.put(address, hintPeerIdValue) }
+        if (previousHint != null && previousHint != hintPeerIdValue) {
+            onConflictingRebind(address, previousHint, hintPeerIdValue)
+        }
     }
 
     internal fun temporaryHintForAddress(address: String): String? {
