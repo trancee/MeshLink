@@ -22,6 +22,30 @@ internal class MeshEngineResponderHandshakeSupport(
     private val callbacks: MeshEngineHandshakeCallbacks,
 ) {
     suspend fun handleHandshakeMessage1(peerId: PeerId, payload: ByteArray): Unit {
+        // Diagnostic-only instrumentation (no behavior change): a message1 arriving while this
+        // peer already has an established session or an in-flight responder handshake is
+        // suspicious -- it suggests the transport layer delivered the same wire frame more than
+        // once, which would otherwise silently regenerate a fresh (and now stray) message2 below.
+        // Surfacing this before touching any registry state lets a hardware capture confirm
+        // whether that is really happening before any fix is attempted.
+        val existingSession = state.sessionRegistry.hopSession(peerId)
+        val existingPendingResponder = state.sessionRegistry.pendingResponderHandshake(peerId)
+        if (existingSession != null || existingPendingResponder != null) {
+            callbacks.emitHopSessionFailed(
+                peerId,
+                "transport.handshake.message1.duplicateSuspected",
+                DiagnosticReason.DELIVERY_FAILURE,
+                mapOf(
+                    "hasEstablishedSession" to (existingSession != null).toString(),
+                    "hasPendingResponderHandshake" to (existingPendingResponder != null).toString(),
+                    "payloadBytes" to payload.size.toString(),
+                    "payloadPrefixHex" to
+                        payload
+                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
+                            .toHexString(),
+                ),
+            )
+        }
         val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
         val message2 =
             runCatching {
