@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.PauseResult
@@ -25,8 +24,6 @@ internal interface MeshEngineRuntimeFacadeOperations {
     suspend fun send(peerId: PeerId, payload: ByteArray, priority: DeliveryPriority): SendResult
 
     suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
-
-    fun updateBattery(snapshot: BatterySnapshot): Unit
 }
 
 internal fun buildMeshEngineRuntimeFacadeOperations(
@@ -81,6 +78,10 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             pauseTransport = environment.platformBridge::pause,
             resumeTransport = environment.platformBridge::resume,
             stopTransport = environment.platformBridge::stop,
+            startBatteryMonitor = {
+                environment.batteryMonitor.start { snapshot -> powerPolicySupport.updateBattery(snapshot) }
+            },
+            stopBatteryMonitor = environment.batteryMonitor::stop,
             clearVolatileRuntimeView = { stage, removalCode, metadata ->
                 transportSupport.clearRuntimeView(
                     stage = stage,
@@ -143,8 +144,5 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
         override suspend fun forgetPeer(peerId: ch.trancee.meshlink.api.PeerId) =
             peerForgetSupport.forgetPeer(peerId)
 
-        override fun updateBattery(snapshot: BatterySnapshot) {
-            powerPolicySupport.updateBattery(snapshot)
-        }
     }
 }

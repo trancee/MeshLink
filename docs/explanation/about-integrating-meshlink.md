@@ -156,16 +156,15 @@ This does **not** mean that every diagnostic belongs in the main UI. It means
 there should be one deliberate place to inspect runtime behavior when things go
 wrong.
 
-## Use automatic power mode only when you can support it
+## Use automatic power mode when you want device-driven adaptation
 
-`PowerMode.Automatic` is useful, but it depends on the host app feeding real
-battery updates into MeshLink.
+`PowerMode.Automatic` is useful when you want MeshLink to react to real device
+battery state. MeshLink now observes that state internally on Android and iOS,
+so the host app does not need to wire battery callbacks into the SDK.
 
-If your app already owns battery observation, wire `updateBattery()` into that
-path.
-
-If it does not, choose a fixed `PowerMode` instead. That is often the cleaner
-and more honest choice.
+If you want a stable transport posture regardless of device battery state,
+choose a fixed `PowerMode` instead. That is often the cleaner and more honest
+choice.
 
 For Android direct-proof sessions on doze-sensitive devices, prefer the
 reference app's live-proof foreground wake-lock mitigation or a deliberate

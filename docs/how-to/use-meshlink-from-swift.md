@@ -277,12 +277,9 @@ let startResultEnum = onEnum(of: someStartResult)
 
 Use that pattern for public results and events.
 
-If your app owns battery observation and you want automatic power mode to react,
-feed battery snapshots into MeshLink:
-
-```swift
-api.updateBattery(snapshot: BatterySnapshot(level: 0.42, isCharging: false))
-```
+If your app uses automatic power mode, MeshLink now observes battery state
+internally on Apple platforms. No explicit battery-update call is required from
+Swift.
 
 ## 6. Keep the generated Swift surface at the app edge
 

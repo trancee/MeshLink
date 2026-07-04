@@ -280,11 +280,11 @@ Calling `forgetPeer()` changes identity continuity. If the app forgets a peer,
 it also needs an opinion about labels, history, support notes, and how the user
 understands that peer becoming "new again".
 
-### Automatic power mode depends on app input
+### Automatic power mode depends on platform battery observation
 
-`PowerMode.Automatic` is only as real as the battery data the host app feeds
-into MeshLink. If the app never calls `updateBattery()`, the runtime cannot
-react correctly to real battery state changes later.
+`PowerMode.Automatic` reacts to battery state that MeshLink observes internally
+on each supported platform. That keeps the power-policy logic shared while
+removing host-app battery plumbing from the public API.
 
 ### Pause and stop clear the current runtime view
 

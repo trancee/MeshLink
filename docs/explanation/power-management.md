@@ -30,15 +30,10 @@ and then back off when battery pressure is real.
 
 That is what `PowerMode.Automatic` does.
 
-The host app feeds battery state into MeshLink:
-
-```kotlin
-meshLink.updateBattery(
-    snapshot = BatterySnapshot(level = 0.45f, isCharging = false),
-)
-```
-
-MeshLink then recalculates the effective policy.
+MeshLink observes battery state internally on each supported platform and
+recalculates the effective policy whenever that state changes. Android listens
+to system battery broadcasts, and iOS listens to `UIDevice` battery
+notifications.
 
 ## The selection model
 
@@ -108,21 +103,20 @@ not identical to the unrestricted default-region version.
 
 ## What the host app needs to do
 
-The host app does not manage the full power policy. It only needs to provide
-battery snapshots when it wants automatic mode to react.
+The host app does not manage the full power policy. On Android and iOS, MeshLink
+subscribes to platform battery updates itself and applies the shared commonMain
+policy logic internally.
 
 That keeps ownership clear:
 
-- the app knows battery state
-- MeshLink knows how battery state changes transport posture
-
-If the host app never calls `updateBattery()`, automatic mode can react only to
-startup posture and the last known battery input.
+- the platform owns raw battery state delivery
+- MeshLink owns how battery state changes transport posture
+- the host app only chooses whether to use `PowerMode.Automatic` or a fixed mode
 
 ## Observability
 
-MeshLink emits `POWER_MODE_CHANGED` diagnostics when battery updates change the
-effective policy.
+MeshLink emits `POWER_MODE_CHANGED` diagnostics when observed battery updates
+change the effective policy.
 
 Those diagnostics include machine-readable metadata such as:
 

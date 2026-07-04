@@ -9,13 +9,12 @@ For behavior and usage, prefer the human-written [MeshLink SDK API reference](me
 
 | Type | Kind | Public surface |
 |---|---|---|
-| `ch.trancee.meshlink.api.BatterySnapshot` | class | `level`, `isCharging()` |
 | `ch.trancee.meshlink.api.DeliveryPriority` | enum | constants: `HIGH`, `LOW`, `NORMAL` |
 | `ch.trancee.meshlink.api.ForgetPeerResult` | abstract class | — |
 | `ch.trancee.meshlink.api.ForgetPeerResult.Forgotten` | object | — |
 | `ch.trancee.meshlink.api.ForgetPeerResult.NotFound` | object | — |
 | `ch.trancee.meshlink.api.InboundMessage` | class | `originPeerId`, `payload`, `priority`, `receivedAtEpochMillis` |
-| `ch.trancee.meshlink.api.MeshLink` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()`, `updateBattery()` |
+| `ch.trancee.meshlink.api.MeshLink` | interface | `forgetPeer()`, `diagnosticEvents`, `messages`, `peerEvents`, `state`, `pause()`, `resume()`, `send()`, `start()`, `stop()` |
 | `ch.trancee.meshlink.api.MeshLinkBootstrap` | abstract class | — |
 | `ch.trancee.meshlink.api.MeshLinkException` | abstract class | `init` |
 | `ch.trancee.meshlink.api.MeshLinkException.CryptoFailure` | nested type | `init` |

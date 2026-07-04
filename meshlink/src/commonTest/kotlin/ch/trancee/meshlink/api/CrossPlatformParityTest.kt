@@ -17,7 +17,7 @@ import kotlinx.coroutines.withTimeout
 
 class CrossPlatformParityTest {
     @Test
-    fun `android and ios expose matching lifecycle transitions and power diagnostic payloads`() =
+    fun `android and ios expose matching lifecycle transitions and diagnostics`() =
         runBlocking<Unit> {
             // Arrange
             installFactoryTestBridges()
@@ -29,23 +29,18 @@ class CrossPlatformParityTest {
             val iosMeshLink = createIosFactoryParityMeshLink(config = config)
             val androidDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { androidMeshLink.diagnosticEvents.take(5).toList() }
+                    withTimeout(1_000) { androidMeshLink.diagnosticEvents.take(4).toList() }
                 }
             val iosDiagnosticsDeferred =
                 async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) { iosMeshLink.diagnosticEvents.take(5).toList() }
+                    withTimeout(1_000) { iosMeshLink.diagnosticEvents.take(4).toList() }
                 }
 
             // Act
             val androidResults =
                 listOf(
                     androidMeshLink.start(),
-                    androidMeshLink
-                        .also {
-                            it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
-                        }
-                        .state
-                        .value,
+                    androidMeshLink.state.value,
                     androidMeshLink.pause(),
                     androidMeshLink.resume(),
                     androidMeshLink.stop(),
@@ -53,12 +48,7 @@ class CrossPlatformParityTest {
             val iosResults =
                 listOf(
                     iosMeshLink.start(),
-                    iosMeshLink
-                        .also {
-                            it.updateBattery(BatterySnapshot(level = 0.20f, isCharging = false))
-                        }
-                        .state
-                        .value,
+                    iosMeshLink.state.value,
                     iosMeshLink.pause(),
                     iosMeshLink.resume(),
                     iosMeshLink.stop(),
@@ -75,14 +65,6 @@ class CrossPlatformParityTest {
             assertEquals(androidDiagnostics.map { it.severity }, iosDiagnostics.map { it.severity })
             assertEquals(androidDiagnostics.map { it.stage }, iosDiagnostics.map { it.stage })
             assertEquals(androidDiagnostics.map { it.reason }, iosDiagnostics.map { it.reason })
-            assertEquals(
-                androidDiagnostics.last().metadata.keys,
-                iosDiagnostics.last().metadata.keys,
-            )
-            assertEquals(
-                androidDiagnostics.last().metadata["tier"],
-                iosDiagnostics.last().metadata["tier"],
-            )
         }
 
     @Test

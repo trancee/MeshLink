@@ -35,6 +35,8 @@ internal data class MeshEngineLifecycleCallbacks(
     val pauseTransport: suspend () -> Unit,
     val resumeTransport: suspend () -> Unit,
     val stopTransport: suspend () -> Unit,
+    val startBatteryMonitor: () -> Unit,
+    val stopBatteryMonitor: () -> Unit,
     val clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     val abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
     val clearOutboundTransfers: suspend () -> Unit,
@@ -60,9 +62,11 @@ internal class MeshEngineLifecycleSupport(
                 callbacks.ensureTransportCollector()
                 try {
                     powerPolicySupport.onMeshStarted()
+                    callbacks.startBatteryMonitor()
                     callbacks.startTransport()
                     state.runtimeSurface.beginHardRun()
                 } catch (exception: Throwable) {
+                    callbacks.stopBatteryMonitor()
                     callbacks.stopTransportCollector()
                     throw exception
                 }
@@ -120,6 +124,7 @@ internal class MeshEngineLifecycleSupport(
             MeshLinkState.Stopped -> StopResult.AlreadyStopped
             MeshLinkState.Uninitialized,
             MeshLinkState.Configured -> {
+                callbacks.stopBatteryMonitor()
                 callbacks.clearOutboundTransfers()
                 state.transferRegistry.clearInboundSessions()
                 state.transferRegistry.clearRelaySessions()
@@ -137,6 +142,7 @@ internal class MeshEngineLifecycleSupport(
                     DiagnosticCode.ROUTE_RETRACTED,
                     mapOf("runtimeBoundary" to "stop"),
                 )
+                callbacks.stopBatteryMonitor()
                 callbacks.clearOutboundTransfers()
                 state.transferRegistry.clearInboundSessions()
                 state.transferRegistry.clearRelaySessions()
@@ -157,6 +163,8 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
     pauseTransport: suspend () -> Unit,
     resumeTransport: suspend () -> Unit,
     stopTransport: suspend () -> Unit,
+    startBatteryMonitor: () -> Unit,
+    stopBatteryMonitor: () -> Unit,
     clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
     clearOutboundTransfers: suspend () -> Unit,
@@ -186,6 +194,8 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
                 pauseTransport = pauseTransport,
                 resumeTransport = resumeTransport,
                 stopTransport = stopTransport,
+                startBatteryMonitor = startBatteryMonitor,
+                stopBatteryMonitor = stopBatteryMonitor,
                 clearVolatileRuntimeView = clearVolatileRuntimeView,
                 abortCommittedTransfers = abortCommittedTransfers,
                 clearOutboundTransfers = clearOutboundTransfers,

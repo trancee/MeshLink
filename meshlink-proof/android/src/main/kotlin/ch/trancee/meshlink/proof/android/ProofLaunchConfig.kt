@@ -8,8 +8,6 @@ internal data class ProofLaunchConfig(
     val appId: String,
     val powerMode: PowerMode = PowerMode.Automatic,
     val benchmarkPayloadBytes: Int? = null,
-    val benchmarkBatteryLevel: Float? = null,
-    val benchmarkIsCharging: Boolean? = null,
     val benchmarkColdStart: Boolean = false,
     val forceInitiator: Boolean = false,
 ) {
@@ -21,8 +19,6 @@ internal data class ProofLaunchConfig(
         private const val EXTRA_APP_ID: String = "meshlink.appId"
         private const val EXTRA_POWER_MODE: String = "meshlink.powerMode"
         private const val EXTRA_BENCHMARK_PAYLOAD_BYTES: String = "meshlink.benchmarkPayloadBytes"
-        private const val EXTRA_BENCHMARK_BATTERY_LEVEL: String = "meshlink.benchmarkBatteryLevel"
-        private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
         private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
         private const val EXTRA_FORCE_INITIATOR: String = "meshlink.forceInitiator"
 
@@ -32,14 +28,6 @@ internal data class ProofLaunchConfig(
                 powerMode = parsePowerMode(intent?.getStringExtra(EXTRA_POWER_MODE)),
                 benchmarkPayloadBytes =
                     intent?.getIntExtra(EXTRA_BENCHMARK_PAYLOAD_BYTES, 0)?.takeIf { it > 0 },
-                benchmarkBatteryLevel =
-                    intent
-                        ?.takeIf { it.hasExtra(EXTRA_BENCHMARK_BATTERY_LEVEL) }
-                        ?.getFloatExtra(EXTRA_BENCHMARK_BATTERY_LEVEL, 0f),
-                benchmarkIsCharging =
-                    intent
-                        ?.takeIf { it.hasExtra(EXTRA_BENCHMARK_IS_CHARGING) }
-                        ?.getBooleanExtra(EXTRA_BENCHMARK_IS_CHARGING, false),
                 benchmarkColdStart =
                     intent?.getBooleanExtra(EXTRA_BENCHMARK_COLD_START, false) ?: false,
                 forceInitiator = intent?.getBooleanExtra(EXTRA_FORCE_INITIATOR, false) ?: false,

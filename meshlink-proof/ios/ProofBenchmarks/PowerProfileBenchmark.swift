@@ -6,8 +6,6 @@ final class PowerProfileBenchmark: XCTestCase {
         let application = BenchmarkTestSupport.launchProofApp(
             appId: "demo.meshlink.benchmark.power",
             powerMode: "powersaver",
-            benchmarkBatteryLevel: 0.5,
-            benchmarkIsCharging: false
         )
 
         // Act
@@ -40,8 +38,6 @@ final class PowerProfileBenchmark: XCTestCase {
             appId: "demo.meshlink.benchmark.power.delivery",
             powerMode: "powersaver",
             benchmarkPayloadBytes: 256,
-            benchmarkBatteryLevel: 0.5,
-            benchmarkIsCharging: false
         )
 
         // Act

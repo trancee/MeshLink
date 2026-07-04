@@ -6,8 +6,6 @@ struct ProofLaunchConfig {
     let powerMode: PowerMode
     let powerModeLabel: String
     let benchmarkPayloadBytes: Int?
-    let benchmarkBatteryLevel: Float?
-    let benchmarkIsCharging: Bool?
     let benchmarkColdStart: Bool
     let disableAutoSend: Bool
     let transportTelemetryEnabled: Bool
@@ -19,8 +17,6 @@ struct ProofLaunchConfig {
             powerMode: parsePowerMode(environment["MESHLINK_POWER_MODE"]),
             powerModeLabel: parsePowerModeLabel(environment["MESHLINK_POWER_MODE"]),
             benchmarkPayloadBytes: environment["MESHLINK_BENCHMARK_PAYLOAD_BYTES"].flatMap(Int.init),
-            benchmarkBatteryLevel: environment["MESHLINK_BENCHMARK_BATTERY_LEVEL"].flatMap(Float.init),
-            benchmarkIsCharging: parseBoolean(environment["MESHLINK_BENCHMARK_IS_CHARGING"]),
             benchmarkColdStart: parseBoolean(environment["MESHLINK_BENCHMARK_COLD_START"]) ?? false,
             disableAutoSend: parseBoolean(environment["MESHLINK_DISABLE_AUTO_SEND"]) ?? false,
             transportTelemetryEnabled: parseBoolean(environment["MESHLINK_TRANSPORT_TELEMETRY"]) ?? false,

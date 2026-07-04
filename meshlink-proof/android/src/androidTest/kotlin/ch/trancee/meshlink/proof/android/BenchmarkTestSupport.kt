@@ -18,8 +18,6 @@ internal object BenchmarkTestSupport {
     private const val EXTRA_APP_ID: String = "meshlink.appId"
     private const val EXTRA_POWER_MODE: String = "meshlink.powerMode"
     private const val EXTRA_BENCHMARK_PAYLOAD_BYTES: String = "meshlink.benchmarkPayloadBytes"
-    private const val EXTRA_BENCHMARK_BATTERY_LEVEL: String = "meshlink.benchmarkBatteryLevel"
-    private const val EXTRA_BENCHMARK_IS_CHARGING: String = "meshlink.benchmarkIsCharging"
     private const val EXTRA_BENCHMARK_COLD_START: String = "meshlink.benchmarkColdStart"
     private const val EXTRA_BENCHMARK_TRANSPORT: String = "meshlink.benchmarkTransport"
 
@@ -27,8 +25,6 @@ internal object BenchmarkTestSupport {
         appId: String,
         powerMode: String? = null,
         benchmarkPayloadBytes: Int? = null,
-        benchmarkBatteryLevel: Float? = null,
-        benchmarkIsCharging: Boolean? = null,
         benchmarkColdStart: Boolean = false,
         benchmarkTransport: String? = null,
     ): ActivityScenario<android.app.Activity> {
@@ -40,8 +36,6 @@ internal object BenchmarkTestSupport {
             putExtra(EXTRA_APP_ID, appId)
             powerMode?.let { value -> putExtra(EXTRA_POWER_MODE, value) }
             benchmarkPayloadBytes?.let { value -> putExtra(EXTRA_BENCHMARK_PAYLOAD_BYTES, value) }
-            benchmarkBatteryLevel?.let { value -> putExtra(EXTRA_BENCHMARK_BATTERY_LEVEL, value) }
-            benchmarkIsCharging?.let { value -> putExtra(EXTRA_BENCHMARK_IS_CHARGING, value) }
             if (benchmarkColdStart) {
                 putExtra(EXTRA_BENCHMARK_COLD_START, true)
             }

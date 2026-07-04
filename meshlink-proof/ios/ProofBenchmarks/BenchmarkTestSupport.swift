@@ -5,8 +5,6 @@ enum BenchmarkTestSupport {
         appId: String,
         powerMode: String? = nil,
         benchmarkPayloadBytes: Int? = nil,
-        benchmarkBatteryLevel: Float? = nil,
-        benchmarkIsCharging: Bool? = nil,
         benchmarkColdStart: Bool = false,
         disableAutoSend: Bool = false,
         transportTelemetry: Bool = false,
@@ -21,12 +19,6 @@ enum BenchmarkTestSupport {
         }
         if let benchmarkPayloadBytes {
             environment["MESHLINK_BENCHMARK_PAYLOAD_BYTES"] = String(benchmarkPayloadBytes)
-        }
-        if let benchmarkBatteryLevel {
-            environment["MESHLINK_BENCHMARK_BATTERY_LEVEL"] = String(benchmarkBatteryLevel)
-        }
-        if let benchmarkIsCharging {
-            environment["MESHLINK_BENCHMARK_IS_CHARGING"] = benchmarkIsCharging ? "true" : "false"
         }
         if benchmarkColdStart {
             environment["MESHLINK_BENCHMARK_COLD_START"] = "true"

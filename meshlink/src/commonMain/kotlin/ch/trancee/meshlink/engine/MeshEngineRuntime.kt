@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
@@ -20,6 +19,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.power.BatteryMonitor
 import ch.trancee.meshlink.storage.SecureStorage
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
@@ -38,6 +38,7 @@ internal data class MeshEngineRuntimeAssemblyEnvironment(
     val trustStore: TofuTrustStore,
     val coroutineScope: CoroutineScope,
     val platformBridge: MeshEnginePlatformBridge,
+    val batteryMonitor: BatteryMonitor,
     val publishedSurface: MeshEnginePublishedRuntimeSurface,
     val compatibilitySurface: MeshEngineCompatibilityRuntimeSurface,
 )
@@ -114,9 +115,6 @@ constructor(
         return facadeOperations.forgetPeer(peerId)
     }
 
-    override fun updateBattery(snapshot: BatterySnapshot): Unit {
-        facadeOperations.updateBattery(snapshot)
-    }
 
     internal companion object {
         internal fun assembleMeshEngineRuntime(
@@ -124,6 +122,7 @@ constructor(
             localIdentity: LocalIdentity,
             secureStorage: SecureStorage,
             bleTransport: ch.trancee.meshlink.transport.BleTransport? = null,
+            batteryMonitor: BatteryMonitor,
             diagnosticSink: DiagnosticSink? = null,
             coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         ): MeshEngineRuntime {
@@ -133,6 +132,7 @@ constructor(
                     localIdentity = localIdentity,
                     secureStorage = secureStorage,
                     bleTransport = bleTransport,
+                    batteryMonitor = batteryMonitor,
                     diagnosticSink = diagnosticSink,
                     coroutineScope = coroutineScope,
                 )
@@ -179,6 +179,7 @@ private fun buildMeshEngineRuntimeAssemblyEnvironment(
     localIdentity: LocalIdentity,
     secureStorage: SecureStorage,
     bleTransport: ch.trancee.meshlink.transport.BleTransport?,
+    batteryMonitor: BatteryMonitor,
     diagnosticSink: DiagnosticSink?,
     coroutineScope: CoroutineScope,
 ): MeshEngineRuntimeAssemblyEnvironment {
@@ -193,6 +194,7 @@ private fun buildMeshEngineRuntimeAssemblyEnvironment(
         trustStore = TofuTrustStore(secureStorage),
         coroutineScope = coroutineScope,
         platformBridge = MeshEnginePlatformBridge(bleTransport),
+        batteryMonitor = batteryMonitor,
         publishedSurface = runtimeSurface,
         compatibilitySurface = runtimeSurface,
     )

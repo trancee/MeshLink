@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.engine
 
-import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.InboundMessage
@@ -94,23 +93,6 @@ class MeshEngineRuntimeTest {
             assertEquals(peerId, facadeOperations.forgottenPeerId)
         }
 
-    @Test
-    fun `runtime updateBattery delegates through facade operations`() {
-        // Arrange
-        val facadeOperations = RecordingRuntimeFacadeOperations()
-        val runtime =
-            MeshEngineRuntime(
-                publishedSurface = MeshEngineRuntimeSurface(),
-                facadeOperations = facadeOperations,
-            )
-
-        // Act
-        runtime.updateBattery(BatterySnapshot(level = 0.25f, isCharging = true))
-
-        // Assert
-        assertEquals(0.25f, facadeOperations.batterySnapshot?.level)
-        assertEquals(true, facadeOperations.batterySnapshot?.isCharging)
-    }
 
     @Test
     fun `runtime exposes the published surface state and flows`() =
@@ -176,7 +158,6 @@ private class RecordingRuntimeFacadeOperations : MeshEngineRuntimeFacadeOperatio
     var sentPayload: ByteArray? = null
     var sentPriority: DeliveryPriority? = null
     var forgottenPeerId: PeerId? = null
-    var batterySnapshot: BatterySnapshot? = null
 
     override suspend fun start(): StartResult {
         calls += "start"
@@ -214,7 +195,4 @@ private class RecordingRuntimeFacadeOperations : MeshEngineRuntimeFacadeOperatio
         return ForgetPeerResult.Forgotten
     }
 
-    override fun updateBattery(snapshot: BatterySnapshot) {
-        batterySnapshot = snapshot
-    }
 }

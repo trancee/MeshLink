@@ -7,6 +7,7 @@ import ch.trancee.meshlink.engine.MeshEngine
 import ch.trancee.meshlink.platform.ios.BleTransportAdapter
 import ch.trancee.meshlink.platform.ios.BridgeCryptoProvider
 import ch.trancee.meshlink.platform.ios.DefaultsSecureStorage
+import ch.trancee.meshlink.platform.ios.IosBatteryMonitor
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 
 internal actual fun createMeshLink(config: MeshLinkConfig): MeshLink {
@@ -27,6 +28,7 @@ internal actual fun createMeshLink(config: MeshLinkConfig): MeshLink {
                 appId = config.appId,
                 advertisementKeyHash = localIdentity.advertisementKeyHash,
             ),
+        batteryMonitor = IosBatteryMonitor(),
     )
 }
 
@@ -44,5 +46,6 @@ internal actual fun createMeshLink(config: MeshLinkConfig, bootstrap: MeshLinkBo
         platformContext = bootstrap,
         localIdentity = localIdentity,
         secureStorage = secureStorage,
+        batteryMonitor = IosBatteryMonitor(),
     )
 }
