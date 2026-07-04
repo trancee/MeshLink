@@ -15,6 +15,7 @@ import ch.trancee.meshlink.reference.timeline.writeSessionArtifact
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -268,6 +269,24 @@ internal class GuidedFirstExchangeViewModel(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${targetPeerId ?: "none"}"
         )
         sendHelloToPeer(peer.peerId)
+    }
+
+    /**
+     * Tears down this view model's underlying MeshLink session and cancels its coroutine scope.
+     * Must be called when the view model is discarded (see the `DisposableEffect` in
+     * [ch.trancee.meshlink.reference.app.ReferenceApp]) so a re-launch of the hosting Activity --
+     * for example the direct-proof test harnesses re-launching with a newly-resolved target peer id
+     * -- cannot leave a previous instance's MeshLink still scanning/advertising and racing a fresh
+     * instance under the same app identity. Runs the shutdown on an independent scope because
+     * [scope] itself is cancelled as part of the shutdown.
+     */
+    internal fun close(): Unit {
+        val shutdownScope = CoroutineScope(Dispatchers.Default)
+        shutdownScope.launch {
+            runCatching { meshLinkController.close() }
+            scope.cancel()
+            shutdownScope.cancel()
+        }
     }
 }
 

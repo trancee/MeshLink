@@ -5,6 +5,7 @@ package ch.trancee.meshlink.reference.app
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import ch.trancee.meshlink.reference.design.ReferenceTheme
@@ -78,6 +79,7 @@ public fun ReferenceApp(
                 }
             emitAutomationLog("REFERENCE_AUTOMATION startup-state=app.compose.afterRemember")
             emitAutomationLog("REFERENCE_AUTOMATION app.compose.afterRemember")
+            DisposableEffect(guidedViewModel) { onDispose { guidedViewModel.close() } }
             Surface(modifier = Modifier.fillMaxSize()) {
                 GuidedFirstExchangeScreen(viewModel = guidedViewModel)
             }

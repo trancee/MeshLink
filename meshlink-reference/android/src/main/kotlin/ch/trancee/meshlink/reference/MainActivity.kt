@@ -3,6 +3,7 @@
 package ch.trancee.meshlink.reference
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -117,14 +118,50 @@ public class MainActivity : ComponentActivity() {
     @Suppress("LongMethod")
     override fun onCreate(savedInstanceState: Bundle?): Unit {
         super.onCreate(savedInstanceState)
+        logActivityStage("onCreate")
+        initializeForIntent(intent)
+    }
+
+    /**
+     * Re-initializes the activity for a new intent instead of relying on Android to spin up a
+     * second Activity instance. MainActivity is `launchMode="singleTask"` specifically so that
+     * the direct-proof test harnesses' practice of re-launching the same role (e.g.
+     * `run_headless_reference_android_direct_proof.py` re-launching the passive/sender apps once
+     * the target peer id is known) delivers here instead of creating a duplicate instance. Without
+     * this, a second Activity/ViewModel/MeshLink instance under the same appId (and therefore the
+     * same deterministic local peer identity) would end up running concurrently with the first,
+     * racing it for the same BLE peer connection -- observed on hardware as a spurious
+     * "transport.handshake.message2.unexpected"/"transport.handshake.timeout pendingHandshake"
+     * pair alongside the real, successful handshake.
+     */
+    override fun onNewIntent(intent: Intent): Unit {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        logActivityStage("onNewIntent")
+        initializeForIntent(intent)
+    }
+
+    @Suppress("LongMethod")
+    private fun initializeForIntent(intent: Intent?): Unit {
         val extras = intent?.extras
         val automationAppId = extras?.getString(EXTRA_APP_ID) ?: "unknown"
         val targetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
-        logActivityStage("onCreate")
+        val storageSubdirectory = extras?.getString(EXTRA_STORAGE) ?: "default"
         logAutomationStartupStage(extras)
         updateAutomationPreferences(applicationContext, automationAppId, extras)
 
-        val platformServices = createPlatformServices(applicationContext, automationAppId, targetPeerId)
+        // Stop the previous instance's power mitigation eagerly; its MeshLink session and
+        // ViewModel coroutine scope are torn down by GuidedFirstExchangeViewModel.close(), which
+        // ReferenceApp's DisposableEffect triggers once setContent below replaces the composition.
+        activePlatformServices?.stopPowerMitigation()
+
+        val platformServices =
+            createPlatformServices(
+                applicationContext,
+                automationAppId,
+                targetPeerId,
+                storageSubdirectory,
+            )
         launchRetainedDiscoverySeedProbe(
             context = applicationContext,
             appId = automationAppId,
