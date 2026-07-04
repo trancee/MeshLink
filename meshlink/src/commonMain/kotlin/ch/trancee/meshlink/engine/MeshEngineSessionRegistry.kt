@@ -1,8 +1,21 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+/**
+ * Outcome of registering interest in a peer's hop session becoming established without also
+ * reserving (and potentially triggering) an initiator handshake for it -- used by the side of a
+ * peer pair that defers to the other side to initiate, per [shouldInitiateHandshakeTowards].
+ */
+internal sealed class EstablishedSessionWait {
+    class Already internal constructor(internal val session: HopSession) : EstablishedSessionWait()
+
+    class Pending internal constructor(internal val deferred: CompletableDeferred<HopSession>) :
+        EstablishedSessionWait()
+}
 
 internal data class CreatedInitiatorHandshake(
     val pendingHandshake: PendingInitiatorHandshake,
@@ -42,6 +55,13 @@ internal class MeshEngineSessionRegistry {
     // "unexpected" frame once the handshake has already completed.
     private val lastInitiatorMessage2: MutableMap<String, ByteArray> = linkedMapOf()
     private val peerAliases: MutableMap<String, String> = linkedMapOf()
+    // Deferreds registered by the side of a peer pair that is deferring initiation to the other
+    // side (see shouldInitiateHandshakeTowards), so it can be woken up once that side's handshake
+    // completes and it has an established hop session as responder, instead of self-initiating a
+    // redundant, competing handshake.
+    private val establishedSessionWaiters:
+        MutableMap<String, MutableList<CompletableDeferred<HopSession>>> =
+        linkedMapOf()
 
     suspend fun initiatorHandshakeReservation(
         peerId: PeerId,
@@ -71,6 +91,42 @@ internal class MeshEngineSessionRegistry {
         return sessionMutex.withLock { hopSessions[resolvePeerIdValue(peerId.value)] }
     }
 
+    /**
+     * Registers interest in [peerId]'s hop session becoming established without reserving an
+     * initiator handshake for it. Returns [EstablishedSessionWait.Already] immediately if a session
+     * already exists, otherwise [EstablishedSessionWait.Pending] with a deferred that completes
+     * once the peer's handshake finishes (as initiator or responder).
+     */
+    suspend fun awaitOrRegisterEstablishedSessionWaiter(peerId: PeerId): EstablishedSessionWait {
+        return sessionMutex.withLock {
+            hopSessions[resolvePeerIdValue(peerId.value)]?.let { existingSession ->
+                return@withLock EstablishedSessionWait.Already(existingSession)
+            }
+            val deferred = CompletableDeferred<HopSession>()
+            establishedSessionWaiters.getOrPut(peerId.value) { mutableListOf() }.add(deferred)
+            EstablishedSessionWait.Pending(deferred)
+        }
+    }
+
+    /** Cancels a waiter previously registered via [awaitOrRegisterEstablishedSessionWaiter]. */
+    suspend fun removeEstablishedSessionWaiter(
+        peerId: PeerId,
+        deferred: CompletableDeferred<HopSession>,
+    ) {
+        sessionMutex.withLock {
+            establishedSessionWaiters[peerId.value]?.let { waiters ->
+                waiters.remove(deferred)
+                if (waiters.isEmpty()) {
+                    establishedSessionWaiters.remove(peerId.value)
+                }
+            }
+        }
+    }
+
+    private fun notifyEstablishedSessionWaiters(peerId: PeerId, session: HopSession) {
+        establishedSessionWaiters.remove(peerId.value)?.forEach { it.complete(session) }
+    }
+
     suspend fun resolvePeerId(peerId: PeerId): PeerId {
         return sessionMutex.withLock { PeerId(resolvePeerIdValue(peerId.value)) }
     }
@@ -88,6 +144,7 @@ internal class MeshEngineSessionRegistry {
             pendingInitiatorHandshakes.remove(peerId.value)
             hopSessions[peerId.value] = session
             lastInitiatorMessage2[peerId.value] = message2
+            notifyEstablishedSessionWaiters(peerId, session)
             true
         }
     }
@@ -174,6 +231,7 @@ internal class MeshEngineSessionRegistry {
             }
             pendingResponderHandshakes.remove(peerId.value)
             hopSessions[peerId.value] = session
+            notifyEstablishedSessionWaiters(peerId, session)
             true
         }
     }
@@ -234,6 +292,8 @@ internal class MeshEngineSessionRegistry {
             peerAliases.entries.removeAll { (_, canonicalPeerIdValue) ->
                 canonicalPeerIdValue == resolvedPeerIdValue
             }
+            establishedSessionWaiters.remove(peerId.value)?.forEach { it.cancel() }
+            establishedSessionWaiters.remove(resolvedPeerIdValue)?.forEach { it.cancel() }
             pendingHandshake
         }
     }
@@ -247,6 +307,8 @@ internal class MeshEngineSessionRegistry {
             lastResponderMessage1.clear()
             lastInitiatorMessage2.clear()
             peerAliases.clear()
+            establishedSessionWaiters.values.forEach { waiters -> waiters.forEach { it.cancel() } }
+            establishedSessionWaiters.clear()
             pendingHandshakes
         }
     }

@@ -55,7 +55,7 @@ internal class MeshEnginePeerFlowSupport(
     }
 
     fun prewarmHopSession(peerId: PeerId): Unit {
-        if (localIdentity.peerId.value >= peerId.value) {
+        if (!shouldInitiateHandshakeTowards(localIdentity.peerId, peerId)) {
             return
         }
         val hardRunToken = callbacks.captureHardRunToken()

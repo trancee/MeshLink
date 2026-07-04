@@ -50,15 +50,64 @@ internal class MeshEngineSessionSupport(
         hardRunToken: MeshEngineHardRunToken? = null,
     ): SessionEstablishmentOutcome {
         val currentReservation = state.sessionRegistry.initiatorHandshakeReservation(peerId)
-        val reservation =
-            when {
-                currentReservation != null -> currentReservation
-                !callbacks.hasTransport() -> null
-                else -> reserveInitiatorHandshake(peerId)
+        if (currentReservation != null) {
+            return currentReservation.awaitOrReturn(peerId, hardRunToken)
+        }
+        if (!callbacks.hasTransport()) {
+            return SessionEstablishmentOutcome.Unreachable
+        }
+        if (!shouldInitiateHandshakeTowards(localIdentity.peerId, peerId)) {
+            // Defer to the peer to initiate (see shouldInitiateHandshakeTowards) so both sides
+            // don't simultaneously become Noise-XX initiators towards each other. Wait briefly
+            // for their handshake to complete as responder -- long enough to catch a handshake
+            // that's already in flight (e.g. from their own prewarm or explicit send), but short
+            // enough that we don't stall an otherwise-healthy send for peers that never initiate
+            // on their own -- then fall back to initiating ourselves.
+            awaitEstablishedSessionAsResponder(peerId, hardRunToken)?.let { session ->
+                return SessionEstablishmentOutcome.Established(session)
             }
+        }
 
-        return reservation?.awaitOrReturn(peerId, hardRunToken)
-            ?: SessionEstablishmentOutcome.Unreachable
+        val reservation = reserveInitiatorHandshake(peerId)
+        return reservation.awaitOrReturn(peerId, hardRunToken)
+    }
+
+    private suspend fun awaitEstablishedSessionAsResponder(
+        peerId: PeerId,
+        hardRunToken: MeshEngineHardRunToken?,
+    ): HopSession? {
+        return when (
+            val wait = state.sessionRegistry.awaitOrRegisterEstablishedSessionWaiter(peerId)
+        ) {
+            is EstablishedSessionWait.Already -> wait.session
+            is EstablishedSessionWait.Pending -> {
+                val session =
+                    if (hardRunToken == null) {
+                        withTimeoutOrNull(DEFER_TO_PEER_INITIATOR_WAIT) { wait.deferred.await() }
+                    } else {
+                        when (
+                            val waitResult =
+                                waitWithRuntimeGate(
+                                    runtimeGate = state.runtimeGate,
+                                    hardRunToken = hardRunToken,
+                                    maximumActiveWait = DEFER_TO_PEER_INITIATOR_WAIT,
+                                    awaitChange = { activeWait ->
+                                        withTimeoutOrNull(activeWait) { wait.deferred.await() }
+                                    },
+                                )
+                        ) {
+                            is MeshEngineRuntimeTimedWaitResult.Completed -> waitResult.value
+                            MeshEngineRuntimeTimedWaitResult.TimedOut -> null
+                            MeshEngineRuntimeTimedWaitResult.HardRunEnded ->
+                                if (wait.deferred.isCompleted) wait.deferred.await() else null
+                        }
+                    }
+                if (session == null) {
+                    state.sessionRegistry.removeEstablishedSessionWaiter(peerId, wait.deferred)
+                }
+                session
+            }
+        }
     }
 
     private suspend fun awaitHandshakeRetryDelay(hardRunToken: MeshEngineHardRunToken?): Boolean {
@@ -330,8 +379,29 @@ private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
     return reason.contains("L2CAP connection is not ready")
 }
 
+/**
+ * Returns whether [localPeerId] should proactively initiate a Noise-XX handshake towards
+ * [remotePeerId], rather than deferring to the remote peer to initiate towards it instead. Uses a
+ * stable, symmetric tie-break (lower peer id value initiates) so both sides of a peer pair always
+ * agree on which one initiates. This prevents both sides from simultaneously becoming initiators
+ * for the same peer relationship, which would otherwise leave one of the two competing handshakes
+ * dangling until it times out or is rejected as an unexpected duplicate once the other completes.
+ */
+internal fun shouldInitiateHandshakeTowards(localPeerId: PeerId, remotePeerId: PeerId): Boolean {
+    return localPeerId.value < remotePeerId.value
+}
+
 private val HANDSHAKE_TIMEOUT = 3.seconds
 private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds
+
+/**
+ * How long the deferring side of a peer pair (see [shouldInitiateHandshakeTowards]) waits for the
+ * peer's own handshake to complete as responder before falling back to initiating itself. Kept
+ * short relative to [HANDSHAKE_TIMEOUT] -- long enough to catch a handshake that's genuinely
+ * already in flight, but short enough that a peer that never initiates on its own (for example
+ * because it has nothing to proactively prewarm) doesn't stall an otherwise-healthy send.
+ */
+private val DEFER_TO_PEER_INITIATOR_WAIT = 250.milliseconds
 
 /**
  * Total handshake attempts made by [MeshEngineSessionSupport.ensureHopSession], including the
