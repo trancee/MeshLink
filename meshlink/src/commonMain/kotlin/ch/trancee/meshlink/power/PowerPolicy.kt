@@ -53,8 +53,9 @@ private data class AutomaticTierState(
  * Mutable fields of [PowerPolicyController] captured as a single immutable snapshot so that every
  * observation (battery update, mesh start, policy read) is applied atomically via
  * [AtomicReference.compareAndSetLoop] instead of touching several unsynchronized fields
- * independently. This keeps `updateBattery` non-suspend (it is called from arbitrary host threads,
- * e.g. a system battery broadcast receiver) while still being safe under concurrent access from the
+ * independently. This keeps battery observation callbacks non-suspend (they can arrive from
+ * arbitrary platform callback threads, e.g. a system battery broadcast receiver) while still being
+ * safe under concurrent access from the
  * engine's multi-threaded [kotlinx.coroutines.Dispatchers.Default] scope.
  */
 private data class PowerPolicyControllerState(

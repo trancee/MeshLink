@@ -95,7 +95,6 @@ final class ProofViewModel: ObservableObject {
                         "BENCHMARK coldStart elapsedMs=\(self.elapsedMilliseconds(since: startedAtNanos)) result=\(result)"
                     )
                 }
-                self.applyBenchmarkPowerSnapshot()
             } catch {
                 self.appendLog("mesh.start() failed: \(error.localizedDescription)")
                 if self.launchConfig.benchmarkColdStart {
@@ -418,21 +417,6 @@ final class ProofViewModel: ObservableObject {
         autoSendTasks[peerId.value] = task
     }
 
-    private func applyBenchmarkPowerSnapshot() {
-        guard launchConfig.benchmarkTransport == .meshLink else {
-            return
-        }
-        guard
-            let batteryLevel = launchConfig.benchmarkBatteryLevel,
-            let isCharging = launchConfig.benchmarkIsCharging
-        else {
-            return
-        }
-        runtime.updateBattery(snapshot: BatterySnapshot(level: batteryLevel, isCharging: isCharging))
-        appendLog(
-            "BENCHMARK power batteryLevel=\(batteryLevel) isCharging=\(isCharging) powerMode=\(launchConfig.powerModeLabel)"
-        )
-    }
 
     private func buildBenchmarkPayload(totalBytes: Int) -> BenchmarkPayloadEnvelope {
         benchmarkTokenCounter += 1

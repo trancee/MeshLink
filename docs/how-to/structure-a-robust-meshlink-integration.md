@@ -134,11 +134,10 @@ Do not silently forget peers as part of ordinary retry logic.
 
 ## 8. Choose a power strategy on purpose
 
-If you use `PowerMode.Automatic`, feed real battery updates into
-`updateBattery()`.
-
-If your app will not own battery observation, prefer a fixed power mode and
-make that decision visible in your integration code.
+If you use `PowerMode.Automatic`, let MeshLink observe battery state
+internally. If you want fully predictable transport posture regardless of device
+battery state, prefer a fixed power mode and make that decision visible in your
+integration code.
 
 For the policy model, read [Power management](../explanation/power-management.md).
 

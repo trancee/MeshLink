@@ -87,8 +87,6 @@ The Android proof app reads these intent extras on launch:
 | `meshlink.appId` | string | Mesh domain for discovery and trust isolation |
 | `meshlink.powerMode` | string | `automatic`, `performance`, `balanced`, or `powersaver` |
 | `meshlink.benchmarkPayloadBytes` | int | Payload size for benchmark-oriented auto-send |
-| `meshlink.benchmarkBatteryLevel` | float | Battery level to feed into `updateBattery()` |
-| `meshlink.benchmarkIsCharging` | bool | Charging state to feed into `updateBattery()` |
 | `meshlink.benchmarkColdStart` | bool | Enables the cold-start benchmark path |
 | `meshlink.disableAutoSend` | bool | Suppresses the automatic benchmark send |
 | `meshlink.forceInitiator` | bool | Forces the proof peer to take the initiator role |

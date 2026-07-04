@@ -256,18 +256,11 @@ suspend fun sendChatMessage(meshLink: MeshLink, peerId: PeerId, text: String): S
 Treat `SendResult.NotSent(...)` as a normal delivery outcome that needs app
 logic, not exception handling.
 
-## 7. Feed battery state when you use automatic power mode
+## 7. Let automatic power mode observe battery state internally
 
-If your app is feeding battery snapshots into MeshLink, call `updateBattery()`
-with normalized values.
-
-```kotlin
-meshLink.updateBattery(
-    snapshot = BatterySnapshot(level = 0.42f, isCharging = false),
-)
-```
-
-This affects the effective policy only when `powerMode` is `Automatic`.
+If you use `PowerMode.Automatic`, MeshLink observes battery state internally on
+Android and iOS. Your host app does not need to feed battery snapshots into the
+runtime anymore.
 
 ## 8. Reset trust deliberately
 

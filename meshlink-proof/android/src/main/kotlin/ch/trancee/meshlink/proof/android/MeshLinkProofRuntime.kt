@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
-import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
@@ -178,7 +177,6 @@ internal object MeshLinkProofRuntime {
                         "BENCHMARK coldStart elapsedMs=${elapsedMillisSince(startedAtNanos)} result=$startResult"
                     )
                 }
-                applyBenchmarkPowerSnapshot()
                 if (launchConfig.benchmarkPayloadBytes != null && launchConfig.forceInitiator) {
                     scope.launch {
                         appendLog("BENCHMARK fallback waiting for peer discovery")
@@ -1071,14 +1069,6 @@ internal object MeshLinkProofRuntime {
         return meshLink ?: error("MeshLink transport is not active for the current proof launch config")
     }
 
-    private fun applyBenchmarkPowerSnapshot(): Unit {
-        val level = launchConfig.benchmarkBatteryLevel ?: return
-        val isCharging = launchConfig.benchmarkIsCharging ?: return
-        requireMeshLink().updateBattery(BatterySnapshot(level = level, isCharging = isCharging))
-        appendLog(
-            "BENCHMARK power batteryLevel=$level isCharging=$isCharging powerMode=${launchConfig.powerMode.logLabel()}"
-        )
-    }
 
     private fun buildBenchmarkPayload(totalBytes: Int): BenchmarkPayloadEnvelope {
         val tokenHex = nextBenchmarkTokenHex()

@@ -101,8 +101,6 @@ The iOS proof app reads environment variables on startup.
 | `MESHLINK_APP_ID` | Mesh domain for discovery and trust isolation |
 | `MESHLINK_POWER_MODE` | `automatic`, `performance`, `balanced`, or `powersaver` |
 | `MESHLINK_BENCHMARK_PAYLOAD_BYTES` | Payload size for benchmark-oriented auto-send |
-| `MESHLINK_BENCHMARK_BATTERY_LEVEL` | Battery level to feed into `updateBattery()` |
-| `MESHLINK_BENCHMARK_IS_CHARGING` | Charging state to feed into `updateBattery()` |
 | `MESHLINK_BENCHMARK_COLD_START` | Enables the cold-start benchmark path |
 | `MESHLINK_DISABLE_AUTO_SEND` | Suppresses the automatic benchmark send |
 | `MESHLINK_TRANSPORT_TELEMETRY` | Enables extra transport telemetry for diagnostic runs |

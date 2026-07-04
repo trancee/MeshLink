@@ -38,6 +38,7 @@ class MeshEngineLifecycleSupportTest {
             assertEquals(MeshLinkState.Running, harness.runtimeSurface.state.value)
             assertEquals(1L, harness.runtimeSurface.runtimeGate.currentHardRunEpoch())
             assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.startBatteryMonitorCalls)
             assertEquals(1, harness.lifecycleCallbacks.startTransportCalls)
             assertEquals(1, harness.powerCallbacks.updatedTransportPolicies.size)
             assertEquals(
@@ -152,6 +153,7 @@ class MeshEngineLifecycleSupportTest {
             assertEquals(MeshLinkState.Stopped, harness.runtimeSurface.state.value)
             assertEquals(0, harness.lifecycleCallbacks.stopTransportCalls)
             assertEquals(0, harness.lifecycleCallbacks.stopTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.stopBatteryMonitorCalls)
             assertEquals(1, harness.lifecycleCallbacks.clearOutboundTransfersCalls)
             assertTrue(harness.lifecycleCallbacks.clearedRuntimeViews.isEmpty())
             assertTrue(harness.lifecycleCallbacks.abortedTransferReasons.isEmpty())
@@ -174,6 +176,7 @@ class MeshEngineLifecycleSupportTest {
                 listOf(TransferAbortReasonCode.RUNTIME_STOPPED),
                 harness.lifecycleCallbacks.abortedTransferReasons,
             )
+            assertEquals(1, harness.lifecycleCallbacks.stopBatteryMonitorCalls)
             assertEquals(1, harness.lifecycleCallbacks.clearOutboundTransfersCalls)
             assertEquals(1, harness.lifecycleCallbacks.stopTransportCalls)
             assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
@@ -241,7 +244,9 @@ class MeshEngineLifecycleSupportTest {
             // Assert
             assertEquals("boom", error.message)
             assertEquals(1, harness.lifecycleCallbacks.ensureTransportCollectorCalls)
+            assertEquals(1, harness.lifecycleCallbacks.startBatteryMonitorCalls)
             assertEquals(1, harness.lifecycleCallbacks.startTransportCalls)
+            assertEquals(1, harness.lifecycleCallbacks.stopBatteryMonitorCalls)
             assertEquals(1, harness.lifecycleCallbacks.stopTransportCollectorCalls)
             assertEquals(MeshLinkState.Uninitialized, harness.runtimeSurface.state.value)
             assertTrue(harness.lifecycleDiagnostics.lifecycleEvents.isEmpty())
@@ -347,6 +352,8 @@ private class RecordingLifecycleCallbacks {
     var pauseTransportCalls: Int = 0
     var resumeTransportCalls: Int = 0
     var stopTransportCalls: Int = 0
+    var startBatteryMonitorCalls: Int = 0
+    var stopBatteryMonitorCalls: Int = 0
     var startTransportFailure: Throwable? = null
     var resumeTransportFailure: Throwable? = null
     var stopTransportCollectorCalls: Int = 0
@@ -374,6 +381,8 @@ private class RecordingLifecycleCallbacks {
                 resumeTransportFailure?.let { throw it }
             },
             stopTransport = { stopTransportCalls += 1 },
+            startBatteryMonitor = { startBatteryMonitorCalls += 1 },
+            stopBatteryMonitor = { stopBatteryMonitorCalls += 1 },
             clearVolatileRuntimeView = { stage, removalCode, metadata ->
                 clearedRuntimeViews += RuntimeViewClear(stage, removalCode, metadata)
             },

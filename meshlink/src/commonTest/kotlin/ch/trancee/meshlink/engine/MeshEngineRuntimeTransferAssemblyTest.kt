@@ -6,6 +6,7 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.crypto.MessageSealer
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.power.NoOpBatteryMonitor
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
@@ -345,6 +346,7 @@ private fun runtimeTransferAssemblyHarness(
             trustStore = TofuTrustStore(InMemorySecureStorage()),
             coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
             platformBridge = MeshEnginePlatformBridge(transport),
+            batteryMonitor = NoOpBatteryMonitor,
             publishedSurface = runtimeSurface,
             compatibilitySurface = runtimeSurface,
         )

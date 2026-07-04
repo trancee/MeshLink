@@ -281,7 +281,7 @@ Fresh retained evidence from this repository state:
   - device build: `xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=<redacted> build`
   - install: `xcrun devicectl device install app --device <ios-device-id> ~/Library/Developer/Xcode/DerivedData/ProofApp-*/Build/Products/Debug-iphoneos/ProofApp.app`
   - headless sender launch:
-    `xcrun devicectl device process launch --device <ios-device-id> --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256","MESHLINK_BENCHMARK_BATTERY_LEVEL":"0.5","MESHLINK_BENCHMARK_IS_CHARGING":"false"}' ch.trancee.meshlink.proof.ios`
+    `xcrun devicectl device process launch --device <ios-device-id> --terminate-existing --console -e '{"MESHLINK_APP_ID":"demo.meshlink.benchmark.power.delivery","MESHLINK_POWER_MODE":"powersaver","MESHLINK_BENCHMARK_PAYLOAD_BYTES":"256"}' ch.trancee.meshlink.proof.ios`
   - sender iPhone 15 line:
     `BENCHMARK transport bytes=256 elapsedMs=21331 throughputKBps=0.01 result=ReceiptTimeout`
   - passive OPPO lines:

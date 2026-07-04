@@ -125,8 +125,6 @@ interface MeshLink {
     ): SendResult
 
     suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
-
-    fun updateBattery(snapshot: BatterySnapshot)
 }
 ```
 
@@ -144,17 +142,19 @@ interface MeshLink {
 - `SendResult.Sent` marks local protocol completion for the send attempt, not a destination-app receipt acknowledgement.
 - `stop()` is a hard delivery boundary for in-flight send attempts in the current hard run.
 
-**`updateBattery` contract notes**
-- `snapshot.level` is clamped into the inclusive `0.0..1.0` range during `BatterySnapshot` construction.
+**Automatic power observation contract notes**
 - `PowerMode.Automatic` uses shared commonMain policy logic with bootstrap,
   hysteresis, and regulatory-region clamping.
+- Android supplies battery snapshots from system battery broadcasts; iOS supplies
+  them from `UIDevice` battery notifications.
 - Fixed `PowerMode` values keep the requested tier regardless of battery level,
-  while still exposing the effective policy snapshot through diagnostics.
-- Each call emits a `POWER_MODE_CHANGED` diagnostic whose metadata keys are:
-  `level`, `isCharging`, `tier`, `advertisementIntervalMillis`,
-  `connectionIntervalMillis`, `scanDutyCyclePercent`, `maxConnections`,
-  `chunkBudgetBytes`, and `region`. `clampWarnings` appears only when a
-  regional clamp was applied.
+  while still exposing the effective policy snapshot through diagnostics when
+  battery observations arrive.
+- Each observed battery update emits a `POWER_MODE_CHANGED` diagnostic whose
+  metadata keys are: `level`, `isCharging`, `tier`,
+  `advertisementIntervalMillis`, `connectionIntervalMillis`,
+  `scanDutyCyclePercent`, `maxConnections`, `chunkBudgetBytes`, and `region`.
+  `clampWarnings` appears only when a regional clamp was applied.
 
 ## Public types
 
@@ -164,9 +164,6 @@ interface MeshLink {
 - `Paused`
 - `Stopped`
 
-### `BatterySnapshot`
-- `level` (clamped into the inclusive `0.0..1.0` range during construction)
-- `isCharging`
 
 ### `DeliveryPriority`
 - `HIGH`

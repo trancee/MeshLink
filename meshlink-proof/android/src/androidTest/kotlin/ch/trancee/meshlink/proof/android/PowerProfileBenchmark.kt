@@ -17,8 +17,6 @@ class PowerProfileBenchmark {
             BenchmarkTestSupport.startProofApp(
                 appId = POWER_APP_ID,
                 powerMode = "powersaver",
-                benchmarkBatteryLevel = 0.50f,
-                benchmarkIsCharging = false,
             )
 
         try {
@@ -54,8 +52,6 @@ class PowerProfileBenchmark {
                 appId = POWER_DELIVERY_APP_ID,
                 powerMode = "powersaver",
                 benchmarkPayloadBytes = 256,
-                benchmarkBatteryLevel = 0.50f,
-                benchmarkIsCharging = false,
             )
 
         try {

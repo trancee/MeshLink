@@ -68,7 +68,6 @@ public abstract interface class ch/trancee/meshlink/api/MeshLink {
 	public static synthetic fun send$default (Lch/trancee/meshlink/api/MeshLink;Lch/trancee/meshlink/api/PeerId;[BLch/trancee/meshlink/api/DeliveryPriority;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun updateBattery (FZ)V
 }
 
 public final class ch/trancee/meshlink/api/MeshLink$DefaultImpls {
@@ -411,4 +410,3 @@ public final class ch/trancee/meshlink/diagnostics/DiagnosticSeverity : java/lan
 	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/diagnostics/DiagnosticSeverity;
 	public static fun values ()[Lch/trancee/meshlink/diagnostics/DiagnosticSeverity;
 }
-

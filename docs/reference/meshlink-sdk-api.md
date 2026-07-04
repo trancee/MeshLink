@@ -157,8 +157,6 @@ interface MeshLink {
     ): SendResult
 
     suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
-
-    fun updateBattery(snapshot: BatterySnapshot)
 }
 ```
 
@@ -209,16 +207,12 @@ Removes the pinned trust state for one peer.
 | `ForgetPeerResult.Forgotten` | Trust state existed and was removed. |
 | `ForgetPeerResult.NotFound` | No trust state existed for that peer. |
 
-### `updateBattery(snapshot)`
+### Automatic battery observation
 
-Feeds battery information into shared power-policy logic.
-
-| Parameter | Type | Notes |
-|---|---|---|
-| `snapshot` | `BatterySnapshot` | `snapshot.level` is clamped into the inclusive `0.0..1.0` range during construction. |
-
-When `powerMode` is `Automatic`, this call can change the effective power tier
-and emits `DiagnosticCode.POWER_MODE_CHANGED`.
+MeshLink now observes battery state internally on supported platforms. Android
+uses system battery broadcasts, and iOS uses `UIDevice` battery notifications.
+When `powerMode` is `Automatic`, those platform updates can change the effective
+power tier and emit `DiagnosticCode.POWER_MODE_CHANGED`.
 
 ### Example
 
@@ -238,7 +232,6 @@ val result = meshLink.send(
 |---|---|---|
 | `MeshLinkState` | `Uninitialized`, `Configured`, `Running`, `Paused`, `Stopped` | Public lifecycle state. `Uninitialized` is the construction-start state; `Configured` is the constructed-but-not-started state returned after creation completes. |
 | `PeerId` | `class PeerId(val value: String)` | `value` must not be blank. `toString()` redacts the full identifier and prints only the suffix. |
-| `BatterySnapshot` | `class BatterySnapshot(level: Float, val isCharging: Boolean)` | `level` is clamped into `0.0..1.0`. |
 | `DeliveryPriority` | `HIGH`, `NORMAL`, `LOW` | Public delivery priority. |
 | `SendFailureReason` | `PAYLOAD_TOO_LARGE`, `TRANSFER_TIMED_OUT`, `TRANSFER_ABORTED`, `UNREACHABLE`, `TRUST_FAILURE` | Reason carried by `SendResult.NotSent`. |
 | `StartResult` | `Started`, `AlreadyRunning`, `InvalidState(currentState)` | Returned by `start()`. |

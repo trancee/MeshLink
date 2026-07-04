@@ -20,7 +20,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -155,59 +154,6 @@ class MeshLinkContractTest {
             assertEquals(MeshLinkState.Stopped, iosMeshLink.state.value)
         }
 
-    @Test
-    fun `android and ios factories honor the same non default shared configuration`() =
-        runBlocking<Unit> {
-            // Arrange
-            installFactoryTestBridges()
-            val config = meshLinkConfig {
-                appId = "config.meshlink.${kotlin.random.Random.nextInt()}"
-                regulatoryRegion = RegulatoryRegion.EU
-                powerMode = PowerMode.Performance
-                deliveryRetryDeadline = 9.seconds
-            }
-            val androidMeshLink = createAndroidFactoryParityMeshLink(config = config)
-            val iosMeshLink = createIosFactoryParityMeshLink(config = config)
-            val androidPowerChanged =
-                async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) {
-                        androidMeshLink.diagnosticEvents.first {
-                            it.code == DiagnosticCode.POWER_MODE_CHANGED
-                        }
-                    }
-                }
-            val iosPowerChanged =
-                async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeout(1_000) {
-                        iosMeshLink.diagnosticEvents.first {
-                            it.code == DiagnosticCode.POWER_MODE_CHANGED
-                        }
-                    }
-                }
-
-            try {
-                // Act
-                androidMeshLink.start()
-                iosMeshLink.start()
-                androidMeshLink.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
-                iosMeshLink.updateBattery(BatterySnapshot(level = 0.42f, isCharging = false))
-                val androidDiagnostic = androidPowerChanged.await()
-                val iosDiagnostic = iosPowerChanged.await()
-
-                // Assert
-                assertEquals("EU", androidDiagnostic.metadata["region"])
-                assertEquals("PERFORMANCE", androidDiagnostic.metadata["tier"])
-                assertEquals("300", androidDiagnostic.metadata["advertisementIntervalMillis"])
-                assertEquals("100", androidDiagnostic.metadata["connectionIntervalMillis"])
-                assertEquals("70", androidDiagnostic.metadata["scanDutyCyclePercent"])
-                assertEquals("7", androidDiagnostic.metadata["maxConnections"])
-                assertEquals("4096", androidDiagnostic.metadata["chunkBudgetBytes"])
-                assertEquals(androidDiagnostic.metadata, iosDiagnostic.metadata)
-            } finally {
-                runCatching { androidMeshLink.stop() }
-                runCatching { iosMeshLink.stop() }
-            }
-        }
 
     @Test
     fun `creating meshengine stays uninitialized without touching transport or diagnostics`() {
