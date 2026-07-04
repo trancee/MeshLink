@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.reference.meshlink
 
+import ch.trancee.meshlink.api.InboundMessage
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.MeshLinkState
@@ -81,6 +82,7 @@ internal fun bindLiveReferenceControllerFlows(
     scope: CoroutineScope,
     meshLink: MeshLink,
     peerEvents: Flow<ch.trancee.meshlink.api.PeerEvent> = meshLink.peerEvents,
+    messages: Flow<InboundMessage> = meshLink.messages,
     stateStore: ReferenceControllerStateStore,
     nowProvider: () -> Long,
     sessionProjector: LiveReferenceSessionProjector,
@@ -98,7 +100,5 @@ internal fun bindLiveReferenceControllerFlows(
     scope.launch {
         meshLink.diagnosticEvents.collect { event -> sessionProjector.recordDiagnostic(event) }
     }
-    scope.launch {
-        meshLink.messages.collect { message -> sessionProjector.recordInboundMessage(message) }
-    }
+    scope.launch { messages.collect { message -> sessionProjector.recordInboundMessage(message) } }
 }
