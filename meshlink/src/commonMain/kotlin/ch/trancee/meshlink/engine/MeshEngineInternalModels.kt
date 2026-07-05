@@ -24,23 +24,52 @@ internal sealed class SessionEstablishmentOutcome {
     data object Unreachable : SessionEstablishmentOutcome()
 }
 
+/**
+ * A single-hop (directly connected peer) transport session.
+ *
+ * ### Nonce/sequence design (see `docs/explanation/hop-session-replay-protection.md` for the full
+ * writeup, threat model, and rationale)
+ *
+ * Each hop-encrypted [DirectWireFrame.Data] frame carries an explicit, AAD-bound sequence number
+ * (see [MeshEngineHopTransportSupport.encryptHopPayload]/[MeshEngineHopTransportSupport.decryptHopPayload]).
+ * The sender's sequence counter is [sendNonce]; the receiver tracks the highest sequence number
+ * seen so far ([receiveHighWaterMark]) plus a sliding bitmap of recently-seen sequence numbers
+ * within the replay window ([receiveWindowBitmap]), following the same anti-replay design used by
+ * WireGuard and IPsec ESP. This replaces an earlier design where both sides derived the AEAD nonce
+ * from their own independently-incrementing, implicit counters: that design silently desynced
+ * whenever the receiver dropped a frame before decrypting it (for example, because no session was
+ * established yet), permanently breaking the session with `AEADBadTagException` on every
+ * subsequent frame. Binding an explicit, authenticated sequence number to each frame and tracking
+ * receipt with a proper replay window tolerates that kind of loss/reordering without weakening
+ * replay protection -- see the design doc for the security analysis.
+ */
 internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
     internal val sendKey: ByteArray = sendKey.copyOf()
     internal val receiveKey: ByteArray = receiveKey.copyOf()
     internal val outboundMutex: Mutex = Mutex()
     internal var sendNonce: ULong = 0u
-    // Guards the inbound decrypt-and-advance sequence below so that two DirectWireFrame.Data
-    // deliveries for this session (whether genuinely concurrent, or redundant deliveries of the
-    // same wire frame over the GATT/L2CAP side-link transports) can never race on receiveNonce.
-    // Without this, two concurrent decrypts could both read the same receiveNonce value before
-    // either advances it, corrupting the nonce sequence and causing the *next* legitimate frame
-    // to fail decryption with AEADBadTagException.
+
+    // Guards the inbound replay-check/decrypt/window-update sequence below so that two
+    // DirectWireFrame.Data deliveries for this session (whether genuinely concurrent, or redundant
+    // deliveries of the same wire frame over the GATT/L2CAP side-link transports) can never race on
+    // the replay window state. Without this, two concurrent decrypts could both pass the replay
+    // check for the same sequence number before either records it, corrupting the window and
+    // potentially admitting a genuine replay.
     internal val inboundMutex: Mutex = Mutex()
-    internal var receiveNonce: ULong = 0u
-    // Ciphertext of the most recently successfully-decrypted DirectWireFrame.Data frame, checked
-    // under inboundMutex so a redundant delivery of the exact same wire frame is recognized
-    // atomically with the receiveNonce read/advance instead of racing it.
-    internal var lastInboundCiphertext: ByteArray? = null
+
+    // Highest sequence number successfully authenticated and accepted so far, or null if no frame
+    // has been accepted yet. Only ever updated (in decryptHopPayload) *after* a frame passes AEAD
+    // authentication -- a frame that fails the tag check must never advance the window or mark its
+    // sequence number as "seen", or a legitimate retransmission of that same sequence would be
+    // wrongly rejected as a replay later.
+    internal var receiveHighWaterMark: ULong? = null
+
+    // Bitmap of the REPLAY_WINDOW_SIZE most recent sequence numbers at-or-below
+    // receiveHighWaterMark that have already been accepted; bit N (0-indexed from the high water
+    // mark) set means "receiveHighWaterMark - N has already been accepted". Sequence numbers older
+    // than the window (i.e. more than REPLAY_WINDOW_SIZE behind the high water mark) are rejected
+    // unconditionally as too-old replays.
+    internal var receiveWindowBitmap: ULong = 0u
 }
 
 internal class PendingInitiatorHandshake
