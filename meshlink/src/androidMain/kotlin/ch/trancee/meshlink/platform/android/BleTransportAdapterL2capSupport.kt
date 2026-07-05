@@ -68,11 +68,12 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
 }
 
 internal fun BleTransportAdapter.scheduleL2capReconnect(peer: DiscoveredPeer): Unit {
+    val backoffMillis = l2capReconnectGuard.backoffMillisFor(peer.hintPeerId.value)
     coroutineScope.launch {
-        delay(L2CAP_RECONNECT_BACKOFF_MS)
+        delay(backoffMillis)
         val retryPeer = peerRegistry.peer(peer.hintPeerId.value) ?: return@launch
         log(
-            "retrying L2CAP connect for ${retryPeer.hintPeerId.value.takeLast(6)} after transient close"
+            "retrying L2CAP connect for ${retryPeer.hintPeerId.value.takeLast(6)} after transient close (backoffMs=$backoffMillis)"
         )
         connectIfNeeded(retryPeer)
     }
@@ -146,6 +147,10 @@ internal fun BleTransportAdapter.registerConnectedSocket(
     peerBindings.retainDevice(socket.remoteDevice.address, socket.remoteDevice)
     peerBindings.bindHintToAddress(socket.remoteDevice.address, hintPeerId.value)
     peerRegistry.setRediscoveryLoggedWithoutLink(hintPeerId.value, false)
+    // A successful (re)connection restores the peer's full automatic-retry budget -- otherwise a
+    // peer that had exhausted its retries during one rough patch would stay permanently
+    // retry-starved for any later transient disconnect, even after a long healthy connection.
+    l2capReconnectGuard.resetSuccess(hintPeerId.value)
     log(
         "registered L2CAP link for ${hintPeerId.value.takeLast(6)} addr=${socket.remoteDevice.address}"
     )
@@ -310,7 +315,6 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
 
 private const val ZERO_BYTE_READ_BACKOFF_MS: Long = 5L
 private const val MAX_CONSECUTIVE_ZERO_BYTE_READS: Int = 3
-private const val L2CAP_RECONNECT_BACKOFF_MS: Long = 500L
 
 internal class L2capLink(
     internal var peerHintId: PeerId,

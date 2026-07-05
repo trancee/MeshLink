@@ -158,6 +158,25 @@ internal class MeshEngineSessionRegistry {
         return sessionMutex.withLock { lastInitiatorMessage2[peerId.value] }
     }
 
+    /**
+     * Atomically claims [pendingHandshake] for message2 processing if it isn't already being
+     * processed by a concurrent duplicate delivery. Returns true if this call won the race and
+     * should proceed to call `manager.processMessage2AndCreateMessage3()`; returns false if
+     * another concurrent call is already processing it, in which case this delivery should be
+     * dropped as a duplicate-in-flight rather than racing the same NoiseXXHandshakeManager
+     * instance (see [PendingInitiatorHandshake.processing] for why that's unsafe).
+     */
+    suspend fun tryBeginProcessingMessage2(pendingHandshake: PendingInitiatorHandshake): Boolean {
+        return sessionMutex.withLock {
+            if (pendingHandshake.processing) {
+                false
+            } else {
+                pendingHandshake.processing = true
+                true
+            }
+        }
+    }
+
     suspend fun rebindPendingInitiatorHandshake(
         fromPeerId: PeerId,
         toPeerId: PeerId,

@@ -375,8 +375,17 @@ private suspend fun CompletableDeferred<SessionEstablishmentOutcome>.completedOu
     }
 }
 
+// Matches transient "link not ready yet" drop reasons across bearers (GATT and L2CAP, Android
+// and iOS) rather than a single hardcoded L2CAP string. Bearer-specific wording varies (e.g.
+// "L2CAP connection is not ready", "client not ready"), but all of them share the general "not
+// ready" phrasing and all represent the same underlying condition: the physical BLE side-link is
+// still mid-negotiation (connect/MTU/discovery/CCCD) and a retry within the handshake window is
+// likely to succeed once it completes. Permanent/config failures (e.g. "transport is not
+// implemented", "peer has not been discovered") intentionally do not match this substring and
+// are still treated as non-retryable.
 private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
-    return reason.contains("L2CAP connection is not ready")
+    return reason.contains("connection is not ready", ignoreCase = true) ||
+        reason.contains("client not ready", ignoreCase = true)
 }
 
 /**
@@ -391,7 +400,13 @@ internal fun shouldInitiateHandshakeTowards(localPeerId: PeerId, remotePeerId: P
     return localPeerId.value < remotePeerId.value
 }
 
-private val HANDSHAKE_TIMEOUT = 3.seconds
+// Widened from 3s -> 6s: the full GATT side-link setup (connect -> MTU negotiation -> service
+// discovery -> CCCD write) has been observed to take up to ~10s on slower/older BLE chipsets
+// (e.g. iPhone 12 mini), which was consistently exceeding the previous 3s window and causing
+// HOP_SESSION_FAILED stage=transport.handshake.timeout loops on otherwise-healthy links. 6s gives
+// slower hardware realistic headroom while still failing fast enough that a genuinely unreachable
+// peer doesn't stall sends for too long.
+private val HANDSHAKE_TIMEOUT = 6.seconds
 private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds
 
 /**
@@ -405,7 +420,8 @@ private val DEFER_TO_PEER_INITIATOR_WAIT = 250.milliseconds
 
 /**
  * Total handshake attempts made by [MeshEngineSessionSupport.ensureHopSession], including the
- * first.
+ * first. Increased from 3 -> 5 alongside the [HANDSHAKE_TIMEOUT] increase so peers with slow BLE
+ * side-link setup get more chances to complete a handshake before the caller gives up entirely.
  */
-private const val HANDSHAKE_RETRY_ATTEMPTS = 3
+private const val HANDSHAKE_RETRY_ATTEMPTS = 5
 private val HANDSHAKE_RETRY_DELAY = 500.milliseconds

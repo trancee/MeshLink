@@ -30,7 +30,7 @@ internal interface GattNotifySessionListener {
 internal interface GattNotifySession {
     val address: String
 
-    fun requestHighConnectionPriority(): Unit
+    fun requestConnectionPriority(priority: Int): Unit
 
     fun requestFastPhyIfSupported(): Unit
 
@@ -102,8 +102,8 @@ internal class BluetoothGattNotifySession(
     override val address: String
         get() = connection.address
 
-    override fun requestHighConnectionPriority(): Unit {
-        connection.requestHighConnectionPriority()
+    override fun requestConnectionPriority(priority: Int): Unit {
+        connection.requestConnectionPriority(priority)
     }
 
     override fun requestFastPhyIfSupported(): Unit {

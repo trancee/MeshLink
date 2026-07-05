@@ -76,7 +76,16 @@ internal class PendingInitiatorHandshake
 internal constructor(
     internal val manager: NoiseXXHandshakeManager,
     internal val sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
-)
+) {
+    // Guards against two concurrent deliveries of message2 for the same pending handshake (the
+    // same redundant GATT/L2CAP side-link transports that can duplicate other handshake frames
+    // can duplicate message2 too) both calling manager.processMessage2AndCreateMessage3() on the
+    // same NoiseXXHandshakeManager instance -- the second call throws InvalidStateTransition,
+    // aborting the session entirely instead of harmlessly ignoring the duplicate. Set (under
+    // MeshEngineSessionRegistry's sessionMutex, see tryBeginProcessingMessage2) before the first
+    // caller invokes the manager, so a second concurrent caller can detect the race and back off.
+    internal var processing: Boolean = false
+}
 
 internal class PendingResponderHandshake
 internal constructor(internal val manager: NoiseXXHandshakeManager)

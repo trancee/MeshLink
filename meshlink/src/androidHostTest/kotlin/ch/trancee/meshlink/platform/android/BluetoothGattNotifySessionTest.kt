@@ -163,6 +163,7 @@ private class FakeGattConnectionAdapter(
     override val address: String = "AA:BB:CC:DD"
 
     var highPriorityRequests: Int = 0
+    var lastRequestedPriority: Int? = null
     var fastPhyRequests: Int = 0
     val requestedMtus: MutableList<Int> = mutableListOf()
     var discoverServicesCalls: Int = 0
@@ -176,8 +177,9 @@ private class FakeGattConnectionAdapter(
     var lastWriteValue: ByteArray? = null
     var lastWriteType: Int? = null
 
-    override fun requestHighConnectionPriority(): Unit {
+    override fun requestConnectionPriority(priority: Int): Unit {
         highPriorityRequests += 1
+        lastRequestedPriority = priority
     }
 
     override fun requestFastPhy(): Unit {

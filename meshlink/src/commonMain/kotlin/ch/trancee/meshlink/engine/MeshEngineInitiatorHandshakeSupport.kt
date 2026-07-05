@@ -19,6 +19,20 @@ internal class MeshEngineInitiatorHandshakeSupport(
     suspend fun handleHandshakeMessage2(peerId: PeerId, payload: ByteArray): Unit {
         val pending = pendingInitiatorHandshake(peerId, payload)
         if (pending != null) {
+            if (!state.sessionRegistry.tryBeginProcessingMessage2(pending)) {
+                // A concurrent delivery of message2 for this same pending handshake is already
+                // being processed (redundant GATT/L2CAP side-link transports can duplicate
+                // message2 just like they can duplicate other handshake frames). Processing both
+                // concurrently would race the same NoiseXXHandshakeManager instance and abort the
+                // handshake entirely, so this duplicate is safely ignored instead.
+                callbacks.emitHopSessionFailed(
+                    peerId,
+                    "transport.handshake.message2.duplicateInFlightIgnored",
+                    DiagnosticReason.DELIVERY_FAILURE,
+                    mapOf("payloadBytes" to payload.size.toString()),
+                )
+                return
+            }
             val result =
                 processHandshakeMessage2(peerId = peerId, payload = payload, pending = pending)
             if (result != null) {
