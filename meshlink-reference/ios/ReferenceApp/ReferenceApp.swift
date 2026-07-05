@@ -2,47 +2,38 @@ import MeshLinkReference
 import SwiftUI
 import UIKit
 
-private struct ReferenceRootViewRepresentable: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView {
+private struct ReferenceRootViewRepresentable: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
         let environment = ProcessInfo.processInfo.environment
+        let storageSubdirectory =
+            environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"] ?? "default"
+        let appId = environment["MESHLINK_REFERENCE_APP_ID"] ?? "demo.meshlink.reference.ios"
+        let targetPeerId = environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID"]
+        let scenario = environment["MESHLINK_REFERENCE_AUTOMATION_SCENARIO"]
+        // Normalize mode/role the same way Android's MainActivity does, so the shared
+        // automation logging markers (e.g. "REFERENCE_AUTOMATION started mode=LIVE_PROOF
+        // role=SENDER") match across platforms for the headless proof-harness scripts.
         let automationMode = environment["MESHLINK_REFERENCE_AUTOMATION_MODE"]
-        if automationMode == "live-proof" {
-            let storageSubdirectory =
-                environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"]
-                ?? "default"
-            let appId = environment["MESHLINK_REFERENCE_APP_ID"] ?? "demo.meshlink.reference.live"
-            let role = environment["MESHLINK_REFERENCE_AUTOMATION_ROLE"] ?? "passive"
-            let requiredPeerCount = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_REQUIRED_PEER_COUNT"] ?? "1") ?? 1
-            let targetPeerIndex = Int32(environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_INDEX"] ?? "0") ?? 0
-            let targetPeerId = environment["MESHLINK_REFERENCE_AUTOMATION_TARGET_PEER_ID"]
-            let scenario = environment["MESHLINK_REFERENCE_AUTOMATION_SCENARIO"] ?? "direct-guided"
-            return createReferenceLiveAutomationRootView(
-                storageSubdirectory: storageSubdirectory,
-                appId: appId,
-                role: role,
-                requiredPeerCount: requiredPeerCount,
-                targetPeerIndex: targetPeerIndex,
-                targetPeerId: targetPeerId,
-                scenario: scenario
-            )
-        }
+            .map { $0.uppercased().replacingOccurrences(of: "-", with: "_") }
+        let role = environment["MESHLINK_REFERENCE_AUTOMATION_ROLE"]
+            .map { $0.uppercased().replacingOccurrences(of: "-", with: "_") }
+        let autoStartMesh = role == "SENDER" || role == "PASSIVE"
+        let disableAutoSend = environment["MESHLINK_REFERENCE_DISABLE_AUTO_SEND"] == "true"
+        let autoSendHello = role == "SENDER" && !disableAutoSend
 
-        let isAutomationEnabled = environment["MESHLINK_REFERENCE_UI_AUTOMATION"] == "true"
-            || automationMode == "scripted"
-        if isAutomationEnabled {
-            let storageSubdirectory =
-                environment["MESHLINK_REFERENCE_AUTOMATION_STORAGE_SUBDIRECTORY"]
-                ?? "default"
-            let blocked = environment["MESHLINK_REFERENCE_AUTOMATION_BLOCKED"] == "true"
-            return createReferenceAutomationRootView(
-                storageSubdirectory: storageSubdirectory,
-                blocked: blocked
-            )
-        }
-        return createReferenceRootView()
+        return ReferenceViewController(
+            appId: appId,
+            targetPeerId: targetPeerId,
+            storageSubdirectory: storageSubdirectory,
+            automationMode: automationMode,
+            automationRole: role,
+            automationScenario: scenario,
+            autoStartMesh: autoStartMesh,
+            autoSendHello: autoSendHello
+        )
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
     }
 }
 
