@@ -2,6 +2,8 @@ package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.engine.gattDataBearerDecisionLogLine
+import ch.trancee.meshlink.engine.gattDataBearerResultLogLine
 import ch.trancee.meshlink.engine.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
@@ -53,18 +55,30 @@ internal suspend fun BleTransportAdapter.sendToPeer(
 
     val directFrame = runCatching { DirectWireFrame.decode(frame.payload) }.getOrNull()
     val bearerMode = resolveGattDataBearerMode(directFrame = directFrame)
+    val readyLink = activeLinkFor(peer)
+    log(
+        gattDataBearerDecisionLogLine(
+            directFrame = directFrame,
+            bearerMode = bearerMode,
+            l2capLinkAlreadyConnected = readyLink != null,
+        )
+    )
 
     return when (bearerMode) {
         GattDataBearerMode.GATT_ONLY ->
             sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
+                ?.also { log(gattDataBearerResultLogLine("GATT")) }
                 ?: sendViaL2capWhenReady(frame = frame, peer = peer)
+                    .also { log(gattDataBearerResultLogLine("L2CAP")) }
         GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
-            val readyLink = activeLinkFor(peer)
             if (readyLink != null) {
                 sendViaL2capWhenReady(frame = frame, peer = peer)
+                    .also { log(gattDataBearerResultLogLine("L2CAP")) }
             } else {
                 sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
+                    ?.also { log(gattDataBearerResultLogLine("GATT")) }
                     ?: sendViaL2capWhenReady(frame = frame, peer = peer)
+                        .also { log(gattDataBearerResultLogLine("L2CAP")) }
             }
         }
     }

@@ -75,6 +75,30 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_POST_RESULT_IDLE_SECONDS,
         help="How long to keep each console open after its own completion marker",
     )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="How many retained proof runs to execute in sequence. Uses numbered run directories when > 1.",
+    )
+    parser.add_argument(
+        "--vary-app-id-per-run",
+        action="store_true",
+        help=(
+            "Append the run index to the app ID during --repeat. "
+            "By default repeat series keep one stable app ID across the whole series."
+        ),
+    )
+    parser.add_argument(
+        "--require-run-min-kbps",
+        type=float,
+        help="Fail if any scored run in the series is below this throughput threshold.",
+    )
+    parser.add_argument(
+        "--require-average-kbps",
+        type=float,
+        help="Fail if the scored series average is below this throughput threshold.",
+    )
     return parser.parse_args()
 
 
@@ -203,6 +227,24 @@ class RunOutcome:
         return match.group("result") if match else None
 
 
+def prepare_run_dir(base_run_dir: Path, run_index: int, repeat: int) -> Path:
+    if repeat == 1:
+        return base_run_dir
+    return Path(f"{base_run_dir}_{run_index}")
+
+
+def build_app_id(
+    base_app_id: str,
+    run_index: int,
+    repeat: int,
+    *,
+    vary_per_run: bool,
+) -> str:
+    if repeat == 1 or not vary_per_run:
+        return base_app_id
+    return f"{base_app_id}.{run_index}"
+
+
 def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutcome:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "meta.txt").write_text(
@@ -253,9 +295,15 @@ def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutc
         sender_benchmark_seen = sender_capture.launch()
     finally:
         sender_capture.stop()
-        # Give the passive side a brief grace period to observe the frame that was
-        # already in flight before tearing it down.
-        passive_thread.join(timeout=args.post_result_idle_seconds + 2)
+        # Wait for the passive side's own capture loop to finish naturally (it self-terminates
+        # once it either observes benchmarkToken= or hits its own capture_timeout_seconds budget
+        # -- see IOSConsoleCapture.launch). A short, fixed grace period here (e.g. tied to
+        # post_result_idle_seconds) was previously used and was fine for small payloads, but for
+        # large payloads a redundant/late-arriving frame can still be in flight well after the
+        # sender times out, so truncating the join early via passive_capture.stop() could kill the
+        # passive capture before it had a chance to log evidence of a payload that was still being
+        # delivered. Match the join timeout to the passive capture's own configured budget instead.
+        passive_thread.join(timeout=args.capture_timeout_seconds + 2)
         passive_capture.stop()
         passive_thread.join(timeout=5)
 
@@ -277,29 +325,97 @@ def run_once(args: argparse.Namespace, *, run_dir: Path, app_id: str) -> RunOutc
     )
 
 
+def summarize_series(outcomes: list[RunOutcome]) -> list[float]:
+    throughputs = [outcome.throughput_kbps for outcome in outcomes if outcome.throughput_kbps is not None]
+    successful = [outcome for outcome in outcomes if outcome.sender_benchmark_seen]
+    if len(outcomes) > 1:
+        print(f"==> Series summary: {len(successful)}/{len(outcomes)} runs observed a scored benchmark line")
+        if throughputs:
+            average = sum(throughputs) / len(throughputs)
+            print(
+                "==> Throughput summary: "
+                f"min={min(throughputs):.2f} KB/s avg={average:.2f} KB/s max={max(throughputs):.2f} KB/s"
+            )
+        for index, outcome in enumerate(outcomes, start=1):
+            print(
+                f"==> Run {index}: dir={outcome.run_dir} result={outcome.result_label or 'missing'} "
+                f"throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}"
+            )
+    return [value for value in throughputs if value is not None]
+
+
 def main() -> int:
     args = parse_args()
-    run_dir = Path(args.run_dir or f"/tmp/ios_ios_proof_{timestamp()}")
-    app_id = args.app_id or f"demo.meshlink.proof.ios-ios.{timestamp()}"
+    if args.repeat < 1:
+        raise SystemExit("--repeat must be >= 1")
 
-    outcome = run_once(args, run_dir=run_dir, app_id=app_id)
+    base_run_dir = Path(args.run_dir or f"/tmp/ios_ios_proof_{timestamp()}")
+    series_app_id = args.app_id or f"demo.meshlink.proof.ios-ios.{timestamp()}"
 
-    if not outcome.sender_benchmark_seen:
+    outcomes: list[RunOutcome] = []
+    for run_index in range(1, args.repeat + 1):
+        run_dir = prepare_run_dir(base_run_dir, run_index, args.repeat)
+        app_id = build_app_id(
+            series_app_id,
+            run_index,
+            args.repeat,
+            vary_per_run=args.vary_app_id_per_run,
+        )
+        outcome = run_once(args, run_dir=run_dir, app_id=app_id)
+        outcomes.append(outcome)
+
+    throughputs = summarize_series(outcomes)
+
+    if not all(outcome.sender_benchmark_seen for outcome in outcomes):
         print(
-            f"ERROR: sender did not observe BENCHMARK transport bytes={args.payload_bytes} within "
+            f"ERROR: at least one run did not observe BENCHMARK transport bytes={args.payload_bytes} within "
             f"{args.capture_timeout_seconds} seconds",
             file=sys.stderr,
         )
         return 1
 
-    if outcome.result_label != "Sent":
-        print(
-            f"ERROR: sender benchmark result was {outcome.result_label!r}, expected 'Sent'",
-            file=sys.stderr,
-        )
+    if not all(outcome.result_label == "Sent" for outcome in outcomes):
+        failed = [outcome for outcome in outcomes if outcome.result_label != "Sent"]
+        for outcome in failed:
+            print(
+                f"ERROR: run {outcome.run_dir} benchmark result was {outcome.result_label!r}, expected 'Sent'",
+                file=sys.stderr,
+            )
         return 1
 
-    print(f"==> Success: throughputKBps={outcome.throughput_kbps}")
+    if args.require_run_min_kbps is not None:
+        below_threshold = [
+            outcome for outcome in outcomes
+            if outcome.throughput_kbps is None or outcome.throughput_kbps < args.require_run_min_kbps
+        ]
+        if below_threshold:
+            print(
+                f"ERROR: {len(below_threshold)} run(s) fell below require-run-min-kbps={args.require_run_min_kbps:.2f}",
+                file=sys.stderr,
+            )
+            for outcome in below_threshold:
+                print(
+                    f"  - {outcome.run_dir}: throughputKBps={outcome.throughput_kbps if outcome.throughput_kbps is not None else 'missing'}",
+                    file=sys.stderr,
+                )
+            return 1
+
+    if args.require_average_kbps is not None:
+        if not throughputs:
+            print(
+                "ERROR: require-average-kbps was set but no scored throughput values were captured",
+                file=sys.stderr,
+            )
+            return 1
+        average = sum(throughputs) / len(throughputs)
+        if average < args.require_average_kbps:
+            print(
+                f"ERROR: series average {average:.2f} KB/s is below require-average-kbps={args.require_average_kbps:.2f}",
+                file=sys.stderr,
+            )
+            return 1
+
+    print(f"==> Success: throughputKBps={outcomes[-1].throughput_kbps}")
     return 0
 
 

@@ -8,6 +8,8 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.engine.gattDataBearerDecisionLogLine
+import ch.trancee.meshlink.engine.gattDataBearerResultLogLine
 import ch.trancee.meshlink.engine.resolveGattDataBearerMode
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
@@ -332,26 +334,37 @@ internal class BleTransportAdapter(
                 triggerConnectIfNeeded = { connectIfNeeded(peer) },
                 log = ::log,
             )
+        val readyLink = l2capDependencies.currentLink()
+        log(
+            gattDataBearerDecisionLogLine(
+                directFrame = directFrame,
+                bearerMode = bearerMode,
+                l2capLinkAlreadyConnected = readyLink != null,
+            )
+        )
 
         return when (bearerMode) {
             GattDataBearerMode.GATT_ONLY ->
                 tryPreferredGattSend(peer, frame)
+                    ?.also { log(gattDataBearerResultLogLine("GATT")) }
                     ?: sendViaL2capWhenReady(
-                        frame = frame,
-                        context = l2capContext,
-                        dependencies = l2capDependencies,
-                    )
-            GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
-                val readyLink = l2capDependencies.currentLink()
-                if (readyLink != null) {
-                    readyLink.send(frame)
-                } else {
-                    tryPreferredGattSend(peer, frame)
-                        ?: sendViaL2capWhenReady(
                             frame = frame,
                             context = l2capContext,
                             dependencies = l2capDependencies,
                         )
+                        .also { log(gattDataBearerResultLogLine("L2CAP")) }
+            GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
+                if (readyLink != null) {
+                    readyLink.send(frame).also { log(gattDataBearerResultLogLine("L2CAP")) }
+                } else {
+                    tryPreferredGattSend(peer, frame)
+                        ?.also { log(gattDataBearerResultLogLine("GATT")) }
+                        ?: sendViaL2capWhenReady(
+                                frame = frame,
+                                context = l2capContext,
+                                dependencies = l2capDependencies,
+                            )
+                            .also { log(gattDataBearerResultLogLine("L2CAP")) }
                 }
             }
         }

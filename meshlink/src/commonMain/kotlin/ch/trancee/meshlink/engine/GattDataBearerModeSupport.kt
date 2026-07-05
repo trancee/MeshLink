@@ -35,3 +35,26 @@ internal fun resolveGattDataBearerMode(directFrame: DirectWireFrame?): GattDataB
         GattDataBearerMode.GATT_ONLY
     }
 }
+
+// Shared log-line format for bearer-selection diagnostics, used identically by the Android and
+// iOS transport adapters (BleTransportAdapter.sendToPeerUsingBearerPolicy and
+// BleTransportAdapterSendRouting.sendToPeer) so a single "BEARER" grep across either platform's
+// logs (or a combined benchmark capture) finds every bearer decision in the same shape. Logged
+// once per outbound frame, before the frame is actually handed to a bearer implementation:
+// `l2capLinkAlreadyConnected` reflects whether an already-connected L2CAP link existed for the
+// peer *at decision time*, which is what determines whether L2CAP_PREFERRED_WITH_GATT_FALLBACK
+// frames go out over L2CAP immediately or fall through to the GATT-first path. See
+// docs/explanation/why-l2cap-first.md for why this distinction matters for benchmarking.
+internal fun gattDataBearerDecisionLogLine(
+    directFrame: DirectWireFrame?,
+    bearerMode: GattDataBearerMode,
+    l2capLinkAlreadyConnected: Boolean,
+): String {
+    val frameKind = directFrame?.let { it::class.simpleName } ?: "undecoded"
+    return "BEARER decision frame=$frameKind mode=$bearerMode l2capReady=$l2capLinkAlreadyConnected"
+}
+
+// Companion result log line: logged once the frame has actually been handed to (and accepted by)
+// one of the two bearer implementations, so the decision above can be matched against the bearer
+// that was actually used (the GATT fallback path means the two can differ).
+internal fun gattDataBearerResultLogLine(bearerUsed: String): String = "BEARER result=$bearerUsed"
