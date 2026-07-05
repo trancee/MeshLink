@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.ios
 
+import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.apple.CryptoBridgeRegistry
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
@@ -70,7 +71,8 @@ internal class BridgeCryptoProvider : CryptoProvider {
     ): ByteArray {
         return requiredCryptoCallbacks()
             .chacha20Poly1305Open(key.copyOf(), nonce.copyOf(), aad.copyOf(), ciphertext.copyOf())
-            .copyOf()
+            ?.copyOf()
+            ?: throw MeshLinkException.CryptoFailure("ChaCha20-Poly1305 authentication failed")
     }
 }
 

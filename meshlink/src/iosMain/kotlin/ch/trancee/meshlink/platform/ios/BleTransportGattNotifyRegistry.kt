@@ -29,8 +29,10 @@ internal class BleTransportGattNotifyRegistry {
         val entry =
             linksByHint.entries.firstOrNull { (_, link) -> link.centralIdentifier == identifier }
                 ?: return null
-        linksByHint.remove(entry.key)
-        return entry.value
+        val key = entry.key
+        val link = entry.value
+        linksByHint.remove(key)
+        return link
     }
 
     internal fun stopAll(): Unit {
