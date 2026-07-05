@@ -147,6 +147,7 @@ flowchart LR
 | `meshlink-reference/scripts/analyze_reference_physical_run.py` | Summarizes a retained physical reference-app run |
 | `docs/reference/android-direct-proof-matrix-result.md` | Retains the canonical summary of the latest direct-proof matrix rerun |
 | `benchmarks/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
+| `meshlink-proof/scripts/run_headless_ios_ios_proof.py` | Runs a headless physical proof exchange between two iPhones (sender + passive) |
 
 ## Contributor workflow scaffolding
 

@@ -180,7 +180,37 @@ benchmarks/scripts/run_headless_meshlink_benchmark.py \
   --run-dir /tmp/ios_meshlink_headless_conformance
 ```
 
-## 7. Keep evidence and release posture in the right docs
+## 7. iPhone-to-iPhone proof runs
+
+`run_headless_meshlink_benchmark.py` pairs one Android proof peer with one
+iPhone sender. To validate two physical iPhones exchanging directly with each
+other (no Android device involved), use the iOS-only counterpart instead:
+
+```bash
+meshlink-proof/scripts/run_headless_ios_ios_proof.py \
+  --sender-device <sender-udid> \
+  --passive-device <passive-udid> \
+  --payload-bytes 64
+```
+
+Both `ProofApp.app` copies must already be built and installed on their
+respective iPhones (this script never invokes `xcodebuild` itself, since there
+is no single "the" device to build for). Build and install each device
+individually first, e.g.:
+
+```bash
+xcodebuild -project meshlink-proof/ios/ProofApp.xcodeproj -scheme ProofApp \
+  -destination "id=<udid>" -allowProvisioningUpdates build
+xcrun devicectl device install app --device <udid> <path-to-ProofApp.app>
+```
+
+The runner launches the passive device first (`MESHLINK_DISABLE_AUTO_SEND=true`,
+mirroring the Android passive role in the cross-platform benchmark script),
+then the sender, and gates success on the sender's own scored
+`BENCHMARK transport bytes=... result=Sent` line -- the same success gate the
+cross-platform runner uses.
+
+## 8. Keep evidence and release posture in the right docs
 
 Use this guide to build and run the iOS proof app.
 

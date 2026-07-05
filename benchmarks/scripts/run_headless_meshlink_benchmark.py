@@ -26,7 +26,12 @@ ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 120
 DEFAULT_POST_RESULT_IDLE_SECONDS = 5
 DEFAULT_ANDROID_READY_SECONDS = 8
-DEFAULT_LOGCAT_TAGS = ["MeshLinkTransport:D", "MeshLinkProof:I", "*:S"]
+# "MeshLinkTransport" was never an actual logcat tag emitted anywhere in the codebase (the BLE
+# transport adapter and the proof runtime both log under "MeshLinkReferenceAutomation" -- see
+# BleTransportAdapter.log and MeshLinkProofRuntime.appendLog), so this filter was silently
+# dropping every transport-level log line, including the "BEARER decision"/"BEARER result" lines
+# added to investigate L2CAP-vs-GATT bearer selection. Fixed to the tag that's actually used.
+DEFAULT_LOGCAT_TAGS = ["MeshLinkReferenceAutomation:I", "MeshLinkProof:I", "*:S"]
 ADB_DEVICE_PATTERN = re.compile(r"^(?P<serial>\S+)\s+(?P<state>device|offline|unauthorized)\b")
 PROVISIONING_PROFILE_DIRS = [
     Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
