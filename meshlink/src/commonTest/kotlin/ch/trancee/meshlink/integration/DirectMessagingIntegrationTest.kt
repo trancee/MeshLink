@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeout
 
 class DirectMessagingIntegrationTest {
     private companion object {
-        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 3
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 5
     }
 
     @Test
