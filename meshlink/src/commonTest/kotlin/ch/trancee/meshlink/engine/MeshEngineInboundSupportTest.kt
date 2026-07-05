@@ -694,7 +694,7 @@ class MeshEngineInboundSupportTest {
                 inboundSupportFixture(
                     localIdentity = localIdentity,
                     sessionRegistry = sessionRegistry,
-                    decryptHopPayload = { _, _ -> throw DuplicateHopPayloadException },
+                    decryptHopPayload = { _, _ -> throw ReplayedHopPayloadException },
                 )
             val ciphertext = byteArrayOf(1, 2, 3, 4)
 

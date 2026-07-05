@@ -158,6 +158,7 @@ guessing which page owns which model.
 - [Discovery identity hash and privacy trade-offs](explanation/privacy-pseudonyms.md) — what the current discovery identity shape gives up and preserves.
 - [Regulatory compliance and region clamping](explanation/regulatory-compliance.md) — what MeshLink can and cannot control at the app layer.
 - [Why MeshLink uses Noise XX only](explanation/why-noise-xx-only.md) — why one handshake pattern is the current posture.
+- [Hop session replay protection](explanation/hop-session-replay-protection.md) — the explicit-sequence-number and sliding-replay-window design for per-hop transport frames, the desync bug it replaces, and its security analysis.
 - [Why pure-Kotlin FlatBuffers](explanation/why-pure-kotlin-flatbuffers.md) — why MeshLink owns its codec instead of relying on generated runtime code.
 - [Why 100% coverage for a crypto protocol](explanation/why-full-coverage.md) — why the repository keeps a strict coverage bar.
 

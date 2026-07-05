@@ -62,7 +62,7 @@ class MeshEngineHopTransportSupportTest {
             assertEquals("transfer-1", decodedAck.transferId)
             assertEquals(3, decodedAck.highestContiguousAck)
             assertContentEquals(byteArrayOf(4, 5, 6), decodedAck.selectiveRanges)
-            assertEquals(1u, session.receiveNonce)
+            assertEquals(0u, session.receiveHighWaterMark)
         }
 
     @Test
@@ -316,7 +316,7 @@ class MeshEngineHopTransportSupportTest {
         }
 
     @Test
-    fun `decryptHopPayload advances receiveNonce and decrypts two distinct ciphertexts in sequence`() =
+    fun `decryptHopPayload advances the replay window high water mark and decrypts two distinct ciphertexts in sequence`() =
         runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
@@ -343,7 +343,7 @@ class MeshEngineHopTransportSupportTest {
             val secondPlaintext = fixture.support.decryptHopPayload(session, secondCiphertext)
 
             // Assert
-            assertEquals(2u, session.receiveNonce)
+            assertEquals(1u, session.receiveHighWaterMark)
             assertEquals(
                 "transfer-first",
                 assertIs<WireFrame.TransferComplete>(WireCodec.decode(firstPlaintext)).transferId,
@@ -355,7 +355,7 @@ class MeshEngineHopTransportSupportTest {
         }
 
     @Test
-    fun `decryptHopPayload throws DuplicateHopPayloadException for a redundant delivery without advancing receiveNonce`() =
+    fun `decryptHopPayload throws ReplayedHopPayloadException for a redundant delivery without advancing the high water mark`() =
         runBlocking<Unit> {
             // Arrange
             val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
@@ -370,7 +370,7 @@ class MeshEngineHopTransportSupportTest {
                     transferId = "transfer-dup",
                 )
             fixture.support.decryptHopPayload(session, ciphertext)
-            val receiveNonceAfterFirstDecrypt = session.receiveNonce
+            val highWaterMarkAfterFirstDecrypt = session.receiveHighWaterMark
 
             // Act
             val exception =
@@ -379,8 +379,120 @@ class MeshEngineHopTransportSupportTest {
                 }
 
             // Assert
-            assertTrue(exception === DuplicateHopPayloadException)
-            assertEquals(receiveNonceAfterFirstDecrypt, session.receiveNonce)
+            assertTrue(exception === ReplayedHopPayloadException)
+            assertEquals(highWaterMarkAfterFirstDecrypt, session.receiveHighWaterMark)
+        }
+
+    @Test
+    fun `decryptHopPayload accepts an out-of-order frame within the replay window and still rejects a later replay of it`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x88)
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+            // Sequence 0 arrives late (simulating a frame delayed behind a later one, e.g. via the
+            // redundant GATT/L2CAP side-link transports reordering delivery).
+            val sequenceZeroCiphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = hopSession(keyByte = 0x88),
+                    transferId = "transfer-seq-0",
+                )
+            val sequenceOneCiphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = hopSession(keyByte = 0x88).also { it.sendNonce = 1uL },
+                    transferId = "transfer-seq-1",
+                )
+
+            // Act: sequence 1 arrives first and advances the high water mark, then sequence 0
+            // arrives late but is still within the replay window and must be accepted.
+            fixture.support.decryptHopPayload(session, sequenceOneCiphertext)
+            val outOfOrderPlaintext =
+                fixture.support.decryptHopPayload(session, sequenceZeroCiphertext)
+
+            // Assert: the late-but-in-window frame decrypted successfully...
+            assertEquals(
+                "transfer-seq-0",
+                assertIs<WireFrame.TransferComplete>(WireCodec.decode(outOfOrderPlaintext))
+                    .transferId,
+            )
+            assertEquals(1u, session.receiveHighWaterMark)
+            // ...but a subsequent replay of that same sequence number is rejected.
+            val replayException =
+                assertFailsWith<Exception> {
+                    fixture.support.decryptHopPayload(session, sequenceZeroCiphertext.copyOf())
+                }
+            assertTrue(replayException === ReplayedHopPayloadException)
+        }
+
+    @Test
+    fun `decryptHopPayload still decrypts a later frame after an earlier sequence number was never delivered`() =
+        runBlocking<Unit> {
+            // Arrange: regression test for the AEADBadTagException desync this design replaced.
+            // Sequence 0 is sent but simulates being dropped before the receiver ever attempts to
+            // decrypt it (e.g. because no hop session existed yet on the receiver) -- so it is
+            // never passed to decryptHopPayload at all, exactly like the original bug. With the
+            // old implicit-counter nonce design, the receiver's receiveNonce would stay at 0 while
+            // the sender's sendNonce had already advanced to 1uL, permanently desyncing the two
+            // sides and making every subsequent frame fail with AEADBadTagException. With an
+            // explicit, sender-declared sequence number, the receiver simply decrypts whatever
+            // sequence number the frame declares, so a gap left by a lost frame is harmless.
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0x99)
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+            val sequenceOneCiphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = hopSession(keyByte = 0x99).also { it.sendNonce = 1uL },
+                    transferId = "transfer-seq-1-after-gap",
+                )
+
+            // Act: sequence 0 is never delivered to this receiver session; sequence 1 arrives next.
+            val plaintext = fixture.support.decryptHopPayload(session, sequenceOneCiphertext)
+
+            // Assert
+            assertEquals(
+                "transfer-seq-1-after-gap",
+                assertIs<WireFrame.TransferComplete>(WireCodec.decode(plaintext)).transferId,
+            )
+            assertEquals(1u, session.receiveHighWaterMark)
+        }
+
+    // Note: AAD/tamper-binding at the AEAD layer is verified against a real crypto provider in
+    // MeshEngineHopTransportSupportJvmCryptoTest ("decryptHopPayload rejects a frame whose
+    // declared sequence number was tampered with"), not here. PlaceholderCryptoProvider (used
+    // throughout this commonTest suite) is a simplified test double whose pseudo-AEAD tag does not
+    // actually incorporate the nonce/AAD for 32-byte keys, so it cannot exercise genuine
+    // tamper-detection -- see that test for the real assertion and rationale.
+
+    @Test
+    fun `decryptHopPayload rejects a frame with an unsupported hop frame version`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("hop-transport-local")
+            val peerId = PeerId("peer-abcdef")
+            val session = hopSession(keyByte = 0xBB)
+            val fixture = hopTransportFixture(localIdentity = localIdentity)
+            val ciphertext =
+                encryptedPayloadFor(
+                    fixture = fixture,
+                    peerId = peerId,
+                    session = session,
+                    transferId = "transfer-version",
+                )
+            val unsupportedVersionCiphertext =
+                ciphertext.copyOf().also { bytes -> bytes[0] = 99 }
+
+            // Act & Assert
+            assertFailsWith<HopFrameFormatException> {
+                fixture.support.decryptHopPayload(session, unsupportedVersionCiphertext)
+            }
         }
 }
 

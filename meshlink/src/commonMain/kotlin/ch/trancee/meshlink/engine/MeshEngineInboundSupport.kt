@@ -87,12 +87,12 @@ internal class MeshEngineInboundSupport(
         return session
     }
 
-    // decryptHopPayload atomically checks for -- and silently ignores -- a redundant delivery of
-    // an already-processed DirectWireFrame.Data ciphertext (see its documentation), signaling
-    // that outcome via DuplicateHopPayloadException rather than a genuine decrypt failure. That
-    // distinction matters here: a real AEADBadTagException should surface the
-    // "transport.data.decrypt" failure diagnostic, whereas a recognized duplicate should be
-    // dropped without one.
+    // decryptHopPayload atomically checks for -- and silently ignores -- a redundant/replayed
+    // delivery of an already-processed DirectWireFrame.Data sequence number (see its
+    // documentation and docs/explanation/hop-session-replay-protection.md), signaling that outcome
+    // via ReplayedHopPayloadException rather than a genuine decrypt failure. That distinction
+    // matters here: a real AEADBadTagException should surface the "transport.data.decrypt" failure
+    // diagnostic, whereas a recognized replay/duplicate should be dropped without one.
     private suspend fun decryptInboundWireFrame(
         peerId: PeerId,
         session: HopSession,
@@ -100,7 +100,7 @@ internal class MeshEngineInboundSupport(
     ): ByteArray? {
         return runCatching { transport.decryptHopPayload(session, payload) }
             .getOrElse { exception ->
-                if (exception === DuplicateHopPayloadException) {
+                if (exception === ReplayedHopPayloadException) {
                     transport.emitHopSessionFailed(
                         peerId,
                         "transport.data.duplicateIgnored",
