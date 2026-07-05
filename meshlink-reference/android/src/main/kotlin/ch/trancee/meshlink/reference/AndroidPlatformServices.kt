@@ -477,6 +477,7 @@ private class PublicMeshLinkController(
     private fun observeMessages(runtime: MeshLink): Unit {
         scope.launch {
             runtime.messages.collect { message ->
+                val payloadText = String(message.payload)
                 appendTimeline(
                     timelineContext,
                     TimelineAppendSpec(
@@ -485,8 +486,9 @@ private class PublicMeshLinkController(
                         title = "message",
                         detail = message.toString(),
                         peerSuffix = message.originPeerId.value.takeLast(PEER_SUFFIX_LENGTH),
-                        payloadPreview = String(message.payload),
+                        payloadPreview = payloadText,
                         payloadSizeBytes = message.payload.size,
+                        fullPayload = payloadText,
                     ),
                 )
             }
@@ -576,6 +578,7 @@ private class PublicMeshLinkController(
                 peerSuffix = peerId.takeLast(PEER_SUFFIX_LENGTH),
                 payloadPreview = payloadText,
                 payloadSizeBytes = payloadText.encodeToByteArray().size,
+                fullPayload = payloadText,
             ),
         )
     }
