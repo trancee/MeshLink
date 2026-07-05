@@ -99,6 +99,7 @@ internal data class TimelineAppendSpec(
     val peerSuffix: String? = null,
     val payloadPreview: String? = null,
     val payloadSizeBytes: Int? = null,
+    val fullPayload: String? = null,
 )
 
 internal fun appendTimeline(
@@ -117,6 +118,8 @@ internal fun appendTimeline(
             peerSuffix = spec.peerSuffix,
             payloadPreview = spec.payloadPreview,
             payloadSizeBytes = spec.payloadSizeBytes,
+            fullPayload = spec.fullPayload,
+            fullPayloadIncluded = spec.fullPayload != null,
         )
     context.timeline += entry
     // Reflect the mutation into the reactive snapshot StateFlow: appending to `context.timeline`

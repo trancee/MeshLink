@@ -21,6 +21,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+private const val SCENARIO_PAUSE_RESUME = "direct-pause-resume"
+private const val SCENARIO_TRUST_RESET_RECOVERY = "direct-trust-reset-recovery"
+private const val SCENARIO_FULL_EXPORT = "direct-full-export"
+private const val SCENARIO_LARGE_TRANSFER = "direct-large-transfer"
+private const val LARGE_TRANSFER_MIN_BYTES = 4_096
+private const val PAUSE_RESUME_WINDOW_MILLIS = 1_000L
+private const val PAUSE_RESUME_SEND_SETTLE_MILLIS = 3_000L
+private const val TRUST_RESET_DELIVERY_SETTLE_MILLIS = 3_000L
+
+/** Tracks progress through the two-send `direct-trust-reset-recovery` scenario. */
+private enum class TrustResetPhase {
+    NOT_STARTED,
+    INITIAL_SEND_IN_FLIGHT,
+    AWAITING_RECOVERY,
+    RECOVERY_SEND_IN_FLIGHT,
+}
+
 /** Shared state holder for the guided first-exchange surface. */
 internal class GuidedFirstExchangeViewModel(
     private val platformName: String,
@@ -55,10 +72,16 @@ internal class GuidedFirstExchangeViewModel(
     private var routePendingLogged: Boolean = false
     private var senderCompletionLogged: Boolean = false
     private var passiveCompletionTriggered: Boolean = false
+    private var deliveryCount: Int = 0
+    private var trustResetPhase: TrustResetPhase = TrustResetPhase.NOT_STARTED
     private val initAtEpochMillis: Long = currentTimeMillis()
     private val isPassiveRole: Boolean =
         automationRole?.equals("passive", ignoreCase = true) == true
     private val isSenderRole: Boolean = automationRole?.equals("sender", ignoreCase = true) == true
+
+    /** Number of distinct inbound deliveries the passive peer must observe before completing. */
+    private val requiredPassiveInboundCount: Int =
+        if (automationScenario == SCENARIO_TRUST_RESET_RECOVERY) 2 else 1
 
     public val powerMitigationLabel: String?
         get() = powerMitigationLabelValue
@@ -114,19 +137,17 @@ internal class GuidedFirstExchangeViewModel(
     }
 
     public fun sendHelloToPeer(peerId: String): Unit {
-        emitAutomationLog("REFERENCE_AUTOMATION send.requested role=sender peerId=$peerId")
+        val payloadText =
+            if (automationScenario == SCENARIO_LARGE_TRANSFER) {
+                largeTransferPayloadText()
+            } else {
+                "hello mesh from $platformName"
+            }
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.requested peerId=$peerId"
         )
         scope.launch {
-            emitAutomationLog(
-                "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.begin peerId=$peerId"
-            )
-            meshLinkController.sendPayload(
-                peerId = peerId,
-                payloadText = "hello mesh from $platformName",
-                priority = DeliveryPriority.NORMAL,
-            )
+            deliverPayload(peerId = peerId, payloadText = payloadText, phase = null)
             emitAutomationLog(
                 "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.end peerId=$peerId"
             )
@@ -135,8 +156,38 @@ internal class GuidedFirstExchangeViewModel(
     }
 
     /**
-     * Logs the sender-role automation completion marker once the guided flow's single automated
-     * hello send has returned without throwing. The Android/iOS direct-proof test harnesses
+     * Builds an oversized payload (>= 4096 bytes) for the `direct-large-transfer` scenario and
+     * emits the "payload=large-transfer bytes=<n>" marker the physical harness scans for before
+     * the send is attempted.
+     */
+    private fun largeTransferPayloadText(): String {
+        val body = "hello mesh from $platformName (large transfer) ".repeat(120)
+        val payload = body.take(LARGE_TRANSFER_MIN_BYTES).ifEmpty { body }
+        val payloadBytes = payload.encodeToByteArray().size
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION large-transfer.requested role=sender payload=large-transfer bytes=$payloadBytes"
+        )
+        return payload
+    }
+
+    /** Sends [payloadText] to [peerId], logging the send lifecycle markers the harnesses parse. */
+    private suspend fun deliverPayload(peerId: String, payloadText: String, phase: String?): Unit {
+        val phaseSuffix = if (phase != null) " phase=$phase" else ""
+        emitAutomationLog("REFERENCE_AUTOMATION send.requested role=sender peerId=$peerId$phaseSuffix")
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.begin peerId=$peerId"
+        )
+        meshLinkController.sendPayload(
+            peerId = peerId,
+            payloadText = payloadText,
+            priority = DeliveryPriority.NORMAL,
+        )
+        deliveryCount += 1
+    }
+
+    /**
+     * Logs the sender-role automation completion marker once the guided flow's automated hello
+     * send(s) have returned without throwing. The Android/iOS direct-proof test harnesses
      * (`run_headless_reference_android_direct_proof.py`, `run_headless_reference_live_proof.py`)
      * key their pass/fail decision off this exact "REFERENCE_AUTOMATION proof.complete role=sender"
      * marker.
@@ -145,7 +196,7 @@ internal class GuidedFirstExchangeViewModel(
         if (senderCompletionLogged || !isSenderRole) return
         senderCompletionLogged = true
         emitAutomationLog(
-            "REFERENCE_AUTOMATION proof.complete role=sender deliveries=1 peerId=$peerId"
+            "REFERENCE_AUTOMATION proof.complete role=sender deliveries=$deliveryCount peerId=$peerId"
         )
     }
 
@@ -161,7 +212,8 @@ internal class GuidedFirstExchangeViewModel(
     private fun maybeCompletePassiveExchange(snapshot: ReferenceControllerSnapshot): Unit {
         if (passiveCompletionTriggered || !isPassiveRole) return
         val documentStore = automationDocumentStore ?: return
-        if (!snapshot.timeline.any { entry -> entry.family == TimelineFamily.MESSAGE }) return
+        val messageEntries = snapshot.timeline.filter { entry -> entry.family == TimelineFamily.MESSAGE }
+        if (messageEntries.size < requiredPassiveInboundCount) return
         if (!snapshot.isEligibleForAutomaticRetention(readinessBlockers)) return
         passiveCompletionTriggered = true
         scope.launch {
@@ -169,6 +221,29 @@ internal class GuidedFirstExchangeViewModel(
             val artifactSerializer = JsonSessionArtifactSerializer(documentStore)
             val retainedSnapshot = snapshot.redactedRetainedSnapshot()
             historyRepository.retainSnapshot(retainedSnapshot)
+
+            if (automationScenario == SCENARIO_FULL_EXPORT) {
+                emitAutomationLog(
+                    "REFERENCE_AUTOMATION export.requested role=passive policy=full-payload"
+                )
+                val fullExportPath =
+                    writeSessionArtifact(
+                        // Uses the un-redacted live snapshot (not retainedSnapshot) so the full-payload
+                        // export can actually include fullPayload bytes; redactedRetainedSnapshot()
+                        // strips fullPayload from every timeline entry before retention.
+                        snapshot = snapshot,
+                        policy = ExportPayloadPolicy.FULL_PAYLOAD_OPT_IN,
+                        artifactSerializer = artifactSerializer,
+                        currentTimeMillis = currentTimeMillis,
+                    )
+                emitAutomationLog(
+                    "REFERENCE_AUTOMATION export.completed role=passive policy=full-payload path=$fullExportPath"
+                )
+            }
+
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION export.requested role=passive policy=redacted-preview"
+            )
             val exportPath =
                 writeSessionArtifact(
                     snapshot = retainedSnapshot,
@@ -177,8 +252,13 @@ internal class GuidedFirstExchangeViewModel(
                     currentTimeMillis = currentTimeMillis,
                 )
             emitAutomationLog(
+                "REFERENCE_AUTOMATION export.completed role=passive policy=redacted-preview path=$exportPath"
+            )
+            val largestInboundBytes = messageEntries.mapNotNull { entry -> entry.payloadSizeBytes }.maxOrNull() ?: 0
+            emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=passive " +
-                    "inboundCount=${snapshot.timeline.count { entry -> entry.family == TimelineFamily.MESSAGE }} " +
+                    "inboundCount=${messageEntries.size} " +
+                    "largestInboundBytes=$largestInboundBytes " +
                     "export=$exportPath"
             )
         }
@@ -261,19 +341,106 @@ internal class GuidedFirstExchangeViewModel(
     }
 
     private fun maybeAutoSendHello(snapshot: ReferenceControllerSnapshot): Unit {
-        if (!autoSendHello || autoSendTriggered) return
-        val targetPeerId = automationTargetPeerId
-        val peer =
-            when {
-                targetPeerId != null -> snapshot.peers.firstOrNull { it.peerId == targetPeerId }
-                else -> snapshot.peers.firstOrNull()
-            } ?: return
-        if (peer.connectionState != PeerConnectionSnapshotState.CONNECTED) return
+        if (!autoSendHello) return
+        when (automationScenario) {
+            SCENARIO_PAUSE_RESUME -> maybeRunPauseResumeThenSend(snapshot)
+            SCENARIO_TRUST_RESET_RECOVERY -> maybeRunTrustResetRecoveryFlow(snapshot)
+            else -> maybeAutoSendHelloDefault(snapshot)
+        }
+    }
+
+    private fun resolveAutoSendPeer(snapshot: ReferenceControllerSnapshot) =
+        when (val targetPeerId = automationTargetPeerId) {
+            null -> snapshot.peers.firstOrNull { it.connectionState == PeerConnectionSnapshotState.CONNECTED }
+            else ->
+                snapshot.peers.firstOrNull {
+                    it.peerId == targetPeerId && it.connectionState == PeerConnectionSnapshotState.CONNECTED
+                }
+        }
+
+    private fun maybeAutoSendHelloDefault(snapshot: ReferenceControllerSnapshot): Unit {
+        if (autoSendTriggered) return
+        val peer = resolveAutoSendPeer(snapshot) ?: return
         autoSendTriggered = true
         emitAutomationLog(
-            "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${targetPeerId ?: "none"}"
+            "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${automationTargetPeerId ?: "none"}"
         )
         sendHelloToPeer(peer.peerId)
+    }
+
+    /**
+     * Drives the `direct-pause-resume` scenario: pauses the mesh, confirms the pause window is
+     * open, resumes it, confirms the window closed, and only then performs the automated send --
+     * matching the "requested/observed/recovered" recovery-window contract the physical harness
+     * analyzer (`analyze_reference_physical_run.py`) requires before it will trust the proof.
+     */
+    private fun maybeRunPauseResumeThenSend(snapshot: ReferenceControllerSnapshot): Unit {
+        if (autoSendTriggered) return
+        val peer = resolveAutoSendPeer(snapshot) ?: return
+        autoSendTriggered = true
+        scope.launch {
+            emitAutomationLog("REFERENCE_AUTOMATION pause.requested role=sender")
+            meshLinkController.pause()
+            emitAutomationLog("REFERENCE_AUTOMATION pause.observed role=sender window=open")
+            delay(PAUSE_RESUME_WINDOW_MILLIS)
+            emitAutomationLog("REFERENCE_AUTOMATION resume.requested role=sender")
+            meshLinkController.resume()
+            emitAutomationLog("REFERENCE_AUTOMATION resume.observed role=sender window=closed")
+            emitAutomationLog("REFERENCE_AUTOMATION pause.recovered role=sender window=closed")
+            // Resuming re-enables the mesh runtime but the underlying BLE link needs time to
+            // reconnect physically before a send is deliverable -- without this settle delay the
+            // send can race the reconnection (mirrors the same race fixed for
+            // direct-trust-reset-recovery's post-forgetPeer send).
+            delay(PAUSE_RESUME_SEND_SETTLE_MILLIS)
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${automationTargetPeerId ?: "none"}"
+            )
+            sendHelloToPeer(peer.peerId)
+        }
+    }
+
+    /**
+     * Drives the `direct-trust-reset-recovery` scenario: sends an initial hello, forgets the peer
+     * (`forgetPeer`, exercising the same end-to-end recovery path the manual "Forget peer" UI
+     * control uses), waits for the peer to be rediscovered/reconnected, then performs a second,
+     * explicitly-marked ("phase=recovery") send. The physical harness requires two sender
+     * deliveries and two passive inbound messages to trust this scenario.
+     */
+    private fun maybeRunTrustResetRecoveryFlow(snapshot: ReferenceControllerSnapshot): Unit {
+        when (trustResetPhase) {
+            TrustResetPhase.NOT_STARTED -> {
+                val peer = resolveAutoSendPeer(snapshot) ?: return
+                trustResetPhase = TrustResetPhase.INITIAL_SEND_IN_FLIGHT
+                scope.launch {
+                    deliverPayload(peerId = peer.peerId, payloadText = "hello mesh from $platformName", phase = "initial")
+                    // Give the initial payload time to actually transmit over the physical BLE
+                    // link before tearing down the peer -- sendPayload() returning only means the
+                    // mesh engine accepted/enqueued the send, not that delivery has completed.
+                    delay(TRUST_RESET_DELIVERY_SETTLE_MILLIS)
+                    emitAutomationLog("REFERENCE_AUTOMATION trust.reset.requested role=sender")
+                    meshLinkController.forgetPeer(peer.peerId)
+                    emitAutomationLog("REFERENCE_AUTOMATION trust.reset.observed role=sender window=open")
+                    trustResetPhase = TrustResetPhase.AWAITING_RECOVERY
+                }
+            }
+            TrustResetPhase.AWAITING_RECOVERY -> {
+                val peer =
+                    snapshot.peers.firstOrNull { it.connectionState == PeerConnectionSnapshotState.CONNECTED }
+                        ?: return
+                trustResetPhase = TrustResetPhase.RECOVERY_SEND_IN_FLIGHT
+                scope.launch {
+                    emitAutomationLog("REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed")
+                    deliverPayload(
+                        peerId = peer.peerId,
+                        payloadText = "hello mesh from $platformName (recovery)",
+                        phase = "recovery",
+                    )
+                    maybeLogSenderCompletion(peer.peerId)
+                }
+            }
+            TrustResetPhase.INITIAL_SEND_IN_FLIGHT,
+            TrustResetPhase.RECOVERY_SEND_IN_FLIGHT -> Unit
+        }
     }
 
     /**
