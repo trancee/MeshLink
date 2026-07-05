@@ -81,32 +81,65 @@ internal class MeshEngineSessionSupport(
         ) {
             is EstablishedSessionWait.Already -> wait.session
             is EstablishedSessionWait.Pending -> {
-                val session =
-                    if (hardRunToken == null) {
-                        withTimeoutOrNull(DEFER_TO_PEER_INITIATOR_WAIT) { wait.deferred.await() }
-                    } else {
-                        when (
-                            val waitResult =
-                                waitWithRuntimeGate(
-                                    runtimeGate = state.runtimeGate,
-                                    hardRunToken = hardRunToken,
-                                    maximumActiveWait = DEFER_TO_PEER_INITIATOR_WAIT,
-                                    awaitChange = { activeWait ->
-                                        withTimeoutOrNull(activeWait) { wait.deferred.await() }
-                                    },
-                                )
-                        ) {
-                            is MeshEngineRuntimeTimedWaitResult.Completed -> waitResult.value
-                            MeshEngineRuntimeTimedWaitResult.TimedOut -> null
-                            MeshEngineRuntimeTimedWaitResult.HardRunEnded ->
-                                if (wait.deferred.isCompleted) wait.deferred.await() else null
-                        }
-                    }
+                val session = awaitResponderSessionAdaptively(peerId, wait.deferred, hardRunToken)
                 if (session == null) {
                     state.sessionRegistry.removeEstablishedSessionWaiter(peerId, wait.deferred)
                 }
                 session
             }
+        }
+    }
+
+    /**
+     * Waits for [deferred] (the deferring side's established-session waiter, see
+     * [awaitEstablishedSessionAsResponder]) in two phases: a short fixed
+     * [DEFER_TO_PEER_INITIATOR_FAST_WAIT] window first, then -- only if a responder handshake for
+     * [peerId] is actually known to be in flight by that point -- an extended wait up to
+     * [DEFER_TO_PEER_INITIATOR_WAIT] total. This keeps the common case (a peer that never
+     * proactively initiates on its own, so nothing will ever complete this waiter) falling back to
+     * self-initiating quickly, while still giving a genuinely in-flight responder handshake
+     * (message1 already received, message2/message3 still pending) realistic headroom to finish
+     * before we race a redundant, competing initiator handshake of our own.
+     */
+    private suspend fun awaitResponderSessionAdaptively(
+        peerId: PeerId,
+        deferred: CompletableDeferred<HopSession>,
+        hardRunToken: MeshEngineHardRunToken?,
+    ): HopSession? {
+        awaitDeferredWithTimeout(deferred, DEFER_TO_PEER_INITIATOR_FAST_WAIT, hardRunToken)?.let {
+            return it
+        }
+        if (deferred.isCompleted) {
+            return deferred.await()
+        }
+        if (state.sessionRegistry.pendingResponderHandshake(peerId) == null) {
+            return null
+        }
+        val remainingWait = DEFER_TO_PEER_INITIATOR_WAIT - DEFER_TO_PEER_INITIATOR_FAST_WAIT
+        return awaitDeferredWithTimeout(deferred, remainingWait, hardRunToken)
+    }
+
+    private suspend fun awaitDeferredWithTimeout(
+        deferred: CompletableDeferred<HopSession>,
+        timeout: Duration,
+        hardRunToken: MeshEngineHardRunToken?,
+    ): HopSession? {
+        if (hardRunToken == null) {
+            return withTimeoutOrNull(timeout) { deferred.await() }
+        }
+        return when (
+            val waitResult =
+                waitWithRuntimeGate(
+                    runtimeGate = state.runtimeGate,
+                    hardRunToken = hardRunToken,
+                    maximumActiveWait = timeout,
+                    awaitChange = { activeWait -> withTimeoutOrNull(activeWait) { deferred.await() } },
+                )
+        ) {
+            is MeshEngineRuntimeTimedWaitResult.Completed -> waitResult.value
+            MeshEngineRuntimeTimedWaitResult.TimedOut -> null
+            MeshEngineRuntimeTimedWaitResult.HardRunEnded ->
+                if (deferred.isCompleted) deferred.await() else null
         }
     }
 
@@ -410,13 +443,34 @@ private val HANDSHAKE_TIMEOUT = 6.seconds
 private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds
 
 /**
- * How long the deferring side of a peer pair (see [shouldInitiateHandshakeTowards]) waits for the
- * peer's own handshake to complete as responder before falling back to initiating itself. Kept
- * short relative to [HANDSHAKE_TIMEOUT] -- long enough to catch a handshake that's genuinely
- * already in flight, but short enough that a peer that never initiates on its own (for example
- * because it has nothing to proactively prewarm) doesn't stall an otherwise-healthy send.
+ * How long the deferring side of a peer pair (see [shouldInitiateHandshakeTowards]) waits, in the
+ * fast phase (see [MeshEngineSessionSupport.awaitResponderSessionAdaptively]), before checking
+ * whether a responder handshake is actually in flight. Kept short so a peer that never
+ * proactively initiates on its own (nothing will ever complete the waiter) falls back to
+ * self-initiating quickly rather than always paying the full [DEFER_TO_PEER_INITIATOR_WAIT].
  */
-private val DEFER_TO_PEER_INITIATOR_WAIT = 250.milliseconds
+private val DEFER_TO_PEER_INITIATOR_FAST_WAIT = 250.milliseconds
+
+/**
+ * Total ceiling on how long the deferring side of a peer pair (see
+ * [shouldInitiateHandshakeTowards]) waits for the peer's own handshake to complete as responder
+ * before falling back to initiating itself -- but only once a responder handshake for that peer
+ * is confirmed to actually be in flight (see [MeshEngineSessionSupport.awaitResponderSessionAdaptively]).
+ *
+ * Widened from 250ms -> 5s: on physical BLE hardware a full Noise-XX handshake as responder
+ * (message1 receipt -> message2 send -> message3 receipt, including GATT side-link setup) has
+ * been observed to take ~2s end to end. The previous flat 250ms window was far shorter than that,
+ * so the deferring side reliably gave up before an in-flight handshake it was waiting on had a
+ * chance to finish, and initiated a redundant, competing handshake of its own -- producing a
+ * stray `HOP_SESSION_FAILED` (message2.unexpected, then transport.handshake.timeout) even though
+ * the original handshake succeeded and the session/route were already healthy. 5s gives a
+ * genuinely in-flight responder handshake realistic headroom to complete, while staying below
+ * [HANDSHAKE_TIMEOUT] so a peer whose responder handshake stalls still falls back to initiating
+ * with time left to retry before the caller gives up entirely. The adaptive fast-phase check
+ * above ensures this longer ceiling is only ever paid when there's actually something in flight
+ * to wait for.
+ */
+private val DEFER_TO_PEER_INITIATOR_WAIT = 5.seconds
 
 /**
  * Total handshake attempts made by [MeshEngineSessionSupport.ensureHopSession], including the
