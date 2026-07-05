@@ -29,7 +29,10 @@ internal class MeshEngineInitiatorHandshakeSupport(
                     peerId,
                     "transport.handshake.message2.duplicateInFlightIgnored",
                     DiagnosticReason.DELIVERY_FAILURE,
-                    mapOf("payloadBytes" to payload.size.toString()),
+                    mapOf(
+                        "payloadBytes" to payload.size.toString(),
+                        "attemptId" to pending.attemptId.toString(),
+                    ),
                 )
                 return
             }
@@ -132,7 +135,11 @@ internal class MeshEngineInitiatorHandshakeSupport(
                             outcome = SessionEstablishmentOutcome.Unreachable,
                             stage = "transport.handshake.message2.process",
                             reason = DiagnosticReason.DELIVERY_FAILURE,
-                            metadata = mapOf("cause" to exception::class.simpleName.orEmpty()),
+                            metadata =
+                                mapOf(
+                                    "cause" to exception::class.simpleName.orEmpty(),
+                                    "attemptId" to pending.attemptId.toString(),
+                                ),
                         ),
                 )
                 null

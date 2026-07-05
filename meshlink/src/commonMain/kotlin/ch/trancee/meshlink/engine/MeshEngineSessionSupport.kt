@@ -163,13 +163,14 @@ internal class MeshEngineSessionSupport(
     }
 
     private suspend fun reserveInitiatorHandshake(peerId: PeerId): InitiatorHandshakeReservation {
-        return state.sessionRegistry.initiatorHandshakeReservation(peerId) {
+        return state.sessionRegistry.initiatorHandshakeReservation(peerId) { attemptId ->
             val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
             val message1 = manager.createMessage1(meshDomainHash = localIdentity.meshDomainHash)
             val pendingHandshake =
                 PendingInitiatorHandshake(
                     manager = manager,
                     sessionDeferred = CompletableDeferred(),
+                    attemptId = attemptId,
                 )
             CreatedInitiatorHandshake(pendingHandshake = pendingHandshake, message1 = message1)
         } ?: error("Initiator reservation must create or reuse a session state")
@@ -332,7 +333,11 @@ internal class MeshEngineSessionSupport(
                 peerId,
                 stage,
                 DiagnosticReason.DELIVERY_FAILURE,
-                mapOf("peerId" to peerId.value, "pendingHandshake" to "initiator"),
+                mapOf(
+                    "peerId" to peerId.value,
+                    "pendingHandshake" to "initiator",
+                    "attemptId" to pendingHandshake.attemptId.toString(),
+                ),
             )
         }
         return pendingHandshake.sessionDeferred.completedOutcomeOr(

@@ -62,10 +62,14 @@ internal class MeshEngineSessionRegistry {
     private val establishedSessionWaiters:
         MutableMap<String, MutableList<CompletableDeferred<HopSession>>> =
         linkedMapOf()
+    // Monotonically increasing counter handed out to each newly-created PendingInitiatorHandshake
+    // (see PendingInitiatorHandshake.attemptId) -- temporary diagnostic aid for correlating
+    // transport.handshake.message2.* diagnostics with the specific attempt they belong to.
+    private var nextInitiatorAttemptId: Long = 0L
 
     suspend fun initiatorHandshakeReservation(
         peerId: PeerId,
-        createHandshake: (() -> CreatedInitiatorHandshake)? = null,
+        createHandshake: ((Long) -> CreatedInitiatorHandshake)? = null,
     ): InitiatorHandshakeReservation? {
         return sessionMutex.withLock {
             hopSessions[peerId.value]?.let { existingSession ->
@@ -78,7 +82,8 @@ internal class MeshEngineSessionRegistry {
                 return@withLock null
             }
 
-            val createdHandshake = createHandshake()
+            nextInitiatorAttemptId += 1
+            val createdHandshake = createHandshake(nextInitiatorAttemptId)
             pendingInitiatorHandshakes[peerId.value] = createdHandshake.pendingHandshake
             InitiatorHandshakeReservation.Created(
                 pendingHandshake = createdHandshake.pendingHandshake,
