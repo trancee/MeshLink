@@ -52,7 +52,8 @@ authoritative source and takes precedence if anything here seems to conflict.
 - Keep the public API (`MeshLink`) identical in shape across targets;
   platform differences stay behind `expect`/`actual`.
 - Configure only through the shared `meshLinkConfig` DSL.
-- Use one shared diagnostic event catalog (26 codes) across platforms.
+- Use one shared diagnostic event catalog (`DiagnosticCode`, currently 29
+  codes) across platforms.
 - Wrap platform exceptions in `commonMain` sealed hierarchies — never leak
   them to consumers.
 - State transitions and their event sequences must be identical on every
@@ -89,7 +90,9 @@ authoritative source and takes precedence if anything here seems to conflict.
 - Shared logic lives in `commonMain`; platform source sets hold only
   `actual` implementations and glue.
 - Zero internet dependency — no feature may require a server.
-- Minimum platforms: Android API 29, iOS 15 (guard higher-only APIs).
+- Minimum platforms: Android API 26, iOS 14 (guard higher-only APIs). See
+  `docs/reference/device-test-matrix.md` and `docs/reference/release-status.md`
+  for the current, verified floor.
 - All shipped crypto goes through `CryptoProvider`, validated against
   Wycheproof — no external crypto library in the released artifact.
 - FlatBuffers wire formats stay backward compatible; breaking changes need
