@@ -51,6 +51,14 @@ internal constructor(
 internal class GattSideLinkCoordinator(
     private val dependencies: GattSideLinkCoordinatorDependencies
 ) {
+    // clientsByHint and pendingLostSignals are mutated from two distinct execution contexts that
+    // are not confined to a single thread: handleDisconnected() is invoked synchronously from the
+    // BluetoothGattCallback delivered on whatever thread Android's Binder/GATT stack chooses,
+    // while every other method here runs on dependencies.scope (a shared Dispatchers.IO pool).
+    // Without a lock, a disconnect callback racing with e.g. an in-flight ensureStarted()/restart()
+    // for the same peer could corrupt these plain HashMaps or lose an update. All read-modify-write
+    // access to either map must go through stateLock.
+    private val stateLock = Any()
     private val clientsByHint: MutableMap<String, GattSideLinkClient> = linkedMapOf()
     private val pendingLostSignals: MutableMap<String, Job> = mutableMapOf()
 
@@ -63,7 +71,7 @@ internal class GattSideLinkCoordinator(
         // debounce for it is now moot -- cancel it so a stale "actually lost" signal can't fire
         // later even though the link has since recovered.
         cancelPendingLostSignal(peer.hintPeerId.value)
-        val existingClient = clientsByHint[peer.hintPeerId.value]
+        val existingClient = synchronized(stateLock) { clientsByHint[peer.hintPeerId.value] }
         if (existingClient != null) {
             if (!existingClient.isReady()) {
                 dependencies.log(
@@ -85,7 +93,22 @@ internal class GattSideLinkCoordinator(
                 dependencies.onFrameReceived,
                 ::handleDisconnected,
             )
-        clientsByHint[peer.hintPeerId.value] = client
+        // Re-check under the lock: a disconnect callback (or a concurrent ensureStarted() call for
+        // the same peer) may have raced us between the read above and this insert. If someone else
+        // already installed a client for this peer while we were constructing ours, discard the
+        // duplicate instead of leaking a second GATT connection.
+        val previous =
+            synchronized(stateLock) {
+                val current = clientsByHint[peer.hintPeerId.value]
+                if (current == null) {
+                    clientsByHint[peer.hintPeerId.value] = client
+                }
+                current
+            }
+        if (previous != null) {
+            client.close()
+            return
+        }
         dependencies.log(
             "initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)} local=$localPlatformFamily remote=${peer.platformFamily}"
         )
@@ -97,45 +120,58 @@ internal class GattSideLinkCoordinator(
         localPlatformFamily: BleDiscoveryPlatformFamily,
         reason: String,
     ): Unit {
-        clientsByHint.remove(peer.hintPeerId.value)?.let { existingClient ->
-            dependencies.log(
-                "restarting GATT notify side link for ${peer.hintPeerId.value.takeLast(6)}: $reason"
-            )
-            existingClient.close()
-        }
+        synchronized(stateLock) { clientsByHint.remove(peer.hintPeerId.value) }
+            ?.let { existingClient ->
+                dependencies.log(
+                    "restarting GATT notify side link for ${peer.hintPeerId.value.takeLast(6)}: $reason"
+                )
+                existingClient.close()
+            }
         ensureStarted(peer = peer, localPlatformFamily = localPlatformFamily)
     }
 
     internal fun currentClient(hintPeerIdValue: String): PreferredGattSendClient? {
-        return clientsByHint[hintPeerIdValue]
+        return synchronized(stateLock) { clientsByHint[hintPeerIdValue] }
     }
 
     internal fun promoteHint(
         temporaryHintPeerIdValue: String,
         canonicalHintPeerIdValue: String,
     ): Unit {
-        clientsByHint.remove(temporaryHintPeerIdValue)?.let { client ->
-            if (!clientsByHint.containsKey(canonicalHintPeerIdValue)) {
-                clientsByHint[canonicalHintPeerIdValue] = client
-            } else {
-                client.close()
+        val clientToClose =
+            synchronized(stateLock) {
+                clientsByHint.remove(temporaryHintPeerIdValue)?.let { client ->
+                    if (!clientsByHint.containsKey(canonicalHintPeerIdValue)) {
+                        clientsByHint[canonicalHintPeerIdValue] = client
+                        null
+                    } else {
+                        client
+                    }
+                }
             }
-        }
+        clientToClose?.close()
     }
 
     internal fun hasReadyLink(hintPeerIdValue: String): Boolean {
-        return clientsByHint[hintPeerIdValue]?.isReady() == true
+        return synchronized(stateLock) { clientsByHint[hintPeerIdValue] }?.isReady() == true
     }
 
     internal fun stopAll(): Unit {
-        pendingLostSignals.values.forEach(Job::cancel)
-        pendingLostSignals.clear()
-        clientsByHint.values.forEach(GattSideLinkClient::close)
-        clientsByHint.clear()
+        val (jobs, clients) =
+            synchronized(stateLock) {
+                val jobs = pendingLostSignals.values.toList()
+                pendingLostSignals.clear()
+                val clients = clientsByHint.values.toList()
+                clientsByHint.clear()
+                jobs to clients
+            }
+        jobs.forEach(Job::cancel)
+        clients.forEach(GattSideLinkClient::close)
     }
 
     internal fun handleDisconnected(peerHintId: PeerId): Unit {
-        val removedClient = clientsByHint.remove(peerHintId.value) ?: return
+        val removedClient =
+            synchronized(stateLock) { clientsByHint.remove(peerHintId.value) } ?: return
         dependencies.log("removed GATT notify side link for ${peerHintId.value.takeLast(6)}")
         if (dependencies.hasActiveL2capLink(peerHintId.value)) {
             return
@@ -145,15 +181,15 @@ internal class GattSideLinkCoordinator(
     }
 
     private fun cancelPendingLostSignal(hintPeerIdValue: String): Unit {
-        pendingLostSignals.remove(hintPeerIdValue)?.cancel()
+        synchronized(stateLock) { pendingLostSignals.remove(hintPeerIdValue) }?.cancel()
     }
 
     private fun scheduleLostSignal(peerHintId: PeerId): Unit {
         cancelPendingLostSignal(peerHintId.value)
-        pendingLostSignals[peerHintId.value] =
+        val job =
             dependencies.scope.launch {
                 delay(dependencies.peerLostDebounceMillis)
-                pendingLostSignals.remove(peerHintId.value)
+                synchronized(stateLock) { pendingLostSignals.remove(peerHintId.value) }
                 dependencies.log(
                     "GATT side-link for ${peerHintId.value.takeLast(6)} did not recover within " +
                         "${dependencies.peerLostDebounceMillis}ms debounce window -- reporting PeerLost"
@@ -161,6 +197,7 @@ internal class GattSideLinkCoordinator(
                 dependencies.setPresenceAnnounced(peerHintId.value, false)
                 dependencies.onPeerLost(peerHintId)
             }
+        synchronized(stateLock) { pendingLostSignals[peerHintId.value] = job }
     }
 }
 
