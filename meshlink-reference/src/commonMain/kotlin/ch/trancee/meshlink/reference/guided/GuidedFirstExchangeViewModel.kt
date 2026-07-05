@@ -66,6 +66,11 @@ internal class GuidedFirstExchangeViewModel(
     public val uiState: StateFlow<GuidedFirstExchangeUiState> = stateStore.uiState
 
     init {
+        if (automationMode != null && automationRole != null) {
+            emitAutomationLog(
+                "REFERENCE_AUTOMATION started mode=$automationMode role=$automationRole scenario=${automationScenario ?: "none"}"
+            )
+        }
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.init mode=${automationMode ?: "none"} role=${automationRole ?: "none"} scenario=${automationScenario ?: "none"} autoStartMesh=$autoStartMesh autoSendHello=$autoSendHello targetPeerId=${automationTargetPeerId ?: "none"}"
         )

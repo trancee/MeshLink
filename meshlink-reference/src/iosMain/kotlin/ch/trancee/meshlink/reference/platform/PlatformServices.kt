@@ -1,6 +1,5 @@
 package ch.trancee.meshlink.reference.platform
 
-import ch.trancee.meshlink.reference.meshlink.ScriptedReferenceMeshLinkController
 import ch.trancee.meshlink.reference.model.REFERENCE_AUTHORITY_MODE_LIVE
 import ch.trancee.meshlink.reference.session.OkioReferenceDocumentStore
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -11,13 +10,13 @@ import platform.Foundation.NSUserDomainMask
 import platform.posix.time
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun createPlatformServices(): DefaultPlatformServices {
-    return createPlatformServices(resolveDocumentsDirectory())
-}
-
-@OptIn(ExperimentalForeignApi::class)
-internal fun createPlatformServices(documentsDirectory: String): DefaultPlatformServices {
+public fun createPlatformServices(
+    appId: String = "demo.meshlink.reference.ios",
+    targetPeerId: String? = null,
+    storageSubdirectory: String = "default",
+): DefaultPlatformServices {
     val clock = { (time(null) * 1000.0).toLong() }
+    val documentsDirectory = "${resolveDocumentsDirectory()}/live-automation/$storageSubdirectory"
     return DefaultPlatformServices(
         platformName = "iOS",
         defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
@@ -25,16 +24,10 @@ internal fun createPlatformServices(documentsDirectory: String): DefaultPlatform
         options =
             DefaultPlatformServicesOptions().apply {
                 nowProvider = clock
-                appId = "demo.meshlink.reference.ios"
+                this.appId = appId
+                automationTargetPeerId = targetPeerId
+                automationLogger = { message -> println(message) }
                 documentStore = OkioReferenceDocumentStore(documentsDirectory, FileSystem.SYSTEM)
-                meshLinkControllerFactory = { surfaceOfOrigin ->
-                    ScriptedReferenceMeshLinkController(
-                        platformName = "iOS",
-                        authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-                        nowProvider = clock,
-                        surfaceOfOrigin = surfaceOfOrigin,
-                    )
-                }
             },
     )
 }
