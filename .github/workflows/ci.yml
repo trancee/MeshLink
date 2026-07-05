@@ -2,7 +2,17 @@ name: ci
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'specs/**'
+      - '.gsd/**'
   push:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'specs/**'
+      - '.gsd/**'
   workflow_dispatch:
 
 permissions:
@@ -33,24 +43,18 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install yamllint
-        run: python3 -m pip install --upgrade pip yamllint
-
-      - name: Validate workflow YAML
-        run: yamllint -c .yamllint.yml .github/workflows/*.yml
-
       - name: Verify MeshLink SDK on Linux
         run: |
           # The hosted Linux runners still expose tight CPU budgets for this suite.
           # Keep verification single-worker so the routing and transfer integration
           # tests do not starve while JVM and Android host tasks execute.
+          # Markdown link and generated-API-reference checks live in docs.yml.
           ./gradlew \
             :meshlink:jvmTest \
             :meshlink:testAndroidHostTest \
             :meshlink:detekt \
             :meshlink:apiCheck \
             :meshlink:koverVerify \
-            verifyDocs \
             checkAgp9Invariants \
             --max-workers=1 \
             --console=plain

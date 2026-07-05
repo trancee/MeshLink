@@ -1,0 +1,39 @@
+name: docs
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.x'
+
+      - name: Install yamllint
+        run: python3 -m pip install --upgrade pip yamllint
+
+      - name: Validate workflow YAML
+        run: yamllint -c .yamllint.yml .github/workflows/*.yml
+
+      - name: Verify markdown links
+        run: python3 scripts/check_markdown_links.py
+
+      - name: Verify generated public API reference
+        run: python3 scripts/check_generated_public_api_reference.py
