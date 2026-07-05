@@ -76,9 +76,10 @@ Android and iOS.
 - Configuration MUST use one cross-platform DSL builder, currently
   `meshLinkConfig`. Platform-specific inputs MUST be injected through
   factory functions, not DSL branches.
-- Diagnostic events MUST use one shared cross-platform catalog of 26
-  codes with identical severity tiers and payload shapes on all
-  platforms. Platform-only codes require constitutional amendment.
+- Diagnostic events MUST use one shared cross-platform catalog, currently
+  `DiagnosticCode` with 29 codes, with identical severity tiers and payload
+  shapes on all platforms. Platform-only codes require constitutional
+  amendment.
 - Error reporting MUST use sealed exception hierarchies defined in
   `commonMain`. Platform exceptions MUST be wrapped and MUST NOT leak to
   consumers.
@@ -203,7 +204,7 @@ All features and changes MUST respect these non-negotiable boundaries.
   implementations and platform glue.
 - The library MUST function with zero internet connectivity. No feature
   may introduce a server-side requirement.
-- Minimum supported platform versions are Android API 29 and iOS 15.
+- Minimum supported platform versions are Android API 26 and iOS 14.
   APIs exclusive to higher versions MUST use runtime guards.
 - All shipped cryptographic operations MUST use the project's own
   provider abstraction, currently `CryptoProvider`, validated against
@@ -241,4 +242,4 @@ development.
 - Day-to-day conventions that do not rise to constitutional level MUST
   live in `docs/` or other project documentation.
 
-**Version**: 1.2.0 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-05-25
+**Version**: 1.2.1 | **Ratified**: 2026-04-30 | **Last Amended**: 2026-07-05
