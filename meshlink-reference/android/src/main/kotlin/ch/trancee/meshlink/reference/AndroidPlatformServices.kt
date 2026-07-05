@@ -28,6 +28,7 @@ import ch.trancee.meshlink.reference.model.ReferenceSession
 import ch.trancee.meshlink.reference.model.TimelineEntry
 import ch.trancee.meshlink.reference.model.TimelineFamily
 import ch.trancee.meshlink.reference.model.TimelineSeverity
+import ch.trancee.meshlink.reference.session.createFileDocumentStore
 import ch.trancee.meshlink.reference.platform.PlatformServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +59,7 @@ internal fun createPlatformServices(
     context: Context,
     appId: String,
     targetPeerId: String? = null,
+    storageSubdirectory: String = "default",
 ): AndroidPlatformServices {
     Log.i("MeshLinkReferenceAutomation", "REFERENCE_AUTOMATION android.factory.begin scripted")
     val meshHash = computeAppMeshHash(appId)
@@ -81,8 +83,13 @@ internal fun createPlatformServices(
                 context = context,
                 appId = appId,
                 targetPeerId = targetPeerId,
+                storageSubdirectory = storageSubdirectory,
             )
         },
+        documentStore =
+            createFileDocumentStore(
+                "${context.applicationContext.filesDir.absolutePath}/live-automation/$storageSubdirectory"
+            ),
     )
 }
 
@@ -90,6 +97,7 @@ private fun createDirectGuidedMeshLinkController(
     context: Context,
     appId: String,
     targetPeerId: String?,
+    storageSubdirectory: String,
 ): ReferenceMeshLinkController {
     Log.i(
         AUTOMATION_LOG_TAG,
@@ -99,7 +107,7 @@ private fun createDirectGuidedMeshLinkController(
             append(" scenario=")
             append("direct-guided")
             append(" storage=")
-            append("default")
+            append(storageSubdirectory)
         },
     )
     Log.i(
@@ -117,7 +125,7 @@ private fun createDirectGuidedMeshLinkController(
                 appId = appId,
                 authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                 scenarioId = "direct-guided",
-                storageSubdirectory = "default",
+                storageSubdirectory = storageSubdirectory,
                 androidContext = context.applicationContext,
                 currentTimeMillis = { System.currentTimeMillis() },
                 targetPeerId = targetPeerId,
@@ -131,7 +139,7 @@ private fun createDirectGuidedMeshLinkController(
             append(" scenario=")
             append("direct-guided")
             append(" storage=")
-            append("default")
+            append(storageSubdirectory)
         },
     )
     return controller
