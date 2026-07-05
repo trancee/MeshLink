@@ -57,11 +57,20 @@ public constructor(
     public val verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
 )
 
-/** Groups the iOS-native ChaCha20-Poly1305 callbacks required by MeshLink. */
+/**
+ * Groups the iOS-native ChaCha20-Poly1305 callbacks required by MeshLink.
+ *
+ * [open] returns `null` -- rather than throwing -- when authentication fails, since a failed
+ * AEAD open is an expected outcome (for example a redundant/duplicate delivery of an
+ * already-processed ciphertext) that MeshLink's engine already handles gracefully. Native
+ * Objective-C/Swift exceptions such as `fatalError` cannot cross the Kotlin/Native boundary as a
+ * catchable Kotlin exception, so signaling failure via `null` keeps that recoverable path from
+ * crashing the whole process.
+ */
 public class ChaCha20Poly1305Callbacks
 public constructor(
     public val seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
-    public val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+    public val open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray?,
 )
 
 /**
@@ -89,7 +98,7 @@ public constructor(
     internal val ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean = ed25519.verify
     internal val chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
         chacha20Poly1305.seal
-    internal val chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray =
+    internal val chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray? =
         chacha20Poly1305.open
 }
 
@@ -122,7 +131,7 @@ public object CryptoBridge {
         ed25519Sign: (ByteArray, ByteArray) -> ByteArray,
         ed25519Verify: (ByteArray, ByteArray, ByteArray) -> Boolean,
         chacha20Poly1305Seal: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
-        chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray,
+        chacha20Poly1305Open: (ByteArray, ByteArray, ByteArray, ByteArray) -> ByteArray?,
     ): Unit {
         install(
             callbacks =

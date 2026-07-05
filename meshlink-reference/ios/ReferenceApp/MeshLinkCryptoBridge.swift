@@ -79,11 +79,16 @@ enum MeshLinkReferenceCryptoBridge {
                 }
             },
             chacha20Poly1305Open: { keyBytes, nonceBytes, aadBytes, ciphertextAndTag in
+                // A failed open is an expected outcome MeshLink's engine already handles
+                // gracefully (for example a redundant/duplicate delivery of an
+                // already-processed ciphertext seen on physical hardware). Returning nil lets
+                // that recoverable path surface as a catchable Kotlin exception instead of
+                // crashing the whole process via fatalError.
                 do {
                     let ciphertextData = ciphertextAndTag.toData()
                     let tagSize = 16
                     guard ciphertextData.count >= tagSize else {
-                        fatalError("MeshLinkReferenceCryptoBridge ChaCha20-Poly1305 ciphertext is shorter than the authentication tag")
+                        return nil
                     }
                     let key = SymmetricKey(data: keyBytes.toData())
                     let nonce = try ChaChaPoly.Nonce(data: nonceBytes.toData())
@@ -101,7 +106,7 @@ enum MeshLinkReferenceCryptoBridge {
                     )
                     return plaintext.toKotlinByteArray()
                 } catch {
-                    fatalError("MeshLinkReferenceCryptoBridge ChaCha20-Poly1305 open failed: \(error)")
+                    return nil
                 }
             }
         )
