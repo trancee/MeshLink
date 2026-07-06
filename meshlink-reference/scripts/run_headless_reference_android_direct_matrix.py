@@ -18,7 +18,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from run_headless_reference_live_proof import shell_join, timestamp
+from run_headless_reference_live_proof import force_stop_reference_app, shell_join, timestamp
 
 
 def mermaid_text(value: Any, *, max_len: int = 120) -> str:
@@ -310,6 +310,19 @@ def run_pair(
     try:
         completed = subprocess.run(command, capture_output=True, text=True, timeout=pair_timeout_seconds)
     except subprocess.TimeoutExpired as error:
+        # subprocess.run() kills the child on timeout (SIGKILL), so the proof script's own
+        # `finally`-guarded cleanup (which force-stops the reference app on both roles) never
+        # gets to run. Without this, a single timed-out pair leaves the app running on one or
+        # both phones, contaminating the next pair's run with a stale MeshLink session. Force-stop
+        # failures are swallowed here so they never mask the real timeout result below.
+        for serial in (sender, passive):
+            try:
+                force_stop_reference_app(serial)
+            except Exception as cleanup_error:
+                print(
+                    f"==> Force-stop after timeout failed for {serial}: {cleanup_error}",
+                    flush=True,
+                )
         elapsed = round(time.monotonic() - started_at, 1)
         stdout_value = getattr(error, "stdout", None) or getattr(error, "output", None) or ""
         stderr_value = getattr(error, "stderr", None) or ""
