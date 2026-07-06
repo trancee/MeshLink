@@ -44,6 +44,7 @@ class WireEnvelopeContractTest {
             listOf<WireFrame>(
                 WireFrame.Hello(peerId = PeerId("hello-peer-001"), helloIntervalMillis = 2_000),
                 WireFrame.LinkIdentity(peerId = PeerId("link-identity-peer-001")),
+                WireFrame.KeepAlive(),
                 WireFrame.Ihu(peerId = PeerId("ihu-peer-001"), receiveCost = 96),
                 WireFrame.RouteUpdate(
                     destinationPeerId = PeerId("destination-peer-002"),
@@ -482,6 +483,10 @@ class WireEnvelopeContractTest {
                 assertEquals(expected.originPeerId.value, decoded.originPeerId.value)
                 assertEquals(expected.destinationPeerId.value, decoded.destinationPeerId.value)
                 assertContentEquals(expected.payload, decoded.payload)
+            }
+
+            is WireFrame.KeepAlive -> {
+                assertTrue(actual is WireFrame.KeepAlive)
             }
         }
     }

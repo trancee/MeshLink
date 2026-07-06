@@ -11,6 +11,15 @@ internal sealed class WireFrame {
 
     internal class LinkIdentity internal constructor(public val peerId: PeerId) : WireFrame()
 
+    /**
+     * Idle-link keepalive: an empty control frame a transport periodically writes on an otherwise
+     * quiet L2CAP link so the OS-level channel never sits long enough idle to trigger a
+     * platform-side inactivity close (observed as a chronic connect/EOF/reconnect churn on real
+     * devices). It carries no application data and is consumed at the transport layer; it must
+     * never be forwarded to [ch.trancee.meshlink.transport.TransportEvent.FrameReceived].
+     */
+    internal class KeepAlive internal constructor() : WireFrame()
+
     internal class Ihu
     internal constructor(public val peerId: PeerId, public val receiveCost: Int) : WireFrame()
 
@@ -199,6 +208,7 @@ internal object WireCodec {
         return when (type) {
             WireEnvelopeType.MESSAGE -> MessagePayloadCodec.decode(table)
             WireEnvelopeType.LINK_IDENTITY -> LinkIdentityPayloadCodec.decode(table)
+            WireEnvelopeType.LINK_KEEPALIVE -> WireFrame.KeepAlive()
             WireEnvelopeType.HELLO,
             WireEnvelopeType.IHU,
             WireEnvelopeType.ROUTE_UPDATE,
@@ -221,6 +231,7 @@ internal object WireCodec {
         return when (frame) {
             is WireFrame.Message -> MessagePayloadCodec.encode(frame)
             is WireFrame.LinkIdentity -> LinkIdentityPayloadCodec.encode(frame)
+            is WireFrame.KeepAlive -> FlatBufferTableBuilder(fieldCount = 0).finish()
             is WireFrame.Hello,
             is WireFrame.Ihu,
             is WireFrame.RouteUpdate,
@@ -242,6 +253,7 @@ internal object WireCodec {
         return when (frame) {
             is WireFrame.Hello -> WireEnvelopeType.HELLO
             is WireFrame.LinkIdentity -> WireEnvelopeType.LINK_IDENTITY
+            is WireFrame.KeepAlive -> WireEnvelopeType.LINK_KEEPALIVE
             is WireFrame.Ihu -> WireEnvelopeType.IHU
             is WireFrame.RouteUpdate -> WireEnvelopeType.ROUTE_UPDATE
             is WireFrame.RouteRetraction -> WireEnvelopeType.ROUTE_RETRACTION

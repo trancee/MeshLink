@@ -160,6 +160,11 @@ internal class MeshEngineInboundSupport(
             // Platform transports must consume cleartext LinkIdentity frames before they ever reach
             // the encrypted direct-frame pipeline. If one shows up here, the transport leaked a
             // local BLE-correlation hint into the hop-session dispatch path.
+            is WireFrame.KeepAlive -> Unit
+            // Platform transports must consume idle-link keepalive frames at the raw transport
+            // layer before they ever reach the encrypted direct-frame pipeline. If one shows up
+            // here, the transport leaked a link-level control frame into the hop-session dispatch
+            // path.
             is WireFrame.Ihu -> Unit
             is WireFrame.SeqNoRequest -> Unit
             is WireFrame.TransferStart -> transferCallbacks.handleTransferStart(peerId, frame)

@@ -6,6 +6,7 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
+import ch.trancee.meshlink.transport.L2CAP_KEEPALIVE_INTERVAL_MILLIS
 import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
 import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
 import ch.trancee.meshlink.transport.TransportEvent
@@ -14,8 +15,12 @@ import ch.trancee.meshlink.transport.evaluateRediscoveryWithoutLink
 import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
 import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
+import ch.trancee.meshlink.wire.WireCodec
+import ch.trancee.meshlink.wire.WireFrame
+import ch.trancee.meshlink.wire.decodeIsKeepAlive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import platform.CoreBluetooth.CBCentral
 import platform.CoreBluetooth.CBL2CAPChannel
@@ -67,6 +72,7 @@ internal fun BleTransportAdapter.registerConnectedChannel(
     log("registered L2CAP link for ${hintPeerId.logSuffix()} id=$peripheralIdentifier")
     startConnectedChannelWriteLoop(link)
     startConnectedChannelReadLoop(link)
+    startConnectedChannelHeartbeatLoop(link)
 }
 
 internal fun BleTransportAdapter.createConnectedChannelLink(
@@ -119,6 +125,9 @@ internal fun BleTransportAdapter.startConnectedChannelReadLoop(link: L2capLink):
     link.readLoopJob = coroutineScope.launch {
         try {
             link.runReadLoop { payload ->
+                if (decodeIsKeepAlive(payload)) {
+                    return@runReadLoop
+                }
                 mutableEvents.emit(
                     TransportEvent.FrameReceived(peerId = link.hintPeerId, payload = payload)
                 )
@@ -131,6 +140,25 @@ internal fun BleTransportAdapter.startConnectedChannelReadLoop(link: L2capLink):
             )
         } finally {
             closeLink(hintPeer = link.hintPeerId.value, reason = "channel closed")
+        }
+    }
+}
+
+/**
+ * Periodically enqueues an empty [WireFrame.KeepAlive] control frame on an otherwise idle L2CAP
+ * link so the peer's platform BLE stack does not tear the channel down for inactivity (see
+ * [L2CAP_KEEPALIVE_INTERVAL_MILLIS] for the rationale). The frame is consumed at the transport
+ * layer by the read loop above and never surfaces as a [TransportEvent.FrameReceived].
+ */
+internal fun BleTransportAdapter.startConnectedChannelHeartbeatLoop(link: L2capLink): Unit {
+    link.heartbeatJob = coroutineScope.launch {
+        val keepAliveFrame = WireCodec.encode(WireFrame.KeepAlive())
+        while (true) {
+            delay(L2CAP_KEEPALIVE_INTERVAL_MILLIS)
+            if (!link.enqueue(keepAliveFrame)) {
+                closeLink(hintPeer = link.hintPeerId.value, reason = "keepalive enqueue failed")
+                return@launch
+            }
         }
     }
 }
@@ -215,6 +243,7 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
     )
     link.readLoopJob?.cancel()
     link.writeLoopJob?.cancel()
+    link.heartbeatJob?.cancel()
     link.close()
     if (hasActiveGattNotifyLink(hintPeer)) {
         reportLog(
@@ -300,6 +329,7 @@ internal class L2capLink(
         )
     var readLoopJob: Job? = null
     var writeLoopJob: Job? = null
+    var heartbeatJob: Job? = null
 
     suspend fun runReadLoop(onFrameReceived: suspend (ByteArray) -> Unit): Unit {
         readPump.runLoop(onFrameReceived)

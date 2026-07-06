@@ -92,7 +92,8 @@ class MeshEngineLargeTransferProgressSupportTest {
                             is WireFrame.RouteDigest,
                             is WireFrame.EndToEndHandshakeMessage1,
                             is WireFrame.EndToEndHandshakeMessage2,
-                            is WireFrame.EndToEndHandshakeMessage3 -> true
+                            is WireFrame.EndToEndHandshakeMessage3,
+                            is WireFrame.KeepAlive -> true
                         }
                     }
                 )
