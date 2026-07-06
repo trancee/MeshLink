@@ -475,5 +475,53 @@
     "build": "WAS-LX1A 8.0.0.394(C432)",
     "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
     "ds_url": "https://www.devicespecifications.com/en/model/8469421f"
+  },
+  {
+    "device": "Samsung Galaxy S10e",
+    "brand": "samsung",
+    "model": "SM-G970U1",
+    "android_sdk": "Android 12 / SDK 31",
+    "memory": "6 GB",
+    "storage": "128 GB",
+    "screen": "5.8\" (1080x2280 @ 480 dpi)",
+    "chipset_name": "Snapdragon 855",
+    "chipset_model": "SM8150",
+    "bluetooth": "5.0",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH"
+    ],
+    "build": "SP1A.210812.016.G970U1UEU9IXE1",
+    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_s10e-9537.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/9a864f39"
+  },
+  {
+    "device": "OnePlus Nord CE5 5G",
+    "brand": "OnePlus",
+    "model": "CPH2719",
+    "android_sdk": "Android 16 / SDK 36",
+    "memory": "8 GB",
+    "storage": "256 GB",
+    "screen": "6.77\" (1080x2392 @ 480 dpi)",
+    "chipset_name": "Dimensity 8350 Apex",
+    "chipset_model": "MT6897",
+    "bluetooth": "5.4",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH"
+    ],
+    "build": "CPH2719_16.0.5.700(EX01)",
+    "gsma_url": "https://www.gsmarena.com/oneplus_nord_ce5_5g-13792.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/109c62e5"
   }
 ]
