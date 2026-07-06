@@ -66,6 +66,21 @@ internal class MeshEngineSessionRegistry {
     // (see PendingInitiatorHandshake.attemptId) -- temporary diagnostic aid for correlating
     // transport.handshake.message2.* diagnostics with the specific attempt they belong to.
     private var nextInitiatorAttemptId: Long = 0L
+    // Bounded, most-recent-first retention of initiator handshake attempts that were superseded
+    // (removed from pendingInitiatorHandshakes) before completing -- for example one that timed
+    // out, or was interrupted mid-flight by a lifecycle pause/resume. A physically real BLE
+    // transport can deliver that superseded attempt's message2 reply late, after a newer attempt
+    // for the same peer has already taken its place in pendingInitiatorHandshakes; feeding that
+    // stale message2 into the newer attempt's NoiseXXHandshakeManager fails the Noise transcript
+    // check (CryptoFailure) and wrongly aborts the newer, still-legitimate attempt. Retaining a
+    // few recently-superseded attempts lets the caller try the stale message2 against them first
+    // -- since Noise's AEAD authentication can only succeed against the manager whose message1 it
+    // actually answers, a successful decrypt there is a definitive (cryptographically verified)
+    // match, at which point the stale reply is safely dropped instead of failing the current
+    // attempt.
+    private val supersededInitiatorHandshakes:
+        MutableMap<String, MutableList<PendingInitiatorHandshake>> =
+        linkedMapOf()
 
     suspend fun initiatorHandshakeReservation(
         peerId: PeerId,
@@ -147,6 +162,7 @@ internal class MeshEngineSessionRegistry {
                 return@withLock false
             }
             pendingInitiatorHandshakes.remove(peerId.value)
+            supersededInitiatorHandshakes.remove(peerId.value)
             hopSessions[peerId.value] = session
             lastInitiatorMessage2[peerId.value] = message2
             notifyEstablishedSessionWaiters(peerId, session)
@@ -166,10 +182,10 @@ internal class MeshEngineSessionRegistry {
     /**
      * Atomically claims [pendingHandshake] for message2 processing if it isn't already being
      * processed by a concurrent duplicate delivery. Returns true if this call won the race and
-     * should proceed to call `manager.processMessage2AndCreateMessage3()`; returns false if
-     * another concurrent call is already processing it, in which case this delivery should be
-     * dropped as a duplicate-in-flight rather than racing the same NoiseXXHandshakeManager
-     * instance (see [PendingInitiatorHandshake.processing] for why that's unsafe).
+     * should proceed to call `manager.processMessage2AndCreateMessage3()`; returns false if another
+     * concurrent call is already processing it, in which case this delivery should be dropped as a
+     * duplicate-in-flight rather than racing the same NoiseXXHandshakeManager instance (see
+     * [PendingInitiatorHandshake.processing] for why that's unsafe).
      */
     suspend fun tryBeginProcessingMessage2(pendingHandshake: PendingInitiatorHandshake): Boolean {
         return sessionMutex.withLock {
@@ -179,6 +195,92 @@ internal class MeshEngineSessionRegistry {
                 pendingHandshake.processing = true
                 true
             }
+        }
+    }
+
+    /**
+     * Releases the claim taken by [tryBeginProcessingMessage2] once processing of a message2
+     * delivery for [pendingHandshake] has finished (successfully or not), so a later, genuinely new
+     * message2 delivery for the same still-pending attempt is not permanently blocked as a
+     * duplicate-in-flight.
+     */
+    suspend fun endProcessingMessage2(pendingHandshake: PendingInitiatorHandshake) {
+        sessionMutex.withLock { pendingHandshake.processing = false }
+    }
+
+    /**
+     * Returns the [PendingInitiatorHandshake.attemptId] of a superseded attempt for [peerId] whose
+     * [PendingInitiatorHandshake.matchedStaleMessage2Payload] equals [payload], if any -- i.e. a
+     * repeat delivery of a message2 already cryptographically confirmed stale by an earlier call to
+     * [tryClaimSupersededAttemptForMessage2] and [recordSupersededAttemptMatch]. Checked first so a
+     * duplicate delivery of the same stale payload is recognized without needing to (unsafely)
+     * re-invoke the superseded attempt's single-use NoiseXXHandshakeManager.
+     */
+    suspend fun previouslyMatchedSupersededAttemptId(peerId: PeerId, payload: ByteArray): Long? {
+        return sessionMutex.withLock {
+            supersededInitiatorHandshakes[peerId.value]
+                ?.lastOrNull { it.matchedStaleMessage2Payload?.contentEquals(payload) == true }
+                ?.attemptId
+        }
+    }
+
+    /**
+     * Returns a snapshot of superseded initiator handshake attempts for [peerId] (most recent last)
+     * that have not yet been claimed for a message2 verification attempt, atomically marking them
+     * claimed (via [PendingInitiatorHandshake.processing], reusing the same guard used for the
+     * current pending attempt) so a concurrent duplicate delivery cannot race the same manager
+     * instance. Callers must, for each claimed attempt, either call [recordSupersededAttemptMatch]
+     * on a successful match, or [releaseSupersededAttemptClaim] if it did not match -- since
+     * [NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3] does not mutate the manager on
+     * a failed trial, a non-matching attempt remains safely retryable against a later, different
+     * message2 delivery.
+     */
+    suspend fun tryClaimSupersededAttemptsForMessage2(
+        peerId: PeerId
+    ): List<PendingInitiatorHandshake> {
+        return sessionMutex.withLock {
+            val candidates =
+                supersededInitiatorHandshakes[peerId.value] ?: return@withLock emptyList()
+            candidates.filter { candidate ->
+                if (candidate.processing) {
+                    false
+                } else {
+                    candidate.processing = true
+                    true
+                }
+            }
+        }
+    }
+
+    /**
+     * Releases the claim taken by [tryClaimSupersededAttemptsForMessage2] for the superseded
+     * attempt with [attemptId] belonging to [peerId] after a trial decrypt against it did *not*
+     * match -- its manager was left unmutated by the failed trial (see
+     * [NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3]), so it remains safely
+     * retryable against a later, different message2 delivery, for example that same attempt's own
+     * genuine stale reply arriving after an unrelated frame was tried against it first.
+     */
+    suspend fun releaseSupersededAttemptClaim(peerId: PeerId, attemptId: Long) {
+        sessionMutex.withLock {
+            supersededInitiatorHandshakes[peerId.value]
+                ?.firstOrNull { it.attemptId == attemptId }
+                ?.processing = false
+        }
+    }
+
+    /**
+     * Records that [payload] was cryptographically confirmed (by a successful Noise AEAD decrypt)
+     * to be a stale message2 reply belonging to the superseded attempt with [attemptId] for
+     * [peerId], so a later repeat delivery of the same payload can be recognized via
+     * [previouslyMatchedSupersededAttemptId] without re-invoking the manager. The attempt's claim
+     * (see [tryClaimSupersededAttemptsForMessage2]) is intentionally left taken -- a matched
+     * attempt should not be trial-decrypted again.
+     */
+    suspend fun recordSupersededAttemptMatch(peerId: PeerId, attemptId: Long, payload: ByteArray) {
+        sessionMutex.withLock {
+            supersededInitiatorHandshakes[peerId.value]
+                ?.firstOrNull { it.attemptId == attemptId }
+                ?.matchedStaleMessage2Payload = payload
         }
     }
 
@@ -216,7 +318,30 @@ internal class MeshEngineSessionRegistry {
                 return@withLock false
             }
             pendingInitiatorHandshakes.remove(peerId.value)
+            retainSupersededInitiatorHandshake(peerId.value, pendingHandshake)
             true
+        }
+    }
+
+    /**
+     * Records [pendingHandshake] as superseded for [peerIdValue], bounded to the
+     * [MAX_SUPERSEDED_INITIATOR_HANDSHAKES_PER_PEER] most recent attempts, so a late/stale message2
+     * reply belonging to it can still be recognized (see [tryClaimSupersededAttemptsForMessage2]).
+     * Resets [PendingInitiatorHandshake.processing] to false: it is repurposed here from guarding
+     * concurrent *normal* message2 handling (which is now permanently done for a superseded
+     * attempt) to guarding concurrent *stale-match* attempts against it, a non-overlapping usage
+     * window that starts fresh at the moment of superseding. Must be called while holding
+     * [sessionMutex].
+     */
+    private fun retainSupersededInitiatorHandshake(
+        peerIdValue: String,
+        pendingHandshake: PendingInitiatorHandshake,
+    ) {
+        pendingHandshake.processing = false
+        val retained = supersededInitiatorHandshakes.getOrPut(peerIdValue) { mutableListOf() }
+        retained.add(pendingHandshake)
+        while (retained.size > MAX_SUPERSEDED_INITIATOR_HANDSHAKES_PER_PEER) {
+            retained.removeAt(0)
         }
     }
 
@@ -308,6 +433,8 @@ internal class MeshEngineSessionRegistry {
             val resolvedPeerIdValue = resolvePeerIdValue(peerId.value)
             hopSessions.remove(resolvedPeerIdValue)
             val pendingHandshake = pendingInitiatorHandshakes.remove(resolvedPeerIdValue)
+            supersededInitiatorHandshakes.remove(peerId.value)
+            supersededInitiatorHandshakes.remove(resolvedPeerIdValue)
             pendingResponderHandshakes.remove(resolvedPeerIdValue)
             lastResponderMessage1.remove(resolvedPeerIdValue)
             lastInitiatorMessage2.remove(resolvedPeerIdValue)
@@ -327,6 +454,7 @@ internal class MeshEngineSessionRegistry {
             val pendingHandshakes = pendingInitiatorHandshakes.values.toList()
             hopSessions.clear()
             pendingInitiatorHandshakes.clear()
+            supersededInitiatorHandshakes.clear()
             pendingResponderHandshakes.clear()
             lastResponderMessage1.clear()
             lastInitiatorMessage2.clear()
@@ -346,5 +474,13 @@ internal class MeshEngineSessionRegistry {
             }
             currentPeerIdValue = peerAliases[currentPeerIdValue] ?: return currentPeerIdValue
         }
+    }
+
+    private companion object {
+        // Bounds memory/CPU spent retrying stale message2 deliveries against superseded attempts
+        // (see supersededInitiatorHandshakes) -- a few is enough to cover the realistic case of a
+        // handful of rapid retries superseding each other in quick succession (for example around
+        // a lifecycle pause/resume), without retaining unbounded handshake history per peer.
+        const val MAX_SUPERSEDED_INITIATOR_HANDSHAKES_PER_PEER: Int = 4
     }
 }

@@ -363,6 +363,336 @@ class MeshEngineInitiatorHandshakeSupportTest {
                 fixture.failures,
             )
         }
+
+    @Test
+    fun `handleHandshakeMessage2 drops a stale message2 from a superseded attempt and the current attempt still completes normally`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val supersededInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val supersededHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = supersededInitiatorManager,
+                )
+            val supersededResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            // The real message2 reply the responder sent to the (about to be superseded) first
+            // attempt -- physically delayed by the transport, delivered only after a newer attempt
+            // has already taken its place, as observed in the field with pause/resume-interrupted
+            // BLE handshakes.
+            val staleMessage2 =
+                supersededResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    supersededHandshake.message1,
+                )
+            val supersededReservation =
+                fixture.sessionRegistry.initiatorHandshakeReservation(peerId)
+            assertIs<InitiatorHandshakeReservation.Pending>(supersededReservation)
+            val supersededAttemptId = supersededReservation.pendingHandshake.attemptId
+            fixture.sessionRegistry.failInitiatorHandshake(
+                peerId,
+                supersededReservation.pendingHandshake,
+            )
+            val currentInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val currentHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = currentInitiatorManager,
+                )
+
+            // Act
+            // The stale reply fails Noise transcript verification against the current attempt's
+            // manager, but successfully decrypts against the retained superseded manager.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = staleMessage2)
+
+            // Assert
+            assertTrue(
+                fixture.sentFrames.isEmpty(),
+                "no message3 should be sent for the stale reply",
+            )
+            assertTrue(
+                !currentHandshake.sessionDeferred.isCompleted,
+                "the current, still-legitimate attempt must not be failed by the stale reply",
+            )
+            assertEquals(
+                listOf(
+                    RecordedInitiatorHandshakeFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.handshake.message2.staleAttemptIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "payloadBytes" to staleMessage2.size.toString(),
+                                "staleAttemptId" to supersededAttemptId.toString(),
+                                // seedPendingInitiatorHandshake (like the rest of this test file)
+                                // doesn't thread the registry-assigned attemptId through, so the
+                                // current attempt's PendingInitiatorHandshake keeps its default.
+                                "attemptId" to "0",
+                            ),
+                    )
+                ),
+                fixture.failures,
+            )
+
+            // Act (continued)
+            // The genuine reply for the current attempt then arrives, and must still be able to
+            // complete the handshake -- this specifically guards against the current attempt's
+            // tryBeginProcessingMessage2 claim being left permanently taken by the stale-match
+            // handling above, which would otherwise wedge this real delivery as a duplicate.
+            val currentResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val currentMessage2 =
+                currentResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    currentHandshake.message1,
+                )
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = currentMessage2)
+
+            // Assert
+            assertIs<SessionEstablishmentOutcome.Established>(
+                currentHandshake.sessionDeferred.await()
+            )
+            assertEquals(
+                1,
+                fixture.sentFrames.size,
+                "message3 should be sent for the genuine reply",
+            )
+            assertNotNull(fixture.sessionRegistry.hopSession(peerId))
+        }
+
+    @Test
+    fun `handleHandshakeMessage2 still recognizes a superseded attempt's genuine stale reply after an unrelated message2 was unsuccessfully trial-decrypted against it first`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+
+            // A decoy superseded attempt, superseded *before* the target attempt below, so it is
+            // trial-decrypted *after* the target attempt (candidates are tried most-recently
+            // superseded first). Unlike seedPendingInitiatorHandshake (which does not thread the
+            // registry-assigned attemptId through, see other tests in this file), this
+            // constructs the PendingInitiatorHandshake with its real, unique attemptId so the
+            // registry's attemptId-keyed bookkeeping (releaseSupersededAttemptClaim /
+            // recordSupersededAttemptMatch) can tell the decoy and target attempts apart, exactly
+            // as it does in production.
+            val decoyInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val decoyMessage1 = decoyInitiatorManager.createMessage1()
+            val decoyReservation =
+                fixture.sessionRegistry.initiatorHandshakeReservation(peerId) { attemptId ->
+                    CreatedInitiatorHandshake(
+                        pendingHandshake =
+                            PendingInitiatorHandshake(
+                                manager = decoyInitiatorManager,
+                                sessionDeferred = CompletableDeferred(),
+                                attemptId = attemptId,
+                            ),
+                        message1 = decoyMessage1,
+                    )
+                }
+            assertIs<InitiatorHandshakeReservation.Created>(decoyReservation)
+            val decoyResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val decoyMessage2 =
+                decoyResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    decoyMessage1,
+                )
+            fixture.sessionRegistry.failInitiatorHandshake(
+                peerId,
+                decoyReservation.pendingHandshake,
+            )
+
+            // The target superseded attempt, superseded *after* the decoy, so it is trial-
+            // decrypted *first* -- its own genuine stale reply is delivered only afterwards.
+            val targetInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val targetMessage1 = targetInitiatorManager.createMessage1()
+            val targetReservation =
+                fixture.sessionRegistry.initiatorHandshakeReservation(peerId) { attemptId ->
+                    CreatedInitiatorHandshake(
+                        pendingHandshake =
+                            PendingInitiatorHandshake(
+                                manager = targetInitiatorManager,
+                                sessionDeferred = CompletableDeferred(),
+                                attemptId = attemptId,
+                            ),
+                        message1 = targetMessage1,
+                    )
+                }
+            assertIs<InitiatorHandshakeReservation.Created>(targetReservation)
+            val targetAttemptId = targetReservation.pendingHandshake.attemptId
+            val targetResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val targetStaleMessage2 =
+                targetResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    targetMessage1,
+                )
+            fixture.sessionRegistry.failInitiatorHandshake(
+                peerId,
+                targetReservation.pendingHandshake,
+            )
+
+            val currentInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val currentHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = currentInitiatorManager,
+                )
+
+            // Act
+            // The decoy's own genuine stale reply arrives first. It is trial-decrypted against
+            // the target attempt first (most recently superseded), which does *not* match --
+            // under the old design this single failed trial would have permanently corrupted the
+            // target's manager, since any invocation (successful or not) mutated its transcript
+            // state irreversibly. The snapshot/rollback in
+            // NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3 leaves it genuinely
+            // untouched instead, so trial-decrypting then continues on to the decoy attempt,
+            // which matches.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = decoyMessage2)
+            assertTrue(
+                !currentHandshake.sessionDeferred.isCompleted,
+                "the current attempt must be unaffected by the decoy's stale reply",
+            )
+
+            // The target attempt's own genuine stale reply then arrives -- it must still be
+            // recognized, since the earlier failed trial against it did not poison its manager.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = targetStaleMessage2)
+
+            // Assert
+            assertTrue(fixture.sentFrames.isEmpty())
+            assertTrue(
+                !currentHandshake.sessionDeferred.isCompleted,
+                "the current attempt must still be unaffected after the target's stale reply is" +
+                    " correctly attributed to it",
+            )
+            assertEquals(
+                "transport.handshake.message2.staleAttemptIgnored",
+                fixture.failures.last().stage,
+            )
+            assertEquals(
+                targetAttemptId.toString(),
+                fixture.failures.last().metadata["staleAttemptId"],
+                "the target attempt's genuine stale reply must be correctly attributed to it" +
+                    " even though an unrelated (decoy) reply was tried against it first",
+            )
+        }
+
+    @Test
+    fun `handleHandshakeMessage2 recognizes a repeat delivery of the same stale message2 without reprocessing it`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val supersededInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val supersededHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = supersededInitiatorManager,
+                )
+            val supersededResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val staleMessage2 =
+                supersededResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    supersededHandshake.message1,
+                )
+            val supersededReservation =
+                fixture.sessionRegistry.initiatorHandshakeReservation(peerId)
+            assertIs<InitiatorHandshakeReservation.Pending>(supersededReservation)
+            val supersededAttemptId = supersededReservation.pendingHandshake.attemptId
+            fixture.sessionRegistry.failInitiatorHandshake(
+                peerId,
+                supersededReservation.pendingHandshake,
+            )
+            val currentInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val currentHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = currentInitiatorManager,
+                )
+            // First delivery: matched via a trial decrypt against the superseded manager, and the
+            // match is cached.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = staleMessage2)
+
+            // Act
+            // The same redundant GATT/L2CAP side-link transports that duplicated the original
+            // message2 can redeliver this exact stale frame a second time. Re-invoking the
+            // superseded manager here would fail, since its transcript state already advanced
+            // irreversibly on the first (successful) trial decrypt -- this delivery must instead
+            // be recognized via the cached match.
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = staleMessage2)
+
+            // Assert
+            assertTrue(fixture.sentFrames.isEmpty())
+            assertTrue(
+                !currentHandshake.sessionDeferred.isCompleted,
+                "the current attempt must still be unaffected after the repeat stale delivery",
+            )
+            assertEquals(
+                List(2) {
+                    RecordedInitiatorHandshakeFailure(
+                        peerIdValue = peerId.value,
+                        stage = "transport.handshake.message2.staleAttemptIgnored",
+                        reason = DiagnosticReason.DELIVERY_FAILURE,
+                        metadata =
+                            mapOf(
+                                "payloadBytes" to staleMessage2.size.toString(),
+                                "staleAttemptId" to supersededAttemptId.toString(),
+                                "attemptId" to "0",
+                            ),
+                    )
+                },
+                fixture.failures,
+            )
+        }
+
+    @Test
+    fun `handleHandshakeMessage2 fails the pending initiator handshake for a genuinely unmatched message2`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("initiator-handshake-local")
+            val responderIdentity = LocalIdentity.fromAppId("initiator-handshake-responder")
+            val peerId = responderIdentity.peerId
+            val fixture = initiatorHandshakeFixture(localIdentity = localIdentity)
+            val currentInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val currentHandshake =
+                seedPendingInitiatorHandshake(
+                    sessionRegistry = fixture.sessionRegistry,
+                    peerId = peerId,
+                    initiatorManager = currentInitiatorManager,
+                )
+            // A message2 for a completely unrelated handshake (no superseded attempt exists for
+            // this peer at all) -- genuinely corrupt/unexpected, not a stale reply.
+            val unrelatedInitiatorManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val unrelatedMessage1 = unrelatedInitiatorManager.createMessage1()
+            val unrelatedResponderManager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val unrelatedMessage2 =
+                unrelatedResponderManager.processMessage1AndCreateMessage2(
+                    responderIdentity.noiseIdentity,
+                    unrelatedMessage1,
+                )
+
+            // Act
+            fixture.support.handleHandshakeMessage2(peerId = peerId, payload = unrelatedMessage2)
+
+            // Assert
+            assertEquals(
+                SessionEstablishmentOutcome.Unreachable,
+                currentHandshake.sessionDeferred.await(),
+            )
+            assertTrue(fixture.sentFrames.isEmpty())
+            assertNull(fixture.sessionRegistry.initiatorHandshakeReservation(peerId))
+            assertEquals(1, fixture.failures.size)
+            assertEquals("transport.handshake.message2.process", fixture.failures.single().stage)
+        }
 }
 
 private data class InitiatorHandshakeFixture(

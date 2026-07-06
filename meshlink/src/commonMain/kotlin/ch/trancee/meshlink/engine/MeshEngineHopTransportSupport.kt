@@ -358,7 +358,7 @@ private const val REPLAY_WINDOW_SIZE: Int = 64
 // signal-to-noise ratio of WARN-and-above diagnostics meaningful for conditions that actually need
 // attention.
 private val DUPLICATE_IGNORED_STAGE_SUFFIXES: List<String> =
-    listOf("duplicateIgnored", "duplicateInFlightIgnored")
+    listOf("duplicateIgnored", "duplicateInFlightIgnored", "staleAttemptIgnored")
 
 private fun severityForHopSessionFailedStage(stage: String): DiagnosticSeverity {
     return if (DUPLICATE_IGNORED_STAGE_SUFFIXES.any { stage.endsWith(it) }) {

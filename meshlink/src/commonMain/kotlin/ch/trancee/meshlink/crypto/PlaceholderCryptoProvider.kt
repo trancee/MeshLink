@@ -100,6 +100,18 @@ internal object PlaceholderCryptoProvider : CryptoProvider {
 private fun pseudoHash(input: ByteArray, outputSize: Int): ByteArray {
     var state = PSEUDO_HASH_INITIAL_STATE.toInt()
     val safeInput = if (input.isNotEmpty()) input else byteArrayOf(ZERO_BYTE)
+    // Fold every byte of the input into state before generating any output. Without this, an
+    // outputSize smaller than input.size (e.g. hashing two concatenated 32-byte keys down to a
+    // 32-byte digest, as x25519() does) would only ever read a bounded prefix window of input
+    // (index % safeInput.size stays within the first outputSize bytes), so the digest could
+    // ignore large parts of the input entirely -- e.g. two different Noise ephemeral keys paired
+    // with the same peer key could derive the same "shared secret" purely because their
+    // differing bytes were never sampled, breaking the distinctness this fake crypto must provide
+    // for tests that rely on mismatched keys failing to decrypt each other's messages.
+    for (index in safeInput.indices) {
+        val mixed = (safeInput[index].toInt() and BYTE_MASK) + index
+        state = (state xor mixed) * PSEUDO_HASH_PRIME
+    }
     val output =
         ByteArray(outputSize) { index ->
             val mixed = (safeInput[index % safeInput.size].toInt() and BYTE_MASK) + index

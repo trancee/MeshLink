@@ -120,6 +120,39 @@ internal class MeshEngineInitiatorHandshakeSupport(
         payload: ByteArray,
         pending: PendingInitiatorHandshake,
     ): NoiseXXHandshakeResult? {
+        // Try any recently-superseded attempts for this peer FIRST, before ever invoking the
+        // current attempt's manager. NoiseXXHandshakeManager mutates its internal transcript
+        // state (mixHash/mixKey) irreversibly as soon as it starts processing a message2, even if
+        // decryption ultimately throws CryptoFailure -- so trying a stale reply against the
+        // *current* attempt's manager first would permanently corrupt it, and the current
+        // attempt's own later genuine message2 would then also fail even though the stale
+        // delivery was correctly identified and dropped. Checking superseded attempts first
+        // means the current manager is only ever touched once no stale match is found.
+        val staleAttemptId = supersededAttemptIdMatching(peerId, payload)
+        if (staleAttemptId != null) {
+            // A physically real BLE transport can deliver a handshake attempt's message2 reply
+            // late, after that attempt has already been superseded (e.g. it timed out, or was
+            // interrupted mid-flight by a lifecycle pause/resume) by a newer attempt for the
+            // same peer. This message2 successfully decrypted against one of those superseded
+            // attempts' managers -- a cryptographically verified match -- so it is a stale
+            // reply, not a genuinely corrupt/unexpected frame. Drop it quietly instead of
+            // failing the current, still-legitimate pending attempt. The current attempt was
+            // claimed via tryBeginProcessingMessage2 before this call; release that claim so a
+            // later, genuinely new message2 delivery for it is not permanently blocked as a
+            // duplicate-in-flight.
+            state.sessionRegistry.endProcessingMessage2(pending)
+            callbacks.emitHopSessionFailed(
+                peerId,
+                "transport.handshake.message2.staleAttemptIgnored",
+                DiagnosticReason.DELIVERY_FAILURE,
+                mapOf(
+                    "payloadBytes" to payload.size.toString(),
+                    "staleAttemptId" to staleAttemptId.toString(),
+                    "attemptId" to pending.attemptId.toString(),
+                ),
+            )
+            return null
+        }
         return runCatching {
                 pending.manager.processMessage2AndCreateMessage3(
                     localIdentity.noiseIdentity,
@@ -144,6 +177,51 @@ internal class MeshEngineInitiatorHandshakeSupport(
                 )
                 null
             }
+    }
+
+    /**
+     * Returns the [PendingInitiatorHandshake.attemptId] of a recently-superseded initiator
+     * handshake attempt for [peerId] whose message2 reply is [payload], or null if none match.
+     *
+     * First checks whether [payload] was already confirmed to match a superseded attempt by an
+     * earlier call (recorded via [MeshEngineSessionRegistry.recordSupersededAttemptMatch]) -- a
+     * cheap equality check that correctly recognizes a *repeat* delivery of the same stale payload
+     * (the same redundant GATT/L2CAP side-link transports that can duplicate other handshake frames
+     * can duplicate this one too) without needing to re-invoke a superseded attempt's
+     * NoiseXXHandshakeManager.
+     *
+     * Otherwise, atomically claims each not-yet-claimed superseded attempt (so a concurrent
+     * duplicate delivery cannot race the same manager instance) and trial-decrypts [payload]
+     * against each in turn via [NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3], which
+     * does not mutate a manager that fails to decrypt -- so a non-matching attempt's claim is
+     * released afterwards, leaving it safely retryable later against a different message2 delivery
+     * (for example, its own genuine stale reply arriving after an unrelated frame was tried against
+     * it first). A successful decrypt is a definitive, cryptographically verified match (Noise's
+     * AEAD authentication can only succeed against the manager whose message1 this payload actually
+     * answers), which is then recorded for future repeat deliveries.
+     */
+    private suspend fun supersededAttemptIdMatching(peerId: PeerId, payload: ByteArray): Long? {
+        state.sessionRegistry.previouslyMatchedSupersededAttemptId(peerId, payload)?.let {
+            return it
+        }
+        val claimedAttempts = state.sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+        for (superseded in claimedAttempts.asReversed()) {
+            val matched =
+                superseded.manager.tryProcessMessage2AndCreateMessage3(
+                    localIdentity.noiseIdentity,
+                    payload,
+                ) != null
+            if (matched) {
+                state.sessionRegistry.recordSupersededAttemptMatch(
+                    peerId,
+                    superseded.attemptId,
+                    payload,
+                )
+                return superseded.attemptId
+            }
+            state.sessionRegistry.releaseSupersededAttemptClaim(peerId, superseded.attemptId)
+        }
+        return null
     }
 
     private suspend fun rebindTemporaryInitiatorPeerIfNeeded(

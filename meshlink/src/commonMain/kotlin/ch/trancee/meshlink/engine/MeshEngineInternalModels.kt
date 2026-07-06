@@ -91,7 +91,19 @@ internal constructor(
     // aborting the session entirely instead of harmlessly ignoring the duplicate. Set (under
     // MeshEngineSessionRegistry's sessionMutex, see tryBeginProcessingMessage2) before the first
     // caller invokes the manager, so a second concurrent caller can detect the race and back off.
+    // Reset back to false once that call completes (success or failure) so a later, genuinely new
+    // message2 delivery for the same still-pending attempt is not permanently blocked.
     internal var processing: Boolean = false
+
+    // Set once a message2 payload has been cryptographically confirmed (via a successful Noise
+    // AEAD decrypt) to be a stale/late reply belonging to this now-superseded attempt (see
+    // MeshEngineInitiatorHandshakeSupport.supersededAttemptIdMatching). NoiseXXHandshakeManager's
+    // internal transcript state advances irreversibly on a successful decrypt, so a *second*
+    // delivery of the exact same stale payload (the same redundant transports that duplicate other
+    // handshake frames can duplicate this one too) can no longer be verified by re-invoking the
+    // manager. Recording the matched payload here lets a repeat delivery be recognized by a cheap
+    // equality check instead.
+    internal var matchedStaleMessage2Payload: ByteArray? = null
 }
 
 internal class PendingResponderHandshake

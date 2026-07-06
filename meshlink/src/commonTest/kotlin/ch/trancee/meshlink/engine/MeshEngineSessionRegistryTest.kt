@@ -158,4 +158,206 @@ class MeshEngineSessionRegistryTest {
             assertNull(clearedTemporarySession)
             assertNull(clearedCanonicalSession)
         }
+
+    @Test
+    fun `superseded initiator handshakes are retained bounded to the most recent attempts`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-superseded-bound-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("00112233445566778899aabb")
+            val attemptCount = 6
+            val pendingHandshakes = mutableListOf<PendingInitiatorHandshake>()
+
+            // Act
+            // Create and immediately supersede each attempt but the last (still current) one, as
+            // a real timeout/pause-resume-interrupted attempt would be -- a new reservation can
+            // only be Created once the previous attempt for the peer has been failed/removed.
+            repeat(attemptCount) { index ->
+                lateinit var pendingHandshake: PendingInitiatorHandshake
+                val reservation =
+                    sessionRegistry.initiatorHandshakeReservation(peerId) { attemptId ->
+                        val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+                        pendingHandshake =
+                            PendingInitiatorHandshake(
+                                manager = manager,
+                                sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                                attemptId = attemptId,
+                            )
+                        CreatedInitiatorHandshake(
+                            pendingHandshake = pendingHandshake,
+                            message1 = manager.createMessage1(),
+                        )
+                    }
+                assertTrue(reservation is InitiatorHandshakeReservation.Created)
+                pendingHandshakes.add(pendingHandshake)
+                if (index < attemptCount - 1) {
+                    sessionRegistry.failInitiatorHandshake(peerId, pendingHandshake)
+                }
+            }
+            val claimed = sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+
+            // Assert
+            assertEquals(
+                4,
+                claimed.size,
+                "only the most recent MAX_SUPERSEDED_INITIATOR_HANDSHAKES_PER_PEER attempts " +
+                    "should be retained",
+            )
+            assertEquals(
+                pendingHandshakes.dropLast(1).takeLast(4),
+                claimed,
+                "the oldest superseded attempt(s) beyond the bound should have been evicted",
+            )
+        }
+
+    @Test
+    fun `superseded initiator handshake attempts cannot be claimed twice concurrently`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-superseded-claim-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("00112233445566778899aabb")
+            val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = manager,
+                    sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                )
+            sessionRegistry.initiatorHandshakeReservation(peerId) {
+                CreatedInitiatorHandshake(
+                    pendingHandshake = pendingHandshake,
+                    message1 = manager.createMessage1(),
+                )
+            }
+            sessionRegistry.failInitiatorHandshake(peerId, pendingHandshake)
+
+            // Act
+            val firstClaim = sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+            val secondClaim = sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+
+            // Assert
+            assertEquals(listOf(pendingHandshake), firstClaim)
+            assertTrue(
+                secondClaim.isEmpty(),
+                "an already-claimed superseded attempt must not be handed out again while still " +
+                    "claimed, since a concurrent trial decrypt could otherwise race the same " +
+                    "manager instance",
+            )
+        }
+
+    @Test
+    fun `releasing a superseded attempt claim after a failed trial allows it to be reclaimed`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-superseded-release-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("00112233445566778899aabb")
+            val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = manager,
+                    sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                )
+            sessionRegistry.initiatorHandshakeReservation(peerId) {
+                CreatedInitiatorHandshake(
+                    pendingHandshake = pendingHandshake,
+                    message1 = manager.createMessage1(),
+                )
+            }
+            sessionRegistry.failInitiatorHandshake(peerId, pendingHandshake)
+            sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+
+            // Act
+            // Simulate an unrelated message2 delivery that was trial-decrypted against this
+            // attempt and did not match -- the caller releases the claim instead of recording a
+            // match, since NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3 leaves the
+            // manager unmutated on a failed trial.
+            sessionRegistry.releaseSupersededAttemptClaim(peerId, pendingHandshake.attemptId)
+            val reclaimed = sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+
+            // Assert
+            assertEquals(
+                listOf(pendingHandshake),
+                reclaimed,
+                "a superseded attempt released after a non-matching trial must remain claimable " +
+                    "later, e.g. against its own genuine stale reply arriving after an unrelated " +
+                    "frame was tried against it first",
+            )
+        }
+
+    @Test
+    fun `a recorded superseded attempt match is recognized by payload without reclaiming it`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-superseded-match-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("00112233445566778899aabb")
+            val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = manager,
+                    sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                )
+            sessionRegistry.initiatorHandshakeReservation(peerId) {
+                CreatedInitiatorHandshake(
+                    pendingHandshake = pendingHandshake,
+                    message1 = manager.createMessage1(),
+                )
+            }
+            sessionRegistry.failInitiatorHandshake(peerId, pendingHandshake)
+            sessionRegistry.tryClaimSupersededAttemptsForMessage2(peerId)
+            val stalePayload = byteArrayOf(1, 2, 3)
+
+            // Act
+            sessionRegistry.recordSupersededAttemptMatch(
+                peerId,
+                pendingHandshake.attemptId,
+                stalePayload,
+            )
+            val matchedAttemptId =
+                sessionRegistry.previouslyMatchedSupersededAttemptId(peerId, stalePayload)
+            val unrelatedPayloadMatch =
+                sessionRegistry.previouslyMatchedSupersededAttemptId(peerId, byteArrayOf(9, 9, 9))
+
+            // Assert
+            assertEquals(pendingHandshake.attemptId, matchedAttemptId)
+            assertNull(unrelatedPayloadMatch)
+        }
+
+    @Test
+    fun `ending message2 processing releases the claim for a still-pending initiator handshake`() =
+        runBlocking<Unit> {
+            // Arrange
+            val localIdentity = LocalIdentity.fromAppId("session-registry-end-processing-test")
+            val sessionRegistry = MeshEngineSessionRegistry()
+            val peerId = PeerId("00112233445566778899aabb")
+            val manager = NoiseXXHandshakeManager(localIdentity.cryptoProvider)
+            val pendingHandshake =
+                PendingInitiatorHandshake(
+                    manager = manager,
+                    sessionDeferred = kotlinx.coroutines.CompletableDeferred(),
+                )
+            sessionRegistry.initiatorHandshakeReservation(peerId) {
+                CreatedInitiatorHandshake(
+                    pendingHandshake = pendingHandshake,
+                    message1 = manager.createMessage1(),
+                )
+            }
+            assertTrue(sessionRegistry.tryBeginProcessingMessage2(pendingHandshake))
+            assertTrue(
+                !sessionRegistry.tryBeginProcessingMessage2(pendingHandshake),
+                "a second concurrent claim should be rejected while still processing",
+            )
+
+            // Act
+            sessionRegistry.endProcessingMessage2(pendingHandshake)
+
+            // Assert
+            assertTrue(
+                sessionRegistry.tryBeginProcessingMessage2(pendingHandshake),
+                "a later, genuinely new message2 delivery must be able to claim the still-pending" +
+                    " attempt again once the previous claim is released",
+            )
+        }
 }
