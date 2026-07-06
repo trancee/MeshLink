@@ -88,6 +88,34 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
         return responderEphemeralKeyPair.publicKey + encryptedStatic + encryptedPayload
     }
 
+    /**
+     * Attempts to process [message2] as the initiator without permanently mutating this manager's
+     * internal Noise state if it does not match. Ordinarily, [processMessage2AndCreateMessage3]
+     * mutates transcript state (`mixHash`/`mixKey`) irreversibly as soon as it starts, even if it
+     * ultimately throws -- so trying a payload that doesn't actually belong to this manager (for
+     * example: trial-matching a message2 against a bounded set of superseded initiator handshake
+     * attempts, to recognize a stale/late reply) would otherwise permanently corrupt the manager,
+     * leaving it unable to recognize its own genuine reply if that arrives afterwards. This
+     * snapshots the state before attempting, and restores the snapshot if [message2] fails to
+     * decrypt, so the manager can be safely retried later against a different payload.
+     *
+     * Returns the handshake result on a successful match, or null if [message2] does not match (any
+     * exception while processing).
+     */
+    internal fun tryProcessMessage2AndCreateMessage3(
+        initiatorIdentity: NoiseIdentity,
+        message2: ByteArray,
+    ): NoiseXXHandshakeResult? {
+        val originalState = initiatorState ?: return null
+        initiatorState = originalState.copy()
+        return try {
+            processMessage2AndCreateMessage3(initiatorIdentity, message2)
+        } catch (exception: Exception) {
+            initiatorState = originalState
+            null
+        }
+    }
+
     internal fun processMessage2AndCreateMessage3(
         initiatorIdentity: NoiseIdentity,
         message2: ByteArray,
@@ -282,6 +310,31 @@ internal constructor(private val cryptoProvider: CryptoProvider) {
                 )
             return okm.copyOfRange(0, HASH_LEN_BYTES) to
                 okm.copyOfRange(HASH_LEN_BYTES, HASH_LEN_BYTES * 2)
+        }
+
+        /**
+         * Returns an independent copy of this state, so a trial operation on the copy (see
+         * [NoiseXXHandshakeManager.tryProcessMessage2AndCreateMessage3]) cannot mutate the original
+         * -- every field mutated by [mixHash]/[mixKey]/[encryptAndHash]/[decryptAndHash] is
+         * reassigned wholesale rather than mutated in place, so copying the current byte array
+         * references (or fresh [copyOf] snapshots, for ones that could still be referenced
+         * elsewhere) is sufficient; no deep object graph traversal is needed.
+         */
+        fun copy(): HandshakeState {
+            return HandshakeState(
+                    cryptoProvider = cryptoProvider,
+                    chainingKey = chainingKey,
+                    handshakeHash = handshakeHash,
+                )
+                .also { copy ->
+                    copy.cipherKey = cipherKey
+                    copy.nonce = nonce
+                    copy.localEphemeralKeyPair = localEphemeralKeyPair
+                    copy.remoteEphemeralPublicKey = remoteEphemeralPublicKey
+                    copy.remoteStaticPublicKey = remoteStaticPublicKey
+                    copy.remoteEd25519PublicKey = remoteEd25519PublicKey
+                    copy.localStaticIdentity = localStaticIdentity
+                }
         }
 
         companion object {

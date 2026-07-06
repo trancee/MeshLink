@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 
 internal fun resolveMaximumPayloadBytesPerDelivery(
     localPlatformFamily: BleDiscoveryPlatformFamily,
@@ -132,7 +131,6 @@ internal class BleTransportAdapter(
                 )
         )
     internal var gattNotifyServer: GattNotifyServer? = null
-    internal val transportMutex = Mutex()
     internal var inboundFrameQueue: InboundFrameQueue? = null
 
     internal var bluetoothAdapter: BluetoothAdapter? = null
@@ -347,8 +345,7 @@ internal class BleTransportAdapter(
 
         return when (bearerMode) {
             GattDataBearerMode.GATT_ONLY ->
-                tryPreferredGattSend(peer, frame)
-                    ?.also { log(gattDataBearerResultLogLine("GATT")) }
+                tryPreferredGattSend(peer, frame)?.also { log(gattDataBearerResultLogLine("GATT")) }
                     ?: sendViaL2capWhenReady(
                             frame = frame,
                             context = l2capContext,
@@ -359,8 +356,9 @@ internal class BleTransportAdapter(
                 if (readyLink != null) {
                     readyLink.send(frame).also { log(gattDataBearerResultLogLine("L2CAP")) }
                 } else {
-                    tryPreferredGattSend(peer, frame)
-                        ?.also { log(gattDataBearerResultLogLine("GATT")) }
+                    tryPreferredGattSend(peer, frame)?.also {
+                        log(gattDataBearerResultLogLine("GATT"))
+                    }
                         ?: sendViaL2capWhenReady(
                                 frame = frame,
                                 context = l2capContext,

@@ -4,11 +4,13 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.transport.L2CAP_KEEPALIVE_INTERVAL_MILLIS
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
+import ch.trancee.meshlink.wire.decodeIsKeepAlive
 import ch.trancee.meshlink.wire.decodeLinkIdentityPeerIdOrNull
 import java.io.Closeable
 import java.io.InputStream
@@ -17,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
@@ -199,6 +202,9 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                         )
                         return@forEachIndexed
                     }
+                    if (decodeIsKeepAlive(payload)) {
+                        return@forEachIndexed
+                    }
                     val claimedPeerId = decodeLinkIdentityPeerIdOrNull(payload)
                     if (claimedPeerId != null) {
                         bindL2capLinkIdentity(link = link, claimedPeerId = claimedPeerId)
@@ -211,6 +217,27 @@ internal fun BleTransportAdapter.registerConnectedSocket(
             }
         } finally {
             closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
+        }
+    }
+    link.heartbeatJob = launchL2capKeepAliveLoop(link)
+}
+
+/**
+ * Periodically writes an empty [WireFrame.KeepAlive] control frame on an otherwise idle L2CAP link
+ * so the peer's platform BLE stack does not tear the channel down for inactivity (see
+ * [L2CAP_KEEPALIVE_INTERVAL_MILLIS] for the rationale). The frame is consumed at the transport
+ * layer by the read loop above and never surfaces as a [TransportEvent.FrameReceived].
+ */
+internal fun BleTransportAdapter.launchL2capKeepAliveLoop(link: L2capLink): Job {
+    return coroutineScope.launch {
+        val keepAliveFrame = WireCodec.encode(WireFrame.KeepAlive())
+        while (true) {
+            delay(L2CAP_KEEPALIVE_INTERVAL_MILLIS)
+            runCatching { link.write(keepAliveFrame) }
+                .onFailure {
+                    closeLink(hintPeer = link.peerHintId.value, reason = "keepalive write failed")
+                    return@launch
+                }
         }
     }
 }
@@ -249,7 +276,7 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
     link: L2capLink,
 ): TransportSendResult {
     return runCatching {
-            transportMutex.withLock { link.write(frame.payload) }
+            link.write(frame.payload)
             TransportSendResult.Delivered
         }
         .getOrElse { error ->
@@ -297,6 +324,7 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
         "closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${retryPeer != null} pendingConnect=${hasPendingConnect(hintPeer)} retryRequested=$retryRequested"
     )
     link.readLoopJob?.cancel()
+    link.heartbeatJob?.cancel()
     closeQuietly(link)
     if (retryRequested) {
         scheduleL2capReconnect(requireNotNull(retryPeer))
@@ -328,18 +356,22 @@ internal class L2capLink(
     internal val maxReceivePacketSize: Int = socket.maxReceivePacketSize
     internal val maxTransmitPacketSize: Int = socket.maxTransmitPacketSize
     internal var readLoopJob: Job? = null
+    internal var heartbeatJob: Job? = null
     private val outputStream = socket.outputStream
+    private val writeMutex = Mutex()
     @Volatile private var identityAnnounced: Boolean = false
 
     internal suspend fun write(payload: ByteArray): Unit {
-        if (!identityAnnounced) {
-            writeFrame(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
-            identityAnnounced = true
-            log(
-                "L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
-            )
+        writeMutex.withLock {
+            if (!identityAnnounced) {
+                writeFrame(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+                identityAnnounced = true
+                log(
+                    "L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
+                )
+            }
+            writeFrame(payload)
         }
-        writeFrame(payload)
     }
 
     private fun writeFrame(payload: ByteArray): Unit {

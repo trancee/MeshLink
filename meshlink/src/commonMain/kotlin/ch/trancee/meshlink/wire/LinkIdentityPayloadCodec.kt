@@ -29,3 +29,13 @@ internal fun decodeLinkIdentityPeerIdOrNull(bytes: ByteArray): PeerId? {
     val frame = runCatching { WireCodec.decode(bytes) }.getOrNull()
     return (frame as? WireFrame.LinkIdentity)?.peerId
 }
+
+/**
+ * Returns true if [bytes] decode to a transport-level [WireFrame.KeepAlive] control frame. Callers
+ * consume such frames at the transport layer (resetting an idle link's inactivity clock) and must
+ * not forward them to application-facing inbound frame events.
+ */
+internal fun decodeIsKeepAlive(bytes: ByteArray): Boolean {
+    val frame = runCatching { WireCodec.decode(bytes) }.getOrNull()
+    return frame is WireFrame.KeepAlive
+}
