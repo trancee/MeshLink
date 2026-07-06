@@ -83,24 +83,30 @@ iteration count shown; a lower time is better.
 
 ### Crypto benchmarks
 
+Values are per-operation average microseconds (µs) over the iteration count shown.
+Colors flag latency outliers per operation family: green is at or below the warn
+threshold, amber is above it, and bold red is above the bad threshold — X25519
+ops warn > 1000µs / bad > 5000µs, Ed25519 ops warn > 1000µs / bad > 10000µs, and
+ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs.
+
 | Device | Date | Provider | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Nothing Phone (2) | 2026-07-06 | JcaCryptoProvider | 200 | 71.2 | 136.9 | 71.7 | 121.6 | 77.1 | 12.8 | 12.7 |
-| Samsung Galaxy Z Flip4 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 61.6 | 99.1 | 1852.4 | 1861.2 | 3550.0 | 8.4 | 8.5 |
-| Nothing Phone (1) | 2026-07-06 | JcaCryptoProvider | 200 | 78.4 | 159.4 | 131.8 | 146.2 | 125.0 | 56.2 | 56.2 |
-| Realme C55 | 2026-07-06 | JcaCryptoProvider | 200 | 308.7 | 711.6 | 539.8 | 584.6 | 634.5 | 211.1 | 193.3 |
-| OPPO Reno8 5G | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 54.3 | 132.3 | 2121.0 | 2052.5 | 3899.1 | 32.2 | 32.6 |
-| Motorola Edge 30 Fusion | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 74.3 | 153.0 | 2775.2 | 2776.6 | 5216.5 | 26.8 | 27.5 |
-| Nokia X20 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 163.5 | 386.6 | 3848.9 | 3854.7 | 7297.3 | 24.8 | 18.5 |
-| OPPO A57s | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 281.9 | 426.3 | 12887.1 | 11729.5 | 22250.2 | 281.1 | 278.4 |
-| Gigaset GX6 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 71.2 | 200.0 | 2607.3 | 2628.7 | 4906.7 | 33.4 | 28.3 |
-| OnePlus Nord 2 5G | 2026-07-06 | JcaCryptoProvider | 200 | 112.0 | 158.8 | 131.0 | 139.6 | 129.1 | 60.0 | 57.8 |
-| Huawei Nova 9 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 66.1 | 103.1 | 2061.8 | 1989.8 | 3899.9 | 52.6 | 51.9 |
-| Oppo A53s | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | 313.7 | 626.8 | 9178.1 | 9251.5 | 17493.9 | 207.2 | 205.4 |
-| OnePlus 6 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | 1610.0 | 1586.1 | 3302.4 | 3321.4 | 6518.9 | 368.6 | 180.2 |
-| Xiaomi Pocophone F1 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | 1535.6 | 1520.4 | 3076.7 | 3095.9 | 6460.7 | 376.4 | 187.0 |
-| Xiaomi Mi Note 3 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | 3399.6 | 3340.7 | 6976.1 | 6911.6 | 13608.4 | 552.7 | 267.7 |
-| Samsung Galaxy XCover 4 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | 20628.0 | 20480.7 | 65715.5 | 65991.1 | 129990.0 | 1266.4 | 870.4 |
+| Nothing Phone (2) | 2026-07-06 | JcaCryptoProvider | 200 | <span style="color:#166534;">71.2</span> | <span style="color:#166534;">136.9</span> | <span style="color:#166534;">71.7</span> | <span style="color:#166534;">121.6</span> | <span style="color:#166534;">77.1</span> | <span style="color:#166534;">12.8</span> | <span style="color:#166534;">12.7</span> |
+| Samsung Galaxy Z Flip4 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">61.6</span> | <span style="color:#166534;">99.1</span> | <span style="color:#92400e;">1852.4</span> | <span style="color:#92400e;">1861.2</span> | <span style="color:#92400e;">3550.0</span> | <span style="color:#166534;">8.4</span> | <span style="color:#166534;">8.5</span> |
+| Nothing Phone (1) | 2026-07-06 | JcaCryptoProvider | 200 | <span style="color:#166534;">78.4</span> | <span style="color:#166534;">159.4</span> | <span style="color:#166534;">131.8</span> | <span style="color:#166534;">146.2</span> | <span style="color:#166534;">125.0</span> | <span style="color:#166534;">56.2</span> | <span style="color:#166534;">56.2</span> |
+| Realme C55 | 2026-07-06 | JcaCryptoProvider | 200 | <span style="color:#166534;">308.7</span> | <span style="color:#166534;">711.6</span> | <span style="color:#166534;">539.8</span> | <span style="color:#166534;">584.6</span> | <span style="color:#166534;">634.5</span> | <span style="color:#92400e;">211.1</span> | <span style="color:#92400e;">193.3</span> |
+| OPPO Reno8 5G | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">54.3</span> | <span style="color:#166534;">132.3</span> | <span style="color:#92400e;">2121.0</span> | <span style="color:#92400e;">2052.5</span> | <span style="color:#92400e;">3899.1</span> | <span style="color:#166534;">32.2</span> | <span style="color:#166534;">32.6</span> |
+| Motorola Edge 30 Fusion | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">74.3</span> | <span style="color:#166534;">153.0</span> | <span style="color:#92400e;">2775.2</span> | <span style="color:#92400e;">2776.6</span> | <span style="color:#92400e;">5216.5</span> | <span style="color:#166534;">26.8</span> | <span style="color:#166534;">27.5</span> |
+| Nokia X20 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">163.5</span> | <span style="color:#166534;">386.6</span> | <span style="color:#92400e;">3848.9</span> | <span style="color:#92400e;">3854.7</span> | <span style="color:#92400e;">7297.3</span> | <span style="color:#166534;">24.8</span> | <span style="color:#166534;">18.5</span> |
+| OPPO A57s | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">281.9</span> | <span style="color:#166534;">426.3</span> | <span style="color:#991b1b;font-weight:600;">12887.1</span> | <span style="color:#991b1b;font-weight:600;">11729.5</span> | <span style="color:#991b1b;font-weight:600;">22250.2</span> | <span style="color:#92400e;">281.1</span> | <span style="color:#92400e;">278.4</span> |
+| Gigaset GX6 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">71.2</span> | <span style="color:#166534;">200.0</span> | <span style="color:#92400e;">2607.3</span> | <span style="color:#92400e;">2628.7</span> | <span style="color:#92400e;">4906.7</span> | <span style="color:#166534;">33.4</span> | <span style="color:#166534;">28.3</span> |
+| OnePlus Nord 2 5G | 2026-07-06 | JcaCryptoProvider | 200 | <span style="color:#166534;">112.0</span> | <span style="color:#166534;">158.8</span> | <span style="color:#166534;">131.0</span> | <span style="color:#166534;">139.6</span> | <span style="color:#166534;">129.1</span> | <span style="color:#166534;">60.0</span> | <span style="color:#166534;">57.8</span> |
+| Huawei Nova 9 | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">66.1</span> | <span style="color:#166534;">103.1</span> | <span style="color:#92400e;">2061.8</span> | <span style="color:#92400e;">1989.8</span> | <span style="color:#92400e;">3899.9</span> | <span style="color:#166534;">52.6</span> | <span style="color:#166534;">51.9</span> |
+| Oppo A53s | 2026-07-06 | Ed25519FallbackCryptoProvider | 200 | <span style="color:#166534;">313.7</span> | <span style="color:#166534;">626.8</span> | <span style="color:#92400e;">9178.1</span> | <span style="color:#92400e;">9251.5</span> | <span style="color:#991b1b;font-weight:600;">17493.9</span> | <span style="color:#92400e;">207.2</span> | <span style="color:#92400e;">205.4</span> |
+| OnePlus 6 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | <span style="color:#92400e;">1610.0</span> | <span style="color:#92400e;">1586.1</span> | <span style="color:#92400e;">3302.4</span> | <span style="color:#92400e;">3321.4</span> | <span style="color:#92400e;">6518.9</span> | <span style="color:#92400e;">368.6</span> | <span style="color:#92400e;">180.2</span> |
+| Xiaomi Pocophone F1 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | <span style="color:#92400e;">1535.6</span> | <span style="color:#92400e;">1520.4</span> | <span style="color:#92400e;">3076.7</span> | <span style="color:#92400e;">3095.9</span> | <span style="color:#92400e;">6460.7</span> | <span style="color:#92400e;">376.4</span> | <span style="color:#92400e;">187.0</span> |
+| Xiaomi Mi Note 3 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | <span style="color:#92400e;">3399.6</span> | <span style="color:#92400e;">3340.7</span> | <span style="color:#92400e;">6976.1</span> | <span style="color:#92400e;">6911.6</span> | <span style="color:#991b1b;font-weight:600;">13608.4</span> | <span style="color:#991b1b;font-weight:600;">552.7</span> | <span style="color:#92400e;">267.7</span> |
+| Samsung Galaxy XCover 4 | 2026-07-06 | AndroidFallbackCryptoProvider | 200 | <span style="color:#991b1b;font-weight:600;">20628.0</span> | <span style="color:#991b1b;font-weight:600;">20480.7</span> | <span style="color:#991b1b;font-weight:600;">65715.5</span> | <span style="color:#991b1b;font-weight:600;">65991.1</span> | <span style="color:#991b1b;font-weight:600;">129990.0</span> | <span style="color:#991b1b;font-weight:600;">1266.4</span> | <span style="color:#991b1b;font-weight:600;">870.4</span> |
 
 ### Transport benchmarks
 

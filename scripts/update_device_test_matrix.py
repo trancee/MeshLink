@@ -164,6 +164,36 @@ def crypto_chips(items: list[str]) -> str:
     return " ".join(chips) if chips else "—"
 
 
+CRYPTO_LATENCY_STYLES = {
+    "good": "color:#166534;",
+    "warn": "color:#92400e;",
+    "bad": "color:#991b1b;font-weight:600;",
+}
+
+# (warn_threshold_us, bad_threshold_us) per operation family; a value at or below warn_threshold
+# is "good", above warn_threshold up to bad_threshold is "warn", above bad_threshold is "bad".
+CRYPTO_LATENCY_THRESHOLDS = {
+    "x25519KeyGenUs": (1000.0, 5000.0),
+    "x25519AgreementUs": (1000.0, 5000.0),
+    "ed25519KeyGenUs": (1000.0, 10000.0),
+    "ed25519SignUs": (1000.0, 10000.0),
+    "ed25519VerifyUs": (1000.0, 10000.0),
+    "chacha20SealUs": (100.0, 500.0),
+    "chacha20OpenUs": (100.0, 500.0),
+}
+
+
+def crypto_latency_cell(field: str, value_us: float) -> str:
+    warn_threshold, bad_threshold = CRYPTO_LATENCY_THRESHOLDS[field]
+    if value_us > bad_threshold:
+        style = CRYPTO_LATENCY_STYLES["bad"]
+    elif value_us > warn_threshold:
+        style = CRYPTO_LATENCY_STYLES["warn"]
+    else:
+        style = CRYPTO_LATENCY_STYLES["good"]
+    return f'<span style="{style}">{value_us:.1f}</span>'
+
+
 def chipset_with_model(name: str, model: str) -> str:
     chip = chip_html(model, "background:#e5e7eb;color:#374151;border:1px solid #d1d5db;")
     return f"{name} {chip}" if model else name
@@ -303,6 +333,12 @@ def render_markdown(rows: list[dict]) -> str:
         "",
         "### Crypto benchmarks",
         "",
+        "Values are per-operation average microseconds (µs) over the iteration count shown.",
+        "Colors flag latency outliers per operation family: green is at or below the warn",
+        "threshold, amber is above it, and bold red is above the bad threshold — X25519",
+        "ops warn > 1000µs / bad > 5000µs, Ed25519 ops warn > 1000µs / bad > 10000µs, and",
+        "ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs.",
+        "",
     ]
     crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
     if not crypto_entries:
@@ -315,8 +351,10 @@ def render_markdown(rows: list[dict]) -> str:
         for row, entry in crypto_entries:
             lines.append(
                 f"| {row['device']} | {entry['date']} | {entry['provider']} | {entry['iterations']} | "
-                f"{entry['x25519KeyGenUs']:.1f} | {entry['x25519AgreementUs']:.1f} | {entry['ed25519KeyGenUs']:.1f} | "
-                f"{entry['ed25519SignUs']:.1f} | {entry['ed25519VerifyUs']:.1f} | {entry['chacha20SealUs']:.1f} | {entry['chacha20OpenUs']:.1f} |"
+                f"{crypto_latency_cell('x25519KeyGenUs', entry['x25519KeyGenUs'])} | {crypto_latency_cell('x25519AgreementUs', entry['x25519AgreementUs'])} | "
+                f"{crypto_latency_cell('ed25519KeyGenUs', entry['ed25519KeyGenUs'])} | {crypto_latency_cell('ed25519SignUs', entry['ed25519SignUs'])} | "
+                f"{crypto_latency_cell('ed25519VerifyUs', entry['ed25519VerifyUs'])} | {crypto_latency_cell('chacha20SealUs', entry['chacha20SealUs'])} | "
+                f"{crypto_latency_cell('chacha20OpenUs', entry['chacha20OpenUs'])} |"
             )
     lines += [
         "",
