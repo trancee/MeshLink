@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform.android
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothProfile
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.BleDiscoveryContract
@@ -29,6 +30,9 @@ internal class GattNotifyClient(
     private val log: (String) -> Unit,
     private val onFrameReceived: (PeerId, ByteArray) -> Boolean,
     private val onDisconnected: (PeerId) -> Unit,
+    // Read at connection time so the priority reflects the *current* power tier rather than
+    // whatever tier was active when this client was constructed.
+    private val connectionPriorityProvider: () -> Int = { BluetoothGatt.CONNECTION_PRIORITY_HIGH },
     private val sessionFactory: GattNotifySessionFactory =
         BluetoothGattNotifySessionFactory(context = context, device = device),
 ) {
@@ -56,7 +60,7 @@ internal class GattNotifyClient(
                 )
                 val session = session ?: return
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    session.requestHighConnectionPriority()
+                    session.requestConnectionPriority(connectionPriorityProvider())
                     requestFastPhyIfSupported(session)
                     val connectionPlan =
                         connectedGattNotifyLifecycle(

@@ -12,7 +12,7 @@ import java.util.UUID
 internal interface GattConnectionAdapter {
     val address: String
 
-    fun requestHighConnectionPriority(): Unit
+    fun requestConnectionPriority(priority: Int): Unit
 
     fun requestFastPhy(): Unit
 
@@ -60,8 +60,8 @@ internal class PlatformGattConnectionAdapter(
     override val address: String
         get() = gatt.device.address
 
-    override fun requestHighConnectionPriority(): Unit {
-        gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+    override fun requestConnectionPriority(priority: Int): Unit {
+        gatt.requestConnectionPriority(priority)
     }
 
     override fun requestFastPhy(): Unit {

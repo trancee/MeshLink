@@ -150,6 +150,7 @@ guessing which page owns which model.
 - [About the L2CAP-preferred transport posture](explanation/why-l2cap-first.md) — why MeshLink prefers L2CAP while keeping GATT available alongside it.
 - [Cut-through relay](explanation/cut-through-relay.md) — why relays prefer forwarding without full reassembly.
 - [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md) — what recent real-device runs taught us.
+- [BLE connection robustness](explanation/ble-connection-robustness.md) — the flakiness symptoms (connection cycling, handshake timeouts, forced settle delays) found during physical multi-device testing, their root causes, and the fixes applied.
 - [Understanding Babel routing](explanation/understanding-babel-routing.md) — the routing ideas MeshLink borrows and adapts.
 - [The MeshEngine coordinator pattern](explanation/meshengine-pattern.md) — why the public shell stays thin and coordination lives in the engine.
 
