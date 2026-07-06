@@ -60,12 +60,12 @@ public constructor(
 /**
  * Groups the iOS-native ChaCha20-Poly1305 callbacks required by MeshLink.
  *
- * [open] returns `null` -- rather than throwing -- when authentication fails, since a failed
- * AEAD open is an expected outcome (for example a redundant/duplicate delivery of an
- * already-processed ciphertext) that MeshLink's engine already handles gracefully. Native
- * Objective-C/Swift exceptions such as `fatalError` cannot cross the Kotlin/Native boundary as a
- * catchable Kotlin exception, so signaling failure via `null` keeps that recoverable path from
- * crashing the whole process.
+ * [open] returns `null` -- rather than throwing -- when authentication fails, since a failed AEAD
+ * open is an expected outcome (for example a redundant/duplicate delivery of an already-processed
+ * ciphertext) that MeshLink's engine already handles gracefully. Native Objective-C/Swift
+ * exceptions such as `fatalError` cannot cross the Kotlin/Native boundary as a catchable Kotlin
+ * exception, so signaling failure via `null` keeps that recoverable path from crashing the whole
+ * process.
  */
 public class ChaCha20Poly1305Callbacks
 public constructor(

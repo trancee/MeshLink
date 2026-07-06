@@ -115,7 +115,6 @@ constructor(
         return facadeOperations.forgetPeer(peerId)
     }
 
-
     internal companion object {
         internal fun assembleMeshEngineRuntime(
             config: MeshLinkConfig,

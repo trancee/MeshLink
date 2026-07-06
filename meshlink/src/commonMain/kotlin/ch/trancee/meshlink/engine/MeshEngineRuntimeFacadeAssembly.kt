@@ -79,7 +79,9 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
             resumeTransport = environment.platformBridge::resume,
             stopTransport = environment.platformBridge::stop,
             startBatteryMonitor = {
-                environment.batteryMonitor.start { snapshot -> powerPolicySupport.updateBattery(snapshot) }
+                environment.batteryMonitor.start { snapshot ->
+                    powerPolicySupport.updateBattery(snapshot)
+                }
             },
             stopBatteryMonitor = environment.batteryMonitor::stop,
             clearVolatileRuntimeView = { stage, removalCode, metadata ->
@@ -143,6 +145,5 @@ internal fun buildMeshEngineRuntimeFacadeOperations(
 
         override suspend fun forgetPeer(peerId: ch.trancee.meshlink.api.PeerId) =
             peerForgetSupport.forgetPeer(peerId)
-
     }
 }

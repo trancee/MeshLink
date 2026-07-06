@@ -25,15 +25,15 @@ import kotlinx.coroutines.runBlocking
  * implementation ([JvmCryptoProvider]), rather than the
  * [ch.trancee.meshlink.crypto.PlaceholderCryptoProvider] used throughout
  * [MeshEngineHopTransportSupportTest]. The placeholder is a simplified test double whose
- * pseudo-AEAD tag computation only ever reads the first 32 bytes of its
- * `key + nonce + aad + ciphertext` input -- which, for a 32-byte key, means the tag never actually
- * depends on the nonce, AAD, or ciphertext at all. That makes it unsuitable for verifying the
- * explicit-sequence-number replay-protection design's core security property: that the sequence
- * number header is cryptographically bound to the frame via AAD (see
+ * pseudo-AEAD tag computation only ever reads the first 32 bytes of its `key + nonce + aad +
+ * ciphertext` input -- which, for a 32-byte key, means the tag never actually depends on the nonce,
+ * AAD, or ciphertext at all. That makes it unsuitable for verifying the explicit-sequence-number
+ * replay-protection design's core security property: that the sequence number header is
+ * cryptographically bound to the frame via AAD (see
  * docs/explanation/hop-session-replay-protection.md), so tampering with it invalidates the frame
- * instead of silently letting an on-path relay relabel a captured frame's declared sequence
- * number. This test uses the production JVM crypto provider so that property is checked against a
- * real ChaCha20-Poly1305 implementation.
+ * instead of silently letting an on-path relay relabel a captured frame's declared sequence number.
+ * This test uses the production JVM crypto provider so that property is checked against a real
+ * ChaCha20-Poly1305 implementation.
  */
 class MeshEngineHopTransportSupportJvmCryptoTest {
     @Test

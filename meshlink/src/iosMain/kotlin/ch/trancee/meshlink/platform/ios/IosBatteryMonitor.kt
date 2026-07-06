@@ -5,8 +5,8 @@ import ch.trancee.meshlink.power.BatteryMonitor
 import platform.Foundation.NSNotificationCenter
 import platform.UIKit.UIDevice
 import platform.UIKit.UIDeviceBatteryLevelDidChangeNotification
-import platform.UIKit.UIDeviceBatteryStateDidChangeNotification
 import platform.UIKit.UIDeviceBatteryState
+import platform.UIKit.UIDeviceBatteryStateDidChangeNotification
 
 internal class IosBatteryMonitor : BatteryMonitor {
     private var observers: List<Any?>? = null
@@ -33,19 +33,25 @@ internal class IosBatteryMonitor : BatteryMonitor {
                 name = UIDeviceBatteryLevelDidChangeNotification,
                 `object` = device,
                 queue = null,
-            ) { _ -> emitSnapshot() }
+            ) { _ ->
+                emitSnapshot()
+            }
         val stateObserver =
             center.addObserverForName(
                 name = UIDeviceBatteryStateDidChangeNotification,
                 `object` = device,
                 queue = null,
-            ) { _ -> emitSnapshot() }
+            ) { _ ->
+                emitSnapshot()
+            }
         observers = listOf(levelObserver, stateObserver)
         emitSnapshot()
     }
 
     override fun stop() {
-        observers?.forEach { observer -> observer?.let(NSNotificationCenter.defaultCenter::removeObserver) }
+        observers?.forEach { observer ->
+            observer?.let(NSNotificationCenter.defaultCenter::removeObserver)
+        }
         observers = null
         UIDevice.currentDevice.batteryMonitoringEnabled = false
     }

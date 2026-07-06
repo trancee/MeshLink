@@ -240,7 +240,6 @@ public interface MeshLink {
 
     /** Removes the pinned trust state for [peerId], if one exists. */
     public suspend fun forgetPeer(peerId: PeerId): ForgetPeerResult
-
 }
 
 private const val REDACTED_PEER_SUFFIX_LENGTH: Int = 6

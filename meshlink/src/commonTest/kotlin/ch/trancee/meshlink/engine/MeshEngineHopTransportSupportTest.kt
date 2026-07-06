@@ -486,8 +486,7 @@ class MeshEngineHopTransportSupportTest {
                     session = session,
                     transferId = "transfer-version",
                 )
-            val unsupportedVersionCiphertext =
-                ciphertext.copyOf().also { bytes -> bytes[0] = 99 }
+            val unsupportedVersionCiphertext = ciphertext.copyOf().also { bytes -> bytes[0] = 99 }
 
             // Act & Assert
             assertFailsWith<HopFrameFormatException> {

@@ -93,7 +93,6 @@ class MeshEngineRuntimeTest {
             assertEquals(peerId, facadeOperations.forgottenPeerId)
         }
 
-
     @Test
     fun `runtime exposes the published surface state and flows`() =
         runBlocking<Unit> {
@@ -194,5 +193,4 @@ private class RecordingRuntimeFacadeOperations : MeshEngineRuntimeFacadeOperatio
         forgottenPeerId = peerId
         return ForgetPeerResult.Forgotten
     }
-
 }

@@ -3,22 +3,32 @@
 
 Unlike run_headless_meshlink_benchmark.py (which pairs exactly one Android
 receiver with one iPhone sender via xcrun devicectl), this script only needs
-adb: it launches the Android proof app as a forced initiator/sender on one
-device and as a passive receiver on another, using the same
-`meshlink.benchmarkPayloadBytes` / `meshlink.forceInitiator` /
-`meshlink.disableAutoSend` launch extras documented in
-meshlink-proof/android/README.md. That lets it fan out across every device
-currently attached to the host instead of requiring a fixed Android+iOS pair.
+adb. It supports two independent benchmark modes:
+
+- "transport" (default): launches the Android proof app as a forced
+  initiator/sender on one device and as a passive receiver on another, using
+  the same `meshlink.benchmarkPayloadBytes` / `meshlink.forceInitiator` /
+  `meshlink.disableAutoSend` launch extras documented in
+  meshlink-proof/android/README.md. That lets it fan out across every device
+  currently attached to the host instead of requiring a fixed Android+iOS
+  pair.
+- "crypto": times X25519/Ed25519/ChaCha20-Poly1305 primitives on real device
+  silicon (no pairing needed) via the CryptoRuntimePerformanceDeviceTest
+  instrumented test, one device at a time, so crypto performance can be
+  compared across the heterogeneous device fleet documented in
+  docs/reference/device-test-matrix.md.
 
 Every run is appended to a durable JSON Lines ledger
-(meshlink-benchmark/fleet-results/ledger.jsonl by default) and a regenerated
-Markdown summary (latest-summary.md) so results survive across sessions.
+(meshlink-benchmark/fleet-results/ledger.jsonl and/or crypto-ledger.jsonl by
+default) and a regenerated Markdown summary so results survive across
+sessions.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -42,13 +52,32 @@ BENCHMARK_RESULT_PATTERN = re.compile(
     r"throughputKBps=(?P<throughput>[0-9]+(?:\.[0-9]+)?) result=(?P<result>\S+)"
 )
 
+CRYPTO_TEST_CLASS = "ch.trancee.meshlink.platform.android.CryptoRuntimePerformanceDeviceTest"
+CRYPTO_LOGCAT_TAGS = ["CryptoBenchmark:I", "*:S"]
+CRYPTO_RESULT_PATTERN = re.compile(
+    r"CRYPTO_BENCHMARK device=(?P<device>.+?) sdk=(?P<sdk>\d+) op=(?P<op>\S+) "
+    r"iterations=(?P<iterations>\d+) totalMs=(?P<total_ms>[0-9]+(?:\.[0-9]+)?) "
+    r"avgUs=(?P<avg_us>[0-9]+(?:\.[0-9]+)?) provider=(?P<provider>\S+)"
+)
+DEFAULT_CRYPTO_TIMEOUT_SECONDS = 300.0
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CATALOG_PATH = REPO_ROOT / "scripts" / "device-test-matrix.catalog.json"
 DEFAULT_RESULTS_DIR = REPO_ROOT / "meshlink-benchmark" / "fleet-results"
+GRADLEW = REPO_ROOT / "gradlew"
 
 
-def run(command: list[str], *, check: bool = True, capture_output: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=check, capture_output=capture_output, text=True)
+def run(
+    command: list[str],
+    *,
+    check: bool = True,
+    capture_output: bool = True,
+    env: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command, check=check, capture_output=capture_output, text=True, env=env, timeout=timeout
+    )
 
 
 def getprop(serial: str, prop: str) -> str:
@@ -323,14 +352,155 @@ def rewrite_summary(results_dir: Path, *, max_rows: int = 200) -> Path:
     return summary_path
 
 
+@dataclass
+class CryptoOutcome:
+    device: Device
+    run_dir: Path
+    ops: list[dict] = field(default_factory=list)
+    error: str | None = None
+    partial: bool = False
+
+    def to_record(self) -> dict:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "serial": self.device.serial,
+            "device": self.device.friendly_name,
+            "ops": self.ops,
+            "run_dir": str(self.run_dir),
+            "error": self.error,
+            "partial": self.partial,
+        }
+
+
+def run_crypto_benchmark(device: Device, *, run_dir: Path, timeout_seconds: float) -> CryptoOutcome:
+    """Times X25519/Ed25519/ChaCha20-Poly1305 primitives on one device via the
+    CryptoRuntimePerformanceDeviceTest instrumented test. No pairing needed."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    outcome = CryptoOutcome(device=device, run_dir=run_dir)
+    log_path = run_dir / "crypto_logcat.log"
+
+    run(["adb", "-s", device.serial, "logcat", "-c"], check=False)
+    try:
+        gradle_env = dict(os.environ, ANDROID_SERIAL=device.serial)
+        gradle_result = run(
+            [
+                str(GRADLEW),
+                ":meshlink:connectedAndroidDeviceTest",
+                f"-Pandroid.testInstrumentationRunnerArguments.class={CRYPTO_TEST_CLASS}",
+                "--console=plain",
+            ],
+            check=False,
+            env=gradle_env,
+            timeout=timeout_seconds,
+        )
+        (run_dir / "gradle_output.log").write_text(
+            gradle_result.stdout + gradle_result.stderr, encoding="utf-8"
+        )
+
+        logcat_result = run(["adb", "-s", device.serial, "logcat", "-d", *CRYPTO_LOGCAT_TAGS], check=False)
+        log_path.write_text(logcat_result.stdout, encoding="utf-8")
+
+        for line in logcat_result.stdout.splitlines():
+            match = CRYPTO_RESULT_PATTERN.search(line)
+            if match:
+                outcome.ops.append(
+                    {
+                        "op": match.group("op"),
+                        "iterations": int(match.group("iterations")),
+                        "total_ms": float(match.group("total_ms")),
+                        "avg_us": float(match.group("avg_us")),
+                        "provider": match.group("provider"),
+                        "sdk": int(match.group("sdk")),
+                    }
+                )
+
+        if gradle_result.returncode != 0:
+            # The instrumented test can crash partway through (e.g. one op
+            # unsupported on this device), leaving earlier CRYPTO_BENCHMARK
+            # lines logged even though the overall Gradle run failed. Surface
+            # that as a partial result rather than silently reporting success.
+            outcome.partial = True
+            outcome.error = (
+                f"connectedAndroidDeviceTest failed (exit {gradle_result.returncode})"
+                + (f"; observed {len(outcome.ops)} op result(s) before failure" if outcome.ops else "; no CRYPTO_BENCHMARK lines were observed")
+            )
+        elif not outcome.ops:
+            outcome.partial = True
+            outcome.error = "no CRYPTO_BENCHMARK lines observed in logcat despite a successful test run"
+    except subprocess.TimeoutExpired:
+        outcome.error = f"timed out after {timeout_seconds}s waiting for connectedAndroidDeviceTest"
+    except Exception as error:  # noqa: BLE001 - retain evidence even on unexpected failure
+        outcome.error = str(error)
+
+    (run_dir / "meta.json").write_text(json.dumps(outcome.to_record(), indent=2), encoding="utf-8")
+    return outcome
+
+
+def append_crypto_ledger(results_dir: Path, records: list[dict]) -> Path:
+    ledger_path = results_dir / "crypto-ledger.jsonl"
+    with ledger_path.open("a", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record) + "\n")
+    return ledger_path
+
+
+def rewrite_crypto_summary(results_dir: Path, *, max_rows: int = 200) -> Path:
+    ledger_path = results_dir / "crypto-ledger.jsonl"
+    summary_path = results_dir / "crypto-latest-summary.md"
+    records = []
+    if ledger_path.exists():
+        for line in ledger_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                records.append(json.loads(line))
+    records.sort(key=lambda record: record["timestamp"], reverse=True)
+
+    lines = [
+        "# MeshLink fleet crypto benchmark results",
+        "",
+        "Generated by `meshlink-benchmark/scripts/run_fleet_meshlink_benchmark.py --mode crypto`.",
+        "Do not hand-edit; rerun the script to refresh this file.",
+        "",
+        "| Timestamp (UTC) | Device | Op | Iterations | Avg (\u00b5s) | Provider | SDK | Run dir |",
+        "|---|---|---|---:|---:|---|---:|---|",
+    ]
+    for record in records[:max_rows]:
+        if record.get("error") and not record.get("ops"):
+            lines.append(
+                f"| {record['timestamp']} | {record['device']} (`{record['serial']}`) | \u2014 | \u2014 | \u2014 "
+                f"| \u2014 | \u2014 | error: {record['error']} (`{record['run_dir']}`) |"
+            )
+            continue
+        partial_suffix = f" (PARTIAL: {record['error']})" if record.get("partial") and record.get("error") else ""
+        for op in record.get("ops", []):
+            lines.append(
+                f"| {record['timestamp']} | {record['device']} (`{record['serial']}`) | {op['op']}{partial_suffix} "
+                f"| {op['iterations']} | {op['avg_us']:.2f} | {op['provider']} | {op['sdk']} "
+                f"| `{record['run_dir']}` |"
+            )
+    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return summary_path
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the Android MeshLink proof-app throughput benchmark across every attached "
-            "ADB device by pairing them as sender/receiver, with no iOS device required."
+            "Run the Android MeshLink proof-app benchmark across every attached ADB device: "
+            "'transport' pairs devices as sender/receiver for BLE throughput, 'crypto' times "
+            "crypto primitives on each device individually (no pairing, no iOS required either way)."
         )
     )
-    parser.add_argument("--payload-bytes", type=int, required=True, help="Benchmark payload size in bytes")
+    parser.add_argument(
+        "--mode",
+        choices=["transport", "crypto"],
+        default="transport",
+        help="'transport' (default) benchmarks BLE throughput between paired devices; "
+        "'crypto' times X25519/Ed25519/ChaCha20-Poly1305 on each device individually.",
+    )
+    parser.add_argument(
+        "--payload-bytes",
+        type=int,
+        help="Benchmark payload size in bytes. Required when --mode transport.",
+    )
     parser.add_argument(
         "--serials",
         help="Comma-separated ADB serials to restrict the fleet to. Defaults to every attached device in 'device' state.",
@@ -339,9 +509,10 @@ def parse_args() -> argparse.Namespace:
         "--pairing",
         choices=["ring", "all-pairs"],
         default="ring",
-        help="'ring' pairs each device with the next one (N runs total); 'all-pairs' runs every ordered pair (N*(N-1) runs).",
+        help="'ring' pairs each device with the next one (N runs total); 'all-pairs' runs every ordered pair (N*(N-1) runs). "
+        "Only applies to --mode transport.",
     )
-    parser.add_argument("--repeat", type=int, default=1, help="How many times to repeat the full pairing plan")
+    parser.add_argument("--repeat", type=int, default=1, help="How many times to repeat the full pairing/device plan")
     parser.add_argument("--app-id", help="Shared appId for the run. Defaults to fleet.meshlink.benchmark.<timestamp>.")
     parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS_DIR), help="Directory for the persistent ledger and run evidence")
     parser.add_argument("--ready-seconds", type=float, default=DEFAULT_READY_SECONDS)
@@ -349,17 +520,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--post-result-idle-seconds", type=float, default=DEFAULT_POST_RESULT_IDLE_SECONDS)
     parser.add_argument("--receipt-grace-seconds", type=float, default=DEFAULT_RECEIPT_GRACE_SECONDS)
     parser.add_argument(
+        "--crypto-timeout-seconds",
+        type=float,
+        default=DEFAULT_CRYPTO_TIMEOUT_SECONDS,
+        help="Per-device timeout for the crypto instrumented test (includes Gradle/install overhead). Only applies to --mode crypto.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Only discover devices and print the planned pairing; do not launch anything.",
+        help="Only discover devices and print the planned pairing/device list; do not launch anything.",
     )
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Actually run the benchmark pairs. Required in addition to omitting --dry-run, as a safety gate "
-        "before driving BLE traffic across every attached device.",
+        help="Actually run the benchmark. Required in addition to omitting --dry-run, as a safety gate "
+        "before driving BLE traffic or installing/running instrumented tests across every attached device.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mode == "transport" and args.payload_bytes is None:
+        parser.error("--payload-bytes is required when --mode transport")
+    return args
 
 
 def main() -> int:
@@ -371,10 +551,18 @@ def main() -> int:
     for device in devices:
         print(f"    {device.serial}  {device.friendly_name}  ({device.manufacturer} {device.model})")
 
-    pairs = build_pairs(devices, args.pairing)
-    print(f"==> Pairing mode '{args.pairing}' plans {len(pairs)} run(s) per repeat, {args.repeat} repeat(s):")
-    for sender, receiver in pairs:
-        print(f"    sender={sender.friendly_name} ({sender.serial}) -> receiver={receiver.friendly_name} ({receiver.serial})")
+    pairs: list[tuple[Device, Device]] = []
+    if args.mode == "transport":
+        pairs = build_pairs(devices, args.pairing)
+        print(f"==> Pairing mode '{args.pairing}' plans {len(pairs)} run(s) per repeat, {args.repeat} repeat(s):")
+        for sender, receiver in pairs:
+            print(f"    sender={sender.friendly_name} ({sender.serial}) -> receiver={receiver.friendly_name} ({receiver.serial})")
+    else:
+        if not devices:
+            raise SystemExit("Need at least 1 attached device to run the crypto benchmark; found 0")
+        print(f"==> Crypto mode plans {len(devices)} single-device run(s) per repeat, {args.repeat} repeat(s):")
+        for device in devices:
+            print(f"    device={device.friendly_name} ({device.serial})")
 
     if args.dry_run:
         print("==> --dry-run set; not launching any app.")
@@ -382,14 +570,22 @@ def main() -> int:
 
     if not args.execute:
         raise SystemExit(
-            "Refusing to launch BLE traffic on every attached device without --execute. "
-            "Re-run with --execute once the planned pairing above looks correct (or narrow scope with --serials)."
+            "Refusing to launch BLE traffic / instrumented tests on every attached device without --execute. "
+            "Re-run with --execute once the planned run above looks correct (or narrow scope with --serials)."
         )
 
     results_dir = Path(args.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
     base_app_id = args.app_id or f"fleet.meshlink.benchmark.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
 
+    if args.mode == "crypto":
+        return run_crypto_mode(devices, args, results_dir, base_app_id)
+    return run_transport_mode(pairs, args, results_dir, base_app_id)
+
+
+def run_transport_mode(
+    pairs: list[tuple[Device, Device]], args: argparse.Namespace, results_dir: Path, base_app_id: str
+) -> int:
     all_outcomes: list[PairOutcome] = []
     for repeat_index in range(1, args.repeat + 1):
         for pair_index, (sender, receiver) in enumerate(pairs, start=1):
@@ -422,6 +618,39 @@ def main() -> int:
 
     successful = [o for o in all_outcomes if o.benchmark_line is not None]
     print(f"\n==> {len(successful)}/{len(all_outcomes)} runs observed a scored benchmark line")
+    print(f"==> Ledger: {ledger_path}")
+    print(f"==> Summary: {summary_path}")
+    return 0 if len(successful) == len(all_outcomes) else 1
+
+
+def run_crypto_mode(
+    devices: list[Device], args: argparse.Namespace, results_dir: Path, base_app_id: str
+) -> int:
+    all_outcomes: list[CryptoOutcome] = []
+    for repeat_index in range(1, args.repeat + 1):
+        for device_index, device in enumerate(devices, start=1):
+            app_id = base_app_id if args.repeat == 1 else f"{base_app_id}.r{repeat_index}"
+            run_dir = results_dir / "crypto-runs" / app_id.replace(".", "_") / f"{device_index:02d}_{device.hardware_serial}"
+            print(f"\n=== Repeat {repeat_index}/{args.repeat}, device {device_index}/{len(devices)} ===")
+            print(f"==> Timing crypto primitives on {device.friendly_name} ({device.serial})")
+            outcome = run_crypto_benchmark(device, run_dir=run_dir, timeout_seconds=args.crypto_timeout_seconds)
+            if outcome.ops:
+                summary = ", ".join(f"{op['op']}={op['avg_us']:.1f}\u00b5s" for op in outcome.ops)
+                partial_note = f" [PARTIAL: {outcome.error}]" if outcome.partial else ""
+                print(f"==> Result: {summary}{partial_note}")
+            else:
+                print(f"==> Result: {outcome.error or 'unknown'}")
+            all_outcomes.append(outcome)
+            # Persist after every device so a mid-run interruption still leaves a
+            # durable record of every device that already completed.
+            append_crypto_ledger(results_dir, [outcome.to_record()])
+            rewrite_crypto_summary(results_dir)
+
+    ledger_path = results_dir / "crypto-ledger.jsonl"
+    summary_path = results_dir / "crypto-latest-summary.md"
+
+    successful = [o for o in all_outcomes if o.ops and not o.partial]
+    print(f"\n==> {len(successful)}/{len(all_outcomes)} devices produced complete crypto benchmark results")
     print(f"==> Ledger: {ledger_path}")
     print(f"==> Summary: {summary_path}")
     return 0 if len(successful) == len(all_outcomes) else 1

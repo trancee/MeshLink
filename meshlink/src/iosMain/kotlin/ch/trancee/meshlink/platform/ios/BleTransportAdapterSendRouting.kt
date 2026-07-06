@@ -66,19 +66,24 @@ internal suspend fun BleTransportAdapter.sendToPeer(
 
     return when (bearerMode) {
         GattDataBearerMode.GATT_ONLY ->
-            sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
-                ?.also { log(gattDataBearerResultLogLine("GATT")) }
-                ?: sendViaL2capWhenReady(frame = frame, peer = peer)
-                    .also { log(gattDataBearerResultLogLine("L2CAP")) }
+            sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)?.also {
+                log(gattDataBearerResultLogLine("GATT"))
+            }
+                ?: sendViaL2capWhenReady(frame = frame, peer = peer).also {
+                    log(gattDataBearerResultLogLine("L2CAP"))
+                }
         GattDataBearerMode.L2CAP_PREFERRED_WITH_GATT_FALLBACK -> {
             if (readyLink != null) {
-                sendViaL2capWhenReady(frame = frame, peer = peer)
-                    .also { log(gattDataBearerResultLogLine("L2CAP")) }
+                sendViaL2capWhenReady(frame = frame, peer = peer).also {
+                    log(gattDataBearerResultLogLine("L2CAP"))
+                }
             } else {
-                sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)
-                    ?.also { log(gattDataBearerResultLogLine("GATT")) }
-                    ?: sendViaL2capWhenReady(frame = frame, peer = peer)
-                        .also { log(gattDataBearerResultLogLine("L2CAP")) }
+                sendViaGattNotifyLinkOrNull(frame = frame, peer = peer)?.also {
+                    log(gattDataBearerResultLogLine("GATT"))
+                }
+                    ?: sendViaL2capWhenReady(frame = frame, peer = peer).also {
+                        log(gattDataBearerResultLogLine("L2CAP"))
+                    }
             }
         }
     }

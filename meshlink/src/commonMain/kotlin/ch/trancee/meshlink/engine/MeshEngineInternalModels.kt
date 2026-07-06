@@ -31,17 +31,18 @@ internal sealed class SessionEstablishmentOutcome {
  * writeup, threat model, and rationale)
  *
  * Each hop-encrypted [DirectWireFrame.Data] frame carries an explicit, AAD-bound sequence number
- * (see [MeshEngineHopTransportSupport.encryptHopPayload]/[MeshEngineHopTransportSupport.decryptHopPayload]).
+ * (see
+ * [MeshEngineHopTransportSupport.encryptHopPayload]/[MeshEngineHopTransportSupport.decryptHopPayload]).
  * The sender's sequence counter is [sendNonce]; the receiver tracks the highest sequence number
  * seen so far ([receiveHighWaterMark]) plus a sliding bitmap of recently-seen sequence numbers
  * within the replay window ([receiveWindowBitmap]), following the same anti-replay design used by
  * WireGuard and IPsec ESP. This replaces an earlier design where both sides derived the AEAD nonce
  * from their own independently-incrementing, implicit counters: that design silently desynced
  * whenever the receiver dropped a frame before decrypting it (for example, because no session was
- * established yet), permanently breaking the session with `AEADBadTagException` on every
- * subsequent frame. Binding an explicit, authenticated sequence number to each frame and tracking
- * receipt with a proper replay window tolerates that kind of loss/reordering without weakening
- * replay protection -- see the design doc for the security analysis.
+ * established yet), permanently breaking the session with `AEADBadTagException` on every subsequent
+ * frame. Binding an explicit, authenticated sequence number to each frame and tracking receipt with
+ * a proper replay window tolerates that kind of loss/reordering without weakening replay protection
+ * -- see the design doc for the security analysis.
  */
 internal class HopSession internal constructor(sendKey: ByteArray, receiveKey: ByteArray) {
     internal val sendKey: ByteArray = sendKey.copyOf()
