@@ -19,7 +19,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val SCENARIO_PAUSE_RESUME = "direct-pause-resume"
 private const val SCENARIO_TRUST_RESET_RECOVERY = "direct-trust-reset-recovery"
@@ -27,7 +30,11 @@ private const val SCENARIO_FULL_EXPORT = "direct-full-export"
 private const val SCENARIO_LARGE_TRANSFER = "direct-large-transfer"
 private const val LARGE_TRANSFER_MIN_BYTES = 4_096
 private const val PAUSE_RESUME_WINDOW_MILLIS = 1_000L
-private const val PAUSE_RESUME_SEND_SETTLE_MILLIS = 3_000L
+// Upper bound for how long we'll wait for the BLE link/route to become CONNECTED again after
+// resume()/forgetPeer() before falling back to a flat settle delay -- this replaces blindly
+// sleeping for a fixed duration with an event-driven wait on the controller's own snapshot flow,
+// so recovery is both faster (on the common case) and more robust (on slow BLE re-negotiation).
+private const val PEER_READY_AWAIT_TIMEOUT_MILLIS = 15_000L
 private const val TRUST_RESET_DELIVERY_SETTLE_MILLIS = 3_000L
 
 /** Tracks progress through the two-send `direct-trust-reset-recovery` scenario. */
@@ -358,6 +365,27 @@ internal class GuidedFirstExchangeViewModel(
                 }
         }
 
+    /**
+     * Suspends until [peerId] (or, if null, any peer) reports [PeerConnectionSnapshotState.CONNECTED]
+     * in the controller's own snapshot flow, or until [PEER_READY_AWAIT_TIMEOUT_MILLIS] elapses.
+     * This is the event-driven replacement for blindly `delay()`-ing a fixed settle window after
+     * resume()/forgetPeer() -- it reacts as soon as the BLE link/route is actually ready instead of
+     * guessing a duration, while still bounding the wait so automation can't hang forever if the
+     * link never recovers.
+     */
+    private suspend fun awaitPeerConnected(peerId: String?): Unit {
+        withTimeoutOrNull(PEER_READY_AWAIT_TIMEOUT_MILLIS) {
+            meshLinkController.snapshot
+                .filter { snapshot ->
+                    snapshot.peers.any {
+                        (peerId == null || it.peerId == peerId) &&
+                            it.connectionState == PeerConnectionSnapshotState.CONNECTED
+                    }
+                }
+                .first()
+        }
+    }
+
     private fun maybeAutoSendHelloDefault(snapshot: ReferenceControllerSnapshot): Unit {
         if (autoSendTriggered) return
         val peer = resolveAutoSendPeer(snapshot) ?: return
@@ -388,10 +416,11 @@ internal class GuidedFirstExchangeViewModel(
             emitAutomationLog("REFERENCE_AUTOMATION resume.observed role=sender window=closed")
             emitAutomationLog("REFERENCE_AUTOMATION pause.recovered role=sender window=closed")
             // Resuming re-enables the mesh runtime but the underlying BLE link needs time to
-            // reconnect physically before a send is deliverable -- without this settle delay the
-            // send can race the reconnection (mirrors the same race fixed for
-            // direct-trust-reset-recovery's post-forgetPeer send).
-            delay(PAUSE_RESUME_SEND_SETTLE_MILLIS)
+            // reconnect physically before a send is deliverable. Wait for the controller's own
+            // snapshot flow to report CONNECTED instead of blindly sleeping a fixed duration --
+            // this reacts as soon as the link is actually ready and still falls back to a bounded
+            // timeout if the link is unusually slow to recover.
+            awaitPeerConnected(peer.peerId)
             emitAutomationLog(
                 "REFERENCE_AUTOMATION startup-state=guided.viewModel.autoSendHello.requested peerId=${peer.peerId} targetPeerId=${automationTargetPeerId ?: "none"}"
             )

@@ -6,6 +6,8 @@ import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 class GattSideLinkCoordinatorTest {
     @Test
@@ -189,6 +191,11 @@ private class GattSideLinkCoordinatorFixture(hasActiveL2capLink: Boolean = false
                         queuedClients.removeFirst()
                     },
                     log = {},
+                    // Unconfined + zero debounce makes the scheduled PeerLost signal run
+                    // synchronously within handleDisconnected() so these tests can assert on it
+                    // immediately without depending on kotlinx-coroutines-test virtual time.
+                    scope = CoroutineScope(Dispatchers.Unconfined),
+                    peerLostDebounceMillis = 0L,
                 )
         )
 

@@ -124,9 +124,11 @@ internal class BleTransportAdapter(
                             log = ::log,
                             onFrameReceived = onFrameReceived,
                             onDisconnected = onDisconnected,
+                            connectionPriorityProvider = { currentPowerProfile.connectionPriority },
                         )
                     },
                     log = ::log,
+                    scope = coroutineScope,
                 )
         )
     internal var gattNotifyServer: GattNotifyServer? = null

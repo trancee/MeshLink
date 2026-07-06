@@ -195,7 +195,7 @@ internal class MeshEngineHopTransportSupport(
     ): Unit {
         emitDiagnostic(
             DiagnosticCode.HOP_SESSION_FAILED,
-            DiagnosticSeverity.WARN,
+            severityForHopSessionFailedStage(stage),
             stage,
             peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
             reason,
@@ -348,6 +348,25 @@ private fun HopSession.recordAcceptedSequence(sequence: ULong) {
 // frames) without giving a replay attacker an impractically long horizon to reuse a captured
 // frame. See docs/explanation/hop-session-replay-protection.md.
 private const val REPLAY_WINDOW_SIZE: Int = 64
+
+// Stage suffixes that represent a redundant/duplicate handshake frame being safely ignored (the
+// same peer's message already succeeded, or a concurrent duplicate delivery of the same frame is
+// already being processed) rather than a genuine handshake failure. MeshLink's redundant
+// GATT/L2CAP side-link transports routinely deliver the same frame twice under normal, healthy
+// operation, so these are expected/benign and would otherwise flood diagnostics/logs at WARN for
+// conditions the mesh already recovers from automatically -- surfacing them at DEBUG keeps the
+// signal-to-noise ratio of WARN-and-above diagnostics meaningful for conditions that actually need
+// attention.
+private val DUPLICATE_IGNORED_STAGE_SUFFIXES: List<String> =
+    listOf("duplicateIgnored", "duplicateInFlightIgnored")
+
+private fun severityForHopSessionFailedStage(stage: String): DiagnosticSeverity {
+    return if (DUPLICATE_IGNORED_STAGE_SUFFIXES.any { stage.endsWith(it) }) {
+        DiagnosticSeverity.DEBUG
+    } else {
+        DiagnosticSeverity.WARN
+    }
+}
 
 internal fun buildMeshEngineRuntimeHopTransportSupport(
     localIdentity: LocalIdentity,

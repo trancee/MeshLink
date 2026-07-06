@@ -302,9 +302,14 @@ internal fun buildMeshEngineRuntimeResponderHandshakeSupport(
     )
 }
 
+// See the matching helper in MeshEngineSessionSupport.kt for rationale: widened to match any
+// bearer's transient "not ready" wording, not just the L2CAP-specific string.
 private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
-    return reason.contains("L2CAP connection is not ready")
+    return reason.contains("connection is not ready", ignoreCase = true) ||
+        reason.contains("client not ready", ignoreCase = true)
 }
 
-private val MESSAGE2_SEND_RETRY_WINDOW = 3.seconds
+// Widened from 3s -> 6s alongside HANDSHAKE_TIMEOUT in MeshEngineSessionSupport.kt for the same
+// reason: slower BLE side-link setup on older hardware was consistently exceeding 3s.
+private val MESSAGE2_SEND_RETRY_WINDOW = 6.seconds
 private val MESSAGE2_SEND_RETRY_DELAY = 100.milliseconds

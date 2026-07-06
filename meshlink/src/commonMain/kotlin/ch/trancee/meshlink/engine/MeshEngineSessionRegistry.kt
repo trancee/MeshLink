@@ -62,10 +62,14 @@ internal class MeshEngineSessionRegistry {
     private val establishedSessionWaiters:
         MutableMap<String, MutableList<CompletableDeferred<HopSession>>> =
         linkedMapOf()
+    // Monotonically increasing counter handed out to each newly-created PendingInitiatorHandshake
+    // (see PendingInitiatorHandshake.attemptId) -- temporary diagnostic aid for correlating
+    // transport.handshake.message2.* diagnostics with the specific attempt they belong to.
+    private var nextInitiatorAttemptId: Long = 0L
 
     suspend fun initiatorHandshakeReservation(
         peerId: PeerId,
-        createHandshake: (() -> CreatedInitiatorHandshake)? = null,
+        createHandshake: ((Long) -> CreatedInitiatorHandshake)? = null,
     ): InitiatorHandshakeReservation? {
         return sessionMutex.withLock {
             hopSessions[peerId.value]?.let { existingSession ->
@@ -78,7 +82,8 @@ internal class MeshEngineSessionRegistry {
                 return@withLock null
             }
 
-            val createdHandshake = createHandshake()
+            nextInitiatorAttemptId += 1
+            val createdHandshake = createHandshake(nextInitiatorAttemptId)
             pendingInitiatorHandshakes[peerId.value] = createdHandshake.pendingHandshake
             InitiatorHandshakeReservation.Created(
                 pendingHandshake = createdHandshake.pendingHandshake,
@@ -156,6 +161,25 @@ internal class MeshEngineSessionRegistry {
      */
     suspend fun lastInitiatorMessage2(peerId: PeerId): ByteArray? {
         return sessionMutex.withLock { lastInitiatorMessage2[peerId.value] }
+    }
+
+    /**
+     * Atomically claims [pendingHandshake] for message2 processing if it isn't already being
+     * processed by a concurrent duplicate delivery. Returns true if this call won the race and
+     * should proceed to call `manager.processMessage2AndCreateMessage3()`; returns false if
+     * another concurrent call is already processing it, in which case this delivery should be
+     * dropped as a duplicate-in-flight rather than racing the same NoiseXXHandshakeManager
+     * instance (see [PendingInitiatorHandshake.processing] for why that's unsafe).
+     */
+    suspend fun tryBeginProcessingMessage2(pendingHandshake: PendingInitiatorHandshake): Boolean {
+        return sessionMutex.withLock {
+            if (pendingHandshake.processing) {
+                false
+            } else {
+                pendingHandshake.processing = true
+                true
+            }
+        }
     }
 
     suspend fun rebindPendingInitiatorHandshake(

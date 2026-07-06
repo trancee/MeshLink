@@ -141,6 +141,7 @@ private class FakeGattNotifySession(
     override val address: String = "AA:BB:CC:DD"
 
     var highPriorityRequests: Int = 0
+    var lastRequestedPriority: Int? = null
     var fastPhyRequests: Int = 0
     val requestedMtus: MutableList<Int> = mutableListOf()
     var discoverServicesCalls: Int = 0
@@ -148,8 +149,9 @@ private class FakeGattNotifySession(
     val writeChunks: MutableList<ByteArray> = mutableListOf()
     var writeChunkHandler: (ByteArray) -> Boolean = { true }
 
-    override fun requestHighConnectionPriority(): Unit {
+    override fun requestConnectionPriority(priority: Int): Unit {
         highPriorityRequests += 1
+        lastRequestedPriority = priority
     }
 
     override fun requestFastPhyIfSupported(): Unit {

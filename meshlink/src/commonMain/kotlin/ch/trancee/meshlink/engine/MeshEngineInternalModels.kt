@@ -76,7 +76,23 @@ internal class PendingInitiatorHandshake
 internal constructor(
     internal val manager: NoiseXXHandshakeManager,
     internal val sessionDeferred: CompletableDeferred<SessionEstablishmentOutcome>,
-)
+    // Monotonically increasing per-peer counter (see MeshEngineSessionRegistry) identifying which
+    // initiator handshake attempt this is -- temporary diagnostic aid for correlating a
+    // transport.handshake.message2.* diagnostic with the specific message1/manager attempt it
+    // belongs to, to confirm whether a stale message2 from a superseded attempt (for example one
+    // interrupted mid-flight by lifecycle pause/resume or a retry-after-timeout) is being fed into
+    // a later, unrelated attempt's NoiseXXHandshakeManager instance.
+    internal val attemptId: Long = 0L,
+) {
+    // Guards against two concurrent deliveries of message2 for the same pending handshake (the
+    // same redundant GATT/L2CAP side-link transports that can duplicate other handshake frames
+    // can duplicate message2 too) both calling manager.processMessage2AndCreateMessage3() on the
+    // same NoiseXXHandshakeManager instance -- the second call throws InvalidStateTransition,
+    // aborting the session entirely instead of harmlessly ignoring the duplicate. Set (under
+    // MeshEngineSessionRegistry's sessionMutex, see tryBeginProcessingMessage2) before the first
+    // caller invokes the manager, so a second concurrent caller can detect the race and back off.
+    internal var processing: Boolean = false
+}
 
 internal class PendingResponderHandshake
 internal constructor(internal val manager: NoiseXXHandshakeManager)
