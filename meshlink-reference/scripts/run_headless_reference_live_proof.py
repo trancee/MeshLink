@@ -319,6 +319,23 @@ def force_stop_reference_app(android_serial: str) -> None:
     run(["adb", "-s", android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE], check=False)
 
 
+def force_stop_ios_app(ios_device: str) -> None:
+    """Force-quit the reference app on the physical iPhone, best-effort.
+
+    Mirrors force_stop_reference_app for Android: this must run unconditionally
+    in a finally block so the device is left in a clean state whether the run
+    succeeded, the app crashed mid-test, or the proof/test assertions failed.
+    `devicectl device process launch --console` only streams console output to
+    the local subprocess; killing that local subprocess (BackgroundProcess.stop())
+    does not terminate the app on the device, so this explicit kill is required.
+    """
+    run(
+        ["xcrun", "devicectl", "device", "process", "kill", "--device", ios_device, IOS_BUNDLE_ID],
+        check=False,
+        capture_output=True,
+    )
+
+
 def decode_provisioning_profile(path: Path) -> dict[str, Any] | None:
     result = subprocess.run(["security", "cms", "-D", "-i", str(path)], check=False, capture_output=True)
     if result.returncode != 0:
@@ -1218,6 +1235,7 @@ def main() -> int:
         force_stop_reference_app(args.android_serial)
         for extra_serial in args.extra_force_stop_serial:
             force_stop_reference_app(extra_serial)
+        force_stop_ios_app(args.ios_device)
 
     timings = {
         "totalSeconds": round(time.monotonic() - run_started_at, 1),
