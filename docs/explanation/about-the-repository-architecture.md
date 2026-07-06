@@ -38,7 +38,7 @@ flowchart LR
     SDK[":meshlink<br/>shipped SDK"]
     Ref[":meshlink-reference<br/>operator-facing reference app"]
     Proof["proof apps<br/>physical transport validation"]
-    Bench[":benchmarks<br/>retained performance evidence"]
+    Bench[":meshlink-benchmark<br/>retained performance evidence"]
     Specs["specs and docs<br/>requirements and narrative"]
 
     SDK --> Ref

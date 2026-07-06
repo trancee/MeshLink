@@ -47,7 +47,7 @@ dependencyResolutionManagement {
 rootProject.name = "meshlink"
 
 include(":meshlink")
-include(":benchmarks")
+include(":meshlink-benchmark")
 include(":meshlink-reference")
 include(":meshlink-reference:android")
 include(":meshlink-proof:android")

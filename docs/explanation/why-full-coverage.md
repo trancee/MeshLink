@@ -83,5 +83,5 @@ The return is also real:
 
 - [Contributor build, test, and verification reference](../reference/contributor-reference.md)
 - [About the repository architecture](about-the-repository-architecture.md)
-- [Benchmark and validation baselines](../../benchmarks/README.md)
+- [Benchmark and validation baselines](../../meshlink-benchmark/README.md)
 - [MeshLink Constitution](../../constitution.md)

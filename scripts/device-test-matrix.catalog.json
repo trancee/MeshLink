@@ -475,5 +475,29 @@
     "build": "WAS-LX1A 8.0.0.394(C432)",
     "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
     "ds_url": "https://www.devicespecifications.com/en/model/8469421f"
+  },
+  {
+    "device": "Oppo A53s",
+    "brand": "OPPO",
+    "model": "CPH2135",
+    "android_sdk": "Android 12 / SDK 31",
+    "memory": "4 GB",
+    "storage": "128 GB",
+    "screen": "6.5\" (720x1600 @ 320 dpi)",
+    "chipset_name": "Snapdragon 460",
+    "chipset_model": "SM4250",
+    "bluetooth": "5.0",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH"
+    ],
+    "build": "CPH2135_11_F.31",
+    "gsma_url": "https://www.gsmarena.com/oppo_a53s-10502.php",
+    "ds_url": null
   }
 ]

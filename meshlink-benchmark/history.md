@@ -171,8 +171,8 @@ The released baseline still carries the documented iOS waiver history, but the l
 
 ## Refresh commands
 
-- JVM benchmarks: `./gradlew :benchmarks:jvmBenchmark`
+- JVM benchmarks: `./gradlew :meshlink-benchmark:jvmBenchmark`
 - Verified JVM smoke baselines: `./gradlew verifyJvmSmokeBenchmarks`
-- Raw JVM smoke benchmark task: `./gradlew :benchmarks:jvmSmokeBenchmark`
+- Raw JVM smoke benchmark task: `./gradlew :meshlink-benchmark:jvmSmokeBenchmark`
 - Android proof benchmarks: run the instrumented proof benchmarks against physical peers
 - iOS proof benchmarks: run the XCTest proof benchmarks plus a physical peer-backed proof-app run

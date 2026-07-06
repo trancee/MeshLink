@@ -17,7 +17,7 @@ Use it when you are extending the local crypto corpus, updating
 - Higher-level peer-trust behavior is documented in
   [The trust model](../../explanation/trust-model.md).
 - Physical Android ↔ iOS proof evidence lives with the
-  [benchmark and validation baselines](../../../benchmarks/README.md).
+  [benchmark and validation baselines](../../../meshlink-benchmark/README.md).
 
 ## Policy verdicts
 

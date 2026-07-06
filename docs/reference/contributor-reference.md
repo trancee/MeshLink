@@ -22,7 +22,7 @@ Use this page when you need exact commands, matrices, or policy details.
 | reference-app release artifact or framework export | `./gradlew :meshlink-reference:build` |
 | build tooling or module shape | `./scripts/run-agp9-verification.sh` or `./gradlew checkAgp9Invariants` plus the relevant narrower module checks |
 | public API | `./gradlew :meshlink:allTests :meshlink:detekt :meshlink:apiCheck :meshlink:koverVerify verifyDocs`, plus API dump and appendix refresh |
-| performance-sensitive paths | the relevant checks above plus `./gradlew verifyJvmSmokeBenchmarks`; use `:benchmarks:jvmBenchmark` when retained evidence is required |
+| performance-sensitive paths | the relevant checks above plus `./gradlew verifyJvmSmokeBenchmarks`; use `:meshlink-benchmark:jvmBenchmark` when retained evidence is required |
 | Android or iOS physical transport or proof behavior | the relevant checks above plus the matching proof-app or reference-app validation flow |
 
 ## Workstation requirements
@@ -82,8 +82,8 @@ Use this page when you need exact commands, matrices, or policy details.
 | Generate Dokka HTML for the SDK | `./gradlew :meshlink:dokkaGenerateHtml` | Writes supplemental Kotlin API reference output to `meshlink/build/dokka/html/`. |
 | Generate Dokka HTML for the shared reference app module | `./gradlew :meshlink-reference:dokkaGenerateHtml` | Writes contributor-facing shared-module output to `meshlink-reference/build/dokka/html/`. |
 | Run verified JVM smoke benchmarks | `./gradlew verifyJvmSmokeBenchmarks` | Runs the JVM smoke suite and fails if any declared benchmark result is missing from the latest report. |
-| Run raw JVM smoke benchmarks | `./gradlew :benchmarks:jvmSmokeBenchmark` | Writes the latest smoke benchmark report when you only need fresh measurements. |
-| Run retained JVM benchmarks | `./gradlew :benchmarks:jvmBenchmark` | Use when retained benchmark evidence is required. |
+| Run raw JVM smoke benchmarks | `./gradlew :meshlink-benchmark:jvmSmokeBenchmark` | Writes the latest smoke benchmark report when you only need fresh measurements. |
+| Run retained JVM benchmarks | `./gradlew :meshlink-benchmark:jvmBenchmark` | Use when retained benchmark evidence is required. |
 
 ## Test surfaces
 
@@ -203,7 +203,7 @@ A public API change currently requires all of the following:
 - [AGP 9 migration plan](../tooling/agp-9-migration-plan.md)
 - [Current Dokka and SKIE posture for MeshLink](../tooling/dokka-and-skie-options.md)
 - [Glossary and acronym reference](glossary.md)
-- [Benchmark and validation baselines](../../benchmarks/README.md)
+- [Benchmark and validation baselines](../../meshlink-benchmark/README.md)
 - [Release runbook](../../RELEASING.md)
 - [Security policy](../../SECURITY.md)
 - [Changelog](../../CHANGELOG.md)

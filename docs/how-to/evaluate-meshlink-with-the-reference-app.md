@@ -251,7 +251,7 @@ For proof-specific workflows, use:
 - [About proof validation surfaces](../explanation/about-proof-validation-surfaces.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
-- [Benchmarks and retained evidence](../../benchmarks/README.md)
+- [Benchmarks and retained evidence](../../meshlink-benchmark/README.md)
 
 ## Optional: retain one headless live-proof run
 

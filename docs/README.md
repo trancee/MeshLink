@@ -49,14 +49,14 @@ If you are not sure where to start, use one of these short paths.
 4. [Physical reference-app integration findings](explanation/reference-app-physical-integration-findings.md)
 5. [Fleet test history report](../meshlink-reference/fleet-test-history/index.html)
 6. [MeshLink runtime behavior reference](reference/meshlink-runtime-behavior.md)
-6. [Benchmark and validation baselines](../benchmarks/README.md)
+6. [Benchmark and validation baselines](../meshlink-benchmark/README.md)
 
 ### Proof fixtures and retained benchmarks
 
 1. [About proof validation surfaces](explanation/about-proof-validation-surfaces.md)
 2. [How to run the Android proof app](../meshlink-proof/android/README.md)
 3. [How to build and run the iOS proof app](../meshlink-proof/ios/README.md)
-4. [Benchmark and validation baselines](../benchmarks/README.md)
+4. [Benchmark and validation baselines](../meshlink-benchmark/README.md)
 
 ### Debugging live behavior
 
@@ -125,7 +125,7 @@ guessing which page owns which model.
 - [Generated public API symbol tables](reference/generated-public-api.md) — the public API appendix rendered from the checked-in BCV dump.
 - [Contributor build, test, and verification reference](reference/contributor-reference.md) — exact contributor commands, verification bundles, architecture landmarks, and repository rules.
 - [Repository layout reference](reference/repository-layout.md) — module ownership, source-set boundaries, app hosts, scripts, and docs areas.
-- [Benchmark and validation baselines](../benchmarks/README.md) — retained performance evidence and the current benchmark posture.
+- [Benchmark and validation baselines](../meshlink-benchmark/README.md) — retained performance evidence and the current benchmark posture.
 - [Feature specification](../specs/ble-mesh-sdk/spec.md) — normative product scope and success criteria.
 - [Release decision](../specs/ble-mesh-sdk/release-decision.md) — current release framing and waiver history.
 

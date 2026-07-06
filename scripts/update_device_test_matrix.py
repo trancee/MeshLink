@@ -229,7 +229,7 @@ def render_markdown(rows: list[dict]) -> str:
     lines = [
         "# Device test matrix reference",
         "",
-        "Last verified: 2026-06-18",
+        "Last verified: 2026-07-06",
         "",
         "This page tracks the Android devices currently attached to the MeshLink test",
         "bench and the device facts that matter for validation.",

@@ -87,10 +87,38 @@ current-head conformance evidence.
   transport posture evolved, but it no longer belongs on the critical reading
   path for the current state.
 
+## Physical device scripts
+
+- `scripts/run_headless_meshlink_benchmark.py` drives exactly one Android peer
+  (as sender or receiver via `adb`) against exactly one iOS peer (via
+  `xcrun devicectl`), for cross-platform BLE throughput/latency evidence.
+  Requires a macOS host with Xcode.
+- `scripts/run_fleet_meshlink_benchmark.py` is Android-only and needs no
+  Xcode/iOS device. It auto-discovers every currently attached `adb` device,
+  dedupes duplicate transports (USB/Wi-Fi/mDNS) for the same physical phone by
+  hardware serial, cross-references friendly device names against
+  `docs/reference/device-test-matrix.md`, and pairs devices (`--pairing ring`
+  by default, or `all-pairs`) using the existing MeshLink proof app's
+  `forceInitiator`/`disableAutoSend`/`benchmarkPayloadBytes` launch extras so
+  one device sends a benchmark payload while its partner passively receives
+  and confirms receipt.
+  - Defaults to a dry run that only prints discovery and the planned pairing;
+    pass `--execute` to actually launch the app and drive real BLE traffic.
+  - Narrow scope to specific hardware with `--serials <serial1>,<serial2>,...`
+    instead of running against every attached device.
+  - Each run's logcat, `proof.log`, and metadata are captured under
+    `meshlink-benchmark/fleet-results/runs/<batch>/<pair>/`; results are
+    appended to `meshlink-benchmark/fleet-results/ledger.jsonl` (JSON Lines,
+    one record per run) and summarized in
+    `meshlink-benchmark/fleet-results/latest-summary.md`. This directory is
+    gitignored (regenerated evidence, not source), so treat the JSONL ledger
+    as a local/CI artifact, not part of the committed history.
+  - Example: `python3 meshlink-benchmark/scripts/run_fleet_meshlink_benchmark.py --payload-bytes 65536 --execute`
+
 ## Refresh commands
 
-- JVM benchmarks: `./gradlew :benchmarks:jvmBenchmark`
+- JVM benchmarks: `./gradlew :meshlink-benchmark:jvmBenchmark`
 - Verified JVM smoke baselines: `./gradlew verifyJvmSmokeBenchmarks`
-- Raw JVM smoke benchmark task: `./gradlew :benchmarks:jvmSmokeBenchmark`
+- Raw JVM smoke benchmark task: `./gradlew :meshlink-benchmark:jvmSmokeBenchmark`
 - Android proof benchmarks: run the instrumented proof benchmarks against physical peers
 - iOS proof benchmarks: run the XCTest proof benchmarks plus a physical peer-backed proof-app run
