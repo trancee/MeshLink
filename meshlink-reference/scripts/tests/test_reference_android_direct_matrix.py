@@ -46,11 +46,14 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = Path(temporary_directory) / "pair"
 
-            with patch.object(
-                android_direct_matrix.subprocess,
-                "run",
-                side_effect=subprocess.TimeoutExpired(cmd=["python"], timeout=1.5, output="install boom", stderr="stderr tail"),
-            ) as mock_run:
+            with (
+                patch.object(
+                    android_direct_matrix.subprocess,
+                    "run",
+                    side_effect=subprocess.TimeoutExpired(cmd=["python"], timeout=1.5, output="install boom", stderr="stderr tail"),
+                ) as mock_run,
+                patch.object(android_direct_matrix, "force_stop_reference_app") as mock_force_stop,
+            ):
                 # Act
                 result = android_direct_matrix.run_pair(
                     sender="1f1dad34",
@@ -72,6 +75,12 @@ class AndroidDirectMatrixScriptTests(unittest.TestCase):
             self.assertEqual(result["timings"]["pairTimeoutSeconds"], 1.5)
             self.assertIn("install boom", result["stdoutTail"])
             self.assertNotIn("--passive-benchmark-transport", mock_run.call_args.args[0])
+            # A timed-out pair must still force-stop the app on both roles: subprocess.run()
+            # kills the child on timeout before its own cleanup can run, so this script must
+            # do it instead to avoid leaving a stale MeshLink session running into the next pair.
+            mock_force_stop.assert_any_call("1f1dad34")
+            mock_force_stop.assert_any_call("2ASVB21B09005117")
+            self.assertEqual(mock_force_stop.call_count, 2)
 
     def test_main_writes_progress_and_skips_completed_pairs_on_resume(self) -> None:
         # Arrange

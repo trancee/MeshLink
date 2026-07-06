@@ -38,6 +38,9 @@ internal interface GattNotifySession {
 
     fun discoverServices(): Unit
 
+    /** See [GattConnectionAdapter.refreshServiceCache]. */
+    fun refreshServiceCache(): Boolean
+
     fun resolveFallbackCharacteristics(): GattNotifyCharacteristicResolution
 
     fun hasWriteCharacteristic(): Boolean
@@ -119,6 +122,10 @@ internal class BluetoothGattNotifySession(
 
     override fun discoverServices(): Unit {
         connection.discoverServices()
+    }
+
+    override fun refreshServiceCache(): Boolean {
+        return connection.refreshServiceCache()
     }
 
     override fun resolveFallbackCharacteristics(): GattNotifyCharacteristicResolution {

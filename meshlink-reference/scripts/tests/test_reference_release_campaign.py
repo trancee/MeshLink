@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from support import (
     SCRIPTS_DIR,
@@ -445,7 +446,153 @@ class ReferenceReleaseCampaignTests(unittest.TestCase):
         for serial in extras:
             self.assertIn(serial, all_android_serials)
 
-    def test_run_campaign_executes_direct_only_with_extra_devices_and_persists_artifact_links(self) -> None:
+    def test_devices_from_runner_command_extracts_android_and_ios_devices_for_mixed_command(self) -> None:
+        # Arrange
+        command = [
+            "python3",
+            "run_headless_reference_live_proof.py",
+            "--android-serial",
+            "android-passive",
+            "--ios-device",
+            "ios-udid-123",
+            "--extra-force-stop-serial",
+            "android-spare",
+            "--app-id",
+            "demo.meshlink.reference",
+        ]
+
+        # Act
+        android_serials, ios_devices = release_campaign.devices_from_runner_command(command)
+
+        # Assert
+        self.assertEqual(android_serials, ["android-passive", "android-spare"])
+        self.assertEqual(ios_devices, ["ios-udid-123"])
+
+    def test_devices_from_runner_command_extracts_devices_for_relay_command(self) -> None:
+        # Arrange
+        command = [
+            "python3",
+            "run_headless_reference_relay_proof.py",
+            "--ios-device",
+            "ios-udid-456",
+            "--relay-android-serial",
+            "android-relay",
+            "--passive-android-serial",
+            "android-passive",
+        ]
+
+        # Act
+        android_serials, ios_devices = release_campaign.devices_from_runner_command(command)
+
+        # Assert
+        self.assertEqual(android_serials, ["android-relay", "android-passive"])
+        self.assertEqual(ios_devices, ["ios-udid-456"])
+
+    def test_devices_from_runner_command_extracts_devices_for_android_only_command(self) -> None:
+        # Arrange
+        command = [
+            "python3",
+            "run_headless_reference_android_direct_proof.py",
+            "--sender-android-serial",
+            "android-sender",
+            "--passive-android-serial",
+            "android-passive",
+        ]
+
+        # Act
+        android_serials, ios_devices = release_campaign.devices_from_runner_command(command)
+
+        # Assert
+        self.assertEqual(android_serials, ["android-sender", "android-passive"])
+        self.assertEqual(ios_devices, [])
+
+    def test_force_stop_scenario_devices_stops_every_recorded_device_even_if_one_fails(self) -> None:
+        # Arrange
+        runner_command = [
+            "python3",
+            "run_headless_reference_relay_proof.py",
+            "--ios-device",
+            "ios-udid-123",
+            "--relay-android-serial",
+            "android-passive",
+            "--passive-android-serial",
+            "android-spare",
+        ]
+
+        with (
+            patch.object(release_campaign, "force_stop_reference_app", side_effect=[RuntimeError("adb offline"), None]) as mock_force_stop_android,
+            patch.object(release_campaign, "force_stop_ios_app") as mock_force_stop_ios,
+        ):
+            # Act
+            release_campaign.force_stop_scenario_devices(runner_command)
+
+        # Assert
+        self.assertEqual(mock_force_stop_android.call_count, 2)
+        mock_force_stop_android.assert_any_call("android-passive")
+        mock_force_stop_android.assert_any_call("android-spare")
+        mock_force_stop_ios.assert_called_once_with("ios-udid-123")
+
+    def test_run_campaign_force_stops_devices_when_the_runner_times_out(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(),
+        )
+        process_runner = ReleaseCampaignProcessRunner(
+            scenario_results={"direct-guided": {"child_timed_out": True, "child_returncode": None, "child_writes_summary": False}}
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            patch.object(release_campaign, "force_stop_reference_app") as mock_force_stop_android,
+            patch.object(release_campaign, "force_stop_ios_app") as mock_force_stop_ios,
+        ):
+            run_root = Path(temporary_directory) / "timeout-campaign"
+
+            # Act
+            exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=lambda: manifest,
+                process_runner=process_runner,
+            )
+
+            # Assert
+            self.assertEqual(exit_code, release_campaign.EXIT_FAIL)
+            self.assertGreaterEqual(mock_force_stop_android.call_count, 2)
+            mock_force_stop_android.assert_any_call("android-passive")
+            mock_force_stop_android.assert_any_call("android-sender")
+            mock_force_stop_ios.assert_not_called()
+
+    def test_run_campaign_does_not_force_stop_devices_when_the_runner_does_not_time_out(self) -> None:
+        # Arrange
+        manifest = self.build_manifest(
+            android_rows=(("android-passive", "device"), ("android-sender", "device")),
+            android_models={"android-passive": "Pixel 8", "android-sender": "Pixel 7"},
+            ios_rows=(),
+        )
+        process_runner = ReleaseCampaignProcessRunner()
+
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            patch.object(release_campaign, "force_stop_reference_app") as mock_force_stop_android,
+            patch.object(release_campaign, "force_stop_ios_app") as mock_force_stop_ios,
+        ):
+            run_root = Path(temporary_directory) / "no-timeout-campaign"
+
+            # Act
+            exit_code = release_campaign.run_campaign(
+                run_root=run_root,
+                build_manifest=lambda: manifest,
+                process_runner=process_runner,
+            )
+
+            # Assert
+            self.assertEqual(exit_code, release_campaign.EXIT_PASS)
+            mock_force_stop_android.assert_not_called()
+            mock_force_stop_ios.assert_not_called()
+
+
         manifest = self.build_manifest(
             android_rows=(("android-passive", "device"), ("android-relay", "device"), ("android-spare", "device")),
             android_models={"android-passive": "Pixel 8", "android-relay": "Pixel Fold", "android-spare": "Galaxy S24"},

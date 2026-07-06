@@ -45,6 +45,13 @@ internal class GattNotifyClient(
     private val notificationLock = Any()
     private var pendingWrite: CompletableDeferred<Boolean>? = null
     @Volatile private var identityAnnounced: Boolean = false
+    // Guards against retrying the cache-refresh indefinitely: only one refresh-and-rediscover
+    // cycle is attempted per connection attempt (i.e. per start()/session lifecycle - this client
+    // instance can be reused across reconnects by GattSideLinkCoordinator, so start() re-arms this
+    // guard rather than relying on a fresh instance). If the service is still missing afterwards,
+    // the peripheral genuinely isn't advertising it (or refresh() is unsupported on this OEM
+    // build), and looping further would just waste radio time.
+    @Volatile private var serviceCacheRefreshAttempted: Boolean = false
 
     private val sessionListener =
         object : GattNotifySessionListener {
@@ -114,6 +121,14 @@ internal class GattNotifyClient(
                 }
                 when (session.resolveFallbackCharacteristics()) {
                     GattNotifyCharacteristicResolution.MISSING_SERVICE -> {
+                        if (!serviceCacheRefreshAttempted && session.refreshServiceCache()) {
+                            serviceCacheRefreshAttempted = true
+                            log(
+                                "GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${FALLBACK_SERVICE_UUID}, refreshing stale service cache and retrying discovery"
+                            )
+                            session.discoverServices()
+                            return
+                        }
                         log(
                             "GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${FALLBACK_SERVICE_UUID}"
                         )
@@ -210,6 +225,11 @@ internal class GattNotifyClient(
             return
         }
         identityAnnounced = false
+        // GattSideLinkCoordinator.ensureStarted() reuses this same client instance across
+        // reconnects (it only replaces it with a fresh instance once a real GATT disconnect event
+        // removes it from clientsByHint), so the refresh-once guard must be re-armed here rather
+        // than relying on a new instance being created per connection attempt.
+        serviceCacheRefreshAttempted = false
         lifecycleState = startedGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
         session = sessionFactory.open(sessionListener)
     }
