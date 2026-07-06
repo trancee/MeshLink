@@ -16,6 +16,7 @@ optimizations are worth keeping or pursuing.
 | relay identity handling | canonical advertisement peer IDs and temporary-peer promotion are both load-bearing |
 | retained review surface | per-run analysis artifacts, the browser/runtime proof note, and the fleet-test history HTML are much easier to review than raw log scrolling |
 | Android two-device direct proof (round 2) | an unsynchronized `receiveNonce`, a harness relaunch spinning up a second Activity/MeshLink instance, `PeerId` reference-equality, and a silently-dropped timeline-to-snapshot sync each independently masked the next bug until fixed in sequence |
+| matrix runner cleanup | a per-pair subprocess timeout kills the child with `SIGKILL`, so the child's own `finally`-guarded app cleanup never runs - the orchestrating script must force-stop the app itself on timeout |
 
 ## Current milestone outcome
 
@@ -812,6 +813,34 @@ the same function - a helper that only mutates the list is trivially forgotten
 half-way through in a follow-up change, and the resulting bug (a permanently
 empty derived field on one platform only) can hide behind other, unrelated
 logging that still works correctly.
+
+### 14. A timed-out matrix pair left the reference app running on the phone
+
+`run_headless_reference_android_direct_matrix.py` runs each device pair by
+delegating to `run_headless_reference_android_direct_proof.py` as a subprocess
+with a per-pair timeout. That proof script already had a robust
+`finally`-guarded `cleanup_android_direct_run()` that force-stops the
+reference app on both the sender and passive device - but
+`subprocess.run(..., timeout=pair_timeout_seconds)` kills a timed-out child
+with `SIGKILL`, so the child's own `finally` block never executes. A single
+slow or wedged pair could therefore leave the app running on one or both
+phones, and the *next* pair's run would start with a stale MeshLink session
+and peer identity still resident on the device - a state contamination bug
+that would only surface as flaky-looking failures in the pair that ran right
+after the timeout.
+
+**Fix:** the matrix runner now calls `force_stop_reference_app` (reused from
+`run_headless_reference_live_proof.py`) directly on both the sender and
+passive serials from inside the `TimeoutExpired` exception handler in
+`run_pair()`, wrapped in `try`/`except` so a force-stop failure never masks
+the real timeout result. See
+`meshlink-reference/scripts/run_headless_reference_android_direct_matrix.py`.
+
+**Takeaway:** a subprocess timeout is a `SIGKILL`, not a normal exit - any
+orchestration script that wraps another script with `timeout=` must assume the
+child's own cleanup code will *not* run when the timeout fires, and must
+perform the equivalent cleanup itself. This applies to any "device back to a
+clean state" guarantee, not just app force-stop.
 
 ## What should stay out of the physical matrix
 
