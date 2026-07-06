@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
@@ -232,7 +233,7 @@ internal fun BleTransportAdapter.launchL2capKeepAliveLoop(link: L2capLink): Job 
         val keepAliveFrame = WireCodec.encode(WireFrame.KeepAlive())
         while (true) {
             delay(L2CAP_KEEPALIVE_INTERVAL_MILLIS)
-            runCatching { transportMutex.withLock { link.write(keepAliveFrame) } }
+            runCatching { link.write(keepAliveFrame) }
                 .onFailure {
                     closeLink(hintPeer = link.peerHintId.value, reason = "keepalive write failed")
                     return@launch
@@ -275,7 +276,7 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
     link: L2capLink,
 ): TransportSendResult {
     return runCatching {
-            transportMutex.withLock { link.write(frame.payload) }
+            link.write(frame.payload)
             TransportSendResult.Delivered
         }
         .getOrElse { error ->
@@ -357,17 +358,20 @@ internal class L2capLink(
     internal var readLoopJob: Job? = null
     internal var heartbeatJob: Job? = null
     private val outputStream = socket.outputStream
+    private val writeMutex = Mutex()
     @Volatile private var identityAnnounced: Boolean = false
 
     internal suspend fun write(payload: ByteArray): Unit {
-        if (!identityAnnounced) {
-            writeFrame(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
-            identityAnnounced = true
-            log(
-                "L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
-            )
+        writeMutex.withLock {
+            if (!identityAnnounced) {
+                writeFrame(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+                identityAnnounced = true
+                log(
+                    "L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
+                )
+            }
+            writeFrame(payload)
         }
-        writeFrame(payload)
     }
 
     private fun writeFrame(payload: ByteArray): Unit {
