@@ -4,6 +4,7 @@ import android.os.Build
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.trancee.meshlink.crypto.CryptoProvider
+import java.util.Locale
 import kotlin.test.Test
 import org.junit.runner.RunWith
 
@@ -82,8 +83,8 @@ class CryptoRuntimePerformanceDeviceTest {
         Log.i(
             TAG,
             "CRYPTO_BENCHMARK device=$deviceLabel sdk=${Build.VERSION.SDK_INT} op=$opName " +
-                "iterations=$iterations totalMs=${"%.3f".format(totalMs)} " +
-                "avgUs=${"%.3f".format(avgUs)} provider=${provider::class.simpleName}",
+                "iterations=$iterations totalMs=${"%.3f".format(Locale.ROOT, totalMs)} " +
+                "avgUs=${"%.3f".format(Locale.ROOT, avgUs)} provider=${provider::class.simpleName}",
         )
     }
 
