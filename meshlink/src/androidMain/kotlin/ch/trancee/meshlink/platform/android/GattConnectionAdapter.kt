@@ -20,6 +20,14 @@ internal interface GattConnectionAdapter {
 
     fun discoverServices(): Unit
 
+    /**
+     * Clears the platform's cached GATT service table for this connection, forcing the next
+     * [discoverServices] call to query the remote device directly rather than returning a stale
+     * cached result. Returns false if the refresh could not be requested (e.g. the hidden
+     * `BluetoothGatt.refresh()` API is unavailable on this platform/OEM build).
+     */
+    fun refreshServiceCache(): Boolean
+
     fun findService(uuid: String): GattServiceAdapter?
 
     fun setCharacteristicNotification(
@@ -80,6 +88,10 @@ internal class PlatformGattConnectionAdapter(
         gatt.discoverServices()
     }
 
+    override fun refreshServiceCache(): Boolean {
+        return refreshBluetoothGattServiceCache(gatt)
+    }
+
     override fun findService(uuid: String): GattServiceAdapter? {
         return gatt.getService(UUID.fromString(uuid))?.let(::PlatformGattServiceAdapter)
     }
@@ -121,6 +133,24 @@ internal class PlatformGattConnectionAdapter(
     override fun close(): Unit {
         gatt.close()
     }
+}
+
+// BluetoothGatt.refresh() clears the platform's per-device GATT service cache. It has been a
+// hidden/@UnsupportedAppUsage API on every Android version to date (there is no public
+// alternative), so it must be invoked via reflection. Without this, a device that reconnects to a
+// peer whose GATT service table changed since the cache was populated (e.g. the remote app
+// restarted between test runs, changing its dynamically-registered service) can have
+// discoverServices() return a stale, incomplete table indefinitely - observed in the field as a
+// persistent "missing service" loop that never self-heals across reconnect attempts, even though
+// the remote peripheral is correctly advertising the expected service the whole time. See
+// docs/explanation/reference-app-physical-integration-findings.md for the investigation that
+// uncovered this.
+internal fun refreshBluetoothGattServiceCache(gatt: BluetoothGatt): Boolean {
+    return runCatching {
+            val refresh = gatt.javaClass.getMethod("refresh")
+            refresh.invoke(gatt) as? Boolean ?: false
+        }
+        .getOrDefault(false)
 }
 
 internal class PlatformGattServiceAdapter(val delegate: BluetoothGattService) : GattServiceAdapter {

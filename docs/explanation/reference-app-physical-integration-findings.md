@@ -886,6 +886,63 @@ on-device iOS process for logging/console purposes must track the app
 identity (UDID + bundle ID) separately and force-quit it explicitly in
 cleanup, regardless of whether the launch was via `devicectl` or `xcuitest`.
 
+### 16. A stale Android GATT service cache produced a self-sustaining L2CAP reconnect loop that never let a handshake complete
+
+Re-running the `direct-pause-resume` scenario on an Android ↔ iOS pair
+repeatedly failed to reach `proof.complete` even though neither side ever
+crashed. Logcat showed a rhythmic ~10-second cycle, repeating 13-23 times
+within a single capture window, for the same peer:
+
+```
+registered L2CAP link for <peer> addr=<mac>
+GATT notify side link <peer> missing service 4d455348-0001-1000-8000-000000000000
+preferred GATT side-link waiting for readiness for <peer> timeoutMs=10000
+... (10s later) ...
+preferred GATT side-link send skipped for <peer>: client not ready
+L2CAP EOF from <peer> pendingFrameBytes=0
+closing L2CAP link <peer>: socket closed ... retryRequested=true
+retrying L2CAP connect for <peer> after transient close (backoffMs=500)
+```
+
+The handshake frame is routed to the GATT-preferred bearer
+(`GattDataBearerMode.GATT_ONLY`), which blocks for the full 10s readiness
+timeout (see finding 4 above) before falling back to the already-open L2CAP
+link. But `GattNotifyClient.onServicesDiscovered` found the MeshLink GATT
+service missing on *every* connection attempt to this peer, even though the
+remote side was correctly advertising it the whole time - a signature of
+Android's platform-level BLE GATT service cache returning a stale/empty table
+for a peer whose service set changed since the cache was last populated
+(e.g. because the remote reference app had been restarted between runs,
+re-registering its GATT service under a fresh `BluetoothGattServer`
+instance). Because the client never becomes ready, the 10s GATT wait always
+times out, and while it's blocked the paired L2CAP socket sits idle long
+enough (`pendingFrameBytes=0`) to be closed as a "transient close" and
+reconnected - restarting the same doomed GATT connect/discover cycle before
+either bearer ever delivers a single handshake byte. The
+`staleAttemptIgnored` diagnostic from the superseded-handshake-attempt fix
+(see `fix/stale-handshake-message2`) was observed firing correctly during
+this churn, confirming the churn itself is an independent transport-layer
+issue rather than a regression in the Noise handshake state machine.
+
+**Fix:** `GattConnectionAdapter` and `GattNotifySession` gained a
+`refreshServiceCache()` operation that invokes the hidden (but present since
+Android's earliest BLE APIs) `BluetoothGatt.refresh()` method via reflection,
+clearing the platform's per-device service cache. `GattNotifyClient` now
+attempts exactly one refresh-and-rediscover cycle the first time
+`onServicesDiscovered` reports `MISSING_SERVICE` for a given connection,
+before falling back to the previous close-and-let-the-caller-reconnect
+behavior if the service is still missing afterward (or if `refresh()` itself
+is unavailable on that OEM's BLE stack).
+
+**Takeaway:** a "missing service" result from `BluetoothGatt.discoverServices()`
+is not necessarily authoritative - Android caches the per-device service
+table across connections, and that cache can go stale whenever the remote
+peripheral's GATT server is recreated with a different service set at the
+same Bluetooth address. Any code that treats a missing/incomplete service
+table as a hard failure should refresh the cache and retry discovery once
+before giving up, especially in test/dev workflows where the same physical
+peer address is reconnected to repeatedly across app restarts.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.

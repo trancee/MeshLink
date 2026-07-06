@@ -52,6 +52,20 @@ class BluetoothGattNotifySessionTest {
     }
 
     @Test
+    fun refreshServiceCacheDelegatesToTheAdapter(): Unit {
+        // Arrange
+        val connection = FakeGattConnectionAdapter(refreshServiceCacheResult = true)
+        val session = BluetoothGattNotifySession(connection = connection, sdkInt = 25)
+
+        // Act
+        val refreshed = session.refreshServiceCache()
+
+        // Assert
+        assertTrue(refreshed)
+        assertEquals(1, connection.refreshServiceCacheCalls)
+    }
+
+    @Test
     fun enableNotificationsReturnsMissingCccdWhenTheDescriptorIsAbsent(): Unit {
         // Arrange
         val notifyCharacteristic = FakeGattCharacteristicAdapter(descriptor = null)
@@ -159,6 +173,7 @@ private class FakeGattConnectionAdapter(
     private val service: GattServiceAdapter? = null,
     private val writeDescriptorResult: Boolean = true,
     private val writeCharacteristicResult: Boolean = true,
+    private val refreshServiceCacheResult: Boolean = true,
 ) : GattConnectionAdapter {
     override val address: String = "AA:BB:CC:DD"
 
@@ -167,6 +182,7 @@ private class FakeGattConnectionAdapter(
     var fastPhyRequests: Int = 0
     val requestedMtus: MutableList<Int> = mutableListOf()
     var discoverServicesCalls: Int = 0
+    var refreshServiceCacheCalls: Int = 0
     val notificationRequests: MutableList<Pair<String, Boolean>> = mutableListOf()
     var writeDescriptorCalls: Int = 0
     var writeCharacteristicCalls: Int = 0
@@ -193,6 +209,11 @@ private class FakeGattConnectionAdapter(
 
     override fun discoverServices(): Unit {
         discoverServicesCalls += 1
+    }
+
+    override fun refreshServiceCache(): Boolean {
+        refreshServiceCacheCalls += 1
+        return refreshServiceCacheResult
     }
 
     override fun findService(uuid: String): GattServiceAdapter? {

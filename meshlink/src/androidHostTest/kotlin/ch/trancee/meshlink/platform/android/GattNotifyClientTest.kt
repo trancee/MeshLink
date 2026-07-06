@@ -53,7 +53,89 @@ class GattNotifyClientTest {
 
         // Assert
         assertEquals(1, session.closeCalls)
+        assertEquals(1, session.refreshServiceCacheCalls)
         assertFalse(client.isReady())
+    }
+
+    @Test
+    fun servicesDiscoveredWithMissingServiceRefreshesStaleCacheAndRetriesDiscoveryOnce(): Unit {
+        // Arrange
+        val session =
+            FakeGattNotifySession(
+                characteristicResolutions =
+                    listOf(
+                        GattNotifyCharacteristicResolution.MISSING_SERVICE,
+                        GattNotifyCharacteristicResolution.READY,
+                    ),
+                refreshServiceCacheResult = true,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+
+        // Act
+        factory.listener.onServicesDiscovered(status = 0)
+
+        // Assert: the stale cache is refreshed and discovery is retried instead of closing.
+        assertEquals(1, session.refreshServiceCacheCalls)
+        assertEquals(0, session.closeCalls)
+        assertEquals(1, session.discoverServicesCalls)
+
+        // Act: the retried discovery now finds the service - a second miss should not loop again.
+        factory.listener.onServicesDiscovered(status = 0)
+
+        // Assert
+        assertEquals(1, session.refreshServiceCacheCalls)
+    }
+
+    @Test
+    fun servicesDiscoveredWithMissingServiceOnlyRefreshesOncePerConnection(): Unit {
+        // Arrange
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.MISSING_SERVICE,
+                refreshServiceCacheResult = true,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+
+        // Act: service stays missing even after the refresh-and-retry cycle.
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onServicesDiscovered(status = 0)
+
+        // Assert: only one refresh is attempted; the second miss gives up and closes.
+        assertEquals(1, session.refreshServiceCacheCalls)
+        assertEquals(1, session.closeCalls)
+    }
+
+    @Test
+    fun startAfterMissingServiceCloseReArmsTheRefreshGuardForTheNextConnectionAttempt(): Unit {
+        // Arrange: GattSideLinkCoordinator.ensureStarted() reuses the same GattNotifyClient
+        // instance across reconnects (it only replaces it once a real GATT disconnect removes it
+        // from clientsByHint) - simulate that reuse directly by calling start() again on the same
+        // client after a MISSING_SERVICE close, without going through onDisconnected.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.MISSING_SERVICE,
+                refreshServiceCacheResult = true,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onServicesDiscovered(status = 0)
+        assertEquals(1, session.refreshServiceCacheCalls)
+        assertEquals(1, session.closeCalls)
+
+        // Act: the coordinator calls start() again on the same instance for a fresh reconnect.
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+
+        // Assert: the guard was re-armed by start(), so a second refresh is attempted rather than
+        // giving up immediately on the first miss of the new connection attempt.
+        assertEquals(2, session.refreshServiceCacheCalls)
+        assertEquals(1, session.closeCalls)
     }
 
     @Test
@@ -134,9 +216,11 @@ private class FakeGattNotifySession(
     private val requestMtuResult: Boolean = true,
     private val characteristicResolution: GattNotifyCharacteristicResolution =
         GattNotifyCharacteristicResolution.READY,
+    private val characteristicResolutions: List<GattNotifyCharacteristicResolution>? = null,
     private val enableNotificationsResult: GattNotifyEnableNotificationsResult =
         GattNotifyEnableNotificationsResult.REQUESTED,
     private val hasWriteCharacteristicFlag: Boolean = false,
+    private val refreshServiceCacheResult: Boolean = false,
 ) : GattNotifySession {
     override val address: String = "AA:BB:CC:DD"
 
@@ -145,9 +229,11 @@ private class FakeGattNotifySession(
     var fastPhyRequests: Int = 0
     val requestedMtus: MutableList<Int> = mutableListOf()
     var discoverServicesCalls: Int = 0
+    var refreshServiceCacheCalls: Int = 0
     var closeCalls: Int = 0
     val writeChunks: MutableList<ByteArray> = mutableListOf()
     var writeChunkHandler: (ByteArray) -> Boolean = { true }
+    private var resolutionCallIndex: Int = 0
 
     override fun requestConnectionPriority(priority: Int): Unit {
         highPriorityRequests += 1
@@ -167,8 +253,16 @@ private class FakeGattNotifySession(
         discoverServicesCalls += 1
     }
 
+    override fun refreshServiceCache(): Boolean {
+        refreshServiceCacheCalls += 1
+        return refreshServiceCacheResult
+    }
+
     override fun resolveFallbackCharacteristics(): GattNotifyCharacteristicResolution {
-        return characteristicResolution
+        val resolutions = characteristicResolutions ?: return characteristicResolution
+        val resolution = resolutions.getOrElse(resolutionCallIndex) { resolutions.last() }
+        resolutionCallIndex += 1
+        return resolution
     }
 
     override fun hasWriteCharacteristic(): Boolean {
