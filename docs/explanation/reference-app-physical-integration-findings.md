@@ -1002,6 +1002,34 @@ race a channel teardown it has no visibility into. A lightweight periodic
 keepalive on otherwise-quiet links is a cheap way to shrink that race
 window without changing the application's delivery-confirmation model.
 
+**Post-fix physical verification update:** re-running `direct-pause-resume`
+on a physical Android ↔ iOS pair after landing the keepalive fix confirmed
+the keepalive frames do fire on schedule (visible in logcat as small,
+fixed-size `L2CAP write` entries roughly every
+`L2CAP_KEEPALIVE_INTERVAL_MILLIS`), but the periodic
+`L2CAP EOF` → `closing L2CAP link` → `retrying L2CAP connect` cycle still
+occurred roughly every 8-10 seconds *even with keepalive traffic flowing* -
+in one case the channel closed 31ms after a keepalive write had just
+succeeded, and in another it closed only ~1.3s after a fresh reconnect with
+no writes at all in between. That rules out a pure "no data flowed for N
+seconds" idle timeout as the sole cause; the teardown cadence looks close
+to a fixed platform-imposed L2CAP channel lifetime or a periodic
+BLE-connection-parameter renegotiation on the iOS peripheral side, not
+purely a function of application traffic. The app's `iphone_console.log`
+only captures reference-app log statements, not CoreBluetooth-level
+diagnostics, so confirming the exact OS-side trigger would require
+device-level logs (e.g. `sysdiagnose`/Console.app), which was out of scope
+for this pass.
+
+Both post-fix runs still completed successfully end-to-end
+(`proof.complete` on both roles, correct `inboundCount`/`deliveries`),
+because `L2capReconnectGuard` continues to absorb the churn regardless of
+its root cause. The keepalive fix is still worth keeping: it guarantees
+regular small writes that would surface a broken link faster, and it does
+not depend on identifying the exact teardown trigger to be effective at
+narrowing the original silent-loss race. Eliminating the churn itself (as
+opposed to tolerating it) remains an open item for future investigation.
+
 ## What should stay out of the physical matrix
 
 Do not force every UI feature into a physical-device scenario.
