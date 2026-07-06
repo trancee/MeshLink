@@ -25,6 +25,7 @@ from run_headless_reference_live_proof import (
     IOS_BUNDLE_ID,
     build_ios_app,
     ensure_android_device_ready,
+    force_stop_ios_app,
     install_android_app,
     install_ios_app,
     read_android_app_file,
@@ -470,6 +471,7 @@ def main() -> int:
             ["adb", "-s", args.relay_android_serial, "shell", "am", "force-stop", ANDROID_PACKAGE],
             check=False,
         )
+        force_stop_ios_app(args.ios_device)
 
     summarize_and_verify_relay(
         passive_android_serial=args.passive_android_serial,

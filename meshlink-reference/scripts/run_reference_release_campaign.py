@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping, Sequence
 import campaign_report_data
 import reference_fleet
 import render_reference_release_review_report
+from run_headless_reference_live_proof import force_stop_ios_app, force_stop_reference_app
 
 DEFAULT_APP_ID_PREFIX = "demo.meshlink.reference.release"
 DEFAULT_CHILD_TIMEOUT_SECONDS = 30 * 60
@@ -456,6 +457,61 @@ def invoke_process_runner(
             returncode=None,
             error=str(error),
         )
+
+
+ANDROID_SERIAL_FLAGS = frozenset(
+    {
+        "--android-serial",
+        "--sender-android-serial",
+        "--passive-android-serial",
+        "--relay-android-serial",
+        "--extra-force-stop-serial",
+    }
+)
+IOS_DEVICE_FLAGS = frozenset({"--ios-device"})
+
+
+def devices_from_runner_command(command: Sequence[str]) -> tuple[list[str], list[str]]:
+    """Extract every Android serial and iOS device UDID passed to a runner command.
+
+    Every S01 runner script (direct-guided mixed/android-only, relay-constrained)
+    accepts one of ANDROID_SERIAL_FLAGS / IOS_DEVICE_FLAGS per device it touches.
+    Parsing the already-built argv is more robust than threading device lists
+    through the persisted campaign-plan/campaign-state schema, and it works
+    uniformly for every runner shape without special-casing each assignment.
+    """
+    android_serials: list[str] = []
+    ios_devices: list[str] = []
+    tokens = [str(token) for token in command]
+    for index, token in enumerate(tokens[:-1]):
+        value = tokens[index + 1]
+        if token in ANDROID_SERIAL_FLAGS and value not in android_serials:
+            android_serials.append(value)
+        elif token in IOS_DEVICE_FLAGS and value not in ios_devices:
+            ios_devices.append(value)
+    return android_serials, ios_devices
+
+
+def force_stop_scenario_devices(runner_command: Sequence[str]) -> None:
+    """Force-quit the reference app on every device a timed-out scenario touched.
+
+    `subprocess.run(..., timeout=...)` kills a timed-out runner child with
+    SIGKILL, so the runner script's own finally-guarded cleanup never
+    executes. This must be called whenever a runner invocation times out, so
+    a hung or crashed scenario never leaves the app running on a device that
+    the next scenario in the campaign needs.
+    """
+    android_serials, ios_devices = devices_from_runner_command(runner_command)
+    for android_serial in android_serials:
+        try:
+            force_stop_reference_app(android_serial)
+        except Exception as error:  # pragma: no cover - best-effort cleanup must not raise.
+            print(f"==> Force-stop of Android reference app on {android_serial} failed: {error}")
+    for ios_device in ios_devices:
+        try:
+            force_stop_ios_app(ios_device)
+        except Exception as error:  # pragma: no cover - best-effort cleanup must not raise.
+            print(f"==> Force-stop of iOS reference app on {ios_device} failed: {error}")
 
 
 def build_initial_campaign_status(scenarios: Sequence[Mapping[str, Any]]) -> str:
@@ -1451,10 +1507,11 @@ def resolve_runner_spec(manifest: Mapping[str, Any], *, run_root: Path) -> dict[
             assignmentId=assignment_id,
         )
 
-    for extra_serial in resolve_unused_available_android_serials(
+    extra_force_stop_serials = resolve_unused_available_android_serials(
         manifest,
         selected_devices=selected_devices,
-    ):
+    )
+    for extra_serial in extra_force_stop_serials:
         runner_command.extend(["--extra-force-stop-serial", extra_serial])
 
     analysis_command = [
@@ -2015,6 +2072,8 @@ def run_campaign(
             spec["runnerCommand"],
             timeout_seconds=child_timeout_seconds,
         )
+        if runner_result.timed_out:
+            force_stop_scenario_devices(spec["runnerCommand"])
         write_command_logs(spec["runDirectory"], prefix="runner", result=runner_result)
         append_scenario_event(
             scenario,
