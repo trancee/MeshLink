@@ -332,7 +332,7 @@ def render_markdown(rows: list[dict]) -> str:
         for row, entry in transport_entries:
             payload = f"{entry['payloadBytes'] // 1024} KiB"
             throughput = f"{entry['throughputKBps']:.2f}" if entry["throughputKBps"] is not None else "—"
-            receipt = "confirmed" if entry["receiptConfirmed"] else "not confirmed"
+            receipt = "✅" if entry["receiptConfirmed"] else "❌"
             lines.append(
                 f"| {row['device']} | {entry['date']} | {entry['role']} | {entry['peer']} | {payload} | {entry['result']} | {throughput} | {receipt} |"
             )

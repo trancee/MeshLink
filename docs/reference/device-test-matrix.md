@@ -106,45 +106,45 @@ iteration count shown; a lower time is better.
 
 | Device | Date | Role | Peer | Payload | Result | Throughput (KB/s) | Receipt |
 |---|---|---|---|---:|---|---:|---|
-| Nothing Phone (2) | 2026-07-06 | sender | Huawei Nova 9 | 64 KiB | Sent | 11.53 | confirmed |
-| Nothing Phone (2) | 2026-07-06 | receiver | Nothing Phone (1) | 64 KiB | Sent | 2782.61 | not confirmed |
-| Samsung Galaxy Z Flip4 | 2026-07-06 | receiver | OPPO A57s | 64 KiB | NotSent(reason=UNREACHABLE) | 1.80 | not confirmed |
-| Samsung Galaxy Z Flip4 | 2026-07-06 | sender | Motorola Edge 30 Fusion | 64 KiB | Sent | 12.33 | confirmed |
-| Nothing Phone (1) | 2026-07-06 | receiver | Nokia X20 | 64 KiB | Sent | 376.47 | not confirmed |
-| Nothing Phone (1) | 2026-07-06 | sender | Nothing Phone (2) | 64 KiB | Sent | 2782.61 | not confirmed |
-| Realme C55 | 2026-07-06 | receiver | Xiaomi Mi Note 3 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.88 | not confirmed |
-| Realme C55 | 2026-07-06 | sender | Oppo A53s | 64 KiB | no-result | — | not confirmed |
-| Realme C55 | 2026-07-06 | receiver | Oppo A53s | 64 KiB | no-result | — | not confirmed |
-| OPPO Reno8 5G | 2026-07-06 | receiver | Oppo A53s | 64 KiB | no-result | — | not confirmed |
-| OPPO Reno8 5G | 2026-07-06 | sender | Gigaset GX6 | 64 KiB | no-result | — | not confirmed |
-| OPPO Reno8 5G | 2026-07-06 | sender | Oppo A53s | 64 KiB | no-result | — | not confirmed |
-| OPPO Reno8 5G | 2026-07-06 | receiver | Gigaset GX6 | 64 KiB | no-result | — | not confirmed |
-| Motorola Edge 30 Fusion | 2026-07-06 | receiver | Samsung Galaxy Z Flip4 | 64 KiB | Sent | 12.33 | confirmed |
-| Motorola Edge 30 Fusion | 2026-07-06 | sender | Xiaomi Pocophone F1 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.68 | not confirmed |
-| Nokia X20 | 2026-07-06 | receiver | OnePlus 6 | 64 KiB | no-result | — | not confirmed |
-| Nokia X20 | 2026-07-06 | sender | Nothing Phone (1) | 64 KiB | Sent | 376.47 | not confirmed |
-| Nokia X20 | 2026-07-06 | sender | OnePlus 6 | 64 KiB | no-result | — | not confirmed |
-| OPPO A57s | 2026-07-06 | receiver | Gigaset GX6 | 64 KiB | Sent | 6.76 | confirmed |
-| OPPO A57s | 2026-07-06 | sender | Samsung Galaxy Z Flip4 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.80 | not confirmed |
-| Gigaset GX6 | 2026-07-06 | receiver | OPPO Reno8 5G | 64 KiB | no-result | — | not confirmed |
-| Gigaset GX6 | 2026-07-06 | sender | OPPO A57s | 64 KiB | Sent | 6.76 | confirmed |
-| Gigaset GX6 | 2026-07-06 | sender | OPPO Reno8 5G | 64 KiB | no-result | — | not confirmed |
-| OnePlus Nord 2 5G | 2026-07-06 | receiver | Xiaomi Pocophone F1 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.81 | not confirmed |
-| OnePlus Nord 2 5G | 2026-07-06 | sender | OnePlus 6 | 64 KiB | no-result | — | not confirmed |
-| OnePlus Nord 2 5G | 2026-07-06 | receiver | OnePlus 6 | 64 KiB | no-result | — | not confirmed |
-| Huawei Nova 9 | 2026-07-06 | receiver | Nothing Phone (2) | 64 KiB | Sent | 11.53 | confirmed |
-| Huawei Nova 9 | 2026-07-06 | sender | Samsung Galaxy XCover 4 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.71 | not confirmed |
-| Oppo A53s | 2026-07-06 | receiver | Realme C55 | 64 KiB | no-result | — | not confirmed |
-| Oppo A53s | 2026-07-06 | sender | OPPO Reno8 5G | 64 KiB | no-result | — | not confirmed |
-| Oppo A53s | 2026-07-06 | sender | Realme C55 | 64 KiB | no-result | — | not confirmed |
-| Oppo A53s | 2026-07-06 | receiver | OPPO Reno8 5G | 64 KiB | no-result | — | not confirmed |
-| OnePlus 6 | 2026-07-06 | receiver | OnePlus Nord 2 5G | 64 KiB | no-result | — | not confirmed |
-| OnePlus 6 | 2026-07-06 | sender | Nokia X20 | 64 KiB | no-result | — | not confirmed |
-| OnePlus 6 | 2026-07-06 | sender | OnePlus Nord 2 5G | 64 KiB | no-result | — | not confirmed |
-| OnePlus 6 | 2026-07-06 | receiver | Nokia X20 | 64 KiB | no-result | — | not confirmed |
-| Xiaomi Pocophone F1 | 2026-07-06 | receiver | Motorola Edge 30 Fusion | 64 KiB | NotSent(reason=UNREACHABLE) | 1.68 | not confirmed |
-| Xiaomi Pocophone F1 | 2026-07-06 | sender | OnePlus Nord 2 5G | 64 KiB | NotSent(reason=UNREACHABLE) | 1.81 | not confirmed |
-| Xiaomi Mi Note 3 | 2026-07-06 | receiver | Samsung Galaxy XCover 4 | 64 KiB | Sent | 8.17 | confirmed |
-| Xiaomi Mi Note 3 | 2026-07-06 | sender | Realme C55 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.88 | not confirmed |
-| Samsung Galaxy XCover 4 | 2026-07-06 | receiver | Huawei Nova 9 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.71 | not confirmed |
-| Samsung Galaxy XCover 4 | 2026-07-06 | sender | Xiaomi Mi Note 3 | 64 KiB | Sent | 8.17 | confirmed |
+| Nothing Phone (2) | 2026-07-06 | sender | Huawei Nova 9 | 64 KiB | Sent | 11.53 | ✅ |
+| Nothing Phone (2) | 2026-07-06 | receiver | Nothing Phone (1) | 64 KiB | Sent | 2782.61 | ❌ |
+| Samsung Galaxy Z Flip4 | 2026-07-06 | receiver | OPPO A57s | 64 KiB | NotSent(reason=UNREACHABLE) | 1.80 | ❌ |
+| Samsung Galaxy Z Flip4 | 2026-07-06 | sender | Motorola Edge 30 Fusion | 64 KiB | Sent | 12.33 | ✅ |
+| Nothing Phone (1) | 2026-07-06 | receiver | Nokia X20 | 64 KiB | Sent | 376.47 | ❌ |
+| Nothing Phone (1) | 2026-07-06 | sender | Nothing Phone (2) | 64 KiB | Sent | 2782.61 | ❌ |
+| Realme C55 | 2026-07-06 | receiver | Xiaomi Mi Note 3 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.88 | ❌ |
+| Realme C55 | 2026-07-06 | sender | Oppo A53s | 64 KiB | no-result | — | ❌ |
+| Realme C55 | 2026-07-06 | receiver | Oppo A53s | 64 KiB | no-result | — | ❌ |
+| OPPO Reno8 5G | 2026-07-06 | receiver | Oppo A53s | 64 KiB | no-result | — | ❌ |
+| OPPO Reno8 5G | 2026-07-06 | sender | Gigaset GX6 | 64 KiB | no-result | — | ❌ |
+| OPPO Reno8 5G | 2026-07-06 | sender | Oppo A53s | 64 KiB | no-result | — | ❌ |
+| OPPO Reno8 5G | 2026-07-06 | receiver | Gigaset GX6 | 64 KiB | no-result | — | ❌ |
+| Motorola Edge 30 Fusion | 2026-07-06 | receiver | Samsung Galaxy Z Flip4 | 64 KiB | Sent | 12.33 | ✅ |
+| Motorola Edge 30 Fusion | 2026-07-06 | sender | Xiaomi Pocophone F1 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.68 | ❌ |
+| Nokia X20 | 2026-07-06 | receiver | OnePlus 6 | 64 KiB | no-result | — | ❌ |
+| Nokia X20 | 2026-07-06 | sender | Nothing Phone (1) | 64 KiB | Sent | 376.47 | ❌ |
+| Nokia X20 | 2026-07-06 | sender | OnePlus 6 | 64 KiB | no-result | — | ❌ |
+| OPPO A57s | 2026-07-06 | receiver | Gigaset GX6 | 64 KiB | Sent | 6.76 | ✅ |
+| OPPO A57s | 2026-07-06 | sender | Samsung Galaxy Z Flip4 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.80 | ❌ |
+| Gigaset GX6 | 2026-07-06 | receiver | OPPO Reno8 5G | 64 KiB | no-result | — | ❌ |
+| Gigaset GX6 | 2026-07-06 | sender | OPPO A57s | 64 KiB | Sent | 6.76 | ✅ |
+| Gigaset GX6 | 2026-07-06 | sender | OPPO Reno8 5G | 64 KiB | no-result | — | ❌ |
+| OnePlus Nord 2 5G | 2026-07-06 | receiver | Xiaomi Pocophone F1 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.81 | ❌ |
+| OnePlus Nord 2 5G | 2026-07-06 | sender | OnePlus 6 | 64 KiB | no-result | — | ❌ |
+| OnePlus Nord 2 5G | 2026-07-06 | receiver | OnePlus 6 | 64 KiB | no-result | — | ❌ |
+| Huawei Nova 9 | 2026-07-06 | receiver | Nothing Phone (2) | 64 KiB | Sent | 11.53 | ✅ |
+| Huawei Nova 9 | 2026-07-06 | sender | Samsung Galaxy XCover 4 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.71 | ❌ |
+| Oppo A53s | 2026-07-06 | receiver | Realme C55 | 64 KiB | no-result | — | ❌ |
+| Oppo A53s | 2026-07-06 | sender | OPPO Reno8 5G | 64 KiB | no-result | — | ❌ |
+| Oppo A53s | 2026-07-06 | sender | Realme C55 | 64 KiB | no-result | — | ❌ |
+| Oppo A53s | 2026-07-06 | receiver | OPPO Reno8 5G | 64 KiB | no-result | — | ❌ |
+| OnePlus 6 | 2026-07-06 | receiver | OnePlus Nord 2 5G | 64 KiB | no-result | — | ❌ |
+| OnePlus 6 | 2026-07-06 | sender | Nokia X20 | 64 KiB | no-result | — | ❌ |
+| OnePlus 6 | 2026-07-06 | sender | OnePlus Nord 2 5G | 64 KiB | no-result | — | ❌ |
+| OnePlus 6 | 2026-07-06 | receiver | Nokia X20 | 64 KiB | no-result | — | ❌ |
+| Xiaomi Pocophone F1 | 2026-07-06 | receiver | Motorola Edge 30 Fusion | 64 KiB | NotSent(reason=UNREACHABLE) | 1.68 | ❌ |
+| Xiaomi Pocophone F1 | 2026-07-06 | sender | OnePlus Nord 2 5G | 64 KiB | NotSent(reason=UNREACHABLE) | 1.81 | ❌ |
+| Xiaomi Mi Note 3 | 2026-07-06 | receiver | Samsung Galaxy XCover 4 | 64 KiB | Sent | 8.17 | ✅ |
+| Xiaomi Mi Note 3 | 2026-07-06 | sender | Realme C55 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.88 | ❌ |
+| Samsung Galaxy XCover 4 | 2026-07-06 | receiver | Huawei Nova 9 | 64 KiB | NotSent(reason=UNREACHABLE) | 1.71 | ❌ |
+| Samsung Galaxy XCover 4 | 2026-07-06 | sender | Xiaomi Mi Note 3 | 64 KiB | Sent | 8.17 | ✅ |
