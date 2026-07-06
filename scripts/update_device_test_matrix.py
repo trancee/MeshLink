@@ -165,9 +165,9 @@ def crypto_chips(items: list[str]) -> str:
 
 
 CRYPTO_LATENCY_STYLES = {
-    "good": "color:#166534;",
-    "warn": "color:#92400e;",
-    "bad": "color:#991b1b;font-weight:600;",
+    "good": "background:#dcfce7;color:#166534;border:1px solid #86efac;",
+    "warn": "background:#fef3c7;color:#92400e;border:1px solid #f59e0b;",
+    "bad": "background:#fecaca;color:#991b1b;border:1px solid #f87171;font-weight:600;",
 }
 
 # (warn_threshold_us, bad_threshold_us) per operation family; a value at or below warn_threshold
@@ -183,15 +183,18 @@ CRYPTO_LATENCY_THRESHOLDS = {
 }
 
 
-def crypto_latency_cell(field: str, value_us: float) -> str:
+def crypto_latency_severity(field: str, value_us: float) -> str:
     warn_threshold, bad_threshold = CRYPTO_LATENCY_THRESHOLDS[field]
     if value_us > bad_threshold:
-        style = CRYPTO_LATENCY_STYLES["bad"]
-    elif value_us > warn_threshold:
-        style = CRYPTO_LATENCY_STYLES["warn"]
-    else:
-        style = CRYPTO_LATENCY_STYLES["good"]
-    return f'<span style="{style}">{value_us:.1f}</span>'
+        return "bad"
+    if value_us > warn_threshold:
+        return "warn"
+    return "good"
+
+
+def crypto_latency_cell(field: str, value_us: float) -> str:
+    style = CRYPTO_LATENCY_STYLES[crypto_latency_severity(field, value_us)]
+    return chip_html(f"{value_us:.1f}", style)
 
 
 def chipset_with_model(name: str, model: str) -> str:
@@ -334,10 +337,11 @@ def render_markdown(rows: list[dict]) -> str:
         "### Crypto benchmarks",
         "",
         "Values are per-operation average microseconds (µs) over the iteration count shown.",
-        "Colors flag latency outliers per operation family: green is at or below the warn",
+        "Chips flag latency outliers per operation family: green is at or below the warn",
         "threshold, amber is above it, and bold red is above the bad threshold — X25519",
         "ops warn > 1000µs / bad > 5000µs, Ed25519 ops warn > 1000µs / bad > 10000µs, and",
-        "ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs.",
+        "ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs. Status is ✅ when every op for",
+        "that run is green, ⚠️ when the worst op is amber, and ❌ when the worst op is red.",
         "",
     ]
     crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
@@ -345,12 +349,22 @@ def render_markdown(rows: list[dict]) -> str:
         lines.append("_No fleet crypto benchmark results recorded yet._")
     else:
         lines.append(
-            "| Device | Date | Provider | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |"
+            "| Device | Date | Provider | Status | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |"
         )
-        lines.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+        lines.append("|---|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for row, entry in crypto_entries:
+            severities = [
+                crypto_latency_severity(field, entry[field])
+                for field in CRYPTO_LATENCY_THRESHOLDS
+            ]
+            if "bad" in severities:
+                status = "❌"
+            elif "warn" in severities:
+                status = "⚠️"
+            else:
+                status = "✅"
             lines.append(
-                f"| {row['device']} | {entry['date']} | {entry['provider']} | {entry['iterations']} | "
+                f"| {row['device']} | {entry['date']} | {entry['provider']} | {status} | {entry['iterations']} | "
                 f"{crypto_latency_cell('x25519KeyGenUs', entry['x25519KeyGenUs'])} | {crypto_latency_cell('x25519AgreementUs', entry['x25519AgreementUs'])} | "
                 f"{crypto_latency_cell('ed25519KeyGenUs', entry['ed25519KeyGenUs'])} | {crypto_latency_cell('ed25519SignUs', entry['ed25519SignUs'])} | "
                 f"{crypto_latency_cell('ed25519VerifyUs', entry['ed25519VerifyUs'])} | {crypto_latency_cell('chacha20SealUs', entry['chacha20SealUs'])} | "
