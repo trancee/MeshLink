@@ -184,6 +184,12 @@ internal class BleTransportAdapter(
                     )
                 )
             },
+            scheduleScanWatchdogCheck = { delayMillis, check ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    check()
+                }
+            },
         )
 
     internal val currentDiscoveryPayload: BleDiscoveryPayload
