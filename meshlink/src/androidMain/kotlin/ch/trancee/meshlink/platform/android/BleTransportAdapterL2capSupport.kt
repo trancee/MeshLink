@@ -16,8 +16,9 @@ import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -289,7 +290,7 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
 }
 
 @SuppressLint("MissingPermission")
-internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
+internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null
@@ -304,7 +305,17 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     gattSideLinks.stopAll()
     inboundFrameQueue?.close()
     inboundFrameQueue = null
-    coroutineScope.coroutineContext.cancelChildren()
+    // Cancel and join every outstanding child (including background scan-processing work
+    // dispatched via scanProcessingDispatcher). A single pass is not enough: an in-flight
+    // handleScanResult call has no suspension points, so cancelling it does not stop it, and
+    // it may itself launch a new connectIfNeeded child after this pass's snapshot was taken.
+    // Loop until no children remain so late-spawned children can't mutate peer state after
+    // this function clears it below.
+    while (true) {
+        val children = coroutineScope.coroutineContext.job.children.toList()
+        if (children.isEmpty()) break
+        children.forEach { it.cancelAndJoin() }
+    }
     if (clearPeers) {
         peerRegistry.clear()
         peerBindings.clear()
