@@ -88,7 +88,8 @@ Chips flag latency outliers per operation family: green is at or below the warn
 threshold, amber is above it, and bold red is above the bad threshold — X25519
 ops warn > 1000µs / bad > 5000µs, Ed25519 ops warn > 1000µs / bad > 10000µs, and
 ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs. Status is ✅ when every op for
-that run is green, ⚠️ when the worst op is amber, and ❌ when the worst op is red.
+that run is green, ⚠️ when the worst op is amber, ❌ when the worst op is red, and
+❓ when the run only recorded a partial set of ops (missing ops render as "—").
 
 | Device | Date | Provider | Status | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |
 |---|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|
