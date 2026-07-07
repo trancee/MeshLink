@@ -150,6 +150,12 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
+    // Flipped true as the very first step of stopTransports() (before started is set false, which
+    // only happens after stopTransports() returns) and reset false at the start of
+    // startTransport(). Read from connectIfNeeded(), which can run on a background dispatcher
+    // thread via a straggler scan-processing coroutine or a delayed scheduleL2capReconnect() call
+    // racing teardown, so this must be @Volatile for cross-thread visibility.
+    @Volatile internal var transportStopping: Boolean = false
     internal val foreignScanIgnoredCount = AtomicInteger(0)
     internal val scanResultCount = AtomicInteger(0)
     internal val scanParseSkippedCount = AtomicInteger(0)

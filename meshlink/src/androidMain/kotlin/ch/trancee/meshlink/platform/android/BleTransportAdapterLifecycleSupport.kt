@@ -10,6 +10,7 @@ internal fun advertisedDiscoveryL2capPsm(
 }
 
 internal suspend fun BleTransportAdapter.startTransport(): Unit {
+    transportStopping = false
     ensurePermissionsGranted()
     val bluetoothManager =
         try {

@@ -36,6 +36,10 @@ internal fun BleTransportAdapter.clearPendingConnect(hintPeer: String): Unit {
 
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
+    if (transportStopping) {
+        log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: transport stopping")
+        return
+    }
     if (peer.l2capPsm == 0) {
         log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
         return
@@ -299,6 +303,12 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
 
 @SuppressLint("MissingPermission")
 internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
+    // Set first, before any other teardown step: connectIfNeeded() (and therefore
+    // scheduleL2capReconnect()'s delayed retry) checks this to refuse new/resumed connection
+    // attempts for the remainder of teardown, including ones triggered by a straggler
+    // scan-processing coroutine or by a "socket closed" retry scheduled from a force-close inside
+    // this very function (see cancelPendingConnects() below).
+    transportStopping = true
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null
