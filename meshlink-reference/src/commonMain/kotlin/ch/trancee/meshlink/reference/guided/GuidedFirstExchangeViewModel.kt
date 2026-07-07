@@ -164,8 +164,8 @@ internal class GuidedFirstExchangeViewModel(
 
     /**
      * Builds an oversized payload (>= 4096 bytes) for the `direct-large-transfer` scenario and
-     * emits the "payload=large-transfer bytes=<n>" marker the physical harness scans for before
-     * the send is attempted.
+     * emits the "payload=large-transfer bytes=<n>" marker the physical harness scans for before the
+     * send is attempted.
      */
     private fun largeTransferPayloadText(): String {
         val body = "hello mesh from $platformName (large transfer) ".repeat(120)
@@ -180,7 +180,9 @@ internal class GuidedFirstExchangeViewModel(
     /** Sends [payloadText] to [peerId], logging the send lifecycle markers the harnesses parse. */
     private suspend fun deliverPayload(peerId: String, payloadText: String, phase: String?): Unit {
         val phaseSuffix = if (phase != null) " phase=$phase" else ""
-        emitAutomationLog("REFERENCE_AUTOMATION send.requested role=sender peerId=$peerId$phaseSuffix")
+        emitAutomationLog(
+            "REFERENCE_AUTOMATION send.requested role=sender peerId=$peerId$phaseSuffix"
+        )
         emitAutomationLog(
             "REFERENCE_AUTOMATION startup-state=guided.viewModel.sendHello.begin peerId=$peerId"
         )
@@ -219,7 +221,8 @@ internal class GuidedFirstExchangeViewModel(
     private fun maybeCompletePassiveExchange(snapshot: ReferenceControllerSnapshot): Unit {
         if (passiveCompletionTriggered || !isPassiveRole) return
         val documentStore = automationDocumentStore ?: return
-        val messageEntries = snapshot.timeline.filter { entry -> entry.family == TimelineFamily.MESSAGE }
+        val messageEntries =
+            snapshot.timeline.filter { entry -> entry.family == TimelineFamily.MESSAGE }
         if (messageEntries.size < requiredPassiveInboundCount) return
         if (!snapshot.isEligibleForAutomaticRetention(readinessBlockers)) return
         passiveCompletionTriggered = true
@@ -235,7 +238,8 @@ internal class GuidedFirstExchangeViewModel(
                 )
                 val fullExportPath =
                     writeSessionArtifact(
-                        // Uses the un-redacted live snapshot (not retainedSnapshot) so the full-payload
+                        // Uses the un-redacted live snapshot (not retainedSnapshot) so the
+                        // full-payload
                         // export can actually include fullPayload bytes; redactedRetainedSnapshot()
                         // strips fullPayload from every timeline entry before retention.
                         snapshot = snapshot,
@@ -261,7 +265,8 @@ internal class GuidedFirstExchangeViewModel(
             emitAutomationLog(
                 "REFERENCE_AUTOMATION export.completed role=passive policy=redacted-preview path=$exportPath"
             )
-            val largestInboundBytes = messageEntries.mapNotNull { entry -> entry.payloadSizeBytes }.maxOrNull() ?: 0
+            val largestInboundBytes =
+                messageEntries.mapNotNull { entry -> entry.payloadSizeBytes }.maxOrNull() ?: 0
             emitAutomationLog(
                 "REFERENCE_AUTOMATION proof.complete role=passive " +
                     "inboundCount=${messageEntries.size} " +
@@ -358,20 +363,24 @@ internal class GuidedFirstExchangeViewModel(
 
     private fun resolveAutoSendPeer(snapshot: ReferenceControllerSnapshot) =
         when (val targetPeerId = automationTargetPeerId) {
-            null -> snapshot.peers.firstOrNull { it.connectionState == PeerConnectionSnapshotState.CONNECTED }
+            null ->
+                snapshot.peers.firstOrNull {
+                    it.connectionState == PeerConnectionSnapshotState.CONNECTED
+                }
             else ->
                 snapshot.peers.firstOrNull {
-                    it.peerId == targetPeerId && it.connectionState == PeerConnectionSnapshotState.CONNECTED
+                    it.peerId == targetPeerId &&
+                        it.connectionState == PeerConnectionSnapshotState.CONNECTED
                 }
         }
 
     /**
-     * Suspends until [peerId] (or, if null, any peer) reports [PeerConnectionSnapshotState.CONNECTED]
-     * in the controller's own snapshot flow, or until [PEER_READY_AWAIT_TIMEOUT_MILLIS] elapses.
-     * This is the event-driven replacement for blindly `delay()`-ing a fixed settle window after
-     * resume()/forgetPeer() -- it reacts as soon as the BLE link/route is actually ready instead of
-     * guessing a duration, while still bounding the wait so automation can't hang forever if the
-     * link never recovers.
+     * Suspends until [peerId] (or, if null, any peer) reports
+     * [PeerConnectionSnapshotState.CONNECTED] in the controller's own snapshot flow, or until
+     * [PEER_READY_AWAIT_TIMEOUT_MILLIS] elapses. This is the event-driven replacement for blindly
+     * `delay()`-ing a fixed settle window after resume()/forgetPeer() -- it reacts as soon as the
+     * BLE link/route is actually ready instead of guessing a duration, while still bounding the
+     * wait so automation can't hang forever if the link never recovers.
      */
     private suspend fun awaitPeerConnected(peerId: String?): Unit {
         withTimeoutOrNull(PEER_READY_AWAIT_TIMEOUT_MILLIS) {
@@ -441,24 +450,33 @@ internal class GuidedFirstExchangeViewModel(
                 val peer = resolveAutoSendPeer(snapshot) ?: return
                 trustResetPhase = TrustResetPhase.INITIAL_SEND_IN_FLIGHT
                 scope.launch {
-                    deliverPayload(peerId = peer.peerId, payloadText = "hello mesh from $platformName", phase = "initial")
+                    deliverPayload(
+                        peerId = peer.peerId,
+                        payloadText = "hello mesh from $platformName",
+                        phase = "initial",
+                    )
                     // Give the initial payload time to actually transmit over the physical BLE
                     // link before tearing down the peer -- sendPayload() returning only means the
                     // mesh engine accepted/enqueued the send, not that delivery has completed.
                     delay(TRUST_RESET_DELIVERY_SETTLE_MILLIS)
                     emitAutomationLog("REFERENCE_AUTOMATION trust.reset.requested role=sender")
                     meshLinkController.forgetPeer(peer.peerId)
-                    emitAutomationLog("REFERENCE_AUTOMATION trust.reset.observed role=sender window=open")
+                    emitAutomationLog(
+                        "REFERENCE_AUTOMATION trust.reset.observed role=sender window=open"
+                    )
                     trustResetPhase = TrustResetPhase.AWAITING_RECOVERY
                 }
             }
             TrustResetPhase.AWAITING_RECOVERY -> {
                 val peer =
-                    snapshot.peers.firstOrNull { it.connectionState == PeerConnectionSnapshotState.CONNECTED }
-                        ?: return
+                    snapshot.peers.firstOrNull {
+                        it.connectionState == PeerConnectionSnapshotState.CONNECTED
+                    } ?: return
                 trustResetPhase = TrustResetPhase.RECOVERY_SEND_IN_FLIGHT
                 scope.launch {
-                    emitAutomationLog("REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed")
+                    emitAutomationLog(
+                        "REFERENCE_AUTOMATION trust.reset.recovered role=sender window=closed"
+                    )
                     deliverPayload(
                         peerId = peer.peerId,
                         payloadText = "hello mesh from $platformName (recovery)",
