@@ -40,7 +40,7 @@ internal fun parseDiscoveryScanResultOrNull(
     deviceAddress: String,
     localMeshHash: UShort,
     localKeyHash: ByteArray,
-    onForeignScanIgnored: () -> Unit = {},
+    onForeignScanIgnored: () -> Int = { 0 },
     log: (String) -> Unit,
 ): DiscoveryScanResult? {
     val payloadUuid =
@@ -61,10 +61,19 @@ internal fun parseDiscoveryScanResultOrNull(
                 return null
             }
     if (payload.meshHash != localMeshHash) {
-        onForeignScanIgnored()
-        log(
-            "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash}"
-        )
+        // In a BLE-dense environment (many nearby devices/apps advertising unrelated mesh
+        // networks) this branch can fire well over 100 times/second. Logging every occurrence
+        // unconditionally floods Log.i (a synchronous binder call) on the scan-callback thread,
+        // starving other BLE work (GATT/L2CAP callback delivery, handshake progress) that can
+        // share the same thread/looper -- see BleTransportAdapterScanSupport's existing sampling
+        // of its own per-result logs for the same reasoning. Sample this rejection path the same
+        // way; the embedded remoteMeshHash/localMeshHash counters still make sampled lines useful.
+        val ignoredCount = onForeignScanIgnored()
+        if (ignoredCount % SCAN_RESULT_LOG_SAMPLE_INTERVAL == 1) {
+            log(
+                "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash} foreignIgnoredCount=$ignoredCount"
+            )
+        }
         return null
     }
     if (payload.keyHash.contentEquals(localKeyHash)) {

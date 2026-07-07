@@ -17,7 +17,7 @@ import ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection
 // (advertise/route/DIAG) from the logcat ring buffer before they can be
 // captured for diagnosis. Sample routine per-result lines instead; the
 // cumulative counters embedded in each line still make sampled lines useful.
-private const val SCAN_RESULT_LOG_SAMPLE_INTERVAL = 50
+internal const val SCAN_RESULT_LOG_SAMPLE_INTERVAL = 50
 
 internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
     val scanNumber = scanResultCount.incrementAndGet()
