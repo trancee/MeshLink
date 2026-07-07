@@ -168,7 +168,7 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
             val bit = (scalar[bitIndex ushr 3].toInt() ushr (bitIndex and 7)) and 1
             conditionalSwap(output, workingPoint, bit)
             add(workingPoint, output, scratch)
-            add(output, output, scratch)
+            double(output, scratch)
             conditionalSwap(output, workingPoint, bit)
         }
     }
@@ -199,6 +199,32 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         multiply(point.y, scratch.h, scratch.g, scratch.temp)
         multiply(point.z, scratch.g, scratch.f, scratch.temp)
         multiply(point.t, scratch.e, scratch.h, scratch.temp)
+    }
+
+    /**
+     * Dedicated point doubling (dbl-2008-hwcd) for the twisted Edwards curve with a = -1. This is
+     * mathematically equivalent to `add(point, point, scratch)` but costs 4 squarings + 4
+     * multiplications instead of the unified addition formula's 9 multiplications, which matters
+     * because every scalar-multiplication bit performs one doubling.
+     */
+    private fun double(point: Point, scratch: PointScratch): Unit {
+        square(scratch.a, point.x, scratch.temp)
+        square(scratch.b, point.y, scratch.temp)
+        square(scratch.c, point.z, scratch.temp)
+        add(scratch.c, scratch.c, scratch.c)
+        add(scratch.h, point.x, point.y)
+        square(scratch.e, scratch.h, scratch.temp)
+        subtract(scratch.e, scratch.e, scratch.a)
+        subtract(scratch.e, scratch.e, scratch.b)
+        // d = a * A = -A since a = -1
+        subtract(scratch.d, FIELD_ZERO, scratch.a)
+        add(scratch.g, scratch.d, scratch.b)
+        subtract(scratch.f, scratch.g, scratch.c)
+        subtract(scratch.h, scratch.d, scratch.b)
+        multiply(point.x, scratch.e, scratch.f, scratch.temp)
+        multiply(point.y, scratch.g, scratch.h, scratch.temp)
+        multiply(point.t, scratch.e, scratch.h, scratch.temp)
+        multiply(point.z, scratch.f, scratch.g, scratch.temp)
     }
 
     private fun conditionalSwap(first: Point, second: Point, bit: Int): Unit {
@@ -304,7 +330,25 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
     }
 
     private fun square(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        multiply(output, input, input, temp)
+        // Schoolbook squaring skips recomputing symmetric cross terms (input[i]*input[j] ==
+        // input[j]*input[i]) and doubles them once instead, roughly halving the number of
+        // limb multiplications compared to calling the general multiply(input, input).
+        temp.fill(0)
+        for (leftIndex in 0 until FIELD_ELEMENT_SIZE) {
+            val leftValue = input[leftIndex]
+            temp[leftIndex * 2] += leftValue * leftValue
+            for (rightIndex in leftIndex + 1 until FIELD_ELEMENT_SIZE) {
+                temp[leftIndex + rightIndex] += 2L * leftValue * input[rightIndex]
+            }
+        }
+        for (index in 0 until FIELD_ELEMENT_SIZE - 1) {
+            temp[index] += 38L * temp[index + FIELD_ELEMENT_SIZE]
+        }
+        for (index in 0 until FIELD_ELEMENT_SIZE) {
+            output[index] = temp[index]
+        }
+        carry(output)
+        carry(output)
     }
 
     private fun invert(output: LongArray, input: LongArray, temp: LongArray): Unit {
