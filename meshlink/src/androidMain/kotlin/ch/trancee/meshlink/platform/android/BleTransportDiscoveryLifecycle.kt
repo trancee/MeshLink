@@ -80,6 +80,14 @@ private const val SCAN_RETRY_BASE_DELAY_MILLIS = 500L
 internal const val SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS = 15_000L
 internal const val SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS = 20_000L
 
+// If the watchdog's own scan-only restart fails to clear the wedge this many times in a row
+// (i.e. the scanner is still idle past the threshold immediately after a prior watchdog restart),
+// escalate beyond a plain scan restart: attempt a full adapter power-cycle where the platform
+// still permits it, and otherwise signal that manual user intervention (toggling Bluetooth) is
+// needed. See docs/explanation/reference-app-physical-integration-findings.md for the
+// device-specific wedge this defends against.
+internal const val MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION = 2
+
 // ScanCallback only hands back a bare Int error code; map it to its symbolic
 // constant name so logs/diagnostics are actionable without needing to cross
 // reference the Android SDK source (e.g. errorCode=1 -> SCAN_FAILED_ALREADY_STARTED).
@@ -119,6 +127,17 @@ internal class BleTransportDiscoveryLifecycle(
         { _, _ ->
         },
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
+    // Best-effort adapter power-cycle attempt for the wedge-escalation path below. Returns true
+    // if a power-cycle was actually attempted (platform/permission allowed it), false if it could
+    // not be attempted at all (e.g. Android 13+ without BLUETOOTH_PRIVILEGED, where
+    // BluetoothAdapter.disable()/enable() are no-ops for normal apps) so the caller can fall back
+    // to the manual-recovery signal instead.
+    private val attemptBluetoothAdapterPowerCycle: () -> Boolean = { false },
+    // Invoked when the watchdog has exhausted its own recovery options (scan restart, then
+    // adapter power-cycle where possible) and the wedge still hasn't cleared; the caller is
+    // expected to surface this as an actionable prompt asking the user to manually toggle
+    // Bluetooth.
+    private val onManualBluetoothRecoveryNeeded: () -> Unit = {},
 ) {
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
@@ -143,6 +162,13 @@ internal class BleTransportDiscoveryLifecycle(
     // (scheduled by an earlier refresh cycle) recognize they're outdated and stop rescheduling
     // themselves instead of running alongside a newer loop.
     private var scanWatchdogGeneration: Int = 0
+
+    // Counts consecutive watchdog-triggered scan restarts that did not clear the idle wedge
+    // (i.e. the scanner was still idle past the threshold the very next time it was checked).
+    // Reset to 0 whenever a real scan result arrives or discovery is stopped/refreshed, so a
+    // healthy scanner that occasionally goes quiet for one cycle doesn't accumulate escalation
+    // credit across unrelated idle periods.
+    private var consecutiveWedgedScanRestarts: Int = 0
 
     // The tier behind the most recently *computed* PowerPolicy, regardless of whether it was ever
     // actually applied to the hardware (see lastAppliedPowerTier below).
@@ -195,6 +221,7 @@ internal class BleTransportDiscoveryLifecycle(
                 if (isStopped) return
                 scanRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
+                consecutiveWedgedScanRestarts = 0
                 handleScanResult(result)
             }
 
@@ -202,6 +229,7 @@ internal class BleTransportDiscoveryLifecycle(
                 if (isStopped) return
                 scanRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
+                consecutiveWedgedScanRestarts = 0
                 results.forEach(handleScanResult)
             }
 
@@ -266,6 +294,7 @@ internal class BleTransportDiscoveryLifecycle(
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
         scanWatchdogGeneration += 1
+        consecutiveWedgedScanRestarts = 0
         hardware.stopScan(scanCallback)
         hardware.stopAdvertising(advertiseCallback)
     }
@@ -276,6 +305,7 @@ internal class BleTransportDiscoveryLifecycle(
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
         scanWatchdogGeneration += 1
+        consecutiveWedgedScanRestarts = 0
         log(
             "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
@@ -334,7 +364,13 @@ internal class BleTransportDiscoveryLifecycle(
         }
         val idleMillis = nowMillis() - lastScanResultAtMillis
         if (idleMillis >= SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS) {
-            log("scan watchdog restarting scan after idleMillis=$idleMillis")
+            consecutiveWedgedScanRestarts += 1
+            log(
+                "scan watchdog restarting scan after idleMillis=$idleMillis consecutiveWedgedScanRestarts=$consecutiveWedgedScanRestarts"
+            )
+            if (consecutiveWedgedScanRestarts >= MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION) {
+                escalateWedgedScanRecovery()
+            }
             hardware.stopScan(scanCallback)
             hardware.startScan(currentPowerProfile, scanCallback)
             lastScanResultAtMillis = nowMillis()
@@ -342,6 +378,21 @@ internal class BleTransportDiscoveryLifecycle(
         scheduleScanWatchdogCheck(SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS) {
             runScanWatchdogCheck(generation, hardware)
         }
+    }
+
+    // A plain scan restart has now repeatedly failed to clear the wedge. Attempt a full adapter
+    // power-cycle first (only actually effective pre-Android 13 for a non-privileged app -- see
+    // attemptBluetoothAdapterPowerCycle's doc comment); if that isn't possible on this platform,
+    // fall back to signalling that manual user intervention is needed. Either way, reset the
+    // streak afterwards so a still-wedged scanner escalates again after another full streak
+    // rather than firing on every subsequent watchdog check.
+    private fun escalateWedgedScanRecovery(): Unit {
+        val powerCycleAttempted = attemptBluetoothAdapterPowerCycle()
+        log("scan watchdog escalating wedge recovery powerCycleAttempted=$powerCycleAttempted")
+        if (!powerCycleAttempted) {
+            onManualBluetoothRecoveryNeeded()
+        }
+        consecutiveWedgedScanRestarts = 0
     }
 
     private fun maybeRetryAdvertising(errorCode: Int): Boolean {

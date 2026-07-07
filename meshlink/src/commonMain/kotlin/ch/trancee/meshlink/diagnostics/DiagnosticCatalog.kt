@@ -32,6 +32,8 @@ internal object DiagnosticCatalog {
             DiagnosticCode.DISCOVERY_ADVERTISE_FAILED,
             DiagnosticCode.DISCOVERY_SCAN_FAILED -> DiagnosticSeverity.WARN
 
+            DiagnosticCode.MANUAL_BLUETOOTH_RECOVERY_NEEDED -> DiagnosticSeverity.ERROR
+
             DiagnosticCode.TRUST_FAILURE,
             DiagnosticCode.DELIVERY_UNREACHABLE,
             DiagnosticCode.TRANSFER_FAILED -> DiagnosticSeverity.ERROR

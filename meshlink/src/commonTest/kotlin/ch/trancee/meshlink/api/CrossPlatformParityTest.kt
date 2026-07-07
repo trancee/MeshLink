@@ -101,6 +101,7 @@ class CrossPlatformParityTest {
                 "TRANSPORT_FRAME_REJECTED",
                 "DISCOVERY_ADVERTISE_FAILED",
                 "DISCOVERY_SCAN_FAILED",
+                "MANUAL_BLUETOOTH_RECOVERY_NEEDED",
             )
         val expectedSeverities =
             mapOf(
@@ -133,6 +134,7 @@ class CrossPlatformParityTest {
                 DiagnosticCode.TRANSPORT_FRAME_REJECTED to DiagnosticSeverity.WARN,
                 DiagnosticCode.DISCOVERY_ADVERTISE_FAILED to DiagnosticSeverity.WARN,
                 DiagnosticCode.DISCOVERY_SCAN_FAILED to DiagnosticSeverity.WARN,
+                DiagnosticCode.MANUAL_BLUETOOTH_RECOVERY_NEEDED to DiagnosticSeverity.ERROR,
             )
         val expectedFailureReasons =
             listOf(

@@ -31,6 +31,7 @@ public enum class DiagnosticCode {
     TRANSPORT_FRAME_REJECTED,
     DISCOVERY_ADVERTISE_FAILED,
     DISCOVERY_SCAN_FAILED,
+    MANUAL_BLUETOOTH_RECOVERY_NEEDED,
 }
 
 /** Operator-facing severity level assigned to a [DiagnosticEvent]. */

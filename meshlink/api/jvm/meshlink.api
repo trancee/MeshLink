@@ -626,6 +626,7 @@ public final class ch/trancee/meshlink/diagnostics/DiagnosticCode : java/lang/En
 	public static final field DISCOVERY_SCAN_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field HOP_SESSION_ESTABLISHED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field HOP_SESSION_FAILED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
+	public static final field MANUAL_BLUETOOTH_RECOVERY_NEEDED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field MESH_PAUSED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field MESH_RESUMED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
 	public static final field MESH_STARTED Lch/trancee/meshlink/diagnostics/DiagnosticCode;
