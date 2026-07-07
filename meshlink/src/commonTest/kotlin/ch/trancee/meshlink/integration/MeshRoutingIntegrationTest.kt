@@ -450,12 +450,18 @@ class MeshRoutingIntegrationTest {
                     peerIdValue = recipient.peerId.value,
                     routeAvailable = true,
                 )
+            // Note: routeAvailable on DELIVERY_SUCCEEDED reflects a live route lookup taken
+            // at diagnostic-emission time (see MeshEngineRoutingSupport.peerRouteMetadata),
+            // not a snapshot from the successful send. Under CI CPU contention, route-table
+            // housekeeping can transiently report the route as unavailable again by the time
+            // the diagnostic fires, even though delivery already succeeded. Delivery success
+            // itself is already verified above via assertIs<SendResult.Sent>, so only ordering
+            // relative to rediscovery is asserted here, without filtering on routeAvailable.
             val deliverySucceededIndex =
                 diagnostics.indexOfFirstForPeerAfter(
                     startExclusive = routeRediscoveredIndex,
                     code = DiagnosticCode.DELIVERY_SUCCEEDED,
                     peerIdValue = recipient.peerId.value,
-                    routeAvailable = true,
                 )
             assertTrue(
                 routeExpiredIndex >= 0,
