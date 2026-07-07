@@ -315,6 +315,51 @@ class GattNotifyClientTest {
             assertEquals(1, session.closeCalls)
         }
 
+    @Test
+    fun writeClosesTheSessionWhenAPipelinedChunkCompletesWithAFailureStatus(): Unit = runBlocking {
+        // Arrange: the very first chunk written on this connection (the LinkIdentity announce)
+        // completes with a non-success GATT status. drainPendingWrites() must treat this the same
+        // way as an enqueue failure or drain timeout -- closing the session -- rather than just
+        // recording the transfer as failed while leaving the session open for reuse, since with
+        // pipelined writes a failure like this can in general arrive after later chunks of the
+        // same payload have already been dispatched to the controller.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        var chunkIndex = 0
+        session.writeChunkHandler = {
+            chunkIndex += 1
+            if (chunkIndex == 1) {
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 1,
+                )
+            }
+            true
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: a per-chunk write failure closes the session (rather than only marking this
+        // transfer as failed while leaving the session open for reuse), because the peer's
+        // frame reassembly may already be mid-frame from the chunks that succeeded.
+        assertFalse(written)
+        assertFalse(client.isReady())
+        assertEquals(1, session.closeCalls)
+    }
+
     /**
      * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
      * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for

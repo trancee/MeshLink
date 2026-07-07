@@ -415,7 +415,6 @@ internal class GattNotifyClient(
      * pipelined rather than awaited individually.
      */
     private suspend fun drainPendingWrites(): Boolean {
-        var allSucceeded = true
         while (true) {
             val next = synchronized(pendingWritesLock) { pendingWrites.firstOrNull() } ?: break
             val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.await() }
@@ -436,10 +435,21 @@ internal class GattNotifyClient(
                 return false
             }
             if (!result) {
-                allSucceeded = false
+                log("GATT notify side link ${peerHintId.value.takeLast(6)} write chunk failed")
+                // A genuine per-chunk write failure (as opposed to enqueue failure or drain
+                // timeout, both already handled above/elsewhere) can still arrive after later
+                // chunks of the same payload have already been dispatched to the controller,
+                // since writes are pipelined rather than awaited one at a time. Continuing to
+                // drain the remaining chunks -- or reusing this session for a later write() --
+                // would leave the peer's length-prefixed frame reassembly mid-frame with no more
+                // bytes coming for it, the same corruption risk already documented for the
+                // timeout and enqueue-failure cases. Close the session and stop draining rather
+                // than treating this as just one failed chunk among an otherwise-healthy payload.
+                closeInternal(markClosedByOwner = false)
+                return false
             }
         }
-        return allSucceeded
+        return true
     }
 
     private fun maximumWriteChunkBytes(): Int {
