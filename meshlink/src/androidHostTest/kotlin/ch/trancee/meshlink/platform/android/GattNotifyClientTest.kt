@@ -345,6 +345,43 @@ class GattNotifyClientTest {
                 "$stopAndWaitBaselineMs ms (chunkCount=$chunkCount, roundTripMs=$simulatedRoundTripMs)",
         )
     }
+
+    @Test
+    fun writeDrainTimeoutClosesTheSessionInsteadOfLeavingAStaleCallbackToDesyncTheQueue(): Unit =
+        runBlocking {
+            // Arrange: the write handler reports every chunk as successfully enqueued but never
+            // invokes the onCharacteristicWrite completion callback, simulating a native GATT
+            // operation that never completes (or completes so late the drain has already given up).
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            session.writeChunkHandler = { true }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+
+            // Act: this genuinely waits out the real WRITE_TIMEOUT_MILLIS drain timeout.
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: the drain timeout closes the session (rather than leaving it open to receive
+            // a
+            // stale completion callback later that would be wrongly matched to an unrelated future
+            // write), so the client reports not-ready and a subsequent write is rejected
+            // immediately
+            // instead of silently corrupting the pending-write queue.
+            assertFalse(written)
+            assertFalse(client.isReady())
+            assertEquals(1, session.closeCalls)
+            assertFalse(client.write(byteArrayOf(0x04)))
+        }
 }
 
 private fun createGattNotifyClient(

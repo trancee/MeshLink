@@ -410,7 +410,18 @@ internal class GattNotifyClient(
             val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.await() }
             if (result == null) {
                 log("GATT notify side link ${peerHintId.value.takeLast(6)} write drain timed out")
-                failAllPendingWrites()
+                // Android's GATT client API has no way to cancel an in-flight write, so the
+                // native operation this deferred represents can still complete later even
+                // though we're giving up on it here. If the session stayed open, that stale
+                // onCharacteristicWrite callback would eventually arrive and completePendingWrite
+                // would wrongly resolve it against whatever unrelated chunk is at the head of
+                // pendingWrites by then (since matching is purely FIFO-positional), silently
+                // desynchronizing every subsequent write on this connection. Closing the session
+                // now -- the same way every other unrecoverable GATT failure in this class does
+                // -- marks the client not-ready so GattSideLinkCoordinator replaces it with a
+                // fresh instance instead of reusing this one. closeInternal() already fails any
+                // still-pending writes, so there's no need to call failAllPendingWrites() here.
+                closeInternal(markClosedByOwner = false)
                 return false
             }
             if (!result) {
