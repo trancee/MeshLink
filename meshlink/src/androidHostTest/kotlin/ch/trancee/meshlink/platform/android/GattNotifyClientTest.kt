@@ -237,6 +237,50 @@ class GattNotifyClientTest {
         assertEquals(session.writeChunks.size, acked)
     }
 
+    @Test
+    fun writeRetriesATransientEnqueueBusyResponseInsteadOfFailingImmediately(): Unit = runBlocking {
+        // Arrange: writeCharacteristic() can transiently report busy (return false) right after
+        // a previous write's completion callback fires. Simulate that by failing the write
+        // handler's first two calls per chunk before succeeding.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        var attemptsForCurrentChunk = 0
+        session.writeChunkHandler = {
+            attemptsForCurrentChunk += 1
+            if (attemptsForCurrentChunk < 3) {
+                false
+            } else {
+                attemptsForCurrentChunk = 0
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+                true
+            }
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: the transfer still succeeds despite the transient busy responses, and each
+        // chunk was retried (3 recorded attempts per chunk) rather than the transfer aborting on
+        // the first busy response.
+        assertTrue(written)
+        assertEquals(0, session.writeChunks.size % 3)
+    }
+
     /**
      * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
      * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for

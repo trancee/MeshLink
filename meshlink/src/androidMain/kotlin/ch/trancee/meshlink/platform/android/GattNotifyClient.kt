@@ -8,6 +8,7 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -361,6 +362,12 @@ internal class GattNotifyClient(
      * accepted by the local BLE stack, without waiting for that chunk's own completion. Call
      * [drainPendingWrites] once all chunks for a payload have been enqueued to learn whether they
      * all actually completed successfully.
+     *
+     * `writeCharacteristic()` can transiently return `false` immediately after a previous write
+     * completes -- the framework's internal busy flag can lag a moment behind the completion
+     * callback we already awaited, and this is more pronounced with WRITE_TYPE_NO_RESPONSE. That is
+     * local backpressure, not a real failure, so it is retried a bounded number of times with a
+     * short delay instead of aborting the whole chunked transfer and reconnecting.
      */
     private suspend fun enqueueEncodedChunk(
         session: GattNotifySession,
@@ -371,12 +378,18 @@ internal class GattNotifyClient(
         writeWindow.acquire()
         val deferred = CompletableDeferred<Boolean>()
         synchronized(pendingWritesLock) { pendingWrites.addLast(deferred) }
-        val enqueued = session.writeChunk(chunk)
+        var enqueued = session.writeChunk(chunk)
+        var attempt = 1
+        while (!enqueued && attempt < ENQUEUE_RETRY_ATTEMPTS) {
+            delay(ENQUEUE_RETRY_DELAY_MILLIS)
+            enqueued = session.writeChunk(chunk)
+            attempt += 1
+        }
         if (!enqueued) {
             synchronized(pendingWritesLock) { pendingWrites.remove(deferred) }
             writeWindow.release()
             log(
-                "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
+                "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed after ${attempt} attempt(s) bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
             )
             deferred.complete(false)
             return false
@@ -440,6 +453,12 @@ internal class GattNotifyClient(
         // per-chunk round trip) while still capping memory/backpressure if the controller falls
         // behind.
         private const val WRITE_WINDOW_SIZE: Int = 4
+        // writeCharacteristic() can transiently return false right after a previous write's
+        // completion callback fires (the framework's busy flag can lag a moment behind it,
+        // especially for WRITE_TYPE_NO_RESPONSE); a few short retries absorb that without
+        // aborting the whole chunked transfer.
+        private const val ENQUEUE_RETRY_ATTEMPTS: Int = 5
+        private const val ENQUEUE_RETRY_DELAY_MILLIS: Long = 20L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }
