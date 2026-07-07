@@ -453,26 +453,127 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         carry(output)
     }
 
+    /**
+     * Computes input^-1 mod p via Fermat's little theorem (input^(p-2)), but instead of the naive
+     * one-bit-at-a-time square-and-multiply (254 squarings + 251 multiplications), this uses the
+     * standard curve25519/ed25519 addition chain for the exponent p-2 = 2^255-21 (as used by
+     * ref10/curve25519-donna): it builds up runs of consecutive 1 bits (2^k-1 patterns) via
+     * repeated squaring plus a single multiply per run, cutting the multiplication count from 251
+     * down to 11 while keeping the same 254 squarings.
+     */
     private fun invert(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        val c = input.copyOf()
-        for (index in 253 downTo 0) {
-            square(c, c, temp)
-            if (index != 2 && index != 4) {
-                multiply(c, c, input, temp)
-            }
-        }
-        copyField(output, c)
+        val z2 = fieldElement()
+        val z9 = fieldElement()
+        val z11 = fieldElement()
+        val z2_5_0 = fieldElement()
+        val z2_10_0 = fieldElement()
+        val z2_20_0 = fieldElement()
+        val z2_50_0 = fieldElement()
+        val z2_100_0 = fieldElement()
+        val t0 = fieldElement()
+        val t1 = fieldElement()
+
+        square(z2, input, temp) // 2
+        square(t0, z2, temp) // 4
+        square(t0, t0, temp) // 8
+        multiply(z9, t0, input, temp) // 9
+        multiply(z11, z9, z2, temp) // 11
+        square(t0, z11, temp) // 22
+        multiply(z2_5_0, t0, z9, temp) // 2^5 - 2^0 = 31
+
+        square(t0, z2_5_0, temp)
+        for (index in 1 until 5) square(t0, t0, temp) // 2^10 - 2^5
+        multiply(z2_10_0, t0, z2_5_0, temp) // 2^10 - 2^0
+
+        square(t0, z2_10_0, temp)
+        for (index in 1 until 10) square(t0, t0, temp) // 2^20 - 2^10
+        multiply(z2_20_0, t0, z2_10_0, temp) // 2^20 - 2^0
+
+        square(t0, z2_20_0, temp)
+        for (index in 1 until 20) square(t0, t0, temp) // 2^40 - 2^20
+        multiply(t1, t0, z2_20_0, temp) // 2^40 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 10) square(t0, t0, temp) // 2^50 - 2^10
+        multiply(z2_50_0, t0, z2_10_0, temp) // 2^50 - 2^0
+
+        square(t0, z2_50_0, temp)
+        for (index in 1 until 50) square(t0, t0, temp) // 2^100 - 2^50
+        multiply(z2_100_0, t0, z2_50_0, temp) // 2^100 - 2^0
+
+        square(t0, z2_100_0, temp)
+        for (index in 1 until 100) square(t0, t0, temp) // 2^200 - 2^100
+        multiply(t1, t0, z2_100_0, temp) // 2^200 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 50) square(t0, t0, temp) // 2^250 - 2^50
+        multiply(t0, t0, z2_50_0, temp) // 2^250 - 2^0
+
+        square(t0, t0, temp) // 2^251 - 2^1
+        square(t0, t0, temp) // 2^252 - 2^2
+        square(t0, t0, temp) // 2^253 - 2^3
+        square(t0, t0, temp) // 2^254 - 2^4
+        square(t0, t0, temp) // 2^255 - 2^5
+        multiply(output, t0, z11, temp) // 2^255 - 21
     }
 
+    /**
+     * Computes input^((p-5)/8) mod p = input^(2^252-3), used to compute a candidate square root
+     * during point decompression. Uses the same style of addition chain as [invert] (ref10's
+     * fe_pow22523), reducing the multiplication count from 249 down to 9 while keeping the same 250
+     * squarings as the naive one-bit-at-a-time approach.
+     */
     private fun power2523(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        val c = input.copyOf()
-        for (index in 250 downTo 0) {
-            square(c, c, temp)
-            if (index != 1) {
-                multiply(c, c, input, temp)
-            }
-        }
-        copyField(output, c)
+        val z2 = fieldElement()
+        val z9 = fieldElement()
+        val z11 = fieldElement()
+        val z2_5_0 = fieldElement()
+        val z2_10_0 = fieldElement()
+        val z2_20_0 = fieldElement()
+        val z2_50_0 = fieldElement()
+        val z2_100_0 = fieldElement()
+        val t0 = fieldElement()
+        val t1 = fieldElement()
+
+        square(z2, input, temp) // 2
+        square(t0, z2, temp) // 4
+        square(t0, t0, temp) // 8
+        multiply(z9, t0, input, temp) // 9
+        multiply(z11, z9, z2, temp) // 11
+        square(t0, z11, temp) // 22
+        multiply(z2_5_0, t0, z9, temp) // 2^5 - 2^0 = 31
+
+        square(t0, z2_5_0, temp)
+        for (index in 1 until 5) square(t0, t0, temp)
+        multiply(z2_10_0, t0, z2_5_0, temp) // 2^10 - 2^0
+
+        square(t0, z2_10_0, temp)
+        for (index in 1 until 10) square(t0, t0, temp)
+        multiply(z2_20_0, t0, z2_10_0, temp) // 2^20 - 2^0
+
+        square(t0, z2_20_0, temp)
+        for (index in 1 until 20) square(t0, t0, temp)
+        multiply(t1, t0, z2_20_0, temp) // 2^40 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 10) square(t0, t0, temp)
+        multiply(z2_50_0, t0, z2_10_0, temp) // 2^50 - 2^0
+
+        square(t0, z2_50_0, temp)
+        for (index in 1 until 50) square(t0, t0, temp)
+        multiply(z2_100_0, t0, z2_50_0, temp) // 2^100 - 2^0
+
+        square(t0, z2_100_0, temp)
+        for (index in 1 until 100) square(t0, t0, temp)
+        multiply(t1, t0, z2_100_0, temp) // 2^200 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 50) square(t0, t0, temp)
+        multiply(t0, t0, z2_50_0, temp) // 2^250 - 2^0
+
+        square(t0, t0, temp) // 2^251 - 2^1
+        square(t0, t0, temp) // 2^252 - 2^2
+        multiply(output, t0, input, temp) // 2^252 - 3
     }
 
     private fun carry(output: LongArray): Unit {

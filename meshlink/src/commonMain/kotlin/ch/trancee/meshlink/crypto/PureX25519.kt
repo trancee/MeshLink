@@ -166,14 +166,68 @@ internal object PureX25519 {
         carry25519(dest)
     }
 
+    /**
+     * Computes value^-1 mod p via Fermat's little theorem (value^(p-2)), using the standard
+     * curve25519 addition chain for the exponent p-2 = 2^255-21 (ref10/curve25519-donna style)
+     * instead of the naive one-bit-at-a-time square-and-multiply. This builds up runs of
+     * consecutive 1 bits (2^k-1 patterns) via repeated squaring plus a single multiply per run,
+     * cutting the multiplication count from 251 down to 11 while keeping the same 254 squarings.
+     */
     private fun invert(value: LongArray, product: LongArray): LongArray {
-        var result = value.copyOf()
-        for (iteration in 253 downTo 0) {
-            squareInto(result, result, product)
-            if (iteration != 2 && iteration != 4) {
-                multiplyInto(result, result, value, product)
-            }
-        }
+        val z2 = LongArray(16)
+        val z9 = LongArray(16)
+        val z11 = LongArray(16)
+        val z2_5_0 = LongArray(16)
+        val z2_10_0 = LongArray(16)
+        val z2_20_0 = LongArray(16)
+        val z2_50_0 = LongArray(16)
+        val z2_100_0 = LongArray(16)
+        val t0 = LongArray(16)
+        val t1 = LongArray(16)
+        val result = LongArray(16)
+
+        squareInto(z2, value, product) // 2
+        squareInto(t0, z2, product) // 4
+        squareInto(t0, t0, product) // 8
+        multiplyInto(z9, t0, value, product) // 9
+        multiplyInto(z11, z9, z2, product) // 11
+        squareInto(t0, z11, product) // 22
+        multiplyInto(z2_5_0, t0, z9, product) // 2^5 - 2^0 = 31
+
+        squareInto(t0, z2_5_0, product)
+        for (index in 1 until 5) squareInto(t0, t0, product)
+        multiplyInto(z2_10_0, t0, z2_5_0, product) // 2^10 - 2^0
+
+        squareInto(t0, z2_10_0, product)
+        for (index in 1 until 10) squareInto(t0, t0, product)
+        multiplyInto(z2_20_0, t0, z2_10_0, product) // 2^20 - 2^0
+
+        squareInto(t0, z2_20_0, product)
+        for (index in 1 until 20) squareInto(t0, t0, product)
+        multiplyInto(t1, t0, z2_20_0, product) // 2^40 - 2^0
+
+        squareInto(t0, t1, product)
+        for (index in 1 until 10) squareInto(t0, t0, product)
+        multiplyInto(z2_50_0, t0, z2_10_0, product) // 2^50 - 2^0
+
+        squareInto(t0, z2_50_0, product)
+        for (index in 1 until 50) squareInto(t0, t0, product)
+        multiplyInto(z2_100_0, t0, z2_50_0, product) // 2^100 - 2^0
+
+        squareInto(t0, z2_100_0, product)
+        for (index in 1 until 100) squareInto(t0, t0, product)
+        multiplyInto(t1, t0, z2_100_0, product) // 2^200 - 2^0
+
+        squareInto(t0, t1, product)
+        for (index in 1 until 50) squareInto(t0, t0, product)
+        multiplyInto(t0, t0, z2_50_0, product) // 2^250 - 2^0
+
+        squareInto(t0, t0, product) // 2^251 - 2^1
+        squareInto(t0, t0, product) // 2^252 - 2^2
+        squareInto(t0, t0, product) // 2^253 - 2^3
+        squareInto(t0, t0, product) // 2^254 - 2^4
+        squareInto(t0, t0, product) // 2^255 - 2^5
+        multiplyInto(result, t0, z11, product) // 2^255 - 21
         return result
     }
 
