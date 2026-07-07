@@ -197,8 +197,9 @@ TREND_STYLES = {
     "worse": "color:#991b1b;",
 }
 
-# Absolute value below which a delta is treated as measurement noise, not a real trend.
-TREND_NOISE_FLOOR = 0.05
+# Relative change below which a delta is treated as measurement noise, not a real
+# trend, and no arrow is shown.
+TREND_NOISE_FLOOR_PCT = 5.0
 
 
 def trend_marker(current_us: float | None, previous_us: float | None) -> str:
@@ -206,17 +207,18 @@ def trend_marker(current_us: float | None, previous_us: float | None) -> str:
 
     Lower is better for all crypto latency fields, so a decrease renders a
     green "faster" arrow and an increase renders a red "slower" arrow.
+    Changes smaller than TREND_NOISE_FLOOR_PCT are treated as noise and get
+    no arrow.
     """
-    if current_us is None or previous_us is None:
+    if not current_us or not previous_us:
         return ""
     delta = current_us - previous_us
-    if abs(delta) < TREND_NOISE_FLOOR:
+    pct = abs(delta) / previous_us * 100
+    if pct < TREND_NOISE_FLOOR_PCT:
         return ""
     if delta < 0:
-        pct = abs(delta) / previous_us * 100 if previous_us else 0.0
-        return f' <span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▼</span>'
-    pct = delta / previous_us * 100 if previous_us else 0.0
-    return f' <span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▲</span>'
+        return f'<span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▼</span> '
+    return f'<span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▲</span> '
 
 
 def crypto_latency_cell(field: str, entry: dict, previous_entry: dict | None = None) -> str:
@@ -225,24 +227,25 @@ def crypto_latency_cell(field: str, entry: dict, previous_entry: dict | None = N
         return "—"
     style = CRYPTO_LATENCY_STYLES[crypto_latency_severity(field, value_us)]
     marker = trend_marker(value_us, previous_entry.get(field) if previous_entry else None)
-    return chip_html(f"{value_us:.1f}", style) + marker
+    return marker + chip_html(f"{value_us:.1f}", style)
 
 
 def transport_trend_marker(current_kbps: float | None, previous_kbps: float | None) -> str:
     """Return a colored arrow showing how current_kbps compares to previous_kbps.
 
     Higher throughput is better, so an increase renders a green "improved"
-    arrow and a decrease renders a red "dropped" arrow.
+    arrow and a decrease renders a red "dropped" arrow. Changes smaller than
+    TREND_NOISE_FLOOR_PCT are treated as noise and get no arrow.
     """
-    if current_kbps is None or previous_kbps is None:
+    if not current_kbps or not previous_kbps:
         return ""
     delta = current_kbps - previous_kbps
-    if abs(delta) < TREND_NOISE_FLOOR:
+    pct = abs(delta) / previous_kbps * 100
+    if pct < TREND_NOISE_FLOOR_PCT:
         return ""
-    pct = abs(delta) / previous_kbps * 100 if previous_kbps else 0.0
     if delta > 0:
-        return f' <span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▲</span>'
-    return f' <span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▼</span>'
+        return f'<span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▲</span> '
+    return f'<span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▼</span> '
 
 
 def chipset_with_model(name: str, model: str) -> str:
@@ -392,10 +395,11 @@ def render_markdown(rows: list[dict]) -> str:
         "that run is green, ⚠️ when the worst op is amber, ❌ when the worst op is red, and",
         "❓ when the run only recorded a partial set of ops (missing ops render as \"—\").",
         "A ▼ marks an op that got faster and a ▲ marks an op that got slower versus that",
-        "device's immediately preceding run; the oldest run for a device has no marker to",
-        "compare against. The Device column is only shown on a device's oldest (first) row;",
-        "later rows for the same device are left blank to show they belong to the same fleet",
-        "history.",
+        "device's immediately preceding run, shown before the value it applies to; changes",
+        f"smaller than {TREND_NOISE_FLOOR_PCT:.0f}% are treated as noise and get no marker, and the",
+        "oldest run for a device has no marker to compare against. The Device column is only",
+        "shown on a device's oldest (first) row; later rows for the same device are left blank",
+        "to show they belong to the same fleet history.",
         "",
     ]
     crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
@@ -439,10 +443,11 @@ def render_markdown(rows: list[dict]) -> str:
         "### Transport benchmarks",
         "",
         "A ▲ marks throughput that improved and a ▼ marks throughput that dropped versus the",
-        "same device's immediately preceding run with the same role and peer; the first such",
-        "run has no marker to compare against. The Device column is only shown on a device's",
-        "oldest (first) row; later rows for the same device are left blank to show they",
-        "belong to the same fleet history.",
+        "same device's immediately preceding run with the same role and peer, shown before",
+        f"the value it applies to; changes smaller than {TREND_NOISE_FLOOR_PCT:.0f}% are treated as noise",
+        "and get no marker, and the first such run has no marker to compare against. The",
+        "Device column is only shown on a device's oldest (first) row; later rows for the",
+        "same device are left blank to show they belong to the same fleet history.",
         "",
     ]
     transport_entries = [(row, entry) for row in rows for entry in row.get("transport_benchmark_history", [])]
@@ -461,7 +466,7 @@ def render_markdown(rows: list[dict]) -> str:
             throughput_value = entry["throughputKBps"]
             key = (entry["role"], entry["peer"])
             if throughput_value is not None:
-                throughput = f"{throughput_value:.2f}" + transport_trend_marker(throughput_value, previous_throughput_by_key.get(key))
+                throughput = transport_trend_marker(throughput_value, previous_throughput_by_key.get(key)) + f"{throughput_value:.2f}"
                 previous_throughput_by_key[key] = throughput_value
             else:
                 throughput = "—"
