@@ -96,7 +96,29 @@ internal object PureX25519 {
     }
 
     private fun squareInto(dest: LongArray, value: LongArray, product: LongArray) {
-        multiplyInto(dest, value, value, product)
+        // Schoolbook squaring skips recomputing symmetric cross terms (value[i]*value[j] ==
+        // value[j]*value[i]) and doubles them once instead, roughly halving the number of
+        // limb multiplications compared to calling multiplyInto(value, value). The ladder and
+        // the modular inverse each perform hundreds of squarings per scalar multiplication, so
+        // this is the single biggest win available for this field.
+        for (index in 0 until 31) {
+            product[index] = 0L
+        }
+        for (i in 0 until 16) {
+            val leftValue = value[i]
+            product[i + i] += leftValue * leftValue
+            for (j in i + 1 until 16) {
+                product[i + j] += 2L * leftValue * value[j]
+            }
+        }
+        for (i in 0 until 15) {
+            product[i] += 38L * product[i + 16]
+        }
+        for (index in 0 until 16) {
+            dest[index] = product[index]
+        }
+        carry25519(dest)
+        carry25519(dest)
     }
 
     private fun multiplyInto(
