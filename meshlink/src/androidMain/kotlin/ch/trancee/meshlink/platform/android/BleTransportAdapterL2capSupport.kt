@@ -16,12 +16,14 @@ import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
     return linkRegistry.hasPendingConnect(hintPeer)
@@ -306,19 +308,26 @@ internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Un
     inboundFrameQueue?.close()
     inboundFrameQueue = null
     // Cancel and join every outstanding child (including background scan-processing work
-    // dispatched via scanProcessingDispatcher). A single pass is not enough: an in-flight
-    // handleScanResult call has no suspension points, so cancelling it does not stop it, and
-    // it may itself launch a new connectIfNeeded child after this pass's snapshot was taken.
-    // Loop until no children remain so late-spawned children can't mutate peer state after
-    // this function clears it below.
-    while (true) {
-        val children = coroutineScope.coroutineContext.job.children.toList()
-        if (children.isEmpty()) break
-        children.forEach { it.cancelAndJoin() }
-    }
-    if (clearPeers) {
-        peerRegistry.clear()
-        peerBindings.clear()
+    // dispatched via scanProcessingDispatcher), then clear peer state. Run this under
+    // NonCancellable: once teardown has started (hardware/sockets/links above are already torn
+    // down), cancelling the caller of stopTransports() must not be allowed to abort mid-loop and
+    // leave peerRegistry/peerBindings stale relative to the already-stopped hardware.
+    withContext(NonCancellable) {
+        // A single cancelAndJoin pass is not enough: an in-flight handleScanResult call has no
+        // suspension points, so cancelling it does not stop it, and it may itself launch a new
+        // connectIfNeeded child after this pass's snapshot was taken. Loop until no children
+        // remain so late-spawned children can't mutate peer state after this function clears it
+        // below. (scanCallback also gates on isStopped so no further scan-processing children can
+        // be launched once discoveryLifecycle.stop() above has run.)
+        while (true) {
+            val children = coroutineScope.coroutineContext.job.children.toList()
+            if (children.isEmpty()) break
+            children.forEach { it.cancelAndJoin() }
+        }
+        if (clearPeers) {
+            peerRegistry.clear()
+            peerBindings.clear()
+        }
     }
 }
 

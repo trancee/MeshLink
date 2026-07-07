@@ -126,7 +126,12 @@ internal class BleTransportDiscoveryLifecycle(
     private var lastHardware: BleTransportDiscoveryHardware? = null
     private var advertiseRetryAttempt: Int = 0
     private var scanRetryAttempt: Int = 0
-    private var isStopped: Boolean = true
+
+    // Written from stop()/refresh() (invoked from the adapter's IO-dispatcher coroutineScope) and
+    // read from scanCallback (invoked on the main thread by the framework). @Volatile guarantees
+    // cross-thread visibility so a scan result delivered after stop() has flipped this cannot slip
+    // past the guard below and dispatch a new scan-processing coroutine after teardown started.
+    @Volatile private var isStopped: Boolean = true
 
     // Timestamp of the most recent onScanResult/onBatchScanResults delivery (or of the last scan
     // start/restart, used as the baseline immediately after (re)starting). Compared against
@@ -187,12 +192,14 @@ internal class BleTransportDiscoveryLifecycle(
     val scanCallback =
         object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
+                if (isStopped) return
                 scanRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
                 handleScanResult(result)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                if (isStopped) return
                 scanRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
                 results.forEach(handleScanResult)
