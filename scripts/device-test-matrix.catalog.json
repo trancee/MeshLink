@@ -95,6 +95,18 @@
         "ed25519VerifyUs": 3550.0,
         "chacha20SealUs": 8.4,
         "chacha20OpenUs": 8.5
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 96.1,
+        "x25519AgreementUs": 192.4,
+        "ed25519KeyGenUs": 1041.4,
+        "ed25519SignUs": 870.6,
+        "ed25519VerifyUs": 2443.0,
+        "chacha20SealUs": 12.3,
+        "chacha20OpenUs": 12.4
       }
     ],
     "transport_benchmark_history": [

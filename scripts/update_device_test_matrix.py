@@ -183,6 +183,15 @@ CRYPTO_LATENCY_THRESHOLDS = {
 }
 
 
+# Order in which per-provider crypto benchmark tables are rendered: fastest/most-capable
+# provider first, full pure-Kotlin fallback last.
+CRYPTO_PROVIDER_ORDER = [
+    "JcaCryptoProvider",
+    "Ed25519FallbackCryptoProvider",
+    "AndroidFallbackCryptoProvider",
+]
+
+
 def crypto_latency_severity(field: str, value_us: float) -> str:
     warn_threshold, bad_threshold = CRYPTO_LATENCY_THRESHOLDS[field]
     if value_us > bad_threshold:
@@ -228,6 +237,43 @@ def crypto_latency_cell(field: str, entry: dict, previous_entry: dict | None = N
     style = CRYPTO_LATENCY_STYLES[crypto_latency_severity(field, value_us)]
     marker = trend_marker(value_us, previous_entry.get(field) if previous_entry else None)
     return marker + chip_html(f"{value_us:.1f}", style)
+
+
+def render_crypto_table(entries: list[tuple[dict, dict]]) -> list[str]:
+    """Render a single crypto benchmark table (Device/Date/Status/... columns) for one provider."""
+    lines = [
+        "| Device | Date | Status | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |",
+        "|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    previous_row = None
+    previous_entry = None
+    for row, entry in entries:
+        if row is not previous_row:
+            previous_entry = None
+        device_cell = row["device"] if row is not previous_row else ""
+        severities = [
+            crypto_latency_severity(field, entry[field])
+            for field in CRYPTO_LATENCY_THRESHOLDS
+            if entry.get(field) is not None
+        ]
+        if "bad" in severities:
+            status = "❌"
+        elif "warn" in severities:
+            status = "⚠️"
+        elif len(severities) < len(CRYPTO_LATENCY_THRESHOLDS):
+            status = "❓"
+        else:
+            status = "✅"
+        lines.append(
+            f"| {device_cell} | {entry['date']} | {status} | {entry['iterations']} | "
+            f"{crypto_latency_cell('x25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('x25519AgreementUs', entry, previous_entry)} | "
+            f"{crypto_latency_cell('ed25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('ed25519SignUs', entry, previous_entry)} | "
+            f"{crypto_latency_cell('ed25519VerifyUs', entry, previous_entry)} | {crypto_latency_cell('chacha20SealUs', entry, previous_entry)} | "
+            f"{crypto_latency_cell('chacha20OpenUs', entry, previous_entry)} |"
+        )
+        previous_row = row
+        previous_entry = entry
+    return lines
 
 
 def transport_trend_marker(current_kbps: float | None, previous_kbps: float | None) -> str:
@@ -387,7 +433,11 @@ def render_markdown(rows: list[dict]) -> str:
         "",
         "### Crypto benchmarks",
         "",
-        "Values are per-operation average microseconds (µs) over the iteration count shown.",
+        "Split into one table per `CryptoProvider` implementation, ordered from fastest/most-",
+        "capable to full pure-Kotlin fallback: `JcaCryptoProvider` (native platform crypto),",
+        "`Ed25519FallbackCryptoProvider` (native X25519/ChaCha20-Poly1305, pure-Kotlin Ed25519",
+        "only), then `AndroidFallbackCryptoProvider` (everything pure-Kotlin). Values are",
+        "per-operation average microseconds (µs) over the iteration count shown.",
         "Chips flag latency outliers per operation family: green is at or below the warn",
         "threshold, amber is above it, and bold red is above the bad threshold — X25519",
         "ops warn > 1000µs / bad > 5000µs, Ed25519 ops warn > 1000µs / bad > 10000µs, and",
@@ -395,49 +445,29 @@ def render_markdown(rows: list[dict]) -> str:
         "that run is green, ⚠️ when the worst op is amber, ❌ when the worst op is red, and",
         "❓ when the run only recorded a partial set of ops (missing ops render as \"—\").",
         "A ▼ marks an op that got faster and a ▲ marks an op that got slower versus that",
-        "device's immediately preceding run, shown before the value it applies to; changes",
-        f"smaller than {TREND_NOISE_FLOOR_PCT:.0f}% are treated as noise and get no marker, and the",
-        "oldest run for a device has no marker to compare against. The Device column is only",
-        "shown on a device's oldest (first) row; later rows for the same device are left blank",
-        "to show they belong to the same fleet history.",
+        "device's immediately preceding run within the same provider's table, shown before",
+        f"the value it applies to; changes smaller than {TREND_NOISE_FLOOR_PCT:.0f}% are treated as",
+        "noise and get no marker, and the oldest run for a device has no marker to compare",
+        "against. The Device column is only shown on a device's oldest (first) row within",
+        "each table; later rows for the same device are left blank to show they belong to",
+        "the same fleet history.",
         "",
     ]
     crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
     if not crypto_entries:
         lines.append("_No fleet crypto benchmark results recorded yet._")
     else:
-        lines.append(
-            "| Device | Date | Provider | Status | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |"
-        )
-        lines.append("|---|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|")
-        previous_row = None
-        previous_entry = None
-        for row, entry in crypto_entries:
-            if row is not previous_row:
-                previous_entry = None
-            device_cell = row["device"] if row is not previous_row else ""
-            severities = [
-                crypto_latency_severity(field, entry[field])
-                for field in CRYPTO_LATENCY_THRESHOLDS
-                if entry.get(field) is not None
-            ]
-            if "bad" in severities:
-                status = "❌"
-            elif "warn" in severities:
-                status = "⚠️"
-            elif len(severities) < len(CRYPTO_LATENCY_THRESHOLDS):
-                status = "❓"
-            else:
-                status = "✅"
-            lines.append(
-                f"| {device_cell} | {entry['date']} | {entry['provider']} | {status} | {entry['iterations']} | "
-                f"{crypto_latency_cell('x25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('x25519AgreementUs', entry, previous_entry)} | "
-                f"{crypto_latency_cell('ed25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('ed25519SignUs', entry, previous_entry)} | "
-                f"{crypto_latency_cell('ed25519VerifyUs', entry, previous_entry)} | {crypto_latency_cell('chacha20SealUs', entry, previous_entry)} | "
-                f"{crypto_latency_cell('chacha20OpenUs', entry, previous_entry)} |"
-            )
-            previous_row = row
-            previous_entry = entry
+        providers_present = {entry["provider"] for _, entry in crypto_entries}
+        ordered_providers = [p for p in CRYPTO_PROVIDER_ORDER if p in providers_present]
+        ordered_providers += sorted(providers_present - set(CRYPTO_PROVIDER_ORDER))
+        for provider in ordered_providers:
+            provider_entries = [(row, entry) for row, entry in crypto_entries if entry["provider"] == provider]
+            lines.append(f"#### {provider}")
+            lines.append("")
+            lines.extend(render_crypto_table(provider_entries))
+            lines.append("")
+        if lines[-1] == "":
+            lines.pop()
     lines += [
         "",
         "### Transport benchmarks",
