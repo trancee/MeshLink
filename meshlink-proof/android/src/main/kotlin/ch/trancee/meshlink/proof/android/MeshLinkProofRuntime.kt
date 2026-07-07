@@ -42,6 +42,12 @@ internal object MeshLinkProofRuntime {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val updatesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 32)
+
+    // knownPeers, routeReadyPeers, hopSessionReadyPeers, pendingAutoSendPeers and autoSendJobs
+    // form one cohesive view of per-peer state; they are always guarded together by
+    // [peerStateLock] so multi-collection updates (e.g. clearing state for a lost peer) are
+    // atomic and readers never observe a torn snapshot across the collections.
+    private val peerStateLock = Any()
     private val knownPeers: LinkedHashMap<String, KnownPeer> = linkedMapOf()
     private val autoSendJobs: LinkedHashMap<String, Job> = linkedMapOf()
     private val routeReadyPeers: LinkedHashSet<String> = linkedSetOf()
@@ -78,7 +84,7 @@ internal object MeshLinkProofRuntime {
 
     val snapshot: ProofSnapshot
         get() {
-            val peers = synchronized(knownPeers) { knownPeers.values.map { knownPeer -> knownPeer.peerId.value } }
+            val peers = synchronized(peerStateLock) { knownPeers.values.map { knownPeer -> knownPeer.peerId.value } }
             val logs = synchronized(logLines) { logLines.toList() }
             return ProofSnapshot(
                 state = runtimeStateText,
@@ -116,11 +122,11 @@ internal object MeshLinkProofRuntime {
                 meshStartRequestedAtNanos = null
                 meshStartCompletedAtNanos = null
                 peerDetailsVisible = false
-                synchronized(knownPeers) { knownPeers.clear() }
-                synchronized(routeReadyPeers) { routeReadyPeers.clear() }
-                synchronized(hopSessionReadyPeers) { hopSessionReadyPeers.clear() }
-                synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
-                synchronized(autoSendJobs) {
+                synchronized(peerStateLock) {
+                    knownPeers.clear()
+                    routeReadyPeers.clear()
+                    hopSessionReadyPeers.clear()
+                    pendingAutoSendPeers.clear()
                     autoSendJobs.values.forEach(Job::cancel)
                     autoSendJobs.clear()
                 }
@@ -191,7 +197,7 @@ internal object MeshLinkProofRuntime {
                                 lastDiscoverySnapshot = discoverySnapshot
                             }
                             val peerId =
-                                synchronized(knownPeers) {
+                                synchronized(peerStateLock) {
                                     knownPeers.values.firstOrNull()?.peerId
                                 }
                             if (peerId != null) {
@@ -232,10 +238,10 @@ internal object MeshLinkProofRuntime {
                 collectorsStarted = false
                 peerDetailsVisible = false
             }
-            synchronized(routeReadyPeers) { routeReadyPeers.clear() }
-            synchronized(hopSessionReadyPeers) { hopSessionReadyPeers.clear() }
-            synchronized(pendingAutoSendPeers) { pendingAutoSendPeers.clear() }
-            synchronized(autoSendJobs) {
+            synchronized(peerStateLock) {
+                routeReadyPeers.clear()
+                hopSessionReadyPeers.clear()
+                pendingAutoSendPeers.clear()
                 autoSendJobs.values.forEach(Job::cancel)
                 autoSendJobs.clear()
             }
@@ -253,7 +259,7 @@ internal object MeshLinkProofRuntime {
     }
 
     fun sendHelloToFirstPeer(): Job {
-        val peerId = synchronized(knownPeers) { knownPeers.values.firstOrNull()?.peerId }
+        val peerId = synchronized(peerStateLock) { knownPeers.values.firstOrNull()?.peerId }
         if (peerId == null) {
             appendLog("Hello send skipped: no known peer")
             return scope.launch { updatesFlow.tryEmit(Unit) }
@@ -433,7 +439,7 @@ internal object MeshLinkProofRuntime {
     private fun handlePeerEvent(event: PeerEvent): Unit {
         when (event) {
             is PeerEvent.Found -> {
-                synchronized(knownPeers) {
+                synchronized(peerStateLock) {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog(
@@ -442,19 +448,11 @@ internal object MeshLinkProofRuntime {
                 scheduleAutoHello(event.peerId, event.state, "found")
             }
             is PeerEvent.Lost -> {
-                synchronized(knownPeers) {
+                synchronized(peerStateLock) {
                     knownPeers.remove(event.peerId.value)
-                }
-                synchronized(routeReadyPeers) {
                     routeReadyPeers.remove(event.peerId.value)
-                }
-                synchronized(hopSessionReadyPeers) {
                     hopSessionReadyPeers.remove(event.peerId.value)
-                }
-                synchronized(pendingAutoSendPeers) {
                     pendingAutoSendPeers.remove(event.peerId.value)
-                }
-                synchronized(autoSendJobs) {
                     autoSendJobs.remove(event.peerId.value)?.cancel()
                 }
                 appendLog(
@@ -462,7 +460,7 @@ internal object MeshLinkProofRuntime {
                 )
             }
             is PeerEvent.StateChanged -> {
-                synchronized(knownPeers) {
+                synchronized(peerStateLock) {
                     knownPeers[event.peerId.value] = KnownPeer.from(event.peerId, event.state)
                 }
                 appendLog(
@@ -606,7 +604,7 @@ internal object MeshLinkProofRuntime {
 
     private fun resolveBenchmarkReceiptPeerId(originPeerId: PeerId): PeerId {
         val knownPeer =
-            synchronized(knownPeers) {
+            synchronized(peerStateLock) {
                 val originPeerBytes = originPeerId.value.toBytes()
                 knownPeers[originPeerId.value]?.peerId
                     ?: originPeerBytes?.let { originBytes ->
@@ -621,7 +619,7 @@ internal object MeshLinkProofRuntime {
 
     private fun resolveBenchmarkTransportPeerId(targetPeerId: PeerId): PeerId {
         val sessionPeerValues =
-            synchronized(hopSessionReadyPeers) {
+            synchronized(peerStateLock) {
                 hopSessionReadyPeers.toList()
             }
         if (sessionPeerValues.isEmpty()) {
@@ -705,7 +703,7 @@ internal object MeshLinkProofRuntime {
 
     private fun rememberKnownPeer(peerId: PeerId, source: String): Unit {
         val inserted =
-            synchronized(knownPeers) {
+            synchronized(peerStateLock) {
                 knownPeers.putIfAbsent(peerId.value, KnownPeer.from(peerId)) == null
             }
         appendLog(
@@ -735,7 +733,7 @@ internal object MeshLinkProofRuntime {
             )
             return
         }
-        synchronized(pendingAutoSendPeers) {
+        synchronized(peerStateLock) {
             pendingAutoSendPeers.add(peerId.value)
         }
         appendLog(
@@ -749,11 +747,9 @@ internal object MeshLinkProofRuntime {
             return
         }
         val peerId = PeerId(peerIdValue)
-        synchronized(routeReadyPeers) {
-            routeReadyPeers.add(peerId.value)
-        }
         val describedPeerId =
-            synchronized(knownPeers) {
+            synchronized(peerStateLock) {
+                routeReadyPeers.add(peerId.value)
                 knownPeers[peerId.value]?.peerId
                     ?: knownPeers.values.firstOrNull { knownPeer ->
                         knownPeer.peerId.value.endsWith(peerId.value)
@@ -763,7 +759,7 @@ internal object MeshLinkProofRuntime {
             "auto-send route ready for ${describedPeerId.value.takeLast(6)} source=$source ${describeRouteState(describedPeerId)}"
         )
         if (source == DiagnosticCode.HOP_SESSION_ESTABLISHED.name) {
-            synchronized(hopSessionReadyPeers) {
+            synchronized(peerStateLock) {
                 hopSessionReadyPeers.add(peerId.value)
             }
             appendLog(
@@ -778,11 +774,9 @@ internal object MeshLinkProofRuntime {
             return
         }
         val peerId = PeerId(peerIdValue)
-        synchronized(hopSessionReadyPeers) {
-            hopSessionReadyPeers.add(peerId.value)
-        }
         val describedPeerId =
-            synchronized(knownPeers) {
+            synchronized(peerStateLock) {
+                hopSessionReadyPeers.add(peerId.value)
                 knownPeers[peerId.value]?.peerId
                     ?: knownPeers.values.firstOrNull { knownPeer ->
                         knownPeer.peerId.value.endsWith(peerId.value)
@@ -798,17 +792,17 @@ internal object MeshLinkProofRuntime {
         source: String,
         allowAnyReadyPeer: Boolean,
     ): Boolean {
-        if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
+        if (synchronized(peerStateLock) { routeReadyPeers.contains(peerId.value) }) {
             return true
         }
-        if (allowAnyReadyPeer && synchronized(routeReadyPeers) { routeReadyPeers.isNotEmpty() }) {
+        if (allowAnyReadyPeer && synchronized(peerStateLock) { routeReadyPeers.isNotEmpty() }) {
             appendLog("route ready fallback via existing route ${describeRouteState(peerId)} source=$source")
             return true
         }
         appendLog("route ready wait start ${describeRouteState(peerId)} source=$source")
         return withTimeoutOrNull(ROUTE_READY_WAIT_TIMEOUT_MS) {
             while (true) {
-                if (synchronized(routeReadyPeers) { routeReadyPeers.contains(peerId.value) }) {
+                if (synchronized(peerStateLock) { routeReadyPeers.contains(peerId.value) }) {
                     return@withTimeoutOrNull true
                 }
                 delay(ROUTE_READY_POLL_INTERVAL_MS)
@@ -826,17 +820,17 @@ internal object MeshLinkProofRuntime {
         peerId: PeerId,
         source: String,
     ): Boolean {
-        if (synchronized(hopSessionReadyPeers) { hopSessionReadyPeers.contains(peerId.value) }) {
+        if (synchronized(peerStateLock) { hopSessionReadyPeers.contains(peerId.value) }) {
             return true
         }
-        if (synchronized(hopSessionReadyPeers) { hopSessionReadyPeers.isNotEmpty() }) {
+        if (synchronized(peerStateLock) { hopSessionReadyPeers.isNotEmpty() }) {
             appendLog("benchmark session fallback via existing session ${describeRouteState(peerId)} source=$source")
             return true
         }
         appendLog("benchmark session wait start ${describeRouteState(peerId)} source=$source")
         return withTimeoutOrNull(ROUTE_READY_WAIT_TIMEOUT_MS) {
             while (true) {
-                if (synchronized(hopSessionReadyPeers) { hopSessionReadyPeers.contains(peerId.value) }) {
+                if (synchronized(peerStateLock) { hopSessionReadyPeers.contains(peerId.value) }) {
                     return@withTimeoutOrNull true
                 }
                 delay(ROUTE_READY_POLL_INTERVAL_MS)
@@ -858,63 +852,55 @@ internal object MeshLinkProofRuntime {
     }
 
     private fun describeRouteState(peerId: PeerId): String {
-        val knownPeersSummary =
-            synchronized(knownPeers) {
-                knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
-                    "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
-                }
-            }
-        val readyPeersSummary =
-            synchronized(routeReadyPeers) {
-                routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
-            }
-        val sessionReadySummary =
-            synchronized(hopSessionReadyPeers) {
-                hopSessionReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
-            }
-        val pendingPeersSummary =
-            synchronized(pendingAutoSendPeers) {
-                pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
+        val (knownPeersSummary, readyPeersSummary, sessionReadySummary, pendingPeersSummary) =
+            synchronized(peerStateLock) {
+                val known =
+                    knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
+                        "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
+                    }
+                val ready =
+                    routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                val sessionReady =
+                    hopSessionReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                val pending =
+                    pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                listOf(known, ready, sessionReady, pending)
             }
         return "peer=${peerId.value.takeLast(6)} known=$knownPeersSummary ready=$readyPeersSummary session=$sessionReadySummary pending=$pendingPeersSummary"
     }
 
     private fun describeDiscoveryState(): String {
-        val knownPeersSummary =
-            synchronized(knownPeers) {
-                knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
-                    "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
-                }
-            }
-        val readyPeersSummary =
-            synchronized(routeReadyPeers) {
-                routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
-            }
-        val pendingPeersSummary =
-            synchronized(pendingAutoSendPeers) {
-                pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
-            }
-        val jobsSummary =
-            synchronized(autoSendJobs) {
-                autoSendJobs.keys.joinToString(prefix = "[", postfix = "]") { peer ->
-                    peer.takeLast(6)
-                }
+        val (knownPeersSummary, readyPeersSummary, pendingPeersSummary, jobsSummary) =
+            synchronized(peerStateLock) {
+                val known =
+                    knownPeers.values.joinToString(prefix = "[", postfix = "]") { knownPeer ->
+                        "${knownPeer.peerId.value.takeLast(6)}:${knownPeer.connectionState}"
+                    }
+                val ready =
+                    routeReadyPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                val pending =
+                    pendingAutoSendPeers.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                val jobs =
+                    autoSendJobs.keys.joinToString(prefix = "[", postfix = "]") { peer ->
+                        peer.takeLast(6)
+                    }
+                listOf(known, ready, pending, jobs)
             }
         return "known=$knownPeersSummary ready=$readyPeersSummary pending=$pendingPeersSummary jobs=$jobsSummary"
     }
 
     private fun maybeStartAutoHello(peerId: PeerId, source: String): Unit {
-        synchronized(autoSendJobs) {
+        synchronized(peerStateLock) {
             if (autoSendJobs.containsKey(peerId.value)) {
                 return
             }
@@ -924,9 +910,7 @@ internal object MeshLinkProofRuntime {
                 )
                 return
             }
-            synchronized(pendingAutoSendPeers) {
-                pendingAutoSendPeers.remove(peerId.value)
-            }
+            pendingAutoSendPeers.remove(peerId.value)
             autoSendJobs[peerId.value] =
                 scope.launch {
                     val routeReady =
@@ -940,14 +924,14 @@ internal object MeshLinkProofRuntime {
                             )
                         }
                     val connected =
-                        synchronized(knownPeers) {
+                        synchronized(peerStateLock) {
                             knownPeers[peerId.value]?.connectionState == PeerConnectionState.CONNECTED
                         }
                     if (!connected) {
                         appendLog(
                             "auto-send deferred for ${peerId.value.takeLast(6)} source=$source connected=false routeReady=$routeReady"
                         )
-                        synchronized(autoSendJobs) {
+                        synchronized(peerStateLock) {
                             autoSendJobs.remove(peerId.value)
                         }
                         return@launch
@@ -956,7 +940,7 @@ internal object MeshLinkProofRuntime {
                         appendLog(
                             "BENCHMARK auto-send gated by route readiness ${describeRouteState(peerId)} source=$source"
                         )
-                        synchronized(autoSendJobs) {
+                        synchronized(peerStateLock) {
                             autoSendJobs.remove(peerId.value)
                         }
                         return@launch
@@ -979,7 +963,7 @@ internal object MeshLinkProofRuntime {
                     repeat(AUTO_SEND_ATTEMPTS) { attemptIndex ->
                         delay(AUTO_SEND_RETRY_DELAY_MS)
                         val peerStillKnown =
-                            synchronized(knownPeers) { knownPeers.containsKey(peerId.value) }
+                            synchronized(peerStateLock) { knownPeers.containsKey(peerId.value) }
                         if (!peerStillKnown) {
                             return@launch
                         }
