@@ -51,6 +51,11 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
                     )
                     val socket =
                         L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm)
+                    // Registered before the blocking connect() call so a concurrent teardown can
+                    // force-close this socket (via cancelPendingConnects()) to unblock it -- a
+                    // blocking socket connect() has no suspension point, so Job cancellation alone
+                    // cannot interrupt it once this coroutine is already running.
+                    linkRegistry.registerPendingConnectSocket(peer.hintPeerId.value, socket)
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
                     peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
