@@ -5,6 +5,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 
@@ -111,6 +112,17 @@ internal class BleTransportDiscoveryLifecycle(
     private var scanRetryAttempt: Int = 0
     private var isStopped: Boolean = true
 
+    // The tier behind the most recently *computed* PowerPolicy, regardless of whether it was ever
+    // actually applied to the hardware (see lastAppliedPowerTier below).
+    private var currentPowerTier: PowerTier = PowerTier.BALANCED
+
+    // The tier that produced the scan/advertise settings currently applied to the hardware, kept
+    // in sync every time refresh() actually restarts scan/advertise (whether triggered by
+    // updatePowerPolicy or by another caller such as the initial startTransport()/setSuspended()
+    // refresh). Used by updatePowerPolicy to skip a redundant restart when the newly-computed tier
+    // already matches what's live -- see updatePowerPolicy for why this matters.
+    private var lastAppliedPowerTier: PowerTier = PowerTier.BALANCED
+
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
         private set
 
@@ -173,8 +185,25 @@ internal class BleTransportDiscoveryLifecycle(
         started: Boolean,
         hardware: BleTransportDiscoveryHardware,
     ): Unit {
+        val tierUnchanged =
+            started && !isStopped && !isDiscoverySuspended && policy.tier == lastAppliedPowerTier
+        currentPowerTier = policy.tier
         currentPowerProfile = PowerMonitor.profileFor(policy)
         currentDiscoveryPayload = buildPayload(l2capPsm = currentDiscoveryPayload.l2capPsm)
+        if (tierUnchanged) {
+            // Battery/power-policy observations (e.g. periodic battery-changed broadcasts while
+            // charging) commonly resolve to the same tier repeatedly. Restarting scan+advertise
+            // (stopScan+startScan) on every such no-op update was observed to trip Android's
+            // undocumented BLE "scanning too frequently" throttle (roughly 5 start/stop cycles per
+            // 30s), after which onScanResult silently stops firing for a cooldown window with no
+            // error callback -- see
+            // docs/explanation/reference-app-physical-integration-findings.md.
+            // Skip the restart entirely when nothing about the applied settings would change.
+            log(
+                "updatePowerPolicy skipped restart: tier unchanged tier=${policy.tier} started=$started"
+            )
+            return
+        }
         if (started) {
             refresh(started = true, hardware = hardware)
         }
@@ -224,6 +253,7 @@ internal class BleTransportDiscoveryLifecycle(
             return
         }
         ensurePermissionsGranted()
+        lastAppliedPowerTier = currentPowerTier
         hardware.startScan(currentPowerProfile, scanCallback)
         log("scan started")
         if (hardware.hasAdvertiser) {

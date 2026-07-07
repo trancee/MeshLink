@@ -76,6 +76,56 @@ class BleTransportDiscoveryLifecycleTest {
     }
 
     @Test
+    fun updatePowerPolicySkipsRestartWhenTheResolvedTierIsUnchanged(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+        val startScanCallsAfterFirstUpdate = fixture.startScanCalls
+        val startAdvertisingCallsAfterFirstUpdate = fixture.startAdvertisingCalls
+
+        // Act: a second update resolving to the same tier (e.g. a repeated battery-changed
+        // broadcast that doesn't cross a tier threshold) must not restart scan/advertise.
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+
+        // Assert
+        assertEquals(startScanCallsAfterFirstUpdate, fixture.startScanCalls)
+        assertEquals(startAdvertisingCallsAfterFirstUpdate, fixture.startAdvertisingCalls)
+    }
+
+    @Test
+    fun updatePowerPolicyRestartsWhenTheResolvedTierChanges(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+        val startScanCallsAfterFirstUpdate = fixture.startScanCalls
+
+        // Act
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.PERFORMANCE),
+            started = true,
+            hardware = fixture.hardware,
+        )
+
+        // Assert
+        assertEquals(startScanCallsAfterFirstUpdate + 1, fixture.startScanCalls)
+        assertEquals(BlePowerMode.PERFORMANCE, fixture.startedAdvertisingPayloads.last().powerMode)
+    }
+
+    @Test
     fun advertiseFailureWithRetryableErrorSchedulesARetryThatRestartsAdvertising(): Unit {
         // Arrange
         val fixture = BleTransportDiscoveryLifecycleFixture()
