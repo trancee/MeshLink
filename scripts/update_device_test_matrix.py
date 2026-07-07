@@ -192,12 +192,57 @@ def crypto_latency_severity(field: str, value_us: float) -> str:
     return "good"
 
 
-def crypto_latency_cell(field: str, entry: dict) -> str:
+TREND_STYLES = {
+    "better": "color:#166534;",
+    "worse": "color:#991b1b;",
+}
+
+# Absolute value below which a delta is treated as measurement noise, not a real trend.
+TREND_NOISE_FLOOR = 0.05
+
+
+def trend_marker(current_us: float | None, previous_us: float | None) -> str:
+    """Return a colored arrow showing how current_us compares to previous_us.
+
+    Lower is better for all crypto latency fields, so a decrease renders a
+    green "faster" arrow and an increase renders a red "slower" arrow.
+    """
+    if current_us is None or previous_us is None:
+        return ""
+    delta = current_us - previous_us
+    if abs(delta) < TREND_NOISE_FLOOR:
+        return ""
+    if delta < 0:
+        pct = abs(delta) / previous_us * 100 if previous_us else 0.0
+        return f' <span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▼</span>'
+    pct = delta / previous_us * 100 if previous_us else 0.0
+    return f' <span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▲</span>'
+
+
+def crypto_latency_cell(field: str, entry: dict, previous_entry: dict | None = None) -> str:
     value_us = entry.get(field)
     if value_us is None:
         return "—"
     style = CRYPTO_LATENCY_STYLES[crypto_latency_severity(field, value_us)]
-    return chip_html(f"{value_us:.1f}", style)
+    marker = trend_marker(value_us, previous_entry.get(field) if previous_entry else None)
+    return chip_html(f"{value_us:.1f}", style) + marker
+
+
+def transport_trend_marker(current_kbps: float | None, previous_kbps: float | None) -> str:
+    """Return a colored arrow showing how current_kbps compares to previous_kbps.
+
+    Higher throughput is better, so an increase renders a green "improved"
+    arrow and a decrease renders a red "dropped" arrow.
+    """
+    if current_kbps is None or previous_kbps is None:
+        return ""
+    delta = current_kbps - previous_kbps
+    if abs(delta) < TREND_NOISE_FLOOR:
+        return ""
+    pct = abs(delta) / previous_kbps * 100 if previous_kbps else 0.0
+    if delta > 0:
+        return f' <span style="{TREND_STYLES["better"]}" title="{pct:.0f}% faster than the previous run">▲</span>'
+    return f' <span style="{TREND_STYLES["worse"]}" title="{pct:.0f}% slower than the previous run">▼</span>'
 
 
 def chipset_with_model(name: str, model: str) -> str:
@@ -346,6 +391,11 @@ def render_markdown(rows: list[dict]) -> str:
         "ChaCha20-Poly1305 ops warn > 100µs / bad > 500µs. Status is ✅ when every op for",
         "that run is green, ⚠️ when the worst op is amber, ❌ when the worst op is red, and",
         "❓ when the run only recorded a partial set of ops (missing ops render as \"—\").",
+        "A ▼ marks an op that got faster and a ▲ marks an op that got slower versus that",
+        "device's immediately preceding run; the oldest run for a device has no marker to",
+        "compare against. The Device column is only shown on a device's oldest (first) row;",
+        "later rows for the same device are left blank to show they belong to the same fleet",
+        "history.",
         "",
     ]
     crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
@@ -356,7 +406,12 @@ def render_markdown(rows: list[dict]) -> str:
             "| Device | Date | Provider | Status | Iterations | x25519KeyGen (µs) | x25519Agreement (µs) | ed25519KeyGen (µs) | ed25519Sign (µs) | ed25519Verify (µs) | chacha20Seal (µs) | chacha20Open (µs) |"
         )
         lines.append("|---|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+        previous_row = None
+        previous_entry = None
         for row, entry in crypto_entries:
+            if row is not previous_row:
+                previous_entry = None
+            device_cell = row["device"] if row is not previous_row else ""
             severities = [
                 crypto_latency_severity(field, entry[field])
                 for field in CRYPTO_LATENCY_THRESHOLDS
@@ -371,15 +426,23 @@ def render_markdown(rows: list[dict]) -> str:
             else:
                 status = "✅"
             lines.append(
-                f"| {row['device']} | {entry['date']} | {entry['provider']} | {status} | {entry['iterations']} | "
-                f"{crypto_latency_cell('x25519KeyGenUs', entry)} | {crypto_latency_cell('x25519AgreementUs', entry)} | "
-                f"{crypto_latency_cell('ed25519KeyGenUs', entry)} | {crypto_latency_cell('ed25519SignUs', entry)} | "
-                f"{crypto_latency_cell('ed25519VerifyUs', entry)} | {crypto_latency_cell('chacha20SealUs', entry)} | "
-                f"{crypto_latency_cell('chacha20OpenUs', entry)} |"
+                f"| {device_cell} | {entry['date']} | {entry['provider']} | {status} | {entry['iterations']} | "
+                f"{crypto_latency_cell('x25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('x25519AgreementUs', entry, previous_entry)} | "
+                f"{crypto_latency_cell('ed25519KeyGenUs', entry, previous_entry)} | {crypto_latency_cell('ed25519SignUs', entry, previous_entry)} | "
+                f"{crypto_latency_cell('ed25519VerifyUs', entry, previous_entry)} | {crypto_latency_cell('chacha20SealUs', entry, previous_entry)} | "
+                f"{crypto_latency_cell('chacha20OpenUs', entry, previous_entry)} |"
             )
+            previous_row = row
+            previous_entry = entry
     lines += [
         "",
         "### Transport benchmarks",
+        "",
+        "A ▲ marks throughput that improved and a ▼ marks throughput that dropped versus the",
+        "same device's immediately preceding run with the same role and peer; the first such",
+        "run has no marker to compare against. The Device column is only shown on a device's",
+        "oldest (first) row; later rows for the same device are left blank to show they",
+        "belong to the same fleet history.",
         "",
     ]
     transport_entries = [(row, entry) for row in rows for entry in row.get("transport_benchmark_history", [])]
@@ -388,13 +451,25 @@ def render_markdown(rows: list[dict]) -> str:
     else:
         lines.append("| Device | Date | Role | Peer | Payload | Result | Throughput (KB/s) | Receipt |")
         lines.append("|---|---|---|---|---:|---|---:|---|")
+        previous_row = None
+        previous_throughput_by_key: dict[tuple[str, str], float] = {}
         for row, entry in transport_entries:
+            if row is not previous_row:
+                previous_throughput_by_key = {}
+            device_cell = row["device"] if row is not previous_row else ""
             payload = f"{entry['payloadBytes'] // 1024} KiB"
-            throughput = f"{entry['throughputKBps']:.2f}" if entry["throughputKBps"] is not None else "—"
+            throughput_value = entry["throughputKBps"]
+            key = (entry["role"], entry["peer"])
+            if throughput_value is not None:
+                throughput = f"{throughput_value:.2f}" + transport_trend_marker(throughput_value, previous_throughput_by_key.get(key))
+                previous_throughput_by_key[key] = throughput_value
+            else:
+                throughput = "—"
             receipt = "✅" if entry["receiptConfirmed"] else "❌"
             lines.append(
-                f"| {row['device']} | {entry['date']} | {entry['role']} | {entry['peer']} | {payload} | {entry['result']} | {throughput} | {receipt} |"
+                f"| {device_cell} | {entry['date']} | {entry['role']} | {entry['peer']} | {payload} | {entry['result']} | {throughput} | {receipt} |"
             )
+            previous_row = row
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
