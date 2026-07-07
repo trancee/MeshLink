@@ -63,6 +63,17 @@ internal class BleTransportAdapter(
 ) : BleTransport {
     internal val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 32)
     internal val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Android's BluetoothLeScanner hardcodes ScanCallback delivery to the main-thread Looper
+    // (see BluetoothLeScanner.mHandler = new Handler(Looper.getMainLooper())), so there is no
+    // public API to have the framework deliver onScanResult/onBatchScanResults off the main
+    // thread. Instead, the callback itself immediately hands the actual parse/registry/connect
+    // work in handleScanResult off to this dedicated single-thread dispatcher, so the main thread
+    // only pays for a cheap dispatch and connection-critical main-thread work (e.g. GATT callback
+    // handling) no longer contends with BLE-dense scan processing. A single thread (rather than a
+    // shared pool) keeps scan results processed in arrival order, matching the previous in-callback
+    // behavior and avoiding new interleaving races against PeerRegistry/BleTransportLinkRegistry.
+    private val scanProcessingDispatcher = Dispatchers.IO.limitedParallelism(1)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     private val automationPreferences =
         context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
@@ -139,6 +150,12 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var started: Boolean = false
+    // Flipped true as the very first step of stopTransports() (before started is set false, which
+    // only happens after stopTransports() returns) and reset false at the start of
+    // startTransport(). Read from connectIfNeeded(), which can run on a background dispatcher
+    // thread via a straggler scan-processing coroutine or a delayed scheduleL2capReconnect() call
+    // racing teardown, so this must be @Volatile for cross-thread visibility.
+    @Volatile internal var transportStopping: Boolean = false
     internal val foreignScanIgnoredCount = AtomicInteger(0)
     internal val scanResultCount = AtomicInteger(0)
     internal val scanParseSkippedCount = AtomicInteger(0)
@@ -148,7 +165,9 @@ internal class BleTransportAdapter(
         BleTransportDiscoveryLifecycle(
             appId = appId,
             localKeyHash = localKeyHash,
-            handleScanResult = ::handleScanResult,
+            handleScanResult = { result ->
+                coroutineScope.launch(scanProcessingDispatcher) { handleScanResult(result) }
+            },
             ensurePermissionsGranted = ::ensurePermissionsGranted,
             foreignScanIgnoredCount = { foreignScanIgnoredCount.get() },
             log = ::log,

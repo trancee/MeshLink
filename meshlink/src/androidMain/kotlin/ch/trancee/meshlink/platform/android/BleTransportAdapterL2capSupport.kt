@@ -16,11 +16,15 @@ import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal fun BleTransportAdapter.hasPendingConnect(hintPeer: String): Boolean {
     return linkRegistry.hasPendingConnect(hintPeer)
@@ -32,6 +36,10 @@ internal fun BleTransportAdapter.clearPendingConnect(hintPeer: String): Unit {
 
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
+    if (transportStopping) {
+        log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: transport stopping")
+        return
+    }
     if (peer.l2capPsm == 0) {
         log("connectIfNeeded(${peer.hintPeerId.value.takeLast(6)}) skipped: no PSM")
         return
@@ -47,6 +55,11 @@ internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit {
                     )
                     val socket =
                         L2capSocketFactory.createInsecure(device = device, psm = peer.l2capPsm)
+                    // Registered before the blocking connect() call so a concurrent teardown can
+                    // force-close this socket (via cancelPendingConnects()) to unblock it -- a
+                    // blocking socket connect() has no suspension point, so Job cancellation alone
+                    // cannot interrupt it once this coroutine is already running.
+                    linkRegistry.registerPendingConnectSocket(peer.hintPeerId.value, socket)
                     socket.connect()
                     log("L2CAP connect succeeded for ${peer.hintPeerId.value.takeLast(6)}")
                     peerRegistry.setRediscoveryLoggedWithoutLink(peer.hintPeerId.value, false)
@@ -289,7 +302,13 @@ internal suspend fun BleTransportAdapter.sendViaConnectedLink(
 }
 
 @SuppressLint("MissingPermission")
-internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
+internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
+    // Set first, before any other teardown step: connectIfNeeded() (and therefore
+    // scheduleL2capReconnect()'s delayed retry) checks this to refuse new/resumed connection
+    // attempts for the remainder of teardown, including ones triggered by a straggler
+    // scan-processing coroutine or by a "socket closed" retry scheduled from a force-close inside
+    // this very function (see cancelPendingConnects() below).
+    transportStopping = true
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null
@@ -304,10 +323,60 @@ internal fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Unit {
     gattSideLinks.stopAll()
     inboundFrameQueue?.close()
     inboundFrameQueue = null
-    coroutineScope.coroutineContext.cancelChildren()
-    if (clearPeers) {
-        peerRegistry.clear()
-        peerBindings.clear()
+    // Cancel and join every outstanding child (including background scan-processing work
+    // dispatched via scanProcessingDispatcher), then clear peer state. Run this under
+    // NonCancellable: once teardown has started (hardware/sockets/links above are already torn
+    // down), cancelling the caller of stopTransports() must not be allowed to abort mid-loop and
+    // leave peerRegistry/peerBindings stale relative to the already-stopped hardware.
+    withContext(NonCancellable) {
+        // A single cancelAndJoin pass is not enough: an in-flight handleScanResult call has no
+        // suspension points, so cancelling it does not stop it, and it may itself launch a new
+        // connectIfNeeded child after this pass's snapshot was taken. Loop until no children
+        // remain so late-spawned children can't mutate peer state after this function clears it
+        // below. (scanCallback also gates on isStopped so no further scan-processing children can
+        // be launched once discoveryLifecycle.stop() above has run.)
+        //
+        // Bounded with a timeout: a readLoopJob registered by a straggler connectIfNeeded can be
+        // blocked in a plain synchronous BluetoothSocket.inputStream.read() with no timeout and no
+        // suspension point either, so cancellation cannot interrupt it -- only closing its socket
+        // can. Don't let stopTransports() hang forever waiting on cancellation alone.
+        withTimeoutOrNull(SCAN_TEARDOWN_DRAIN_TIMEOUT_MILLIS) { drainCoroutineScopeChildren() }
+        // Force-close any link that a straggler connectIfNeeded registered after the hintIds
+        // snapshot above (e.g. from a scan-processing coroutine that was already dispatched
+        // before discoveryLifecycle.stop() flipped isStopped). Closing the socket unblocks any
+        // readLoopJob still stuck in a blocking read with an IOException instead of relying on
+        // cancellation, which cannot interrupt synchronous socket I/O.
+        linkRegistry.activeHintIdsSnapshot().forEach { hintPeer ->
+            closeLink(hintPeer = hintPeer, reason = "transport stopped (post-drain)")
+        }
+        // A straggler handleScanResult call can just as easily reach gattSideLinks.ensureStarted()
+        // instead of (or in addition to) connectIfNeeded(); that path isn't a coroutineScope child
+        // at all (it's driven by Android's own GATT callback thread), so
+        // drainCoroutineScopeChildren()
+        // can't observe or wait for it. stopAll() is a safe snapshot-and-clear, so re-running it
+        // here
+        // closes any side link created after the first call above.
+        gattSideLinks.stopAll()
+        // Likewise, a straggler connectIfNeeded() may have reserved a new pending connect after the
+        // cancelPendingConnects() call above; cancel it too so it can't proceed if it hasn't
+        // started
+        // its blocking socket.connect() call yet.
+        linkRegistry.cancelPendingConnects()
+        // Now that any straggler sockets are closed, their readLoopJobs are unblocked and should
+        // finish quickly; drain them too, still bounded in case something unexpected stalls.
+        withTimeoutOrNull(SCAN_TEARDOWN_DRAIN_TIMEOUT_MILLIS) { drainCoroutineScopeChildren() }
+        if (clearPeers) {
+            peerRegistry.clear()
+            peerBindings.clear()
+        }
+    }
+}
+
+private suspend fun BleTransportAdapter.drainCoroutineScopeChildren(): Unit {
+    while (true) {
+        val children = coroutineScope.coroutineContext.job.children.toList()
+        if (children.isEmpty()) break
+        children.forEach { it.cancelAndJoin() }
     }
 }
 
@@ -343,6 +412,7 @@ internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Un
 
 private const val ZERO_BYTE_READ_BACKOFF_MS: Long = 5L
 private const val MAX_CONSECUTIVE_ZERO_BYTE_READS: Int = 3
+private const val SCAN_TEARDOWN_DRAIN_TIMEOUT_MILLIS: Long = 3_000L
 
 internal class L2capLink(
     internal var peerHintId: PeerId,

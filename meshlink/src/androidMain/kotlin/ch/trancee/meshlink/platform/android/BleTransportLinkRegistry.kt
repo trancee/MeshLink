@@ -5,6 +5,7 @@ import ch.trancee.meshlink.transport.ActivePeerHintResolutionRequest
 import ch.trancee.meshlink.transport.TemporaryPeerHintPromotionRequest
 import ch.trancee.meshlink.transport.resolveActivePeerHint
 import ch.trancee.meshlink.transport.selectTemporaryPeerHintPromotion
+import java.io.Closeable
 import kotlinx.coroutines.Job
 
 internal enum class TemporaryLinkPromotionOutcome {
@@ -16,6 +17,11 @@ internal enum class TemporaryLinkPromotionOutcome {
 internal class BleTransportLinkRegistry<T>(private val bindings: PeerBindings) {
     private val activeLinksByHint: MutableMap<String, T> = linkedMapOf()
     private val pendingConnectJobsByHint: MutableMap<String, Job> = linkedMapOf()
+    // Tracks the socket a pending connect job is currently blocked in Socket.connect() on (once
+    // created), so cancelPendingConnects() can force-close it. A blocking connect() call has no
+    // suspension point, so cancelling the Job alone cannot interrupt it once it's already running;
+    // only closing the underlying socket can.
+    private val pendingConnectSocketsByHint: MutableMap<String, Closeable> = linkedMapOf()
     private val pendingConnectLock = Any()
 
     internal fun hasActiveLink(hintPeerIdValue: String): Boolean {
@@ -73,7 +79,10 @@ internal class BleTransportLinkRegistry<T>(private val bindings: PeerBindings) {
     }
 
     internal fun clearPendingConnect(hintPeerIdValue: String): Unit {
-        synchronized(pendingConnectLock) { pendingConnectJobsByHint.remove(hintPeerIdValue) }
+        synchronized(pendingConnectLock) {
+            pendingConnectJobsByHint.remove(hintPeerIdValue)
+            pendingConnectSocketsByHint.remove(hintPeerIdValue)
+        }
     }
 
     internal fun reservePendingConnect(hintPeerIdValue: String, connectJob: Job): Boolean {
@@ -88,11 +97,32 @@ internal class BleTransportLinkRegistry<T>(private val bindings: PeerBindings) {
         }
     }
 
-    internal fun cancelPendingConnects(): Unit {
+    /**
+     * Records the socket a pending connect job is about to block on inside `Socket.connect()`, so
+     * [cancelPendingConnects] can force-close it later if needed. Only stored while the connect is
+     * still tracked as pending, so a socket created after the job was already cleared/cancelled
+     * (e.g. by a concurrent teardown) isn't registered and leaked into this map.
+     */
+    internal fun registerPendingConnectSocket(hintPeerIdValue: String, socket: Closeable): Unit {
         synchronized(pendingConnectLock) {
-            pendingConnectJobsByHint.values.forEach(Job::cancel)
-            pendingConnectJobsByHint.clear()
+            if (pendingConnectJobsByHint.containsKey(hintPeerIdValue)) {
+                pendingConnectSocketsByHint[hintPeerIdValue] = socket
+            }
         }
+    }
+
+    internal fun cancelPendingConnects(): Unit {
+        val sockets =
+            synchronized(pendingConnectLock) {
+                pendingConnectJobsByHint.values.forEach(Job::cancel)
+                pendingConnectJobsByHint.clear()
+                val sockets = pendingConnectSocketsByHint.values.toList()
+                pendingConnectSocketsByHint.clear()
+                sockets
+            }
+        // Closed outside the lock: Closeable.close() can run arbitrary I/O and must not be called
+        // while holding pendingConnectLock.
+        sockets.forEach { socket -> runCatching { socket.close() } }
     }
 
     internal fun promoteTemporaryLink(
