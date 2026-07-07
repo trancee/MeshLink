@@ -36,6 +36,18 @@
         "ed25519VerifyUs": 77.1,
         "chacha20SealUs": 12.8,
         "chacha20OpenUs": 12.7
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 71.551,
+        "x25519AgreementUs": 135.962,
+        "ed25519KeyGenUs": 71.892,
+        "ed25519SignUs": 123.91,
+        "ed25519VerifyUs": 94.1,
+        "chacha20SealUs": 7.9,
+        "chacha20OpenUs": 7.926
       }
     ],
     "transport_benchmark_history": [
@@ -107,6 +119,18 @@
         "ed25519VerifyUs": 2443.0,
         "chacha20SealUs": 12.3,
         "chacha20OpenUs": 12.4
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 63.346,
+        "x25519AgreementUs": 124.477,
+        "ed25519KeyGenUs": 606.285,
+        "ed25519SignUs": 516.756,
+        "ed25519VerifyUs": 1454.97,
+        "chacha20SealUs": 8.364,
+        "chacha20OpenUs": 8.107
       }
     ],
     "transport_benchmark_history": [
@@ -167,6 +191,18 @@
         "ed25519VerifyUs": 634.5,
         "chacha20SealUs": 211.1,
         "chacha20OpenUs": 193.3
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 196.448,
+        "x25519AgreementUs": 455.041,
+        "ed25519KeyGenUs": 350.849,
+        "ed25519SignUs": 585.278,
+        "ed25519VerifyUs": 619.711,
+        "chacha20SealUs": 210.846,
+        "chacha20OpenUs": 199.88
       }
     ],
     "transport_benchmark_history": [
@@ -248,6 +284,18 @@
         "ed25519VerifyUs": 132.0,
         "chacha20SealUs": 55.0,
         "chacha20OpenUs": 55.0
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 77.938,
+        "x25519AgreementUs": 158.54,
+        "ed25519KeyGenUs": 131.461,
+        "ed25519SignUs": 146.258,
+        "ed25519VerifyUs": 124.986,
+        "chacha20SealUs": 55.76,
+        "chacha20OpenUs": 54.707
       }
     ],
     "transport_benchmark_history": [
@@ -319,6 +367,18 @@
         "ed25519VerifyUs": 1901.2,
         "chacha20SealUs": 52.0,
         "chacha20OpenUs": 53.7
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 79.459,
+        "x25519AgreementUs": 147.002,
+        "ed25519KeyGenUs": 727.342,
+        "ed25519SignUs": 619.847,
+        "ed25519VerifyUs": 1651.331,
+        "chacha20SealUs": 43.423,
+        "chacha20OpenUs": 43.535
       }
     ],
     "transport_benchmark_history": [
@@ -408,6 +468,18 @@
         "ed25519VerifyUs": 2446.3,
         "chacha20SealUs": 25.9,
         "chacha20OpenUs": 26.7
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 74.753,
+        "x25519AgreementUs": 153.83,
+        "ed25519KeyGenUs": 986.79,
+        "ed25519SignUs": 839.398,
+        "ed25519VerifyUs": 2211.943,
+        "chacha20SealUs": 28.242,
+        "chacha20OpenUs": 26.427
       }
     ],
     "transport_benchmark_history": [
@@ -479,6 +551,18 @@
         "ed25519VerifyUs": 3403.8,
         "chacha20SealUs": 19.8,
         "chacha20OpenUs": 19.4
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 164.181,
+        "x25519AgreementUs": 386.239,
+        "ed25519KeyGenUs": 1271.798,
+        "ed25519SignUs": 1089.084,
+        "ed25519VerifyUs": 2898.548,
+        "chacha20SealUs": 19.189,
+        "chacha20OpenUs": 18.86
       }
     ],
     "transport_benchmark_history": [
@@ -585,6 +669,18 @@
         "ed25519VerifyUs": 2313.4,
         "chacha20SealUs": 29.8,
         "chacha20OpenUs": 26.6
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 74.377,
+        "x25519AgreementUs": 154.218,
+        "ed25519KeyGenUs": 959.513,
+        "ed25519SignUs": 818.176,
+        "ed25519VerifyUs": 2111.942,
+        "chacha20SealUs": 32.397,
+        "chacha20OpenUs": 28.108
       }
     ],
     "transport_benchmark_history": [
@@ -665,6 +761,18 @@
         "ed25519VerifyUs": 10390.2,
         "chacha20SealUs": 277.4,
         "chacha20OpenUs": 275.6
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 278.48,
+        "x25519AgreementUs": 422.092,
+        "ed25519KeyGenUs": 5399.219,
+        "ed25519SignUs": 4096.334,
+        "ed25519VerifyUs": 9289.483,
+        "chacha20SealUs": 271.66,
+        "chacha20OpenUs": 270.709
       }
     ],
     "transport_benchmark_history": [
@@ -805,6 +913,18 @@
         "ed25519VerifyUs": 1648.8,
         "chacha20SealUs": 52.6,
         "chacha20OpenUs": 51.6
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 65.381,
+        "x25519AgreementUs": 99.9,
+        "ed25519KeyGenUs": 532.967,
+        "ed25519SignUs": 497.705,
+        "ed25519VerifyUs": 1538.367,
+        "chacha20SealUs": 52.204,
+        "chacha20OpenUs": 51.984
       }
     ],
     "transport_benchmark_history": [
@@ -900,6 +1020,18 @@
         "ed25519VerifyUs": 2744.952,
         "chacha20SealUs": 60.486,
         "chacha20OpenUs": 29.508
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1406.281,
+        "x25519AgreementUs": 1393.181,
+        "ed25519KeyGenUs": 701.83,
+        "ed25519SignUs": 722.433,
+        "ed25519VerifyUs": 2477.235,
+        "chacha20SealUs": 161.983,
+        "chacha20OpenUs": 39.16
       }
     ],
     "transport_benchmark_history": [
@@ -988,6 +1120,18 @@
         "ed25519VerifyUs": 2619.74,
         "chacha20SealUs": 128.564,
         "chacha20OpenUs": 37.62
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1372.528,
+        "x25519AgreementUs": 1343.783,
+        "ed25519KeyGenUs": 756.566,
+        "ed25519SignUs": 734.982,
+        "ed25519VerifyUs": 2425.088,
+        "chacha20SealUs": 81.408,
+        "chacha20OpenUs": 31.586
       }
     ],
     "transport_benchmark_history": [
@@ -1057,6 +1201,18 @@
         "ed25519VerifyUs": 5388.916,
         "chacha20SealUs": 115.737,
         "chacha20OpenUs": 49.393
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 2702.836,
+        "x25519AgreementUs": 2679.559,
+        "ed25519KeyGenUs": 1328.196,
+        "ed25519SignUs": 1299.107,
+        "ed25519VerifyUs": 4751.262,
+        "chacha20SealUs": 141.43,
+        "chacha20OpenUs": 40.489
       }
     ],
     "transport_benchmark_history": [
@@ -1126,6 +1282,18 @@
         "ed25519VerifyUs": 52759.44,
         "chacha20SealUs": 288.905,
         "chacha20OpenUs": 102.502
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 15817.723,
+        "x25519AgreementUs": 15615.838,
+        "ed25519KeyGenUs": 11893.827,
+        "ed25519SignUs": 11924.718,
+        "ed25519VerifyUs": 45815.834,
+        "chacha20SealUs": 286.663,
+        "chacha20OpenUs": 113.476
       }
     ],
     "transport_benchmark_history": [
@@ -1208,6 +1376,18 @@
         "ed25519VerifyUs": 7745.4,
         "chacha20SealUs": 194.8,
         "chacha20OpenUs": 194.7
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 278.565,
+        "x25519AgreementUs": 689.177,
+        "ed25519KeyGenUs": 3198.179,
+        "ed25519SignUs": 2660.53,
+        "ed25519VerifyUs": 6874.241,
+        "chacha20SealUs": 202.004,
+        "chacha20OpenUs": 207.0
       }
     ],
     "transport_benchmark_history": []
