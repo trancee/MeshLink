@@ -334,6 +334,19 @@ internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Un
         linkRegistry.activeHintIdsSnapshot().forEach { hintPeer ->
             closeLink(hintPeer = hintPeer, reason = "transport stopped (post-drain)")
         }
+        // A straggler handleScanResult call can just as easily reach gattSideLinks.ensureStarted()
+        // instead of (or in addition to) connectIfNeeded(); that path isn't a coroutineScope child
+        // at all (it's driven by Android's own GATT callback thread), so
+        // drainCoroutineScopeChildren()
+        // can't observe or wait for it. stopAll() is a safe snapshot-and-clear, so re-running it
+        // here
+        // closes any side link created after the first call above.
+        gattSideLinks.stopAll()
+        // Likewise, a straggler connectIfNeeded() may have reserved a new pending connect after the
+        // cancelPendingConnects() call above; cancel it too so it can't proceed if it hasn't
+        // started
+        // its blocking socket.connect() call yet.
+        linkRegistry.cancelPendingConnects()
         // Now that any straggler sockets are closed, their readLoopJobs are unblocked and should
         // finish quickly; drain them too, still bounded in case something unexpected stalls.
         withTimeoutOrNull(SCAN_TEARDOWN_DRAIN_TIMEOUT_MILLIS) { drainCoroutineScopeChildren() }
