@@ -24,6 +24,17 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
             }
         }
 
+    /**
+     * Precomputed radix-16 comb table for the fixed base point: `baseCombTable[block][digit]` =
+     * `digit * 16^block * B`. Built once (lazily, on first use) so every subsequent fixed-base
+     * scalar multiplication (key generation, signing, and half of verification) needs only 64 point
+     * additions and zero point doublings, instead of 256 doublings + 256 additions for a generic
+     * double-and-add ladder. This is the single biggest cost driver in the fallback
+     * signer/verifier, so trading ~64 * 15 precomputed points (~0.5 MB, built once per process) for
+     * that speedup is a deliberate priority-over-footprint tradeoff.
+     */
+    private val baseCombTable: Array<Array<Point>> by lazy { buildBaseCombTable() }
+
     internal fun generateKeyPair(): Ed25519KeyPair {
         val privateKey =
             requireSized(
@@ -92,8 +103,11 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
             reduceScalar(
                 sha512(signature.copyOfRange(0, PUBLIC_KEY_SIZE_BYTES), publicKey, message)
             )
+        // The challenge and public key are both public (part of the signature/identity), so this
+        // multiplication does not need to be constant-time; a plain windowed method is used
+        // instead of the constant-time comb selection that fixed-base multiplication requires.
         val leftSide = Point()
-        scalarMultiply(leftSide, publicPoint, reducedChallenge)
+        windowedScalarMultiplyPublic(leftSide, publicPoint, reducedChallenge)
 
         val rightSide = Point()
         scalarBase(rightSide, scalarComponent)
@@ -149,27 +163,122 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         return digest.digest()
     }
 
+    /**
+     * Fixed-base scalar multiplication using the precomputed radix-16 comb table. Runs in constant
+     * time with respect to `scalar` (via masked table selection) because this is used for both
+     * secret scalars (nonce, private key during key generation/signing) and public ones
+     * (verification); the selection cost is negligible compared to the field multiplications it
+     * replaces, so there is no reason to special-case the public callers.
+     */
     private fun scalarBase(output: Point, scalar: ByteArray): Unit {
-        val base = Point()
-        copyField(base.x, BASE_X)
-        copyField(base.y, BASE_Y)
-        copyField(base.z, FIELD_ONE)
-        multiply(base.t, BASE_X, BASE_Y, LongArray(MULTIPLICATION_SCRATCH_SIZE))
-        scalarMultiply(output, base, scalar)
+        require(scalar.size >= SCALAR_SIZE_BYTES) { "Ed25519 scalar must be at least 32 bytes" }
+        setIdentity(output)
+        val scratch = PointScratch()
+        val selected = Point()
+        for (block in 0 until COMB_BLOCK_COUNT) {
+            selectPoint(selected, baseCombTable[block], nibbleAt(scalar, block))
+            add(output, selected, scratch)
+        }
     }
 
-    private fun scalarMultiply(output: Point, point: Point, scalar: ByteArray): Unit {
+    /**
+     * Variable-base windowed scalar multiplication (radix-16, MSB-first). Both `point` and `scalar`
+     * are public values at every call site (signature verification only), so this intentionally
+     * branches on scalar digits instead of using constant-time selection, trading side-channel
+     * resistance we don't need here for fewer point operations.
+     */
+    private fun windowedScalarMultiplyPublic(output: Point, point: Point, scalar: ByteArray): Unit {
         require(scalar.size >= SCALAR_SIZE_BYTES) { "Ed25519 scalar must be at least 32 bytes" }
 
-        val workingPoint = point.copy()
-        val scratch = PointScratch()
+        val addScratch = PointScratch()
+        val table = arrayOfNulls<Point>(COMB_DIGIT_COUNT)
+        table[1] = point.copy()
+        for (digit in 2 until COMB_DIGIT_COUNT) {
+            val next = table[digit - 1]!!.copy()
+            add(next, point, addScratch)
+            table[digit] = next
+        }
+
         setIdentity(output)
-        for (bitIndex in 255 downTo 0) {
-            val bit = (scalar[bitIndex ushr 3].toInt() ushr (bitIndex and 7)) and 1
-            conditionalSwap(output, workingPoint, bit)
-            add(workingPoint, output, scratch)
-            add(output, output, scratch)
-            conditionalSwap(output, workingPoint, bit)
+        val dblScratch = PointScratch()
+        for (block in COMB_BLOCK_COUNT - 1 downTo 0) {
+            repeat(WINDOW_BITS) { double(output, dblScratch) }
+            val digit = nibbleAt(scalar, block)
+            if (digit != 0) {
+                add(output, table[digit]!!, addScratch)
+            }
+        }
+    }
+
+    /** Extracts the 4-bit digit covering bits `[4 * block, 4 * block + 3]` of `scalar`. */
+    private fun nibbleAt(scalar: ByteArray, block: Int): Int {
+        val byteValue = scalar[block ushr 1].toInt()
+        return if (block and 1 == 0) byteValue and 0x0F else (byteValue ushr 4) and 0x0F
+    }
+
+    /**
+     * Builds the fixed-base comb table: `table[block][digit]` = `digit * 16^block * B`, for `block`
+     * in `0 until 64` and `digit` in `1 until 16` (digit 0 is never stored; selection treats it as
+     * the identity). This runs once per process (see `baseCombTable`).
+     */
+    private fun buildBaseCombTable(): Array<Array<Point>> {
+        val base =
+            Point().also { point ->
+                copyField(point.x, BASE_X)
+                copyField(point.y, BASE_Y)
+                copyField(point.z, FIELD_ONE)
+                multiply(point.t, BASE_X, BASE_Y, LongArray(MULTIPLICATION_SCRATCH_SIZE))
+            }
+
+        var blockBase = base
+        return Array(COMB_BLOCK_COUNT) { block ->
+            val addScratch = PointScratch()
+            val row = arrayOfNulls<Point>(COMB_DIGIT_COUNT)
+            row[1] = blockBase
+            for (digit in 2 until COMB_DIGIT_COUNT) {
+                val next = row[digit - 1]!!.copy()
+                add(next, blockBase, addScratch)
+                row[digit] = next
+            }
+
+            if (block != COMB_BLOCK_COUNT - 1) {
+                val nextBlockBase = blockBase.copy()
+                val dblScratch = PointScratch()
+                repeat(WINDOW_BITS) { double(nextBlockBase, dblScratch) }
+                blockBase = nextBlockBase
+            }
+
+            @Suppress("UNCHECKED_CAST") (row as Array<Point>)
+        }
+    }
+
+    /**
+     * Constant-time selection of `candidates[digit]` into `output`, where `digit` is in `0 until
+     * 16` and `candidates[0]` is implicitly the identity point (not stored). Scans every candidate
+     * and masks in the match so execution time and memory access pattern do not depend on `digit`.
+     */
+    private fun selectPoint(output: Point, candidates: Array<Point>, digit: Int): Unit {
+        setIdentity(output)
+        for (index in 1 until COMB_DIGIT_COUNT) {
+            val mask = maskEquals(digit, index)
+            conditionalCopy(output.x, candidates[index].x, mask)
+            conditionalCopy(output.y, candidates[index].y, mask)
+            conditionalCopy(output.z, candidates[index].z, mask)
+            conditionalCopy(output.t, candidates[index].t, mask)
+        }
+    }
+
+    /** Returns an all-ones mask when `value == target`, otherwise an all-zeros mask. */
+    private fun maskEquals(value: Int, target: Int): Long {
+        val diff = value xor target
+        // `diff` is in [0, 15], so `diff - 1` is -1 (all bits set) exactly when diff == 0, and a
+        // small non-negative number otherwise; sign-extending shift turns that into 0.
+        return ((diff - 1) shr 31).toLong()
+    }
+
+    private fun conditionalCopy(destination: LongArray, source: LongArray, mask: Long): Unit {
+        for (index in 0 until FIELD_ELEMENT_SIZE) {
+            destination[index] = (destination[index] and mask.inv()) or (source[index] and mask)
         }
     }
 
@@ -201,11 +310,30 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         multiply(point.t, scratch.e, scratch.h, scratch.temp)
     }
 
-    private fun conditionalSwap(first: Point, second: Point, bit: Int): Unit {
-        select(first.x, second.x, bit)
-        select(first.y, second.y, bit)
-        select(first.z, second.z, bit)
-        select(first.t, second.t, bit)
+    /**
+     * Dedicated point doubling (dbl-2008-hwcd) for the twisted Edwards curve with a = -1. This is
+     * mathematically equivalent to `add(point, point, scratch)` but costs 4 squarings + 4
+     * multiplications instead of the unified addition formula's 9 multiplications, which matters
+     * because every scalar-multiplication bit performs one doubling.
+     */
+    private fun double(point: Point, scratch: PointScratch): Unit {
+        square(scratch.a, point.x, scratch.temp)
+        square(scratch.b, point.y, scratch.temp)
+        square(scratch.c, point.z, scratch.temp)
+        add(scratch.c, scratch.c, scratch.c)
+        add(scratch.h, point.x, point.y)
+        square(scratch.e, scratch.h, scratch.temp)
+        subtract(scratch.e, scratch.e, scratch.a)
+        subtract(scratch.e, scratch.e, scratch.b)
+        // d = a * A = -A since a = -1
+        subtract(scratch.d, FIELD_ZERO, scratch.a)
+        add(scratch.g, scratch.d, scratch.b)
+        subtract(scratch.f, scratch.g, scratch.c)
+        subtract(scratch.h, scratch.d, scratch.b)
+        multiply(point.x, scratch.e, scratch.f, scratch.temp)
+        multiply(point.y, scratch.g, scratch.h, scratch.temp)
+        multiply(point.t, scratch.e, scratch.h, scratch.temp)
+        multiply(point.z, scratch.f, scratch.g, scratch.temp)
     }
 
     private fun pack(output: ByteArray, point: Point): Unit {
@@ -304,29 +432,148 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
     }
 
     private fun square(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        multiply(output, input, input, temp)
+        // Schoolbook squaring skips recomputing symmetric cross terms (input[i]*input[j] ==
+        // input[j]*input[i]) and doubles them once instead, roughly halving the number of
+        // limb multiplications compared to calling the general multiply(input, input).
+        temp.fill(0)
+        for (leftIndex in 0 until FIELD_ELEMENT_SIZE) {
+            val leftValue = input[leftIndex]
+            temp[leftIndex * 2] += leftValue * leftValue
+            for (rightIndex in leftIndex + 1 until FIELD_ELEMENT_SIZE) {
+                temp[leftIndex + rightIndex] += 2L * leftValue * input[rightIndex]
+            }
+        }
+        for (index in 0 until FIELD_ELEMENT_SIZE - 1) {
+            temp[index] += 38L * temp[index + FIELD_ELEMENT_SIZE]
+        }
+        for (index in 0 until FIELD_ELEMENT_SIZE) {
+            output[index] = temp[index]
+        }
+        carry(output)
+        carry(output)
     }
 
+    /**
+     * Computes input^-1 mod p via Fermat's little theorem (input^(p-2)), but instead of the naive
+     * one-bit-at-a-time square-and-multiply (254 squarings + 251 multiplications), this uses the
+     * standard curve25519/ed25519 addition chain for the exponent p-2 = 2^255-21 (as used by
+     * ref10/curve25519-donna): it builds up runs of consecutive 1 bits (2^k-1 patterns) via
+     * repeated squaring plus a single multiply per run, cutting the multiplication count from 251
+     * down to 11 while keeping the same 254 squarings.
+     */
     private fun invert(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        val c = input.copyOf()
-        for (index in 253 downTo 0) {
-            square(c, c, temp)
-            if (index != 2 && index != 4) {
-                multiply(c, c, input, temp)
-            }
-        }
-        copyField(output, c)
+        val z2 = fieldElement()
+        val z9 = fieldElement()
+        val z11 = fieldElement()
+        val z2_5_0 = fieldElement()
+        val z2_10_0 = fieldElement()
+        val z2_20_0 = fieldElement()
+        val z2_50_0 = fieldElement()
+        val z2_100_0 = fieldElement()
+        val t0 = fieldElement()
+        val t1 = fieldElement()
+
+        square(z2, input, temp) // 2
+        square(t0, z2, temp) // 4
+        square(t0, t0, temp) // 8
+        multiply(z9, t0, input, temp) // 9
+        multiply(z11, z9, z2, temp) // 11
+        square(t0, z11, temp) // 22
+        multiply(z2_5_0, t0, z9, temp) // 2^5 - 2^0 = 31
+
+        square(t0, z2_5_0, temp)
+        for (index in 1 until 5) square(t0, t0, temp) // 2^10 - 2^5
+        multiply(z2_10_0, t0, z2_5_0, temp) // 2^10 - 2^0
+
+        square(t0, z2_10_0, temp)
+        for (index in 1 until 10) square(t0, t0, temp) // 2^20 - 2^10
+        multiply(z2_20_0, t0, z2_10_0, temp) // 2^20 - 2^0
+
+        square(t0, z2_20_0, temp)
+        for (index in 1 until 20) square(t0, t0, temp) // 2^40 - 2^20
+        multiply(t1, t0, z2_20_0, temp) // 2^40 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 10) square(t0, t0, temp) // 2^50 - 2^10
+        multiply(z2_50_0, t0, z2_10_0, temp) // 2^50 - 2^0
+
+        square(t0, z2_50_0, temp)
+        for (index in 1 until 50) square(t0, t0, temp) // 2^100 - 2^50
+        multiply(z2_100_0, t0, z2_50_0, temp) // 2^100 - 2^0
+
+        square(t0, z2_100_0, temp)
+        for (index in 1 until 100) square(t0, t0, temp) // 2^200 - 2^100
+        multiply(t1, t0, z2_100_0, temp) // 2^200 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 50) square(t0, t0, temp) // 2^250 - 2^50
+        multiply(t0, t0, z2_50_0, temp) // 2^250 - 2^0
+
+        square(t0, t0, temp) // 2^251 - 2^1
+        square(t0, t0, temp) // 2^252 - 2^2
+        square(t0, t0, temp) // 2^253 - 2^3
+        square(t0, t0, temp) // 2^254 - 2^4
+        square(t0, t0, temp) // 2^255 - 2^5
+        multiply(output, t0, z11, temp) // 2^255 - 21
     }
 
+    /**
+     * Computes input^((p-5)/8) mod p = input^(2^252-3), used to compute a candidate square root
+     * during point decompression. Uses the same style of addition chain as [invert] (ref10's
+     * fe_pow22523), reducing the multiplication count from 249 down to 9 while keeping the same 250
+     * squarings as the naive one-bit-at-a-time approach.
+     */
     private fun power2523(output: LongArray, input: LongArray, temp: LongArray): Unit {
-        val c = input.copyOf()
-        for (index in 250 downTo 0) {
-            square(c, c, temp)
-            if (index != 1) {
-                multiply(c, c, input, temp)
-            }
-        }
-        copyField(output, c)
+        val z2 = fieldElement()
+        val z9 = fieldElement()
+        val z11 = fieldElement()
+        val z2_5_0 = fieldElement()
+        val z2_10_0 = fieldElement()
+        val z2_20_0 = fieldElement()
+        val z2_50_0 = fieldElement()
+        val z2_100_0 = fieldElement()
+        val t0 = fieldElement()
+        val t1 = fieldElement()
+
+        square(z2, input, temp) // 2
+        square(t0, z2, temp) // 4
+        square(t0, t0, temp) // 8
+        multiply(z9, t0, input, temp) // 9
+        multiply(z11, z9, z2, temp) // 11
+        square(t0, z11, temp) // 22
+        multiply(z2_5_0, t0, z9, temp) // 2^5 - 2^0 = 31
+
+        square(t0, z2_5_0, temp)
+        for (index in 1 until 5) square(t0, t0, temp)
+        multiply(z2_10_0, t0, z2_5_0, temp) // 2^10 - 2^0
+
+        square(t0, z2_10_0, temp)
+        for (index in 1 until 10) square(t0, t0, temp)
+        multiply(z2_20_0, t0, z2_10_0, temp) // 2^20 - 2^0
+
+        square(t0, z2_20_0, temp)
+        for (index in 1 until 20) square(t0, t0, temp)
+        multiply(t1, t0, z2_20_0, temp) // 2^40 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 10) square(t0, t0, temp)
+        multiply(z2_50_0, t0, z2_10_0, temp) // 2^50 - 2^0
+
+        square(t0, z2_50_0, temp)
+        for (index in 1 until 50) square(t0, t0, temp)
+        multiply(z2_100_0, t0, z2_50_0, temp) // 2^100 - 2^0
+
+        square(t0, z2_100_0, temp)
+        for (index in 1 until 100) square(t0, t0, temp)
+        multiply(t1, t0, z2_100_0, temp) // 2^200 - 2^0
+
+        square(t0, t1, temp)
+        for (index in 1 until 50) square(t0, t0, temp)
+        multiply(t0, t0, z2_50_0, temp) // 2^250 - 2^0
+
+        square(t0, t0, temp) // 2^251 - 2^1
+        square(t0, t0, temp) // 2^252 - 2^2
+        multiply(output, t0, input, temp) // 2^252 - 3
     }
 
     private fun carry(output: LongArray): Unit {
@@ -528,6 +775,15 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         private const val PUBLIC_KEY_SIZE_BYTES: Int = 32
         private const val SCALAR_SIZE_BYTES: Int = 32
         private const val SIGNATURE_SIZE_BYTES: Int = 64
+
+        /** Window width (bits) for the radix-16 comb/windowed scalar multiplications. */
+        private const val WINDOW_BITS: Int = 4
+
+        /** Number of 4-bit windows covering a 256-bit scalar (32 bytes * 2 nibbles/byte). */
+        private const val COMB_BLOCK_COUNT: Int = 64
+
+        /** Number of representable digit values per window (0 until 16, digit 0 is implicit). */
+        private const val COMB_DIGIT_COUNT: Int = 16
 
         private val FIELD_ZERO =
             longArrayOf(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L)

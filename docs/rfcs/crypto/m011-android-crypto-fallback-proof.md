@@ -23,6 +23,63 @@ platform contract.
   emulator proof remains blocked by local emulator stability rather than by the
   MeshLink runtime or test build.
 
+## Performance optimization update (2026-07-07)
+
+The device matrix (`docs/reference/device-test-matrix.md`) showed the fallback
+paths were the slowest entries in the fleet, most visibly on
+`AndroidFallbackCryptoProvider` devices such as the Samsung Galaxy XCover 4.
+The following optimizations were made to the pure-Kotlin fallback
+implementations without changing their external behavior or algorithm
+contract; each round was validated against `Ed25519FallbackTest`,
+`WycheproofRegressionTest` (which exercises `AndroidFallbackCryptoProvider`
+directly on `androidHostTest`), the full `:meshlink:build
+checkAgp9Invariants` gate, and a real-device fleet re-benchmark before/after.
+
+Findings and techniques, in `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/Ed25519Fallback.kt`:
+
+- Dedicated fast `square()` and `double()` field-arithmetic routines replace
+  generic multiply-based squaring/doubling, avoiding redundant partial-product
+  computation.
+- A precomputed radix-16 fixed-base comb table (`baseCombTable`) speeds up
+  `scalarBase()` (used once per Ed25519 key generation and once per sign),
+  trading static table size for far fewer point additions per scalar
+  multiplication.
+- `windowedScalarMultiplyPublic()` adds windowed scalar multiplication for
+  signature verification's public-point multiply.
+- `invert()`/`power2523()` (field inversion and the sqrt exponent used when
+  decoding points) previously used TweetNaCl's naive one-bit-at-a-time Fermat
+  exponentiation — 254 squarings + 251 multiplications for inversion
+  (`p-2`), 250 squarings + 249 multiplications for the sqrt exponent
+  (`(p-5)/8`). Both were replaced with the standard ref10/curve25519-donna
+  addition-chain algorithm, which builds up `2^k-1` runs (`z2`, `z9`, `z11`,
+  `z2_5_0`, `z2_10_0`, `z2_20_0`, `z2_50_0`, `z2_100_0`) to reach the same
+  exponent with only 11 and 9 multiplications respectively — the squaring
+  count is unchanged, but the multiplication count (equally expensive per
+  limb-pair) drops by more than 20x for these hot paths, which run on every
+  Ed25519 keygen, sign, and verify.
+
+In `meshlink/src/commonMain/kotlin/ch/trancee/meshlink/crypto/PureX25519.kt`:
+
+- Added a fast `squareInto()` alongside the existing generic multiply, and
+  applied the same addition-chain technique to `invert()`, used once per
+  X25519 keygen and once per agreement finalize.
+
+In `meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/AndroidFallbackCryptoProvider.kt`:
+
+- The Poly1305 MAC previously used `java.math.BigInteger` arithmetic, which is
+  both slow (arbitrary-precision allocation per block) and not constant-time.
+  It was replaced with a constant-time 5×26-bit-limb implementation
+  (poly1305-donna style, per RFC 8439 §2.5), removing the BigInteger-based
+  helpers (`poly1305Mac`, `clampPoly1305R`, `littleEndianToBigInteger`,
+  `bigIntegerToLittleEndian`, the modulus constants, and the `BigInteger`
+  import) entirely.
+
+Real-device fleet re-benchmarks after these changes confirmed measurable
+speedups on fallback-crypto devices with no change on native `JcaCryptoProvider`
+devices (control), e.g. Samsung Galaxy XCover 4 `ed25519KeyGen` improved from
+15.4ms to 11.9ms. See `docs/reference/device-test-matrix.md` for the full
+per-provider benchmark history, including trend markers for each run.
+
 ## Background
 
 MeshLink's current mobile app floor is Android API 26+ and iOS 14.0+.

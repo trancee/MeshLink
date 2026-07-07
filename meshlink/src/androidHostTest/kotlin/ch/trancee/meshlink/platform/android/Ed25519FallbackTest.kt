@@ -126,6 +126,35 @@ class Ed25519FallbackTest {
         )
     }
 
+    @Test
+    fun `fallback round-trips across many random keys and messages`() {
+        // Arrange
+        val random = kotlin.random.Random(42)
+        val randomFallback = Ed25519Fallback(randomBytesProvider = random::nextBytes)
+
+        // Act & Assert
+        repeat(300) { iteration ->
+            val keyPair = randomFallback.generateKeyPair()
+            val message = random.nextBytes(random.nextInt(0, 256))
+            val signature = randomFallback.sign(keyPair.privateKey, message)
+
+            assertTrue(
+                randomFallback.verify(keyPair.publicKey, message, signature),
+                "Fallback must verify its own signature on iteration $iteration",
+            )
+            assertTrue(
+                verifyWithJca(keyPair.publicKey, message, signature),
+                "JCA must verify a fallback signature on iteration $iteration",
+            )
+
+            val jcaSignature = signWithJca(keyPair.privateKey, message)
+            assertTrue(
+                randomFallback.verify(keyPair.publicKey, message, jcaSignature),
+                "Fallback must verify a JCA signature on iteration $iteration",
+            )
+        }
+    }
+
     private fun signWithJca(privateKey: ByteArray, message: ByteArray): ByteArray {
         val signer = Signature.getInstance("Ed25519")
         signer.initSign(
