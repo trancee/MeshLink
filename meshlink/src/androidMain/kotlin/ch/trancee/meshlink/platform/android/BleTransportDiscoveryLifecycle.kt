@@ -5,6 +5,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 
@@ -67,6 +68,18 @@ private val RETRYABLE_SCAN_ERROR_CODES =
 private const val MAX_SCAN_RETRY_ATTEMPTS = 3
 private const val SCAN_RETRY_BASE_DELAY_MILLIS = 500L
 
+// Defense-in-depth against BLE stacks that silently stop delivering scan results without ever
+// invoking onScanFailed -- observed in physical-fleet testing as an intermittent, device-specific
+// chipset/firmware scan wedge (see
+// docs/explanation/reference-app-physical-integration-findings.md).
+// If no scan result arrives for SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS while actively scanning,
+// restart
+// scanning alone (not advertising) to attempt a self-heal. The check interval is kept well above
+// Android's undocumented "5 scan restarts per 30s" throttle window so the watchdog itself can't
+// become a source of the very throttling it's meant to work around.
+internal const val SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS = 15_000L
+internal const val SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS = 20_000L
+
 // ScanCallback only hands back a bare Int error code; map it to its symbolic
 // constant name so logs/diagnostics are actionable without needing to cross
 // reference the Android SDK source (e.g. errorCode=1 -> SCAN_FAILED_ALREADY_STARTED).
@@ -102,6 +115,10 @@ internal class BleTransportDiscoveryLifecycle(
         (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit =
         { _, _, _, _ ->
         },
+    private val scheduleScanWatchdogCheck: (delayMillis: Long, check: () -> Unit) -> Unit =
+        { _, _ ->
+        },
+    private val nowMillis: () -> Long = { System.currentTimeMillis() },
 ) {
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
@@ -110,6 +127,28 @@ internal class BleTransportDiscoveryLifecycle(
     private var advertiseRetryAttempt: Int = 0
     private var scanRetryAttempt: Int = 0
     private var isStopped: Boolean = true
+
+    // Timestamp of the most recent onScanResult/onBatchScanResults delivery (or of the last scan
+    // start/restart, used as the baseline immediately after (re)starting). Compared against
+    // nowMillis() by the scan watchdog below to detect a stack that has silently stopped
+    // delivering results.
+    private var lastScanResultAtMillis: Long = 0L
+
+    // Incremented on every refresh()/stop() so stale, already-superseded watchdog check loops
+    // (scheduled by an earlier refresh cycle) recognize they're outdated and stop rescheduling
+    // themselves instead of running alongside a newer loop.
+    private var scanWatchdogGeneration: Int = 0
+
+    // The tier behind the most recently *computed* PowerPolicy, regardless of whether it was ever
+    // actually applied to the hardware (see lastAppliedPowerTier below).
+    private var currentPowerTier: PowerTier = PowerTier.BALANCED
+
+    // The tier that produced the scan/advertise settings currently applied to the hardware, kept
+    // in sync every time refresh() actually restarts scan/advertise (whether triggered by
+    // updatePowerPolicy or by another caller such as the initial startTransport()/setSuspended()
+    // refresh). Used by updatePowerPolicy to skip a redundant restart when the newly-computed tier
+    // already matches what's live -- see updatePowerPolicy for why this matters.
+    private var lastAppliedPowerTier: PowerTier = PowerTier.BALANCED
 
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
         private set
@@ -149,11 +188,13 @@ internal class BleTransportDiscoveryLifecycle(
         object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 scanRetryAttempt = 0
+                lastScanResultAtMillis = nowMillis()
                 handleScanResult(result)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
                 scanRetryAttempt = 0
+                lastScanResultAtMillis = nowMillis()
                 results.forEach(handleScanResult)
             }
 
@@ -173,8 +214,25 @@ internal class BleTransportDiscoveryLifecycle(
         started: Boolean,
         hardware: BleTransportDiscoveryHardware,
     ): Unit {
+        val tierUnchanged =
+            started && !isStopped && !isDiscoverySuspended && policy.tier == lastAppliedPowerTier
+        currentPowerTier = policy.tier
         currentPowerProfile = PowerMonitor.profileFor(policy)
         currentDiscoveryPayload = buildPayload(l2capPsm = currentDiscoveryPayload.l2capPsm)
+        if (tierUnchanged) {
+            // Battery/power-policy observations (e.g. periodic battery-changed broadcasts while
+            // charging) commonly resolve to the same tier repeatedly. Restarting scan+advertise
+            // (stopScan+startScan) on every such no-op update was observed to trip Android's
+            // undocumented BLE "scanning too frequently" throttle (roughly 5 start/stop cycles per
+            // 30s), after which onScanResult silently stops firing for a cooldown window with no
+            // error callback -- see
+            // docs/explanation/reference-app-physical-integration-findings.md.
+            // Skip the restart entirely when nothing about the applied settings would change.
+            log(
+                "updatePowerPolicy skipped restart: tier unchanged tier=${policy.tier} started=$started"
+            )
+            return
+        }
         if (started) {
             refresh(started = true, hardware = hardware)
         }
@@ -200,6 +258,7 @@ internal class BleTransportDiscoveryLifecycle(
         isStopped = true
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
+        scanWatchdogGeneration += 1
         hardware.stopScan(scanCallback)
         hardware.stopAdvertising(advertiseCallback)
     }
@@ -209,6 +268,7 @@ internal class BleTransportDiscoveryLifecycle(
         isStopped = !started
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
+        scanWatchdogGeneration += 1
         log(
             "refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"
         )
@@ -224,8 +284,16 @@ internal class BleTransportDiscoveryLifecycle(
             return
         }
         ensurePermissionsGranted()
+        lastAppliedPowerTier = currentPowerTier
         hardware.startScan(currentPowerProfile, scanCallback)
         log("scan started")
+        lastScanResultAtMillis = nowMillis()
+        val watchdogGeneration = scanWatchdogGeneration
+        if (hardware.hasScanner) {
+            scheduleScanWatchdogCheck(SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS) {
+                runScanWatchdogCheck(watchdogGeneration, hardware)
+            }
+        }
         if (hardware.hasAdvertiser) {
             hardware.startAdvertising(
                 currentPowerProfile,
@@ -238,6 +306,35 @@ internal class BleTransportDiscoveryLifecycle(
         log(
             "advertise requested carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${currentDiscoveryPayload.l2capPsm}"
         )
+    }
+
+    // Self-perpetuating watchdog loop: re-checks every SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS for as
+    // long as this generation is still the current one (i.e. no refresh()/stop() has superseded
+    // it). If no scan result has arrived for SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS, restarts scanning
+    // alone as a best-effort self-heal against a wedged BLE scanner -- see the constant doc comment
+    // above for the observed motivating failure mode.
+    private fun runScanWatchdogCheck(
+        generation: Int,
+        hardware: BleTransportDiscoveryHardware,
+    ): Unit {
+        if (
+            generation != scanWatchdogGeneration ||
+                isStopped ||
+                isDiscoverySuspended ||
+                !hardware.hasScanner
+        ) {
+            return
+        }
+        val idleMillis = nowMillis() - lastScanResultAtMillis
+        if (idleMillis >= SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS) {
+            log("scan watchdog restarting scan after idleMillis=$idleMillis")
+            hardware.stopScan(scanCallback)
+            hardware.startScan(currentPowerProfile, scanCallback)
+            lastScanResultAtMillis = nowMillis()
+        }
+        scheduleScanWatchdogCheck(SCAN_WATCHDOG_CHECK_INTERVAL_MILLIS) {
+            runScanWatchdogCheck(generation, hardware)
+        }
     }
 
     private fun maybeRetryAdvertising(errorCode: Int): Boolean {

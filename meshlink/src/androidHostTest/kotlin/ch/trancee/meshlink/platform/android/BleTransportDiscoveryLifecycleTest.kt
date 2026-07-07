@@ -76,6 +76,56 @@ class BleTransportDiscoveryLifecycleTest {
     }
 
     @Test
+    fun updatePowerPolicySkipsRestartWhenTheResolvedTierIsUnchanged(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+        val startScanCallsAfterFirstUpdate = fixture.startScanCalls
+        val startAdvertisingCallsAfterFirstUpdate = fixture.startAdvertisingCalls
+
+        // Act: a second update resolving to the same tier (e.g. a repeated battery-changed
+        // broadcast that doesn't cross a tier threshold) must not restart scan/advertise.
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+
+        // Assert
+        assertEquals(startScanCallsAfterFirstUpdate, fixture.startScanCalls)
+        assertEquals(startAdvertisingCallsAfterFirstUpdate, fixture.startAdvertisingCalls)
+    }
+
+    @Test
+    fun updatePowerPolicyRestartsWhenTheResolvedTierChanges(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.POWER_SAVER),
+            started = true,
+            hardware = fixture.hardware,
+        )
+        val startScanCallsAfterFirstUpdate = fixture.startScanCalls
+
+        // Act
+        fixture.lifecycle.updatePowerPolicy(
+            policy = powerPolicy(tier = PowerTier.PERFORMANCE),
+            started = true,
+            hardware = fixture.hardware,
+        )
+
+        // Assert
+        assertEquals(startScanCallsAfterFirstUpdate + 1, fixture.startScanCalls)
+        assertEquals(BlePowerMode.PERFORMANCE, fixture.startedAdvertisingPayloads.last().powerMode)
+    }
+
+    @Test
     fun advertiseFailureWithRetryableErrorSchedulesARetryThatRestartsAdvertising(): Unit {
         // Arrange
         val fixture = BleTransportDiscoveryLifecycleFixture()
@@ -370,6 +420,57 @@ class BleTransportDiscoveryLifecycleTest {
         // Assert
         assertFalse(fixture.scanFailedCalls.last().willRetry)
     }
+
+    @Test
+    fun scanWatchdogRestartsScanningWhenNoScanResultArrivesWithinTheIdleThreshold(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        val startScanCallsAfterRefresh = fixture.startScanCalls
+
+        // Act: advance time past the idle threshold without ever delivering a scan result, then
+        // run the scheduled watchdog check.
+        fixture.fakeNowMillis = SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+        fixture.runScheduledWatchdogChecks()
+
+        // Assert
+        assertEquals(startScanCallsAfterRefresh + 1, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanWatchdogDoesNotRestartScanningWhenResultsKeepArriving(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        val startScanCallsAfterRefresh = fixture.startScanCalls
+
+        // Act: a scan result keeps arriving right before each check, resetting the idle clock.
+        fixture.fakeNowMillis = SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS - 1
+        fixture.lifecycle.scanCallback.onBatchScanResults(mutableListOf())
+        fixture.runScheduledWatchdogChecks()
+
+        // Assert
+        assertEquals(startScanCallsAfterRefresh, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanWatchdogStopsReschedulingAfterDiscoveryIsStopped(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.stop(fixture.hardware)
+        val startScanCallsAfterStop = fixture.startScanCalls
+
+        // Act
+        fixture.fakeNowMillis = SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+        fixture.runScheduledWatchdogChecks()
+
+        // Assert: the stale watchdog loop from before stop() must not restart scanning.
+        assertEquals(startScanCallsAfterStop, fixture.startScanCalls)
+    }
 }
 
 private class BleTransportDiscoveryLifecycleFixture {
@@ -385,6 +486,9 @@ private class BleTransportDiscoveryLifecycleFixture {
     val scheduledScanRetryDelaysMillis = mutableListOf<Long>()
     private val pendingScanRetries = mutableListOf<() -> Unit>()
     val scanFailedCalls = mutableListOf<ScanFailedCall>()
+    var fakeNowMillis: Long = 0L
+    val scheduledWatchdogDelaysMillis = mutableListOf<Long>()
+    private val pendingWatchdogChecks = mutableListOf<() -> Unit>()
 
     val hardware =
         BleTransportDiscoveryHardware(
@@ -433,6 +537,11 @@ private class BleTransportDiscoveryLifecycleFixture {
                         attempt = attempt,
                     )
             },
+            scheduleScanWatchdogCheck = { delayMillis, check ->
+                scheduledWatchdogDelaysMillis += delayMillis
+                pendingWatchdogChecks += check
+            },
+            nowMillis = { fakeNowMillis },
         )
 
     fun runScheduledRetries(): Unit {
@@ -445,6 +554,12 @@ private class BleTransportDiscoveryLifecycleFixture {
         val retries = pendingScanRetries.toList()
         pendingScanRetries.clear()
         retries.forEach { it() }
+    }
+
+    fun runScheduledWatchdogChecks(): Unit {
+        val checks = pendingWatchdogChecks.toList()
+        pendingWatchdogChecks.clear()
+        checks.forEach { it() }
     }
 }
 

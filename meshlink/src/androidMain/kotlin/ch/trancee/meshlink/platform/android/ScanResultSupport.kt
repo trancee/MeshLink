@@ -40,7 +40,7 @@ internal fun parseDiscoveryScanResultOrNull(
     deviceAddress: String,
     localMeshHash: UShort,
     localKeyHash: ByteArray,
-    onForeignScanIgnored: () -> Unit = {},
+    onForeignScanIgnored: () -> Int = { 0 },
     log: (String) -> Unit,
 ): DiscoveryScanResult? {
     val payloadUuid =
@@ -52,6 +52,24 @@ internal fun parseDiscoveryScanResultOrNull(
                 log("ignoring scan result without discovery payload addr=$deviceAddress")
                 return null
             }
+    // Cheap pre-check: decode only the meshHash bytes before paying for a full payload parse
+    // (16-byte array allocation + keyHash copy). In a BLE-dense environment the overwhelming
+    // majority of scan results carry a foreign meshHash and are rejected here -- `onScanResult`
+    // is delivered on the main looper with no way to redirect it to a background thread via the
+    // public API, so avoiding this allocation directly reduces main-thread contention with
+    // connection-critical BLE callback delivery (see BleDiscoveryContract.peekMeshHashOrNull).
+    val peekedMeshHash = BleDiscoveryContract.peekMeshHashOrNull(payloadUuid)
+    if (peekedMeshHash != null && peekedMeshHash != localMeshHash) {
+        // See BleTransportAdapterScanSupport's existing sampling of its own per-result logs for
+        // why this rejection path is sampled rather than logged unconditionally.
+        val ignoredCount = onForeignScanIgnored()
+        if (ignoredCount % SCAN_RESULT_LOG_SAMPLE_INTERVAL == 1) {
+            log(
+                "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=$peekedMeshHash foreignIgnoredCount=$ignoredCount"
+            )
+        }
+        return null
+    }
     val payload =
         runCatching { BleDiscoveryPayload.fromUuidString(payloadUuid) }.getOrNull()
             ?: run {
@@ -61,10 +79,15 @@ internal fun parseDiscoveryScanResultOrNull(
                 return null
             }
     if (payload.meshHash != localMeshHash) {
-        onForeignScanIgnored()
-        log(
-            "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash}"
-        )
+        // Reached only when the cheap pre-check above couldn't decode a meshHash (malformed
+        // payload) but the full parse still succeeded and disagrees -- extremely rare, but keep
+        // this as a correctness backstop with the same sampled logging behavior.
+        val ignoredCount = onForeignScanIgnored()
+        if (ignoredCount % SCAN_RESULT_LOG_SAMPLE_INTERVAL == 1) {
+            log(
+                "ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash} foreignIgnoredCount=$ignoredCount"
+            )
+        }
         return null
     }
     if (payload.keyHash.contentEquals(localKeyHash)) {
