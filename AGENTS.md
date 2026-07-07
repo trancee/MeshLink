@@ -16,7 +16,7 @@ do not duplicate its content here; link to it instead.
 - All work MUST occur on feature branches. See
   [Quality Gates](constitution.md#quality-gates). Never commit directly
   to `main`.
-- Always run the `/review` skill before opening a pull request, and
+- Always run the `/review` slash command before opening a pull request, and
   address any genuine issues it surfaces beforehand.
 - Use the `gh` CLI for GitHub-related operations (issues, PRs, repos,
   workflow runs, etc.) instead of raw API calls or other tooling.

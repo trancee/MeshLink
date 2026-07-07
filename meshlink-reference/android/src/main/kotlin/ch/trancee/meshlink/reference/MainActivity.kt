@@ -72,7 +72,7 @@ private fun logAutomationStartupStage(extras: Bundle?): Unit {
     val appId = extras.getString(EXTRA_APP_ID) ?: "unknown"
     val storage = extras.getString(EXTRA_STORAGE) ?: "unknown"
     val targetPeerId = extras.getString(EXTRA_TARGET_PEER_ID)
-    val autoStartMesh = role == "SENDER" || role == "PASSIVE"
+    val autoStartMesh = role == "SENDER" || role == "PASSIVE" || role == "RELAY"
     val autoSendHello = role == "SENDER"
     Log.i(
         "MeshLinkReferenceAutomation",
@@ -179,7 +179,7 @@ public class MainActivity : ComponentActivity() {
         val automationRole = (extras?.getString(EXTRA_ROLE) ?: "unknown").uppercase().replace('-', '_')
         val automationScenario = extras?.getString(EXTRA_SCENARIO) ?: "unknown"
         val automationTargetPeerId = extras?.getString(EXTRA_TARGET_PEER_ID)
-        val autoStartMesh = automationRole == "SENDER" || automationRole == "PASSIVE"
+        val autoStartMesh = automationRole == "SENDER" || automationRole == "PASSIVE" || automationRole == "RELAY"
         val disableAutoSend = extras?.getBoolean(EXTRA_DISABLE_AUTO_SEND, false) == true
         val autoSendHello = automationRole == "SENDER" && !disableAutoSend
 
@@ -246,7 +246,7 @@ public class MainActivity : ComponentActivity() {
         val appId = extras.getString(EXTRA_APP_ID) ?: "unknown"
         val storage = extras.getString(EXTRA_STORAGE) ?: "unknown"
         val targetPeerId = extras.getString(EXTRA_TARGET_PEER_ID)
-        val autoStartMesh = role == "SENDER" || role == "PASSIVE"
+        val autoStartMesh = role == "SENDER" || role == "PASSIVE" || role == "RELAY"
         val disableAutoSend = extras.getBoolean(EXTRA_DISABLE_AUTO_SEND, false)
         val autoSendHello = role == "SENDER" && !disableAutoSend
         Log.i(
