@@ -876,6 +876,18 @@
         "ed25519VerifyUs": 6518.9,
         "chacha20SealUs": 368.6,
         "chacha20OpenUs": 180.2
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1575.984,
+        "x25519AgreementUs": 1528.523,
+        "ed25519KeyGenUs": 845.002,
+        "ed25519SignUs": 857.155,
+        "ed25519VerifyUs": 2744.952,
+        "chacha20SealUs": 60.486,
+        "chacha20OpenUs": 29.508
       }
     ],
     "transport_benchmark_history": [
@@ -952,6 +964,18 @@
         "ed25519VerifyUs": 6460.7,
         "chacha20SealUs": 376.4,
         "chacha20OpenUs": 187.0
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1461.802,
+        "x25519AgreementUs": 1414.084,
+        "ed25519KeyGenUs": 764.468,
+        "ed25519SignUs": 825.115,
+        "ed25519VerifyUs": 2619.74,
+        "chacha20SealUs": 128.564,
+        "chacha20OpenUs": 37.62
       }
     ],
     "transport_benchmark_history": [
@@ -1009,6 +1033,18 @@
         "ed25519VerifyUs": 13608.4,
         "chacha20SealUs": 552.7,
         "chacha20OpenUs": 267.7
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 2985.998,
+        "x25519AgreementUs": 2990.495,
+        "ed25519KeyGenUs": 1678.168,
+        "ed25519SignUs": 1638.983,
+        "ed25519VerifyUs": 5388.916,
+        "chacha20SealUs": 115.737,
+        "chacha20OpenUs": 49.393
       }
     ],
     "transport_benchmark_history": [
@@ -1066,6 +1102,18 @@
         "ed25519VerifyUs": 129990.0,
         "chacha20SealUs": 1266.4,
         "chacha20OpenUs": 870.4
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 17420.965,
+        "x25519AgreementUs": 17304.022,
+        "ed25519KeyGenUs": 15396.202,
+        "ed25519SignUs": 15467.887,
+        "ed25519VerifyUs": 52759.44,
+        "chacha20SealUs": 288.905,
+        "chacha20OpenUs": 102.502
       }
     ],
     "transport_benchmark_history": [
