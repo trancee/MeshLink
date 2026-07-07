@@ -55,6 +55,7 @@ Rows not listed above are retained as regression-tracked evidence only.
 | Android LOW-power 256 B delivery | 411 ms (Samsung -> OPPO) | Meets the LOW-mode delivery target |
 | Android 256 B latency | Physical benchmark pass (<= 50 ms) | Meets the latency target |
 | Android 64 KiB throughput | 1306.12 KB/s (OPPO -> Samsung) | Meets the Android throughput target |
+| Android receipt reliability, Samsung <-> OPPO fleet series | 0/6 -> 4/6 -> 6/10 confirmed after 3 committed fixes | Two real code bugs fixed (scan-result log flooding, redundant power-tier restarts triggering Android's BLE scan throttle); a residual device-specific BLE scan wedge on one test unit is mitigated by a self-healing scan watchdog but not fully eliminated by app code alone -- see [benchmark history](history.md) for the full root-cause trail |
 | iOS cold start | 18 ms (iPhone 15) | Meets the cold-start target |
 | iOS LOW-power scan duty | 5% (iPhone 15) | Meets the LOW-mode duty target |
 | iOS LOW-power 256 B delivery | 239 ms (iPhone 15 -> OPPO) | Meets the LOW-mode delivery target |
