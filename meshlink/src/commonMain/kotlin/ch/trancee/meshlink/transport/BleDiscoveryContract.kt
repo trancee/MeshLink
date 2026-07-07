@@ -198,6 +198,42 @@ internal object BleDiscoveryContract {
         }
     }
 
+    /**
+     * Decodes only the two meshHash bytes from a discovery payload UUID string, without allocating
+     * the full 16-byte payload array or [BleDiscoveryPayload] instance.
+     *
+     * In a BLE-dense environment the overwhelming majority of scan results carry a foreign meshHash
+     * and are rejected immediately by the caller. Fully decoding+allocating a [BleDiscoveryPayload]
+     * (16-byte array, keyHash copy) for every one of those rejections is unnecessary main-thread
+     * work -- `ScanCallback.onScanResult` is delivered on the main looper with no way to redirect
+     * it to a background thread via the public API, so every avoidable allocation here directly
+     * competes with connection-critical BLE callback delivery. Returns null when the string isn't a
+     * well-formed payload UUID so the caller can fall back to the full parse (and its existing
+     * "invalid encoding" diagnostics) unchanged.
+     */
+    internal fun peekMeshHashOrNull(uuid: String): UShort? {
+        val normalized = uuid.replace("-", "")
+        if (normalized.length != UUID_HEX_LENGTH) return null
+        return runCatching {
+                val low =
+                    normalized
+                        .substring(
+                            MESH_HASH_LOW_BYTE_INDEX * HEX_BYTE_LENGTH,
+                            MESH_HASH_LOW_BYTE_INDEX * HEX_BYTE_LENGTH + HEX_BYTE_LENGTH,
+                        )
+                        .toInt(HEX_RADIX)
+                val high =
+                    normalized
+                        .substring(
+                            MESH_HASH_HIGH_BYTE_INDEX * HEX_BYTE_LENGTH,
+                            MESH_HASH_HIGH_BYTE_INDEX * HEX_BYTE_LENGTH + HEX_BYTE_LENGTH,
+                        )
+                        .toInt(HEX_RADIX)
+                (((high and BYTE_MASK) shl BITS_PER_BYTE) or (low and BYTE_MASK)).toUShort()
+            }
+            .getOrNull()
+    }
+
     private fun fnv1a32(bytes: ByteArray): Int {
         var hash = FNV_OFFSET_BASIS.toInt()
         bytes.forEach { byte ->

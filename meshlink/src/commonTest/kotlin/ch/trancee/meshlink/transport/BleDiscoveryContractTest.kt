@@ -209,6 +209,35 @@ class BleDiscoveryContractTest {
     }
 
     @Test
+    fun `peek mesh hash matches the full payload decode for valid payloads`() {
+        // Arrange
+        val payload =
+            BleDiscoveryPayload(
+                protocolVersion = BleDiscoveryContract.CURRENT_PROTOCOL_VERSION,
+                powerMode = BlePowerMode.BALANCED,
+                meshHash = BleDiscoveryContract.computeMeshHash("demo.meshlink.peek"),
+                l2capPsm = 192u,
+                keyHash = ByteArray(size = 12) { index -> index.toByte() },
+                platformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+
+        // Act
+        val peeked = BleDiscoveryContract.peekMeshHashOrNull(payload.payloadUuidString())
+
+        // Assert
+        assertEquals(payload.meshHash, peeked)
+    }
+
+    @Test
+    fun `peek mesh hash returns null for malformed UUID strings`() {
+        // Arrange / Act
+        val peeked = BleDiscoveryContract.peekMeshHashOrNull("4d455348")
+
+        // Assert
+        assertEquals(null, peeked)
+    }
+
+    @Test
     fun `platform family bits round trip through encoding`() {
         // Arrange
         val payload =
