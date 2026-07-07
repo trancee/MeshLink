@@ -24,6 +24,17 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
             }
         }
 
+    /**
+     * Precomputed radix-16 comb table for the fixed base point: `baseCombTable[block][digit]` =
+     * `digit * 16^block * B`. Built once (lazily, on first use) so every subsequent fixed-base
+     * scalar multiplication (key generation, signing, and half of verification) needs only 64 point
+     * additions and zero point doublings, instead of 256 doublings + 256 additions for a generic
+     * double-and-add ladder. This is the single biggest cost driver in the fallback
+     * signer/verifier, so trading ~64 * 15 precomputed points (~0.5 MB, built once per process) for
+     * that speedup is a deliberate priority-over-footprint tradeoff.
+     */
+    private val baseCombTable: Array<Array<Point>> by lazy { buildBaseCombTable() }
+
     internal fun generateKeyPair(): Ed25519KeyPair {
         val privateKey =
             requireSized(
@@ -92,8 +103,11 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
             reduceScalar(
                 sha512(signature.copyOfRange(0, PUBLIC_KEY_SIZE_BYTES), publicKey, message)
             )
+        // The challenge and public key are both public (part of the signature/identity), so this
+        // multiplication does not need to be constant-time; a plain windowed method is used
+        // instead of the constant-time comb selection that fixed-base multiplication requires.
         val leftSide = Point()
-        scalarMultiply(leftSide, publicPoint, reducedChallenge)
+        windowedScalarMultiplyPublic(leftSide, publicPoint, reducedChallenge)
 
         val rightSide = Point()
         scalarBase(rightSide, scalarComponent)
@@ -149,27 +163,122 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         return digest.digest()
     }
 
+    /**
+     * Fixed-base scalar multiplication using the precomputed radix-16 comb table. Runs in constant
+     * time with respect to `scalar` (via masked table selection) because this is used for both
+     * secret scalars (nonce, private key during key generation/signing) and public ones
+     * (verification); the selection cost is negligible compared to the field multiplications it
+     * replaces, so there is no reason to special-case the public callers.
+     */
     private fun scalarBase(output: Point, scalar: ByteArray): Unit {
-        val base = Point()
-        copyField(base.x, BASE_X)
-        copyField(base.y, BASE_Y)
-        copyField(base.z, FIELD_ONE)
-        multiply(base.t, BASE_X, BASE_Y, LongArray(MULTIPLICATION_SCRATCH_SIZE))
-        scalarMultiply(output, base, scalar)
+        require(scalar.size >= SCALAR_SIZE_BYTES) { "Ed25519 scalar must be at least 32 bytes" }
+        setIdentity(output)
+        val scratch = PointScratch()
+        val selected = Point()
+        for (block in 0 until COMB_BLOCK_COUNT) {
+            selectPoint(selected, baseCombTable[block], nibbleAt(scalar, block))
+            add(output, selected, scratch)
+        }
     }
 
-    private fun scalarMultiply(output: Point, point: Point, scalar: ByteArray): Unit {
+    /**
+     * Variable-base windowed scalar multiplication (radix-16, MSB-first). Both `point` and `scalar`
+     * are public values at every call site (signature verification only), so this intentionally
+     * branches on scalar digits instead of using constant-time selection, trading side-channel
+     * resistance we don't need here for fewer point operations.
+     */
+    private fun windowedScalarMultiplyPublic(output: Point, point: Point, scalar: ByteArray): Unit {
         require(scalar.size >= SCALAR_SIZE_BYTES) { "Ed25519 scalar must be at least 32 bytes" }
 
-        val workingPoint = point.copy()
-        val scratch = PointScratch()
+        val addScratch = PointScratch()
+        val table = arrayOfNulls<Point>(COMB_DIGIT_COUNT)
+        table[1] = point.copy()
+        for (digit in 2 until COMB_DIGIT_COUNT) {
+            val next = table[digit - 1]!!.copy()
+            add(next, point, addScratch)
+            table[digit] = next
+        }
+
         setIdentity(output)
-        for (bitIndex in 255 downTo 0) {
-            val bit = (scalar[bitIndex ushr 3].toInt() ushr (bitIndex and 7)) and 1
-            conditionalSwap(output, workingPoint, bit)
-            add(workingPoint, output, scratch)
-            double(output, scratch)
-            conditionalSwap(output, workingPoint, bit)
+        val dblScratch = PointScratch()
+        for (block in COMB_BLOCK_COUNT - 1 downTo 0) {
+            repeat(WINDOW_BITS) { double(output, dblScratch) }
+            val digit = nibbleAt(scalar, block)
+            if (digit != 0) {
+                add(output, table[digit]!!, addScratch)
+            }
+        }
+    }
+
+    /** Extracts the 4-bit digit covering bits `[4 * block, 4 * block + 3]` of `scalar`. */
+    private fun nibbleAt(scalar: ByteArray, block: Int): Int {
+        val byteValue = scalar[block ushr 1].toInt()
+        return if (block and 1 == 0) byteValue and 0x0F else (byteValue ushr 4) and 0x0F
+    }
+
+    /**
+     * Builds the fixed-base comb table: `table[block][digit]` = `digit * 16^block * B`, for `block`
+     * in `0 until 64` and `digit` in `1 until 16` (digit 0 is never stored; selection treats it as
+     * the identity). This runs once per process (see `baseCombTable`).
+     */
+    private fun buildBaseCombTable(): Array<Array<Point>> {
+        val base =
+            Point().also { point ->
+                copyField(point.x, BASE_X)
+                copyField(point.y, BASE_Y)
+                copyField(point.z, FIELD_ONE)
+                multiply(point.t, BASE_X, BASE_Y, LongArray(MULTIPLICATION_SCRATCH_SIZE))
+            }
+
+        var blockBase = base
+        return Array(COMB_BLOCK_COUNT) { block ->
+            val addScratch = PointScratch()
+            val row = arrayOfNulls<Point>(COMB_DIGIT_COUNT)
+            row[1] = blockBase
+            for (digit in 2 until COMB_DIGIT_COUNT) {
+                val next = row[digit - 1]!!.copy()
+                add(next, blockBase, addScratch)
+                row[digit] = next
+            }
+
+            if (block != COMB_BLOCK_COUNT - 1) {
+                val nextBlockBase = blockBase.copy()
+                val dblScratch = PointScratch()
+                repeat(WINDOW_BITS) { double(nextBlockBase, dblScratch) }
+                blockBase = nextBlockBase
+            }
+
+            @Suppress("UNCHECKED_CAST") (row as Array<Point>)
+        }
+    }
+
+    /**
+     * Constant-time selection of `candidates[digit]` into `output`, where `digit` is in `0 until
+     * 16` and `candidates[0]` is implicitly the identity point (not stored). Scans every candidate
+     * and masks in the match so execution time and memory access pattern do not depend on `digit`.
+     */
+    private fun selectPoint(output: Point, candidates: Array<Point>, digit: Int): Unit {
+        setIdentity(output)
+        for (index in 1 until COMB_DIGIT_COUNT) {
+            val mask = maskEquals(digit, index)
+            conditionalCopy(output.x, candidates[index].x, mask)
+            conditionalCopy(output.y, candidates[index].y, mask)
+            conditionalCopy(output.z, candidates[index].z, mask)
+            conditionalCopy(output.t, candidates[index].t, mask)
+        }
+    }
+
+    /** Returns an all-ones mask when `value == target`, otherwise an all-zeros mask. */
+    private fun maskEquals(value: Int, target: Int): Long {
+        val diff = value xor target
+        // `diff` is in [0, 15], so `diff - 1` is -1 (all bits set) exactly when diff == 0, and a
+        // small non-negative number otherwise; sign-extending shift turns that into 0.
+        return ((diff - 1) shr 31).toLong()
+    }
+
+    private fun conditionalCopy(destination: LongArray, source: LongArray, mask: Long): Unit {
+        for (index in 0 until FIELD_ELEMENT_SIZE) {
+            destination[index] = (destination[index] and mask.inv()) or (source[index] and mask)
         }
     }
 
@@ -225,13 +334,6 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         multiply(point.y, scratch.g, scratch.h, scratch.temp)
         multiply(point.t, scratch.e, scratch.h, scratch.temp)
         multiply(point.z, scratch.f, scratch.g, scratch.temp)
-    }
-
-    private fun conditionalSwap(first: Point, second: Point, bit: Int): Unit {
-        select(first.x, second.x, bit)
-        select(first.y, second.y, bit)
-        select(first.z, second.z, bit)
-        select(first.t, second.t, bit)
     }
 
     private fun pack(output: ByteArray, point: Point): Unit {
@@ -572,6 +674,15 @@ internal class Ed25519Fallback(private val randomBytesProvider: (Int) -> ByteArr
         private const val PUBLIC_KEY_SIZE_BYTES: Int = 32
         private const val SCALAR_SIZE_BYTES: Int = 32
         private const val SIGNATURE_SIZE_BYTES: Int = 64
+
+        /** Window width (bits) for the radix-16 comb/windowed scalar multiplications. */
+        private const val WINDOW_BITS: Int = 4
+
+        /** Number of 4-bit windows covering a 256-bit scalar (32 bytes * 2 nibbles/byte). */
+        private const val COMB_BLOCK_COUNT: Int = 64
+
+        /** Number of representable digit values per window (0 until 16, digit 0 is implicit). */
+        private const val COMB_DIGIT_COUNT: Int = 16
 
         private val FIELD_ZERO =
             longArrayOf(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L)
