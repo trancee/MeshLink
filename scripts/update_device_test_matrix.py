@@ -429,7 +429,8 @@ def render_markdown(rows: list[dict]) -> str:
         "(`--mode crypto` and `--mode transport`), recorded per device so performance and",
         "throughput regressions can be spotted across fleet passes. Entries are appended, not",
         "replaced, on every real fleet run. Timings are per-operation averages over the",
-        "iteration count shown; a lower time is better.",
+        "iteration count shown; a lower time is better. Devices are sorted alphabetically by",
+        "name within each table.",
         "",
         "### Crypto benchmarks",
         "",
@@ -453,7 +454,8 @@ def render_markdown(rows: list[dict]) -> str:
         "the same fleet history.",
         "",
     ]
-    crypto_entries = [(row, entry) for row in rows for entry in row.get("crypto_benchmark_history", [])]
+    benchmark_rows = sorted(rows, key=lambda r: (r["device"].lower(), r["model"].lower()))
+    crypto_entries = [(row, entry) for row in benchmark_rows for entry in row.get("crypto_benchmark_history", [])]
     if not crypto_entries:
         lines.append("_No fleet crypto benchmark results recorded yet._")
     else:
@@ -480,7 +482,7 @@ def render_markdown(rows: list[dict]) -> str:
         "same device are left blank to show they belong to the same fleet history.",
         "",
     ]
-    transport_entries = [(row, entry) for row in rows for entry in row.get("transport_benchmark_history", [])]
+    transport_entries = [(row, entry) for row in benchmark_rows for entry in row.get("transport_benchmark_history", [])]
     if not transport_entries:
         lines.append("_No fleet transport benchmark results recorded yet._")
     else:
