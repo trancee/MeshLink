@@ -224,6 +224,18 @@
         "ed25519VerifyUs": 125.0,
         "chacha20SealUs": 56.2,
         "chacha20OpenUs": 56.2
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 79.7,
+        "x25519AgreementUs": 161.9,
+        "ed25519KeyGenUs": 134.5,
+        "ed25519SignUs": 147.4,
+        "ed25519VerifyUs": 132.0,
+        "chacha20SealUs": 55.0,
+        "chacha20OpenUs": 55.0
       }
     ],
     "transport_benchmark_history": [
@@ -283,6 +295,18 @@
         "ed25519VerifyUs": 3899.1,
         "chacha20SealUs": 32.2,
         "chacha20OpenUs": 32.6
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 76.5,
+        "x25519AgreementUs": 154.1,
+        "ed25519KeyGenUs": 836.6,
+        "ed25519SignUs": 694.8,
+        "ed25519VerifyUs": 1901.2,
+        "chacha20SealUs": 52.0,
+        "chacha20OpenUs": 53.7
       }
     ],
     "transport_benchmark_history": [
@@ -360,6 +384,18 @@
         "ed25519VerifyUs": 5216.5,
         "chacha20SealUs": 26.8,
         "chacha20OpenUs": 27.5
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 74.2,
+        "x25519AgreementUs": 153.2,
+        "ed25519KeyGenUs": 1124.6,
+        "ed25519SignUs": 958.3,
+        "ed25519VerifyUs": 2446.3,
+        "chacha20SealUs": 25.9,
+        "chacha20OpenUs": 26.7
       }
     ],
     "transport_benchmark_history": [
@@ -419,6 +455,18 @@
         "ed25519VerifyUs": 7297.3,
         "chacha20SealUs": 24.8,
         "chacha20OpenUs": 18.5
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 165.5,
+        "x25519AgreementUs": 395.3,
+        "ed25519KeyGenUs": 1501.6,
+        "ed25519SignUs": 1247.7,
+        "ed25519VerifyUs": 3403.8,
+        "chacha20SealUs": 19.8,
+        "chacha20OpenUs": 19.4
       }
     ],
     "transport_benchmark_history": [
@@ -450,31 +498,6 @@
         "receiptConfirmed": false
       }
     ]
-  },
-  {
-    "device": "Nokia X20",
-    "brand": "Nokia",
-    "model": "Nokia X20",
-    "android_sdk": "Android 14 / SDK 34",
-    "memory": "4 GB",
-    "storage": "128 GB",
-    "screen": "6.67\" (1080x2400 @ 400 dpi)",
-    "chipset_name": "Snapdragon 480 5G",
-    "chipset_model": "SM4350",
-    "bluetooth": "5.0",
-    "crypto": [
-      "AES-GCM",
-      "ChaCha20-Poly1305",
-      "SHA-256",
-      "HMAC-SHA256",
-      "RSA",
-      "ECDSA",
-      "X25519/XDH"
-    ],
-    "build": "00WW_4_250",
-    "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/b4555615",
-    "quirks": "Doze-sensitive discovery; keep the screen awake."
   },
   {
     "device": "OPPO Reno6 5G",
@@ -538,6 +561,18 @@
         "ed25519VerifyUs": 4906.7,
         "chacha20SealUs": 33.4,
         "chacha20OpenUs": 28.3
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 70.5,
+        "x25519AgreementUs": 181.0,
+        "ed25519KeyGenUs": 1069.6,
+        "ed25519SignUs": 927.5,
+        "ed25519VerifyUs": 2313.4,
+        "chacha20SealUs": 29.8,
+        "chacha20OpenUs": 26.6
       }
     ],
     "transport_benchmark_history": [
@@ -606,6 +641,18 @@
         "ed25519VerifyUs": 22250.2,
         "chacha20SealUs": 281.1,
         "chacha20OpenUs": 278.4
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 280.4,
+        "x25519AgreementUs": 427.4,
+        "ed25519KeyGenUs": 6101.7,
+        "ed25519SignUs": 4340.5,
+        "ed25519VerifyUs": 10390.2,
+        "chacha20SealUs": 277.4,
+        "chacha20OpenUs": 275.6
       }
     ],
     "transport_benchmark_history": [
@@ -734,6 +781,18 @@
         "ed25519VerifyUs": 3899.9,
         "chacha20SealUs": 52.6,
         "chacha20OpenUs": 51.9
+      },
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 65.5,
+        "x25519AgreementUs": 100.6,
+        "ed25519KeyGenUs": 595.4,
+        "ed25519SignUs": 562.3,
+        "ed25519VerifyUs": 1648.8,
+        "chacha20SealUs": 52.6,
+        "chacha20OpenUs": 51.6
       }
     ],
     "transport_benchmark_history": [
@@ -756,31 +815,6 @@
         "receiptConfirmed": false
       }
     ]
-  },
-  {
-    "device": "OnePlus 7T",
-    "brand": "OnePlus",
-    "model": "HD1901",
-    "android_sdk": "Android 12 / SDK 31",
-    "memory": "6 GB",
-    "storage": "64 GB",
-    "screen": "6.55\" (1080x2400 @ 450 dpi)",
-    "chipset_name": "Snapdragon 855+",
-    "chipset_model": "SM8150",
-    "bluetooth": "5.0",
-    "crypto": [
-      "AES-GCM",
-      "ChaCha20-Poly1305",
-      "SHA-256",
-      "HMAC-SHA256",
-      "RSA",
-      "ECDSA",
-      "X25519/XDH"
-    ],
-    "build": "HD1901_11_F.22",
-    "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f",
-    "quirks": "—"
   },
   {
     "device": "OnePlus 7T",
@@ -1088,7 +1122,35 @@
     "screen": "6.5\" (720x1600 @ 320 dpi)",
     "chipset_name": "Snapdragon 460",
     "chipset_model": "SM4250",
-    "ds_url": "https://www.devicespecifications.com/en/model/8469421f"
+    "ds_url": "https://www.devicespecifications.com/en/model/8469421f",
+    "bluetooth": "5.0",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH"
+    ],
+    "build": "CPH2135_11_F.31",
+    "gsma_url": "https://www.gsmarena.com/oppo_a53s-10502.php",
+    "quirks": "—",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-07",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 290.2,
+        "x25519AgreementUs": 835.3,
+        "ed25519KeyGenUs": 3585.3,
+        "ed25519SignUs": 3064.4,
+        "ed25519VerifyUs": 7745.4,
+        "chacha20SealUs": 194.8,
+        "chacha20OpenUs": 194.7
+      }
+    ],
+    "transport_benchmark_history": []
   },
   {
     "device": "Samsung Galaxy S10e",
@@ -1110,9 +1172,9 @@
       "ECDSA",
       "X25519/XDH"
     ],
-    "build": "CPH2135_11_F.31",
-    "gsma_url": "https://www.gsmarena.com/oppo_a53s-10502.php",
-    "ds_url": null,
+    "build": "SP1A.210812.016.G970U1UEU9IXE1",
+    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_s10e-9537.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/9a864f39",
     "quirks": "Not yet fleet-verified; added from live single-device probe and spec lookup.",
     "crypto_benchmark_history": [
       {
@@ -1165,10 +1227,7 @@
         "throughputKBps": null,
         "receiptConfirmed": false
       }
-    ],
-    "build": "SP1A.210812.016.G970U1UEU9IXE1",
-    "gsma_url": "https://www.gsmarena.com/samsung_galaxy_s10e-9537.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/9a864f39"
+    ]
   },
   {
     "device": "OnePlus Nord CE5 5G",
