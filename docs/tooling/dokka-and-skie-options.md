@@ -16,7 +16,7 @@ The repository now uses the tools in these scopes:
 
 They are intentionally **not** applied to:
 
-- `:benchmarks`
+- `:meshlink-benchmark`
 - `:meshlink-proof:android`
 
 A root convenience task now generates the useful Dokka outputs together:
@@ -56,9 +56,9 @@ entry points directly. Applying SKIE to `:meshlink-reference` removes needless
 Swift-side `*Kt` calls and keeps the host app on the same modern Swift-facing
 surface style already used for `:meshlink`.
 
-### Why not `:benchmarks`
+### Why not `:meshlink-benchmark`
 
-`:benchmarks` is an internal measurement harness rather than a reusable
+`:meshlink-benchmark` is an internal measurement harness rather than a reusable
 library surface. It has no meaningful consumer API to browse, and generated
 reference docs would mostly add noise.
 

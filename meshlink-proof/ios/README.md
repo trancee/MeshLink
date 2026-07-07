@@ -23,7 +23,7 @@ Use it when you need:
 |---|---|
 | evaluate the supported product-like Android and iOS experience | [the reference app guide](../../docs/how-to/evaluate-meshlink-with-the-reference-app.md) |
 | run an iPhone physical proof peer or proof fixture | this guide |
-| inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
+| inspect retained throughput, latency, or cold-start posture | [Benchmark and validation baselines](../../meshlink-benchmark/README.md) |
 
 ## Prerequisites
 
@@ -150,7 +150,7 @@ For retained cross-platform runs, use the repository runner instead of a manual
 
 ```bash
 DEVELOPMENT_TEAM=<your-team-id> \
-  benchmarks/scripts/run_headless_meshlink_benchmark.py \
+  meshlink-benchmark/scripts/run_headless_meshlink_benchmark.py \
   --android-serial <android-serial> \
   --ios-device <your-device-udid> \
   --payload-bytes 65536
@@ -168,7 +168,7 @@ The runner:
 Example retained repeat series:
 
 ```bash
-benchmarks/scripts/run_headless_meshlink_benchmark.py \
+meshlink-benchmark/scripts/run_headless_meshlink_benchmark.py \
   --android-serial <android-serial> \
   --ios-device <your-device-udid> \
   --payload-bytes 65536 \
@@ -221,5 +221,5 @@ For retained evidence and release posture, use:
 - [MeshLink documentation map](../../docs/README.md)
 - [About proof validation surfaces](../../docs/explanation/about-proof-validation-surfaces.md)
 - [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md)
-- [Benchmark and validation baselines](../../benchmarks/README.md)
+- [Benchmark and validation baselines](../../meshlink-benchmark/README.md)
 - [Release decision](../../specs/ble-mesh-sdk/release-decision.md)

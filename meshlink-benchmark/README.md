@@ -87,10 +87,55 @@ current-head conformance evidence.
   transport posture evolved, but it no longer belongs on the critical reading
   path for the current state.
 
+## Physical device scripts
+
+- `scripts/run_headless_meshlink_benchmark.py` drives exactly one Android peer
+  (as sender or receiver via `adb`) against exactly one iOS peer (via
+  `xcrun devicectl`), for cross-platform BLE throughput/latency evidence.
+  Requires a macOS host with Xcode.
+- `scripts/run_fleet_meshlink_benchmark.py` is Android-only and needs no
+  Xcode/iOS device. It auto-discovers every currently attached `adb` device,
+  dedupes duplicate transports (USB/Wi-Fi/mDNS) for the same physical phone by
+  hardware serial, and cross-references friendly device names against
+  `docs/reference/device-test-matrix.md`. It supports two independent modes
+  via `--mode`:
+  - `transport` (default): pairs devices (`--pairing ring` by default, or
+    `all-pairs`) using the existing MeshLink proof app's
+    `forceInitiator`/`disableAutoSend`/`benchmarkPayloadBytes` launch extras
+    so one device sends a benchmark payload while its partner passively
+    receives and confirms receipt. Requires `--payload-bytes`.
+  - `crypto`: times X25519 key generation/agreement, Ed25519 key
+    generation/sign/verify, and ChaCha20-Poly1305 seal/open on each device
+    individually (no pairing needed) via the
+    `CryptoRuntimePerformanceDeviceTest` instrumented test in the `meshlink`
+    module, so crypto performance can be compared across the fleet's very
+    different chipsets (e.g. hardware-accelerated `JcaCryptoProvider` vs. the
+    pure-Kotlin `Ed25519FallbackCryptoProvider` on older/lower-end devices).
+  - Defaults to a dry run that only prints discovery and the planned
+    pairing/device list; pass `--execute` to actually launch the app / run the
+    instrumented test and drive real BLE traffic or on-device crypto ops.
+  - Narrow scope to specific hardware with `--serials <serial1>,<serial2>,...`
+    instead of running against every attached device.
+  - `transport` mode captures each run's logcat, `proof.log`, and metadata
+    under `meshlink-benchmark/fleet-results/runs/<batch>/<pair>/`; results are
+    appended to `meshlink-benchmark/fleet-results/ledger.jsonl` (JSON Lines,
+    one record per run) and summarized in
+    `meshlink-benchmark/fleet-results/latest-summary.md`.
+  - `crypto` mode captures each device's logcat and Gradle output under
+    `meshlink-benchmark/fleet-results/crypto-runs/<batch>/<device>/`; results
+    are appended to `meshlink-benchmark/fleet-results/crypto-ledger.jsonl` and
+    summarized in `meshlink-benchmark/fleet-results/crypto-latest-summary.md`.
+  - `meshlink-benchmark/fleet-results/` is gitignored (regenerated evidence,
+    not source), so treat the JSONL ledgers as local/CI artifacts, not part of
+    the committed history.
+  - Examples:
+    `python3 meshlink-benchmark/scripts/run_fleet_meshlink_benchmark.py --payload-bytes 65536 --execute`
+    `python3 meshlink-benchmark/scripts/run_fleet_meshlink_benchmark.py --mode crypto --execute`
+
 ## Refresh commands
 
-- JVM benchmarks: `./gradlew :benchmarks:jvmBenchmark`
+- JVM benchmarks: `./gradlew :meshlink-benchmark:jvmBenchmark`
 - Verified JVM smoke baselines: `./gradlew verifyJvmSmokeBenchmarks`
-- Raw JVM smoke benchmark task: `./gradlew :benchmarks:jvmSmokeBenchmark`
+- Raw JVM smoke benchmark task: `./gradlew :meshlink-benchmark:jvmSmokeBenchmark`
 - Android proof benchmarks: run the instrumented proof benchmarks against physical peers
 - iOS proof benchmarks: run the XCTest proof benchmarks plus a physical peer-backed proof-app run

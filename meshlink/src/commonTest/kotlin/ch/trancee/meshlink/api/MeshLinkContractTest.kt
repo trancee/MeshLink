@@ -154,7 +154,6 @@ class MeshLinkContractTest {
             assertEquals(MeshLinkState.Stopped, iosMeshLink.state.value)
         }
 
-
     @Test
     fun `creating meshengine stays uninitialized without touching transport or diagnostics`() {
         // Arrange

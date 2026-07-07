@@ -133,7 +133,9 @@ internal class MeshEngineSessionSupport(
                     runtimeGate = state.runtimeGate,
                     hardRunToken = hardRunToken,
                     maximumActiveWait = timeout,
-                    awaitChange = { activeWait -> withTimeoutOrNull(activeWait) { deferred.await() } },
+                    awaitChange = { activeWait ->
+                        withTimeoutOrNull(activeWait) { deferred.await() }
+                    },
                 )
         ) {
             is MeshEngineRuntimeTimedWaitResult.Completed -> waitResult.value
@@ -450,30 +452,31 @@ private val HANDSHAKE_MESSAGE1_RETRY_DELAY = 100.milliseconds
 /**
  * How long the deferring side of a peer pair (see [shouldInitiateHandshakeTowards]) waits, in the
  * fast phase (see [MeshEngineSessionSupport.awaitResponderSessionAdaptively]), before checking
- * whether a responder handshake is actually in flight. Kept short so a peer that never
- * proactively initiates on its own (nothing will ever complete the waiter) falls back to
- * self-initiating quickly rather than always paying the full [DEFER_TO_PEER_INITIATOR_WAIT].
+ * whether a responder handshake is actually in flight. Kept short so a peer that never proactively
+ * initiates on its own (nothing will ever complete the waiter) falls back to self-initiating
+ * quickly rather than always paying the full [DEFER_TO_PEER_INITIATOR_WAIT].
  */
 private val DEFER_TO_PEER_INITIATOR_FAST_WAIT = 250.milliseconds
 
 /**
  * Total ceiling on how long the deferring side of a peer pair (see
  * [shouldInitiateHandshakeTowards]) waits for the peer's own handshake to complete as responder
- * before falling back to initiating itself -- but only once a responder handshake for that peer
- * is confirmed to actually be in flight (see [MeshEngineSessionSupport.awaitResponderSessionAdaptively]).
+ * before falling back to initiating itself -- but only once a responder handshake for that peer is
+ * confirmed to actually be in flight (see
+ * [MeshEngineSessionSupport.awaitResponderSessionAdaptively]).
  *
  * Widened from 250ms -> 5s: on physical BLE hardware a full Noise-XX handshake as responder
- * (message1 receipt -> message2 send -> message3 receipt, including GATT side-link setup) has
- * been observed to take ~2s end to end. The previous flat 250ms window was far shorter than that,
- * so the deferring side reliably gave up before an in-flight handshake it was waiting on had a
- * chance to finish, and initiated a redundant, competing handshake of its own -- producing a
- * stray `HOP_SESSION_FAILED` (message2.unexpected, then transport.handshake.timeout) even though
- * the original handshake succeeded and the session/route were already healthy. 5s gives a
- * genuinely in-flight responder handshake realistic headroom to complete, while staying below
+ * (message1 receipt -> message2 send -> message3 receipt, including GATT side-link setup) has been
+ * observed to take ~2s end to end. The previous flat 250ms window was far shorter than that, so the
+ * deferring side reliably gave up before an in-flight handshake it was waiting on had a chance to
+ * finish, and initiated a redundant, competing handshake of its own -- producing a stray
+ * `HOP_SESSION_FAILED` (message2.unexpected, then transport.handshake.timeout) even though the
+ * original handshake succeeded and the session/route were already healthy. 5s gives a genuinely
+ * in-flight responder handshake realistic headroom to complete, while staying below
  * [HANDSHAKE_TIMEOUT] so a peer whose responder handshake stalls still falls back to initiating
- * with time left to retry before the caller gives up entirely. The adaptive fast-phase check
- * above ensures this longer ceiling is only ever paid when there's actually something in flight
- * to wait for.
+ * with time left to retry before the caller gives up entirely. The adaptive fast-phase check above
+ * ensures this longer ceiling is only ever paid when there's actually something in flight to wait
+ * for.
  */
 private val DEFER_TO_PEER_INITIATOR_WAIT = 5.seconds
 

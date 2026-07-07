@@ -232,7 +232,7 @@ Use these documents when you need more detail:
 - [About the repository architecture](docs/explanation/about-the-repository-architecture.md)
 - [MeshLink Constitution](constitution.md)
 - [MeshLink documentation map](docs/README.md)
-- [Benchmark and validation baselines](benchmarks/README.md)
+- [Benchmark and validation baselines](meshlink-benchmark/README.md)
 - [Release runbook](RELEASING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)

@@ -22,7 +22,42 @@
     ],
     "build": "B4.1-260414-1749",
     "gsma_url": "https://www.gsmarena.com/nothing_phone_(2)-12386.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/953d5d33"
+    "ds_url": "https://www.devicespecifications.com/en/model/953d5d33",
+    "quirks": "Stable baseline; confirmed send.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 71.2,
+        "x25519AgreementUs": 136.9,
+        "ed25519KeyGenUs": 71.7,
+        "ed25519SignUs": 121.6,
+        "ed25519VerifyUs": 77.1,
+        "chacha20SealUs": 12.8,
+        "chacha20OpenUs": 12.7
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Huawei Nova 9",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 11.53,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Nothing Phone (1)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 2782.61,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Samsung Galaxy Z Flip4",
@@ -46,7 +81,42 @@
     ],
     "build": "BP2A.250605.031.A3.F721BXXSCIZE1",
     "gsma_url": "https://www.gsmarena.com/samsung_galaxy_z_flip4-11538.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/f7c95a2f"
+    "ds_url": "https://www.devicespecifications.com/en/model/f7c95a2f",
+    "quirks": "Route-ready timing can be false at tap time; send still completes.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 61.6,
+        "x25519AgreementUs": 99.1,
+        "ed25519KeyGenUs": 1852.4,
+        "ed25519SignUs": 1861.2,
+        "ed25519VerifyUs": 3550.0,
+        "chacha20SealUs": 8.4,
+        "chacha20OpenUs": 8.5
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OPPO A57s",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.8,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Motorola Edge 30 Fusion",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 12.33,
+        "receiptConfirmed": true
+      }
+    ]
   },
   {
     "device": "Realme C55",
@@ -71,7 +141,51 @@
     ],
     "build": "RMX3710_15.0.0.1410(EX01)",
     "gsma_url": "https://www.gsmarena.com/realme_c55-12159.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/c2315c09"
+    "ds_url": "https://www.devicespecifications.com/en/model/c2315c09",
+    "quirks": "Not reverified in this pass.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 308.7,
+        "x25519AgreementUs": 711.6,
+        "ed25519KeyGenUs": 539.8,
+        "ed25519SignUs": 584.6,
+        "ed25519VerifyUs": 634.5,
+        "chacha20SealUs": 211.1,
+        "chacha20OpenUs": 193.3
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Xiaomi Mi Note 3",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.88,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Nothing Phone (1)",
@@ -96,7 +210,42 @@
     ],
     "build": "V3.2-260416-1140",
     "gsma_url": "https://www.gsmarena.com/nothing_phone_(1)-11636.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/1b6a59f5"
+    "ds_url": "https://www.devicespecifications.com/en/model/1b6a59f5",
+    "quirks": "Send control can stay disabled; hello can remain unknown.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 78.4,
+        "x25519AgreementUs": 159.4,
+        "ed25519KeyGenUs": 131.8,
+        "ed25519SignUs": 146.2,
+        "ed25519VerifyUs": 125.0,
+        "chacha20SealUs": 56.2,
+        "chacha20OpenUs": 56.2
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Nokia X20",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 376.47,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Nothing Phone (2)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 2782.61,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "OPPO Reno8 5G",
@@ -120,7 +269,60 @@
     ],
     "build": "CPH2359_14.0.0.2901(EX01)",
     "gsma_url": "https://www.gsmarena.com/oppo_reno8-11684.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/dca35a0b"
+    "ds_url": "https://www.devicespecifications.com/en/model/dca35a0b",
+    "quirks": "Hello can remain unknown even with proof visibility.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 54.3,
+        "x25519AgreementUs": 132.3,
+        "ed25519KeyGenUs": 2121.0,
+        "ed25519SignUs": 2052.5,
+        "ed25519VerifyUs": 3899.1,
+        "chacha20SealUs": 32.2,
+        "chacha20OpenUs": 32.6
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Gigaset GX6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Gigaset GX6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Motorola Edge 30 Fusion",
@@ -144,7 +346,42 @@
     ],
     "build": "U1SJS34.2-92-10-9",
     "gsma_url": "https://www.gsmarena.com/motorola_edge_30_fusion-11851.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/57665a7c"
+    "ds_url": "https://www.devicespecifications.com/en/model/57665a7c",
+    "quirks": "Target c67798 can be unreachable.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 74.3,
+        "x25519AgreementUs": 153.0,
+        "ed25519KeyGenUs": 2775.2,
+        "ed25519SignUs": 2776.6,
+        "ed25519VerifyUs": 5216.5,
+        "chacha20SealUs": 26.8,
+        "chacha20OpenUs": 27.5
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Samsung Galaxy Z Flip4",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 12.33,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Xiaomi Pocophone F1",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.68,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Nokia X20",
@@ -168,7 +405,51 @@
     ],
     "build": "00WW_4_250",
     "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/b4555615"
+    "ds_url": "https://www.devicespecifications.com/en/model/b4555615",
+    "quirks": "Doze-sensitive discovery; keep the screen awake.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 163.5,
+        "x25519AgreementUs": 386.6,
+        "ed25519KeyGenUs": 3848.9,
+        "ed25519SignUs": 3854.7,
+        "ed25519VerifyUs": 7297.3,
+        "chacha20SealUs": 24.8,
+        "chacha20OpenUs": 18.5
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Nothing Phone (1)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 376.47,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Nokia X20",
@@ -192,7 +473,8 @@
     ],
     "build": "00WW_4_250",
     "gsma_url": "https://www.gsmarena.com/nokia_x20-10838.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/b4555615"
+    "ds_url": "https://www.devicespecifications.com/en/model/b4555615",
+    "quirks": "Doze-sensitive discovery; keep the screen awake."
   },
   {
     "device": "OPPO Reno6 5G",
@@ -217,7 +499,8 @@
     ],
     "build": "CPH2251_13.1.0.615(EX01)",
     "gsma_url": "https://www.gsmarena.com/oppo_reno6_5g-10932.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/c9e45683"
+    "ds_url": "https://www.devicespecifications.com/en/model/c9e45683",
+    "quirks": "—"
   },
   {
     "device": "Gigaset GX6",
@@ -241,7 +524,51 @@
     ],
     "build": "E940-2849-00_13.0_V12_20250515",
     "gsma_url": "https://www.gsmarena.com/results.php3?sQuickSearch=yes&sName=Gigaset%20GX6",
-    "ds_url": "https://www.devicespecifications.com/en/model/b3dc5aa1"
+    "ds_url": "https://www.devicespecifications.com/en/model/b3dc5aa1",
+    "quirks": "Not reverified in this pass.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 71.2,
+        "x25519AgreementUs": 200.0,
+        "ed25519KeyGenUs": 2607.3,
+        "ed25519SignUs": 2628.7,
+        "ed25519VerifyUs": 4906.7,
+        "chacha20SealUs": 33.4,
+        "chacha20OpenUs": 28.3
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OPPO A57s",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 6.76,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "OPPO A57s",
@@ -265,7 +592,42 @@
     ],
     "build": "CPH2385_13.1.1.551(EX01)",
     "gsma_url": "https://www.gsmarena.com/oppo_a57s-11835.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/e5f05a82"
+    "ds_url": "https://www.devicespecifications.com/en/model/e5f05a82",
+    "quirks": "Bluetooth was off in the observed start state.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 281.9,
+        "x25519AgreementUs": 426.3,
+        "ed25519KeyGenUs": 12887.1,
+        "ed25519SignUs": 11729.5,
+        "ed25519VerifyUs": 22250.2,
+        "chacha20SealUs": 281.1,
+        "chacha20OpenUs": 278.4
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Gigaset GX6",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 6.76,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Samsung Galaxy Z Flip4",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.8,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "OnePlus Nord 2 5G",
@@ -290,7 +652,51 @@
     ],
     "build": "DN2103_11_F.58",
     "gsma_url": "https://www.gsmarena.com/oneplus_nord_2_5g-10960.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/0f6756ce"
+    "ds_url": "https://www.devicespecifications.com/en/model/0f6756ce",
+    "quirks": "Hello can stay proceeding; verify both send directions before teardown.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 112.0,
+        "x25519AgreementUs": 158.8,
+        "ed25519KeyGenUs": 131.0,
+        "ed25519SignUs": 139.6,
+        "ed25519VerifyUs": 129.1,
+        "chacha20SealUs": 60.0,
+        "chacha20OpenUs": 57.8
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Xiaomi Pocophone F1",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.81,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Huawei Nova 9",
@@ -314,7 +720,42 @@
     ],
     "build": "NAM-L29 13.0.0.252(C432E2R1P2)",
     "gsma_url": "https://www.gsmarena.com/huawei_nova_9-11121.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/25e15786"
+    "ds_url": "https://www.devicespecifications.com/en/model/25e15786",
+    "quirks": "Not reverified in this pass.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 66.1,
+        "x25519AgreementUs": 103.1,
+        "ed25519KeyGenUs": 2061.8,
+        "ed25519SignUs": 1989.8,
+        "ed25519VerifyUs": 3899.9,
+        "chacha20SealUs": 52.6,
+        "chacha20OpenUs": 51.9
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Nothing Phone (2)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 11.53,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Samsung Galaxy XCover 4",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.71,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "OnePlus 7T",
@@ -338,7 +779,8 @@
     ],
     "build": "HD1901_11_F.22",
     "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f"
+    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f",
+    "quirks": "—"
   },
   {
     "device": "OnePlus 7T",
@@ -362,7 +804,8 @@
     ],
     "build": "HD1901_11_F.22",
     "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f"
+    "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f",
+    "quirks": "—"
   },
   {
     "device": "OnePlus 6",
@@ -385,7 +828,60 @@
     ],
     "build": "ONEPLUS A6003_22_211125",
     "gsma_url": "https://www.gsmarena.com/oneplus_6-9109.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/c01c49b8"
+    "ds_url": "https://www.devicespecifications.com/en/model/c01c49b8",
+    "quirks": "—",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1610.0,
+        "x25519AgreementUs": 1586.1,
+        "ed25519KeyGenUs": 3302.4,
+        "ed25519SignUs": 3321.4,
+        "ed25519VerifyUs": 6518.9,
+        "chacha20SealUs": 368.6,
+        "chacha20OpenUs": 180.2
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OnePlus Nord 2 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Nokia X20",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OnePlus Nord 2 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Nokia X20",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Xiaomi Pocophone F1",
@@ -408,7 +904,42 @@
     ],
     "build": "QKQ1.190828.002 test-keys",
     "gsma_url": "https://www.gsmarena.com/xiaomi_pocophone_f1-9293.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/56da4bee"
+    "ds_url": "https://www.devicespecifications.com/en/model/56da4bee",
+    "quirks": "Capture can time out while hello remains unknown.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 1535.6,
+        "x25519AgreementUs": 1520.4,
+        "ed25519KeyGenUs": 3076.7,
+        "ed25519SignUs": 3095.9,
+        "ed25519VerifyUs": 6460.7,
+        "chacha20SealUs": 376.4,
+        "chacha20OpenUs": 187.0
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Motorola Edge 30 Fusion",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.68,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OnePlus Nord 2 5G",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.81,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Xiaomi Mi Note 3",
@@ -430,7 +961,42 @@
     ],
     "build": "PKQ1.181007.001",
     "gsma_url": "https://www.gsmarena.com/xiaomi_mi_note_3-8707.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/1a3f45a7"
+    "ds_url": "https://www.devicespecifications.com/en/model/1a3f45a7",
+    "quirks": "Install via USB may be required; hello can stay unknown on GATT.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 3399.6,
+        "x25519AgreementUs": 3340.7,
+        "ed25519KeyGenUs": 6976.1,
+        "ed25519SignUs": 6911.6,
+        "ed25519VerifyUs": 13608.4,
+        "chacha20SealUs": 552.7,
+        "chacha20OpenUs": 267.7
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Samsung Galaxy XCover 4",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 8.17,
+        "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Realme C55",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.88,
+        "receiptConfirmed": false
+      }
+    ]
   },
   {
     "device": "Samsung Galaxy XCover 4",
@@ -452,7 +1018,42 @@
     ],
     "build": "PPR1.180610.011.G390FXXU6CTG3",
     "gsma_url": "https://www.gsmarena.com/samsung_galaxy_xcover_4-8577.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/322441cd"
+    "ds_url": "https://www.devicespecifications.com/en/model/322441cd",
+    "quirks": "Hello can stay unknown on the GATT path.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 20628.0,
+        "x25519AgreementUs": 20480.7,
+        "ed25519KeyGenUs": 65715.5,
+        "ed25519SignUs": 65991.1,
+        "ed25519VerifyUs": 129990.0,
+        "chacha20SealUs": 1266.4,
+        "chacha20OpenUs": 870.4
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Huawei Nova 9",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.71,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Xiaomi Mi Note 3",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 8.17,
+        "receiptConfirmed": true
+      }
+    ]
   },
   {
     "device": "Huawei P10 Lite",
@@ -474,6 +1075,19 @@
     ],
     "build": "WAS-LX1A 8.0.0.394(C432)",
     "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/8469421f",
+    "quirks": "—"
+  },
+  {
+    "device": "Oppo A53s",
+    "brand": "OPPO",
+    "model": "CPH2135",
+    "android_sdk": "Android 12 / SDK 31",
+    "memory": "4 GB",
+    "storage": "128 GB",
+    "screen": "6.5\" (720x1600 @ 320 dpi)",
+    "chipset_name": "Snapdragon 460",
+    "chipset_model": "SM4250",
     "ds_url": "https://www.devicespecifications.com/en/model/8469421f"
   },
   {
@@ -496,6 +1110,62 @@
       "ECDSA",
       "X25519/XDH"
     ],
+    "build": "CPH2135_11_F.31",
+    "gsma_url": "https://www.gsmarena.com/oppo_a53s-10502.php",
+    "ds_url": null,
+    "quirks": "Not yet fleet-verified; added from live single-device probe and spec lookup.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 313.7,
+        "x25519AgreementUs": 626.8,
+        "ed25519KeyGenUs": 9178.1,
+        "ed25519SignUs": 9251.5,
+        "ed25519VerifyUs": 17493.9,
+        "chacha20SealUs": 207.2,
+        "chacha20OpenUs": 205.4
+      }
+    ],
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "Realme C55",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "sender",
+        "peer": "Realme C55",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-06",
+        "role": "receiver",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "no-result",
+        "throughputKBps": null,
+        "receiptConfirmed": false
+      }
+    ]
     "build": "SP1A.210812.016.G970U1UEU9IXE1",
     "gsma_url": "https://www.gsmarena.com/samsung_galaxy_s10e-9537.php",
     "ds_url": "https://www.devicespecifications.com/en/model/9a864f39"

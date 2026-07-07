@@ -458,7 +458,7 @@ Run phase verification after each module move, not only at the end.
 
 ### Final branch verification
 
-- `./gradlew --console=plain :meshlink:build :benchmarks:check :meshlink-proof:android:check verifyDocs`
+- `./gradlew --console=plain :meshlink:build :meshlink-benchmark:check :meshlink-proof:android:check verifyDocs`
 - the reference-app Android verification bundle using either the preserved alias
   script or the new app-module task surface
 - iOS host verification through the existing Xcode project if the branch

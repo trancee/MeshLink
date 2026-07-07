@@ -37,7 +37,7 @@ flowchart LR
     subgraph Shared["Shared Gradle modules"]
         SDK[":meshlink<br/>Kotlin Multiplatform SDK"]
         Reference[":meshlink-reference<br/>shared reference-app UI and state"]
-        Bench[":benchmarks<br/>JVM baselines and retained evidence"]
+        Bench[":meshlink-benchmark<br/>JVM baselines and retained evidence"]
     end
 
     subgraph Hosts["App hosts and validation surfaces"]
@@ -82,7 +82,7 @@ flowchart LR
 | `Package.release.swift` | Swift Package manifest template | published XCFramework ZIP artifact | SwiftPM release binary-target packaging |
 | `:meshlink-proof:android` | Android application module | `:meshlink` | Android proof and benchmark surface for physical validation |
 | `meshlink-proof/ios` | Native Xcode project | exported `MeshLink` framework from `:meshlink` | iOS proof and benchmark surface for physical validation |
-| `:benchmarks` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
+| `:meshlink-benchmark` | JVM benchmark module | `:meshlink` | Retained JVM performance baselines and benchmark tasks |
 
 ## Shared source sets
 
@@ -146,7 +146,7 @@ flowchart LR
 | `meshlink-reference/scripts/run_headless_reference_physical_matrix.py` | Runs the broader physical reference-app matrix |
 | `meshlink-reference/scripts/analyze_reference_physical_run.py` | Summarizes a retained physical reference-app run |
 | `docs/reference/android-direct-proof-matrix-result.md` | Retains the canonical summary of the latest direct-proof matrix rerun |
-| `benchmarks/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
+| `meshlink-benchmark/scripts/run_headless_meshlink_benchmark.py` | Runs retained physical benchmark series |
 | `meshlink-proof/scripts/run_headless_ios_ios_proof.py` | Runs a headless physical proof exchange between two iPhones (sender + passive) |
 
 ## Contributor workflow scaffolding
@@ -170,7 +170,7 @@ flowchart LR
 | `specs/ble-mesh-sdk` | Normative SDK spec, plan, tasks, research, and release framing |
 | `meshlink-reference/README.md` | High-level reference-app overview |
 | `meshlink-reference/fleet-test-history/` | Retained reference-app fleet history and campaign evidence bundles |
-| `benchmarks/README.md` | Current retained benchmark posture |
+| `meshlink-benchmark/README.md` | Current retained benchmark posture |
 
 ## Related docs
 

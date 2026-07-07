@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BENCHMARK_SOURCE_ROOT = REPO_ROOT / "benchmarks" / "src" / "jvmMain" / "kotlin"
-SMOKE_REPORT_ROOT = REPO_ROOT / "benchmarks" / "build" / "reports" / "benchmarks" / "smoke"
+BENCHMARK_SOURCE_ROOT = REPO_ROOT / "meshlink-benchmark" / "src" / "jvmMain" / "kotlin"
+SMOKE_REPORT_ROOT = REPO_ROOT / "meshlink-benchmark" / "build" / "reports" / "benchmarks" / "smoke"
 
 PACKAGE_PATTERN = re.compile(r"^\s*package\s+([A-Za-z0-9_.]+)\s*$")
 CLASS_PATTERN = re.compile(r"\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\b")
@@ -100,7 +100,7 @@ def parse_expected_benchmark_counts(source_root: Path) -> Counter[str]:
                 expected_counts[f"{benchmark_prefix}.{method_name}"] += benchmark_class.param_multiplier
 
     if not expected_counts:
-        raise SystemExit("No benchmark methods found under benchmarks/src/jvmMain/kotlin")
+        raise SystemExit("No benchmark methods found under meshlink-benchmark/src/jvmMain/kotlin")
 
     return expected_counts
 

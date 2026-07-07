@@ -40,7 +40,7 @@ for file in "${staged_files[@]}"; do
       need_reference=1
       need_agp9_invariants=1
       ;;
-    benchmarks/*)
+    meshlink-benchmark/*)
       need_benchmarks=1
       ;;
     meshlink-proof/android/*)
@@ -105,7 +105,7 @@ if [[ "$need_reference" -eq 1 ]]; then
   format_tasks+=(":meshlink-reference:ktfmtFormat")
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
-  format_tasks+=(":benchmarks:ktfmtFormat")
+  format_tasks+=(":meshlink-benchmark:ktfmtFormat")
 fi
 
 gradle_cmd=(./gradlew --console=plain)
@@ -146,7 +146,7 @@ if [[ "$need_reference" -eq 1 ]]; then
   check_tasks+=(":meshlink-reference:check")
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
-  check_tasks+=(":benchmarks:check" "verifyJvmSmokeBenchmarks")
+  check_tasks+=(":meshlink-benchmark:check" "verifyJvmSmokeBenchmarks")
 fi
 if [[ "$need_proof_android" -eq 1 ]]; then
   check_tasks+=(":meshlink-proof:android:check")

@@ -15,7 +15,7 @@ It is an explanation page. Use the other docs when the job is different:
 - iPhone proof-app setup and launch steps —
   [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
 - retained performance thresholds and latest evidence —
-  [Benchmark and validation baselines](../../benchmarks/README.md)
+  [Benchmark and validation baselines](../../meshlink-benchmark/README.md)
 
 > Quick orientation:
 > - the reference app shows the supported evaluation path
@@ -112,7 +112,7 @@ or move to the reference app.
 | evaluate MeshLink as one coherent Android and iOS experience | [How to evaluate MeshLink with the reference app](../how-to/evaluate-meshlink-with-the-reference-app.md) |
 | use an Android device as a physical proof peer or proof fixture | [How to run the Android proof app](../../meshlink-proof/android/README.md) |
 | use an iPhone as a physical proof peer or proof fixture | [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md) |
-| inspect the current retained performance posture | [Benchmark and validation baselines](../../benchmarks/README.md) |
+| inspect the current retained performance posture | [Benchmark and validation baselines](../../meshlink-benchmark/README.md) |
 | understand the larger repository split behind those surfaces | [About the repository architecture](about-the-repository-architecture.md) |
 
 ## Related docs
@@ -122,5 +122,5 @@ or move to the reference app.
 - [Reference app and test architecture](reference-app-and-test-architecture.md)
 - [How to run the Android proof app](../../meshlink-proof/android/README.md)
 - [How to build and run the iOS proof app](../../meshlink-proof/ios/README.md)
-- [Benchmark and validation baselines](../../benchmarks/README.md)
+- [Benchmark and validation baselines](../../meshlink-benchmark/README.md)
 - [About the repository architecture](about-the-repository-architecture.md)

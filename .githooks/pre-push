@@ -154,7 +154,7 @@ for file in "${pushed_files[@]}"; do
       need_reference=1
       need_agp9_invariants=1
       ;;
-    benchmarks/*)
+    meshlink-benchmark/*)
       need_benchmarks=1
       need_benchmark_smoke=1
       ;;
@@ -229,7 +229,7 @@ if [[ "$need_reference" -eq 1 ]]; then
   check_tasks+=(":meshlink-reference:localCheck")
 fi
 if [[ "$need_benchmarks" -eq 1 ]]; then
-  check_tasks+=(":benchmarks:build")
+  check_tasks+=(":meshlink-benchmark:build")
 fi
 if [[ "$need_benchmark_smoke" -eq 1 ]]; then
   check_tasks+=("verifyJvmSmokeBenchmarks")

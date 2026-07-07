@@ -119,7 +119,7 @@ Recommended local gates:
 ```bash
 ./gradlew :meshlink:check
 ./gradlew :meshlink:apiCheck
-./gradlew :benchmarks:jvmBenchmark
+./gradlew :meshlink-benchmark:jvmBenchmark
 ```
 
 ## Reviewer evidence expectations

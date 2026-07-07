@@ -102,7 +102,7 @@ allprojects {
 apiValidation {
     ignoredProjects.addAll(
         listOf(
-            "benchmarks",
+            "meshlink-benchmark",
             "meshlink-reference",
             "android",
         )
@@ -168,7 +168,7 @@ val codeqlJavaKotlinBuild =
         dependsOn(
             ":meshlink:jvmJar",
             ":meshlink:androidJar",
-            ":benchmarks:jvmJar",
+            ":meshlink-benchmark:jvmJar",
             ":meshlink-reference:jvmJar",
             ":meshlink-reference:bundleAndroidMainAar",
             ":meshlink-reference:android:compileDebugKotlin",
@@ -180,10 +180,10 @@ val cleanJvmSmokeBenchmarkReports =
     tasks.register<Delete>("cleanJvmSmokeBenchmarkReports") {
         group = "verification"
         description = "Deletes stale JVM smoke benchmark reports before the next verified smoke run."
-        delete(layout.projectDirectory.dir("benchmarks/build/reports/benchmarks/smoke"))
+        delete(layout.projectDirectory.dir("meshlink-benchmark/build/reports/benchmarks/smoke"))
     }
 
-project(":benchmarks").tasks.configureEach {
+project(":meshlink-benchmark").tasks.configureEach {
     if (name == "jvmSmokeBenchmark") {
         dependsOn(cleanJvmSmokeBenchmarkReports)
     }
@@ -195,7 +195,7 @@ val checkJvmSmokeBenchmarkReport =
         description =
             "Fails if the latest JVM smoke benchmark report is missing any declared benchmark results."
         workingDir = rootDir
-        dependsOn(":benchmarks:jvmSmokeBenchmark")
+        dependsOn(":meshlink-benchmark:jvmSmokeBenchmark")
         commandLine("python3", "scripts/check_jvm_smoke_benchmark_report.py")
     }
 

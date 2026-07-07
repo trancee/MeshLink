@@ -8,9 +8,7 @@ import android.os.BatteryManager
 import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.power.BatteryMonitor
 
-internal class AndroidBatteryMonitor(
-    context: Context,
-) : BatteryMonitor {
+internal class AndroidBatteryMonitor(context: Context) : BatteryMonitor {
     private val applicationContext: Context = context.applicationContext
     private var receiver: BroadcastReceiver? = null
 
@@ -24,7 +22,10 @@ internal class AndroidBatteryMonitor(
             }
         receiver = newReceiver
         val stickyIntent =
-            applicationContext.registerReceiver(newReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            applicationContext.registerReceiver(
+                newReceiver,
+                IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            )
         emitSnapshot(intent = stickyIntent, onSnapshot = onSnapshot)
     }
 
@@ -46,6 +47,8 @@ internal class AndroidBatteryMonitor(
         val isCharging =
             status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
-        onSnapshot(BatterySnapshot(level = level.toFloat() / scale.toFloat(), isCharging = isCharging))
+        onSnapshot(
+            BatterySnapshot(level = level.toFloat() / scale.toFloat(), isCharging = isCharging)
+        )
     }
 }

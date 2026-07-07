@@ -55,8 +55,8 @@ private data class AutomaticTierState(
  * [AtomicReference.compareAndSetLoop] instead of touching several unsynchronized fields
  * independently. This keeps battery observation callbacks non-suspend (they can arrive from
  * arbitrary platform callback threads, e.g. a system battery broadcast receiver) while still being
- * safe under concurrent access from the
- * engine's multi-threaded [kotlinx.coroutines.Dispatchers.Default] scope.
+ * safe under concurrent access from the engine's multi-threaded
+ * [kotlinx.coroutines.Dispatchers.Default] scope.
  */
 private data class PowerPolicyControllerState(
     val batteryLevel: Float = 1.0f,

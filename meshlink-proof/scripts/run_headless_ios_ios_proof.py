@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the MeshLink proof app between two physical iPhones (sender + passive).
 
-This is the iOS<->iOS counterpart to benchmarks/scripts/run_headless_meshlink_benchmark.py
+This is the iOS<->iOS counterpart to meshlink-benchmark/scripts/run_headless_meshlink_benchmark.py
 (Android passive <-> iPhone sender) and meshlink-proof/scripts/run_android_proof_fleet.py
 (Android <-> Android fleet). Both iPhones run the ProofApp headlessly via
 `xcrun devicectl device process launch --console`, one in sender mode (auto-send

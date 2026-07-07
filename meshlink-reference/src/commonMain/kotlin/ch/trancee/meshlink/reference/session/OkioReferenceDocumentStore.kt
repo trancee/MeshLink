@@ -36,10 +36,10 @@ internal class OkioReferenceDocumentStore(
 }
 
 /**
- * Creates a filesystem-backed [ReferenceDocumentStore] rooted at [baseDirectory], using the
- * system filesystem. Exposed as a factory (rather than making [OkioReferenceDocumentStore]
- * public) so consumers outside this module -- e.g. the Android application module -- don't need
- * a direct dependency on okio's types.
+ * Creates a filesystem-backed [ReferenceDocumentStore] rooted at [baseDirectory], using the system
+ * filesystem. Exposed as a factory (rather than making [OkioReferenceDocumentStore] public) so
+ * consumers outside this module -- e.g. the Android application module -- don't need a direct
+ * dependency on okio's types.
  */
 public fun createFileDocumentStore(baseDirectory: String): ReferenceDocumentStore {
     return OkioReferenceDocumentStore(baseDirectory, FileSystem.SYSTEM)

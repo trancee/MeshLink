@@ -8,7 +8,7 @@ cd "$repo_root"
   checkAgp9Invariants \
   :meshlink:build \
   :meshlink-reference:localCheck \
-  :benchmarks:check \
+  :meshlink-benchmark:check \
   verifyJvmSmokeBenchmarks \
   :meshlink-proof:android:check \
   verifyDocs
