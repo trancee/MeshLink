@@ -9,7 +9,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 
 class GattNotifyClientTest {
     @Test
@@ -179,6 +183,122 @@ class GattNotifyClientTest {
         assertEquals(
             (expectedIdentityChunk + expectedEncodedChunk).toList(),
             concatenatedWrites.toList(),
+        )
+    }
+
+    @Test
+    fun writePipelinesMultipleChunksBeforeSuspendingOnTheBoundedWriteWindow(): Unit = runBlocking {
+        // Arrange: do not auto-ack from the write handler so the test can observe how many
+        // chunks get enqueued with the local BLE stack ahead of any completion callback.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        session.writeChunkHandler = { true }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+        val payload = ByteArray(300) { it.toByte() }
+
+        // Act: run the suspend write() call cooperatively on this single-threaded runBlocking
+        // dispatcher so repeated yield() calls advance it deterministically without real
+        // concurrency or timing races.
+        val writeJob = launch { client.write(payload) }
+        repeat(20) { yield() }
+
+        // Assert: several chunks were pipelined before any completion callback fired - proving
+        // this is no longer a stop-and-wait design - while the transfer is still suspended,
+        // bounded by the write window.
+        assertTrue(session.writeChunks.size > 1)
+        assertFalse(writeJob.isCompleted)
+
+        // Act: ack every chunk the session has seen so far, in issue order, letting the
+        // remaining chunks flow through the window as earlier ones complete.
+        var acked = 0
+        while (!writeJob.isCompleted) {
+            while (acked < session.writeChunks.size) {
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+                acked += 1
+            }
+            yield()
+        }
+
+        // Assert
+        assertEquals(session.writeChunks.size, acked)
+    }
+
+    /**
+     * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
+     * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for
+     * a BLE connection-interval round trip). This gives a repeatable, hardware-free regression
+     * signal for the windowed pipelining fix (see meshlink-benchmark/history.md for the
+     * physical-fleet evidence this addresses: the previous stop-and-wait design measured ~8-10 KB/s
+     * on the Samsung XCover4 <-> OPPO Reno8 GATT-fallback bearer, matching one 512-byte chunk per
+     * round trip).
+     */
+    @Test
+    fun writePipelinesChunksInsteadOfOneRoundTripPerChunk(): Unit = runBlocking {
+        // Arrange: an ack for each chunk only arrives after a fixed simulated round-trip delay.
+        // A stop-and-wait design would take chunkCount * simulatedRoundTripMs to finish; a
+        // pipelined design bounded by the write window should take roughly
+        // ceil(chunkCount / windowSize) * simulatedRoundTripMs instead.
+        val simulatedRoundTripMs = 15L
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val ackScope = CoroutineScope(coroutineContext)
+        session.writeChunkHandler = {
+            ackScope.launch {
+                delay(simulatedRoundTripMs)
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+            }
+            true
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+        // Default (un-negotiated) ATT MTU yields ~20-byte chunks; a few KB of payload is enough
+        // to exercise many chunks without an unreasonably long real-time test.
+        val payload = ByteArray(4_000) { it.toByte() }
+        val writeWindowSizeUnderTest = 4
+
+        // Act
+        val startedAtMs = System.currentTimeMillis()
+        val written = client.write(payload)
+        val elapsedMs = System.currentTimeMillis() - startedAtMs
+
+        // Assert: the transfer succeeded, and a stop-and-wait design's expected duration
+        // (chunkCount * simulatedRoundTripMs) clearly exceeds what the pipelined design actually
+        // took, proving multiple chunks were kept in flight rather than one at a time.
+        val chunkCount = session.writeChunks.size
+        val stopAndWaitBaselineMs = chunkCount * simulatedRoundTripMs
+        assertTrue(written)
+        assertTrue(chunkCount > writeWindowSizeUnderTest)
+        assertTrue(
+            elapsedMs < stopAndWaitBaselineMs / 2,
+            "Expected pipelined elapsedMs=$elapsedMs to beat the stop-and-wait baseline of " +
+                "$stopAndWaitBaselineMs ms (chunkCount=$chunkCount, roundTripMs=$simulatedRoundTripMs)",
         )
     }
 }

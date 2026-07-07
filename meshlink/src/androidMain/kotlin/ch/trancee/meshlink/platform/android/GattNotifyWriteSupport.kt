@@ -12,8 +12,14 @@ internal constructor(
 internal class GattNotifyWriteDependencies
 internal constructor(
     internal val encode: (ByteArray) -> ByteArray,
+    // Enqueues one chunk and returns quickly once it is accepted into the windowed pipeline
+    // (it does not wait for that specific chunk's write completion -- see [drain]).
     internal val writeChunk:
         suspend (payloadBytes: Int, encodedBytes: Int, chunk: ByteArray) -> Boolean,
+    // Awaits completion of every chunk enqueued so far for the current payload and reports
+    // whether all of them succeeded. Keeping this separate from [writeChunk] is what allows
+    // multiple chunks to be in flight at once instead of a stop-and-wait round trip per chunk.
+    internal val drain: suspend () -> Boolean,
     internal val log: (String) -> Unit,
 )
 
@@ -53,5 +59,5 @@ internal suspend fun writeViaGattNotify(
         }
         chunkStart = chunkEnd
     }
-    return true
+    return dependencies.drain()
 }

@@ -9,6 +9,7 @@ import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -43,7 +44,15 @@ internal class GattNotifyClient(
     private val frameBuffer = L2capFrameBuffer()
     private val writeMutex = Mutex()
     private val notificationLock = Any()
-    private var pendingWrite: CompletableDeferred<Boolean>? = null
+    // Windowed write pipeline: up to WRITE_WINDOW_SIZE chunks may be enqueued with the local BLE
+    // stack (via WRITE_TYPE_NO_RESPONSE) before we block waiting for completions, instead of the
+    // previous stop-and-wait design that awaited a full round trip per chunk. pendingWrites is a
+    // FIFO because Android GATT client operations for a single connection execute and complete
+    // strictly in the order they were issued, so completions can be matched to the oldest queued
+    // entry.
+    private val pendingWritesLock = Any()
+    private val pendingWrites = ArrayDeque<CompletableDeferred<Boolean>>()
+    private val writeWindow = Semaphore(WRITE_WINDOW_SIZE)
     @Volatile private var identityAnnounced: Boolean = false
     // Guards against retrying the cache-refresh indefinitely: only one refresh-and-rediscover
     // cycle is attempted per connection attempt (i.e. per start()/session lifecycle - this client
@@ -80,7 +89,7 @@ internal class GattNotifyClient(
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     val shouldNotifyDisconnect = !lifecycleState.closedByOwner
-                    completePendingWrite(success = false)
+                    failAllPendingWrites()
                     closeInternal(markClosedByOwner = true)
                     if (shouldNotifyDisconnect) {
                         onDisconnected(peerHintId)
@@ -260,7 +269,7 @@ internal class GattNotifyClient(
                                     if (session == null) {
                                         false
                                     } else {
-                                        writeEncodedChunk(
+                                        enqueueEncodedChunk(
                                             session = session,
                                             payloadBytes = payloadBytes,
                                             encodedBytes = encodedBytes,
@@ -268,6 +277,7 @@ internal class GattNotifyClient(
                                         )
                                     }
                                 },
+                                drain = ::drainPendingWrites,
                                 log = log,
                             ),
                     )
@@ -296,7 +306,7 @@ internal class GattNotifyClient(
                             if (session == null) {
                                 false
                             } else {
-                                writeEncodedChunk(
+                                enqueueEncodedChunk(
                                     session = session,
                                     payloadBytes = payloadBytes,
                                     encodedBytes = encodedBytes,
@@ -304,6 +314,7 @@ internal class GattNotifyClient(
                                 )
                             }
                         },
+                        drain = ::drainPendingWrites,
                         log = log,
                     ),
             )
@@ -315,8 +326,22 @@ internal class GattNotifyClient(
     }
 
     private fun completePendingWrite(success: Boolean): Unit {
-        pendingWrite?.complete(success)
-        pendingWrite = null
+        val deferred = synchronized(pendingWritesLock) { pendingWrites.removeFirstOrNull() }
+        if (deferred != null) {
+            writeWindow.release()
+        }
+        deferred?.complete(success)
+    }
+
+    private fun failAllPendingWrites(): Unit {
+        val pending =
+            synchronized(pendingWritesLock) {
+                val copy = pendingWrites.toList()
+                pendingWrites.clear()
+                copy
+            }
+        repeat(pending.size) { writeWindow.release() }
+        pending.forEach { it.complete(false) }
     }
 
     private fun closeInternal(markClosedByOwner: Boolean): Unit {
@@ -326,41 +351,60 @@ internal class GattNotifyClient(
                 defaultAttMtuBytes = DEFAULT_ATT_MTU_BYTES,
                 markClosedByOwner = markClosedByOwner,
             )
-        completePendingWrite(success = false)
+        failAllPendingWrites()
         runCatching { session?.close() }
         session = null
     }
 
-    private suspend fun writeEncodedChunk(
+    /**
+     * Enqueues one chunk into the windowed write pipeline and returns as soon as it has been
+     * accepted by the local BLE stack, without waiting for that chunk's own completion. Call
+     * [drainPendingWrites] once all chunks for a payload have been enqueued to learn whether they
+     * all actually completed successfully.
+     */
+    private suspend fun enqueueEncodedChunk(
         session: GattNotifySession,
         payloadBytes: Int,
         encodedBytes: Int,
         chunk: ByteArray,
     ): Boolean {
+        writeWindow.acquire()
         val deferred = CompletableDeferred<Boolean>()
-        pendingWrite = deferred
+        synchronized(pendingWritesLock) { pendingWrites.addLast(deferred) }
         val enqueued = session.writeChunk(chunk)
         if (!enqueued) {
+            synchronized(pendingWritesLock) { pendingWrites.remove(deferred) }
+            writeWindow.release()
             log(
                 "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
             )
-            completePendingWrite(success = false)
+            deferred.complete(false)
             return false
         }
-        return withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { deferred.await() }
-            ?.also { success ->
-                if (!success) {
-                    log(
-                        "GATT notify side link ${peerHintId.value.takeLast(6)} write callback reported failure bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
-                    )
-                }
+        return true
+    }
+
+    /**
+     * Awaits completion of every chunk enqueued so far (in issue order) and reports whether all of
+     * them completed successfully. Must be called after the last [enqueueEncodedChunk] for a
+     * payload so callers still get an accurate success/failure result despite chunks being
+     * pipelined rather than awaited individually.
+     */
+    private suspend fun drainPendingWrites(): Boolean {
+        var allSucceeded = true
+        while (true) {
+            val next = synchronized(pendingWritesLock) { pendingWrites.firstOrNull() } ?: break
+            val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.await() }
+            if (result == null) {
+                log("GATT notify side link ${peerHintId.value.takeLast(6)} write drain timed out")
+                failAllPendingWrites()
+                return false
             }
-            ?: false.also {
-                log(
-                    "GATT notify side link ${peerHintId.value.takeLast(6)} write timed out bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
-                )
-                completePendingWrite(success = false)
+            if (!result) {
+                allSucceeded = false
             }
+        }
+        return allSucceeded
     }
 
     private fun maximumWriteChunkBytes(): Int {
@@ -391,6 +435,11 @@ internal class GattNotifyClient(
         private const val GATT_WRITE_CHARACTERISTIC_UUID: String =
             BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID
         private const val WRITE_TIMEOUT_MILLIS: Long = 5_000L
+        // Bounds how many WRITE_TYPE_NO_RESPONSE chunks may be outstanding with the local BLE
+        // stack at once. This keeps the transmit queue full (avoiding the previous stop-and-wait
+        // per-chunk round trip) while still capping memory/backpressure if the controller falls
+        // behind.
+        private const val WRITE_WINDOW_SIZE: Int = 4
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }

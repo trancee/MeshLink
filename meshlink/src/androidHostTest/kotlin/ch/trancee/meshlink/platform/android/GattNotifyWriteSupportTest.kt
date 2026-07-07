@@ -75,6 +75,37 @@ class GattNotifyWriteSupportTest {
         assertEquals(2, fixture.chunkCalls.size)
         assertContentEquals(byteArrayOf(0x01, 0x02), fixture.chunkCalls[0].chunk)
         assertContentEquals(byteArrayOf(0x03, 0x04), fixture.chunkCalls[1].chunk)
+        // A chunk-level enqueue failure aborts before ever draining pipelined writes.
+        assertEquals(0, fixture.drainCalls)
+    }
+
+    @Test
+    fun writeViaAndroidGattNotifyDrainsPipelinedWritesAfterAllChunksAreEnqueued(): Unit =
+        runBlocking {
+            // Arrange
+            val encoded = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09)
+            val fixture = GattNotifyWriteFixture(maxChunkBytes = 4, encoded = encoded)
+
+            // Act
+            val written = fixture.write(payload = byteArrayOf(0x55, 0x66))
+
+            // Assert: every chunk is enqueued before the pipeline is drained exactly once.
+            assertTrue(written)
+            assertEquals(3, fixture.chunkCalls.size)
+            assertEquals(1, fixture.drainCalls)
+        }
+
+    @Test
+    fun writeViaAndroidGattNotifyReturnsFalseWhenDrainReportsAFailure(): Unit = runBlocking {
+        // Arrange: every chunk enqueues successfully, but a pipelined write later fails.
+        val fixture = GattNotifyWriteFixture(maxChunkBytes = 4, drainResult = false)
+
+        // Act
+        val written = fixture.write(payload = byteArrayOf(0x55, 0x66))
+
+        // Assert
+        assertFalse(written)
+        assertEquals(1, fixture.drainCalls)
     }
 }
 
@@ -85,8 +116,10 @@ private class GattNotifyWriteFixture(
     private val maxChunkBytes: Int = 4,
     private val encoded: ByteArray = byteArrayOf(0x01, 0x02, 0x03),
     private val chunkResults: List<Boolean> = List(16) { true },
+    private val drainResult: Boolean = true,
 ) {
     var encodeCalls: Int = 0
+    var drainCalls: Int = 0
     val chunkCalls: MutableList<ChunkCall> = mutableListOf()
 
     suspend fun write(payload: ByteArray): Boolean {
@@ -114,6 +147,10 @@ private class GattNotifyWriteFixture(
                                 chunk = chunk,
                             )
                         chunkResults[chunkCalls.lastIndex]
+                    },
+                    drain = {
+                        drainCalls += 1
+                        drainResult
                     },
                     log = {},
                 ),

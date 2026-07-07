@@ -165,10 +165,18 @@ internal class BluetoothGattNotifySession(
 
     override fun writeChunk(chunk: ByteArray): Boolean {
         val writeCharacteristic = writeCharacteristic ?: return false
+        // WRITE_TYPE_NO_RESPONSE (vs. the default write-with-response) lets the local completion
+        // callback fire as soon as the chunk is handed to the controller instead of waiting for a
+        // full ATT round trip to the peer. Combined with the windowed pipeline in
+        // GattNotifyClient, this removes the stop-and-wait bottleneck that previously capped the
+        // GATT fallback bearer to roughly one chunk per connection-interval round trip. Delivery
+        // ordering/integrity is still guaranteed by the underlying connected-link-layer transport
+        // and MeshLink's own frame reassembly, so dropping the ATT-level response does not weaken
+        // correctness.
         return connection.writeCharacteristic(
             characteristic = writeCharacteristic,
             value = chunk,
-            writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
+            writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
         )
     }
 
