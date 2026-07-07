@@ -392,6 +392,17 @@ internal class GattNotifyClient(
                 "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed after ${attempt} attempt(s) bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
             )
             deferred.complete(false)
+            // A mid-payload chunk enqueue failure means writeViaGattNotify() aborts without ever
+            // draining the chunks already enqueued for this same payload (see
+            // GattNotifyWriteSupport.writeViaGattNotify). Those earlier chunks were already
+            // accepted by the local BLE stack and are in flight to the peer, so the peer's
+            // length-prefixed frame reassembly (L2capFrameBuffer) is left mid-frame with no more
+            // bytes coming for it. Any later write() on this same connection would then be
+            // silently misinterpreted as a continuation of that truncated frame. Closing the
+            // session -- as every other unrecoverable GATT failure in this class already does --
+            // marks the client not-ready so GattSideLinkCoordinator reconnects with a fresh
+            // session instead of reusing one with a corrupted frame stream.
+            closeInternal(markClosedByOwner = false)
             return false
         }
         return true

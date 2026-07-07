@@ -281,6 +281,40 @@ class GattNotifyClientTest {
         assertEquals(0, session.writeChunks.size % 3)
     }
 
+    @Test
+    fun writeClosesTheSessionWhenChunkEnqueueFailsAfterExhaustingAllRetryAttempts(): Unit =
+        runBlocking {
+            // Arrange: writeCharacteristic() always reports busy, so every retry attempt for the
+            // chunk fails and enqueueEncodedChunk() gives up.
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            session.writeChunkHandler = { false }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+
+            // Act
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: an unrecoverable enqueue failure closes the session (rather than leaving it
+            // open, which could otherwise leave a peer's frame-reassembly buffer permanently
+            // desynchronized by a truncated in-flight frame if an earlier chunk in the same
+            // payload had already been accepted by the local BLE stack), so the client reports
+            // not-ready and GattSideLinkCoordinator will reconnect with a fresh session.
+            assertFalse(written)
+            assertFalse(client.isReady())
+            assertEquals(1, session.closeCalls)
+        }
+
     /**
      * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
      * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for
