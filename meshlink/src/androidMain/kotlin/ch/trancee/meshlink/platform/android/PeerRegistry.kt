@@ -2,7 +2,7 @@ package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothDevice
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.identity.hexStartsWith
+import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
@@ -245,10 +245,20 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
 
     internal fun resolve(peerId: PeerId): DiscoveredPeer? {
         return synchronized(lock) {
-            discoveredPeers[peerId.value]
-                ?: discoveredPeers.values.firstOrNull { discoveredPeer ->
-                    peerId.value.hexStartsWith(discoveredPeer.keyHash)
-                }
+            val direct = discoveredPeers[peerId.value]
+            if (direct != null) {
+                return@synchronized direct
+            }
+            // Fallback for callers that only have the full advertised-keyHash-derived id (rather
+            // than the exact hint id peers are indexed by). peerId.value is decoded to bytes once
+            // here rather than calling hexStartsWith per candidate below, which would re-decode
+            // the same leading hex characters of peerId.value from scratch for every discovered
+            // peer -- turning an O(peers * keyHashBytes) hex-decode scan into a single decode plus
+            // O(peers * keyHashBytes) cheap byte comparisons.
+            val decodedPeerId = peerId.value.toBytes() ?: return@synchronized null
+            discoveredPeers.values.firstOrNull { discoveredPeer ->
+                decodedPeerId.startsWithBytes(discoveredPeer.keyHash)
+            }
         }
     }
 
@@ -265,4 +275,16 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
     internal fun clear(): Unit {
         synchronized(lock) { discoveredPeers.clear() }
     }
+}
+
+private fun ByteArray.startsWithBytes(prefix: ByteArray): Boolean {
+    if (size < prefix.size) {
+        return false
+    }
+    for (index in prefix.indices) {
+        if (this[index] != prefix[index]) {
+            return false
+        }
+    }
+    return true
 }

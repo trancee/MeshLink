@@ -426,6 +426,99 @@ class GattNotifyClientTest {
     }
 
     @Test
+    fun writeRetriesInPlaceAfterGattConnectionCongestedInsteadOfClosingTheSession(): Unit =
+        runBlocking {
+            // Arrange: every chunk's first completion reports GATT_CONNECTION_CONGESTED (status
+            // 143) -- a transient local transmit-queue backpressure signal, not a real link
+            // failure -- before succeeding on the retry for that same chunk. Completions are
+            // delivered asynchronously (after a short delay), matching how a real GATT callback
+            // arrives on a separate thread rather than synchronously inside writeCharacteristic()
+            // -- delivering them synchronously here would let a chunk's completion race ahead of
+            // drainPendingWrites() ever observing it, independent of the behavior under test.
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            val ackScope = CoroutineScope(coroutineContext)
+            val attemptsByChunk = mutableMapOf<List<Byte>, Int>()
+            session.writeChunkHandler = { chunk ->
+                val chunkKey = chunk.toList()
+                val attempt = (attemptsByChunk[chunkKey] ?: 0) + 1
+                attemptsByChunk[chunkKey] = attempt
+                ackScope.launch {
+                    delay(1L)
+                    factory.listener.onCharacteristicWrite(
+                        characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                        status = if (attempt == 1) GATT_CONNECTION_CONGESTED_STATUS else 0,
+                    )
+                }
+                true
+            }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+
+            // Act
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: the transfer still succeeds and the session stays open/ready -- every
+            // congested completion is absorbed by reissuing its chunk rather than failing the
+            // payload or tearing down the session.
+            assertTrue(written)
+            assertTrue(client.isReady())
+            assertEquals(0, session.closeCalls)
+        }
+
+    @Test
+    fun writeClosesTheSessionWhenCongestionRetriesAreExhausted(): Unit = runBlocking {
+        // Arrange: every completion for every chunk reports GATT_CONNECTION_CONGESTED,
+        // exhausting the bounded retry budget. Completions are delivered asynchronously for the
+        // same reason as the sibling retry-succeeds test above.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val ackScope = CoroutineScope(coroutineContext)
+        session.writeChunkHandler = {
+            ackScope.launch {
+                delay(1L)
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = GATT_CONNECTION_CONGESTED_STATUS,
+                )
+            }
+            true
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: once the retry budget is exhausted this degrades to the same outcome as any
+        // other genuine per-chunk write failure -- the session is closed rather than reused with a
+        // potentially corrupted frame stream.
+        assertFalse(written)
+        assertFalse(client.isReady())
+        assertTrue(session.closeCalls >= 1)
+    }
+
+    @Test
     fun writeDrainTimeoutClosesTheSessionInsteadOfLeavingAStaleCallbackToDesyncTheQueue(): Unit =
         runBlocking {
             // Arrange: the write handler reports every chunk as successfully enqueued but never
@@ -462,6 +555,10 @@ class GattNotifyClientTest {
             assertFalse(client.write(byteArrayOf(0x04)))
         }
 }
+
+// Mirrors GattNotifyClient's private ANDROID_GATT_CONNECTION_CONGESTED constant (Android's
+// BluetoothGatt.GATT_CONNECTION_CONGESTED = 143) for tests exercising the congestion-retry path.
+private const val GATT_CONNECTION_CONGESTED_STATUS: Int = 143
 
 private fun createGattNotifyClient(
     factory: GattNotifySessionFactory,
