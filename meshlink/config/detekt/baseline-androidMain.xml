@@ -140,7 +140,7 @@
     <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"</ID>
     <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"scan requested mode=${powerProfile.scanMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"</ID>
     <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported"</ID>
-    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size} peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${emittedEventCount} peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"</ID>
     <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"</ID>
     <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan discovery skipped addr=${result.device.address} rssi=${result.rssi} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} parseSkipped=$skippedCount"</ID>
     <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan discovery target mismatch addr=${result.device.address} rssi=${result.rssi} targetPeerId=$targetPeerId peerId=${discovery.hintPeerId.value} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} targetMismatch=${scanTargetMismatchCount.get()}"</ID>
@@ -185,6 +185,7 @@
     <ID>ReturnCount:Ed25519Fallback.kt$Ed25519Fallback$internal fun verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean</ID>
     <ID>ReturnCount:Ed25519Fallback.kt$Ed25519Fallback$private fun isCanonicalScalar(scalar: ByteArray): Boolean</ID>
     <ID>ReturnCount:GattLinkIdentitySupport.kt$internal fun resolveIncomingGattFrameDisposition( address: String, frame: ByteArray, peerBindings: PeerBindings, onUnknownPeerFrame: (PeerId, String) -> Unit, onClaimedPeerIdentity: (PeerId, String) -> Unit, log: (String) -> Unit, ): IncomingGattFrameDisposition</ID>
+    <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private fun retryCongestedWriteIfPossible(): Boolean</ID>
     <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private suspend fun drainPendingWrites(): Boolean</ID>
     <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$override fun onServicesDiscovered(status: Int)</ID>
     <ID>ReturnCount:GattNotifyServer.kt$BluetoothGattNotifyServer$override suspend fun start(): Boolean</ID>
@@ -193,6 +194,7 @@
     <ID>ReturnCount:GattNotifyWriteSupport.kt$internal suspend fun writeViaGattNotify( payload: ByteArray, context: GattNotifyWriteContext, dependencies: GattNotifyWriteDependencies, ): Boolean</ID>
     <ID>ReturnCount:GattSideLinkCoordinator.kt$GattSideLinkCoordinator$internal fun ensureStarted( peer: DiscoveredPeer, localPlatformFamily: BleDiscoveryPlatformFamily, ): Unit</ID>
     <ID>ReturnCount:L2capSendSupport.kt$internal suspend fun sendViaL2capWhenReady( frame: OutboundFrame, context: L2capSendContext, dependencies: L2capSendDependencies, ): TransportSendResult</ID>
+    <ID>ReturnCount:PeerRegistry.kt$private fun ByteArray.startsWithBytes(prefix: ByteArray): Boolean</ID>
     <ID>ReturnCount:PreferredGattSendSupport.kt$internal suspend fun sendViaPreferredGattSideLinkOrNull( frame: OutboundFrame, context: PreferredGattSendContext, dependencies: PreferredGattSendDependencies, ): TransportSendResult?</ID>
     <ID>ReturnCount:ScanResultSupport.kt$internal fun parseDiscoveryScanResultOrNull( serviceUuids: List&lt;String>?, serviceData: Map&lt;String, ByteArray>? = null, deviceAddress: String, localMeshHash: UShort, localKeyHash: ByteArray, onForeignScanIgnored: () -> Int = { 0 }, log: (String) -> Unit, ): DiscoveryScanResult?</ID>
     <ID>ReturnCount:SendDispatchSupport.kt$internal suspend fun dispatchSend( frame: OutboundFrame, context: SendDispatchContext, dependencies: SendDispatchDependencies, ): TransportSendResult</ID>
@@ -227,6 +229,7 @@
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val gattNotifyServer = BluetoothGattNotifyServer( context = context, peerBindings = peerBindings, onUnknownPeerFrame = ::registerProvisionalGattPeer, onClaimedPeerIdentity = ::registerClaimedGattPeer, onFrameReceived = ::enqueueInboundFrame, log = ::log, )</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val l2capServerSupported = supportsL2capServerSockets()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val serverSocket = if (l2capServerSupported) { runCatching { L2capSocketFactory.listenInsecure(adapter) } .onFailure { error -> log("L2CAP server socket unavailable: ${error.message.orEmpty()}") } .getOrNull() } else { log("L2CAP server socket unavailable: runtime capability probe returned false") null }</ID>
+    <ID>UnsafeCallOnNullableType:BleTransportAdapterScanSupport.kt$discoveredPeer!!</ID>
     <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$row[digit - 1]!!</ID>
     <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit - 1]!!</ID>
     <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit]!!</ID>
