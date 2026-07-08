@@ -373,6 +373,25 @@ class MeshEngineTransportSupportTest {
             assertEquals("true", diagnostic.metadata["willRetry"])
             assertEquals("1", diagnostic.metadata["attempt"])
         }
+
+    @Test
+    fun `manual bluetooth recovery needed event is reported as an error diagnostic`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = transportSupportHarness()
+
+            // Act
+            harness.support.handleTransportEvent(TransportEvent.ManualBluetoothRecoveryNeeded)
+
+            // Assert
+            val diagnostic =
+                harness.diagnostics.firstOrNull { diagnostic ->
+                    diagnostic.code == DiagnosticCode.MANUAL_BLUETOOTH_RECOVERY_NEEDED
+                }
+            assertNotNull(diagnostic)
+            assertEquals("transport.discovery.manualBluetoothRecoveryNeeded", diagnostic.stage)
+            assertEquals(DiagnosticSeverity.ERROR, diagnostic.severity)
+        }
 }
 
 private data class TransportSupportHarness(

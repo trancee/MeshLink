@@ -151,7 +151,9 @@ class BluetoothGattNotifySessionTest {
         assertTrue(written)
         assertSame(writeCharacteristic, connection.lastWriteCharacteristic)
         assertContentEquals(chunk, connection.lastWriteValue)
-        assertEquals(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT, connection.lastWriteType)
+        // WRITE_TYPE_NO_RESPONSE avoids waiting for a full ATT round trip per chunk, which lets
+        // GattNotifyClient pipeline multiple chunks instead of a stop-and-wait design.
+        assertEquals(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE, connection.lastWriteType)
         assertEquals(1, connection.writeCharacteristicCalls)
     }
 

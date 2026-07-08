@@ -61,6 +61,7 @@ internal class MeshEngineTransportSupport(
             is TransportEvent.TransportModeChanged -> handleTransportModeChanged(event)
             is TransportEvent.AdvertiseFailed -> handleAdvertiseFailed(event)
             is TransportEvent.ScanFailed -> handleScanFailed(event)
+            is TransportEvent.ManualBluetoothRecoveryNeeded -> handleManualBluetoothRecoveryNeeded()
         }
     }
 
@@ -208,6 +209,17 @@ internal class MeshEngineTransportSupport(
                 "willRetry" to event.willRetry.toString(),
                 "attempt" to event.attempt.toString(),
             ),
+        )
+    }
+
+    private fun handleManualBluetoothRecoveryNeeded(): Unit {
+        emitDiagnostic(
+            DiagnosticCode.MANUAL_BLUETOOTH_RECOVERY_NEEDED,
+            DiagnosticSeverity.ERROR,
+            "transport.discovery.manualBluetoothRecoveryNeeded",
+            null,
+            DiagnosticReason.TRANSPORT_CHANGE,
+            emptyMap(),
         )
     }
 

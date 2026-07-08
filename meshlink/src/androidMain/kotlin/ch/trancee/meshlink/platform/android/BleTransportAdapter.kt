@@ -5,6 +5,7 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.DirectWireFrame
@@ -55,6 +56,17 @@ internal fun resolveMaximumPayloadBytesPerDelivery(
 
 private const val AUTOMATION_ENABLED_PREF_KEY = "automation:enabled"
 private const val AUTOMATION_TARGET_PEER_ID_PREF_KEY = "automation:targetPeerId"
+
+// BluetoothAdapter.disable()/enable() only actually power-cycle the radio for a normal
+// (non-privileged) app on Android 12 (API 32) and below. Starting with Android 13 (TIRAMISU,
+// API 33), the platform made both methods no-ops for apps without BLUETOOTH_PRIVILEGED (a
+// system-app-only permission) or DevicePolicyManager device-owner status, so attempting the
+// power-cycle on API 33+ would silently do nothing while looking like a real recovery attempt.
+private const val MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE = Build.VERSION_CODES.S_V2
+
+// Delay between disable() and enable() so the radio has time to actually power down before the
+// re-enable request, matching common guidance for this pattern.
+private const val ADAPTER_POWER_CYCLE_REENABLE_DELAY_MILLIS = 2_000L
 
 internal class BleTransportAdapter(
     internal val context: Context,
@@ -208,6 +220,10 @@ internal class BleTransportAdapter(
                     delay(delayMillis)
                     check()
                 }
+            },
+            attemptBluetoothAdapterPowerCycle = ::attemptBluetoothAdapterPowerCycle,
+            onManualBluetoothRecoveryNeeded = {
+                mutableEvents.tryEmit(TransportEvent.ManualBluetoothRecoveryNeeded)
             },
         )
 
@@ -486,6 +502,45 @@ internal class BleTransportAdapter(
 
     internal fun createInboundFrameQueue(): InboundFrameQueue {
         return InboundFrameQueue(scope = coroutineScope) { event -> mutableEvents.emit(event) }
+    }
+
+    // Best-effort attempt to power-cycle the Bluetooth radio as a last-resort recovery from a
+    // wedged scanner, invoked by the scan watchdog after repeated plain scan restarts have failed
+    // to clear it. Returns true only if a power-cycle attempt was actually issued to the platform
+    // (which is only possible for a non-privileged app on Android 12/API 32 and below -- see
+    // MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE); returns false otherwise so the watchdog can fall
+    // back to signalling that manual user intervention is needed.
+    internal fun attemptBluetoothAdapterPowerCycle(): Boolean {
+        if (Build.VERSION.SDK_INT > MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE) {
+            log(
+                "adapter power-cycle unavailable: SDK_INT=${Build.VERSION.SDK_INT} exceeds MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE=$MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE"
+            )
+            return false
+        }
+        val adapter = bluetoothAdapter
+        if (adapter == null) {
+            log("adapter power-cycle unavailable: no BluetoothAdapter reference")
+            return false
+        }
+        @Suppress("DEPRECATION")
+        val disableRequested =
+            runCatching { adapter.disable() }
+                .onFailure { log("adapter power-cycle disable() threw: ${it.message}") }
+                .getOrDefault(false)
+        log("adapter power-cycle disable() requested=$disableRequested")
+        if (!disableRequested) {
+            return false
+        }
+        coroutineScope.launch {
+            delay(ADAPTER_POWER_CYCLE_REENABLE_DELAY_MILLIS)
+            @Suppress("DEPRECATION")
+            val enableRequested =
+                runCatching { adapter.enable() }
+                    .onFailure { log("adapter power-cycle enable() threw: ${it.message}") }
+                    .getOrDefault(false)
+            log("adapter power-cycle enable() requested=$enableRequested")
+        }
+        return true
     }
 
     internal fun closeQuietly(closeable: Closeable?): Unit {

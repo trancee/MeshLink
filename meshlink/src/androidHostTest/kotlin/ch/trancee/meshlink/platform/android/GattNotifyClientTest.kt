@@ -9,7 +9,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 
 class GattNotifyClientTest {
     @Test
@@ -181,6 +185,282 @@ class GattNotifyClientTest {
             concatenatedWrites.toList(),
         )
     }
+
+    @Test
+    fun writePipelinesMultipleChunksBeforeSuspendingOnTheBoundedWriteWindow(): Unit = runBlocking {
+        // Arrange: do not auto-ack from the write handler so the test can observe how many
+        // chunks get enqueued with the local BLE stack ahead of any completion callback.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        session.writeChunkHandler = { true }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+        val payload = ByteArray(300) { it.toByte() }
+
+        // Act: run the suspend write() call cooperatively on this single-threaded runBlocking
+        // dispatcher so repeated yield() calls advance it deterministically without real
+        // concurrency or timing races.
+        val writeJob = launch { client.write(payload) }
+        repeat(20) { yield() }
+
+        // Assert: several chunks were pipelined before any completion callback fired - proving
+        // this is no longer a stop-and-wait design - while the transfer is still suspended,
+        // bounded by the write window.
+        assertTrue(session.writeChunks.size > 1)
+        assertFalse(writeJob.isCompleted)
+
+        // Act: ack every chunk the session has seen so far, in issue order, letting the
+        // remaining chunks flow through the window as earlier ones complete.
+        var acked = 0
+        while (!writeJob.isCompleted) {
+            while (acked < session.writeChunks.size) {
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+                acked += 1
+            }
+            yield()
+        }
+
+        // Assert
+        assertEquals(session.writeChunks.size, acked)
+    }
+
+    @Test
+    fun writeRetriesATransientEnqueueBusyResponseInsteadOfFailingImmediately(): Unit = runBlocking {
+        // Arrange: writeCharacteristic() can transiently report busy (return false) right after
+        // a previous write's completion callback fires. Simulate that by failing the write
+        // handler's first two calls per chunk before succeeding.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        var attemptsForCurrentChunk = 0
+        session.writeChunkHandler = {
+            attemptsForCurrentChunk += 1
+            if (attemptsForCurrentChunk < 3) {
+                false
+            } else {
+                attemptsForCurrentChunk = 0
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+                true
+            }
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: the transfer still succeeds despite the transient busy responses, and each
+        // chunk was retried (3 recorded attempts per chunk) rather than the transfer aborting on
+        // the first busy response.
+        assertTrue(written)
+        assertEquals(0, session.writeChunks.size % 3)
+    }
+
+    @Test
+    fun writeClosesTheSessionWhenChunkEnqueueFailsAfterExhaustingAllRetryAttempts(): Unit =
+        runBlocking {
+            // Arrange: writeCharacteristic() always reports busy, so every retry attempt for the
+            // chunk fails and enqueueEncodedChunk() gives up.
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            session.writeChunkHandler = { false }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+
+            // Act
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: an unrecoverable enqueue failure closes the session (rather than leaving it
+            // open, which could otherwise leave a peer's frame-reassembly buffer permanently
+            // desynchronized by a truncated in-flight frame if an earlier chunk in the same
+            // payload had already been accepted by the local BLE stack), so the client reports
+            // not-ready and GattSideLinkCoordinator will reconnect with a fresh session.
+            assertFalse(written)
+            assertFalse(client.isReady())
+            assertEquals(1, session.closeCalls)
+        }
+
+    @Test
+    fun writeClosesTheSessionWhenAPipelinedChunkCompletesWithAFailureStatus(): Unit = runBlocking {
+        // Arrange: the very first chunk written on this connection (the LinkIdentity announce)
+        // completes with a non-success GATT status. drainPendingWrites() must treat this the same
+        // way as an enqueue failure or drain timeout -- closing the session -- rather than just
+        // recording the transfer as failed while leaving the session open for reuse, since with
+        // pipelined writes a failure like this can in general arrive after later chunks of the
+        // same payload have already been dispatched to the controller.
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        var chunkIndex = 0
+        session.writeChunkHandler = {
+            chunkIndex += 1
+            if (chunkIndex == 1) {
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 1,
+                )
+            }
+            true
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: a per-chunk write failure closes the session (rather than only marking this
+        // transfer as failed while leaving the session open for reuse), because the peer's
+        // frame reassembly may already be mid-frame from the chunks that succeeded.
+        assertFalse(written)
+        assertFalse(client.isReady())
+        assertEquals(1, session.closeCalls)
+    }
+
+    /**
+     * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
+     * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for
+     * a BLE connection-interval round trip). This gives a repeatable, hardware-free regression
+     * signal for the windowed pipelining fix (see meshlink-benchmark/history.md for the
+     * physical-fleet evidence this addresses: the previous stop-and-wait design measured ~8-10 KB/s
+     * on the Samsung XCover4 <-> OPPO Reno8 GATT-fallback bearer, matching one 512-byte chunk per
+     * round trip).
+     */
+    @Test
+    fun writePipelinesChunksInsteadOfOneRoundTripPerChunk(): Unit = runBlocking {
+        // Arrange: an ack for each chunk only arrives after a fixed simulated round-trip delay.
+        // A stop-and-wait design would take chunkCount * simulatedRoundTripMs to finish; a
+        // pipelined design bounded by the write window should take roughly
+        // ceil(chunkCount / windowSize) * simulatedRoundTripMs instead.
+        val simulatedRoundTripMs = 15L
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        val ackScope = CoroutineScope(coroutineContext)
+        session.writeChunkHandler = {
+            ackScope.launch {
+                delay(simulatedRoundTripMs)
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+            }
+            true
+        }
+        val client = createGattNotifyClient(factory = factory)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+        // Default (un-negotiated) ATT MTU yields ~20-byte chunks; a few KB of payload is enough
+        // to exercise many chunks without an unreasonably long real-time test.
+        val payload = ByteArray(4_000) { it.toByte() }
+        val writeWindowSizeUnderTest = 4
+
+        // Act
+        val startedAtMs = System.currentTimeMillis()
+        val written = client.write(payload)
+        val elapsedMs = System.currentTimeMillis() - startedAtMs
+
+        // Assert: the transfer succeeded, and a stop-and-wait design's expected duration
+        // (chunkCount * simulatedRoundTripMs) clearly exceeds what the pipelined design actually
+        // took, proving multiple chunks were kept in flight rather than one at a time.
+        val chunkCount = session.writeChunks.size
+        val stopAndWaitBaselineMs = chunkCount * simulatedRoundTripMs
+        assertTrue(written)
+        assertTrue(chunkCount > writeWindowSizeUnderTest)
+        assertTrue(
+            elapsedMs < stopAndWaitBaselineMs / 2,
+            "Expected pipelined elapsedMs=$elapsedMs to beat the stop-and-wait baseline of " +
+                "$stopAndWaitBaselineMs ms (chunkCount=$chunkCount, roundTripMs=$simulatedRoundTripMs)",
+        )
+    }
+
+    @Test
+    fun writeDrainTimeoutClosesTheSessionInsteadOfLeavingAStaleCallbackToDesyncTheQueue(): Unit =
+        runBlocking {
+            // Arrange: the write handler reports every chunk as successfully enqueued but never
+            // invokes the onCharacteristicWrite completion callback, simulating a native GATT
+            // operation that never completes (or completes so late the drain has already given up).
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            session.writeChunkHandler = { true }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+
+            // Act: this genuinely waits out the real WRITE_TIMEOUT_MILLIS drain timeout.
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: the drain timeout closes the session (rather than leaving it open to receive
+            // a
+            // stale completion callback later that would be wrongly matched to an unrelated future
+            // write), so the client reports not-ready and a subsequent write is rejected
+            // immediately
+            // instead of silently corrupting the pending-write queue.
+            assertFalse(written)
+            assertFalse(client.isReady())
+            assertEquals(1, session.closeCalls)
+            assertFalse(client.write(byteArrayOf(0x04)))
+        }
 }
 
 private fun createGattNotifyClient(

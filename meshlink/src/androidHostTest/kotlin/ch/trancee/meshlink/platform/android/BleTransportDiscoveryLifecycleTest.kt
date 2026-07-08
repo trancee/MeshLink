@@ -471,6 +471,67 @@ class BleTransportDiscoveryLifecycleTest {
         // Assert: the stale watchdog loop from before stop() must not restart scanning.
         assertEquals(startScanCallsAfterStop, fixture.startScanCalls)
     }
+
+    @Test
+    fun scanWatchdogEscalatesToAdapterPowerCycleAfterRepeatedWedgedRestarts(): Unit {
+        // Arrange: a plain scan restart never brings in a result, so the idle clock never
+        // resets between checks -- simulating a wedge a scan-only restart cannot clear.
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act: advance past the idle threshold and run the watchdog check
+        // MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION times in a row.
+        repeat(MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION) {
+            fixture.fakeNowMillis += SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+            fixture.runScheduledWatchdogChecks()
+        }
+
+        // Assert: escalation fires exactly once, after the configured number of consecutive
+        // wedged restarts.
+        assertEquals(1, fixture.powerCycleAttempts)
+        assertEquals(0, fixture.manualRecoveryNeededCalls)
+    }
+
+    @Test
+    fun scanWatchdogFallsBackToManualRecoveryWhenAdapterPowerCycleIsUnavailable(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.powerCycleResult = false
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        repeat(MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION) {
+            fixture.fakeNowMillis += SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+            fixture.runScheduledWatchdogChecks()
+        }
+
+        // Assert
+        assertEquals(1, fixture.powerCycleAttempts)
+        assertEquals(1, fixture.manualRecoveryNeededCalls)
+    }
+
+    @Test
+    fun scanWatchdogResetsTheWedgeStreakWhenAScanResultArrives(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act: one wedged restart, then a real result arrives before the next check, then
+        // another wedged restart -- this should not accumulate into an escalation because the
+        // streak was broken by the intervening result.
+        fixture.fakeNowMillis = SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+        fixture.runScheduledWatchdogChecks()
+        fixture.lifecycle.scanCallback.onBatchScanResults(mutableListOf())
+        fixture.fakeNowMillis += SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+        fixture.runScheduledWatchdogChecks()
+
+        // Assert
+        assertEquals(0, fixture.powerCycleAttempts)
+        assertEquals(0, fixture.manualRecoveryNeededCalls)
+    }
 }
 
 private class BleTransportDiscoveryLifecycleFixture {
@@ -489,6 +550,9 @@ private class BleTransportDiscoveryLifecycleFixture {
     var fakeNowMillis: Long = 0L
     val scheduledWatchdogDelaysMillis = mutableListOf<Long>()
     private val pendingWatchdogChecks = mutableListOf<() -> Unit>()
+    var powerCycleAttempts: Int = 0
+    var powerCycleResult: Boolean = true
+    var manualRecoveryNeededCalls: Int = 0
 
     val hardware =
         BleTransportDiscoveryHardware(
@@ -542,6 +606,11 @@ private class BleTransportDiscoveryLifecycleFixture {
                 pendingWatchdogChecks += check
             },
             nowMillis = { fakeNowMillis },
+            attemptBluetoothAdapterPowerCycle = {
+                powerCycleAttempts += 1
+                powerCycleResult
+            },
+            onManualBluetoothRecoveryNeeded = { manualRecoveryNeededCalls += 1 },
         )
 
     fun runScheduledRetries(): Unit {

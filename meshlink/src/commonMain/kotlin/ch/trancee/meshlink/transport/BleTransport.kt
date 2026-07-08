@@ -55,6 +55,13 @@ internal sealed class TransportEvent {
         internal val willRetry: Boolean,
         internal val attempt: Int,
     ) : TransportEvent()
+
+    // Emitted when the scan watchdog has exhausted its own recovery options (plain scan restart,
+    // then an adapter power-cycle attempt where the platform permits it) and a device-specific
+    // BLE scan wedge still hasn't cleared. The host app is expected to surface this as an
+    // actionable prompt asking the user to manually toggle Bluetooth off/on, since no further
+    // in-app recovery is possible without elevated (system-app) permissions.
+    internal data object ManualBluetoothRecoveryNeeded : TransportEvent()
 }
 
 internal interface BleTransport {
