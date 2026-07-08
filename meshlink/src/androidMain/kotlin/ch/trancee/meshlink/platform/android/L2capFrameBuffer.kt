@@ -25,27 +25,11 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
     }
 
     internal fun append(source: ByteArray, length: Int): List<ByteArray> {
-        val chunkLength = length.coerceIn(0, source.size)
-        ensureCapacity(size + chunkLength)
-        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
-        size += chunkLength
+        val chunkLength = bufferChunk(source, length)
 
         val frames = mutableListOf<ByteArray>()
-        while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
-            val frameSize = readIntLittleEndian(buffer, readOffset)
-            if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
-                clear()
-                throw MeshLinkException.TransportFailure(
-                    "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
-                )
-            }
-            val frameStart = readOffset + LENGTH_PREFIX_SIZE_BYTES
-            if (size - frameStart < frameSize) {
-                break
-            }
-            val frameEnd = frameStart + frameSize
+        decodeAvailableFrames { frameStart, frameEnd, _, _ ->
             frames += buffer.copyOfRange(frameStart, frameEnd)
-            readOffset = frameEnd
         }
         compactIfNeeded()
         return frames
@@ -56,50 +40,37 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
     }
 
     internal fun appendDetailed(source: ByteArray, length: Int): AppendResult {
-        val chunkLength = length.coerceIn(0, source.size)
         val bufferedBytesBeforeAppend = pendingBytes()
-        val appendedChunkPrefixHex = source.hexSnippetFromStart(chunkLength)
-        val appendedChunkSuffixHex = source.hexSnippetFromEnd(chunkLength)
-        ensureCapacity(size + chunkLength)
-        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
-        size += chunkLength
+        val appendedChunkPrefixHex = source.hexSnippetFromStart(length.coerceIn(0, source.size))
+        val appendedChunkSuffixHex = source.hexSnippetFromEnd(length.coerceIn(0, source.size))
+        val chunkLength = bufferChunk(source, length)
 
         val frames = mutableListOf<ByteArray>()
         val observations = mutableListOf<DecodedFrameObservation>()
-        while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
+        decodeAvailableFrames { frameStart, frameEnd, frameSize, headerReadOffset ->
             val headerHex =
-                buffer.copyOfRange(readOffset, readOffset + LENGTH_PREFIX_SIZE_BYTES).toHexString()
-            val frameSize = readIntLittleEndian(buffer, readOffset)
-            if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
-                clear()
-                throw MeshLinkException.TransportFailure(
-                    "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
-                )
-            }
-            val frameStart = readOffset + LENGTH_PREFIX_SIZE_BYTES
-            if (size - frameStart < frameSize) {
-                break
-            }
-            val frameEnd = frameStart + frameSize
+                buffer
+                    .copyOfRange(headerReadOffset, headerReadOffset + LENGTH_PREFIX_SIZE_BYTES)
+                    .toHexString()
             observations +=
                 DecodedFrameObservation(
                     frameIndexInAppend = observations.size + 1,
                     frameSizeBytes = frameSize,
                     headerHex = headerHex,
-                    readOffsetBeforeFrame = readOffset,
+                    readOffsetBeforeFrame = headerReadOffset,
                     frameStartOffset = frameStart,
                     frameEndOffset = frameEnd,
                     bufferedBytesBeforeAppend = bufferedBytesBeforeAppend,
                     totalBufferedBytesAfterAppend = size,
                     remainingBufferedBytesAfterFrame = size - frameEnd,
-                    headerStartsInPreviouslyBufferedBytes = readOffset < bufferedBytesBeforeAppend,
+                    headerStartsInPreviouslyBufferedBytes =
+                        headerReadOffset < bufferedBytesBeforeAppend,
                     frameEndsBeyondPreviouslyBufferedBytes = frameEnd > bufferedBytesBeforeAppend,
                     appendedChunkBytes = chunkLength,
                     appendedChunkPrefixHex = appendedChunkPrefixHex,
                     appendedChunkSuffixHex = appendedChunkSuffixHex,
                 )
             frames += buffer.copyOfRange(frameStart, frameEnd)
-            readOffset = frameEnd
         }
         compactIfNeeded()
         return AppendResult(
@@ -111,6 +82,51 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
             appendedChunkSuffixHex = appendedChunkSuffixHex,
             pendingBytesAfterAppend = pendingBytes(),
         )
+    }
+
+    /**
+     * Copies [length] bytes of [source] (clamped to its actual size) into the internal buffer,
+     * growing it if necessary, and returns the clamped length actually appended. Shared by [append]
+     * and [appendDetailed] so buffer growth/copy logic has a single implementation.
+     */
+    private fun bufferChunk(source: ByteArray, length: Int): Int {
+        val chunkLength = length.coerceIn(0, source.size)
+        ensureCapacity(size + chunkLength)
+        source.copyInto(buffer, destinationOffset = size, endIndex = chunkLength)
+        size += chunkLength
+        return chunkLength
+    }
+
+    /**
+     * Scans the buffer starting at [readOffset] for as many complete length-prefixed frames as are
+     * currently available, invoking [onFrameDecoded] for each and advancing [readOffset] past it.
+     * This is the single source of truth for frame-boundary decoding shared by [append] (the hot
+     * receive path) and [appendDetailed] (the diagnostics variant) -- previously each reimplemented
+     * this loop separately, risking the two silently diverging on framing edge cases. Declared
+     * `inline` so the lean [append] path pays no extra lambda-allocation cost for sharing this
+     * logic with [appendDetailed].
+     */
+    private inline fun decodeAvailableFrames(
+        onFrameDecoded:
+            (frameStart: Int, frameEnd: Int, frameSize: Int, headerReadOffset: Int) -> Unit
+    ): Unit {
+        while (size - readOffset >= LENGTH_PREFIX_SIZE_BYTES) {
+            val headerReadOffset = readOffset
+            val frameSize = readIntLittleEndian(buffer, headerReadOffset)
+            if (frameSize < 0 || frameSize > maxFrameSizeBytes) {
+                clear()
+                throw MeshLinkException.TransportFailure(
+                    "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
+                )
+            }
+            val frameStart = headerReadOffset + LENGTH_PREFIX_SIZE_BYTES
+            if (size - frameStart < frameSize) {
+                break
+            }
+            val frameEnd = frameStart + frameSize
+            onFrameDecoded(frameStart, frameEnd, frameSize, headerReadOffset)
+            readOffset = frameEnd
+        }
     }
 
     internal fun pendingBytes(): Int {

@@ -22,6 +22,17 @@ internal fun maximumGattWriteChunkBytes(currentMtu: Int): Int {
         .coerceAtLeast(1)
 }
 
+/**
+ * One chunk in flight through the windowed write pipeline. Retains [chunk] (not just the [deferred]
+ * completion) so a GATT_CONNECTION_CONGESTED completion can reissue the exact same bytes in place
+ * via [GattNotifyClient.retryCongestedWriteIfPossible] instead of only being able to fail the whole
+ * payload.
+ */
+private class PendingGattWrite(val chunk: ByteArray) {
+    val deferred: CompletableDeferred<Boolean> = CompletableDeferred()
+    var congestionRetries: Int = 0
+}
+
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
 internal class GattNotifyClient(
     private val context: Any,
@@ -52,7 +63,7 @@ internal class GattNotifyClient(
     // strictly in the order they were issued, so completions can be matched to the oldest queued
     // entry.
     private val pendingWritesLock = Any()
-    private val pendingWrites = ArrayDeque<CompletableDeferred<Boolean>>()
+    private val pendingWrites = ArrayDeque<PendingGattWrite>()
     private val writeWindow = Semaphore(WRITE_WINDOW_SIZE)
     @Volatile private var identityAnnounced: Boolean = false
     // Guards against retrying the cache-refresh indefinitely: only one refresh-and-rediscover
@@ -205,6 +216,18 @@ internal class GattNotifyClient(
                 if (characteristicUuid != GATT_WRITE_CHARACTERISTIC_UUID) {
                     return
                 }
+                // GATT_CONNECTION_CONGESTED means the local BLE stack's transmit queue is
+                // temporarily backed up -- the controller couldn't send this chunk yet, not that
+                // the link or the chunk itself is broken. Retrying the same chunk in place absorbs
+                // that transient backpressure the same way enqueueEncodedChunk()'s busy-retry loop
+                // already does for the synchronous writeCharacteristic() == false case, instead of
+                // tearing down and reconnecting the whole session for what is normally a
+                // self-clearing condition.
+                if (
+                    status == ANDROID_GATT_CONNECTION_CONGESTED && retryCongestedWriteIfPossible()
+                ) {
+                    return
+                }
                 if (status != ANDROID_GATT_SUCCESS) {
                     log(
                         "GATT notify side link ${peerHintId.value.takeLast(6)} write failed status=$status"
@@ -327,11 +350,38 @@ internal class GattNotifyClient(
     }
 
     private fun completePendingWrite(success: Boolean): Unit {
-        val deferred = synchronized(pendingWritesLock) { pendingWrites.removeFirstOrNull() }
-        if (deferred != null) {
+        val pending = synchronized(pendingWritesLock) { pendingWrites.removeFirstOrNull() }
+        if (pending != null) {
             writeWindow.release()
         }
-        deferred?.complete(success)
+        pending?.deferred?.complete(success)
+    }
+
+    /**
+     * Reissues the oldest still-pending write in place after a GATT_CONNECTION_CONGESTED
+     * completion, up to [MAX_CONGESTION_RETRY_ATTEMPTS] times, without releasing its write-window
+     * permit or removing it from [pendingWrites] -- from the pipeline's point of view this chunk is
+     * still in flight, just re-submitted. Returns false (leaving the caller to fall back to
+     * treating this as a genuine failure) if there is no pending write to retry, its retry budget
+     * is exhausted, or the session is gone.
+     */
+    private fun retryCongestedWriteIfPossible(): Boolean {
+        val activeSession = session ?: return false
+        val pending =
+            synchronized(pendingWritesLock) { pendingWrites.firstOrNull() } ?: return false
+        if (pending.congestionRetries >= MAX_CONGESTION_RETRY_ATTEMPTS) {
+            return false
+        }
+        pending.congestionRetries += 1
+        val reissued = activeSession.writeChunk(pending.chunk)
+        if (!reissued) {
+            return false
+        }
+        log(
+            "GATT notify side link ${peerHintId.value.takeLast(6)} write congested, retrying " +
+                "(${pending.congestionRetries}/$MAX_CONGESTION_RETRY_ATTEMPTS)"
+        )
+        return true
     }
 
     private fun failAllPendingWrites(): Unit {
@@ -342,7 +392,7 @@ internal class GattNotifyClient(
                 copy
             }
         repeat(pending.size) { writeWindow.release() }
-        pending.forEach { it.complete(false) }
+        pending.forEach { it.deferred.complete(false) }
     }
 
     private fun closeInternal(markClosedByOwner: Boolean): Unit {
@@ -376,8 +426,8 @@ internal class GattNotifyClient(
         chunk: ByteArray,
     ): Boolean {
         writeWindow.acquire()
-        val deferred = CompletableDeferred<Boolean>()
-        synchronized(pendingWritesLock) { pendingWrites.addLast(deferred) }
+        val pending = PendingGattWrite(chunk)
+        synchronized(pendingWritesLock) { pendingWrites.addLast(pending) }
         var enqueued = session.writeChunk(chunk)
         var attempt = 1
         while (!enqueued && attempt < ENQUEUE_RETRY_ATTEMPTS) {
@@ -386,12 +436,12 @@ internal class GattNotifyClient(
             attempt += 1
         }
         if (!enqueued) {
-            synchronized(pendingWritesLock) { pendingWrites.remove(deferred) }
+            synchronized(pendingWritesLock) { pendingWrites.remove(pending) }
             writeWindow.release()
             log(
                 "GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed after ${attempt} attempt(s) bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"
             )
-            deferred.complete(false)
+            pending.deferred.complete(false)
             // A mid-payload chunk enqueue failure means writeViaGattNotify() aborts without ever
             // draining the chunks already enqueued for this same payload (see
             // GattNotifyWriteSupport.writeViaGattNotify). Those earlier chunks were already
@@ -417,7 +467,7 @@ internal class GattNotifyClient(
     private suspend fun drainPendingWrites(): Boolean {
         while (true) {
             val next = synchronized(pendingWritesLock) { pendingWrites.firstOrNull() } ?: break
-            val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.await() }
+            val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.deferred.await() }
             if (result == null) {
                 log("GATT notify side link ${peerHintId.value.takeLast(6)} write drain timed out")
                 // Android's GATT client API has no way to cancel an in-flight write, so the
@@ -491,6 +541,13 @@ internal class GattNotifyClient(
         // aborting the whole chunked transfer.
         private const val ENQUEUE_RETRY_ATTEMPTS: Int = 5
         private const val ENQUEUE_RETRY_DELAY_MILLIS: Long = 20L
+        // Bounds how many times a single chunk may be reissued in place after a
+        // GATT_CONNECTION_CONGESTED write completion before it's treated as a genuine failure (see
+        // retryCongestedWriteIfPossible). Congestion is expected to clear within a handful of the
+        // controller's own TX-complete cycles; retrying indefinitely would risk masking a link that
+        // is actually gone.
+        private const val MAX_CONGESTION_RETRY_ATTEMPTS: Int = 5
+        private const val ANDROID_GATT_CONNECTION_CONGESTED: Int = 143
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }
