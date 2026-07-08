@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MagicNumber:CryptoRuntimePerformanceDeviceTest.kt$CryptoRuntimePerformanceDeviceTest$12</ID>
+    <ID>MagicNumber:CryptoRuntimePerformanceDeviceTest.kt$CryptoRuntimePerformanceDeviceTest$1_000.0</ID>
+    <ID>MagicNumber:CryptoRuntimePerformanceDeviceTest.kt$CryptoRuntimePerformanceDeviceTest$1_000_000.0</ID>
+    <ID>MagicNumber:CryptoRuntimePerformanceDeviceTest.kt$CryptoRuntimePerformanceDeviceTest$256</ID>
+    <ID>MagicNumber:CryptoRuntimePerformanceDeviceTest.kt$CryptoRuntimePerformanceDeviceTest$32</ID>
+    <ID>MagicNumber:CryptoRuntimeValidationDeviceTest.kt$CryptoRuntimeValidationDeviceTest$12</ID>
+    <ID>MagicNumber:CryptoRuntimeValidationDeviceTest.kt$CryptoRuntimeValidationDeviceTest$26</ID>
+    <ID>MagicNumber:CryptoRuntimeValidationDeviceTest.kt$CryptoRuntimeValidationDeviceTest$28</ID>
+    <ID>MagicNumber:CryptoRuntimeValidationDeviceTest.kt$CryptoRuntimeValidationDeviceTest$32</ID>
+    <ID>MaxLineLength:CryptoRuntimeValidationDeviceTest.kt$CryptoRuntimeValidationDeviceTest$"CRYPTO_RUNTIME_VALIDATION sdk=${Build.VERSION.SDK_INT} x25519=${report.supportsX25519} ed25519=${report.supportsEd25519} chacha=${report.supportsChaCha20Poly1305} meshRuntime=${report.supportsMeshLinkRuntime} provider=${provider::class.simpleName}"</ID>
+  </CurrentIssues>
+</SmellBaseline>

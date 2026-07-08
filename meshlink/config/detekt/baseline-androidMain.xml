@@ -1,0 +1,240 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$generation != scanWatchdogGeneration || isStopped || isDiscoverySuspended || !hardware.hasScanner</ID>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasAdvertiser</ID>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasAdvertiser || errorCode !in RETRYABLE_ADVERTISE_ERROR_CODES || advertiseRetryAttempt >= MAX_ADVERTISE_RETRY_ATTEMPTS</ID>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner</ID>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner || errorCode !in RETRYABLE_SCAN_ERROR_CODES || scanRetryAttempt >= MAX_SCAN_RETRY_ATTEMPTS</ID>
+    <ID>CyclomaticComplexMethod:BleTransportAdapterScanSupport.kt$internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit</ID>
+    <ID>InjectDispatcher:BleTransportAdapter.kt$BleTransportAdapter$IO</ID>
+    <ID>LongMethod:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$private fun poly1305Finish( h: LongArray, pad0: Long, pad1: Long, pad2: Long, pad3: Long, ): ByteArray</ID>
+    <ID>LongMethod:BleTransportAdapterL2capSupport.kt$internal fun BleTransportAdapter.registerConnectedSocket( hintPeerId: PeerId, socket: BluetoothSocket, ): Unit</ID>
+    <ID>LongMethod:BleTransportAdapterLifecycleSupport.kt$internal suspend fun BleTransportAdapter.startTransport(): Unit</ID>
+    <ID>LongMethod:BleTransportAdapterScanSupport.kt$internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit</ID>
+    <ID>LongMethod:GattNotifyClient.kt$GattNotifyClient$suspend fun write(payload: ByteArray): Boolean</ID>
+    <ID>LongParameterList:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$( h: LongArray, r0: Long, r1: Long, r2: Long, r3: Long, r4: Long, s1: Long, s2: Long, s3: Long, s4: Long, block: ByteArray, offset: Int, hibit: Long, )</ID>
+    <ID>LongParameterList:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$( appId: String, localKeyHash: ByteArray, private val handleScanResult: (ScanResult) -> Unit, private val ensurePermissionsGranted: () -> Unit, private val foreignScanIgnoredCount: () -> Int, private val log: (String) -> Unit, private val scheduleAdvertiseRetry: (delayMillis: Long, retry: () -> Unit) -> Unit = { _, _ -> }, private val onAdvertiseFailed: (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit = { _, _, _, _ -> }, private val scheduleScanRetry: (delayMillis: Long, retry: () -> Unit) -> Unit = { _, _ -> }, private val onScanFailed: (errorCode: Int, errorName: String, willRetry: Boolean, attempt: Int) -> Unit = { _, _, _, _ -> }, private val scheduleScanWatchdogCheck: (delayMillis: Long, check: () -> Unit) -> Unit = { _, _ -> }, private val nowMillis: () -> Long = { System.currentTimeMillis() }, // Best-effort adapter power-cycle attempt for the wedge-escalation path below. Returns true // if a power-cycle was actually attempted (platform/permission allowed it), false if it could // not be attempted at all (e.g. Android 13+ without BLUETOOTH_PRIVILEGED, where // BluetoothAdapter.disable()/enable() are no-ops for normal apps) so the caller can fall back // to the manual-recovery signal instead. private val attemptBluetoothAdapterPowerCycle: () -> Boolean = { false }, // Invoked when the watchdog has exhausted its own recovery options (scan restart, then // adapter power-cycle where possible) and the wedge still hasn't cleared; the caller is // expected to surface this as an actionable prompt asking the user to manually toggle // Bluetooth. private val onManualBluetoothRecoveryNeeded: () -> Unit = {}, )</ID>
+    <ID>LongParameterList:GattLinkIdentitySupport.kt$( address: String, frame: ByteArray, peerBindings: PeerBindings, onUnknownPeerFrame: (PeerId, String) -> Unit, onClaimedPeerIdentity: (PeerId, String) -> Unit, log: (String) -> Unit, )</ID>
+    <ID>LongParameterList:GattNotifyClient.kt$GattNotifyClient$( private val context: Any, @Suppress("UNUSED_PARAMETER") private val appId: String, private val peerHintId: PeerId, private val localHintPeerId: PeerId, private val device: Any, private val log: (String) -> Unit, private val onFrameReceived: (PeerId, ByteArray) -> Boolean, private val onDisconnected: (PeerId) -> Unit, // Read at connection time so the priority reflects the *current* power tier rather than // whatever tier was active when this client was constructed. private val connectionPriorityProvider: () -> Int = { BluetoothGatt.CONNECTION_PRIORITY_HIGH }, private val sessionFactory: GattNotifySessionFactory = BluetoothGattNotifySessionFactory(context = context, device = device), )</ID>
+    <ID>LongParameterList:GattNotifyServer.kt$BluetoothGattNotifyServer$( private val context: Context, private val peerBindings: PeerBindings, private val onUnknownPeerFrame: (PeerId, String) -> Unit, private val onClaimedPeerIdentity: (PeerId, String) -> Unit, private val onFrameReceived: (PeerId, ByteArray) -> Boolean, private val log: (String) -> Unit, private val serviceReadyTimeoutMillis: Long = 2_000, )</ID>
+    <ID>LongParameterList:GattSideLinkCoordinator.kt$( context: Any, appId: String, peerHintId: PeerId, localHintPeerId: PeerId, device: Any, log: (String) -> Unit, onFrameReceived: (PeerId, ByteArray) -> Boolean, onDisconnected: (PeerId) -> Unit, connectionPriorityProvider: () -> Int, )</ID>
+    <ID>LongParameterList:GattSideLinkCoordinator.kt$GattSideLinkCoordinatorDependencies$( internal val localHintPeerId: PeerId, internal val deviceForPeer: (DiscoveredPeer) -> Any?, internal val hasActiveL2capLink: (String) -> Boolean, internal val setPresenceAnnounced: (String, Boolean) -> Unit, internal val onFrameReceived: (PeerId, ByteArray) -> Boolean, internal val onPeerLost: (PeerId) -> Unit, internal val createClient: ( peerHintId: PeerId, localHintPeerId: PeerId, device: Any, onFrameReceived: (PeerId, ByteArray) -> Boolean, onDisconnected: (PeerId) -> Unit, ) -> GattSideLinkClient, internal val log: (String) -> Unit, // Used to schedule the debounced PeerLost signal (see PEER_LOST_DEBOUNCE_MILLIS). Must be a // scope whose lifetime spans the transport adapter's lifetime. internal val scope: CoroutineScope, // Overridable so tests can use 0L with an unconfined/immediate scope to observe the debounced // signal deterministically without depending on kotlinx-coroutines-test. internal val peerLostDebounceMillis: Long = PEER_LOST_DEBOUNCE_MILLIS, )</ID>
+    <ID>LongParameterList:ScanResultSupport.kt$( serviceUuids: List&lt;String>?, serviceData: Map&lt;String, ByteArray>? = null, deviceAddress: String, localMeshHash: UShort, localKeyHash: ByteArray, onForeignScanIgnored: () -> Int = { 0 }, log: (String) -> Unit, )</ID>
+    <ID>LongParameterList:ScanResultSupport.kt$( transportMode: TransportMode, localPlatformFamily: BleDiscoveryPlatformFamily, remotePlatformFamily: BleDiscoveryPlatformFamily, localL2capClientSocketsSupported: Boolean, shouldInitiateL2cap: Boolean, gattSideLinkReady: Boolean, )</ID>
+    <ID>LoopWithTooManyJumpStatements:BleTransportAdapterL2capSupport.kt$while</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x00fffffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x3320646e</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x3f03fffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x3ffc0ffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x3ffff03L</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x3ffffffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x61707865</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x6b206574</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0x79622d32</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0xff</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0xffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$0xffffffffL</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$10</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$11</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$12</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$127</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$13</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$14</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$15</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$16</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$18</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$20</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$24</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$248</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$26</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$28</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$3</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$31</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$32</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$4</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$5</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$5L</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$6</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$63</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$64</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$7</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$8</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider$9</ID>
+    <ID>MagicNumber:BlePermissionContract.kt$BlePermissionContract$31</ID>
+    <ID>MagicNumber:BleTransportAdapter.kt$BleTransportAdapter$6</ID>
+    <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$6</ID>
+    <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$8</ID>
+    <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$L2capLink$6</ID>
+    <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$L2capLink$8</ID>
+    <ID>MagicNumber:BleTransportAdapterScanSupport.kt$6</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0x7fffL</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xFF</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffL</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffedL</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffffL</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$10</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$100</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$12</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$127</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$128L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$14</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$15</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$16</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$16L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$20</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$248</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$255L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$3</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$31</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$37L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$38L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$4</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$5</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$50</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$63</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$64</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$65535L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$65536L</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$7</ID>
+    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$8</ID>
+    <ID>MagicNumber:GattNotifyClient.kt$GattNotifyClient$6</ID>
+    <ID>MagicNumber:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$517</ID>
+    <ID>MagicNumber:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$6</ID>
+    <ID>MagicNumber:GattNotifyServer.kt$BluetoothGattNotifyServer.&lt;no name provided>$6</ID>
+    <ID>MagicNumber:GattSideLinkCoordinator.kt$GattSideLinkCoordinator$6</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x03</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x08</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x09</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x23</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x45</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$12</ID>
+    <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$32</ID>
+    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$0xFF</ID>
+    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$16</ID>
+    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$24</ID>
+    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$3</ID>
+    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$8</ID>
+    <ID>MagicNumber:L2capSendSupport.kt$6</ID>
+    <ID>MagicNumber:PreferredGattSendSupport.kt$25</ID>
+    <ID>MagicNumber:PreferredGattSendSupport.kt$6</ID>
+    <ID>MagicNumber:SendDispatchSupport.kt$6</ID>
+    <ID>MatchingDeclarationName:GattLinkIdentitySupport.kt$IncomingGattFrameDisposition</ID>
+    <ID>MatchingDeclarationName:ScanResultSupport.kt$DiscoveryScanResult</ID>
+    <ID>MaxLineLength:BleTransportAdapter.kt$BleTransportAdapter$"adapter power-cycle unavailable: SDK_INT=${Build.VERSION.SDK_INT} exceeds MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE=$MAX_API_LEVEL_FOR_ADAPTER_POWER_CYCLE"</ID>
+    <ID>MaxLineLength:BleTransportAdapter.kt$BleTransportAdapter$"ignoring empty frame from $peerSuffix readBytes=$readBytes frameIndex=$frameIndex decodedFrames=${appendResult.frames.size} headerHex=$headerHex readOffset=$readOffset frameEndOffset=$frameEndOffset bufferedBeforeAppend=${appendResult.bufferedBytesBeforeAppend} totalBufferedAfterAppend=$totalBuffered pendingAfterAppend=${appendResult.pendingBytesAfterAppend} remainingBufferedAfterFrame=$remainingBuffered headerFromPriorBuffer=$headerFromPriorBuffer frameReachedCurrentChunk=$frameReachedCurrentChunk chunkPrefixHex=${appendResult.appendedChunkPrefixHex} chunkSuffixHex=${appendResult.appendedChunkSuffixHex}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"L2CAP EOF from ${link.peerHintId.value.takeLast(6)} pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"L2CAP read ${link.peerHintId.value.takeLast(6)} bytes=$read prefix=${readBuffer.copyOf(minOf(read, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"L2CAP zero-byte read from $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize} consecutive=$consecutiveZeroByteReads"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"L2CAP zero-byte read threshold reached for $peerSuffix pendingFrameBytes=${link.incomingFrames.pendingBytes()} maxReceivePacketSize=${link.maxReceivePacketSize}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"bound L2CAP link ${link.peerHintId.value.takeLast(6)} -> ${claimedPeerId.value.takeLast(6)} addr=$address via LinkIdentity"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"closing L2CAP link ${hintPeer.takeLast(6)}: $reason discoveredPeerRetained=${retryPeer != null} pendingConnect=${hasPendingConnect(hintPeer)} retryRequested=$retryRequested"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"closing temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} because ${hintPeerId.value.takeLast(6)} already has an active link"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"connecting L2CAP to ${peer.hintPeerId.value.takeLast(6)} psm=${peer.l2capPsm} addr=${device.address}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"promoted temporary L2CAP link ${mappedTemporaryHint.takeLast(6)} -> ${hintPeerId.value.takeLast(6)} addr=$address"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$"retrying L2CAP connect for ${retryPeer.hintPeerId.value.takeLast(6)} after transient close (backoffMs=$backoffMillis)"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$L2capLink$"L2CAP link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterL2capSupport.kt$L2capLink$"L2CAP write ${peerHintId.value.takeLast(6)} payloadBytes=${payload.size} encodedBytes=${encoded.size} payloadPrefix=${payload.copyOf(minOf(payload.size, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"advertise requested mode=${powerProfile.advertiseMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"advertise start invoked carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${payload.l2capPsm}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"scan requested mode=${powerProfile.scanMode} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycleSupport.kt$"startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=${update.events.size} peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan accepted ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} emitted=no-events peerId=${discovery.hintPeerId.value} addr=${result.device.address} knownPeers=${peerRegistry.discoveredPeerCount()} targetPeerId=${automationTargetPeerId ?: "none"} accepted=${scanAcceptedCount.get()}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan discovery skipped addr=${result.device.address} rssi=${result.rssi} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} parseSkipped=$skippedCount"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan discovery target mismatch addr=${result.device.address} rssi=${result.rssi} targetPeerId=$targetPeerId peerId=${discovery.hintPeerId.value} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} targetMismatch=${scanTargetMismatchCount.get()}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan found ${discovery.hintPeerId.value.takeLast(6)} mode=${discovery.transportMode} psm=${discovery.payload.l2capPsm} platform=${discovery.payload.platformFamily} addr=${result.device.address}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan rediscovered ${peer.hintPeerId.value.takeLast(6)} with no active link pendingConnect=$hasPendingConnect addr=$address"</ID>
+    <ID>MaxLineLength:BleTransportAdapterScanSupport.kt$"scan result#$scanNumber addr=${result.device.address} rssi=${result.rssi} uuids=${result.scanRecord?.serviceUuids?.size ?: 0} targetPeerId=${automationTargetPeerId ?: "none"} knownPeers=${peerRegistry.discoveredPeerCount()} foreignIgnored=${foreignScanIgnoredCount.get()} accepted=${scanAcceptedCount.get()} parseSkipped=${scanParseSkippedCount.get()} targetMismatch=${scanTargetMismatchCount.get()}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"advertise requested carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} payloadPsm=${currentDiscoveryPayload.l2capPsm}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"advertise retry scheduled attempt=$advertiseRetryAttempt delayMillis=$delayMillis errorCode=$errorCode errorName=${advertiseErrorCodeName(errorCode)}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"discovery.summary activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"refreshDiscoveryState started=$started suspended=$isDiscoverySuspended scanner=${hardware.hasScanner} advertiser=${hardware.hasAdvertiser} activeMeshHash=$localMeshHash advertisedMeshHash=${currentDiscoveryPayload.meshHash} psm=${currentDiscoveryPayload.l2capPsm} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} foreignScanIgnoredCount=${foreignScanIgnoredCount()}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"scan retry scheduled attempt=$scanRetryAttempt delayMillis=$delayMillis errorCode=$errorCode errorName=${scanErrorCodeName(errorCode)}"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$"scan watchdog restarting scan after idleMillis=$idleMillis consecutiveWedgedScanRestarts=$consecutiveWedgedScanRestarts"</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle.&lt;no name provided>$"advertising failed errorCode=$errorCode errorName=${advertiseErrorCodeName(errorCode)} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} "</ID>
+    <ID>MaxLineLength:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle.&lt;no name provided>$"advertising started mode=${settingsInEffect.mode} tx=${settingsInEffect.txPowerLevel} connectable=${settingsInEffect.isConnectable}"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient$"GATT notify side link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient$"GATT notify side link ${peerHintId.value.takeLast(6)} preferred PHY request failed: ${error.message.orEmpty()}"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient$"GATT notify side link ${peerHintId.value.takeLast(6)} write enqueue failed after ${attempt} attempt(s) bytes=${payloadBytes} encodedBytes=${encodedBytes} chunkBytes=${chunk.size}"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$"GATT notify side link ${peerHintId.value.takeLast(6)} addr=$address status=$status state=$stateLabel"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$"GATT notify side link ${peerHintId.value.takeLast(6)} missing CCCD for notify characteristic"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$"GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${FALLBACK_SERVICE_UUID}"</ID>
+    <ID>MaxLineLength:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$"GATT notify side link ${peerHintId.value.takeLast(6)} missing service ${FALLBACK_SERVICE_UUID}, refreshing stale service cache and retrying discovery"</ID>
+    <ID>MaxLineLength:GattNotifyServer.kt$BluetoothGattNotifyServer.&lt;no name provided>$"GATT notify server descriptor read addr=${device.address} descriptor=${descriptor.uuid} offset=$offset"</ID>
+    <ID>MaxLineLength:GattNotifyServer.kt$BluetoothGattNotifyServer.&lt;no name provided>$"GATT notify server descriptor write addr=${device.address} descriptor=$descriptorUuid prepared=$preparedWrite responseNeeded=$responseNeeded offset=$offset valueSize=${value?.size ?: 0}"</ID>
+    <ID>MaxLineLength:GattNotifyServer.kt$BluetoothGattNotifyServer.&lt;no name provided>$"GATT notify server read request addr=${device.address} characteristic=${characteristic.uuid} offset=$offset"</ID>
+    <ID>MaxLineLength:GattNotifyServer.kt$BluetoothGattNotifyServer.&lt;no name provided>$"GATT notify server write addr=${device.address} peer=${peerHintIdValue.takeLast(6)} prepared=$preparedWrite frames=${decodedFrames.size} accepted=$accepted"</ID>
+    <ID>MaxLineLength:GattSideLinkCoordinator.kt$GattSideLinkCoordinator$"initiating GATT notify side link to ${peer.hintPeerId.value.takeLast(6)} local=$localPlatformFamily remote=${peer.platformFamily}"</ID>
+    <ID>MaxLineLength:PreferredGattSendSupport.kt$"GATT side-link send attempt for ${context.hintPeerId.value.takeLast(6)} local=${context.localPlatformFamily} remote=${context.remotePlatformFamily} preferred=${frame.preferredMode ?: "none"}"</ID>
+    <ID>MaxLineLength:PreferredGattSendSupport.kt$"preferred GATT side-link send failed for ${context.hintPeerId.value.takeLast(6)}: ${error.message.orEmpty()}"</ID>
+    <ID>MaxLineLength:PreferredGattSendSupport.kt$"preferred GATT side-link send returned false for ${context.hintPeerId.value.takeLast(6)} bytes=${frame.payload.size}"</ID>
+    <ID>MaxLineLength:PreferredGattSendSupport.kt$"preferred GATT side-link waiting for readiness for ${context.hintPeerId.value.takeLast(6)} timeoutMs=$readyWaitTimeoutMillis"</ID>
+    <ID>MaxLineLength:ScanResultSupport.kt$"accepted discovery payload addr=$deviceAddress protocolVersion=${payload.protocolVersion} meshHash=${payload.meshHash} platform=${payload.platformFamily} mode=$transportMode psm=${payload.l2capPsm} peerId=${hintPeerId.value}"</ID>
+    <ID>MaxLineLength:ScanResultSupport.kt$"ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=$peekedMeshHash foreignIgnoredCount=$ignoredCount"</ID>
+    <ID>MaxLineLength:ScanResultSupport.kt$"ignoring discovery payload with mismatched meshHash addr=$deviceAddress payloadUuid=$payloadUuid localMeshHash=$localMeshHash remoteMeshHash=${payload.meshHash} foreignIgnoredCount=$ignoredCount"</ID>
+    <ID>RedundantSuspendModifier:BleTransportAdapterL2capSupport.kt$L2capLink$suspend</ID>
+    <ID>RedundantSuspendModifier:BleTransportAdapterL2capSupport.kt$suspend</ID>
+    <ID>RedundantSuspendModifier:BleTransportAdapterLifecycleSupport.kt$suspend</ID>
+    <ID>RedundantSuspendModifier:GattNotifyClient.kt$GattNotifyClient$suspend</ID>
+    <ID>RedundantSuspendModifier:PreferredGattSendSupport.kt$suspend</ID>
+    <ID>ReturnCount:BleTransportAdapter.kt$BleTransportAdapter$internal fun attemptBluetoothAdapterPowerCycle(): Boolean</ID>
+    <ID>ReturnCount:BleTransportAdapterL2capSupport.kt$@SuppressLint("MissingPermission") internal fun BleTransportAdapter.connectIfNeeded(peer: DiscoveredPeer): Unit</ID>
+    <ID>ReturnCount:BleTransportAdapterL2capSupport.kt$internal fun BleTransportAdapter.closeLink(hintPeer: String, reason: String): Unit</ID>
+    <ID>ReturnCount:Ed25519Fallback.kt$Ed25519Fallback$internal fun verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean</ID>
+    <ID>ReturnCount:Ed25519Fallback.kt$Ed25519Fallback$private fun isCanonicalScalar(scalar: ByteArray): Boolean</ID>
+    <ID>ReturnCount:GattLinkIdentitySupport.kt$internal fun resolveIncomingGattFrameDisposition( address: String, frame: ByteArray, peerBindings: PeerBindings, onUnknownPeerFrame: (PeerId, String) -> Unit, onClaimedPeerIdentity: (PeerId, String) -> Unit, log: (String) -> Unit, ): IncomingGattFrameDisposition</ID>
+    <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private suspend fun drainPendingWrites(): Boolean</ID>
+    <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$override fun onServicesDiscovered(status: Int)</ID>
+    <ID>ReturnCount:GattNotifyServer.kt$BluetoothGattNotifyServer$override suspend fun start(): Boolean</ID>
+    <ID>ReturnCount:GattNotifySessionAdapter.kt$BluetoothGattNotifySession$override fun enableNotifications(): GattNotifyEnableNotificationsResult</ID>
+    <ID>ReturnCount:GattNotifySessionAdapter.kt$BluetoothGattNotifySession$override fun resolveFallbackCharacteristics(): GattNotifyCharacteristicResolution</ID>
+    <ID>ReturnCount:GattNotifyWriteSupport.kt$internal suspend fun writeViaGattNotify( payload: ByteArray, context: GattNotifyWriteContext, dependencies: GattNotifyWriteDependencies, ): Boolean</ID>
+    <ID>ReturnCount:GattSideLinkCoordinator.kt$GattSideLinkCoordinator$internal fun ensureStarted( peer: DiscoveredPeer, localPlatformFamily: BleDiscoveryPlatformFamily, ): Unit</ID>
+    <ID>ReturnCount:L2capSendSupport.kt$internal suspend fun sendViaL2capWhenReady( frame: OutboundFrame, context: L2capSendContext, dependencies: L2capSendDependencies, ): TransportSendResult</ID>
+    <ID>ReturnCount:PreferredGattSendSupport.kt$internal suspend fun sendViaPreferredGattSideLinkOrNull( frame: OutboundFrame, context: PreferredGattSendContext, dependencies: PreferredGattSendDependencies, ): TransportSendResult?</ID>
+    <ID>ReturnCount:ScanResultSupport.kt$internal fun parseDiscoveryScanResultOrNull( serviceUuids: List&lt;String>?, serviceData: Map&lt;String, ByteArray>? = null, deviceAddress: String, localMeshHash: UShort, localKeyHash: ByteArray, onForeignScanIgnored: () -> Int = { 0 }, log: (String) -> Unit, ): DiscoveryScanResult?</ID>
+    <ID>ReturnCount:SendDispatchSupport.kt$internal suspend fun dispatchSend( frame: OutboundFrame, context: SendDispatchContext, dependencies: SendDispatchDependencies, ): TransportSendResult</ID>
+    <ID>ThrowsCount:BleTransportAdapterLifecycleSupport.kt$internal suspend fun BleTransportAdapter.startTransport(): Unit</ID>
+    <ID>TooManyFunctions:AndroidFallbackCryptoProvider.kt$AndroidFallbackCryptoProvider : CryptoProvider</ID>
+    <ID>TooManyFunctions:BleTransportAdapter.kt$BleTransportAdapter : BleTransport</ID>
+    <ID>TooManyFunctions:BleTransportAdapterL2capSupport.kt$ch.trancee.meshlink.platform.android.BleTransportAdapterL2capSupport.kt</ID>
+    <ID>TooManyFunctions:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle</ID>
+    <ID>TooManyFunctions:BleTransportLinkRegistry.kt$BleTransportLinkRegistry&lt;T></ID>
+    <ID>TooManyFunctions:Ed25519Fallback.kt$Ed25519Fallback</ID>
+    <ID>TooManyFunctions:GattNotifyClient.kt$GattNotifyClient</ID>
+    <ID>TooManyFunctions:JcaCryptoProvider.kt$JcaCryptoProvider : CryptoProvider</ID>
+    <ID>TooManyFunctions:L2capFrameBuffer.kt$L2capFrameBuffer</ID>
+    <ID>TopLevelPropertyNaming:ScanResultSupport.kt$private const val L2capSupportedSdkInt: Int = 34</ID>
+    <ID>UnnecessaryAbstractClass:GattNotifyCallbackSupport.kt$BaseGattNotifyCallback$BaseGattNotifyCallback</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$advertiser = try { adapter.bluetoothLeAdvertiser } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$bluetoothAdapter = adapter</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$discoveryLifecycle.updateL2capPsm( advertisedDiscoveryL2capPsm( serverSocketPsm = serverSocket?.psm, localL2capClientSocketsSupported = supportsL2capClientSockets(), ) )</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$gattNotifyServer.start().also { ready -> if (!ready) { log("GATT notify server unavailable: service did not become ready") } }</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$inboundFrameQueue = createInboundFrameQueue()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$inboundFrameQueue?.close()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$l2capServerSocket = serverSocket</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$listenInsecure(adapter)</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$log( "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported" )</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$refreshDiscoveryState()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$scanner = try { adapter.bluetoothLeScanner } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$serverSocket?.let(::launchAcceptLoop)</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$started = true</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$this.gattNotifyServer = gattNotifyServer</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val adapter = try { bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable") } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val gattNotifyServer = BluetoothGattNotifyServer( context = context, peerBindings = peerBindings, onUnknownPeerFrame = ::registerProvisionalGattPeer, onClaimedPeerIdentity = ::registerClaimedGattPeer, onFrameReceived = ::enqueueInboundFrame, log = ::log, )</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val l2capServerSupported = supportsL2capServerSockets()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val serverSocket = if (l2capServerSupported) { runCatching { L2capSocketFactory.listenInsecure(adapter) } .onFailure { error -> log("L2CAP server socket unavailable: ${error.message.orEmpty()}") } .getOrNull() } else { log("L2CAP server socket unavailable: runtime capability probe returned false") null }</ID>
+    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$row[digit - 1]!!</ID>
+    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit - 1]!!</ID>
+    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit]!!</ID>
+    <ID>UnusedParameter:L2capSendSupport.kt$context: L2capSendContext</ID>
+    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_100_0 = fieldElement()</ID>
+    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_10_0 = fieldElement()</ID>
+    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_20_0 = fieldElement()</ID>
+    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_50_0 = fieldElement()</ID>
+    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_5_0 = fieldElement()</ID>
+  </CurrentIssues>
+</SmellBaseline>

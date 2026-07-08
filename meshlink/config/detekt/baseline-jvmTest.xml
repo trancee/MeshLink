@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:MeshEngineHopTransportSupportJvmCryptoTest.kt$Unconfined</ID>
+    <ID>LongMethod:H2InboundTransferSizeLimitBypassConfirm441bfd37Test.kt$H2InboundTransferSizeLimitBypassConfirm441bfd37Test$@Test fun test_confirm_inbound_transfer_size_limit_bypass_441bfd37()</ID>
+    <ID>LongMethod:H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test.kt$H4InnerEnvelopeSeededTofuTrustConfirm441bfd37Test$@Test fun test_confirm_inner_envelope_seeded_tofu_trust_441bfd37()</ID>
+    <ID>MaxLineLength:H2InboundTransferSizeLimitBypassConfirm441bfd37Test.kt$H2InboundTransferSizeLimitBypassConfirm441bfd37Test$"CONFIRM H2 FIXED outboundLimit=$MAX_SUPPORTED_PAYLOAD_BYTES inboundTotalBytes=${startFrame.totalBytes} rejected=true"</ID>
+    <ID>UnreachableCode:WireCompatibilitySupport.kt$return classLoader.getResourceAsStream(fileName)?.bufferedReader()?.use { reader -> reader.readText() }</ID>
+    <ID>UnreachableCode:WireCompatibilitySupport.kt$val classLoader = WireCompatibilitySupportLoaderAnchor::class.java.classLoader ?: return null</ID>
+    <ID>UnreachableCode:WycheproofSupport.kt$return classLoader.getResourceAsStream("wycheproof/$fileName")?.bufferedReader()?.use { reader -> reader.readLines() }</ID>
+    <ID>UnreachableCode:WycheproofSupport.kt$val classLoader = WycheproofSupportLoaderAnchor::class.java.classLoader ?: return null</ID>
+  </CurrentIssues>
+</SmellBaseline>

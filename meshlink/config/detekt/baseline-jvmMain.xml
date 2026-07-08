@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>EmptyDefaultConstructor:BenchmarkSupport.kt$BenchmarkCryptoProvider$public constructor()</ID>
+    <ID>EmptyDefaultConstructor:BenchmarkSupport.kt$BenchmarkPureX25519Provider$public constructor()</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$0x584635323531394c</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$127</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$248</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$31</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$32</ID>
+    <ID>MagicNumber:BenchmarkSupport.kt$BenchmarkPureX25519Provider$64</ID>
+    <ID>MagicNumber:JvmCryptoProvider.kt$JvmCryptoProvider$0x7F</ID>
+    <ID>MagicNumber:JvmCryptoProvider.kt$JvmCryptoProvider$0x80</ID>
+    <ID>MagicNumber:JvmCryptoProvider.kt$JvmCryptoProvider$31</ID>
+    <ID>MagicNumber:JvmCryptoProvider.kt$JvmCryptoProvider$32</ID>
+    <ID>TooManyFunctions:BenchmarkSupport.kt$ch.trancee.meshlink.benchmarking.BenchmarkSupport.kt</ID>
+    <ID>TooManyFunctions:JvmCryptoProvider.kt$JvmCryptoProvider : CryptoProvider</ID>
+    <ID>UnreachableCode:BenchmarkSupport.kt$identityFingerprintBytes ?: identityFingerprint?.toBytes() ?: error("identity fingerprint is required")</ID>
+    <ID>UnusedPrivateMember:BenchmarkSupport.kt$private fun BenchmarkOutboundFrame.toInternal(): OutboundFrame</ID>
+  </CurrentIssues>
+</SmellBaseline>
