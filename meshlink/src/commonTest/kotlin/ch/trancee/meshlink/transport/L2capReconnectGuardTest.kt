@@ -19,6 +19,17 @@ class L2capReconnectGuardTest {
     }
 
     @Test
+    fun `connect failed reason is treated as a transient l2cap disconnect`() {
+        // Arrange
+        val guard = L2capReconnectGuard()
+
+        // Act & Assert
+        assertTrue(
+            guard.shouldRetry(hintPeerIdValue = "peer-789", reason = "connect failed: timed out")
+        )
+    }
+
+    @Test
     fun `backoff delay increases with each approved retry`() {
         // Arrange
         val guard = L2capReconnectGuard()

@@ -48,6 +48,25 @@ internal constructor(
     internal val peerLostDebounceMillis: Long = PEER_LOST_DEBOUNCE_MILLIS,
 )
 
+/**
+ * Coordinates a GATT-notify client connection ([GattNotifyClient]) to a peer's [GattNotifyServer],
+ * used both as the universal control-frame fallback bearer (see
+ * [ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer]) and, as a load-bearing
+ * side effect, as this device's *only* handle for ACL-level link tuning against that remote.
+ *
+ * [ensureStarted] is invoked unconditionally for every scan-discovered known peer (see call sites
+ * in [BleTransportAdapterScanSupport] and [BleTransportAdapter]), independent of whether an L2CAP
+ * CoC socket is (or will be) connected to the same device. The resulting [GattNotifyClient]
+ * connection performs `requestMtu`/`requestConnectionPriority`/`setPreferredPhy(2M)` (see
+ * [GattNotifyClient.start]) against the peer's [android.bluetooth.BluetoothDevice] -- properties of
+ * the underlying ACL connection, not of the GATT channel specifically. Because Android's L2CAP CoC
+ * socket to the same device rides that same ACL connection, this negotiation already benefits L2CAP
+ * throughput too, even for peer pairs where L2CAP is the preferred data bearer and GATT is only
+ * used as fallback. `android.bluetooth.BluetoothSocket` itself exposes no PHY/connection- priority
+ * API (see the android-bluetooth-sockets and optimize-ble-throughput skills), so opening a
+ * *second*, purely-for-tuning `BluetoothGatt` connection to the same device would be redundant and
+ * would waste one of Android's limited concurrent GATT connection slots -- do not add one.
+ */
 internal class GattSideLinkCoordinator(
     private val dependencies: GattSideLinkCoordinatorDependencies
 ) {

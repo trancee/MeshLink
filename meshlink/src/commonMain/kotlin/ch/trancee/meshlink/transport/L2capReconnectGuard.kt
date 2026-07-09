@@ -46,5 +46,7 @@ internal class L2capReconnectGuard(
 }
 
 internal fun String.isTransientL2capDisconnect(): Boolean {
-    return startsWith("socket closed") || startsWith("send failed:")
+    return startsWith("socket closed") ||
+        startsWith("send failed:") ||
+        startsWith("connect failed:")
 }
