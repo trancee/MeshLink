@@ -101,20 +101,22 @@ private fun BleTransportAdapter.handleL2capConnectFailure(
     closeQuietly(linkRegistry.removeActiveLink(peer.hintPeerId.value))
     val retryableFailure = isRetryableL2capConnectFailure(error)
     val gattFallbackReady = gattSideLinks.hasReadyLink(peer.hintPeerId.value)
-    if (
-        retryableFailure &&
-            !gattFallbackReady &&
-            l2capReconnectGuard.shouldRetry(
-                hintPeerIdValue = peer.hintPeerId.value,
-                reason = "connect failed: ${error.message.orEmpty()}",
+    if (!shouldAttemptL2capConnectRetry(retryableFailure, gattFallbackReady)) {
+        if (retryableFailure) {
+            log(
+                "skipping L2CAP connect retry for ${peer.hintPeerId.value.takeLast(6)}: " +
+                    "GATT side-link already ready"
             )
-    ) {
-        scheduleL2capReconnect(peer)
-    } else if (retryableFailure && gattFallbackReady) {
-        log(
-            "skipping L2CAP connect retry for ${peer.hintPeerId.value.takeLast(6)}: " +
-                "GATT side-link already ready"
+        }
+        return
+    }
+    val guardAllowsRetry =
+        l2capReconnectGuard.shouldRetry(
+            hintPeerIdValue = peer.hintPeerId.value,
+            reason = "connect failed: ${error.message.orEmpty()}",
         )
+    if (guardAllowsRetry) {
+        scheduleL2capReconnect(peer)
     }
 }
 
@@ -456,24 +458,43 @@ private const val SCAN_TEARDOWN_DRAIN_TIMEOUT_MILLIS: Long = 3_000L
  * devices, where no machine-readable error code is available at all) is treated as transient and
  * eligible for the existing backoff-based retry in [scheduleL2capReconnect]. See the
  * android-bluetooth-sockets skill: "branch on errorCode instead of string-matching the message."
+ *
+ * Split into a pure [isTerminalL2capErrorCode] (plain [Int] in, testable without a real
+ * [BluetoothSocketException] instance -- Android's unit-test stub jar throws on
+ * [BluetoothSocketException]'s own constructor/methods, but its `errorCode` constants are plain
+ * compile-time `Int` constants and remain usable) plus this thin dispatcher that only needs to
+ * decide whether an error code is even available to look at.
  */
-internal fun isRetryableL2capConnectFailure(error: Throwable): Boolean {
-    val isModernBluetoothSocketException =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-            error is BluetoothSocketException
-    if (!isModernBluetoothSocketException) {
-        // Pre-34 platforms, and non-BluetoothSocketException IOExceptions on any platform, carry
-        // no machine-readable error code to branch on -- fall back to treating the failure as
-        // transient/retryable rather than silently giving up on the first failure.
+internal fun isRetryableL2capConnectFailure(
+    error: Throwable,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Boolean {
+    if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        // No machine-readable error code is available at all below API 34 -- fall back to
+        // treating the failure as transient/retryable rather than silently giving up on the
+        // first failure.
         return true
     }
-    return (error as BluetoothSocketException).errorCode !in TERMINAL_L2CAP_CONNECT_ERROR_CODES
+    return when (error) {
+        is BluetoothSocketException -> !isTerminalL2capErrorCode(error.errorCode)
+        // Non-BluetoothSocketException IOExceptions carry no error code either -- same fallback.
+        else -> true
+    }
+}
+
+/**
+ * Pure, host-JVM-testable classification of a [BluetoothSocketException.getErrorCode] value. See
+ * [isRetryableL2capConnectFailure] for how this fits into the overall retry decision.
+ */
+internal fun isTerminalL2capErrorCode(errorCode: Int): Boolean {
+    return errorCode in TERMINAL_L2CAP_CONNECT_ERROR_CODES
 }
 
 private val TERMINAL_L2CAP_CONNECT_ERROR_CODES: Set<Int> =
     setOf(
         BluetoothSocketException.BLUETOOTH_OFF_FAILURE,
         BluetoothSocketException.NULL_DEVICE,
+        BluetoothSocketException.L2CAP_CLIENT_SECURITY_FAILURE,
         BluetoothSocketException.L2CAP_INSUFFICIENT_AUTHENTICATION,
         BluetoothSocketException.L2CAP_INSUFFICIENT_AUTHORIZATION,
         BluetoothSocketException.L2CAP_INSUFFICIENT_ENCRYPTION,
@@ -484,11 +505,30 @@ private val TERMINAL_L2CAP_CONNECT_ERROR_CODES: Set<Int> =
     )
 
 /** Machine-readable error code for logging, when the platform and exception type provide one. */
-internal fun l2capConnectFailureErrorCode(error: Throwable): Int? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+internal fun l2capConnectFailureErrorCode(
+    error: Throwable,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Int? {
+    if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
         return null
     }
     return (error as? BluetoothSocketException)?.errorCode
+}
+
+/**
+ * Pure decision of whether an L2CAP connect failure is even eligible to consult
+ * [L2capReconnectGuard.shouldRetry] for a backoff-scheduled retry -- kept separate from the guard
+ * call itself (which has the side effect of consuming a retry-budget attempt) so that gate can be
+ * unit-tested directly, and so a failure that's ineligible here never spends retry budget it won't
+ * use. Mirrors [closeLink]'s existing `!gattSideLinks.hasReadyLink(...)` gate for post-connect
+ * teardowns, so an initial connect failure doesn't schedule a redundant L2CAP retry for a peer
+ * that's already reachable over its GATT side-link fallback.
+ */
+internal fun shouldAttemptL2capConnectRetry(
+    retryableFailure: Boolean,
+    gattFallbackReady: Boolean,
+): Boolean {
+    return retryableFailure && !gattFallbackReady
 }
 
 internal class L2capLink(
