@@ -186,7 +186,7 @@
     <ID>ReturnCount:Ed25519Fallback.kt$Ed25519Fallback$private fun isCanonicalScalar(scalar: ByteArray): Boolean</ID>
     <ID>ReturnCount:GattLinkIdentitySupport.kt$internal fun resolveIncomingGattFrameDisposition( address: String, frame: ByteArray, peerBindings: PeerBindings, onUnknownPeerFrame: (PeerId, String) -> Unit, onClaimedPeerIdentity: (PeerId, String) -> Unit, log: (String) -> Unit, ): IncomingGattFrameDisposition</ID>
     <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private fun retryCongestedWriteIfPossible(): Boolean</ID>
-    <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private suspend fun drainPendingWrites(): Boolean</ID>
+    <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient$private suspend fun drainPendingWrites(pendingChunks: List&lt;PendingGattWrite>): Boolean</ID>
     <ID>ReturnCount:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$override fun onServicesDiscovered(status: Int)</ID>
     <ID>ReturnCount:GattNotifyServer.kt$BluetoothGattNotifyServer$override suspend fun start(): Boolean</ID>
     <ID>ReturnCount:GattNotifySessionAdapter.kt$BluetoothGattNotifySession$override fun enableNotifications(): GattNotifyEnableNotificationsResult</ID>

@@ -275,6 +275,10 @@ internal class GattNotifyClient(
         return writeMutex.withLock {
             val session = session
             if (!identityAnnounced) {
+                // A fresh tracker per writeViaGattNotify() call: drainPendingWrites() awaits
+                // exactly these chunks' own deferreds rather than inferring "done" from shared
+                // queue emptiness (see drainPendingWrites() for why that inference is unsound).
+                val announceChunks = mutableListOf<PendingGattWrite>()
                 val announced =
                     writeViaGattNotify(
                         payload = WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)),
@@ -298,10 +302,11 @@ internal class GattNotifyClient(
                                             payloadBytes = payloadBytes,
                                             encodedBytes = encodedBytes,
                                             chunk = chunk,
+                                            pendingChunks = announceChunks,
                                         )
                                     }
                                 },
-                                drain = ::drainPendingWrites,
+                                drain = { drainPendingWrites(announceChunks) },
                                 log = log,
                             ),
                     )
@@ -313,6 +318,7 @@ internal class GattNotifyClient(
                     "GATT notify side link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
                 )
             }
+            val payloadChunks = mutableListOf<PendingGattWrite>()
             writeViaGattNotify(
                 payload = payload,
                 context =
@@ -335,10 +341,11 @@ internal class GattNotifyClient(
                                     payloadBytes = payloadBytes,
                                     encodedBytes = encodedBytes,
                                     chunk = chunk,
+                                    pendingChunks = payloadChunks,
                                 )
                             }
                         },
-                        drain = ::drainPendingWrites,
+                        drain = { drainPendingWrites(payloadChunks) },
                         log = log,
                     ),
             )
@@ -424,10 +431,15 @@ internal class GattNotifyClient(
         payloadBytes: Int,
         encodedBytes: Int,
         chunk: ByteArray,
+        pendingChunks: MutableList<PendingGattWrite>,
     ): Boolean {
         writeWindow.acquire()
         val pending = PendingGattWrite(chunk)
         synchronized(pendingWritesLock) { pendingWrites.addLast(pending) }
+        // Recorded here (in issue order) so drainPendingWrites() can await this exact chunk's own
+        // completion later, independent of whether completePendingWrite() has already removed it
+        // from the shared pendingWrites queue by the time drain runs -- see drainPendingWrites().
+        pendingChunks.add(pending)
         var enqueued = session.writeChunk(chunk)
         var attempt = 1
         while (!enqueued && attempt < ENQUEUE_RETRY_ATTEMPTS) {
@@ -459,14 +471,24 @@ internal class GattNotifyClient(
     }
 
     /**
-     * Awaits completion of every chunk enqueued so far (in issue order) and reports whether all of
-     * them completed successfully. Must be called after the last [enqueueEncodedChunk] for a
-     * payload so callers still get an accurate success/failure result despite chunks being
-     * pipelined rather than awaited individually.
+     * Awaits completion of every chunk enqueued so far for this payload (in issue order) and
+     * reports whether all of them completed successfully. Must be called after the last
+     * [enqueueEncodedChunk] for a payload so callers still get an accurate success/failure result
+     * despite chunks being pipelined rather than awaited individually.
+     *
+     * Takes the exact list of [PendingGattWrite] entries [enqueueEncodedChunk] created for this
+     * payload and awaits each one's own [PendingGattWrite.deferred] directly, rather than inferring
+     * completion from whether [pendingWrites] (the shared FIFO queue) still contains an entry to
+     * wait on. The latter is unsound: completePendingWrite() removes an entry from [pendingWrites]
+     * as soon as *any* completion for it arrives -- success or failure -- so if every chunk's
+     * completion happens to arrive (and be removed) before this function gets a chance to run,
+     * checking queue membership alone would see an empty queue and report success unconditionally,
+     * silently treating a failed transfer as successful. Awaiting each recorded chunk's own
+     * deferred sidesteps that: a deferred already completed by the time we get to it resolves
+     * immediately with its real result, whether or not it's still in [pendingWrites].
      */
-    private suspend fun drainPendingWrites(): Boolean {
-        while (true) {
-            val next = synchronized(pendingWritesLock) { pendingWrites.firstOrNull() } ?: break
+    private suspend fun drainPendingWrites(pendingChunks: List<PendingGattWrite>): Boolean {
+        for (next in pendingChunks) {
             val result = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) { next.deferred.await() }
             if (result == null) {
                 log("GATT notify side link ${peerHintId.value.takeLast(6)} write drain timed out")
