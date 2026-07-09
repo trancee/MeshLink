@@ -22,6 +22,14 @@ do not duplicate its content here; link to it instead.
   workflow runs, etc.) instead of raw API calls or other tooling.
 - When a decision is needed, do not choose alone. Present the available
   options clearly and concisely, then wait for the user to decide.
+- Before starting the benchmark app, proof app, or reference app on any
+  physical device (Android or iOS), always build a fresh APK/IPA and
+  uninstall the previous install before installing the new one. Never run
+  physical-device benchmarks or proof runs against whatever build happens to
+  already be installed -- stale builds silently miss recent fixes and
+  produce misleading "real hardware" evidence. See
+  [meshlink-benchmark/README.md](meshlink-benchmark/README.md#physical-device-scripts)
+  for the required rebuild/reinstall step.
 
 ## Engineering rules
 
