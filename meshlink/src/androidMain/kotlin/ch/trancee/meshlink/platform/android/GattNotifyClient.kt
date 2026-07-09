@@ -141,8 +141,16 @@ internal class GattNotifyClient(
                         reconnectPending = true
                         connectRetryScope.launch {
                             delay(connectRetryDelayMillis)
-                            reconnectPending = false
-                            start()
+                            // Bypasses the reconnectPending guard in start() entirely rather than
+                            // clearing the flag first and then calling start() as two separate
+                            // steps -- this coroutine is the sole intended owner of this specific
+                            // pending reconnect attempt (status=133 events for one connection are
+                            // delivered serially by Android, so only one retry can ever be
+                            // in-flight at a time), and closing the gap this way means there is no
+                            // moment where reconnectPending is false but the actual reconnect
+                            // hasn't happened yet for a concurrent ensureStarted() call to race
+                            // into.
+                            startInternal()
                         }
                         return
                     }
@@ -303,6 +311,15 @@ internal class GattNotifyClient(
         if (session != null || reconnectPending) {
             return
         }
+        startInternal()
+    }
+
+    // Unconditionally (re)opens a session, bypassing the reconnectPending guard in start(). Only
+    // called from two places: start() itself (after its guard already passed) and the status=133
+    // retry's own resumed coroutine above, which is the sole intended owner of a pending retry and
+    // must not be blocked by the very flag it set to keep *other* concurrent start() callers out.
+    private fun startInternal(): Unit {
+        reconnectPending = false
         identityAnnounced = false
         // GattSideLinkCoordinator.ensureStarted() reuses this same client instance across
         // reconnects (it only replaces it with a fresh instance once a real GATT disconnect event

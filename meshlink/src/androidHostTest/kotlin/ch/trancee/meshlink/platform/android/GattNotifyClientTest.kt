@@ -645,6 +645,47 @@ class GattNotifyClientTest {
     }
 
     @Test
+    @Suppress("InjectDispatcher")
+    fun concurrentEnsureStartedCallDuringAPendingStatus133RetryDoesNotOpenADuplicateConnection():
+        Unit {
+        // Arrange: uses a non-zero delay and a real dispatcher (rather than the test default of
+        // Unconfined + 0ms, which resolves the retry synchronously and can't exercise the delay
+        // window) so a concurrent start() call -- the same call GattSideLinkCoordinator.
+        // ensureStarted() makes on every incoming discovery broadcast for a not-yet-ready peer --
+        // can genuinely land *during* the pending retry's delay, which is exactly the race the
+        // reconnectPending guard exists to prevent. Dispatchers.Default is used deliberately here
+        // (rather than an injected test dispatcher) because the whole point of this test is to
+        // prove correctness under genuine cross-thread scheduling, not virtual time.
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                connectRetryDelayMillis = RETRY_DELAY_MILLIS,
+                connectRetryScope = CoroutineScope(Dispatchers.Default),
+            )
+        client.start()
+        assertEquals(1, factory.openCalls)
+
+        // Act: status=133 schedules a pending retry (RETRY_DELAY_MILLIS out); immediately
+        // afterwards, simulate the coordinator's own concurrent start() call for the same
+        // not-yet-ready peer, which is exactly what happens in production when a discovery
+        // broadcast arrives during the retry delay window.
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 133,
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+        client.start()
+
+        // Assert: the concurrent start() call is a no-op (still gated by reconnectPending) --
+        // exactly one additional connectGatt() happens once the retry's own delay elapses, not two.
+        assertEquals(1, factory.openCalls)
+        Thread.sleep(RETRY_DELAY_MILLIS * 2)
+        assertEquals(2, factory.openCalls)
+    }
+
+    @Test
     fun status133DisconnectGivesUpAfterExhaustingTheRetryBudget(): Unit {
         // Arrange
         val session = FakeGattNotifySession()
@@ -743,6 +784,9 @@ class GattNotifyClientTest {
 // Mirrors GattNotifyClient's private ANDROID_GATT_CONNECTION_CONGESTED constant (Android's
 // BluetoothGatt.GATT_CONNECTION_CONGESTED = 143) for tests exercising the congestion-retry path.
 private const val GATT_CONNECTION_CONGESTED_STATUS: Int = 143
+// Used only by the concurrent-retry race test above, which needs a real (non-zero) delay to
+// exercise genuine cross-thread scheduling rather than the Unconfined+0ms synchronous default.
+private const val RETRY_DELAY_MILLIS: Long = 200L
 
 private fun createGattNotifyClient(
     factory: GattNotifySessionFactory,

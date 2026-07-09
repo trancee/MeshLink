@@ -78,3 +78,6 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# Local subagent debug artifacts (failed/aborted dispatch attempts, scratch output)
+.pi-subagents/
