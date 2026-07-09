@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktfmt)
@@ -45,7 +46,14 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies { api(libs.kotlinx.coroutines.core) }
-        commonTest.dependencies { implementation(libs.kotlin.test) }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            // Test-only: parses the Wycheproof policy manifest and vector corpus
+            // (meshlink/src/commonTest/resources/wycheproof/). Never referenced from
+            // commonMain, so it does not affect the shipped :meshlink runtime dependency
+            // budget (see constitution.md Technical Constraints).
+            implementation(libs.kotlinx.serialization.json)
+        }
         jvmTest.dependencies { implementation(libs.kotlin.test) }
         getByName("androidHostTest").dependencies { implementation(libs.kotlin.test) }
         getByName("androidDeviceTest").dependencies {

@@ -6,6 +6,7 @@ import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
+import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.Signature
 import java.security.interfaces.EdECPrivateKey
@@ -130,12 +131,30 @@ internal class JvmCryptoProvider : CryptoProvider {
             .value()
             .generatePrivate(XECPrivateKeySpec(NamedParameterSpec.X25519, bytes))
 
-    private fun x25519PublicKey(bytes: ByteArray) =
-        x25519KeyFactories
+    /**
+     * RFC 7748 SS5's `decodeUCoordinate` requires masking the most significant bit of the final
+     * byte before use for X25519 (the wire encoding only carries 255 significant bits). Without
+     * this, [XECPublicKeySpec]'s `u` value differs from the field element every other RFC 7748
+     * implementation derives for a non-canonical encoding (u >= 2^255 - 19), so this provider would
+     * silently disagree with a spec-conformant peer -- and, for public keys of small order, would
+     * fail to surface the `InvalidKeyException` ("Point has small order") that lets [x25519] fail
+     * closed instead of returning a shared secret Wycheproof's `x25519_test.json` disagrees with
+     * (see `AndroidCryptoPolicyConformanceTest`/`JvmCryptoPolicyConformanceTest`).
+     */
+    private fun x25519PublicKey(bytes: ByteArray): PublicKey {
+        val uCoordinateBytes = bytes.copyOf()
+        uCoordinateBytes[uCoordinateBytes.size - 1] =
+            (uCoordinateBytes[uCoordinateBytes.size - 1].toInt() and X25519_U_COORDINATE_MASK)
+                .toByte()
+        return x25519KeyFactories
             .value()
             .generatePublic(
-                XECPublicKeySpec(NamedParameterSpec.X25519, littleEndianToBigInteger(bytes))
+                XECPublicKeySpec(
+                    NamedParameterSpec.X25519,
+                    littleEndianToBigInteger(uCoordinateBytes),
+                )
             )
+    }
 
     private fun ed25519PrivateKey(bytes: ByteArray) =
         ed25519KeyFactories
@@ -190,5 +209,11 @@ internal class JvmCryptoProvider : CryptoProvider {
 
     private fun <T> ThreadLocal<T>.value(): T {
         return checkNotNull(get())
+    }
+
+    private companion object {
+        // RFC 7748 SS5 decodeUCoordinate: only the low 255 bits of the u-coordinate are
+        // significant, so the top bit of the final byte must be masked off before use.
+        private const val X25519_U_COORDINATE_MASK: Int = 0x7f
     }
 }

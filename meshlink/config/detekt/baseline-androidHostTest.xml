@@ -2,6 +2,7 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
+    <ID>FunctionNaming:AndroidCryptoPolicyConformanceTest.kt$AndroidCryptoPolicyConformanceTest$@Test fun `JcaCryptoProvider honors the ed25519 and x25519 policy manifest`()</ID>
     <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 handles empty aad and plaintext`()</ID>
     <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 matches rfc 8439 aead vector`()</ID>
     <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 rejects tampered tag`()</ID>
@@ -43,6 +44,7 @@
     <ID>FunctionNaming:L2capSocketFactoryTest.kt$L2capSocketFactoryTest$@Test fun `selectInsecureFactory uses legacy factory below explicit socket api`()</ID>
     <ID>FunctionNaming:MeshLinkCreateTest.kt$MeshLinkCreateTest$@Test fun `meshLink with a non Android bootstrap fails as invalid configuration`()</ID>
     <ID>FunctionNaming:MeshLinkCreateTest.kt$MeshLinkCreateTest$@Test fun `meshLink without bootstrap on Android fails with helpful guidance`()</ID>
+    <ID>FunctionNaming:MeshRuntimeAndroidCryptoTest.kt$MeshRuntimeAndroidCryptoTest$@Test fun `runtime-selected android provider rejects a low-order ephemeral key before deriving keys`()</ID>
     <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `api 30 and below require fine location permission`()</ID>
     <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `api 31 and above require nearby-device bluetooth permissions`()</ID>
     <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `granted permissions pass without exception`()</ID>
