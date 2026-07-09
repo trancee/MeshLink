@@ -9,6 +9,11 @@ import android.bluetooth.BluetoothGattService
 import android.os.Build
 import java.util.UUID
 
+// One function per discrete BluetoothGatt client operation this adapter wraps for testability
+// (see GattNotifyClientTest/BluetoothGattNotifySessionTest for the fakes this seam enables);
+// disconnect() was added alongside close() specifically so callers can request a graceful
+// disconnect before releasing the client interface, matching documented Android BLE guidance.
+@Suppress("TooManyFunctions")
 internal interface GattConnectionAdapter {
     val address: String
 
@@ -43,6 +48,19 @@ internal interface GattConnectionAdapter {
         writeType: Int,
     ): Boolean
 
+    /**
+     * Requests a graceful disconnect of this GATT client connection. Android's BluetoothGatt API
+     * documents that [close] should always be preceded by [disconnect] when the connection may
+     * still be active -- closing directly abruptly releases the client interface slot without
+     * giving the underlying controller/HAL a chance to tear down the link-layer connection first.
+     * On some OEM Bluetooth stacks (observed on older Samsung/MediaTek-based devices in this
+     * project's device fleet), skipping this step has been linked to a subsequent connectGatt() to
+     * the same remote device either failing immediately with status=133 (GATT_ERROR) or producing
+     * duplicate/conflicting connection-state callbacks instead of ever reaching a clean ready
+     * state.
+     */
+    fun disconnect(): Unit
+
     fun close(): Unit
 }
 
@@ -61,6 +79,7 @@ internal interface GattDescriptorAdapter {
 }
 
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
+@Suppress("TooManyFunctions")
 internal class PlatformGattConnectionAdapter(
     private val gatt: BluetoothGatt,
     private val sdkInt: Int = Build.VERSION.SDK_INT,
@@ -132,6 +151,10 @@ internal class PlatformGattConnectionAdapter(
 
     override fun close(): Unit {
         gatt.close()
+    }
+
+    override fun disconnect(): Unit {
+        gatt.disconnect()
     }
 }
 

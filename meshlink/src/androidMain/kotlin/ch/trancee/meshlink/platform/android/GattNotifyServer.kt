@@ -235,8 +235,25 @@ internal class BluetoothGattNotifyServer(
                     log("GATT notify server unavailable: BluetoothManager is missing")
                     return false
                 }
+        // openGattServer() has been observed to transiently return null right after a fresh app
+        // install/permission grant or a recent Bluetooth adapter state change (the adapter/stack
+        // hasn't finished settling yet), rather than being a permanent per-device limitation. A
+        // short bounded retry recovers from that transient window instead of leaving this device
+        // permanently unable to receive any incoming GATT client connection for the rest of the
+        // mesh session.
         val openedServer =
-            bluetoothManager.openGattServer(context, callback)
+            retryWhileNull(
+                maxAttempts = OPEN_SERVER_RETRY_ATTEMPTS,
+                delayMillis = OPEN_SERVER_RETRY_DELAY_MILLIS,
+                onRetry = { attempt ->
+                    log(
+                        "GATT notify server openGattServer returned null, retrying " +
+                            "($attempt/${OPEN_SERVER_RETRY_ATTEMPTS - 1})"
+                    )
+                },
+            ) {
+                bluetoothManager.openGattServer(context, callback)
+            }
                 ?: run {
                     log("GATT notify server unavailable: openGattServer returned null")
                     return false
@@ -310,5 +327,7 @@ internal class BluetoothGattNotifyServer(
     private companion object {
         private const val CLIENT_CHARACTERISTIC_CONFIGURATION_UUID: String =
             "00002902-0000-1000-8000-00805f9b34fb"
+        private const val OPEN_SERVER_RETRY_ATTEMPTS: Int = 3
+        private const val OPEN_SERVER_RETRY_DELAY_MILLIS: Long = 300L
     }
 }

@@ -8,7 +8,12 @@ import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -34,6 +39,7 @@ private class PendingGattWrite(val chunk: ByteArray) {
 }
 
 @SuppressLint("MissingPermission", "ObsoleteSdkInt")
+@Suppress("LongParameterList")
 internal class GattNotifyClient(
     private val context: Any,
     @Suppress("UNUSED_PARAMETER") private val appId: String,
@@ -48,11 +54,28 @@ internal class GattNotifyClient(
     private val connectionPriorityProvider: () -> Int = { BluetoothGatt.CONNECTION_PRIORITY_HIGH },
     private val sessionFactory: GattNotifySessionFactory =
         BluetoothGattNotifySessionFactory(context = context, device = device),
+    // Overridable so tests can use a zero delay + an unconfined/immediate scope to observe the
+    // status=133 connect-retry deterministically, the same pattern already used for
+    // GattSideLinkCoordinator's peerLostDebounceMillis/scope.
+    private val connectRetryDelayMillis: Long = CONNECT_RETRY_DELAY_MILLIS,
+    private val connectRetryScope: CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     @Volatile private var session: GattNotifySession? = null
     @Volatile
     private var lifecycleState: GattNotifyLifecycleState =
         startedGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
+    // Counts consecutive status=133 (GATT_ERROR) connect failures for the *current* peer so the
+    // bounded retry in onConnectionStateChange() doesn't retry forever; reset on every explicit
+    // start() and on any successful STATE_CONNECTED callback.
+    @Volatile private var connectRetryAttempts: Int = 0
+    // Guards against GattSideLinkCoordinator.ensureStarted() (re-triggered on every incoming
+    // discovery broadcast for a not-yet-ready peer) racing a fresh connectGatt() in behind the
+    // status=133 retry's own delayed start() call below -- without this, both could see
+    // session == null during the retry delay window and each issue their own connectGatt() to the
+    // same remote device, reintroducing the duplicate-connection-attempt failure mode this retry
+    // is meant to recover from.
+    @Volatile private var reconnectPending: Boolean = false
     private val frameBuffer = L2capFrameBuffer()
     private val writeMutex = Mutex()
     private val notificationLock = Any()
@@ -88,6 +111,7 @@ internal class GattNotifyClient(
                 )
                 val session = session ?: return
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    connectRetryAttempts = 0
                     session.requestConnectionPriority(connectionPriorityProvider())
                     requestFastPhyIfSupported(session)
                     val connectionPlan =
@@ -100,6 +124,28 @@ internal class GattNotifyClient(
                         session.discoverServices()
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    if (
+                        status == ANDROID_GATT_ERROR &&
+                            !lifecycleState.closedByOwner &&
+                            connectRetryAttempts < MAX_CONNECT_RETRY_ATTEMPTS
+                    ) {
+                        connectRetryAttempts += 1
+                        log(
+                            "GATT notify side link ${peerHintId.value.takeLast(6)} status=133 " +
+                                "(GATT_ERROR), retrying connect ($connectRetryAttempts/" +
+                                "$MAX_CONNECT_RETRY_ATTEMPTS) in ${connectRetryDelayMillis}ms"
+                        )
+                        failAllPendingWrites()
+                        runCatching { this@GattNotifyClient.session?.close() }
+                        this@GattNotifyClient.session = null
+                        reconnectPending = true
+                        connectRetryScope.launch {
+                            delay(connectRetryDelayMillis)
+                            reconnectPending = false
+                            start()
+                        }
+                        return
+                    }
                     val shouldNotifyDisconnect = !lifecycleState.closedByOwner
                     failAllPendingWrites()
                     closeInternal(markClosedByOwner = true)
@@ -254,7 +300,7 @@ internal class GattNotifyClient(
     }
 
     fun start(): Unit {
-        if (session != null) {
+        if (session != null || reconnectPending) {
             return
         }
         identityAnnounced = false
@@ -353,6 +399,7 @@ internal class GattNotifyClient(
     }
 
     fun close(): Unit {
+        connectRetryScope.cancel()
         closeInternal(markClosedByOwner = true)
     }
 
@@ -570,6 +617,15 @@ internal class GattNotifyClient(
         // is actually gone.
         private const val MAX_CONGESTION_RETRY_ATTEMPTS: Int = 5
         private const val ANDROID_GATT_CONNECTION_CONGESTED: Int = 143
+        // Android's generic BluetoothGatt.GATT_ERROR (133) status, most often seen as an
+        // immediate connection failure right after connectGatt() on certain older/OEM Bluetooth
+        // stacks (observed on SDK-28-era Samsung/Xiaomi hardware in this project's device fleet).
+        // It is a well-documented transient condition in the Android developer community rather
+        // than a permanent per-pairing failure, so a short bounded retry is attempted before
+        // giving up and surfacing a real disconnect/PeerLost.
+        private const val ANDROID_GATT_ERROR: Int = 133
+        private const val MAX_CONNECT_RETRY_ATTEMPTS: Int = 2
+        private const val CONNECT_RETRY_DELAY_MILLIS: Long = 400L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
     }
