@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:BleTransportAdapterGattNotifySupport.kt$internal fun BleTransportAdapter.processGattWriteRequests( typedRequests: List&lt;CBATTRequest>, firstRequest: CBATTRequest, ): Unit</ID>
+    <ID>MagicNumber:BleTransportAdapterGattNotifySupport.kt$6</ID>
+    <ID>MatchingDeclarationName:GattLinkIdentitySupport.kt$UnknownGattWriteProcessingResult</ID>
+    <ID>MatchingDeclarationName:L2capTelemetry.kt$L2capFrameTelemetry</ID>
+    <ID>MatchingDeclarationName:SendDispatchSupport.kt$SendDispatchDependencies</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycle.kt$"refreshDiscoveryState started=$started suspended=$discoverySuspended centralState=${centralManager?.state} peripheralState=${peripheralManager?.state}"</ID>
+    <ID>MaxLineLength:BleTransportAdapterLifecycle.kt$"stopTransport clearPeers=$clearPeers activeLinks=${activeLinksByHint.size} activeGatt=${gattNotifyRegistry.size} pending=${pendingConnectionsByHint.size}"</ID>
+    <ID>MaxLineLength:GattLinkIdentitySupport.kt$"bound GATT peripheral connection id=$identifier to claimed peerId=${claimedPeerId.value} via LinkIdentity"</ID>
+    <ID>MaxLineLength:PreferredGattSendSupport.kt$"preferred GATT notify send returned false for ${context.hintPeerId.logSuffix()} bytes=${frame.payload.size}"</ID>
+    <ID>NestedBlockDepth:BleTransportAdapterGattNotifySupport.kt$internal fun BleTransportAdapter.processGattWriteRequests( typedRequests: List&lt;CBATTRequest>, firstRequest: CBATTRequest, ): Unit</ID>
+    <ID>NestedBlockDepth:GattLinkIdentitySupport.kt$internal fun processUnknownGattWriteChunks( identifier: String, chunks: List&lt;ByteArray>, buffer: L2capFrameBuffer, peerBindings: PeerBindings, log: (String) -> Unit, ): UnknownGattWriteProcessingResult</ID>
+    <ID>TooManyFunctions:BleTransportAdapterDiscoverySupport.kt$ch.trancee.meshlink.platform.ios.BleTransportAdapterDiscoverySupport.kt</ID>
+    <ID>TooManyFunctions:BleTransportAdapterGattNotifySupport.kt$ch.trancee.meshlink.platform.ios.BleTransportAdapterGattNotifySupport.kt</ID>
+    <ID>TooManyFunctions:BleTransportAdapterL2capSupport.kt$ch.trancee.meshlink.platform.ios.BleTransportAdapterL2capSupport.kt</ID>
+    <ID>TooManyFunctions:L2capFrameBuffer.kt$L2capFrameBuffer</ID>
+    <ID>UnusedParameter:SendDispatchSupport.kt$frame: OutboundFrame</ID>
+  </CurrentIssues>
+</SmellBaseline>

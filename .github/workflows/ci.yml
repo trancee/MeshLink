@@ -52,7 +52,7 @@ jobs:
           ./gradlew \
             :meshlink:jvmTest \
             :meshlink:testAndroidHostTest \
-            :meshlink:detekt \
+            :meshlink:detektAll \
             :meshlink:apiCheck \
             :meshlink:koverVerify \
             checkAgp9Invariants \

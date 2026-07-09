@@ -1,0 +1,167 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 handles empty aad and plaintext`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 matches rfc 8439 aead vector`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 rejects tampered tag`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `chacha20 poly1305 round trips`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `ed25519 matches rfc 8032 test vector 1`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `generate x25519 key pair clamps the scalar bits`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `hmac sha256 matches standard vector`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `sha256 matches standard vector for abc`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `x25519 matches rfc 7748 test vector 1`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `x25519 matches rfc 7748 test vector 2`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `x25519 rejects all-zero shared secret`()</ID>
+    <ID>FunctionNaming:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$@Test fun `x25519 shared secret is symmetric`()</ID>
+    <ID>FunctionNaming:CryptoProviderFactoryTest.kt$CryptoProviderFactoryTest$@Test fun `create returns direct JCA provider when all capabilities are available`()</ID>
+    <ID>FunctionNaming:CryptoProviderFactoryTest.kt$CryptoProviderFactoryTest$@Test fun `create returns fallback provider when runtime lacks key agreement support`()</ID>
+    <ID>FunctionNaming:CryptoProviderTest.kt$CryptoProviderTest$@Test fun `chacha20 poly1305 round trips`()</ID>
+    <ID>FunctionNaming:CryptoProviderTest.kt$CryptoProviderTest$@Test fun `ed25519 signatures verify and generated keys stay raw 32 byte values`()</ID>
+    <ID>FunctionNaming:CryptoProviderTest.kt$CryptoProviderTest$@Test fun `x25519 rejects all-zero shared secret`()</ID>
+    <ID>FunctionNaming:CryptoProviderTest.kt$CryptoProviderTest$@Test fun `x25519 shared secret is symmetric and generated keys stay raw 32 byte values`()</ID>
+    <ID>FunctionNaming:CryptoRuntimeCapabilityTest.kt$CryptoRuntimeCapabilityTest$@Test fun `create returns fallback provider when the runtime lacks ChaCha20-Poly1305 support`()</ID>
+    <ID>FunctionNaming:CryptoRuntimeCapabilityTest.kt$CryptoRuntimeCapabilityTest$@Test fun `supportsMeshLinkRuntime requires x25519 and ChaCha20-Poly1305`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback matches RFC 8032 test vector 1`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback provider is selected when JCA Ed25519 is missing`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback rejects signatures with non canonical S component`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback round-trips across many random keys and messages`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback signatures verify with JCA Ed25519`()</ID>
+    <ID>FunctionNaming:Ed25519FallbackTest.kt$Ed25519FallbackTest$@Test fun `fallback verifies JCA Ed25519 signatures`()</ID>
+    <ID>FunctionNaming:InboundFrameQueueTest.kt$InboundFrameQueueTest$@Test fun `enqueue delivers frames in order`()</ID>
+    <ID>FunctionNaming:InboundFrameQueueTest.kt$InboundFrameQueueTest$@Test fun `enqueue returns false when the bounded queue is full`()</ID>
+    <ID>FunctionNaming:JcaCapabilityProbeTest.kt$JcaCapabilityProbeTest$@Test fun `detect produces a report whose aggregate runtime support matches its primitive flags`()</ID>
+    <ID>FunctionNaming:JcaCapabilityProbeTest.kt$JcaCapabilityProbeTest$@Test fun `supportsMeshLinkRuntime requires both X25519 and ChaCha20 Poly1305 support`()</ID>
+    <ID>FunctionNaming:JcaCapabilityProbeTest.kt$JcaCapabilityProbeTest$@Test fun `xdh helper factories provide working primitives when available`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `append fast path matches appendDetailed for split multi-frame input`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `append keeps trailing partial frame for later`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `append reassembles a split frame`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `append rejects oversized declared frames`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `append yields multiple frames from one chunk`()</ID>
+    <ID>FunctionNaming:L2capFrameBufferTest.kt$L2capFrameBufferTest$@Test fun `appendDetailed captures zero length frame context`()</ID>
+    <ID>FunctionNaming:L2capSocketFactoryTest.kt$L2capSocketFactoryTest$@Test fun `selectInsecureFactory prefers explicit settings at explicit socket api`()</ID>
+    <ID>FunctionNaming:L2capSocketFactoryTest.kt$L2capSocketFactoryTest$@Test fun `selectInsecureFactory uses legacy factory below explicit socket api`()</ID>
+    <ID>FunctionNaming:MeshLinkCreateTest.kt$MeshLinkCreateTest$@Test fun `meshLink with a non Android bootstrap fails as invalid configuration`()</ID>
+    <ID>FunctionNaming:MeshLinkCreateTest.kt$MeshLinkCreateTest$@Test fun `meshLink without bootstrap on Android fails with helpful guidance`()</ID>
+    <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `api 30 and below require fine location permission`()</ID>
+    <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `api 31 and above require nearby-device bluetooth permissions`()</ID>
+    <ID>FunctionNaming:PermissionContractTest.kt$PermissionContractTest$@Test fun `granted permissions pass without exception`()</ID>
+    <ID>FunctionNaming:PlatformEpochMillisTest.kt$PlatformEpochMillisTest$@Test fun `currentEpochMillis returns a positive nondecreasing value on Android`()</ID>
+    <ID>FunctionNaming:PowerMonitorTest.kt$PowerMonitorTest$@Test fun `defaultProfile returns the balanced platform profile`()</ID>
+    <ID>FunctionNaming:PowerMonitorTest.kt$PowerMonitorTest$@Test fun `profileFor maps the performance tier to low latency transport settings`()</ID>
+    <ID>FunctionNaming:PowerMonitorTest.kt$PowerMonitorTest$@Test fun `profileFor maps the power saver tier to low power transport settings`()</ID>
+    <ID>FunctionNaming:SecureStorageTest.kt$SecureStorageTest$@Test fun `delete removes stored values`()</ID>
+    <ID>FunctionNaming:SecureStorageTest.kt$SecureStorageTest$@Test fun `write stores a defensive copy and read returns the original bytes`()</ID>
+    <ID>InjectDispatcher:GattSideLinkCoordinatorTest.kt$GattSideLinkCoordinatorFixture$Unconfined</ID>
+    <ID>LongMethod:ScanResultSupportTest.kt$ScanResultSupportTest$@Test fun shouldConnectAfterDiscoveryReturnsTrueForGattReadyAndEligibleL2capPeers(): Unit</ID>
+    <ID>LongParameterList:GattNotifyWriteSupportTest.kt$GattNotifyWriteFixture$( private val clientReady: Boolean = true, private val hasGatt: Boolean = true, private val hasWriteCharacteristic: Boolean = true, private val maxChunkBytes: Int = 4, private val encoded: ByteArray = byteArrayOf(0x01, 0x02, 0x03), private val chunkResults: List&lt;Boolean> = List(16) { true }, private val drainResult: Boolean = true, )</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x03</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x04</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x07</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x08</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x09</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x40</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x80</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$12</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$16</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$31</ID>
+    <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$32</ID>
+    <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleFixture$12</ID>
+    <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$3</ID>
+    <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$4</ID>
+    <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$5</ID>
+    <ID>MagicNumber:BleTransportLinkRegistryTest.kt$BleTransportLinkRegistryTest$12</ID>
+    <ID>MagicNumber:BleTransportMaximumPayloadTest.kt$BleTransportMaximumPayloadTest$185</ID>
+    <ID>MagicNumber:BluetoothGattNotifySessionTest.kt$BluetoothGattNotifySessionTest$0x03</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x07</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x0a</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x16</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x18</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x2a</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x2c</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x3c</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x45</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x4c</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x51</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x66</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x6d</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x72</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x73</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x77</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x7d</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$12</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$32</ID>
+    <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$64</ID>
+    <ID>MagicNumber:DiscoveryConfigSupportTest.kt$DiscoveryConfigSupportTest$12</ID>
+    <ID>MagicNumber:Ed25519FallbackTest.kt$Ed25519FallbackTest$0x72</ID>
+    <ID>MagicNumber:Ed25519FallbackTest.kt$Ed25519FallbackTest$16</ID>
+    <ID>MagicNumber:Ed25519FallbackTest.kt$Ed25519FallbackTest$256</ID>
+    <ID>MagicNumber:Ed25519FallbackTest.kt$Ed25519FallbackTest$300</ID>
+    <ID>MagicNumber:Ed25519FallbackTest.kt$Ed25519FallbackTest$42</ID>
+    <ID>MagicNumber:GattLinkIdentitySupportTest.kt$GattLinkIdentitySupportTest$0x03</ID>
+    <ID>MagicNumber:GattNotifyCallbackRelayTest.kt$GattNotifyCallbackRelayTest$0x09</ID>
+    <ID>MagicNumber:GattNotifyChunkSizingTest.kt$GattNotifyChunkSizingTest$20</ID>
+    <ID>MagicNumber:GattNotifyChunkSizingTest.kt$GattNotifyChunkSizingTest$23</ID>
+    <ID>MagicNumber:GattNotifyChunkSizingTest.kt$GattNotifyChunkSizingTest$512</ID>
+    <ID>MagicNumber:GattNotifyChunkSizingTest.kt$GattNotifyChunkSizingTest$517</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$0x03</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$0x04</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$15L</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$20</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$3</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$300</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$4</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$4_000</ID>
+    <ID>MagicNumber:GattNotifyClientTest.kt$GattNotifyClientTest$517</ID>
+    <ID>MagicNumber:GattNotifyLifecycleStateTest.kt$GattNotifyLifecycleStateTest$185</ID>
+    <ID>MagicNumber:GattNotifyLifecycleStateTest.kt$GattNotifyLifecycleStateTest$200</ID>
+    <ID>MagicNumber:GattNotifyLifecycleStateTest.kt$GattNotifyLifecycleStateTest$23</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteFixture$0x03</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteFixture$16</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x03</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x04</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x05</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x06</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x07</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x08</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x09</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x55</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$0x66</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$3</ID>
+    <ID>MagicNumber:GattNotifyWriteSupportTest.kt$GattNotifyWriteSupportTest$9</ID>
+    <ID>MagicNumber:GattSideLinkCoordinatorTest.kt$12</ID>
+    <ID>MagicNumber:InboundFrameQueueTest.kt$InboundFrameQueueTest$1_000L</ID>
+    <ID>MagicNumber:L2capFrameBufferTest.kt$L2capFrameBufferTest$3</ID>
+    <ID>MagicNumber:L2capFrameBufferTest.kt$L2capFrameBufferTest$4</ID>
+    <ID>MagicNumber:L2capFrameBufferTest.kt$L2capFrameBufferTest$5</ID>
+    <ID>MagicNumber:L2capFrameBufferTest.kt$L2capFrameBufferTest$9</ID>
+    <ID>MagicNumber:MemoryBudgetProbe.kt$25L</ID>
+    <ID>MagicNumber:MemoryBudgetProbe.kt$3</ID>
+    <ID>MagicNumber:PeerRegistryTest.kt$PeerRegistryTest$163</ID>
+    <ID>MagicNumber:PreferredGattSendSupportTest.kt$PreferredGattSendSupportTest$16</ID>
+    <ID>MagicNumber:PreferredGattSendSupportTest.kt$PreferredGattSendSupportTest$8</ID>
+    <ID>MagicNumber:PreferredGattSendSupportTest.kt$PreferredGattSendSupportTest.&lt;no name provided>$4</ID>
+    <ID>MagicNumber:ScanResultSupportTest.kt$ScanResultSupportTest$3</ID>
+    <ID>MagicNumber:SecureStorageTest.kt$SecureStorageTest$3</ID>
+    <ID>MagicNumber:SecureStorageTest.kt$SecureStorageTest$4</ID>
+    <ID>MagicNumber:SecureStorageTest.kt$SecureStorageTest$8</ID>
+    <ID>MagicNumber:SecureStorageTest.kt$SecureStorageTest$9</ID>
+    <ID>MaxLineLength:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$"4c616469657320616e642047656e746c656d656e206f662074686520636c617373206f66202739393a204966204920636f756c64206f6666657220796f75206f6e6c79206f6e652074697020666f7220746865206675747572652c2073756e73637265656e20776f756c642062652069742e"</ID>
+    <ID>MaxLineLength:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$"d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691"</ID>
+    <ID>MaxLineLength:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$"e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"</ID>
+    <ID>MaxLineLength:Ed25519FallbackTest.kt$Ed25519FallbackTest$"e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"</ID>
+    <ID>RedundantSuspendModifier:GattNotifyWriteSupportTest.kt$GattNotifyWriteFixture$suspend</ID>
+    <ID>RedundantSuspendModifier:L2capSendSupportTest.kt$L2capSendFixture$suspend</ID>
+    <ID>RedundantSuspendModifier:PreferredGattSendSupportTest.kt$PreferredGattSendFixture$suspend</ID>
+    <ID>RedundantSuspendModifier:SendDispatchSupportTest.kt$SendDispatchFixture$suspend</ID>
+    <ID>TooManyFunctions:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest</ID>
+    <ID>TooManyFunctions:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest</ID>
+    <ID>TooManyFunctions:GattNotifyClientTest.kt$GattNotifyClientTest</ID>
+    <ID>TooManyFunctions:SecureStorageTest.kt$FakeSharedPreferences : SharedPreferences</ID>
+    <ID>UnreachableCode:WireCompatibilitySupport.kt$return classLoader.getResourceAsStream(fileName)?.bufferedReader()?.use { reader -> reader.readText() }</ID>
+    <ID>UnreachableCode:WireCompatibilitySupport.kt$val classLoader = WireCompatibilitySupportLoaderAnchor::class.java.classLoader ?: return null</ID>
+    <ID>UnreachableCode:WycheproofSupport.kt$return classLoader.getResourceAsStream("wycheproof/$fileName")?.bufferedReader()?.use { reader -> reader.readLines() }</ID>
+    <ID>UnreachableCode:WycheproofSupport.kt$val classLoader = AndroidFallbackCryptoProvider::class.java.classLoader ?: return null</ID>
+    <ID>UnsafeCallOnNullableType:SecureStorageTest.kt$SecureStorageTest$firstRead!!</ID>
+  </CurrentIssues>
+</SmellBaseline>
