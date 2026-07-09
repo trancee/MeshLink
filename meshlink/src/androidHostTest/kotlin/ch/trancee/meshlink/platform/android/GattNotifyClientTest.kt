@@ -10,6 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -612,15 +613,187 @@ class GattNotifyClientTest {
             assertEquals(1, session.closeCalls)
             assertFalse(client.write(byteArrayOf(0x04)))
         }
+
+    @Test
+    fun status133DisconnectRetriesTheConnectionInsteadOfSurfacingItAsARealDisconnect(): Unit {
+        // Arrange: android's generic GATT_ERROR (133) status most often reflects an immediate,
+        // transient connect failure on certain OEM Bluetooth stacks rather than a real peer loss.
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val disconnectedPeerIds = mutableListOf<PeerId>()
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                onDisconnected = { peerId -> disconnectedPeerIds += peerId },
+            )
+        client.start()
+        assertEquals(1, factory.openCalls)
+
+        // Act: the very first connection attempt fails immediately with status=133.
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 133,
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+
+        // Assert: the client retries by starting a fresh connection attempt rather than notifying
+        // a real disconnect -- with connectRetryDelayMillis=0 and an Unconfined retry scope (the
+        // test default), the retry's start() call runs synchronously within onConnectionStateChange
+        // itself.
+        assertEquals(2, factory.openCalls)
+        assertEquals(emptyList(), disconnectedPeerIds)
+    }
+
+    @Test
+    @Suppress("InjectDispatcher")
+    fun concurrentEnsureStartedCallDuringAPendingStatus133RetryDoesNotOpenADuplicateConnection():
+        Unit {
+        // Arrange: uses a non-zero delay and a real dispatcher (rather than the test default of
+        // Unconfined + 0ms, which resolves the retry synchronously and can't exercise the delay
+        // window) so a concurrent start() call -- the same call GattSideLinkCoordinator.
+        // ensureStarted() makes on every incoming discovery broadcast for a not-yet-ready peer --
+        // can genuinely land *during* the pending retry's delay, which is exactly the race the
+        // reconnectPending guard exists to prevent. Dispatchers.Default is used deliberately here
+        // (rather than an injected test dispatcher) because the whole point of this test is to
+        // prove correctness under genuine cross-thread scheduling, not virtual time.
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                connectRetryDelayMillis = RETRY_DELAY_MILLIS,
+                connectRetryScope = CoroutineScope(Dispatchers.Default),
+            )
+        client.start()
+        assertEquals(1, factory.openCalls)
+
+        // Act: status=133 schedules a pending retry (RETRY_DELAY_MILLIS out); immediately
+        // afterwards, simulate the coordinator's own concurrent start() call for the same
+        // not-yet-ready peer, which is exactly what happens in production when a discovery
+        // broadcast arrives during the retry delay window.
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 133,
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+        client.start()
+
+        // Assert: the concurrent start() call is a no-op (still gated by reconnectPending) --
+        // exactly one additional connectGatt() happens once the retry's own delay elapses, not two.
+        assertEquals(1, factory.openCalls)
+        Thread.sleep(RETRY_DELAY_MILLIS * 2)
+        assertEquals(2, factory.openCalls)
+    }
+
+    @Test
+    fun status133DisconnectGivesUpAfterExhaustingTheRetryBudget(): Unit {
+        // Arrange
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val disconnectedPeerIds = mutableListOf<PeerId>()
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                onDisconnected = { peerId -> disconnectedPeerIds += peerId },
+            )
+        client.start()
+
+        // Act: fail with status=133 MAX_CONNECT_RETRY_ATTEMPTS + 1 times in a row (the constant is
+        // private in GattNotifyClient, so this test asserts behavior at a small, deliberately
+        // generous bound rather than referencing it directly).
+        repeat(3) {
+            factory.listener.onConnectionStateChange(
+                address = session.address,
+                status = 133,
+                newState = BluetoothProfile.STATE_DISCONNECTED,
+            )
+        }
+
+        // Assert: retries are bounded -- eventually the client gives up and surfaces a real
+        // disconnect instead of retrying forever.
+        assertEquals(listOf(PeerId("peer-android")), disconnectedPeerIds)
+        assertFalse(client.isReady())
+    }
+
+    @Test
+    fun nonGattErrorDisconnectStatusIsNotRetried(): Unit {
+        // Arrange: only status=133 (GATT_ERROR) is treated as a retryable transient failure; any
+        // other disconnect status (e.g. a clean/expected disconnect, or a different real error)
+        // must still surface immediately as a real disconnect.
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val disconnectedPeerIds = mutableListOf<PeerId>()
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                onDisconnected = { peerId -> disconnectedPeerIds += peerId },
+            )
+        client.start()
+
+        // Act
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 8, // GATT_CONN_TIMEOUT, an unrelated real failure code
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+
+        // Assert: no retry -- exactly the original connection attempt, and a real disconnect fires.
+        assertEquals(1, factory.openCalls)
+        assertEquals(listOf(PeerId("peer-android")), disconnectedPeerIds)
+    }
+
+    @Test
+    fun successfulConnectResetsTheStatus133RetryBudgetForTheNextDisconnect(): Unit {
+        // Arrange
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val disconnectedPeerIds = mutableListOf<PeerId>()
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                onDisconnected = { peerId -> disconnectedPeerIds += peerId },
+            )
+        client.start()
+
+        // Act: one status=133 retry, then a real successful connection.
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 133,
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 0,
+            newState = BluetoothProfile.STATE_CONNECTED,
+        )
+
+        // Assert: the retry budget was consumed by the first failure, but a subsequent successful
+        // connect resets it, so a fresh sequence of status=133 failures gets its own full budget
+        // rather than immediately giving up from where the previous sequence left off.
+        repeat(2) {
+            factory.listener.onConnectionStateChange(
+                address = session.address,
+                status = 133,
+                newState = BluetoothProfile.STATE_DISCONNECTED,
+            )
+        }
+        assertEquals(emptyList(), disconnectedPeerIds)
+    }
 }
 
 // Mirrors GattNotifyClient's private ANDROID_GATT_CONNECTION_CONGESTED constant (Android's
 // BluetoothGatt.GATT_CONNECTION_CONGESTED = 143) for tests exercising the congestion-retry path.
 private const val GATT_CONNECTION_CONGESTED_STATUS: Int = 143
+// Used only by the concurrent-retry race test above, which needs a real (non-zero) delay to
+// exercise genuine cross-thread scheduling rather than the Unconfined+0ms synchronous default.
+private const val RETRY_DELAY_MILLIS: Long = 200L
 
 private fun createGattNotifyClient(
     factory: GattNotifySessionFactory,
     localHintPeerId: PeerId = PeerId("local-android"),
+    onDisconnected: (PeerId) -> Unit = {},
+    connectRetryDelayMillis: Long = 0L,
+    connectRetryScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
 ): GattNotifyClient {
     return GattNotifyClient(
         context = Any(),
@@ -630,8 +803,10 @@ private fun createGattNotifyClient(
         device = Any(),
         log = {},
         onFrameReceived = { _, _ -> true },
-        onDisconnected = {},
+        onDisconnected = onDisconnected,
         sessionFactory = factory,
+        connectRetryDelayMillis = connectRetryDelayMillis,
+        connectRetryScope = connectRetryScope,
     )
 }
 

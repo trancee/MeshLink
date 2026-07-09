@@ -181,6 +181,11 @@ internal class BluetoothGattNotifySession(
     }
 
     override fun close(): Unit {
+        // Always request a graceful disconnect before releasing the client interface -- see
+        // GattConnectionAdapter.disconnect() for why closing directly (without this) has been
+        // linked to status=133 connection failures and stuck/duplicate connection callbacks on
+        // reconnect for some OEM Bluetooth stacks in this project's device fleet.
+        connection.disconnect()
         connection.close()
     }
 

@@ -169,8 +169,27 @@ class BluetoothGattNotifySessionTest {
         // Assert
         assertFalse(written)
     }
+
+    @Test
+    fun closeDisconnectsBeforeClosingTheUnderlyingConnection(): Unit {
+        // Arrange: Android's BluetoothGatt API docs (and community-documented experience with
+        // status=133/GATT_ERROR on reconnect) call for always requesting disconnect() before
+        // close() rather than closing directly while the link may still be active -- see
+        // GattConnectionAdapter.disconnect() for the full rationale.
+        val connection = FakeGattConnectionAdapter()
+        val session = BluetoothGattNotifySession(connection = connection, sdkInt = 33)
+
+        // Act
+        session.close()
+
+        // Assert
+        assertEquals(1, connection.disconnectCalls)
+        assertEquals(1, connection.closeCalls)
+        assertEquals(listOf("disconnect", "close"), connection.callOrder)
+    }
 }
 
+@Suppress("TooManyFunctions")
 private class FakeGattConnectionAdapter(
     private val service: GattServiceAdapter? = null,
     private val writeDescriptorResult: Boolean = true,
@@ -189,6 +208,8 @@ private class FakeGattConnectionAdapter(
     var writeDescriptorCalls: Int = 0
     var writeCharacteristicCalls: Int = 0
     var closeCalls: Int = 0
+    var disconnectCalls: Int = 0
+    val callOrder: MutableList<String> = mutableListOf()
     var lastDescriptor: GattDescriptorAdapter? = null
     var lastDescriptorValue: ByteArray? = null
     var lastWriteCharacteristic: GattCharacteristicAdapter? = null
@@ -250,6 +271,12 @@ private class FakeGattConnectionAdapter(
 
     override fun close(): Unit {
         closeCalls += 1
+        callOrder += "close"
+    }
+
+    override fun disconnect(): Unit {
+        disconnectCalls += 1
+        callOrder += "disconnect"
     }
 }
 
