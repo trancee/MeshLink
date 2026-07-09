@@ -4,13 +4,22 @@ This note explains how MeshLink classifies tracked crypto vectors and what the
 runtime is expected to do with each class.
 
 Use it when you are extending the local crypto corpus, updating
-`wycheproof/policy.json`, or debugging the crypto/runtime contract gate.
+`policy.json`, or debugging the crypto/runtime contract gate.
 
 ## Canonical evidence
 
-- The machine-readable policy lives in [`wycheproof/policy.json`](wycheproof/policy.json).
-- The authoritative automated evidence comes from the repository's current
-  Gradle/CI crypto verification bundle.
+- The machine-readable policy and the unmodified upstream Wycheproof vector
+  files it classifies live under
+  [`meshlink/src/commonTest/resources/wycheproof/`](../../../meshlink/src/commonTest/resources/wycheproof/)
+  (`policy.json`, `ed25519_test.json`, `x25519_test.json`), alongside the
+  separate, much smaller RFC-style regression corpus
+  (`chacha20_poly1305.jsonl`, `ed25519.jsonl`, `hkdf_sha256.jsonl`,
+  `hmac_sha256.jsonl`, `x25519.jsonl`) that `WycheproofRegressionTest` runs
+  against every algorithm the constitution requires.
+- The authoritative automated evidence comes from the test classes in the
+  [provider coverage matrix](#provider-coverage-matrix) below, run as part of
+  the repository's current Gradle/CI crypto verification bundle
+  (`:meshlink:jvmTest`, `:meshlink:testAndroidHostTest`).
 - The iOS bridge boundary and install contract are documented in the
   [MeshLink SDK API reference](../../reference/meshlink-sdk-api.md#ios-bridge-entry-points)
   and [How to use MeshLink from Swift](../../how-to/use-meshlink-from-swift.md).
@@ -28,29 +37,33 @@ Use it when you are extending the local crypto corpus, updating
 | `fail_closed_or_match` | Provider may reject or throw, but any returned value must match the tracked shared secret exactly. | Runtime still fails closed on rejection. Accepting with the wrong value is a regression. |
 
 `fail_closed_or_match` is currently used only for X25519 edge cases where
-providers may reject malformed public keys at different layers.
+providers may reject malformed public keys at different layers; the tracked
+manifest has no `ed25519` `fail_closed_or_match` buckets and no `x25519`
+`reject` buckets today.
 
 ## Current manifest coverage
 
-The tracked manifest currently covers Ed25519 verification and X25519
-shared-secret derivation.
+The tracked manifest classifies the **entire** upstream Wycheproof corpus for
+Ed25519 verification and X25519 shared-secret derivation -- every `tcId` in
+`ed25519_test.json` and `x25519_test.json` is accounted for, and
+`CryptoPolicyCorpusTest` fails the build if that ever drifts.
 
 | Algorithm | Accept | Reject | Fail closed or match | Total |
 |---|---:|---:|---:|---:|
-| `ed25519` | 3 | 7 | 0 | 10 |
-| `x25519` | 6 | 0 | 18 | 24 |
-| **Total** | **9** | **7** | **18** | **34** |
+| `ed25519` | 88 | 62 | 0 | 150 |
+| `x25519` | 264 | 0 | 254 | 518 |
+| **Total** | **352** | **62** | **254** | **668** |
 
-If `wycheproof/policy.json` changes, update this table in the same change.
+If `policy.json` changes, update this table in the same change.
 
 ## Provider coverage matrix
 
 | Surface | What it proves now | Evidence path |
 |---|---|---|
-| Corpus integrity | Every tracked tcId is classified explicitly and stale tcIds fail the build. | `CryptoPolicyCorpusTest` plus `wycheproof/policy.json` |
-| JVM provider conformance | The JVM provider matches RFC vectors and explicit policy buckets. | `JvmCryptoPolicyConformanceTest` |
-| Android provider conformance | `JcaCryptoProvider` honors the same vectors and policy buckets on host execution. | `AndroidCryptoPolicyConformanceTest` |
-| Runtime fail-closed behavior | MeshLink rejects malformed crypto before HKDF or transport use. | `CryptoProviderRuntimeContractTest` and `MeshRuntimeAndroidCryptoTest` |
+| Corpus integrity | Every tracked `tcId` is classified explicitly, exactly once, with a `wycheproofResult` that agrees with the vector file, and stale/missing `tcId`s fail the build. | `CryptoPolicyCorpusTest` (`meshlink/src/commonTest/kotlin/ch/trancee/meshlink/crypto/`) plus `policy.json` |
+| JVM provider conformance | `JvmCryptoProvider` honors every tracked policy bucket across the full 668-vector manifest. | `JvmCryptoPolicyConformanceTest` (`meshlink/src/jvmTest/...`) |
+| Android provider conformance | `JcaCryptoProvider` -- the JCA-backed provider Android uses whenever the device supports X25519/XDH and Ed25519 -- honors the same manifest on host execution. The pure-Kotlin fallback used on devices without that platform support is covered separately by `WycheproofRegressionTest` against `AndroidFallbackCryptoProvider`. | `AndroidCryptoPolicyConformanceTest` (`meshlink/src/androidHostTest/...`) |
+| Runtime fail-closed behavior | A real Wycheproof low-order/non-canonical X25519 public key fails the Noise XX handshake at the X25519/HKDF step, before any session key is derived, for whichever `CryptoProvider` a source set wires up (`CryptoProviderRuntimeContractTest`), and for whichever provider `JcaCryptoProviderFactory`'s capability probe actually selects at runtime on Android (`MeshRuntimeAndroidCryptoTest`). | `CryptoProviderRuntimeContractTest` (`meshlink/src/commonTest/...`) and `MeshRuntimeAndroidCryptoTest` (`meshlink/src/androidHostTest/...`) |
 | iOS bridge boundary | The iOS bridge contract remains compile/link only for `iosArm64`. | Current Gradle/CI verification bundle |
 
 ## Fail-closed runtime expectations
@@ -79,10 +92,11 @@ Human-readable failure context is good. Secret material is not.
 
 ## Maintenance workflow
 
-1. Update the tracked local RFC or Wycheproof corpus.
-2. Classify every new tcId in `wycheproof/policy.json`.
+1. Update the tracked local RFC or Wycheproof corpus under
+   `meshlink/src/commonTest/resources/wycheproof/`.
+2. Classify every new `tcId` in `policy.json`.
 3. Update this document so the coverage table still matches the manifest.
 4. Run the current Gradle/CI verification bundle for the crypto/runtime
-   contract.
+   contract (`:meshlink:jvmTest`, `:meshlink:testAndroidHostTest`).
 5. If later work broadens live-radio or cross-platform proof, extend the current
    verification bundle instead of reviving slice-specific shell gates.
