@@ -5,7 +5,7 @@ description: Gradle build tool reference for configuring builds, managing depend
 
 <essential_principles>
 
-**Gradle** automates building, testing, and deployment using build scripts written in Kotlin DSL (`.gradle.kts`) or Groovy DSL (`.gradle`). Prefer Kotlin DSL for type safety and IDE support.
+**Gradle** automates building, testing, and deployment using build scripts written in Kotlin DSL (`.gradle.kts`) or Groovy DSL (`.gradle`). Prefer Kotlin DSL for type safety and IDE support. Current stable: **9.6.1**; Gradle 9 adopted Semantic Versioning (`MAJOR.MINOR.PATCH`), requires **Java 17+ to run the daemon** (project code can still target older Java via toolchains), and embeds Kotlin 2.2 / Groovy 4 for build logic.
 
 ### Core Rules an Agent Must Know
 
@@ -17,7 +17,7 @@ description: Gradle build tool reference for configuring builds, managing depend
 - **`plugins {}` block** is the preferred way to apply plugins. Use `alias(libs.plugins.x)` with version catalogs.
 - **Multi-project builds** use `include()` in `settings.gradle.kts`. Cross-project deps via `project(":subproject")`.
 - **Convention plugins** (in `buildSrc/` or `build-logic/`) share build logic across subprojects — don't repeat configuration.
-- **Enable caching and parallelism** in `gradle.properties`: `org.gradle.parallel=true`, `org.gradle.caching=true`, `org.gradle.configuration-cache=true`.
+- **Configuration Cache is now the preferred execution mode** (since Gradle 9.0). Enable it in `gradle.properties`: `org.gradle.configuration-cache=true`, alongside `org.gradle.parallel=true` and `org.gradle.caching=true`. If it's off and no known incompatibilities exist, Gradle will actively prompt you to enable it; when a build hits an unsupported feature, Gradle falls back gracefully instead of failing (check the configuration cache report for why).
 
 </essential_principles>
 
@@ -41,10 +41,10 @@ For general Gradle tasks, read `references/core-concepts.md` first — it covers
 
 All domain knowledge in `references/`:
 
-**Core:** core-concepts.md — project structure, settings file, build file, wrapper, gradle.properties, core concepts table
-**Lifecycle:** lifecycle-and-tasks.md — three build phases, running tasks, common tasks, registering custom tasks, inputs/outputs, up-to-date checks
+**Core:** core-concepts.md — project structure, settings file, build file, wrapper (incl. partial-version resolution, daemon toolchain / `gradle-daemon-jvm.properties`), gradle.properties, core concepts table
+**Lifecycle:** lifecycle-and-tasks.md — three build phases, running tasks, common tasks, registering custom tasks, inputs/outputs, up-to-date checks, `--task-graph` visualization, reproducible archives by default
 **Dependencies:** dependencies.md — declaring deps, configurations table, version catalog (libs.versions.toml), repositories, inspecting deps, constraints, conflict resolution
 **Plugins:** plugins-and-config.md — applying plugins, common plugins table, Kotlin DSL tips, multi-project builds, convention plugins, composite builds
-**CLI:** cli-and-performance.md — essential commands, useful flags, task abbreviation, build cache, config cache, parallel execution, daemon, troubleshooting
+**CLI:** cli-and-performance.md — essential commands, useful flags (incl. `--task-graph`, `--console=colored`), task abbreviation, build cache, config cache (now the preferred execution mode with prompt-to-enable and graceful fallback), parallel execution, daemon, troubleshooting
 
 </reference_index>

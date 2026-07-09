@@ -40,9 +40,10 @@ description: Official Kotlin library authors' guidelines for API design. Covers 
 
 **Backward compatibility:**
 - Always specify return types explicitly
-- Don't add parameters (even with defaults) — use manual overloads
+- Don't add parameters (even with defaults) — use manual overloads, or the Experimental `@IntroducedAt` annotation (Kotlin 2.4.0+) to auto-generate version-tagged hidden overloads
 - Don't widen/narrow return types
 - Avoid data classes in public API
+- Don't change an exposed annotation's `@Target`s after publishing — property vs. field target resolution can silently shift on recompilation
 - Deprecate gradually: warning → error → hidden across minor releases
 - Use Binary Compatibility Validator (`apiDump`/`apiCheck`)
 
@@ -59,7 +60,7 @@ description: Official Kotlin library authors' guidelines for API design. Covers 
 |-------|-----------|
 | Explicit API mode, reusing types, core API, DSL builders, composability, extension functions, boolean params, numeric types, parameter naming, error handling consistency, OO vs FP, linters and testing | `references/simplicity-readability-consistency.md` |
 | Sensible defaults, sealed types, mutable state, input validation (`require`/`check`), `toString()`, exception policy, testability, injectable dependencies | `references/predictability-debuggability-testability.md` |
-| Binary/source/behavioral compatibility, Binary Compatibility Validator, inferred return types, default args, return type widening, data classes in API, `@Deprecated` cycles, `@RequiresOptIn`, `@PublishedApi` | `references/backward-compatibility.md` |
+| Binary/source/behavioral compatibility, Binary Compatibility Validator, inferred return types, default args (`@IntroducedAt` version overloading), return type widening, data classes in API, changing annotation targets, `@Deprecated` cycles, `@RequiresOptIn`, `@PublishedApi` | `references/backward-compatibility.md` |
 | KDoc and Dokka, documentation artifacts, lambda docs, user personas, writing style, KMP library design (common code, cross-platform behavior, testing, Swift interop, klibs.io) | `references/documentation-and-multiplatform.md` |
 
 </routing>
@@ -70,7 +71,7 @@ description: Official Kotlin library authors' guidelines for API design. Covers 
 
 **predictability-debuggability-testability.md** — sensible defaults for happy path, extension points (plugins, user extension functions), sealed types to prevent invalid extensions (JsonElement example), avoiding mutable state (read-only collections, defensive copies, vararg copying), input validation with require() and state validation with check(), meaningful toString() for stateful types (format consistency, security, no data classes), exception handling policy (type→error type, data→root cause, wrapping low-level exceptions), avoiding global state (Clock.System injection pattern), injectable dependencies for testability
 
-**backward-compatibility.md** — binary/source/behavioral compatibility definitions, Binary Compatibility Validator (apiDump/apiCheck, KLib support, KGP 2.2.0 built-in), explicit return types to prevent binary breaks, adding default arguments breaks binary compat (manual overloads fix, @JvmOverloads warning), widening/narrowing return types breaks binary compat, data classes in public API (constructor/copy/componentN breaks), @Deprecated deprecation cycle (WARNING→ERROR→HIDDEN, replaceWith, major releases only for removal), @RequiresOptIn for stability annotations (Preview/Experimental/Delicate, propagation), @PublishedApi annotation implications
+**backward-compatibility.md** — binary/source/behavioral compatibility definitions, Binary Compatibility Validator (apiDump/apiCheck, KLib support, KGP 2.2.0 built-in), explicit return types to prevent binary breaks, adding default arguments breaks binary compat (manual overloads fix, `@IntroducedAt` Experimental version-tagged auto-overloads since Kotlin 2.4.0, @JvmOverloads warning — doesn't preserve compat for Kotlin callers), widening/narrowing return types breaks binary compat, data classes in public API (constructor/copy/componentN breaks), changing annotation @Target after publishing (property-vs-field unqualified-annotation resolution shift, Java reflection/APT impact, @field: workaround), @Deprecated deprecation cycle (WARNING→ERROR→HIDDEN, replaceWith, major releases only for removal), @RequiresOptIn for stability annotations (Preview/Experimental/Delicate, propagation), @PublishedApi annotation implications
 
 **documentation-and-multiplatform.md** — documentation as feedback loop, required artifacts (Getting Started, API description, recipes, resources), KDoc + Dokka, entry point documentation (inputs, exceptions, edge cases, not restating signatures), lambda parameter documentation (exception behavior, concurrency/threading), @see tags and internal links, self-contained docs, simple English, user personas, KMP reach maximization (cross-compilation, tiered native targets), designing for commonMain (source set priority), consistent cross-platform behavior (expect/actual with identical semantics), multiplatform testing (kotlin-test), Swift interop considerations, klibs.io promotion
 

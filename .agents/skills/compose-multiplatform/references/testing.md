@@ -86,6 +86,23 @@ class ExampleTest {
 - **Actions:** `performClick()`, `performTextInput()`, `performScrollTo()`
 </writing_tests>
 
+<behavior_changes>
+## Idle and Timing Behavior Changes (1.8.2+)
+
+These changed the meaning of "idle" and the test clock — code written against older behavior can hang or silently pass/fail differently now:
+
+- **`delay()` inside `LaunchedEffect` no longer blocks idle detection.** `waitForIdle()`, `awaitIdle()`, and `runOnIdle()` now treat Compose as idle even while a composition-scoped coroutine is suspended in `delay()`. A `while (true) { delay(1000) }` effect used to hang these calls forever; now it doesn't — but tests that relied on `waitForIdle()` to let a delayed effect finish must advance the clock explicitly instead:
+  ```kotlin
+  updateText = true
+  waitForIdle()                    // no longer waits out the delay
+  mainClock.advanceTimeBy(1001)    // advance time to make the assertion correct
+  assertEquals("1", text)
+  ```
+- **`runOnIdle()` now matches Android**: runs its action on the UI thread, and no longer calls `waitForIdle()` afterward — add an explicit `waitForIdle()` call after `runOnIdle()` if your test depended on that implicit wait.
+- **`mainClock.advanceTimeBy()` is decoupled from rendering**: it no longer forces recomposition/layout/draw unless the advanced time crosses a virtual frame boundary (frames render every 16ms). Tests that relied on every `advanceTimeBy()` call triggering a render may need adjusting.
+- **`runComposeUiTest()` accepts a suspend lambda (1.9.0+)**, so you can call `awaitIdle()` and other suspend APIs directly inside it. Behavior differs slightly per target: JVM/native behave like `runBlocking()` but skip delays; web (Wasm/JS) returns a `Promise` and also skips delays.
+</behavior_changes>
+
 <running_tests>
 ## Running Tests
 

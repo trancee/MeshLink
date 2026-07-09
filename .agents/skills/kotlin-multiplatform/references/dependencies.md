@@ -9,8 +9,8 @@ Dependencies in `commonMain` are available to **all** source sets. Use the libra
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-            implementation("io.ktor:ktor-client-core:3.4.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+            implementation("io.ktor:ktor-client-core:3.5.1")
         }
     }
 }
@@ -100,8 +100,8 @@ Use `libs.versions.toml` for all dependency versions:
 ```toml
 # gradle/libs.versions.toml
 [versions]
-coroutines = "1.10.2"
-ktor = "3.4.1"
+coroutines = "1.11.0"
+ktor = "3.5.1"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

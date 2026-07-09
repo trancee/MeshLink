@@ -123,3 +123,38 @@ kover {
 ### Appending rules (vs overriding)
 `verify { }` clears and replaces rules. Use `verifyAppend { }` to add without clearing.
 </rule_scoping>
+
+<rule_options>
+## Rule and Bound Shortcuts
+
+### Warn instead of failing the build
+By default a violated rule fails the `koverVerify`/`check` task. Set `warningInsteadOfFailure` (on the `verify { }`/`verifyAppend { }` block itself, alongside `rule { }`) to log a warning instead:
+```kotlin
+kover {
+    reports {
+        verify {
+            warningInsteadOfFailure = true
+            rule { minBound(100) }
+        }
+    }
+}
+```
+
+### Disabling a single rule without deleting it
+```kotlin
+rule("line coverage") {
+    disabled = true // rule is kept but skipped during verification
+    bound { minValue = 100 }
+}
+```
+
+### Concise bound shortcuts
+`minBound`/`maxBound` accept `coverageUnits` and `aggregationForGroup` directly, and `bound` has a combined min+max overload — avoiding a full `bound { }` block for simple cases:
+```kotlin
+rule {
+    minBound(75, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+    maxBound(5, CoverageUnit.LINE, AggregationType.MISSED_COUNT)
+    bound(50, 100, CoverageUnit.INSTRUCTION, AggregationType.COVERED_PERCENTAGE) // min + max together
+}
+```
+</rule_options>

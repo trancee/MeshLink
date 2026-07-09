@@ -3,7 +3,7 @@
 <overview>
 ## What It Does
 
-The Power-assert compiler plugin transforms assertion function calls to produce detailed failure messages showing intermediate values of every sub-expression. **Experimental** status (as of Kotlin 2.3.21).
+The Power-assert compiler plugin transforms assertion function calls to produce detailed failure messages showing intermediate values of every sub-expression. **Experimental** status (as of Kotlin 2.4.0).
 
 Example output when `assert(hello.length == world.substring(1, 4).length)` fails:
 ```
@@ -26,8 +26,8 @@ No special assertion library needed — plain `assert()` gives rich diagnostics.
 ```kotlin
 // build.gradle.kts
 plugins {
-    kotlin("multiplatform") version "2.3.21"        // or kotlin("jvm")
-    kotlin("plugin.power-assert") version "2.3.21"
+    kotlin("multiplatform") version "2.4.0"        // or kotlin("jvm")
+    kotlin("plugin.power-assert") version "2.4.0"
 }
 ```
 
@@ -66,8 +66,8 @@ The plugin is Experimental — without `@OptIn(ExperimentalKotlinGradlePluginApi
 ```groovy
 // build.gradle
 plugins {
-    id 'org.jetbrains.kotlin.multiplatform' version '2.3.21'
-    id 'org.jetbrains.kotlin.plugin.power-assert' version '2.3.21'
+    id 'org.jetbrains.kotlin.multiplatform' version '2.4.0'
+    id 'org.jetbrains.kotlin.plugin.power-assert' version '2.4.0'
 }
 
 powerAssert {
@@ -102,6 +102,8 @@ fun myAssert(condition: Boolean, message: () -> String = { "Assertion failed" })
 }
 ```
 Use the fully-qualified name including the class for member/extension functions.
+
+**Alternative: `@PowerAssert` annotation (no build-file registration needed).** Since the `kotlin-power-assert-runtime` library, annotating a function with `@PowerAssert` makes the compiler plugin transform calls to it automatically — callers don't need to add it to `functions` in `powerAssert {}` at all. See `<library_authors>` in this file for the full annotation/runtime API.
 </supported_functions>
 
 <best_practices>
@@ -208,7 +210,7 @@ fun `test employees data`() {
     <plugin>
       <artifactId>kotlin-maven-plugin</artifactId>
       <groupId>org.jetbrains.kotlin</groupId>
-      <version>2.3.21</version>
+      <version>2.4.0</version>
       <configuration>
         <compilerPlugins>
           <plugin>power-assert</plugin>
@@ -222,7 +224,7 @@ fun `test employees data`() {
         <dependency>
           <groupId>org.jetbrains.kotlin</groupId>
           <artifactId>kotlin-maven-power-assert</artifactId>
-          <version>2.3.21</version>
+          <version>2.4.0</version>
         </dependency>
       </dependencies>
     </plugin>
@@ -230,3 +232,71 @@ fun `test employees data`() {
 </build>
 ```
 </maven>
+
+<library_authors>
+## Adding Power-assert Support to a Library (`@PowerAssert` Annotation & `CallExplanation`)
+
+Library authors can make their own assertion functions Power-assert-capable **without requiring callers to register them** in `functions = listOf(...)`. This is a separate, newer mechanism from the manual `functions` list registration above — both still work, and can be mixed.
+
+### Setup
+- Apply the Power-assert compiler plugin as usual.
+- **Gradle** automatically adds the `kotlin-power-assert-runtime` dependency alongside the compiler plugin.
+- **Maven** requires adding it explicitly:
+  ```xml
+  <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-power-assert-runtime</artifactId>
+      <version>2.4.0</version>
+  </dependency>
+  ```
+
+### `@PowerAssert` annotation
+Annotate the assertion function itself. Any caller with the Power-assert compiler plugin enabled gets automatic transformation — no entry in `powerAssert { functions = ... }` needed:
+
+```kotlin
+import kotlin.powerassert.PowerAssert
+import kotlin.powerassert.toDefaultMessage
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
+
+@OptIn(ExperimentalContracts::class)
+@PowerAssert
+fun powerAssert(condition: Boolean, @PowerAssert.Ignore message: String? = null) {
+    contract { returns() implies condition }
+    if (!condition) {
+        val explanation = PowerAssert.explanation ?: fail(message)
+        val failureMessage = buildString {
+            if (message?.isNotBlank() == true) appendLine(message)
+            append(explanation.toDefaultMessage())
+        }
+        fail(failureMessage)
+    }
+}
+```
+
+- **`@PowerAssert.Ignore`** on a parameter (e.g. the `message`) excludes it from the generated failure message.
+- **`PowerAssert.explanation`** (inside the annotated function body) returns the `CallExplanation` for the current call, or `null` if the caller has no Power-assert plugin, calls from Java, or calls via reflection — always null-check it.
+- **`explanation.toDefaultMessage()`** renders the same diagram-style message the plugin normally produces (the `|`/values tree).
+
+### `CallExplanation`
+Exposes the call site's sub-expressions for building custom messages instead of the default renderer:
+
+```kotlin
+@PowerAssert
+fun AssertScope<*>.check(condition: Boolean) {
+    if (!condition) {
+        val explanation = PowerAssert.explanation
+        val message = explanation?.let {
+            val conditionArg = it.arguments.last()!!
+            val source = it.source.substring(conditionArg.startOffset, conditionArg.endOffset)
+            "Condition failed: $source"
+        }
+        collect(message, explanation)
+    }
+}
+```
+
+Key members: `explanation.expressions` (list of captured sub-expressions, including `EqualityExpression` for `==`/`!=` comparisons — useful for filtering to just the failing equality checks), `explanation.arguments` (the call's argument expressions), `explanation.source` + argument `startOffset`/`endOffset` (extract the original source text for any sub-expression).
+
+**When to reach for this vs. the `functions` list:** use `functions` registration for functions you don't own (stdlib, third-party) or one-off test helpers; use `@PowerAssert` when you're the author of a reusable assertion library and want it Power-assert-capable out of the box for every consumer.
+</library_authors>

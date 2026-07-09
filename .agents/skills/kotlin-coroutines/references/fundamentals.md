@@ -145,4 +145,5 @@ Without the `CoroutineScope` receiver, calling `launch` would be a compilation e
 - **Don't use `runBlocking` in production code** — it blocks the calling thread. Use it only at entry points or tests.
 - **Don't use async-style functions** (`fun somethingAsync() = GlobalScope.async { ... }`) — they break structured concurrency. Instead, make the function `suspend` and let the caller decide on concurrency.
 - **Don't swallow `CancellationException`** — always rethrow it, or cancellation propagation breaks.
+- **Don't pass a `Job` argument to a coroutine builder** (`launch(job) { }`, `async(someJob) { }`) — deprecated with a lint warning since 1.11.0, because it silently detaches the new coroutine from its structured-concurrency parent (the passed `Job` becomes the parent instead of the enclosing scope). If you need a child `Job` to cancel independently, capture the builder's own returned `Job` instead of pre-supplying one.
 </anti_patterns>

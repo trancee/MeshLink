@@ -63,7 +63,7 @@ All domain knowledge in `references/`:
 **Structure:** project-structure.md — source sets, targets, hierarchy, directory layout
 **Expect/Actual:** expect-actual.md — patterns, rules, naming, type aliases
 **Dependencies:** dependencies.md — common deps, platform deps, version catalogs, popular libraries
-**Gradle:** gradle-config.md — plugin setup, target declaration, compiler options, iOS framework export
+**Gradle:** gradle-config.md — plugin setup, target declaration (incl. `wasmWasi`, the `com.android.kotlin.multiplatform.library` Android plugin alternative), compiler options, iOS framework export
 
 </reference_index>
 

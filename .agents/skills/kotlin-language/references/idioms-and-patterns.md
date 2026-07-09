@@ -146,6 +146,24 @@ when (x) {
 }
 ```
 
+### Guard Conditions in `when` (Kotlin 2.2+, Stable)
+
+Add a second condition to a branch (evaluated only if the primary condition matches), separated by `if` — flattens what would otherwise need a nested `when`/`if`:
+
+```kotlin
+sealed interface Animal
+class Cat(val mouseHunter: Boolean) : Animal
+class Dog : Animal
+
+fun feed(animal: Animal) = when (animal) {
+    is Cat if !animal.mouseHunter -> feedCat(animal)   // matches only non-hunting cats
+    is Cat -> Unit                                      // hunting cats feed themselves
+    is Dog -> feedDog(animal)
+    else -> Unit
+}
+```
+`else if` is also supported for a guard on the `else` branch. Multiple branches can freely mix guarded and unguarded conditions in the same `when`.
+
 ### Ranges and Progressions
 
 ```kotlin

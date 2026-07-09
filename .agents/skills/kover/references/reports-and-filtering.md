@@ -73,8 +73,10 @@ kover {
         filters {
             excludes {
                 classes("com.example.generated.*")
+                packages("com.example.generated")
                 annotatedBy("Generated", "Deprecated")
                 inheritedFrom("com.example.BaseGenerated")
+                androidGeneratedClasses() // shortcut: excludes *Fragment, *Activity, *.databinding.*, *.BuildConfig, etc.
             }
             includes {
                 classes("com.example.myapp.*")
@@ -124,8 +126,11 @@ Must be fully-qualified class names. File paths are NOT valid.
 | Filter | Description | JaCoCo support |
 |--------|-------------|----------------|
 | `classes(...)` | By fully-qualified class name (wildcards OK) | ✅ |
+| `packages(...)` | By package name — matches the package and its subpackages (wildcards OK) | ✅ |
 | `annotatedBy(...)` | By annotation (BINARY or RUNTIME retention) | ❌ Kover only |
-| `inheritedFrom(...)` | By superclass/interface | ❌ Kover only |
+| `inheritedFrom(...)` | By superclass/interface (whole hierarchy analyzed; slower reports) | ❌ Kover only |
+| `projects` (`SetProperty`) | By project name or path (`:my:lib*`) — for merged/multi-module reports | ✅ |
+| `androidGeneratedClasses()` | Shortcut: excludes `*Fragment`, `*Fragment$*`, `*Activity`, `*Activity$*`, `*.databinding.*`, `*.BuildConfig` | ✅ |
 </filtering>
 
 <source_sets>
@@ -137,6 +142,9 @@ Exclude or include specific JVM source sets. `test` source set is excluded by de
 kover {
     currentProject {
         sources {
+            // Exclude classes compiled by the Java compiler (mixed Java/Kotlin projects)
+            excludeJava = true
+
             // Exclude specific source sets
             excludedSourceSets.addAll("test1", "extra")
 
@@ -161,6 +169,10 @@ kover {
     currentProject {
         instrumentation {
             excludedClasses.add("com.example.Problematic*")
+
+            // Or invert: only instrument the listed classes, skip everything else.
+            // excludedClasses always wins where both match.
+            includedClasses.add("com.example.core.*")
         }
     }
 }
@@ -176,7 +188,7 @@ kover {
             disabledForTestTasks.add("nightlyLoadTest")
 
             // Disable ALL instrumentation in this project
-            disableForAll = true
+            disabledForAll = true
         }
     }
 }

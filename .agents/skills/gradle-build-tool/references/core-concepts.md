@@ -121,8 +121,12 @@ tasks.test {
 # Use the wrapper (recommended)
 ./gradlew build
 
-# Update wrapper version
-./gradlew wrapper --gradle-version 9.4.1
+# Update wrapper to a specific version
+./gradlew wrapper --gradle-version 9.6.1
+
+# Or resolve to the latest patch of a major/minor line (Gradle 9+)
+./gradlew wrapper --gradle-version 9      # latest 9.x.y
+./gradlew wrapper --gradle-version 9.6    # latest 9.6.x
 
 # Wrapper files (commit all of these to VCS)
 gradle/wrapper/gradle-wrapper.jar
@@ -130,6 +134,10 @@ gradle/wrapper/gradle-wrapper.properties
 gradlew
 gradlew.bat
 ```
+
+### Daemon Toolchain (which JVM runs Gradle itself)
+
+Separate from the toolchains your project compiles/tests with (`java { toolchain { ... } }` in the build file above), the **daemon toolchain** pins the JVM that runs the Gradle daemon itself — stable since Gradle 9.2. Declare it in `gradle/gradle-daemon-jvm.properties` (generated via `./gradlew updateDaemonJvm --jvm-version=17`), independent of whatever JDK happens to be on `PATH` or in `JAVA_HOME`. Gradle 9 requires this daemon JVM to be **17+**; the daemon JVM version and the project's compile/test toolchain version can differ.
 </wrapper>
 
 <gradle_properties>

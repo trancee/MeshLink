@@ -29,6 +29,27 @@ Starts in the caller thread but resumes in whatever thread the suspending functi
 
 ### Inheriting dispatcher
 `launch { }` without a dispatcher inherits from its parent scope. Inside `runBlocking`, that's the calling thread.
+
+### `limitedParallelism` (Stable since 1.9.0)
+
+Create a view of a dispatcher restricted to running at most N tasks concurrently — the standard way to give a slow/blocking resource (e.g. a single-writer DB connection, a rate-limited API client) its own bounded pool without spinning up a dedicated dispatcher:
+
+```kotlin
+val dbDispatcher = Dispatchers.IO.limitedParallelism(4, name = "dbPool")  // name optional, aids debugging
+withContext(dbDispatcher) { /* at most 4 concurrent DB calls */ }
+```
+Works on any `CoroutineDispatcher`, not just `Dispatchers.IO`. Calling it on `Dispatchers.Default` or `Dispatchers.IO` shares the same underlying thread pool, just caps concurrent tasks — it doesn't create new threads.
+
+### Don't Use `CoroutineDispatcher` as a Context Lookup Key (Deprecated since 1.11.0)
+
+```kotlin
+// Deprecated: looking up/comparing context by CoroutineDispatcher key
+val dispatcher = coroutineContext[CoroutineDispatcher]
+
+// Use ContinuationInterceptor instead
+val dispatcher = coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher
+```
+Installing a dispatcher into a context (`launch(Dispatchers.IO) { }`, `+ Dispatchers.Default`) is unaffected — this only concerns code that reads the context back out by key.
 </dispatchers>
 
 <context_elements>

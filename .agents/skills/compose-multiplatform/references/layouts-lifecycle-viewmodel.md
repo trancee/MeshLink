@@ -105,4 +105,26 @@ fun CupcakeApp(
 - **Always provide an initializer:** `viewModel { MyViewModel() }` — non-JVM platforms can't instantiate via type reflection
 - **Desktop coroutines:** `viewModelScope` uses `Dispatchers.Main.immediate` — add `kotlinx-coroutines-swing`
 - Custom factories work the same as Jetpack Compose
+
+### Idiomatic state exposure with explicit backing fields (Kotlin 2.4.0+)
+Current examples favor Kotlin's explicit backing fields over the `_uiState`/`asStateFlow()` convention — same effect, less boilerplate:
+```kotlin
+class OrderViewModel : ViewModel() {
+    val uiState: StateFlow<OrderUiState>
+        field = MutableStateFlow(OrderUiState())
+
+    fun setQuantity(n: Int) {
+        field.update { it.copy(quantity = n) }
+    }
+}
+```
+On Kotlin versions before 2.4.0, add the `-Xexplicit-backing-fields` compiler option or keep the `_uiState`/`asStateFlow()` pattern shown above.
+
+### Dependency injection
+Use a DI framework to construct ViewModels instead of wiring `viewModel { }` initializers by hand:
+- **Koin** (runtime DI) — add `koin-compose-viewmodel`, then `viewModel: UserViewModel = koinViewModel()`
+- **Metro** (compile-time DI, Kotlin compiler plugin) — add `metrox-viewmodel-compose`, then `viewModel: UserViewModel = metroViewModel()`
+
+### iOS without shared UI
+If only the ViewModel (not the UI) is shared, switch to the plain `androidx.lifecycle:lifecycle-viewmodel` artifact (exported `api` for the iOS framework) instead of `lifecycle-viewmodel-compose`. There's no built-in `ViewModelStoreOwner` on iOS, so the ViewModel's lifecycle must be tied to SwiftUI manually — the recommended approach is the third-party **KMP-ObservableViewModel** library, which lets SwiftUI observe Kotlin ViewModels directly and handles the store-owner boilerplate.
 </viewmodel>

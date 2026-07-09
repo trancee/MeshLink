@@ -5,7 +5,7 @@ description: Noise Protocol Framework (Revision 34) reference — crypto protoco
 
 <essential_principles>
 
-**The Noise Protocol Framework** (Revision 34, 2018-07-11) by Trevor Perrin. A framework for DH-based crypto protocols supporting single-message through multi-message interactive handshakes.
+**The Noise Protocol Framework** (Revision 34, 2018-07-11) by Trevor Perrin. A framework for DH-based crypto protocols supporting single-message through multi-message interactive handshakes. **Revision 34 remains the current and final spec** — confirmed unchanged since 2018; proposed extensions (hybrid post-quantum KEM tokens, NoiseSocket framing, wildcard/multi-algorithm patterns) exist only as unofficial, unratified drafts on the project wiki and are out of scope here.
 
 ### Core Concept
 

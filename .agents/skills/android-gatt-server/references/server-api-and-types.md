@@ -93,9 +93,13 @@ gattServer.setPreferredPhy(device, txPhy, rxPhy, phyOptions)  // recommendation 
 ### Connected Devices
 
 ```kotlin
-// Do NOT use gattServer.getConnectedDevices() — throws UnsupportedOperationException!
+// Do NOT use these — all three throw UnsupportedOperationException on every call:
+// gattServer.getConnectedDevices()
+// gattServer.getConnectionState(device)
+// gattServer.getDevicesMatchingConnectionStates(states)
 // Use BluetoothManager instead:
 val devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT)
+val matching = bluetoothManager.getDevicesMatchingConnectionStates(BluetoothProfile.GATT, states)
 ```
 
 ### close
