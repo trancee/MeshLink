@@ -20,7 +20,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val ATT_WRITE_REQUEST_OVERHEAD_BYTES: Int = 3
-private const val MAX_SAFE_WRITE_CHUNK_BYTES: Int = 512
+
+// 495 bytes is the DLE two-full-Link-Layer-packet sweet spot (each LE Data Length Extension
+// packet carries up to ~251 usable bytes once L2CAP/ATT overhead is subtracted). Capping the
+// write chunk here instead of at the naive MTU-derived 512-byte ceiling keeps every full-size
+// chunk aligned to exactly two LL packets; a 512-byte chunk would instead spill a small remainder
+// into a mostly-empty third LL packet on every write, wasting airtime. See the optimize-ble-
+// throughput skill's 244/495-byte chunk-sizing guidance.
+private const val MAX_SAFE_WRITE_CHUNK_BYTES: Int = 495
 
 internal fun maximumGattWriteChunkBytes(currentMtu: Int): Int {
     return minOf(currentMtu - ATT_WRITE_REQUEST_OVERHEAD_BYTES, MAX_SAFE_WRITE_CHUNK_BYTES)

@@ -24,6 +24,19 @@ internal interface GattNotifyServer {
     fun close(): Unit
 }
 
+/**
+ * Design note (android-gatt-server skill review): this server is intentionally write-only -- it
+ * never calls notifyCharacteristicChanged() on the PROPERTY_NOTIFY characteristic below, even
+ * though it accepts CCCD subscriptions and correctly gates/logs onNotificationSent. Bidirectional
+ * traffic between two known BLE peers is instead achieved by each side opening its own independent
+ * outbound [GattNotifyClient] link to the *other* peer's server (see
+ * [ch.trancee.meshlink.transport.shouldUseMixedPlatformGattNotifyBearer]/[GattSideLinkCoordinator]),
+ * i.e. two mono-directional write links rather than one notify-based duplex link. This works for
+ * the mesh's Android<->{Android,iOS} pairings where both sides can act as a GATT client. It does
+ * NOT provide a way for this server to push data to a remote that can only act as a GATT
+ * central/client and never opens its own outbound link back -- if such a peer role is ever
+ * introduced, this server's notify path would need to be implemented for real.
+ */
 @SuppressLint("MissingPermission")
 internal class BluetoothGattNotifyServer(
     private val context: Context,
