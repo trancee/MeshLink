@@ -16,8 +16,9 @@ do not duplicate its content here; link to it instead.
 - All work MUST occur on feature branches. See
   [Quality Gates](constitution.md#quality-gates). Never commit directly
   to `main`.
-- Always run the `/review` slash command before opening a pull request, and
-  address any genuine issues it surfaces beforehand.
+- Before opening a pull request, always dispatch the built-in `reviewer`
+  subagent (via the `subagent` tool, e.g. `{ agent: "reviewer", task: "..." }`)
+  to review the diff, and address any genuine issues it surfaces beforehand, or use the /code-review skill.
 - Use the `gh` CLI for GitHub-related operations (issues, PRs, repos,
   workflow runs, etc.) instead of raw API calls or other tooling.
 - When a decision is needed, do not choose alone. Present the available
