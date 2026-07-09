@@ -153,6 +153,33 @@ like genuine per-pair BLE connection flakiness on specific hardware rather
 than a single systemic bug, but have not been root-caused further in this
 pass.
 
+## GATT connect-reliability fix verification (2026-07-09, branch fix/gatt-connect-reliability-fleet-failures)
+
+Three targeted fixes (GATT server startup retry, disconnect-before-close,
+bounded status=133 connect retry -- see the branch's commit message for full
+rationale) were built fresh and verified against the 3 device pairs that
+failed on the prior fresh-build fleet pass, with 3 repeats per pair for
+confidence given known BLE flakiness:
+
+| Pair | Result |
+|---|---|
+| Pocophone F1 / OnePlus 6 / Nothing Phone 1 (OnePlus 6 GATT-server-startup-null) | **Fully fixed**: 18/18 (100%) all-pairs runs across 3 repeats, `Sent` + recipient-confirmed every time |
+| Samsung Galaxy XCover 4 <-> Xiaomi Mi Note 3 (status=133) | Improved, not fully resolved: Samsung-as-sender now sends 2/3 repeats (was 0/3, never completed a handshake before); receipts never confirmed; Xiaomi-as-sender still `UNREACHABLE` 3/3 |
+| Oppo A53s <-> OPPO Reno8 5G (duplicate-connect/stuck-not-ready) | Improved, not fully resolved: OPPO Reno8-as-sender sends 3/3 (receipts unconfirmed); Oppo A53s-as-sender still fails 2/3 |
+
+The originally-diagnosed duplicate-`CONNECTED`-event / permanently-stuck
+signature is confirmed gone from the logs for the two "improved" pairs, but
+a different residual issue surfaced in its place: recipient-confirmed
+closure never completes even on `Sent` runs for these two pairs, and a
+handshake-retry gap after a mid-session GATT reconnect (the GATT link
+reaches ready after an unexpected mid-session disconnect/reconnect, but the
+handshake is never retried over it). Recommended follow-up: (1) investigate
+why recipient-confirmed closure never completes on `Sent` runs for these two
+pairs specifically, and (2) investigate the handshake-retry state machine's
+behavior when a GATT side-link becomes ready only after a mid-session
+reconnect rather than the first connection attempt. No regressions observed
+on previously-succeeding pairs.
+
 ## Current release-decision posture
 
 Two truths matter at the same time:
