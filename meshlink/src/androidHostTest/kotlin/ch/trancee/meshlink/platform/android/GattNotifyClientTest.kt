@@ -360,6 +360,64 @@ class GattNotifyClientTest {
         assertEquals(1, session.closeCalls)
     }
 
+    @Test
+    fun writeReportsFailureWhenEveryChunkCompletesSynchronouslyBeforeDrainRuns(): Unit =
+        runBlocking {
+            // Arrange: regression test for issue #82 -- a drain/completion race in
+            // drainPendingWrites(). It used to infer "all chunks succeeded" purely from
+            // pendingWrites (the shared FIFO queue) being empty by the time drain() ran, rather
+            // than from an explicit count/record of completions actually observed. Here every
+            // chunk's onCharacteristicWrite completion (one of them a failure) is delivered
+            // *synchronously* inside session.writeChunk() -- i.e. before enqueueEncodedChunk()
+            // even returns, let alone before writeViaGattNotify()'s enqueue loop finishes and
+            // calls drain(). That means completePendingWrite() removes every entry from the
+            // shared queue well before drainPendingWrites() gets a chance to look at it, so the
+            // old "queue empty => success" inference would report this transfer as successful
+            // even though one chunk explicitly failed. Unlike
+            // writeClosesTheSessionWhenAPipelinedChunkCompletesWithAFailureStatus (which only
+            // masks the same race behind a 5s drain-timeout on an unresolved next chunk), every
+            // chunk here resolves promptly, so this test would hang/timeout under the old bug
+            // instead of failing fast if the fix regressed.
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            var chunkIndex = 0
+            val failingChunkIndex = 5
+            session.writeChunkHandler = {
+                chunkIndex += 1
+                val status = if (chunkIndex == failingChunkIndex) 1 else 0
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = status,
+                )
+                true
+            }
+            val client = createGattNotifyClient(factory = factory)
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+                status = 0,
+            )
+            // Large enough (with the default 23-byte ATT MTU) to span several chunks, so the
+            // failure lands mid-payload rather than being the payload's only chunk.
+            val payload = ByteArray(300) { it.toByte() }
+
+            // Act
+            val written = client.write(payload)
+
+            // Assert: the mid-payload failure is caught directly -- not masked into a false
+            // success by the queue-emptiness race, and not merely caught via a drain timeout.
+            assertTrue(chunkIndex >= failingChunkIndex)
+            assertFalse(written)
+            assertFalse(client.isReady())
+            assertEquals(1, session.closeCalls)
+        }
+
     /**
      * Isolates the write pipeline's throughput characteristics from real BLE hardware and the rest
      * of the mesh/session stack, using a simulated fixed per-ack round-trip delay (standing in for
