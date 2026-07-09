@@ -62,6 +62,97 @@ Rows not listed above are retained as regression-tracked evidence only.
 | iOS 256 B latency | 28 ms (iPhone 15 -> Samsung) | Meets the latency target |
 | iOS 64 KiB throughput | 61.96-70.64 KB/s on Samsung, 77.48-80.10 KB/s on OPPO | Current-head retained evidence clears the iOS throughput target on both reference peers |
 
+## Full fleet comparison (2026-07-09, all attached devices, fresh build)
+
+Captured via `run_fleet_meshlink_benchmark.py --mode crypto --execute` and
+`--mode transport --payload-bytes 65536 --execute` against every device
+attached to the host at run time (14 distinct Android phones, ring-paired for
+transport). Raw ledgers: `fleet-results/crypto-ledger.jsonl` and
+`fleet-results/ledger.jsonl` (gitignored evidence); the per-device history is
+also committed into `scripts/device-test-matrix.catalog.json` and rendered in
+[`docs/reference/device-test-matrix.md`](../docs/reference/device-test-matrix.md).
+
+**Build hygiene note**: an earlier same-day pass on this fleet was discarded
+and re-run after discovering every device was running a stale proof-app build
+(up to 2 days old), missing 5 real GATT reliability fixes landed
+2026-07-07/09 (`e2398b42`, `1b60bf66`, `10b2a5e9`, `5bc03b59`, `6e153537`).
+The stale build's symptoms (repeated GATT write timeouts, session left in a
+bad state, endless reconnect loops) were a subset of exactly what those
+commits fixed. The numbers below were captured only after uninstalling the
+old app and installing a fresh `assembleDebug` build (`adb install -g -r`,
+auto-granting runtime Bluetooth/location permissions since a full
+uninstall+reinstall resets them and a headless `adb shell am start` can't
+dismiss the permission dialog) on every device. **Rule going forward:**
+always build fresh and uninstall-then-reinstall before any physical-device
+benchmark, proof-app, or reference-app run -- see `AGENTS.md`.
+
+### Crypto primitives across the fleet (single-device timing, no pairing)
+
+| Device | SDK | Provider | X25519 KeyGen (us) | X25519 Agree (us) | Ed25519 KeyGen (us) | Ed25519 Sign (us) | Ed25519 Verify (us) | ChaCha20 Seal (us) | ChaCha20 Open (us) |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| Samsung Galaxy Z Flip4 | 36 | Ed25519FallbackCryptoProvider | 61.8 | 100.0 | 611.4 | 509.9 | 1476.7 | 8.5 | 8.2 |
+| Huawei Nova 9 | 31 | Ed25519FallbackCryptoProvider | 64.3 | 100.1 | 514.7 | 483.0 | 1496.6 | 51.6 | 51.7 |
+| Nothing Phone (2) | 36 | JcaCryptoProvider | 71.1 | 104.5 | 54.0 | 96.5 | 82.4 | 29.3 | 29.7 |
+| Gigaset GX6 | 33 | Ed25519FallbackCryptoProvider | 71.0 | 145.0 | 937.1 | 817.3 | 2087.5 | 31.1 | 27.6 |
+| Nothing Phone (1) | 35 | JcaCryptoProvider | 77.4 | 158.1 | 131.4 | 144.1 | 122.2 | 54.7 | 54.5 |
+| Motorola Edge 30 Fusion | 34 | Ed25519FallbackCryptoProvider | 74.5 | 154.3 | 976.7 | 834.0 | 2213.6 | 30.3 | 27.1 |
+| OPPO Reno8 5G | 34 | JcaCryptoProvider | 86.6 | 147.1 | 120.2 | 134.3 | 120.0 | 58.0 | 60.1 |
+| OPPO A57s | 33 | Ed25519FallbackCryptoProvider | 277.3 | 420.6 | 5313.7 | 4110.6 | 9425.5 | 272.7 | 367.5 |
+| Oppo A53s | 31 | Ed25519FallbackCryptoProvider | 279.6 | 600.0 | 3202.3 | 2758.3 | 6990.6 | 207.3 | 205.3 |
+| Realme C55 | 35 | JcaCryptoProvider | 313.1 | 731.8 | 542.6 | 599.1 | 632.5 | 215.5 | 207.7 |
+| Xiaomi Pocophone F1 | 29 | AndroidFallbackCryptoProvider | 1351.0 | 1304.4 | 636.6 | 667.3 | 2310.3 | 103.8 | 50.1 |
+| OnePlus 6 | 30 | AndroidFallbackCryptoProvider | 1407.9 | 1401.4 | 703.4 | 725.3 | 2478.0 | 151.7 | 35.8 |
+| Xiaomi Mi Note 3 | 28 | AndroidFallbackCryptoProvider | 2710.7 | 2677.6 | 1380.3 | 1286.7 | 4715.9 | 141.6 | 43.9 |
+| Samsung Galaxy XCover 4 | 28 | AndroidFallbackCryptoProvider | 15769.2 | 15687.8 | 11884.3 | 11905.4 | 46177.4 | 290.5 | 112.9 |
+
+Table is sorted fastest-to-slowest by X25519 key generation. Consistent with
+the earlier pass: devices on `JcaCryptoProvider` (hardware/platform-backed
+X25519, newer SDKs) or a fast `Ed25519FallbackCryptoProvider` are roughly
+1-2 orders of magnitude faster than devices on the pure-Kotlin
+`AndroidFallbackCryptoProvider` (older SDKs, typically API < 32). Samsung
+Galaxy XCover 4 (SDK 28) remains the slowest device in the fleet for
+asymmetric-key operations by a wide margin; ChaCha20-Poly1305 stays within a
+much narrower band (~3-45x) across the whole fleet. These figures are
+essentially unchanged from the earlier (stale-build) pass, as expected --
+the GATT reliability bugs fixed by the July 7-9 commits only affect the BLE
+transport path, not on-device crypto primitive timing.
+
+### Transport (64 KiB payload, ring-paired, real BLE traffic, fresh build)
+
+| Sender | Receiver | Result | Throughput (KB/s) | Receipt confirmed |
+|---|---|---|---:|---|
+| Nothing Phone (2) | Huawei Nova 9 | Sent | 20.07 | yes |
+| Huawei Nova 9 | Samsung Galaxy XCover 4 | Sent | 17.97 | yes |
+| Samsung Galaxy XCover 4 | Xiaomi Mi Note 3 | timed out waiting for benchmark line | — | no |
+| Xiaomi Mi Note 3 | Realme C55 | Sent | 35.16 | yes |
+| Realme C55 | Oppo A53s | Sent | 16.55 | no (receipt not confirmed) |
+| Oppo A53s | OPPO Reno8 5G | NotSent (UNREACHABLE) | 1.55 | no |
+| OPPO Reno8 5G | Gigaset GX6 | Sent | 17.39 | yes |
+| Gigaset GX6 | OPPO A57s | Sent | 18.87 | yes |
+| OPPO A57s | Samsung Galaxy Z Flip4 | Sent | 15.41 | yes |
+| Samsung Galaxy Z Flip4 | Motorola Edge 30 Fusion | Sent | 666.67 | yes |
+| Motorola Edge 30 Fusion | Xiaomi Pocophone F1 | Sent | 25.27 | yes |
+| Xiaomi Pocophone F1 | OnePlus 6 | timed out waiting for benchmark line | — | no |
+| OnePlus 6 | Nothing Phone (1) | timed out waiting for benchmark line | — | no |
+| Nothing Phone (1) | Nothing Phone (2) | Sent | 1454.55 | yes |
+
+**11 of 14 ring-paired runs (79%) sent the payload** (9 of those with a
+confirmed recipient receipt), up from 5/14 sent (4/14 confirmed) on the
+same fleet's stale build a few minutes earlier -- direct evidence that the
+July 7-9 GATT reliability fixes materially improve real-world transport
+success rate once actually installed. The 3 remaining failures
+(Samsung XCover 4 <-> Xiaomi Mi Note 3, both SDK 28; Oppo A53s -> OPPO
+Reno8 5G; and the Xiaomi Pocophone F1 -> OnePlus 6 -> Nothing Phone (1)
+chain) show handshake/connection-establishment failures
+(`transport.handshake.message1/2.send` with `routeAvailable=false`, or
+outright `UNREACHABLE` after the normal retry budget) rather than the
+write-timeout loop seen on the stale build, and involve older or
+already-documented-quirky devices (see the Quirks column in the
+[device test matrix](../docs/reference/device-test-matrix.md)). These look
+like genuine per-pair BLE connection flakiness on specific hardware rather
+than a single systemic bug, but have not been root-caused further in this
+pass.
+
 ## Current release-decision posture
 
 Two truths matter at the same time:

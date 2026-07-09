@@ -48,6 +48,19 @@
         "ed25519VerifyUs": 94.1,
         "chacha20SealUs": 7.9,
         "chacha20OpenUs": 7.926
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 71.147,
+        "x25519AgreementUs": 104.535,
+        "ed25519KeyGenUs": 54.025,
+        "ed25519SignUs": 96.515,
+        "ed25519VerifyUs": 82.385,
+        "chacha20SealUs": 29.337,
+        "chacha20OpenUs": 29.724
       }
     ],
     "transport_benchmark_history": [
@@ -68,6 +81,26 @@
         "result": "Sent",
         "throughputKBps": 2782.61,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Huawei Nova 9",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 20.07,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Nothing Phone (1)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 1454.55,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -131,6 +164,19 @@
         "ed25519VerifyUs": 1454.97,
         "chacha20SealUs": 8.364,
         "chacha20OpenUs": 8.107
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 61.793,
+        "x25519AgreementUs": 99.95,
+        "ed25519KeyGenUs": 611.419,
+        "ed25519SignUs": 509.932,
+        "ed25519VerifyUs": 1476.728,
+        "chacha20SealUs": 8.515,
+        "chacha20OpenUs": 8.167
       }
     ],
     "transport_benchmark_history": [
@@ -151,6 +197,26 @@
         "result": "Sent",
         "throughputKBps": 12.33,
         "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "OPPO A57s",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 15.41,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Motorola Edge 30 Fusion",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 666.67,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -203,6 +269,19 @@
         "ed25519VerifyUs": 619.711,
         "chacha20SealUs": 210.846,
         "chacha20OpenUs": 199.88
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 313.105,
+        "x25519AgreementUs": 731.786,
+        "ed25519KeyGenUs": 542.62,
+        "ed25519SignUs": 599.144,
+        "ed25519VerifyUs": 632.543,
+        "chacha20SealUs": 215.493,
+        "chacha20OpenUs": 207.708
       }
     ],
     "transport_benchmark_history": [
@@ -232,6 +311,26 @@
         "result": "no-result",
         "throughputKBps": null,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Xiaomi Mi Note 3",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 35.16,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 16.55,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -296,6 +395,19 @@
         "ed25519VerifyUs": 124.986,
         "chacha20SealUs": 55.76,
         "chacha20OpenUs": 54.707
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 77.444,
+        "x25519AgreementUs": 158.058,
+        "ed25519KeyGenUs": 131.438,
+        "ed25519SignUs": 144.137,
+        "ed25519VerifyUs": 122.241,
+        "chacha20SealUs": 54.735,
+        "chacha20OpenUs": 54.529
       }
     ],
     "transport_benchmark_history": [
@@ -316,6 +428,26 @@
         "result": "Sent",
         "throughputKBps": 2782.61,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Nothing Phone (2)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 1454.55,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -379,6 +511,19 @@
         "ed25519VerifyUs": 1651.331,
         "chacha20SealUs": 43.423,
         "chacha20OpenUs": 43.535
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 86.597,
+        "x25519AgreementUs": 147.054,
+        "ed25519KeyGenUs": 120.158,
+        "ed25519SignUs": 134.285,
+        "ed25519VerifyUs": 120.003,
+        "chacha20SealUs": 58.0,
+        "chacha20OpenUs": 60.057
       }
     ],
     "transport_benchmark_history": [
@@ -417,6 +562,26 @@
         "result": "no-result",
         "throughputKBps": null,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Oppo A53s",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.55,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Gigaset GX6",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 17.39,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -480,6 +645,19 @@
         "ed25519VerifyUs": 2211.943,
         "chacha20SealUs": 28.242,
         "chacha20OpenUs": 26.427
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 74.547,
+        "x25519AgreementUs": 154.289,
+        "ed25519KeyGenUs": 976.749,
+        "ed25519SignUs": 833.965,
+        "ed25519VerifyUs": 2213.589,
+        "chacha20SealUs": 30.349,
+        "chacha20OpenUs": 27.105
       }
     ],
     "transport_benchmark_history": [
@@ -500,6 +678,26 @@
         "result": "NotSent(reason=UNREACHABLE)",
         "throughputKBps": 1.68,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Samsung Galaxy Z Flip4",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 666.67,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Xiaomi Pocophone F1",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 25.27,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -619,7 +817,7 @@
     "build": "CPH2251_13.1.0.615(EX01)",
     "gsma_url": "https://www.gsmarena.com/oppo_reno6_5g-10932.php",
     "ds_url": "https://www.devicespecifications.com/en/model/c9e45683",
-    "quirks": "—"
+    "quirks": "\u2014"
   },
   {
     "device": "Gigaset GX6",
@@ -681,6 +879,19 @@
         "ed25519VerifyUs": 2111.942,
         "chacha20SealUs": 32.397,
         "chacha20OpenUs": 28.108
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 70.982,
+        "x25519AgreementUs": 144.987,
+        "ed25519KeyGenUs": 937.103,
+        "ed25519SignUs": 817.285,
+        "ed25519VerifyUs": 2087.535,
+        "chacha20SealUs": 31.093,
+        "chacha20OpenUs": 27.588
       }
     ],
     "transport_benchmark_history": [
@@ -710,6 +921,26 @@
         "result": "no-result",
         "throughputKBps": null,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 17.39,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "OPPO A57s",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 18.87,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -773,6 +1004,19 @@
         "ed25519VerifyUs": 9289.483,
         "chacha20SealUs": 271.66,
         "chacha20OpenUs": 270.709
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 277.287,
+        "x25519AgreementUs": 420.602,
+        "ed25519KeyGenUs": 5313.682,
+        "ed25519SignUs": 4110.617,
+        "ed25519VerifyUs": 9425.529,
+        "chacha20SealUs": 272.743,
+        "chacha20OpenUs": 367.534
       }
     ],
     "transport_benchmark_history": [
@@ -793,6 +1037,26 @@
         "result": "NotSent(reason=UNREACHABLE)",
         "throughputKBps": 1.8,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Gigaset GX6",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 18.87,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Samsung Galaxy Z Flip4",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 15.41,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -925,6 +1189,19 @@
         "ed25519VerifyUs": 1538.367,
         "chacha20SealUs": 52.204,
         "chacha20OpenUs": 51.984
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 64.325,
+        "x25519AgreementUs": 100.13,
+        "ed25519KeyGenUs": 514.665,
+        "ed25519SignUs": 482.954,
+        "ed25519VerifyUs": 1496.553,
+        "chacha20SealUs": 51.607,
+        "chacha20OpenUs": 51.676
       }
     ],
     "transport_benchmark_history": [
@@ -945,6 +1222,26 @@
         "result": "NotSent(reason=UNREACHABLE)",
         "throughputKBps": 1.71,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Nothing Phone (2)",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 20.07,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Samsung Galaxy XCover 4",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 17.97,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -971,7 +1268,7 @@
     "build": "HD1901_11_F.22",
     "gsma_url": "https://www.gsmarena.com/oneplus_7t-9816.php",
     "ds_url": "https://www.devicespecifications.com/en/model/2bf1521f",
-    "quirks": "—"
+    "quirks": "\u2014"
   },
   {
     "device": "OnePlus 6",
@@ -995,7 +1292,7 @@
     "build": "ONEPLUS A6003_22_211125",
     "gsma_url": "https://www.gsmarena.com/oneplus_6-9109.php",
     "ds_url": "https://www.devicespecifications.com/en/model/c01c49b8",
-    "quirks": "—",
+    "quirks": "\u2014",
     "crypto_benchmark_history": [
       {
         "date": "2026-07-06",
@@ -1032,6 +1329,19 @@
         "ed25519VerifyUs": 2477.235,
         "chacha20SealUs": 161.983,
         "chacha20OpenUs": 39.16
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 1407.888,
+        "x25519AgreementUs": 1401.444,
+        "ed25519KeyGenUs": 703.432,
+        "ed25519SignUs": 725.301,
+        "ed25519VerifyUs": 2477.957,
+        "chacha20SealUs": 151.682,
+        "chacha20OpenUs": 35.777
       }
     ],
     "transport_benchmark_history": [
@@ -1070,6 +1380,26 @@
         "result": "no-result",
         "throughputKBps": null,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Xiaomi Pocophone F1",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Nothing Phone (1)",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -1132,6 +1462,19 @@
         "ed25519VerifyUs": 2425.088,
         "chacha20SealUs": 81.408,
         "chacha20OpenUs": 31.586
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 1350.969,
+        "x25519AgreementUs": 1304.427,
+        "ed25519KeyGenUs": 636.56,
+        "ed25519SignUs": 667.278,
+        "ed25519VerifyUs": 2310.295,
+        "chacha20SealUs": 103.763,
+        "chacha20OpenUs": 50.14
       }
     ],
     "transport_benchmark_history": [
@@ -1152,6 +1495,26 @@
         "result": "NotSent(reason=UNREACHABLE)",
         "throughputKBps": 1.81,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Motorola Edge 30 Fusion",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 25.27,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "OnePlus 6",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -1213,6 +1576,19 @@
         "ed25519VerifyUs": 4751.262,
         "chacha20SealUs": 141.43,
         "chacha20OpenUs": 40.489
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 2710.748,
+        "x25519AgreementUs": 2677.6,
+        "ed25519KeyGenUs": 1380.329,
+        "ed25519SignUs": 1286.729,
+        "ed25519VerifyUs": 4715.91,
+        "chacha20SealUs": 141.641,
+        "chacha20OpenUs": 43.897
       }
     ],
     "transport_benchmark_history": [
@@ -1233,6 +1609,26 @@
         "result": "NotSent(reason=UNREACHABLE)",
         "throughputKBps": 1.88,
         "receiptConfirmed": false
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Samsung Galaxy XCover 4",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Realme C55",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 35.16,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -1294,6 +1690,19 @@
         "ed25519VerifyUs": 45815.834,
         "chacha20SealUs": 286.663,
         "chacha20OpenUs": 113.476
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 15769.16,
+        "x25519AgreementUs": 15687.799,
+        "ed25519KeyGenUs": 11884.304,
+        "ed25519SignUs": 11905.422,
+        "ed25519VerifyUs": 46177.378,
+        "chacha20SealUs": 290.49,
+        "chacha20OpenUs": 112.859
       }
     ],
     "transport_benchmark_history": [
@@ -1314,6 +1723,26 @@
         "result": "Sent",
         "throughputKBps": 8.17,
         "receiptConfirmed": true
+      },
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Huawei Nova 9",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 17.97,
+        "receiptConfirmed": true,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "Xiaomi Mi Note 3",
+        "payloadBytes": 65536,
+        "result": null,
+        "throughputKBps": null,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
       }
     ]
   },
@@ -1338,7 +1767,7 @@
     "build": "WAS-LX1A 8.0.0.394(C432)",
     "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
     "ds_url": "https://www.devicespecifications.com/en/model/8469421f",
-    "quirks": "—"
+    "quirks": "\u2014"
   },
   {
     "device": "Oppo A53s",
@@ -1363,7 +1792,7 @@
     ],
     "build": "CPH2135_11_F.31",
     "gsma_url": "https://www.gsmarena.com/oppo_a53s-10502.php",
-    "quirks": "—",
+    "quirks": "\u2014",
     "crypto_benchmark_history": [
       {
         "date": "2026-07-07",
@@ -1388,9 +1817,43 @@
         "ed25519VerifyUs": 6874.241,
         "chacha20SealUs": 202.004,
         "chacha20OpenUs": 207.0
+      },
+      {
+        "date": "2026-07-09",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)",
+        "x25519KeyGenUs": 279.626,
+        "x25519AgreementUs": 599.955,
+        "ed25519KeyGenUs": 3202.347,
+        "ed25519SignUs": 2758.306,
+        "ed25519VerifyUs": 6990.598,
+        "chacha20SealUs": 207.318,
+        "chacha20OpenUs": 205.279
       }
     ],
-    "transport_benchmark_history": []
+    "transport_benchmark_history": [
+      {
+        "date": "2026-07-09",
+        "role": "receiver",
+        "peer": "Realme C55",
+        "payloadBytes": 65536,
+        "result": "Sent",
+        "throughputKBps": 16.55,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      },
+      {
+        "date": "2026-07-09",
+        "role": "sender",
+        "peer": "OPPO Reno8 5G",
+        "payloadBytes": 65536,
+        "result": "NotSent(reason=UNREACHABLE)",
+        "throughputKBps": 1.55,
+        "receiptConfirmed": false,
+        "buildNote": "fresh build (post-6e153537, uninstall+reinstall -g)"
+      }
+    ]
   },
   {
     "device": "Samsung Galaxy S10e",
