@@ -218,6 +218,40 @@ class ConnectThread(
 ```
 </client_socket>
 
+<socket_exceptions>
+## BluetoothSocketException (API 34+)
+
+`connect()` (and other socket operations) can throw `BluetoothSocketException`, a subclass of `IOException` added in API 34 that carries a machine-readable error code instead of forcing string-matching on the message.
+
+```kotlin
+try {
+    socket.connect()
+} catch (e: BluetoothSocketException) {
+    when (e.errorCode) {
+        BluetoothSocketException.BLUETOOTH_OFF_FAILURE -> { /* prompt user to enable Bluetooth */ }
+        BluetoothSocketException.L2CAP_INSUFFICIENT_AUTHENTICATION,
+        BluetoothSocketException.L2CAP_INSUFFICIENT_ENCRYPTION -> { /* re-pair, or fall back to insecure */ }
+        else -> { /* generic retry/backoff */ }
+    }
+} catch (e: IOException) {
+    // stream-level or pre-API-34 devices — still throws plain IOException in older cases
+}
+```
+
+- **`getErrorCode(): Int`** — the only public accessor beyond the standard `Throwable` API. Construct via `BluetoothSocketException(code)` or `BluetoothSocketException(code, msg)` (mainly relevant if you're mocking/testing).
+- **Since `BluetoothSocketException extends IOException`**, existing `catch (IOException)` handlers keep working unchanged — catch `BluetoothSocketException` first only if you want to branch on `errorCode`.
+
+### Error Codes
+
+**General** (`UNSPECIFIED` is the catch-all default):
+`UNSPECIFIED`, `BLUETOOTH_OFF_FAILURE`, `NULL_DEVICE`, `RPC_FAILURE`, `SOCKET_CLOSED`, `SOCKET_CONNECTION_FAILURE`, `SOCKET_MANAGER_FAILURE`, `UNIX_FILE_SOCKET_CREATION_FAILURE`
+
+**L2CAP CoC-specific** (returned for `TYPE_LE`/`TYPE_L2CAP` sockets):
+`L2CAP_ACL_FAILURE`, `L2CAP_CLIENT_SECURITY_FAILURE`, `L2CAP_INSUFFICIENT_AUTHENTICATION`, `L2CAP_INSUFFICIENT_AUTHORIZATION`, `L2CAP_INSUFFICIENT_ENCRYPTION`, `L2CAP_INSUFFICIENT_ENCRYPT_KEY_SIZE`, `L2CAP_INVALID_PARAMETERS`, `L2CAP_INVALID_SOURCE_CID`, `L2CAP_NO_PSM_AVAILABLE`, `L2CAP_NO_RESOURCES`, `L2CAP_SOURCE_CID_ALREADY_ALLOCATED`, `L2CAP_TIMEOUT`, `L2CAP_UNACCEPTABLE_PARAMETERS`, `L2CAP_UNKNOWN`
+
+The `L2CAP_INSUFFICIENT_*` codes are the actionable ones for the secure-vs-insecure decision above — they tell you exactly why a secure L2CAP CoC connection was rejected (auth, authorization, encryption, or key size) instead of a generic failure.
+</socket_exceptions>
+
 <rfcomm_details>
 ## RFCOMM Details
 
@@ -337,9 +371,11 @@ Request at runtime with `requestPermissions()`.
 ### BluetoothSocketSettings DATA_PATH offload
 
 ```xml
-<!-- Only if using non-default data path -->
+<!-- Only if using a non-default data path -->
 <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
 ```
+
+Per the platform docs for `listenUsingSocketSettings()`: `BLUETOOTH_PRIVILEGED` is required **only when `settings.getDataPath()` is not `BluetoothSocketSettings.DATA_PATH_NO_OFFLOAD`** (the default). As of this writing the public `BluetoothSocketSettings.Builder` surface documents only `setSocketType`/`setRfcommUuid`/`setRfcommServiceName`/`setL2capPsm`/`setAuthenticationRequired`/`setEncryptionRequired` — `getDataPath()`/`DATA_PATH_NO_OFFLOAD` are referenced by the adapter's javadoc but not yet listed among the Builder's public methods, so treat data-path offload as forthcoming/privileged-only rather than something a normal app configures today.
 </permissions>
 
 <threading>

@@ -21,8 +21,10 @@ flatc [GENERATOR_OPTIONS] [-o PATH] [-I PATH] FILES... [-- BINARY_FILES...]
 | `--go` | Go | `--dart` | Dart |
 | `--python` | Python | `--lua` | Lua |
 | `--js` | JavaScript | `--lobster` | Lobster |
-| `--ts` | TypeScript | `--nim` | Nim |
+| `--ts` | TypeScript | `--nim` | Nim (flag exists; no full language guide yet) |
 | `--php` | PHP | `--grpc` | + gRPC stubs |
+
+`--grpc-callback-api` (C++, opt-in, non-breaking) generates a C++ gRPC Callback API server (`CallbackService`) plus native callback/async client stubs, alongside the default sync/async stubs from `--grpc`.
 
 ### Data Conversion
 
@@ -64,8 +66,19 @@ Schema must be listed first. Use `--raw-binary` if no `file_identifier` defined.
 - `--json-nested-bytes` — allow nested_flatbuffer parsed as byte vector in JSON.
 
 ### Binary Schema / Reflection
-- `--schema` — output binary schema (reflection.fbs format) instead of JSON. Use with `-b`.
+- `--schema` — output binary schema (`reflection.fbs` format, `.bfbs` files) instead of JSON. Use with `-b`.
 - `--bfbs-comments` — include doc comments in binary schema.
+- `--bfbs-filenames PROJECT_ROOT` — make filenames in the binary schema relative to a project root (marked `//`); inferred from the first schema file's directory if omitted.
+- `--reflect-types` — add minimal type reflection to generated code.
+- `--reflect-names` — add minimal type/name reflection to generated code.
+
+The binary schema (`.bfbs`) is itself a FlatBuffer, loadable at runtime for reflection. Its `Schema` object has an `advanced_features` field flagging backwards-incompatible schema features — code generators/consumers must error on unrecognized advanced features rather than silently mishandling them.
+
+### Debugging: Annotating Binary Data
+```bash
+flatc --annotate SCHEMA -- BINARY_FILES...
+```
+Produces a `.afb` (Annotated FlatBuffer) file per binary input: a byte-by-byte, human-readable breakdown of the binary against the schema (offset, raw little-endian bytes, type — including internal types `VOffset16`/`UOffset32`/`SOffset32` — big-endian/decimal value, and a note on what each region is). Organized into binary sections (e.g. one per table or vtable) and, for offset fields, shows the resolved absolute target location. Accepts either a `.fbs` or `.bfbs` schema. The single best tool for debugging binary-format or encoding issues by hand — pairs directly with the wire-format details in `references/internals-and-encoding.md`.
 
 ### Protocol Buffers
 - `--proto` — convert `.proto` files to `.fbs`. Supports package, message, enum, nested, import, extend, oneof, group.

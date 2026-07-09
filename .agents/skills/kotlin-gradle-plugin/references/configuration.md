@@ -6,18 +6,18 @@
 ```kotlin
 // build.gradle.kts
 plugins {
-    kotlin("jvm") version "2.3.21"              // Kotlin/JVM
+    kotlin("jvm") version "2.4.0"              // Kotlin/JVM
     // Or for other targets:
-    // kotlin("multiplatform") version "2.3.21"  // Multiplatform
-    // kotlin("android") version "2.3.21"        // Android
-    // kotlin("js") version "2.3.21"             // JavaScript
+    // kotlin("multiplatform") version "2.4.0"  // Multiplatform
+    // kotlin("android") version "2.4.0"        // Android
+    // kotlin("js") version "2.4.0"             // JavaScript
 }
 ```
 
 In Groovy DSL, use the full plugin ID:
 ```groovy
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '2.3.21'
+    id 'org.jetbrains.kotlin.jvm' version '2.4.0'
 }
 ```
 
@@ -26,7 +26,7 @@ plugins {
 ```toml
 # gradle/libs.versions.toml
 [versions]
-kotlin = "2.3.21"
+kotlin = "2.4.0"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -44,6 +44,7 @@ plugins {
 
 | KGP version | Gradle min–max | AGP min–max |
 |------------|---------------|-------------|
+| 2.4.0 | 7.6.3–9.5.0 | 8.5.2–9.1.0 |
 | 2.3.20–2.3.21 | 7.6.3–9.3.0 | 8.2.2–9.0.0 |
 | 2.3.0–2.3.10 | 7.6.3–9.0.0 | 8.2.2–8.13.0+ |
 | 2.2.0–2.2.21 | 7.6.3–8.14 | 7.3.1–8.11.1 |
@@ -111,8 +112,8 @@ dependencies {
     testImplementation(kotlin("test"))          // Auto-selects JUnit 5/4/TestNG
 
     // Kotlinx libraries
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Annotation processing
     // Prefer KSP over kapt:
@@ -140,12 +141,12 @@ tasks.test {
 
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.3.21"
-    kotlin("plugin.serialization") version "2.3.21"
+    kotlin("jvm") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.0"
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 }
 ```
 
@@ -153,9 +154,9 @@ dependencies {
 
 ```kotlin
 plugins {
-    kotlin("plugin.spring") version "2.3.21"  // Opens Spring-annotated classes
+    kotlin("plugin.spring") version "2.4.0"  // Opens Spring-annotated classes
     // Or more general:
-    // kotlin("plugin.allopen") version "2.3.21"
+    // kotlin("plugin.allopen") version "2.4.0"
 }
 
 // Custom all-open annotations:
@@ -168,7 +169,7 @@ allOpen {
 
 ```kotlin
 plugins {
-    kotlin("plugin.jpa") version "2.3.21"
+    kotlin("plugin.jpa") version "2.4.0"
 }
 ```
 
@@ -176,11 +177,15 @@ plugins {
 
 ```kotlin
 plugins {
-    id("com.google.devtools.ksp") version "2.3.21-1.0.30"
+    id("com.google.devtools.ksp") version "2.3.9"
 }
 
 dependencies {
     ksp("com.example:my-processor:1.0")
 }
 ```
+
+**KSP has its own independent version scheme** — it stopped following the `<kotlin-version>-<ksp-plugin-version>` format (e.g. the old `"2.3.21-1.0.30"`) once KSP2 became the default in early 2025. Check the [KSP GitHub releases](https://github.com/google/ksp/releases) for the current version rather than deriving it from the Kotlin version.
+
+**KSP2 vs KSP1:** KSP2 (a from-scratch implementation on the Kotlin Analysis API) has been the default since KSP 2.0.0. It's faster and API-stable. **KSP1 is deprecated and does not support Kotlin 2.3.0+ or AGP 9.0+** — builds on those versions will misbehave or fail if still pinned to KSP1. To force KSP1 on an older, still-supported Kotlin version: `ksp { useKsp2 = false }` (or `-Pksp.useKSP2=false`) — only as a stopgap while migrating.
 </serialization_allopen>

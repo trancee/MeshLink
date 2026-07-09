@@ -155,6 +155,23 @@ benchmark {
 ```
 
 Experimental — guarantees support only for the specific Kotlin version used to build the library (currently 2.2.0). May change at any time.
+
+### Kotlin/WasmWasi (Experimental, since 0.4.17)
+
+```kotlin
+kotlin {
+    wasmWasi { nodejs() }
+    sourceSets {
+        wasmWasiMain {}
+    }
+}
+
+benchmark {
+    targets { register("wasmWasi") }
+}
+```
+
+Same registration pattern as WasmJs — a Node.js-executed WASI target. Equally experimental; treat as unstable and subject to change.
 </target_setup>
 
 <task_naming>

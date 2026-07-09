@@ -67,6 +67,8 @@ class IosCryptoProvider : CryptoProvider { /* ... */ }
 
 **Advantages:** Multiple implementations per platform, easy to mock in tests, not limited to one implementation.
 
+**In real projects, prefer expressing this through a DI framework** rather than a hand-written `expect fun createX(): X` factory: define the dependency as a plain Kotlin interface in common code, and let the DI framework (Koin, Kodein, etc.) inject the platform-specific implementation. `expect`/`actual` is then only needed inside the DI configuration itself (binding the interface to a platform implementation), not scattered through business logic. If the project already uses a DI framework for other dependencies, use the same approach for platform dependencies instead of introducing a parallel factory-function convention.
+
 ### 3. Expected/Actual Properties
 
 ```kotlin

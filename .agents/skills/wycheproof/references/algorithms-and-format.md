@@ -7,21 +7,26 @@
 
 | Algorithm | Test File Pattern | Test Type |
 |-----------|------------------|-----------|
+| AEAD-AES-SIV-CMAC (nonce-based) | `aead_aes_siv_cmac_test.json` | AeadTest |
 | AES-GCM | `aes_gcm_test.json` | AeadTest |
 | AES-GCM-SIV | `aes_gcm_siv_test.json` | AeadTest |
 | AES-EAX | `aes_eax_test.json` | AeadTest |
 | AES-CCM | `aes_ccm_test.json` | AeadTest |
-| AES-SIV-CMAC | `aes_siv_cmac_test.json` | DaeadTest |
+| AES-SIV-CMAC (deterministic, RFC 5297) | `aes_siv_cmac_test.json` | DaeadTest |
 | ChaCha20-Poly1305 | `chacha20_poly1305_test.json` | AeadTest |
 | XChaCha20-Poly1305 | `xchacha20_poly1305_test.json` | AeadTest |
-| AEGIS-128 / 128L / 256 | `aegis128_test.json`, `aegis128l_test.json`, `aegis256_test.json` | AeadTest |
-| ASCON | `ascon128_test.json`, etc. | AeadTest |
+| AEGIS-128 / 128L / 256 | `aegis128_test.json`, `aegis128L_test.json` (capital L), `aegis256_test.json` | AeadTest |
+| ASCON | `ascon128_test.json`, `ascon128a_test.json`, `ascon80pq_test.json` | AeadTest |
+| MORUS | `morus640_test.json`, `morus1280_test.json` | AeadTest |
+| AES-GMAC | `aes_gmac_test.json` | MacWithIvTest |
 | AES-CBC-PKCS5 | `aes_cbc_pkcs5_test.json` | IndCpaTest |
 | AES-XTS | `aes_xts_test.json` | AeadTest |
 | ARIA | `aria_*_test.json` | Various |
 | Camellia | `camellia_*_test.json` | Various |
 | SEED | `seed_*_test.json` | Various |
 | SM4 | `sm4_*_test.json` | Various |
+
+**Two distinct SIV files, don't conflate them:** `aead_aes_siv_cmac_test.json` (algorithm `AEAD-AES-SIV-CMAC`) is a nonce-based `AeadTest`; `aes_siv_cmac_test.json` (algorithm `AES-SIV-CMAC`) is the fully deterministic `DaeadTest` with no nonce at all.
 
 ### Digital Signatures
 
@@ -41,7 +46,7 @@
 
 | Algorithm | Test File Pattern | Test Type |
 |-----------|------------------|-----------|
-| ECDH (ASN encoded) | `ecdh_secp256r1_test.json`, etc. (28 files) | EcdhTest |
+| ECDH (ASN encoded, NIST + brainpool + binary/Koblitz curves) | `ecdh_secp256r1_test.json`, `ecdh_brainpoolP256r1_test.json`, `ecdh_sect283k1_test.json`, etc. (28 files) | EcdhTest |
 | ECDH (PEM encoded) | `ecdh_secp256r1_pem_test.json`, etc. | EcdhPemTest |
 | ECDH (ecpoint) | `ecdh_secp256r1_ecpoint_test.json`, etc. | EcdhEcpointTest |
 | ECDH (webcrypto/JWK) | `ecdh_secp256r1_webcrypto_test.json`, etc. | EcdhWebcryptoTest |
@@ -50,25 +55,32 @@
 | X25519 (JWK) | `x25519_jwk_test.json` | XdhJwkComp |
 | X25519 (PEM) | `x25519_pem_test.json` | XdhPemComp |
 | X448 | `x448_test.json`, `x448_asn_test.json`, etc. | XdhComp / XdhAsnComp |
-| ML-KEM (Kyber) | `mlkem_*_test.json` (12 files) | MlkemTest |
+| ML-KEM (Kyber) | `mlkem_{512,768,1024}_test.json` + `_encaps_test.json` / `_keygen_seed_test.json` / `_semi_expanded_decaps_test.json` per size (12 files) | MlkemTest / MlkemEncapsTest / MlkemKeygenSeedTest / MlkemSemiExpandedDecapsTest |
+
+ECDH covers three curve families, not just NIST prime curves: NIST P-curves (secp224r1/256r1/384r1/521r1), brainpool curves (P224r1/256r1/320r1/384r1/512r1), and binary/Koblitz curves over GF(2^m) (sect283k1/r1, sect409k1/r1, sect571k1/r1) — the last group has no PEM/ecpoint/webcrypto variants, ASN only.
 
 ### MACs & KDFs
 
 | Algorithm | Test File Pattern | Test Type |
 |-----------|------------------|-----------|
-| HMAC | `hmac_sha*_test.json` (12 files) | MacTest |
+| HMAC (incl. SM3) | `hmac_sha*_test.json` (11 files), `hmac_sm3_test.json` | MacTest |
 | AES-CMAC | `aes_cmac_test.json` | MacTest |
-| KMAC128 / KMAC256 | `kmac128_test.json`, `kmac256_test.json` | MacTest |
-| SipHash | `siphash_*_test.json` (3 files) | MacTest |
+| KMAC128 / KMAC256 | `kmac128_no_customization_test.json`, `kmac256_no_customization_test.json` | MacTest |
+| SipHash | `siphash_*_test.json`, `siphashx_*_test.json` (5 files) | MacTest |
+| VMAC | `vmac_64_test.json`, `vmac_128_test.json` | MacWithIvTest |
+| AES-GMAC | `aes_gmac_test.json` | MacWithIvTest |
 | HKDF | `hkdf_sha*_test.json` (4 files) | HkdfTest |
 | PBKDF2 | `pbkdf2_hmacsha*_test.json` (5 files) | PbkdfTest |
+| PBES2 (password-based encryption, JOSE) | `pbes2_hmacsha{1,224,256,384,512}_aes_{128,192,256}_test.json` (15 files) | PbeTest |
 
 ### RSA Encryption
 
 | Algorithm | Test File Pattern | Test Type |
 |-----------|------------------|-----------|
 | RSA-OAEP | `rsa_oaep_*_test.json` | RsaesOaepDecrypt |
+| RSA-OAEP (multi-prime) | `rsa_three_primes_oaep_*_test.json` | RsaesOaepDecrypt |
 | RSA PKCS#1 v1.5 Encrypt | `rsa_pkcs1_*_test.json` | RsaesPkcs1Decrypt |
+| RSA PKCS#1 v1.5 Sign (key generation edge cases) | `rsa_pkcs1_*_sig_gen_test.json` | RsassaPkcs1Generate |
 
 ### Other
 
@@ -76,15 +88,17 @@
 |-----------|------------------|-----------|
 | AES Key Wrap (KW) | `aes_wrap_test.json` | KeywrapTest |
 | AES Key Wrap Pad (KWP) | `aes_kwp_test.json` | KeywrapTest |
-| AES-FF1 (FPE) | `aes_ff1_*_test.json` | (no schema yet) |
+| AES-FF1 (FPE) | `aes_ff1_*_test.json` (17 files, base/radix variants) | (no schema yet) |
 | BLS-12-381 | `bls_*_test.json` (4 files) | Various |
 | DH (finite field) | `dh_test.json` | DhTest |
 | DHIES | `dhies_test.json` | DhiesTest |
 | ECIES | `ecies_*_test.json` | EciesTest |
 | Primality Testing | `primality_test.json` | PrimalityTest |
-| JSON Web Crypto | `json_web_*.json` (4 files) | Various |
+| JSON Web Crypto/Encryption/Key/Signature | `json_web_*.json` (4 files) | Various |
+| JOSE AES-CBC-HMAC content encryption | `a128cbc_hs256_test.json`, `a192cbc_hs384_test.json`, `a256cbc_hs512_test.json` | AeadTest |
 | EC Point validation | `ec_point_test.json` | EcPointTest |
 | EC Public Key import | `ec_pubkey_test.json` | EcPublicKeyVerify |
+| EC prime-order curve properties | `ec_prime_order_curves_test.json` | EcCurveTest |
 </algorithm_coverage>
 
 <json_structure>
@@ -96,7 +110,7 @@ Every file follows this hierarchy:
 Root
 ├── algorithm: string          // e.g. "AES-GCM", "ECDSA"
 ├── schema: string             // JSON schema filename in schemas/
-├── generatorVersion: string   // currently "0.9"
+├── generatorVersion: string   // OPTIONAL — many current files omit it entirely; when present, values vary ("0.9", "0.9rc5", "1", ...). Don't assume it exists or has a fixed value — check before reading it.
 ├── numberOfTests: int         // total test case count
 ├── header: string[]           // description/documentation
 ├── notes: {                   // dictionary of flag descriptions
@@ -200,6 +214,12 @@ Tests have: `ikm` (input key material), `salt`, `info`, `size` (output length in
 ### MacTestGroup
 Tests have: `key`, `msg`, `tag`. Group specifies `keySize` and `tagSize` in bits. Truncated MACs are common.
 
+### MacWithIvTestGroup
+For MACs that take an IV/nonce (AES-GMAC, VMAC). Adds `ivSize` (bits) alongside `keySize`/`tagSize`. Tests have: `key`, `iv`, `msg`, `tag`.
+
+### PbeTestGroup
+Password-based encryption (PBES2, used by JOSE). Type `PbeTest`. Tests have: `password`, `salt`, `iterationCount`, `iv`, `msg`, `ct` — no group-level shared fields beyond `type`/`tests`.
+
 ### MlkemTestGroup (ML-KEM / Kyber)
 Post-quantum key encapsulation. Tests cover encapsulation and decapsulation.
 
@@ -242,7 +262,9 @@ Tests have `value` (BigInt) and result indicates whether the number is prime.
 | edwards25519 | Ed25519 | — | Twisted Edwards, Ed25519 |
 | edwards448 | Ed448 | — | Edwards, Ed448 |
 
-Brainpool also has twisted (`t1`) variants. Weak curves (<112-bit security) like secp160k1, secp160r1, secp160r2, secp192k1, secp192r1 are typically not tested.
+Brainpool also has twisted (`t1`) variants. Binary/Koblitz curves over GF(2^m) also appear (`sect283k1`, `sect283r1`, `sect409k1`, `sect409r1`, `sect571k1`, `sect571r1`) for ECDH — a distinct curve family from the prime-field curves above.
+
+**Weak curves are not universally excluded** — `secp160k1`, `secp160r1`, `secp160r2`, `secp192k1`, `secp192r1`, `secp224k1` (all below the 112-bit security floor) have dedicated ECDSA test files specifically to verify that implementations correctly flag or reject them; they are not resurrected in the newer ECDH file set. Don't assume "weak curve → no test file exists" — check the actual file list for the algorithm you're testing.
 </naming_conventions>
 
 <bug_types>

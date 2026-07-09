@@ -1,20 +1,20 @@
 ---
 name: kotlinx-benchmark
-description: kotlinx-benchmark (v0.4.16) reference — Kotlin multiplatform benchmarking for JVM/JS/Native/WasmJs. Covers Gradle plugin setup (org.jetbrains.kotlinx.benchmark, allopen required for JVM), runtime dependency, target configuration. Writing benchmarks (@State, @Benchmark, @Setup/@TearDown, @Param, @BenchmarkMode, @OutputTimeUnit, @Warmup/@Measurement, Blackhole). Configuration profiles (main default + custom, include/exclude patterns, iteration settings, report formats). Gradle tasks (benchmark, <target>Benchmark, <config>Benchmark, BenchmarkJar). Separate source sets for benchmarks. Use when setting up Kotlin benchmarks, writing benchmark classes, configuring profiles, or any kotlinx-benchmark question.
+description: kotlinx-benchmark (v0.4.17) reference — Kotlin multiplatform benchmarking for JVM/JS/Native/WasmJs/WasmWasi. Covers Gradle plugin setup (org.jetbrains.kotlinx.benchmark, allopen required for JVM), runtime dependency, target configuration. Writing benchmarks (@State, @Benchmark, @Setup/@TearDown, @Param, @BenchmarkMode, @OutputTimeUnit, @Warmup/@Measurement, Blackhole). Configuration profiles (main default + custom, include/exclude patterns, iteration settings, report formats). Gradle tasks (benchmark, <target>Benchmark, <config>Benchmark, BenchmarkJar). Separate source sets for benchmarks. Use when setting up Kotlin benchmarks, writing benchmark classes, configuring profiles, or any kotlinx-benchmark question.
 ---
 
 <essential_principles>
 
-**kotlinx-benchmark** — Kotlin multiplatform benchmarking toolkit (v0.4.16). JMH-based on JVM, compatible annotation API on JS/Native/WasmJs. Apache 2.0.
+**kotlinx-benchmark** — Kotlin multiplatform benchmarking toolkit (v0.4.17). JMH-based on JVM, compatible annotation API on JS/Native/WasmJs/WasmWasi. Apache 2.0.
 
-Requires Kotlin ≥ 2.2.0 and Gradle ≥ 8.0. WasmJs is experimental.
+Requires Kotlin ≥ 2.2.0 and Gradle ≥ 8.0. WasmJs and WasmWasi are experimental.
 
 ### Quick Setup (Multiplatform)
 
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("org.jetbrains.kotlinx.benchmark") version "0.4.16"
+    id("org.jetbrains.kotlinx.benchmark") version "0.4.17"
 }
 
 kotlin {
@@ -22,7 +22,7 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.16")
+                implementation("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.17")
             }
         }
     }
@@ -143,12 +143,12 @@ benchmark {
 
 | Topic | Reference |
 |-------|-----------|
-| Full configuration options table (all DSL options with types, defaults, corresponding annotations), time unit values, target-specific setup (JVM allopen, JS nodejs, Native host-only, WasmJs experimental), separate benchmark source set, task naming rules, JVM-only features (Level, Scope, SingleShotTime, BenchmarkJar) | `references/configuration-and-targets.md` |
+| Full configuration options table (all DSL options with types, defaults, corresponding annotations), time unit values, target-specific setup (JVM allopen, JS nodejs, Native host-only, WasmJs/WasmWasi experimental), separate benchmark source set, task naming rules, JVM-only features (Level, Scope, SingleShotTime, BenchmarkJar) | `references/configuration-and-targets.md` |
 
 </routing>
 
 <reference_index>
 
-**configuration-and-targets.md** — Full configuration DSL options table (iterations, warmups, iterationTime, iterationTimeUnit, outputTimeUnit, mode with "thrpt"/"avgt", include/exclude regex, param("name", values), reportFormat json/csv/scsv/text — build script values override annotations). Time unit string values (NANOSECONDS/ns, MICROSECONDS/us, MILLISECONDS/ms, SECONDS/s, MINUTES/m). Target setup: JVM (register "jvm", allopen plugin required with @State annotation, JMH under the hood, supports Level.Iteration/Trial/Invocation for @Setup/@TearDown, Scope.Benchmark/Thread/Group, Mode.SingleShotTime, annotations on individual @Benchmark methods), JS (register "js", requires nodejs()), Native (register target name e.g. "linuxX64", host-only execution, supports all Kotlin/Native targets), WasmJs (register "wasmJs", requires nodejs(), experimental — supported only for the Kotlin version used to build the library). Separate benchmark source set (create custom compilation, register as benchmark target). Task naming pattern (<target><Config>Benchmark, with "main" config having no prefix), JVM-only BenchmarkJar task for self-contained executable JAR with JMH profiler support. Kotlin Notebooks for result analysis (single run, comparing runs, comparing hypotheses).
+**configuration-and-targets.md** — Full configuration DSL options table (iterations, warmups, iterationTime, iterationTimeUnit, outputTimeUnit, mode with "thrpt"/"avgt", include/exclude regex, param("name", values), reportFormat json/csv/scsv/text — build script values override annotations). Time unit string values (NANOSECONDS/ns, MICROSECONDS/us, MILLISECONDS/ms, SECONDS/s, MINUTES/m). Target setup: JVM (register "jvm", allopen plugin required with @State annotation, JMH under the hood, supports Level.Iteration/Trial/Invocation for @Setup/@TearDown, Scope.Benchmark/Thread/Group, Mode.SingleShotTime, annotations on individual @Benchmark methods), JS (register "js", requires nodejs()), Native (register target name e.g. "linuxX64", host-only execution, supports all Kotlin/Native targets), WasmJs (register "wasmJs", requires nodejs(), experimental — supported only for the Kotlin version used to build the library), WasmWasi (since 0.4.17, register "wasmWasi", requires nodejs() + wasmWasiMain source set, same experimental caveats as WasmJs). Separate benchmark source set (create custom compilation, register as benchmark target). Task naming pattern (<target><Config>Benchmark, with "main" config having no prefix), JVM-only BenchmarkJar task for self-contained executable JAR with JMH profiler support. Kotlin Notebooks for result analysis (single run, comparing runs, comparing hypotheses).
 
 </reference_index>

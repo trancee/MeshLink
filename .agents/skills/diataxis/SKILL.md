@@ -32,6 +32,19 @@ When you need to classify a piece of documentation, ask two questions:
 | Cognition | Application of skill | **Reference** |
 | Cognition | Acquisition of skill | **Explanation** |
 
+## The Map (Why Types Get Confused)
+
+Diataxis is a **map**, not a list: each type sits next to two neighbors it shares a dimension with, and that shared dimension is exactly where the two blur together in practice:
+
+| Neighbors | Shared dimension | How the blur shows up |
+|-----------|-------------------|------------------------|
+| Tutorial ↔ How-to guide | Both guide **action** | Steps that teach basics instead of assuming competence, or vice versa |
+| How-to guide ↔ Reference | Both serve **application of skill** (work) | A how-to that degrades into an exhaustive option list; reference that sneaks in imperative instructions |
+| Reference ↔ Explanation | Both are **propositional knowledge** (cognition) | Reference that argues or justifies design choices instead of stating facts |
+| Explanation ↔ Tutorial | Both serve **acquisition of skill** (study) | Explanation that drifts into a walkthrough; a tutorial that digresses into background theory |
+
+When a document feels hard to classify, it's almost always blurring with one of its two map-neighbors, not with the type diagonally opposite it. Diagnose by naming which shared dimension is bleeding through.
+
 ## When to Use This Skill
 
 Invoke this skill when any of these apply:
@@ -73,6 +86,17 @@ docs/
   reference/       # Information-oriented
   explanation/     # Understanding-oriented
 ```
+
+**But treat this as a destination, not a starting plan.** See Workflow below — don't create four empty folders up front and pour content into them; let the structure emerge from repeated small improvements.
+
+## Workflow: a Guide, Not a Plan
+
+Diataxis describes where documentation ends up, not a project plan for getting there top-down. Applying it as a big upfront restructuring plan fights the framework's own grain.
+
+- **Don't pre-build empty structure.** Creating empty tutorials/how-to/reference/explanation folders with nothing in them and waiting to fill them is explicitly discouraged — let categories emerge as content accumulates a critical mass that demands its own heading.
+- **Work one small step at a time**, not the whole architecture at once. Every improvement is worth publishing (or committing) immediately, even a single paragraph.
+- **The iteration cycle:** Choose something (any page, section, or paragraph in front of you — don't go hunting) → Assess it against the compass (what need does this serve? how well?) → Decide the single next action that improves it → Do it and consider it done → repeat.
+- **Complete, not finished.** At any point in this process the docs should be complete for their current stage — useful and structurally sound — even though, like any living project, they're never "finished."
 
 ## Quick Rules Per Type
 
@@ -126,7 +150,7 @@ When reviewing docs, look for these common anti-patterns:
 
 ## Documentation Architecture Template
 
-For a new project or major restructuring:
+For a new project or major restructuring, this is the shape documentation tends toward — use it as a reference point to compare against, not a blueprint to fill in from day one (see Workflow above):
 
 ```markdown
 # Project Documentation
@@ -162,4 +186,5 @@ For a new project or major restructuring:
 | [references/how-to-guides.md](references/how-to-guides.md) | Full guidance on writing how-to guides |
 | [references/reference.md](references/reference.md) | Full guidance on writing reference docs |
 | [references/explanation.md](references/explanation.md) | Full guidance on writing explanation docs |
-| [references/quality-checklist.md](references/quality-checklist.md) | Quality checklist for all four types |
+| [references/quality-checklist.md](references/quality-checklist.md) | Quality checklist for all four types, plus functional vs. deep quality |
+| [references/complex-hierarchies.md](references/complex-hierarchies.md) | When the four types cross another axis — multiple platforms, audiences, or products in one docs set |

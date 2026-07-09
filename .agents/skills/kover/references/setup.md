@@ -66,9 +66,47 @@ kover {
 ```
 Then use: `koverHtmlReportCustom`, `koverVerifyCustom`, etc.
 
+Other `currentProject { }` variant functions:
+- **`copyVariant("newName", "originalName")`** — clone an existing variant's coverage data under a new name so it can get its own filters/rules via `reports { variant("newName") { ... } }`, without merging in more classes.
+- **`providedVariant("jvm") { sources { ... } }`** — reconfigure an auto-created variant (e.g. the `jvm` KMP target or an Android build variant) in place.
+- **`totalVariant { sources { ... } }`** — reconfigure the always-present total variant (all code in the current project).
+
 ### Mixed KMP (Android + JVM)
 JVM targets get a report variant named `jvm`. Android targets get per-build-variant report variants. Create custom variants to merge them.
 </project_types>
+
+<merging_shortcut>
+## Automatic Merging Shortcut
+
+Instead of manually applying the plugin to every module and wiring `kover(project(...))` dependencies, the merging module can delegate that setup with `merge { }`:
+
+```kotlin
+// root build.gradle.kts (merging module)
+kover {
+    merge {
+        subprojects()           // all subprojects of this project
+        // allProjects()         // every project in the build, including this one
+        // subprojects { it.name != "uncovered" }  // filtered
+        // projects("moduleA", ":moduleB")          // explicit list, by name or path
+    }
+}
+```
+This applies the Kover plugin to every matched project and adds the equivalent `kover(project(...))` dependency automatically — equivalent to writing the manual `kover()` dependency block for each one. `sources { }`, `instrumentation { }`, and `createVariant(name) { }` blocks inside `merge { }` apply to every included project (each receives the current `project` via `KoverProjectAware` for per-project conditionals).
+
+**Danger:** `merge { }` reads and configures other projects directly, which **breaks project isolation and disables the configuration cache**. For configuration-cache-compatible multi-module setups, apply the plugin per-module explicitly and use `currentProject { }` in each, or the manual `kover(project(...))` dependency pattern above.
+
+</merging_shortcut>
+
+<disabling>
+## Disabling Kover Entirely
+
+To turn off all Kover instrumentation and tasks for a project (e.g. while isolating an instrumentation bug):
+```kotlin
+kover {
+    disable()
+}
+```
+</disabling>
 
 <tasks>
 ## Gradle Tasks

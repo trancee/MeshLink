@@ -32,7 +32,7 @@ In `gradle/libs.versions.toml`:
 
 ```toml
 [versions]
-ktor = "3.4.1"
+ktor = "3.5.1"
 
 [libraries]
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

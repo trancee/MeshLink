@@ -19,7 +19,7 @@ kotlin {
     // Source sets and dependencies
     sourceSets {
         commonMain.dependencies {
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -52,10 +52,23 @@ kotlin {
     // Web
     js(IR) { browser() }
     wasmJs { browser() }
+    wasmWasi { nodejs() }     // WASI system interface support
 }
 ```
 
 Each declared target creates corresponding `*Main` and `*Test` source sets automatically.
+
+### Android Target: Two Plugin Options
+
+```kotlin
+plugins {
+    id("com.android.library")  // traditional AGP library plugin, works with androidTarget()/android()
+    // OR, for a KMP-native Android library module:
+    // id("com.android.kotlin.multiplatform.library")
+}
+```
+
+`com.android.kotlin.multiplatform.library` is a newer, purpose-built Android Gradle plugin for KMP Android library modules (an alternative to applying the general-purpose `com.android.library`). Only one Android target is allowed per Gradle subproject either way.
 </target_declaration>
 
 <source_set_configuration>

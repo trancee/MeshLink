@@ -40,7 +40,8 @@
 ./gradlew dependencyInsight --dependency guava  # Where does guava come from?
 
 # Wrapper management
-./gradlew wrapper --gradle-version 9.4.1   # Upgrade wrapper
+./gradlew wrapper --gradle-version 9.6.1   # Upgrade wrapper
+./gradlew wrapper --gradle-version 9       # Latest 9.x.y (Gradle 9+ wrapper accepts partial versions)
 ```
 
 ### Useful Flags
@@ -56,7 +57,8 @@
 | `--continue` | Continue after task failure |
 | `--rerun-tasks` | Force all tasks to run (ignore up-to-date) |
 | `--dry-run` / `-m` | Show which tasks would run without executing |
-| `--console=plain` | Plain text output (useful in CI) |
+| `--task-graph` | Print the task dependency tree without executing anything (stable since 9.4) |
+| `--console=plain` / `=colored` / `=rich` / `=auto` | Console output mode — `colored` (9.1+) adds color highlighting without rich-console progress bars, useful in CI |
 | `-x <task>` | Exclude a task (e.g., `-x test`) |
 | `-P<key>=<value>` | Set project property |
 | `-D<key>=<value>` | Set JVM system property |
@@ -89,11 +91,16 @@ org.gradle.caching=true
 
 ### Configuration Cache
 
-Caches the result of the configuration phase:
+Caches the result of the configuration phase. **Since Gradle 9.0, this is the preferred execution mode** — if it's off and your build has no known incompatibilities, Gradle prompts you at the end of the build to enable it. When a build hits an unsupported feature (e.g. some core publish plugins, certain IDE plugins), Gradle now falls back gracefully to non-cached mode instead of failing; check the configuration cache report for the fallback reason.
 
 ```properties
 # gradle.properties
 org.gradle.configuration-cache=true
+```
+
+Suppress the enable-prompt without enabling it:
+```properties
+org.gradle.configuration-cache=false
 ```
 
 ### Parallel Execution

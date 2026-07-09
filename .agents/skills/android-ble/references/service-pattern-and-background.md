@@ -5,6 +5,8 @@
 
 The recommended architecture uses a bound `Service` to manage the BLE connection, with the Activity communicating via broadcasts.
 
+**Note on the callback signatures below:** this worked example uses the original `onCharacteristicRead`/`onCharacteristicChanged`/`descriptor.value` overloads for brevity and because they're the only ones available if `minSdk < 33`. On API 33+ these are deprecated in favor of memory-safe overloads that carry the value directly instead of reading it back off the characteristic/descriptor object — see `<data_transfer>` below for both forms and when you need to keep both.
+
 ### Service Structure
 
 ```kotlin
@@ -260,6 +262,13 @@ scanner.startScan(filters, settings, intent)
 | `false` (direct) | Connects immediately, fails if device unavailable | Device known to be nearby (just scanned) |
 | `true` (auto) | Connects when device comes in range, auto-reconnects on disconnect | Background connection to bonded device |
 
+### Getting a BluetoothDevice to Connect To
+
+Three sources, not just a fresh scan result:
+- A `BluetoothLeScanner` scan result (`ScanResult.device`)
+- `BluetoothAdapter.getBondedDevices()` — previously paired devices
+- `BluetoothAdapter.getRemoteLeDevice()` — pulls from the adapter's cache by address/address-type without scanning
+
 ### Connection States
 
 ```kotlin
@@ -314,9 +323,16 @@ gatt.readCharacteristic(characteristic)
 ### Write a Characteristic
 
 ```kotlin
+// API 33+ (memory-safe): pass the value directly, get an Int status back
+val status = gatt.writeCharacteristic(characteristic, byteArrayOf(0x01, 0x02), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+
+// Deprecated (API < 33 fallback only): mutates the characteristic object, races concurrent reads
+@Suppress("DEPRECATION")
 characteristic.value = byteArrayOf(0x01, 0x02)
+@Suppress("DEPRECATION")
 gatt.writeCharacteristic(characteristic)
-// Result arrives in onCharacteristicWrite callback
+
+// Result arrives in onCharacteristicWrite callback either way
 ```
 
 ### Enable Notifications (Two Steps)
@@ -327,13 +343,36 @@ gatt.writeCharacteristic(characteristic)
 ```kotlin
 val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 val descriptor = characteristic.getDescriptor(CCCD_UUID)
+
+// API 33+ (memory-safe)
+gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+
+// Deprecated (API < 33 fallback only)
+@Suppress("DEPRECATION")
 descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+@Suppress("DEPRECATION")
 gatt.writeDescriptor(descriptor)
 ```
 
 Both steps are required. Without the CCCD write, the peripheral won't send notifications.
 
 Data arrives in `onCharacteristicChanged()`.
+
+### Memory-Safe Callbacks (API 33+) vs Deprecated Overloads
+
+Android 13 (API 33) added `byte[] value`-carrying overloads for every read/notify callback, because the old overloads read the live `BluetoothGattCharacteristic`/`BluetoothGattDescriptor` object, whose backing value can be overwritten by another operation before your callback finishes reading it.
+
+| Deprecated (API 18+, races) | Replacement (API 33+, snapshot) |
+|---|---|
+| `onCharacteristicRead(gatt, characteristic, status)` | `onCharacteristicRead(gatt, characteristic, value, status)` |
+| `onCharacteristicChanged(gatt, characteristic)` | `onCharacteristicChanged(gatt, characteristic, value)` |
+| `onDescriptorRead(gatt, descriptor, status)` | `onDescriptorRead(gatt, descriptor, status, value)` |
+| `characteristic.getValue()` / `.setValue(...)` | read `value` param directly / pass value into `writeCharacteristic(char, value, writeType)` |
+| `descriptor.getValue()` / `.setValue(...)` | read `value` param directly / pass value into `writeDescriptor(descriptor, value)` |
+| `gatt.writeCharacteristic(characteristic)` | `gatt.writeCharacteristic(characteristic, value, writeType): Int` |
+| `gatt.writeDescriptor(descriptor)` | `gatt.writeDescriptor(descriptor, value): Int` |
+
+**If `minSdk < 33`**, override both the deprecated and the new callback in `BluetoothGattCallback` — the new one fires exclusively on API 33+, so the old one is still needed on older devices (implement it by delegating to the same handling logic, reading `characteristic.value` there only).
 
 ### Parsing Characteristic Data
 
@@ -346,7 +385,7 @@ else
     BluetoothGattCharacteristic.FORMAT_UINT8
 val heartRate = characteristic.getIntValue(format, 1)
 
-// Generic hex dump
+// Generic hex dump (use the callback's `value` param on API 33+ instead of characteristic.value)
 val hex = characteristic.value?.joinToString(" ") { "%02X".format(it) }
 ```
 </data_transfer>

@@ -28,6 +28,21 @@ Instead of adding parameters for customization, design operations that compose t
 **Bad:** Every operation accepts buffering/conflation/retry parameters.
 **Good:** Separate `buffer()`, `conflate()`, `retry()` operations chain with `filter()` and `map()`.
 
+**Another example — Jetpack Compose's `Modifier` API:** instead of every `@Composable` accepting separate parameters for padding, sizing, background, click handling, and scrolling, they all accept one `Modifier` parameter that composes arbitrarily many of these concerns:
+```kotlin
+Box(
+    modifier = Modifier
+        .padding(10.dp)
+        .onClick { println("Box clicked!") }
+        .fillMaxWidth()
+        .fillMaxHeight()
+        .verticalScroll(rememberScrollState())
+) {
+    // Box content goes here
+}
+```
+This is the same principle as the Flow example above, generalized beyond operator chains: push customization into a single composable parameter type rather than multiplying function parameters.
+
 ### Use DSLs for configuration
 Builder DSLs with lambda-with-receiver improve readability and backward compatibility:
 ```kotlin

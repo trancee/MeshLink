@@ -5,7 +5,7 @@ description: Kotlin Gradle Plugin (KGP) reference for configuring Kotlin compila
 
 <essential_principles>
 
-The **Kotlin Gradle Plugin (KGP)** integrates Kotlin compilation into Gradle builds. It shares its version number with Kotlin itself (e.g., KGP 2.3.21 = Kotlin 2.3.21).
+The **Kotlin Gradle Plugin (KGP)** integrates Kotlin compilation into Gradle builds. It shares its version number with Kotlin itself (e.g., KGP 2.4.0 = Kotlin 2.4.0).
 
 ### Core Rules an Agent Must Know
 
@@ -14,7 +14,7 @@ The **Kotlin Gradle Plugin (KGP)** integrates Kotlin compilation into Gradle bui
 - **Configure compiler options at extension level** via `kotlin { compilerOptions {} }`. Use typed values (`JvmTarget.JVM_17`, `KotlinVersion.KOTLIN_2_3`), not strings.
 - **`kotlinOptions {}` is removed.** Use `compilerOptions {}` instead. Key migration: `jvmTarget = "17"` → `jvmTarget.set(JvmTarget.JVM_17)`, `freeCompilerArgs +=` → `freeCompilerArgs.add()`.
 - **kotlin-stdlib is added automatically** by KGP since 1.4. Don't declare it manually.
-- **Prefer KSP over kapt** for annotation processing — faster, no Java stubs.
+- **Prefer KSP over kapt** for annotation processing — faster, no Java stubs. **KSP has its own independent version number** since KSP2 became the default (early 2025) — it's no longer `<kotlin-version>-<ksp-version>` (e.g. `id("com.google.devtools.ksp") version "2.3.9"`, not `"2.4.0-1.0.30"`). **KSP1 does not support Kotlin 2.3.0+ or AGP 9.0+** — if a project still pins the old dual-version format, migrate to KSP2.
 - **Incremental compilation is on by default.** Gradle build cache, configuration cache, and parallel execution should all be enabled.
 - **Add `.kotlin` to `.gitignore`** — KGP stores per-project data there.
 - **Check KGP/Gradle/AGP version compatibility** before upgrading any of the three.

@@ -77,6 +77,15 @@ $ ./gradlew build
 > Task :build
 ```
 
+**Visualize the graph without running anything** (`--task-graph`, stable since Gradle 9.4):
+```bash
+./gradlew build --task-graph   # prints a tree of task dependencies, nothing executes
+```
+
+### Archive Tasks Are Reproducible By Default
+
+Since Gradle 9.0, `Jar`/`War`/`Ear`/`Zip`/`Tar`/`AbstractArchiveTask` produce **reproducible archives by default**: fixed file ordering, preconfigured timestamps and permissions, so identical inputs always produce a byte-for-byte identical archive. If a build relies on non-deterministic archive characteristics (real filesystem timestamps/permissions/executable bits), that behavior now needs to be opted back into explicitly.
+
 ### Registering Custom Tasks
 
 ```kotlin

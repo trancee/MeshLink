@@ -66,6 +66,7 @@ Intermediate operators are cold — they define a pipeline but don't trigger col
 | `drop(n)` | Skip first n values |
 | `distinctUntilChanged()` | Skip consecutive duplicates |
 | `onEach { }` | Side effect on each value (doesn't transform) |
+| `chunked(size)` | Since 1.9.0. Groups emitted values into `Flow<List<T>>` of the given size (last chunk may be smaller) |
 
 ### transform — most general
 ```kotlin
@@ -90,11 +91,15 @@ Terminal operators are `suspend` functions that trigger flow collection.
 | `single()` | `T` | Exactly one value (throws if 0 or 2+) |
 | `reduce { acc, v -> }` | `T` | Accumulate without initial value |
 | `fold(init) { acc, v -> }` | `R` | Accumulate with initial value |
+| `any { }` / `all { }` / `none { }` | `Boolean` | Since 1.10.0. Short-circuiting predicate checks — cancel upstream as soon as the result is determined, like the `Iterable` equivalents |
+| `toMap()` / `toMutableMap()` | `Map<K, V>` | Since 1.11.0. Collect a `Flow<Pair<K, V>>` (or via a selector) into a map |
 
 ```kotlin
 val sum = (1..5).asFlow()
     .map { it * it }
     .reduce { a, b -> a + b }  // 55
+
+val hasNegative = listOf(1, -2, 3).asFlow().any { it < 0 }  // true, short-circuits at -2
 ```
 </terminal_operators>
 
@@ -233,4 +238,10 @@ _events.emit(Event.Click)  // suspend until all collectors receive
 // Configure replay and buffer
 MutableSharedFlow<Event>(replay = 1, extraBufferCapacity = 64)
 ```
+
+### Recent Small Additions (1.11.0)
+
+- **`SharedFlow<T>.asFlow()`** — view a `SharedFlow` as a plain cold-looking `Flow` interface (hides the hot-flow-specific members like `replayCache`) when you need to pass it to code that only expects a `Flow<T>`.
+- **`StateFlow<T>.onSubscription { }`** now has an overload returning `StateFlow<T>` (mirroring `SharedFlow<T>.onSubscription` returning `SharedFlow<T>`), so you can attach a subscription-start side effect without downgrading to plain `Flow`.
+- **`StateFlow.collectLatest` has a `Nothing`-returning overload** to help catch code that would never actually be reached (since `StateFlow` never completes, a `collectLatest` block that tries to "finish" after it is dead code).
 </stateflow_sharedflow>

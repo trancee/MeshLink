@@ -86,6 +86,7 @@ kotlin {
     jvm()
     js(IR) { browser() }
     wasmJs { browser() }
+    wasmWasi { nodejs() }
     macosArm64()
     macosX64()
     linuxX64()
@@ -95,4 +96,6 @@ kotlin {
 ```
 
 Each target creates a corresponding platform source set. Only declare targets you actually ship to.
+
+**Target DSL naming:** current official docs and generators use the plain `android()` target block (paired with either `com.android.library` or the newer, KMP-native `com.android.kotlin.multiplatform.library` Android Gradle plugin). `androidTarget()` is the disambiguated name from when `android()` briefly conflicted with AGP's `android {}` extension in some setups — it still works and appears in many existing projects/tutorials; prefer whichever this repo already uses consistently, defaulting to `android()` for new projects.
 </targets>

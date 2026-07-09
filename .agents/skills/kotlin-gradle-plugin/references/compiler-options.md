@@ -16,8 +16,8 @@ Lower levels override higher levels.
 ```kotlin
 kotlin {
     compilerOptions {
-        apiVersion.set(KotlinVersion.KOTLIN_2_3)
-        languageVersion.set(KotlinVersion.KOTLIN_2_3)
+        apiVersion.set(KotlinVersion.KOTLIN_2_4)
+        languageVersion.set(KotlinVersion.KOTLIN_2_4)
         jvmTarget.set(JvmTarget.JVM_17)
         optIn.add("kotlin.RequiresOptIn")
         freeCompilerArgs.add("-Xjsr305=strict")
@@ -48,7 +48,7 @@ kotlin {
 ```kotlin
 tasks.named<KotlinJvmCompile>("compileKotlin") {
     compilerOptions {
-        apiVersion.set(KotlinVersion.KOTLIN_2_3)
+        apiVersion.set(KotlinVersion.KOTLIN_2_4)
     }
 }
 ```
@@ -102,7 +102,7 @@ kotlin {
 tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions {
         jvmTarget = "17"
-        languageVersion = "2.3"
+        languageVersion = "2.4"
         freeCompilerArgs += "-Xjsr305=strict"
     }
 }
@@ -113,7 +113,7 @@ tasks.withType<KotlinCompile>().configureEach {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        languageVersion.set(KotlinVersion.KOTLIN_2_3)
+        languageVersion.set(KotlinVersion.KOTLIN_2_4)
         freeCompilerArgs.add("-Xjsr305=strict")
     }
 }

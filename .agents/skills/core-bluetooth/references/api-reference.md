@@ -72,6 +72,15 @@ central.registerForConnectionEvents(options: [
 
 ```swift
 CBCentralManager.supports(.extendedScanAndConnect)  // Bool
+CBCentralManager.supports(.channelSounding)          // Bool — BLE 6.3 precise ranging, iOS 27+ (beta)
+```
+
+### Authorization (without instantiating a manager)
+
+```swift
+CBManager.authorization  // CBManagerAuthorization: .notDetermined, .restricted, .denied, .allowedAlways
+// Check this before creating a CBCentralManager if you want to avoid triggering the permission
+// prompt just to find out whether you're already denied/restricted.
 ```
 </central_manager>
 
@@ -220,7 +229,14 @@ peripheral.openL2CAPChannel(psm)
 ### RSSI
 
 ```swift
-peripheral.readRSSI()  // result in didReadRSSI delegate method
+peripheral.rssi        // NSNumber? — last-known cached RSSI (no round-trip; nil if never read)
+peripheral.readRSSI()  // actively request a fresh value; result in didReadRSSI delegate method
+```
+
+### Apple Notification Center Service (ANCS)
+
+```swift
+peripheral.ancsAuthorized  // Bool — whether the remote device is authorized to receive data over ANCS
 ```
 </peripheral_object>
 
@@ -396,6 +412,12 @@ peripheralManager.unpublishL2CAPChannel(psm)
 peripheralManager.setDesiredConnectionLatency(.low, for: central)
 // .low (high throughput), .medium, .high (low power)
 ```
+
+### Authorization (without instantiating a manager)
+
+```swift
+CBPeripheralManager.authorizationStatus()  // CBPeripheralManagerAuthorizationStatus: .notDetermined, .restricted, .denied, .authorized
+```
 </peripheral_manager>
 
 <service_types>
@@ -478,6 +500,35 @@ central.identifier                // UUID
 central.maximumUpdateValueLength  // Int — max notification payload for this central
 ```
 </service_types>
+
+<channel_sounding>
+## Channel Sounding (Beta, iOS/iPadOS 27+)
+
+BLE 6.3 Channel Sounding provides secure, precise real-time distance measurement between an iOS device and a supporting peripheral — distinct from RSSI-based distance estimation. **Beta as of iOS 27**; requires Channel-Sounding-capable hardware.
+
+### Requirements
+- The peripheral **must be paired via `AccessorySetupKit`** — Core Bluetooth refuses to start a session with a peripheral paired any other way.
+- Check `CBCentralManager.supports(.channelSounding)` only after the manager has reached `.poweredOn`; calling it earlier returns incorrect results.
+
+### Starting and Receiving Measurements
+```swift
+// On the connected CBPeripheral, after ACL connection is established
+peripheral.startChannelSoundingSession(configuration)  // CBChannelSoundingSessionConfiguration
+peripheral.cancelChannelSoundingSession()
+```
+
+```swift
+func peripheral(_ peripheral: CBPeripheral, didReceive results: CBChannelSoundingProcedureResults?, error: Error?) {
+    // Streamed continuously while the session is active; distance is a negative sentinel when invalid
+}
+
+func peripheral(_ peripheral: CBPeripheral, didCompleteChannelSoundingSession error: Error?) {
+    // Session ended (requested via cancelChannelSoundingSession or by the system)
+}
+```
+
+New types: `CBChannelSoundingSessionConfiguration` (session setup), `CBChannelSoundingProcedureResults` (per-procedure distance/quality data).
+</channel_sounding>
 
 <background_and_restoration>
 ## Background Execution and State Restoration

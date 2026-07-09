@@ -52,7 +52,14 @@ Adding a default argument changes the bytecode signature. `NoSuchMethodError` at
 fun fib() = ...
 fun fib(input: Int) = ...
 ```
-**Warning:** `@JvmOverloads` does NOT preserve binary compat when adding parameters.
+**Warning:** `@JvmOverloads` does NOT preserve binary compat when adding parameters (for Kotlin callers).
+
+**Alternative — `@IntroducedAt` (Experimental, Kotlin 2.4.0+):** tag each new optional parameter with the version it was introduced in; the compiler auto-generates the hidden overloads that manual overloading would otherwise require.
+```kotlin
+@OptIn(ExperimentalVersionOverloading::class)
+fun fib(@IntroducedAt("1.1") input: Int = 0) = ...
+```
+Requires `@OptIn(ExperimentalVersionOverloading::class)`. Prefer this or manual overloads over `@JvmOverloads` when evolving a published API.
 
 ### Widening or narrowing return types
 Both directions break binary compatibility:
@@ -66,6 +73,9 @@ Both directions break binary compatibility:
 - Changing property order changes `componentN()` methods (behavioral break)
 
 Manual secondary constructors + overriding `copy()` negate the data class convenience.
+
+### Changing annotation targets
+**Avoid** changing an exposed annotation's allowed `@Target`s after publishing. The Kotlin compiler resolves an unqualified annotation on a property to the **property** target before the **field** target when both are declared — so adding `AnnotationTarget.PROPERTY` to an annotation that previously only declared `AnnotationTarget.FIELD` silently moves where existing unqualified usages attach on recompilation. This breaks tools/frameworks (notably Java reflection or annotation processors) that expect the annotation on a specific generated element, since the property target isn't visible to Java — those callers must switch to an explicit `@field:` use-site target to keep finding it.
 </breaking_changes>
 
 <evolving_apis>

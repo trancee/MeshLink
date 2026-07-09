@@ -176,4 +176,16 @@ val text = """
     |Line 2
 """.trimMargin()
 ```
+
+### Multi-dollar Interpolation (Kotlin 2.2+, Stable)
+
+Controls how many consecutive `$` characters trigger interpolation — useful for templating engines, JSON schemas, or financial data where literal `$` signs are common. Previously required awkward `${'$'}` escapes to write a literal dollar sign.
+
+```kotlin
+val price = 10
+val text = $$"""
+Price: $$price (literal $ sign here, no escaping needed)
+"""
+```
+The number of leading `$` in the opening `$$"""`/`$$"` marker sets the interpolation prefix length for that literal: with `$$` as the prefix, a lone `$` is always literal, and `$$` followed by an identifier or `{...}` interpolates.
 </strings>

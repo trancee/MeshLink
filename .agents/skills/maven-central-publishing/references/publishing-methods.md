@@ -154,7 +154,7 @@ repositories {
 <plugin>
   <groupId>org.sonatype.central</groupId>
   <artifactId>central-publishing-maven-plugin</artifactId>
-  <version>0.10.0</version>
+  <version>0.11.0</version>
   <extensions>true</extensions>
   <configuration>
     <publishingServerId>central</publishingServerId>
@@ -190,31 +190,35 @@ mvn deploy              # stage + upload + validate (+ publish if autoPublish=tr
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `autoPublish` | boolean | `false` | Auto-publish after validation passes |
-| `waitForPublishCompletion` | boolean | `false` | Block until PUBLISHED state |
-| `waitMaxTime` | int | 60 | Max minutes to wait |
-| `waitPollingInterval` | int | 10 | Seconds between status polls |
-| `waitUntil` | string | `PUBLISHED` | Target state to wait for |
-| `checksums` | string | `all` | `all` (md5+sha1+sha256+sha512) or `required` (md5+sha1 only) |
+| `waitUntil` | string | `validated` | State to block until: `uploaded`, `validated`, or `published`. Replaces the deprecated `waitForPublishCompletion` — use `autoPublish=true` with `waitUntil=published` to block until the artifact is live |
+| `waitMaxTime` | int (**seconds**) | `1800` | Max time to wait for `waitUntil`'s target state. Cannot be set below 1800 |
+| `waitPollingInterval` | int (seconds) | `5` | Interval between status polls. Cannot be set below 5 |
+| `checksums` | string | `all` | `all` (md5+sha1+sha256+sha512), `required` (md5+sha1 only), or `none` (generate no checksums — validation may fail unless another tool supplies them) |
+| `failOnBuildFailure` | boolean | `true` | Whether the plugin is allowed to fail the build before uploading/publishing occurs |
 | `deploymentName` | string | auto | Human-readable name for the deployment |
 | `publishingServerId` | string | `central` | Server ID matching settings.xml |
 | `skipPublishing` | boolean | `false` | Skip the publishing step entirely |
 | `excludeArtifacts` | string | — | Comma-separated artifactIds to exclude |
 | `ignorePublishedComponents` | boolean | `false` | Skip already-published components |
-| `stagingDirectory` | path | auto | Local staging directory |
+| `stagingDirectory` | path | `central-staging` | Local staging directory |
+| `outputDirectory` | path | `central-publishing` | Directory the plugin writes the bundle into |
+| `outputFilename` | string | `central-bundle.zip` | Bundle file name |
 | `centralBaseUrl` | string | `https://central.sonatype.com` | Portal base URL |
-| `centralSnapshotsUrl` | string | — | Snapshots repository URL |
+| `centralSnapshotsUrl` | string | — | Snapshots repository URL (falls back to `<distributionManagement>` if unset) |
 
-### Automatic Publishing
+**Deprecated:** `waitForPublishCompletion` (use `autoPublish` + `waitUntil` instead) and `publishCompletionPollInterval` (use `waitPollingInterval` instead). Both remain accepted but should not be used in new configs.
+
+### Automatic Publishing, Blocking Until Live
 
 ```xml
 <configuration>
   <autoPublish>true</autoPublish>
-  <waitForPublishCompletion>true</waitForPublishCompletion>
-  <waitMaxTime>30</waitMaxTime>
+  <waitUntil>published</waitUntil>
+  <waitMaxTime>1800</waitMaxTime>
 </configuration>
 ```
 
-This deploys, validates, publishes, and blocks until the artifact appears on Maven Central or the timeout expires.
+This deploys, validates, publishes, and blocks until the artifact appears on Maven Central or `waitMaxTime` (seconds) expires.
 </maven_plugin>
 
 <bundle_format>
@@ -274,13 +278,17 @@ curl --request POST \
 
 | Plugin | Notes |
 |--------|-------|
+| [JReleaser](https://jreleaser.org/) | Full release automation; has direct, actively maintained support for the Central Publisher Portal API |
 | [vanniktech/gradle-maven-publish-plugin](https://github.com/vanniktech/gradle-maven-publish-plugin/) | Popular, well-maintained |
 | [GradleUp/nmcp](https://github.com/GradleUp/nmcp) | Lightweight Central Portal integration |
-| [JReleaser](https://jreleaser.org/) | Full release automation, supports Central Portal API |
 | [DanySK/publish-on-central](https://github.com/DanySK/publish-on-central) | Straightforward Central publishing |
 | [deepmedia/MavenDeployer](https://github.com/deepmedia/MavenDeployer) | Multi-target deployer |
+| [SgtSilvio/gradle-maven-central-publishing](https://github.com/SgtSilvio/gradle-maven-central-publishing) | Central Portal-focused |
+| [lukebemishprojects/CentralPortalPublishing](https://github.com/lukebemishprojects/CentralPortalPublishing) | Central Portal-focused |
 
-**All community plugins are NOT supported by Sonatype.** Do not file Sonatype support tickets for them.
+Sonatype's own list is longer and growing (`ani2fun/sonatype-maven-central-publisher`, `Im-Fran/SonatypeCentralUpload`, `Karlatemp/maven-central-publish`, `kernelflux/maven-central-gradle-plugin`, `lalakii/central-portal-plus`, `medivh-project/medivh-publisher`, `moengage/gradle-maven-publish-plugin`, `pkmer/pkmerboot-central-publisher`, `tafilovic/central-portal-publisher`, `tddworks/central-portal-publisher`, `thebugmc/sonatype-central-portal-publisher`, `yananhub/flying-gradle-plugin`, `ysb33rOrg/nempi-mavencentral-publishing-plugin`) — check https://central.sonatype.org/publish/publish-portal-gradle/ for the current roster before picking one.
+
+**All community plugins are NOT supported by Sonatype**, including JReleaser. Do not file Sonatype support tickets for them. Sonatype has stated Gradle support is on their roadmap but there is still no official plugin.
 
 ### Alternative: OSSRH Staging API
 

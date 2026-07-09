@@ -2,6 +2,12 @@
 
 Use this checklist to verify that a document stays true to its type. Check the column for the type you're writing.
 
+## Two Kinds of Quality
+
+The checklists below test **functional quality**: accuracy, completeness, consistency — objective, checkable, independent of each other (a doc can be accurate but incomplete, or complete but inconsistent). Meeting every checklist item is necessary but not sufficient for excellent documentation.
+
+**Deep quality** is the other half: does it have flow, does it feel good to use, does it anticipate what the reader needs next? These can't be checked off a list — they require judgment, not measurement. But deep quality is *conditional* on functional quality: documentation can't feel effortless to use if it's also inaccurate or inconsistent. Run the checklist first; then step back and judge whether the result is actually pleasant and anticipates the reader, not just technically compliant.
+
 ## Universal Checks
 
 - [ ] The document clearly belongs to ONE type (not a mix)

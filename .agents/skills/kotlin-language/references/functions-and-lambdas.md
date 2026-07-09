@@ -184,6 +184,21 @@ inline fun <T> measureTime(block: () -> T): T {
 
 Use `noinline` to prevent inlining specific lambda parameters. Use `crossinline` to prevent non-local returns from a lambda.
 
+### Non-local `break`/`continue` (Kotlin 2.1+, Stable)
+
+A lambda passed to an inline function can `break`/`continue` a loop enclosing the call, not just non-locally `return` (which was already supported):
+
+```kotlin
+fun processList(numbers: List<Int>) {
+    for (number in numbers) {
+        number.takeIf { it > 0 } ?: continue   // non-local continue into the enclosing for-loop
+        if (number > 100) break                 // non-local break, from inside an inline lambda
+        println(number)
+    }
+}
+```
+Only works through `inline` functions (including standard library ones like `let`, `run`, `forEach`) — `crossinline` lambdas still can't use it, same restriction as non-local `return`.
+
 ### Reified Type Parameters
 
 Only available in `inline` functions — retains type info at runtime:
@@ -193,3 +208,40 @@ inline fun <reified T> isInstance(value: Any) = value is T
 println(isInstance<String>("hello"))  // true
 ```
 </inline_functions>
+
+<context_parameters>
+## Context Parameters (Kotlin 2.4+, Stable)
+
+Declare values (services, configuration, scopes) that a function or property needs from its calling context, without threading them through every call as an explicit parameter. Replaces the older experimental **context receivers** — the key difference is that context parameters are *not* implicit receivers inside the function body, so you reference them by name rather than getting implicit `this`-style access to their members.
+
+```kotlin
+interface UserService {
+    fun currentUser(): String
+}
+
+// Declares a function with a context parameter
+context(service: UserService)
+fun greetCurrentUser(): String = "Hello, ${service.currentUser()}!"
+
+// Declares a property with a context parameter
+context(service: UserService)
+val currentUserName: String
+    get() = service.currentUser()
+```
+
+Call a context-parameter function from inside a scope that provides a matching context parameter (or explicitly, since Kotlin 2.4, via an explicit context argument — Experimental):
+```kotlin
+context(service: UserService)
+fun run() {
+    println(greetCurrentUser())   // service is available implicitly by declaration, used by name inside
+}
+```
+
+Use `_` as the parameter name when the value only needs to be available for resolution, not accessed by name:
+```kotlin
+context(_: UserService)
+fun requiresServiceButDoesNotUseItByName() { /* ... */ }
+```
+
+**When to reach for this over a plain parameter or DI framework:** context parameters shine for cross-cutting dependencies threaded through many functions in a call chain (logging scope, transaction/session objects, DSL builders) — for a single function's one-off dependency, a normal parameter is simpler and clearer.
+</context_parameters>

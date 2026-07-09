@@ -40,6 +40,46 @@ class Person(val name: String) {
 | `internal` | Visible in the same module |
 </classes>
 
+<properties>
+## Properties and Backing Fields
+
+A property with a custom getter/setter can reference its auto-generated backing field with the `field` identifier:
+
+```kotlin
+var name: String = ""
+    set(value) {
+        field = value.trim()   // `field` refers to the implicit backing field
+    }
+```
+
+### The Classic Pattern: Private Mutable + Public Read-Only
+
+Before explicit backing fields, exposing a mutable property with a different public read-only type required a private/public pair:
+
+```kotlin
+class ViewModel {
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+}
+```
+
+### Explicit Backing Fields (Kotlin 2.4+, Stable)
+
+Declare a different backing field type directly on the property, without a second private property:
+
+```kotlin
+class ViewModel {
+    val uiState: StateFlow<UiState>
+        field = MutableStateFlow(UiState())
+
+    fun update(newState: UiState) {
+        field.value = newState   // `field` is the MutableStateFlow, inside the class only
+    }
+}
+```
+Outside the class, `uiState` is seen only as the declared `StateFlow<UiState>` type; inside the class body, `field` gives access to the more specific backing type (`MutableStateFlow<UiState>`). This replaces the `_uiState`/`uiState` naming convention above for this exact use case — prefer it in new code once on Kotlin 2.4+; the classic pattern remains necessary on older versions or where broader compatibility is required.
+</properties>
+
 <inheritance>
 ## Inheritance
 
@@ -139,6 +179,7 @@ enum class Color(val rgb: Int) {
 // Iterate
 Color.entries.forEach { println(it.name) }
 ```
+Use the `entries` property (not the older `values()` function) to avoid allocating a new array on every access. Generic code that needs an enum's entries via a reified type parameter can use `enumEntries<T>()` (stable since Kotlin 2.0) instead of the older generic `enumValues<T>()`, for the same reason.
 </enum_classes>
 
 <objects>
