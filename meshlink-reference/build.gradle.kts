@@ -53,6 +53,7 @@ kotlin {
             implementation(libs.compose.material.icons.extended)
         }
         commonTest.dependencies { implementation(libs.kotlin.test) }
+        getByName("androidHostTest").dependencies { implementation(libs.kotlin.test) }
     }
 }
 
@@ -88,12 +89,13 @@ compose.resources {
     packageOfResClass = "ch.trancee.meshlink.reference.resources"
 }
 
-val localCheck by tasks.registering {
-    group = "verification"
-    description =
-        "Runs the fast local verification bundle for the reference app without release packaging."
-    dependsOn("check", "linkDebugFrameworkIosArm64", "linkDebugFrameworkIosSimulatorArm64")
-}
+val localCheck =
+    tasks.register("localCheck") {
+        group = "verification"
+        description =
+            "Runs the fast local verification bundle for the reference app without release packaging."
+        dependsOn("check", "linkDebugFrameworkIosArm64", "linkDebugFrameworkIosSimulatorArm64")
+    }
 
 tasks.named("ktfmtFormat") { dependsOn(":meshlink-reference:android:ktfmtFormat") }
 
@@ -101,8 +103,10 @@ tasks.named("check") { dependsOn(":meshlink-reference:android:check") }
 
 tasks.named("build") { dependsOn(":meshlink-reference:android:build") }
 
-val installDebug by tasks.registering {
-    group = "install"
-    description = "Installs the Android debug reference app from the nested Android host module."
-    dependsOn(":meshlink-reference:android:installDebug")
-}
+val installDebug =
+    tasks.register("installDebug") {
+        group = "install"
+        description =
+            "Installs the Android debug reference app from the nested Android host module."
+        dependsOn(":meshlink-reference:android:installDebug")
+    }

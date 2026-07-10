@@ -62,11 +62,27 @@ internal fun readinessBlockers(
 
 private fun powerManagementBlockers(context: Context): List<String> {
     val powerManager = context.powerManagerOrNull()
-    val needsMitigation =
-        powerManager != null &&
-            (powerManager.isDeviceIdleMode ||
-                (!powerManager.isInteractive &&
-                    !powerManager.isIgnoringBatteryOptimizations(context.packageName)))
+    return powerManagementBlockers(
+        hasPowerManager = powerManager != null,
+        idleMode = powerManager?.isDeviceIdleMode ?: false,
+        interactive = powerManager?.isInteractive ?: false,
+        ignoringOptimizations =
+            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false,
+    )
+}
+
+/**
+ * Pure decision logic behind [powerManagementBlockers], separated from [PowerManager] and [Context]
+ * so it is directly unit-testable without Android framework mocking, mirroring
+ * [BlePermissionContract]'s testable-contract pattern.
+ */
+internal fun powerManagementBlockers(
+    hasPowerManager: Boolean,
+    idleMode: Boolean,
+    interactive: Boolean,
+    ignoringOptimizations: Boolean,
+): List<String> {
+    val needsMitigation = hasPowerManager && (idleMode || (!interactive && !ignoringOptimizations))
     return if (needsMitigation) {
         listOf(
             "Keep the screen awake or disable battery optimization before starting MeshLink " +

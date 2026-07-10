@@ -126,12 +126,12 @@ def main() -> int:
         )
         require_contains(
             "meshlink-reference/build.gradle.kts",
-            'val localCheck by tasks.registering',
+            'tasks.register("localCheck")',
             ":meshlink-reference must keep the localCheck compatibility task",
         )
         require_contains(
             "meshlink-reference/build.gradle.kts",
-            'val installDebug by tasks.registering',
+            'tasks.register("installDebug")',
             ":meshlink-reference must keep the installDebug compatibility task",
         )
         require_not_contains(
