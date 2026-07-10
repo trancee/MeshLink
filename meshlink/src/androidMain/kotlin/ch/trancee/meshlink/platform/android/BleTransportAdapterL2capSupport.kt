@@ -371,6 +371,7 @@ internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Un
     // scan-processing coroutine or by a "socket closed" retry scheduled from a force-close inside
     // this very function (see cancelPendingConnects() below).
     transportStopping = true
+    unregisterBluetoothStateChangeReceiver()
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null

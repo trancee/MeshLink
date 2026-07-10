@@ -161,6 +161,17 @@ internal class BleTransportAdapter(
     internal var scanner: BluetoothLeScanner? = null
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
+    internal var bluetoothStateChangeReceiver: android.content.BroadcastReceiver? = null
+    internal val bluetoothStateChangeDebouncer =
+        BluetoothStateChangeDebouncer(
+            scheduleRestart = { delayMillis, restart ->
+                coroutineScope.launch {
+                    delay(delayMillis)
+                    restart()
+                }
+            },
+            log = ::log,
+        )
     internal var started: Boolean = false
     // Flipped true as the very first step of stopTransports() (before started is set false, which
     // only happens after stopTransports() returns) and reset false at the start of

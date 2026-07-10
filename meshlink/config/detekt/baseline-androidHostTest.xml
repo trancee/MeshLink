@@ -70,6 +70,7 @@
     <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$32</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleFixture$12</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$3</ID>
+    <ID>MagicNumber:BluetoothStateChangeSupportTest.kt$BluetoothStateChangeSupportTest$3</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$4</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$5</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$7</ID>
