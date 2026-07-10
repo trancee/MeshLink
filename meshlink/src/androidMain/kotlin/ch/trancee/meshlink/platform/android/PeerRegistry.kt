@@ -194,7 +194,13 @@ internal class PeerRegistry(private val bindings: PeerBindings) {
                         )
                     )
                 } else {
-                    emptyList()
+                    // A brand-new peer registered without an authenticated presence announcement
+                    // (see BleTransportAdapter.registerProvisionalGattPeer) -- most commonly an
+                    // inbound GATT connection from a peer this device never independently
+                    // scan-discovered. Still give the engine a one-time trigger to evaluate
+                    // proactively initiating a handshake towards it (see
+                    // TransportEvent.InboundPeerClaimed's doc comment for why this matters).
+                    listOf(TransportEvent.InboundPeerClaimed(peerId = hintPeerId))
                 },
         )
     }

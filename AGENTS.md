@@ -27,7 +27,18 @@ do not duplicate its content here; link to it instead.
   uninstall the previous install before installing the new one. Never run
   physical-device benchmarks or proof runs against whatever build happens to
   already be installed -- stale builds silently miss recent fixes and
-  produce misleading "real hardware" evidence. See
+  produce misleading "real hardware" evidence. For Android, that means
+  `./gradlew :meshlink-proof:android:assembleDebug` (or the relevant
+  benchmark/reference module) followed by
+  `adb -s <serial> uninstall <package-id>` on every target device, *before*
+  invoking `meshlink-proof/scripts/run_android_proof_fleet.py` or the
+  `meshlink-benchmark` fleet scripts -- those scripts only reinstall in
+  place (`adb install -r`) and do not rebuild for you.
+  `run_android_proof_fleet.py` prints a `WARNING: STALE APK` line (and
+  records `apkFreshnessWarning` in its `summary.json`) when the installed
+  APK predates the latest relevant commit, but that check cannot substitute
+  for actually doing the rebuild/uninstall -- treat any such warning as a
+  blocker, not a suggestion. See
   [meshlink-benchmark/README.md](meshlink-benchmark/README.md#physical-device-scripts)
   for the required rebuild/reinstall step.
 

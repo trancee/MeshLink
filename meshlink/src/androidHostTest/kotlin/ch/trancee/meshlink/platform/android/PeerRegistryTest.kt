@@ -40,6 +40,43 @@ class PeerRegistryTest {
     }
 
     @Test
+    fun upsertDiscoveryEmitsInboundPeerClaimedInsteadOfPeerDiscoveredWhenPresenceIsNotAnnounced():
+        Unit {
+        // Arrange -- mirrors BleTransportAdapter.registerProvisionalGattPeer, which registers a
+        // peer claimed via an inbound GATT connection without treating it as a fully authenticated
+        // presence announcement (see that function's doc comment). The engine still needs a
+        // trigger to evaluate self-initiating a handshake towards this peer id -- see
+        // TransportEvent.InboundPeerClaimed's doc comment for the real, previously-deadlocking
+        // asymmetric-discovery regression this covers.
+        val bindings = PeerBindings()
+        val registry = PeerRegistry(bindings = bindings)
+        val keyHash = keyHash(seed = 1)
+        val hintPeerId = PeerId(keyHash.toHexString())
+        val discovery =
+            DiscoveredPeerDiscovery(
+                address = DEVICE_ADDRESS_A,
+                keyHash = keyHash,
+                l2capPsm = 0,
+                transportMode = TransportMode.GATT,
+                platformFamily = BleDiscoveryPlatformFamily.ANDROID,
+            )
+
+        // Act
+        val update =
+            registry.upsertDiscovery(
+                hintPeerId = hintPeerId,
+                discovery = discovery,
+                announcePresence = false,
+            )
+
+        // Assert
+        assertEquals(1, update.events.size)
+        val event = update.events.single() as TransportEvent.InboundPeerClaimed
+        assertEquals(hintPeerId, event.peerId)
+        assertEquals(hintPeerId.value, bindings.hintForAddress(DEVICE_ADDRESS_A))
+    }
+
+    @Test
     fun upsertDiscoveryEmitsTransportModeChangedWhenTransportChanges(): Unit {
         // Arrange
         val bindings = PeerBindings()

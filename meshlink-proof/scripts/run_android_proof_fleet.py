@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
 """Run the MeshLink proof app across the attached Android fleet.
 
+REQUIRED before every physical-device run (AGENTS.md rule; see
+meshlink-benchmark/history.md's 2026-07-09 stale-build false-negative entry
+for why this matters and 2026-07-10 for a repeat of the same mistake against
+this exact script):
+
+    1. ./gradlew :meshlink-proof:android:assembleDebug
+    2. adb -s <serial> uninstall ch.trancee.meshlink.proof.android   (each device)
+    3. Then run this script.
+
+This script does NOT rebuild the APK and only reinstalls in place
+(`adb install -r`), so an install left over from days/weeks ago is silently
+reused otherwise. `check_apk_freshness()` below prints a WARNING (and records
+`apkFreshnessWarning` in summary.json) if the APK on disk predates the most
+recently modified tracked file under `meshlink-proof/android/` or
+`meshlink/src/`, but it cannot force step 1/2 for you - do not skip them.
+
 Troubleshooting: ADVERTISE_FAILED_TOO_MANY_ADVERTISERS / SCAN_FAILED_*
 -----------------------------------------------------------------------
 A device that has been advertising/scanning for a long time (many hours) can
@@ -554,6 +570,66 @@ def slugify(value: str) -> str:
     return normalized or "device"
 
 
+def check_apk_freshness() -> str | None:
+    """Warn loudly if the APK on disk predates the newest edited source file.
+
+    AGENTS.md requires a fresh `./gradlew :meshlink-proof:android:assembleDebug`
+    plus `adb uninstall` before every physical-device proof run - stale builds
+    silently miss recent fixes and produce misleading "real hardware"
+    evidence (see meshlink-benchmark/history.md, 2026-07-09 stale-build
+    false-negative entry, and the 2026-07-10 repeat of the same mistake
+    against this exact script). This check cannot force a rebuild (the APK
+    may be intentionally pinned for a specific investigation), but it makes
+    forgetting the step impossible to miss in the run output.
+
+    Compares against tracked source files' filesystem mtimes rather than the
+    latest commit timestamp: a normal build-then-commit workflow always
+    finishes the build before `git commit` runs, so the commit's timestamp is
+    naturally later than a genuinely fresh build and would false-positive on
+    every single commit (observed in practice on 2026-07-10). File mtimes
+    also correctly catch a genuinely fresh *uncommitted* edit that hasn't
+    been rebuilt yet, which a commit-timestamp check cannot see at all.
+    """
+    if not APK.exists():
+        return (
+            f"APK not found at {APK}. Build it first: "
+            "./gradlew :meshlink-proof:android:assembleDebug"
+        )
+    try:
+        tracked_paths = subprocess.run(
+            ["git", "ls-files", "--", "meshlink-proof/android", "meshlink/src"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    apk_mtime = APK.stat().st_mtime
+    newest_source_relative_path: str | None = None
+    newest_source_mtime = -1.0
+    for relative_path in tracked_paths:
+        try:
+            mtime = (ROOT / relative_path).stat().st_mtime
+        except OSError:
+            continue
+        if mtime > newest_source_mtime:
+            newest_source_mtime = mtime
+            newest_source_relative_path = relative_path
+    if newest_source_relative_path is not None and newest_source_mtime > apk_mtime:
+        apk_age = datetime.fromtimestamp(apk_mtime, tz=timezone.utc).isoformat()
+        source_age = datetime.fromtimestamp(newest_source_mtime, tz=timezone.utc).isoformat()
+        return (
+            f"STALE APK: {APK} was built {apk_age}, but {newest_source_relative_path} "
+            f"under meshlink-proof/android/ or meshlink/src/ was last modified {source_age}. "
+            "Rebuild before trusting this run: "
+            "./gradlew :meshlink-proof:android:assembleDebug -- then uninstall the "
+            f"previous install on every target device (adb -s <serial> uninstall {PACKAGE_NAME}) "
+            "before rerunning. See AGENTS.md's physical-device rule."
+        )
+    return None
+
+
 def install_apk(serial: str) -> dict[str, Any]:
     completed = run_command(["adb", "-s", serial, "install", "-r", str(APK)])
     return {
@@ -1060,6 +1136,9 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    apk_freshness_warning = check_apk_freshness()
+    if apk_freshness_warning:
+        print(f"WARNING: {apk_freshness_warning}", file=sys.stderr)
     timestamp_value = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_root = Path(args.run_root) if args.run_root else DEFAULT_RUN_ROOT / timestamp_value
     run_root.mkdir(parents=True, exist_ok=True)
@@ -1109,6 +1188,7 @@ def main(argv: list[str] | None = None) -> int:
         "capturedAt": datetime.now(timezone.utc).isoformat(),
         "appId": app_id,
         "apk": str(APK),
+        "apkFreshnessWarning": apk_freshness_warning,
         "package": PACKAGE_NAME,
         "activity": ACTIVITY_NAME,
         "powerMode": args.power_mode,

@@ -214,6 +214,7 @@
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$bluetoothAdapter = adapter</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$discoveryLifecycle.updateL2capPsm( advertisedDiscoveryL2capPsm( serverSocketPsm = serverSocket?.psm, localL2capClientSocketsSupported = supportsL2capClientSockets(), ) )</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$gattNotifyServer.start().also { ready -> if (!ready) { log("GATT notify server unavailable: service did not become ready") } }</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$if (!context.isScreenInteractive()) { startBackgroundScan() }</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$inboundFrameQueue = createInboundFrameQueue()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$inboundFrameQueue?.close()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$l2capServerSocket = serverSocket</ID>
@@ -223,9 +224,9 @@
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$refreshDiscoveryState()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$registerBackgroundScanReceiver()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$registerBluetoothStateChangeReceiver()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$registerScreenStateReceiver()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$scanner = try { adapter.bluetoothLeScanner } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$serverSocket?.let(::launchAcceptLoop)</ID>
-    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$startBackgroundScan()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$started = true</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$this.gattNotifyServer = gattNotifyServer</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val adapter = try { bluetoothManager.adapter ?: error("BluetoothAdapter is unavailable") } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>

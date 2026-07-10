@@ -31,6 +31,20 @@ internal sealed class TransportEvent {
 
     internal class PeerLost internal constructor(internal val peerId: PeerId) : TransportEvent()
 
+    // Emitted when an inbound GATT connection claims a peer id (see
+    // ch.trancee.meshlink.platform.android.BleTransportAdapter.registerProvisionalGattPeer) that
+    // this transport had no prior DiscoveredPeer entry for -- i.e. a device that only ever accepts
+    // inbound connections and never independently scan-discovers its peer. Unlike PeerDiscovered,
+    // this intentionally does NOT flow through PeerPresenceTracker/announce a connected-peer UI
+    // event (the claim is unauthenticated at this point -- see registerProvisionalGattPeer's own
+    // doc comment), but the engine still needs a trigger to proactively initiate a handshake
+    // towards this peer id if shouldInitiateHandshakeTowards says this device should -- otherwise,
+    // when the *other* side also never independently scan-discovers this device (a real,
+    // reproducible asymmetric-BLE-discovery case, not just a hypothetical), neither side ever
+    // calls prewarmHopSession() and the pairing deadlocks with no handshake ever attempted.
+    internal class InboundPeerClaimed internal constructor(internal val peerId: PeerId) :
+        TransportEvent()
+
     internal class FrameReceived
     internal constructor(internal val peerId: PeerId, payload: ByteArray) : TransportEvent() {
         internal val payload: ByteArray = payload.copyOf()

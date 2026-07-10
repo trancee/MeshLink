@@ -5,10 +5,11 @@ import android.content.Context
 import android.content.IntentFilter
 import android.os.Build
 
-// Shared by registerBluetoothStateChangeReceiver() and registerBackgroundScanReceiver() -- both
-// dynamically (Context.registerReceiver, never manifest-declared) register a short-lived
-// BroadcastReceiver scoped to this process for the lifetime of a single BleTransportAdapter
-// start()/stop() cycle, and both need the same API-33+ exported-flag handling.
+// Shared by registerBluetoothStateChangeReceiver(), registerBackgroundScanReceiver(), and
+// registerScreenStateReceiver() -- all dynamically (Context.registerReceiver, never
+// manifest-declared) register a short-lived BroadcastReceiver scoped to this process for the
+// lifetime of a single BleTransportAdapter start()/stop() cycle, and all need the same API-33+
+// exported-flag handling.
 
 /**
  * Registers [receiver] for [action] using [Context.RECEIVER_NOT_EXPORTED] on API 33+ -- required
@@ -18,7 +19,19 @@ import android.os.Build
  * reachable by other apps.
  */
 internal fun Context.registerDynamicReceiver(receiver: BroadcastReceiver, action: String): Unit {
-    val filter = IntentFilter(action)
+    registerDynamicReceiver(receiver = receiver, actions = listOf(action))
+}
+
+/**
+ * Same as the single-[action] overload above, for receivers that must react to more than one system
+ * broadcast (e.g. both `ACTION_SCREEN_ON` and `ACTION_SCREEN_OFF`).
+ */
+internal fun Context.registerDynamicReceiver(
+    receiver: BroadcastReceiver,
+    actions: List<String>,
+): Unit {
+    val filter = IntentFilter()
+    actions.forEach(filter::addAction)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
     } else {

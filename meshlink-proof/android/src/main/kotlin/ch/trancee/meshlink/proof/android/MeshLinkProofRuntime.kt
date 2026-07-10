@@ -937,13 +937,22 @@ internal object MeshLinkProofRuntime {
                         return@launch
                     }
                     if (launchConfig.benchmarkPayloadBytes != null && !routeReady) {
+                        // Do NOT return@launch here: routeReady only reflects whether this
+                        // device has passively observed a HOP_SESSION_ESTABLISHED diagnostic yet
+                        // (see awaitHopSessionReady()). The real MeshLink.send() call below
+                        // already knows how to establish a session on demand -- MeshEngine's
+                        // ensureHopSession() waits for the peer to initiate for a bounded window,
+                        // then self-initiates if they don't (see
+                        // MeshEngineSessionSupport.ensureHopSession() / prewarmHopSession()'s own
+                        // doc comments) -- so gating the attempt on routeReady only prevented that
+                        // fallback from ever running and could deadlock a pairing indefinitely when
+                        // this device is the mesh engine's designated "deferring" side and BLE
+                        // discovery happened to be one-sided this run (a real, reproducible
+                        // hardware failure mode, not hypothetical). Proceed to send() regardless;
+                        // it will simply take longer while the fallback runs.
                         appendLog(
-                            "BENCHMARK auto-send gated by route readiness ${describeRouteState(peerId)} source=$source"
+                            "BENCHMARK auto-send proceeding despite route not yet observed ready ${describeRouteState(peerId)} source=$source -- relying on send()'s own session-establishment fallback"
                         )
-                        synchronized(peerStateLock) {
-                            autoSendJobs.remove(peerId.value)
-                        }
-                        return@launch
                     }
                     appendLog(
                         "auto-send proceeding for ${peerId.value.takeLast(6)} source=$source routeReady=$routeReady connected=$connected mode=${if (launchConfig.benchmarkPayloadBytes != null) "benchmark" else "hello"} payloadBytes=${launchConfig.benchmarkPayloadBytes ?: 0}"
