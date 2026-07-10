@@ -1,7 +1,5 @@
 package ch.trancee.meshlink.platform.android
 
-import android.content.Context
-import android.os.Build
 import ch.trancee.meshlink.power.PowerPolicy
 
 internal fun advertisedDiscoveryL2capPsm(
@@ -36,20 +34,17 @@ internal fun BleTransportAdapter.registerBluetoothStateChangeReceiver(): Unit {
                 }
             }
         }
-    val filter =
-        android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-    } else {
-        @Suppress("UnspecifiedRegisterReceiverFlag") context.registerReceiver(receiver, filter)
-    }
+    context.registerDynamicReceiver(
+        receiver = receiver,
+        action = android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED,
+    )
     bluetoothStateChangeReceiver = receiver
 }
 
 internal fun BleTransportAdapter.unregisterBluetoothStateChangeReceiver(): Unit {
     val receiver = bluetoothStateChangeReceiver ?: return
     bluetoothStateChangeReceiver = null
-    runCatching { context.unregisterReceiver(receiver) }
+    context.unregisterDynamicReceiverQuietly(receiver)
 }
 
 internal suspend fun BleTransportAdapter.startTransport(): Unit {

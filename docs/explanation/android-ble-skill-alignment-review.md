@@ -143,6 +143,42 @@ baseline, Spec axis vs. this document's "Fixed in this pass" section) was run ag
 Re-verified after the fixes above: `:meshlink:allTests`, `:meshlink:detektAll`,
 `:meshlink:apiCheck`, `:meshlink:koverVerify`, and `verifyDocs` all pass.
 
+### Second pass -- full-branch review after decisions A1/B1/C2/D1/E1 landed
+
+A second `code-review`-skill pass was run against the complete `main...HEAD` diff (all seven
+commits) once every decided item was built. Findings and resolutions:
+
+- **Fixed (Standards, Duplicated Code):** the dynamic-`BroadcastReceiver` register/unregister
+  idiom (SDK-guarded `RECEIVER_NOT_EXPORTED` handling plus a `runCatching`-wrapped unregister) was
+  copy-pasted near-verbatim between `BackgroundScanSupport.kt` (item D1) and
+  `BleTransportAdapterLifecycleSupport.kt` (item E1). Extracted into a shared
+  `DynamicReceiverSupport.kt` (`Context.registerDynamicReceiver`/`unregisterDynamicReceiverQuietly`)
+  used by both.
+- **Fixed (Standards, stale docs):** `docs/how-to/unblock-meshlink-permissions.md` and
+  `meshlink-reference/scripts/run_headless_reference_android_direct_proof.py` still referenced
+  "the live-proof foreground wake-lock mitigation when the reference app starts it" after item
+  C2 removed it -- these were outside the file list the first C2 pass touched. Corrected both to
+  describe only the real, manual mitigation (keep the screen awake / disable battery
+  optimization). Repo-wide grep now finds zero remaining references outside this document's own
+  historical explanation and `reference-app-physical-integration-findings.md`'s retained-findings
+  correction.
+- **Fixed (Spec precision):** this document's A1 description previously claimed
+  `closeInternal(..., alreadyDisconnected = true)` is called from "the two call sites" already
+  inside a confirmed `STATE_DISCONNECTED` callback. In the actual code only *one* call site passes
+  that parameter (the give-up branch); the other already-confirmed-disconnected case (the
+  retryable-connect-failure branch, while a retry is still available) keeps its pre-existing direct
+  `session.close()` call and never goes through `closeInternal` at all, since it's about to
+  immediately reopen a fresh session and doesn't need `closeInternal`'s other lifecycle-state
+  resets. Both call sites are safe for the same underlying reason, but the doc's literal claim
+  about which function they call through was corrected above.
+- **Confirmed correct (no changes needed):** the `alreadyDisconnected` split's other call sites,
+  the exponential backoff formula (B1), the `D1`/`E1` register/unregister symmetry, no scope creep
+  into Deferred items F/G, and no remaining `DirectProofPowerService`/manifest-receiver residue
+  from C2.
+
+Re-verified after these fixes: `:meshlink:allTests`, `:meshlink:detektAll`, `:meshlink:apiCheck`,
+`:meshlink:koverVerify`, and `verifyDocs` all pass.
+
 ## Deferred — proposed, not applied in this pass
 
 These require larger, riskier refactors of tested state machines or product decisions the team
@@ -163,11 +199,17 @@ path in `GattNotifyClient`).
 `connection.close()`; a new `requestDisconnect()` does only `connection.disconnect()`.
 `GattNotifyClient.closeInternal(markClosedByOwner, alreadyDisconnected)` gained a second parameter:
 
-- `alreadyDisconnected = true` at the two call sites already inside a confirmed
-  `onConnectionStateChange(.., STATE_DISCONNECTED)` callback (the give-up branch, and the
-  retryable-connect-failure branch's inline close) — the connection is already torn down there, so
-  closing immediately is correct per the skill ("close() ... regardless of the status code" once
-  `STATE_DISCONNECTED` has actually been reported).
+- `closeInternal(..., alreadyDisconnected = true)` is passed at exactly one call site: the
+  give-up branch of `onConnectionStateChange`'s `STATE_DISCONNECTED` handling, once the retryable-
+  connect-failure retry budget is exhausted. The *other* already-confirmed-disconnected case (the
+  retryable-connect-failure branch itself, while a retry is still available) does not go through
+  `closeInternal` at all -- it keeps its pre-existing direct `session.close()` call (skipping
+  `requestDisconnect()` too), since it's about to immediately reopen a fresh session via
+  `startInternal()` and doesn't need `closeInternal`'s lifecycle-state/`identityAnnounced` reset.
+  Both of these two sites are safe for the same reason (already inside a confirmed
+  `STATE_DISCONNECTED` callback), but only one of them is actually a `closeInternal(...
+  alreadyDisconnected = true)` call -- worth knowing precisely if a future change touches either
+  branch.
 - The default `alreadyDisconnected = false` (every other call site: `onServicesDiscovered`
   failures, `onDescriptorWrite` failure, a rejected inbound frame, a write timeout, and the public
   `close()`) now calls `requestDisconnect()` and defers the real `close()` behind a bounded

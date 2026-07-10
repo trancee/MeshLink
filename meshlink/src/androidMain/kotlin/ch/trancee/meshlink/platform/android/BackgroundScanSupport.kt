@@ -8,7 +8,6 @@ import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import kotlinx.coroutines.launch
 
@@ -45,19 +44,17 @@ internal fun BleTransportAdapter.registerBackgroundScanReceiver(): Unit {
                 handleBackgroundScanIntent(intent)
             }
         }
-    val filter = IntentFilter(backgroundScanAction(context.packageName))
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-    } else {
-        @Suppress("UnspecifiedRegisterReceiverFlag") context.registerReceiver(receiver, filter)
-    }
+    context.registerDynamicReceiver(
+        receiver = receiver,
+        action = backgroundScanAction(context.packageName),
+    )
     backgroundScanReceiver = receiver
 }
 
 internal fun BleTransportAdapter.unregisterBackgroundScanReceiver(): Unit {
     val receiver = backgroundScanReceiver ?: return
     backgroundScanReceiver = null
-    runCatching { context.unregisterReceiver(receiver) }
+    context.unregisterDynamicReceiverQuietly(receiver)
 }
 
 internal fun BleTransportAdapter.handleBackgroundScanIntent(intent: Intent): Unit {
