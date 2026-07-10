@@ -67,6 +67,12 @@ internal class GattNotifyClient(
     private val connectRetryDelayMillis: Long = CONNECT_RETRY_DELAY_MILLIS,
     private val connectRetryScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    // Overridable for the same reason as connectRetryDelayMillis/connectRetryScope above: tests
+    // need a zero delay and a synchronously-resolving scope to observe the deferred-close safety
+    // net (see closeInternal) deterministically.
+    private val disconnectConfirmTimeoutMillis: Long = DISCONNECT_CONFIRM_TIMEOUT_MILLIS,
+    private val teardownScope: CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     @Volatile private var session: GattNotifySession? = null
     @Volatile
@@ -139,17 +145,19 @@ internal class GattNotifyClient(
                             connectRetryAttempts < MAX_CONNECT_RETRY_ATTEMPTS
                     ) {
                         connectRetryAttempts += 1
+                        val backoffMillis =
+                            connectRetryDelayMillis * (1L shl (connectRetryAttempts - 1))
                         log(
                             "GATT notify side link ${peerHintId.value.takeLast(6)} status=$status " +
                                 "(retryable connect failure), retrying connect ($connectRetryAttempts/" +
-                                "$MAX_CONNECT_RETRY_ATTEMPTS) in ${connectRetryDelayMillis}ms"
+                                "$MAX_CONNECT_RETRY_ATTEMPTS) in ${backoffMillis}ms"
                         )
                         failAllPendingWrites()
                         runCatching { this@GattNotifyClient.session?.close() }
                         this@GattNotifyClient.session = null
                         reconnectPending = true
                         connectRetryScope.launch {
-                            delay(connectRetryDelayMillis)
+                            delay(backoffMillis)
                             // Bypasses the reconnectPending guard in start() entirely rather than
                             // clearing the flag first and then calling start() as two separate
                             // steps -- this coroutine is the sole intended owner of this specific
@@ -165,7 +173,7 @@ internal class GattNotifyClient(
                     }
                     val shouldNotifyDisconnect = !lifecycleState.closedByOwner
                     failAllPendingWrites()
-                    closeInternal(markClosedByOwner = true)
+                    closeInternal(markClosedByOwner = true, alreadyDisconnected = true)
                     if (shouldNotifyDisconnect) {
                         onDisconnected(peerHintId)
                     }
@@ -476,7 +484,10 @@ internal class GattNotifyClient(
         pending.forEach { it.deferred.complete(false) }
     }
 
-    private fun closeInternal(markClosedByOwner: Boolean): Unit {
+    private fun closeInternal(
+        markClosedByOwner: Boolean,
+        alreadyDisconnected: Boolean = false,
+    ): Unit {
         identityAnnounced = false
         lifecycleState =
             closedGattNotifyLifecycle(
@@ -484,8 +495,33 @@ internal class GattNotifyClient(
                 markClosedByOwner = markClosedByOwner,
             )
         failAllPendingWrites()
-        runCatching { session?.close() }
+        val activeSession = session ?: return
         session = null
+        if (alreadyDisconnected) {
+            // This call site is already inside a confirmed onConnectionStateChange(..,
+            // STATE_DISCONNECTED) callback -- the native connection is already torn down, so
+            // there is nothing to wait for and closing immediately is safe (see
+            // android-ble-gatt-status-133 skill: close() is fine "regardless of the status code"
+            // once STATE_DISCONNECTED has actually been reported).
+            runCatching { activeSession.close() }
+            return
+        }
+        // Every other call site reaches closeInternal() while the connection may still be
+        // STATE_CONNECTING/STATE_CONNECTED (service-discovery/descriptor/write failures, a
+        // rejected inbound frame, or an external close() from GattSideLinkCoordinator) --
+        // requesting disconnect and deferring the actual close() avoids racing the native stack
+        // (see android-ble-gatt-status-133 skill). This project does not correlate a later
+        // onConnectionStateChange(STATE_DISCONNECTED) callback back to this specific superseded
+        // session (the same GattNotifySessionListener instance is reused across reconnects, and
+        // session is already nulled out above so a fresh connect can start immediately -- see
+        // start()/startInternal()), so rather than a fragile same-callback correlation, this uses
+        // a bounded timeout long enough for a real disconnect to complete before releasing the
+        // native BluetoothGatt client interface.
+        runCatching { activeSession.requestDisconnect() }
+        teardownScope.launch {
+            delay(disconnectConfirmTimeoutMillis)
+            runCatching { activeSession.close() }
+        }
     }
 
     /**
@@ -660,6 +696,13 @@ internal class GattNotifyClient(
         private const val ANDROID_GATT_CONNECTION_TIMEOUT: Int = 147
         private const val MAX_CONNECT_RETRY_ATTEMPTS: Int = 2
         private const val CONNECT_RETRY_DELAY_MILLIS: Long = 400L
+        // Bounds how long closeInternal()'s graceful-teardown path waits, after requesting a
+        // disconnect, before releasing the native BluetoothGatt client interface -- long enough
+        // that a real disconnect from a healthy stack has already completed, short enough that a
+        // peer that never confirms (e.g. already out of range) doesn't leak the GATT client slot
+        // indefinitely. See closeInternal()'s doc comment for why this is a bounded wait rather
+        // than an explicit STATE_DISCONNECTED confirmation.
+        private const val DISCONNECT_CONFIRM_TIMEOUT_MILLIS: Long = 2_000L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
 

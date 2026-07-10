@@ -171,11 +171,12 @@ class BluetoothGattNotifySessionTest {
     }
 
     @Test
-    fun closeDisconnectsBeforeClosingTheUnderlyingConnection(): Unit {
-        // Arrange: Android's BluetoothGatt API docs (and community-documented experience with
-        // status=133/GATT_ERROR on reconnect) call for always requesting disconnect() before
-        // close() rather than closing directly while the link may still be active -- see
-        // GattConnectionAdapter.disconnect() for the full rationale.
+    fun closeReleasesTheUnderlyingConnectionWithoutRequestingDisconnect(): Unit {
+        // Arrange: close() and requestDisconnect() are now two distinct steps (see
+        // GattNotifySession.close()'s doc comment) so GattNotifyClient can request a graceful
+        // disconnect from a still-connected callback and defer the actual close() until Android
+        // confirms STATE_DISCONNECTED (or a bounded safety-net timeout elapses) instead of racing
+        // the native stack by calling both back-to-back synchronously.
         val connection = FakeGattConnectionAdapter()
         val session = BluetoothGattNotifySession(connection = connection, sdkInt = 33)
 
@@ -183,9 +184,24 @@ class BluetoothGattNotifySessionTest {
         session.close()
 
         // Assert
-        assertEquals(1, connection.disconnectCalls)
+        assertEquals(0, connection.disconnectCalls)
         assertEquals(1, connection.closeCalls)
-        assertEquals(listOf("disconnect", "close"), connection.callOrder)
+        assertEquals(listOf("close"), connection.callOrder)
+    }
+
+    @Test
+    fun requestDisconnectOnlyDisconnectsWithoutClosing(): Unit {
+        // Arrange
+        val connection = FakeGattConnectionAdapter()
+        val session = BluetoothGattNotifySession(connection = connection, sdkInt = 33)
+
+        // Act
+        session.requestDisconnect()
+
+        // Assert
+        assertEquals(1, connection.disconnectCalls)
+        assertEquals(0, connection.closeCalls)
+        assertEquals(listOf("disconnect"), connection.callOrder)
     }
 }
 

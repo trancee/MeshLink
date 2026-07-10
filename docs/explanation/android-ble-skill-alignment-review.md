@@ -151,62 +151,50 @@ the available options clearly and concisely, then wait for the user to decide."*
 described with its skill citation, evidence, and a concrete proposed diff so it can be picked up
 as follow-on work.
 
-### A. `gatt.close()` is called before `STATE_DISCONNECTED` is confirmed in several client paths
+### A. `gatt.close()` timing -- decided: A1, built
 
 **Skill:** `android-ble-gatt-status-133` — *"Never call `close()` while `STATE_CONNECTING` or
 `STATE_CONNECTED`; doing so races the native stack and can orphan internal resources."*
 
-**Where:** `BluetoothGattNotifySession.close()` (`GattNotifySessionAdapter.kt`) calls
-`connection.disconnect()` immediately followed by `connection.close()`, with no wait for the
-`onConnectionStateChange(STATE_DISCONNECTED)` callback. `GattNotifyClient.closeInternal()` invokes
-this from several paths where the link may still be `STATE_CONNECTED`: `onServicesDiscovered`
-failure, `onDescriptorWrite` failure, a rejected inbound frame, a write timeout, and the public
-`close()` called from `GattSideLinkCoordinator`.
+**Decision:** A1 (do the refactor now, bundled with B1 since both touch the same connect/teardown
+path in `GattNotifyClient`).
 
-**Why deferred:** This is the correct target end-state, but splitting `close()` into
-`requestDisconnect()` (disconnect only) + a real `close()` gated on the `STATE_DISCONNECTED`
-callback touches the core connect/teardown state machine covered by ~10 existing test files
-(`GattNotifyClientTest` equivalents, `GattSideLinkCoordinatorTest`, `BleTransportAdapterLifecycle*`
-tests) and needs a bounded safety-net timeout for peers that never confirm disconnection (e.g.
-already out of range) so the `BluetoothGatt` slot isn't leaked forever either. Recommend a
-follow-up task scoped specifically to this refactor with its own test plan, rather than folding it
-into this review pass.
+**What changed:** `GattNotifySession.close()` (`GattNotifySessionAdapter.kt`) now does only
+`connection.close()`; a new `requestDisconnect()` does only `connection.disconnect()`.
+`GattNotifyClient.closeInternal(markClosedByOwner, alreadyDisconnected)` gained a second parameter:
 
-**Proposed shape** (see full reviewer report for the complete snippet):
-```kotlin
-private fun closeInternal(markClosedByOwner: Boolean): Unit {
-    ...
-    val activeSession = session
-    session = null
-    if (activeSession == null) return
-    runCatching { activeSession.requestDisconnect() }   // gatt.disconnect() only
-    connectRetryScope.launch {
-        withTimeoutOrNull(DISCONNECT_CONFIRM_TIMEOUT_MILLIS) { activeSession.awaitDisconnected() }
-        runCatching { activeSession.close() }            // real gatt.close(), post-confirmation
-    }
-}
-```
+- `alreadyDisconnected = true` at the two call sites already inside a confirmed
+  `onConnectionStateChange(.., STATE_DISCONNECTED)` callback (the give-up branch, and the
+  retryable-connect-failure branch's inline close) — the connection is already torn down there, so
+  closing immediately is correct per the skill ("close() ... regardless of the status code" once
+  `STATE_DISCONNECTED` has actually been reported).
+- The default `alreadyDisconnected = false` (every other call site: `onServicesDiscovered`
+  failures, `onDescriptorWrite` failure, a rejected inbound frame, a write timeout, and the public
+  `close()`) now calls `requestDisconnect()` and defers the real `close()` behind a bounded
+  `disconnectConfirmTimeoutMillis` (2s in production) via an injectable `teardownScope`, instead of
+  calling both synchronously back-to-back.
 
-### B. GATT connect retry backoff is fixed (400ms), not exponential
+**Known, disclosed limitation:** this does not correlate a later `onConnectionStateChange`
+callback back to the specific session being torn down to close exactly on confirmation --
+`session` is nulled immediately (as before) so a fresh reconnect can start right away, and the same
+`GattNotifySessionListener` instance is reused across reconnects, so there is no reliable way to
+tell "this STATE_DISCONNECTED event is for the old, closing session" from "this is for a brand new
+one" from the callback parameters alone. Building genuine event-based confirmation would need a
+larger identity-tracking change across sessions/callbacks; the bounded-timeout approach instead
+directly fixes the core bug (no more synchronous `disconnect()`-then-`close()`) with much less risk
+to the existing state machine. Tests assert the new call ordering
+(`requestDisconnectCalls` before `closeCalls`) but, per the same disclosed limitation as items
+2/3/5 above, cannot assert the real-world timing gap deterministically without wall-clock waits or
+a fake-clock DI seam this test file doesn't already have.
+
+### B. GATT connect retry backoff -- decided: B1, built
 
 **Skill:** `android-ble-gatt-status-133` §5 — *"Wrap `connectGatt` in a bounded retry loop with
 exponential backoff (e.g. 2s, 4s, 8s...)."*
 
-**Where:** `GattNotifyClient`'s `CONNECT_RETRY_DELAY_MILLIS = 400L` is used unchanged on every
-retry rather than scaled by `connectRetryAttempts`.
-
-**Why deferred:** Low risk, but changes observable timing asserted by existing retry tests; should
-land with its own test updates (assert 400ms → 800ms → ... rather than a fixed value) alongside
-change A above, since both touch the same connect/retry code path.
-
-**Proposed fix:**
-```kotlin
-connectRetryScope.launch {
-    val backoffMillis = connectRetryDelayMillis * (1L shl (connectRetryAttempts - 1))
-    delay(backoffMillis)
-    startInternal()
-}
-```
+**What changed:** `GattNotifyClient`'s retryable-connect-failure branch now computes
+`connectRetryDelayMillis * (1L shl (connectRetryAttempts - 1))` instead of a fixed delay --
+400ms/800ms across the two allowed attempts (`MAX_CONNECT_RETRY_ATTEMPTS = 2`).
 
 ### C. `DirectProofPowerService` is unwired dead code
 
@@ -346,8 +334,8 @@ Recorded so these strong points aren't re-litigated in a future pass:
 | 3 | L2CAP read loop missing `catch` (crash risk) | Blocker | **Fixed** |
 | 4 | Keepalive failures excluded from reconnect retry | Gap | **Fixed** |
 | 5 | Missing `BLUETOOTH_CONNECT` check before `startForeground` | Blocker | **Fixed** |
-| A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Decided A1 -- in progress |
-| B | Connect retry backoff is fixed, not exponential | Gap | Decided B1 -- bundled with A, in progress |
+| A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Decided A1 -- **Fixed** |
+| B | Connect retry backoff is fixed, not exponential | Gap | Decided B1 -- **Fixed** |
 | C | `DirectProofPowerService` is unwired dead code | Gap | Decided C2 -- **Fixed** (removed) |
 | D | No `PendingIntent` background scanning | Backlog | Decided D1 -- **Fixed** (supplementary scan channel; dead-process wake intentionally out of scope, see above) |
 | E | No Bluetooth-toggle receiver | Note | Decided E1 -- **Fixed** |
