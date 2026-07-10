@@ -23,8 +23,20 @@ private const val SHARED_PREFS_IDENTITY_SUFFIX = ":x25519-public"
 private const val RETAINED_DISCOVERY_PEER_ID_BYTES = 12
 
 /** Bounded retry budget for waiting on the identity to be written to shared_prefs by the
- * MeshLinkController bootstrap, which happens asynchronously and races with this probe. */
-private const val RETAINED_DISCOVERY_SEED_MAX_ATTEMPTS = 20
+ * MeshLinkController bootstrap, which happens asynchronously and races with this probe.
+ *
+ * Was 20 attempts / 5s total. Confirmed too tight under realistic conditions in two independent
+ * ways (2026-07-11 investigation): (1) an OPPO Reno13 5G (CPH2689) consistently missed this
+ * budget even running solo, with no other device or host activity involved; (2) a Xiaomi Redmi A3
+ * missed it only when run concurrently with a second device pair on the same host, even though its
+ * underlying MeshLink transport, discovery, and Noise handshake all completed successfully in the
+ * same run (confirmed via logcat) -- only this diagnostic identity-seed probe, and the matching
+ * host-side poll in run_headless_reference_android_direct_proof.py's read_passive_peer_id, timed
+ * out. Widening both budgets together (see that script's peer_resolution_wait_seconds) gives
+ * slower devices and loaded hosts realistic headroom without weakening the underlying identity
+ * bootstrap itself, which has no timeout of its own -- this is purely a harness/automation
+ * convenience probe, not something the real MeshLink session establishment depends on. */
+private const val RETAINED_DISCOVERY_SEED_MAX_ATTEMPTS = 60
 private const val RETAINED_DISCOVERY_SEED_RETRY_DELAY_MS = 250L
 
 private data class RetainedDiscoverySeedSnapshot(
