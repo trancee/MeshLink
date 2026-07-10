@@ -277,13 +277,15 @@ unregistered in `stopTransports()` — the same pattern as item E's Bluetooth-to
 **What was deliberately not built (scope boundary, not a gap):** waking a fully-killed process via
 a manifest-declared `BroadcastReceiver` and resuming meshing without an existing `MeshEngine`
 instance. MeshLink's current architecture has no facility for a receiver to reconstruct engine
-state, decide what to do with a discovered peer, or re-establish a connection headlessly — that
-is a standalone background-service architecture question (does MeshLink need a host-app-independent
+state, decide what to do with a discovered peer, or re-establish a connection headlessly.
+
+**Resolved:** this was chartered as a follow-up design conversation and settled —
+[ADR-0001](../adr/0001-no-dead-process-wake-meshing.md) records that MeshLink does **not** support
+this. "Alive process = meshing, dead process = not meshing" is a permanent product boundary, not a
+gap to close; a background-service architecture (does MeshLink need a host-app-independent
 headless mesh service at all? what does it do on a cold wake with no UI and no existing session?)
-far larger than a BLE scanning fix, and building it silently as a side effect of this decision would
-be exactly the kind of unreviewed architecture call `AGENTS.md` asks not to make alone. If
-dead-process-wake meshing is wanted, it needs its own dedicated design conversation and likely its
-own Decision-lettered item.
+is a materially different product than a BLE library, and the supplementary `PendingIntent` scan
+channel built above is the final, intended shape — not a partial step toward dead-process wake.
 
 **Testing:** `backgroundScanAction(packageName)` (the only pure, non-Android-API-calling piece of
 this change) has host-test coverage in `BackgroundScanSupportTest.kt`. The receiver
@@ -379,7 +381,7 @@ Recorded so these strong points aren't re-litigated in a future pass:
 | A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Decided A1 -- **Fixed** |
 | B | Connect retry backoff is fixed, not exponential | Gap | Decided B1 -- **Fixed** |
 | C | `DirectProofPowerService` is unwired dead code | Gap | Decided C2 -- **Fixed** (removed) |
-| D | No `PendingIntent` background scanning | Backlog | Decided D1 -- **Fixed** (supplementary scan channel; dead-process wake intentionally out of scope, see above) |
+| D | No `PendingIntent` background scanning | Backlog | Decided D1 -- **Fixed** (supplementary scan channel; dead-process wake resolved as permanently out of scope, see ADR-0001) |
 | E | No Bluetooth-toggle receiver | Note | Decided E1 -- **Fixed** |
 | F | Windowed write pipeline (4 in-flight) | Note | Documented, intentional |
 | G | No generic GATT operation queue | Note | Documented, deferred until needed |
