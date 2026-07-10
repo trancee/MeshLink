@@ -645,6 +645,37 @@ class GattNotifyClientTest {
     }
 
     @Test
+    fun status147DisconnectRetriesTheConnectionInsteadOfSurfacingItAsARealDisconnect(): Unit {
+        // Arrange: BluetoothGatt.GATT_CONNECTION_TIMEOUT (147, added in API 35) is the platform's
+        // newer, more specific status for the same underlying direct-connect timeout that older
+        // Android versions report as plain GATT_ERROR (133) -- see the android-ble-gatt-status-133
+        // skill's "Related status codes" section. It must be retried the same way 133 is, or
+        // devices on API 35+ would stop benefiting from this retry entirely.
+        val session = FakeGattNotifySession()
+        val factory = FakeGattNotifySessionFactory(session)
+        val disconnectedPeerIds = mutableListOf<PeerId>()
+        val client =
+            createGattNotifyClient(
+                factory = factory,
+                onDisconnected = { peerId -> disconnectedPeerIds += peerId },
+            )
+        client.start()
+        assertEquals(1, factory.openCalls)
+
+        // Act: the very first connection attempt fails immediately with status=147.
+        factory.listener.onConnectionStateChange(
+            address = session.address,
+            status = 147,
+            newState = BluetoothProfile.STATE_DISCONNECTED,
+        )
+
+        // Assert: retried exactly like status=133 -- a fresh connection attempt, not a real
+        // disconnect.
+        assertEquals(2, factory.openCalls)
+        assertEquals(emptyList(), disconnectedPeerIds)
+    }
+
+    @Test
     @Suppress("InjectDispatcher")
     fun concurrentEnsureStartedCallDuringAPendingStatus133RetryDoesNotOpenADuplicateConnection():
         Unit {
@@ -717,9 +748,10 @@ class GattNotifyClientTest {
 
     @Test
     fun nonGattErrorDisconnectStatusIsNotRetried(): Unit {
-        // Arrange: only status=133 (GATT_ERROR) is treated as a retryable transient failure; any
-        // other disconnect status (e.g. a clean/expected disconnect, or a different real error)
-        // must still surface immediately as a real disconnect.
+        // Arrange: only status=133 (GATT_ERROR) and status=147 (GATT_CONNECTION_TIMEOUT) are
+        // treated as retryable transient failures; any other disconnect status (e.g. a
+        // clean/expected disconnect, or a different real error) must still surface immediately as
+        // a real disconnect.
         val session = FakeGattNotifySession()
         val factory = FakeGattNotifySessionFactory(session)
         val disconnectedPeerIds = mutableListOf<PeerId>()

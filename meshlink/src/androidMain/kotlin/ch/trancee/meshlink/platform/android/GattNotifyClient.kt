@@ -62,7 +62,7 @@ internal class GattNotifyClient(
     private val sessionFactory: GattNotifySessionFactory =
         BluetoothGattNotifySessionFactory(context = context, device = device),
     // Overridable so tests can use a zero delay + an unconfined/immediate scope to observe the
-    // status=133 connect-retry deterministically, the same pattern already used for
+    // retryable-connect-failure retry deterministically, the same pattern already used for
     // GattSideLinkCoordinator's peerLostDebounceMillis/scope.
     private val connectRetryDelayMillis: Long = CONNECT_RETRY_DELAY_MILLIS,
     private val connectRetryScope: CoroutineScope =
@@ -72,13 +72,15 @@ internal class GattNotifyClient(
     @Volatile
     private var lifecycleState: GattNotifyLifecycleState =
         startedGattNotifyLifecycle(DEFAULT_ATT_MTU_BYTES)
-    // Counts consecutive status=133 (GATT_ERROR) connect failures for the *current* peer so the
+    // Counts consecutive retryable connect failures (status 133 GATT_ERROR or 147
+    // GATT_CONNECTION_TIMEOUT; see isRetryableConnectFailureStatus) for the *current* peer so the
     // bounded retry in onConnectionStateChange() doesn't retry forever; reset on every explicit
     // start() and on any successful STATE_CONNECTED callback.
     @Volatile private var connectRetryAttempts: Int = 0
     // Guards against GattSideLinkCoordinator.ensureStarted() (re-triggered on every incoming
     // discovery broadcast for a not-yet-ready peer) racing a fresh connectGatt() in behind the
-    // status=133 retry's own delayed start() call below -- without this, both could see
+    // retryable-connect-failure retry's own delayed start() call below -- without this, both could
+    // see
     // session == null during the retry delay window and each issue their own connectGatt() to the
     // same remote device, reintroducing the duplicate-connection-attempt failure mode this retry
     // is meant to recover from.
@@ -132,14 +134,14 @@ internal class GattNotifyClient(
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     if (
-                        status == ANDROID_GATT_ERROR &&
+                        isRetryableConnectFailureStatus(status) &&
                             !lifecycleState.closedByOwner &&
                             connectRetryAttempts < MAX_CONNECT_RETRY_ATTEMPTS
                     ) {
                         connectRetryAttempts += 1
                         log(
-                            "GATT notify side link ${peerHintId.value.takeLast(6)} status=133 " +
-                                "(GATT_ERROR), retrying connect ($connectRetryAttempts/" +
+                            "GATT notify side link ${peerHintId.value.takeLast(6)} status=$status " +
+                                "(retryable connect failure), retrying connect ($connectRetryAttempts/" +
                                 "$MAX_CONNECT_RETRY_ATTEMPTS) in ${connectRetryDelayMillis}ms"
                         )
                         failAllPendingWrites()
@@ -151,12 +153,12 @@ internal class GattNotifyClient(
                             // Bypasses the reconnectPending guard in start() entirely rather than
                             // clearing the flag first and then calling start() as two separate
                             // steps -- this coroutine is the sole intended owner of this specific
-                            // pending reconnect attempt (status=133 events for one connection are
-                            // delivered serially by Android, so only one retry can ever be
-                            // in-flight at a time), and closing the gap this way means there is no
-                            // moment where reconnectPending is false but the actual reconnect
-                            // hasn't happened yet for a concurrent ensureStarted() call to race
-                            // into.
+                            // pending reconnect attempt (retryable connect-failure events for
+                            // one connection are delivered serially by Android, so only one retry
+                            // can ever be in-flight at a time), and closing the gap this way means
+                            // there is no moment where reconnectPending is false but the actual
+                            // reconnect hasn't happened yet for a concurrent ensureStarted() call
+                            // to race into.
                             startInternal()
                         }
                         return
@@ -322,9 +324,10 @@ internal class GattNotifyClient(
     }
 
     // Unconditionally (re)opens a session, bypassing the reconnectPending guard in start(). Only
-    // called from two places: start() itself (after its guard already passed) and the status=133
-    // retry's own resumed coroutine above, which is the sole intended owner of a pending retry and
-    // must not be blocked by the very flag it set to keep *other* concurrent start() callers out.
+    // called from two places: start() itself (after its guard already passed) and the
+    // retryable-connect-failure retry's own resumed coroutine above, which is the sole intended
+    // owner of a pending retry and must not be blocked by the very flag it set to keep *other*
+    // concurrent start() callers out.
     private fun startInternal(): Unit {
         reconnectPending = false
         identityAnnounced = false
@@ -648,9 +651,23 @@ internal class GattNotifyClient(
         // than a permanent per-pairing failure, so a short bounded retry is attempted before
         // giving up and surfacing a real disconnect/PeerLost.
         private const val ANDROID_GATT_ERROR: Int = 133
+        // Added in API 35 as BluetoothGatt.GATT_CONNECTION_TIMEOUT: the platform's newer, more
+        // specific status for the same underlying direct-connect timeout that older Android
+        // versions report as plain GATT_ERROR (133) -- see the android-ble-gatt-status-133 skill's
+        // "Related status codes" section and Nordic's Kotlin-BLE-Library, which treats 133 and 147
+        // as one retryable family for exactly this reason. Retrying only 133 would leave devices on
+        // API 35+ (where this connection timeout is reported as 147 instead) unretried.
+        private const val ANDROID_GATT_CONNECTION_TIMEOUT: Int = 147
         private const val MAX_CONNECT_RETRY_ATTEMPTS: Int = 2
         private const val CONNECT_RETRY_DELAY_MILLIS: Long = 400L
         private const val DEFAULT_ATT_MTU_BYTES: Int = 23
         private const val MAX_FRAME_PAYLOAD_BYTES: Int = 128 * 1024
+
+        // True for connect-failure statuses that most often reflect a transient, retryable
+        // condition (a busy/glitchy local or OEM Bluetooth stack) rather than a genuine peer loss.
+        // See the constant doc comments above for why 133 and 147 are grouped together.
+        private fun isRetryableConnectFailureStatus(status: Int): Boolean {
+            return status == ANDROID_GATT_ERROR || status == ANDROID_GATT_CONNECTION_TIMEOUT
+        }
     }
 }
