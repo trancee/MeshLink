@@ -29,11 +29,17 @@ internal fun readinessBlockers(context: Context): List<String> {
 
 internal fun requiredPermissions(sdkInt: Int): List<String> {
     return if (sdkInt >= Build.VERSION_CODES.S) {
+        // ACCESS_FINE_LOCATION is intentionally NOT required here: BLUETOOTH_SCAN is declared in
+        // the manifest with usesPermissionFlags="neverForLocation" on API 31+, and
+        // ACCESS_FINE_LOCATION itself is declared with maxSdkVersion="30" -- so on any API 31+
+        // device the permission is not even requestable, and checkSelfPermission() for it always
+        // returns PERMISSION_DENIED. Requiring it here made every API 31+ device (e.g. a real
+        // Samsung Galaxy S10e on API 31) show a permanently-unsatisfiable "Startup blocked"
+        // banner, confirmed on physical hardware 2026-07-10.
         listOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.BLUETOOTH_ADVERTISE,
-            Manifest.permission.ACCESS_FINE_LOCATION,
         )
     } else {
         listOf(Manifest.permission.ACCESS_FINE_LOCATION)
