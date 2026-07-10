@@ -221,30 +221,57 @@ app is visible, e.g. `MainActivity`, never from boot/alarm, so it keeps While-In
 per skill §4) once the fix from item 5 above is in place. Needs a product decision on whether this
 mitigation should ship at all before wiring it in.
 
-### D. No `PendingIntent`-based background scanning path
+### D. No `PendingIntent`-based background scanning path — decided: D1, built with a narrowed scope
 
 **Skill:** `android-17-ble-migration` §6 — modern OEM Doze increasingly suspends non-batched,
 callback-based scanning once the screen is off, even with a `ScanFilter`; `PendingIntent`-based
 scanning lets the OS wake the process on a match without a persistent scan.
 
-**Why deferred:** This is an architectural addition (manifest-registered `BroadcastReceiver`,
-process-wake handling, reconciling `PendingIntent`-delivered results with the existing
-`PeerRegistry`/`PeerBindings` state), not a minimal fix. Flagged as a backlog item; MeshLink
-already does the cheaper mitigations (mandatory `ScanFilter`, deliberate `SCAN_MODE_*` selection,
-a self-healing idle watchdog) so this is about resilience on the most aggressive OEM Doze
-implementations specifically, not a baseline-functionality gap.
+**Decision:** D1 (build it). The original framing of this item bundled two distinct capabilities
+under one description — (a) a supplementary scan channel that keeps delivering matches to the
+*current, still-running* process even when OEM Doze suspends regular `ScanCallback` delivery once
+the screen is off, and (b) waking a *fully-killed* process from a manifest-declared receiver and
+resuming meshing without a live `MeshEngine` instance. Only (a) was built in this pass; (b) was
+intentionally scoped out rather than silently decided, for the reasons below.
 
-### E. No Bluetooth-toggle (`ACTION_STATE_CHANGED`) receiver
+**What was built:** `BackgroundScanSupport.kt` adds a second, supplementary scan registration
+using `BluetoothLeScanner.startScan(filters, settings, pendingIntent)` alongside (not replacing)
+the existing `ScanCallback`-based scan driven by `BleTransportDiscoveryLifecycle`. It reuses the
+same mandatory `buildScanFilters()` ScanFilter, uses `SCAN_MODE_LOW_POWER` per the skill's own
+example, and funnels every delivered `ScanResult` through the exact same `handleScanResult()` used
+by the callback path, so `PeerRegistry`/`BleTransportLinkRegistry` stay a single source of truth
+regardless of which channel delivered a given result. The receiver is registered dynamically
+(`Context.registerReceiver`, `RECEIVER_NOT_EXPORTED` on API 33+) in `startTransport()` and
+unregistered in `stopTransports()` — the same pattern as item E's Bluetooth-toggle receiver.
+
+**What was deliberately not built (scope boundary, not a gap):** waking a fully-killed process via
+a manifest-declared `BroadcastReceiver` and resuming meshing without an existing `MeshEngine`
+instance. MeshLink's current architecture has no facility for a receiver to reconstruct engine
+state, decide what to do with a discovered peer, or re-establish a connection headlessly — that
+is a standalone background-service architecture question (does MeshLink need a host-app-independent
+headless mesh service at all? what does it do on a cold wake with no UI and no existing session?)
+far larger than a BLE scanning fix, and building it silently as a side effect of this decision would
+be exactly the kind of unreviewed architecture call `AGENTS.md` asks not to make alone. If
+dead-process-wake meshing is wanted, it needs its own dedicated design conversation and likely its
+own Decision-lettered item.
+
+**Testing:** `backgroundScanAction(packageName)` (the only pure, non-Android-API-calling piece of
+this change) has host-test coverage in `BackgroundScanSupportTest.kt`. The receiver
+registration/PendingIntent construction/scan start-stop calls are platform glue with no existing
+test harness in this module, the same disclosed limitation as items 2/3/5 in "Fixed in this pass"
+above.
+
+### E. No Bluetooth-toggle (`ACTION_STATE_CHANGED`) receiver — decided: E1, built
 
 **Skill:** `android-17-ble-migration` §3.
 
-**Finding:** No receiver anywhere restarts discovery when the user manually toggles Bluetooth
-off/on. This means MeshLink has neither the debounced-restart antipattern the skill warns about
-nor a proactive recovery path for that specific trigger — discovery presumably resumes via
-whatever already calls `refreshDiscoveryState()`/`refresh()` on the next unrelated lifecycle event.
-Flagging as a confirm-with-team item: if "resume automatically the moment the user flips Bluetooth
-back on" is a desired UX property, it needs a debounced (`~1.5s`) receiver per the skill's recipe;
-if existing triggers already cover it adequately, no action needed.
+**Decision:** E1 (add the debounced receiver). Built as `BluetoothStateChangeSupport.kt`: a pure,
+host-tested `BluetoothStateChangeDebouncer` (generation-counter debounce, collapsing rapid
+off/on/off/on toggling into a single restart) plus `BroadcastReceiver` glue in `BleTransportAdapter`
+following the same register-in-`startTransport()`/unregister-in-`stopTransports()` pattern as item
+D's background-scan receiver. On `BluetoothAdapter.STATE_ON`, schedules a 1.5s-debounced
+`refreshDiscoveryState()` call so discovery proactively resumes after the user re-enables
+Bluetooth, rather than waiting for some unrelated caller to invoke `start()`/`refresh()` again.
 
 ### F. Windowed GATT write pipeline intentionally pipelines up to 4 in-flight writes
 
@@ -319,10 +346,10 @@ Recorded so these strong points aren't re-litigated in a future pass:
 | 3 | L2CAP read loop missing `catch` (crash risk) | Blocker | **Fixed** |
 | 4 | Keepalive failures excluded from reconnect retry | Gap | **Fixed** |
 | 5 | Missing `BLUETOOTH_CONNECT` check before `startForeground` | Blocker | **Fixed** |
-| A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Proposed, deferred |
-| B | Connect retry backoff is fixed, not exponential | Gap | Proposed, deferred |
-| C | `DirectProofPowerService` is unwired dead code | Gap | Proposed, deferred (product decision) |
-| D | No `PendingIntent` background scanning | Backlog | Proposed, deferred |
-| E | No Bluetooth-toggle receiver | Note | Confirm with team |
+| A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Decided A1 -- in progress |
+| B | Connect retry backoff is fixed, not exponential | Gap | Decided B1 -- bundled with A, in progress |
+| C | `DirectProofPowerService` is unwired dead code | Gap | Decided C2 -- **Fixed** (removed) |
+| D | No `PendingIntent` background scanning | Backlog | Decided D1 -- **Fixed** (supplementary scan channel; dead-process wake intentionally out of scope, see above) |
+| E | No Bluetooth-toggle receiver | Note | Decided E1 -- **Fixed** |
 | F | Windowed write pipeline (4 in-flight) | Note | Documented, intentional |
 | G | No generic GATT operation queue | Note | Documented, deferred until needed |

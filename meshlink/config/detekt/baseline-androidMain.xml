@@ -220,7 +220,9 @@
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$log( "startTransport hardware scanner=${adapter.bluetoothLeScanner != null} advertiser=${adapter.bluetoothLeAdvertiser != null} carrier=${AndroidDiscoveryAdvertisementConfig.carrier.name} l2capServerSupported=$l2capServerSupported" )</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$log("start() with l2capPsm=${currentDiscoveryPayload.l2capPsm}")</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$refreshDiscoveryState()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$registerBackgroundScanReceiver()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$registerBluetoothStateChangeReceiver()</ID>
+    <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$startBackgroundScan()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$scanner = try { adapter.bluetoothLeScanner } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$serverSocket?.let(::launchAcceptLoop)</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$started = true</ID>

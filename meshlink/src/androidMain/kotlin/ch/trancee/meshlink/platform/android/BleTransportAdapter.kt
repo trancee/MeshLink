@@ -85,7 +85,7 @@ internal class BleTransportAdapter(
     // handling) no longer contends with BLE-dense scan processing. A single thread (rather than a
     // shared pool) keeps scan results processed in arrival order, matching the previous in-callback
     // behavior and avoiding new interleaving races against PeerRegistry/BleTransportLinkRegistry.
-    private val scanProcessingDispatcher = Dispatchers.IO.limitedParallelism(1)
+    internal val scanProcessingDispatcher = Dispatchers.IO.limitedParallelism(1)
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     private val automationPreferences =
         context.getSharedPreferences("meshlink-$appId", Context.MODE_PRIVATE)
@@ -162,6 +162,7 @@ internal class BleTransportAdapter(
     internal var l2capServerSocket: android.bluetooth.BluetoothServerSocket? = null
     internal var acceptLoopJob: Job? = null
     internal var bluetoothStateChangeReceiver: android.content.BroadcastReceiver? = null
+    internal var backgroundScanReceiver: android.content.BroadcastReceiver? = null
     internal val bluetoothStateChangeDebouncer =
         BluetoothStateChangeDebouncer(
             scheduleRestart = { delayMillis, restart ->

@@ -127,6 +127,8 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
 
     started = true
     registerBluetoothStateChangeReceiver()
+    registerBackgroundScanReceiver()
+    startBackgroundScan()
     refreshDiscoveryState()
 }
 
