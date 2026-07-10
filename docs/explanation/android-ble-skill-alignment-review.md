@@ -1,0 +1,281 @@
+# Android BLE skill-alignment review
+
+**Skills used:** `android-ble`, `android-17-ble-migration`, `android-ble-gatt-sequential-queue`,
+`android-ble-gatt-status-133`, `android-ble-inspector-patterns`, `android-gatt-server`,
+`android-bluetooth-sockets`, `ble-gap-gatt-l2cap-architecture`, `optimize-ble-throughput`.
+
+This is the record of a full-codebase pass cross-checking MeshLink's Android BLE implementation
+(`meshlink/src/androidMain/kotlin/ch/trancee/meshlink/platform/android/**`, plus the
+`meshlink-reference`/`meshlink-proof` Android apps) against every Android-BLE-specific skill in
+the repo. Five parallel read-only reviews covered: (1) scanning/discovery, (2) GATT client
+connection handling, (3) GATT notify client/server, (4) L2CAP CoC sockets, (5) foreground-service
+and app-lifecycle concerns. Findings are grouped below as **Fixed in this pass**,
+**Deferred (proposed, not yet applied)**, and **Confirmed already correct** (no action needed) so
+the existing strong points aren't lost in the noise.
+
+Overall the codebase is in good shape: `autoConnect` usage, memory-safe API 33+ callback/write
+overloads, stable (non-MAC) peer identity, PSM exchange, close()-ordering for server sockets vs.
+accepted sockets, and GATT status 133/147 grouping were all already correct going in. The gaps
+found were narrow and mostly additive.
+
+## Fixed in this pass
+
+All five changes below compile, pass `ktfmtCheck`/`detekt` for the touched source sets, and pass
+the full `:meshlink:testAndroidHostTest` suite (new tests added where behavior changed).
+
+### 1. Scan-rate-limit (`SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`) had no dedicated backoff
+
+**Skill:** `android-17-ble-migration` §3 — Android throttles scan start/stop cycles to ~5 per
+rolling 30s window; exceeding it returns this code, usually silently. Android 17 enforces it more
+strictly.
+
+**Gap:** `BleTransportDiscoveryLifecycle.RETRYABLE_SCAN_ERROR_CODES` did not include this code, so
+a rate-limited scan start got zero automatic retry and was left entirely to the idle-based scan
+watchdog (which can also mistakenly escalate to "manual Bluetooth recovery needed" for what may
+just be a transient, self-clearing 30s throttle window).
+
+**Fix:** Added a dedicated `RATE_LIMITED_SCAN_ERROR_CODES` retry family with its own attempt
+counter (`scanRateLimitRetryAttempt`), independent of the fast family's 3-attempt budget, backing
+off 2s/4s/8s/16s/30s (capped) over up to 6 attempts — long enough to clear a 30s throttle window
+without competing with the fast family's short retries for transient hardware errors.
+`BleTransportDiscoveryLifecycle.kt`, plus 4 new tests in `BleTransportDiscoveryLifecycleTest.kt`.
+
+### 2. `GattNotifyServer` never implemented `onExecuteWrite`
+
+**Skill:** `android-gatt-server` — "`sendResponse()` is REQUIRED for ... `onExecuteWrite`."
+
+**Gap:** The write characteristic is exposed with `PERMISSION_WRITE`. Any external GATT central
+(not necessarily this app's own client, which only ever issues `WRITE_TYPE_NO_RESPONSE`) can
+attempt a queued/"reliable" write against it, which drives Android to call
+`onCharacteristicWriteRequest(preparedWrite = true, ...)` followed by `onExecuteWrite`. With no
+override, the default no-op never answers that final request and the remote peer hangs until its
+own ATT timeout.
+
+**Fix:** Added `onExecuteWrite` responding with `GATT_SUCCESS`/no payload. `GattNotifyServer.kt`.
+
+### 3. L2CAP read loop had no `catch` for `IOException`/frame-decode failures
+
+**Skill:** `android-17-ble-migration` §1 (the read loop already did the required `-1` clean-EOF
+check correctly) combined with `android-bluetooth-sockets`.
+
+**Gap:** The read loop was `try { ... } finally { closeLink(...) }` with **no catch clause**. A
+real I/O error (broken pipe, stack teardown) or a `MeshLinkException.TransportFailure` thrown by
+`L2capFrameBuffer` on a malformed/oversized length prefix would propagate uncaught out of a
+`coroutineScope.launch` running under a bare `SupervisorJob` with **no
+`CoroutineExceptionHandler` installed anywhere in the module** — on Android, an uncaught exception
+from a top-level `launch` in that shape is fatal to the process. A transient socket error or a
+buggy/malicious peer's corrupt frame length could crash the app instead of just closing the link.
+
+**Fix:** Added `catch (e: IOException)` and `catch (e: MeshLinkException.TransportFailure)`
+around the read loop, logging and falling through to the existing `finally { closeLink(...) }`.
+`BleTransportAdapterL2capSupport.kt`.
+
+### 4. Keepalive-write failures were silently excluded from L2CAP reconnect retry
+
+**Skill:** `android-bluetooth-sockets` (branch on structured error info, don't string-match) —
+applied here to the codebase's own internal reason-string classification, which had the same
+fragility.
+
+**Gap:** `L2capReconnectGuard.isTransientL2capDisconnect()` allowlists reason strings by prefix
+(`"socket closed"`, `"send failed:"`, `"connect failed:"`). The keepalive loop closed links with
+reason `"keepalive write failed"`, which matches none of those prefixes, so a keepalive-triggered
+disconnect — the same class of transient write I/O failure as a payload send failure — never got
+an automatic reconnect retry.
+
+**Fix:** Prefixed the keepalive-failure reason with `"send failed: "` so it's classified
+identically to any other transient write failure. `BleTransportAdapterL2capSupport.kt`.
+
+### 5. `DirectProofPowerService` didn't check `BLUETOOTH_CONNECT` before `startForeground()`
+
+**Skill:** `android-17-ble-migration` §7 — Android validates at service-start time that the app
+holds every permission its declared `foregroundServiceType` requires; a `connectedDevice`-typed
+service without `BLUETOOTH_CONNECT` at that exact moment throws `SecurityException` (a crash, not
+a silent failure), including when the user revokes the permission while the service is running.
+
+**Fix:** Added a `BLUETOOTH_CONNECT` check (API 31+) at the top of `onStartCommand`, logging and
+calling `stopSelf()`/returning `START_NOT_STICKY` if missing, instead of unconditionally calling
+`startForeground()`. `DirectProofPowerService.kt`.
+
+## Deferred — proposed, not applied in this pass
+
+These require larger, riskier refactors of tested state machines or product decisions the team
+should make explicitly (per `AGENTS.md`: *"When a decision is needed, do not choose alone. Present
+the available options clearly and concisely, then wait for the user to decide."*). Each is
+described with its skill citation, evidence, and a concrete proposed diff so it can be picked up
+as follow-on work.
+
+### A. `gatt.close()` is called before `STATE_DISCONNECTED` is confirmed in several client paths
+
+**Skill:** `android-ble-gatt-status-133` — *"Never call `close()` while `STATE_CONNECTING` or
+`STATE_CONNECTED`; doing so races the native stack and can orphan internal resources."*
+
+**Where:** `BluetoothGattNotifySession.close()` (`GattNotifySessionAdapter.kt`) calls
+`connection.disconnect()` immediately followed by `connection.close()`, with no wait for the
+`onConnectionStateChange(STATE_DISCONNECTED)` callback. `GattNotifyClient.closeInternal()` invokes
+this from several paths where the link may still be `STATE_CONNECTED`: `onServicesDiscovered`
+failure, `onDescriptorWrite` failure, a rejected inbound frame, a write timeout, and the public
+`close()` called from `GattSideLinkCoordinator`.
+
+**Why deferred:** This is the correct target end-state, but splitting `close()` into
+`requestDisconnect()` (disconnect only) + a real `close()` gated on the `STATE_DISCONNECTED`
+callback touches the core connect/teardown state machine covered by ~10 existing test files
+(`GattNotifyClientTest` equivalents, `GattSideLinkCoordinatorTest`, `BleTransportAdapterLifecycle*`
+tests) and needs a bounded safety-net timeout for peers that never confirm disconnection (e.g.
+already out of range) so the `BluetoothGatt` slot isn't leaked forever either. Recommend a
+follow-up task scoped specifically to this refactor with its own test plan, rather than folding it
+into this review pass.
+
+**Proposed shape** (see full reviewer report for the complete snippet):
+```kotlin
+private fun closeInternal(markClosedByOwner: Boolean): Unit {
+    ...
+    val activeSession = session
+    session = null
+    if (activeSession == null) return
+    runCatching { activeSession.requestDisconnect() }   // gatt.disconnect() only
+    connectRetryScope.launch {
+        withTimeoutOrNull(DISCONNECT_CONFIRM_TIMEOUT_MILLIS) { activeSession.awaitDisconnected() }
+        runCatching { activeSession.close() }            // real gatt.close(), post-confirmation
+    }
+}
+```
+
+### B. GATT connect retry backoff is fixed (400ms), not exponential
+
+**Skill:** `android-ble-gatt-status-133` §5 — *"Wrap `connectGatt` in a bounded retry loop with
+exponential backoff (e.g. 2s, 4s, 8s...)."*
+
+**Where:** `GattNotifyClient`'s `CONNECT_RETRY_DELAY_MILLIS = 400L` is used unchanged on every
+retry rather than scaled by `connectRetryAttempts`.
+
+**Why deferred:** Low risk, but changes observable timing asserted by existing retry tests; should
+land with its own test updates (assert 400ms → 800ms → ... rather than a fixed value) alongside
+change A above, since both touch the same connect/retry code path.
+
+**Proposed fix:**
+```kotlin
+connectRetryScope.launch {
+    val backoffMillis = connectRetryDelayMillis * (1L shl (connectRetryAttempts - 1))
+    delay(backoffMillis)
+    startInternal()
+}
+```
+
+### C. `DirectProofPowerService` is unwired dead code
+
+**Skill:** `android-17-ble-migration` §4/§7 (foreground-service lifecycle correctness).
+
+**Finding:** Zero call sites start this service anywhere in the app (`AndroidPlatformServices`'s
+`stopPowerMitigation` hook is a no-op and nothing calls `ContextCompat.startForegroundService`
+against it), yet the reference app's own user-facing guidance text promises this mitigation is
+active. This is a product/feature-completeness gap, not a BLE-correctness bug per se — flagging it
+here because wiring it up must be done carefully (start it only from a point reachable while the
+app is visible, e.g. `MainActivity`, never from boot/alarm, so it keeps While-In-Use eligibility
+per skill §4) once the fix from item 5 above is in place. Needs a product decision on whether this
+mitigation should ship at all before wiring it in.
+
+### D. No `PendingIntent`-based background scanning path
+
+**Skill:** `android-17-ble-migration` §6 — modern OEM Doze increasingly suspends non-batched,
+callback-based scanning once the screen is off, even with a `ScanFilter`; `PendingIntent`-based
+scanning lets the OS wake the process on a match without a persistent scan.
+
+**Why deferred:** This is an architectural addition (manifest-registered `BroadcastReceiver`,
+process-wake handling, reconciling `PendingIntent`-delivered results with the existing
+`PeerRegistry`/`PeerBindings` state), not a minimal fix. Flagged as a backlog item; MeshLink
+already does the cheaper mitigations (mandatory `ScanFilter`, deliberate `SCAN_MODE_*` selection,
+a self-healing idle watchdog) so this is about resilience on the most aggressive OEM Doze
+implementations specifically, not a baseline-functionality gap.
+
+### E. No Bluetooth-toggle (`ACTION_STATE_CHANGED`) receiver
+
+**Skill:** `android-17-ble-migration` §3.
+
+**Finding:** No receiver anywhere restarts discovery when the user manually toggles Bluetooth
+off/on. This means MeshLink has neither the debounced-restart antipattern the skill warns about
+nor a proactive recovery path for that specific trigger — discovery presumably resumes via
+whatever already calls `refreshDiscoveryState()`/`refresh()` on the next unrelated lifecycle event.
+Flagging as a confirm-with-team item: if "resume automatically the moment the user flips Bluetooth
+back on" is a desired UX property, it needs a debounced (`~1.5s`) receiver per the skill's recipe;
+if existing triggers already cover it adequately, no action needed.
+
+### F. Windowed GATT write pipeline intentionally pipelines up to 4 in-flight writes
+
+**Skill:** `android-ble-gatt-sequential-queue` — "never call two `BluetoothGatt` methods without
+awaiting the first operation's callback."
+
+**Finding:** `GattNotifyClient`'s `WRITE_WINDOW_SIZE = 4` deliberately violates this rule for
+throughput, with extensive existing doc comments explaining the tradeoff and a busy-retry
+mechanism for the `false`-return case. This is a **known, mitigated, intentional deviation** (not
+a gap) — recorded here only so a future reader doesn't mistake it for an oversight when they next
+touch this file, and so the residual risk (this assumes local stacks always signal busy via a
+`false` return rather than silently corrupting under concurrent in-flight writes — an assumption,
+not a guarantee, across all OEM stacks) is visible alongside the rest of this review.
+
+### G. No structural GATT operation queue at the `GattConnectionAdapter` layer
+
+**Skill:** `android-ble-gatt-sequential-queue` — recommends a generic `Channel`/`Mutex` +
+`CompletableDeferred` queue so *any* future GATT operation added to a session automatically gets
+one-at-a-time serialization.
+
+**Finding:** Today's correctness depends entirely on each call site in `GattNotifyClient`'s
+lifecycle state machine (`GattNotifyLifecycleState.kt`) remembering to gate on the right flag
+before issuing the next `BluetoothGatt` call — which it currently does correctly for the fixed
+connect → MTU → discover → subscribe → write sequence, but has no structural guard against a
+future addition (e.g. a read operation, or a second concurrent write path) violating the rule.
+Recommend introducing a generic queue at the `GattConnectionAdapter` layer the next time this
+lifecycle needs a new operation type added, rather than as a standalone refactor with no immediate
+behavioral motivation.
+
+## Confirmed already correct (no action needed)
+
+Recorded so these strong points aren't re-litigated in a future pass:
+
+- **Stable peer identity, not MAC-keyed** (`android-17-ble-migration` §8): `hintPeerId` is derived
+  from the advertised key hash; MAC address is treated purely as an ephemeral connection-binding
+  key in `PeerBindings`, with conflict logging already in place for the MAC-rotation case.
+- **`connectGatt(..., autoConnect = false, ...)`** at every call site — reconnection is
+  implemented as fresh direct connects, never relying on system-level `autoConnect = true`
+  background reconnection.
+- **GATT status 133/147 correctly grouped as one retryable family**, with the reset-on-success and
+  bounded-retry-cap behavior the skill recommends; 135 correctly left unhandled since every
+  connection is direct.
+- **Memory-safe API 33+ overloads** used throughout for characteristic/descriptor reads, writes,
+  and change notifications, with a clean dual-overload split for `minSdk < 33`, and defensive
+  `.copyOf()` on values crossing the platform/app boundary.
+- **`BluetoothGattCallback` kept lean**: all real work is dispatched through a non-blocking
+  channel-backed `InboundFrameQueue`, never performed directly on the callback thread.
+- **`sendResponse()`** called for every other required `BluetoothGattServerCallback` method
+  (read/write/descriptor requests), and `BluetoothManager.getConnectedDevices(GATT)` used instead
+  of the `BluetoothGattServer` methods that throw `UnsupportedOperationException`.
+- **PSM exchange** carried in-band in the app's own BLE advertisement payload, restricted to the
+  dynamic LE range, exactly as the sockets skill requires.
+- **`cancelDiscovery()` before L2CAP `connect()`**, blocking `accept()`/`connect()` always run off
+  the main/callback thread, and correct close-ordering for `BluetoothServerSocket` vs. accepted
+  sockets (no reliance on cascading closure).
+- **L2CAP frame/chunk sizing** correctly derived from the OS-negotiated
+  `maxReceivePacketSize`/`maxTransmitPacketSize` (not hardcoded ATT-specific 244/495-byte
+  constants, which are correctly reserved for the GATT-notify fallback bearer only, where they
+  *do* apply and are used).
+- **Mandatory `ScanFilter` for background scanning**, deliberate `SCAN_MODE_*` selection per power
+  tier, and a self-healing idle-scan watchdog explicitly tuned to stay outside the ~30s scan
+  restart throttle window.
+- **No BAL violations, no loopback-socket usage requiring `USE_LOOPBACK_INTERFACE`, no boot/alarm
+  triggered foreground-service starts** anywhere in the codebase.
+
+## Summary table
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | Scan rate-limit code had no dedicated backoff | Blocker | **Fixed** |
+| 2 | `onExecuteWrite` unimplemented in GATT server | Blocker | **Fixed** |
+| 3 | L2CAP read loop missing `catch` (crash risk) | Blocker | **Fixed** |
+| 4 | Keepalive failures excluded from reconnect retry | Gap | **Fixed** |
+| 5 | Missing `BLUETOOTH_CONNECT` check before `startForeground` | Blocker | **Fixed** |
+| A | `gatt.close()` not gated on `STATE_DISCONNECTED` | Blocker | Proposed, deferred |
+| B | Connect retry backoff is fixed, not exponential | Gap | Proposed, deferred |
+| C | `DirectProofPowerService` is unwired dead code | Gap | Proposed, deferred (product decision) |
+| D | No `PendingIntent` background scanning | Backlog | Proposed, deferred |
+| E | No Bluetooth-toggle receiver | Note | Confirm with team |
+| F | Windowed write pipeline (4 in-flight) | Note | Documented, intentional |
+| G | No generic GATT operation queue | Note | Documented, deferred until needed |

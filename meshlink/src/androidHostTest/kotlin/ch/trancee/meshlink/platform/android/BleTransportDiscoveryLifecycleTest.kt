@@ -13,6 +13,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BleTransportDiscoveryLifecycleTest {
+    private companion object {
+        const val RATE_LIMIT_RETRY_DELAY_1_MILLIS = 2_000L
+        const val RATE_LIMIT_RETRY_DELAY_2_MILLIS = 4_000L
+        const val RATE_LIMIT_RETRY_DELAY_3_MILLIS = 8_000L
+        const val RATE_LIMIT_RETRY_DELAY_4_MILLIS = 16_000L
+        const val RATE_LIMIT_RETRY_DELAY_CAPPED_MILLIS = 30_000L
+    }
+
     @Test
     fun refreshStartsScanningAndAdvertisingWhenTheTransportIsStarted(): Unit {
         // Arrange
@@ -300,6 +308,89 @@ class BleTransportDiscoveryLifecycleTest {
 
         // Assert
         assertTrue(fixture.scheduledScanRetryDelaysMillis.isEmpty())
+    }
+
+    @Test
+    fun scanFailureWithRateLimitErrorSchedulesADedicatedBackoffRetry(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED
+        )
+
+        // Assert
+        assertEquals(1, fixture.scheduledScanRetryDelaysMillis.size)
+        assertEquals(
+            RATE_LIMIT_RETRY_DELAY_1_MILLIS,
+            fixture.scheduledScanRetryDelaysMillis.single(),
+        )
+        val call = fixture.scanFailedCalls.single()
+        assertTrue(call.willRetry)
+        assertEquals(1, call.attempt)
+        fixture.runScheduledScanRetries()
+        assertEquals(2, fixture.startScanCalls)
+    }
+
+    @Test
+    fun scanRateLimitRetryBacksOffExponentiallyUpToACapAndDoesNotShareTheFastRetryBudget(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+
+        // Act -- exhaust the fast-retry family's attempt budget first ...
+        repeat(4) {
+            fixture.lifecycle.scanCallback.onScanFailed(
+                ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES
+            )
+            fixture.runScheduledScanRetries()
+        }
+        assertFalse(fixture.scanFailedCalls.last().willRetry)
+        fixture.scheduledScanRetryDelaysMillis.clear()
+
+        // ... then trigger the rate-limit family, which must still retry using its own budget.
+        repeat(7) {
+            fixture.lifecycle.scanCallback.onScanFailed(
+                ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED
+            )
+            fixture.runScheduledScanRetries()
+        }
+
+        // Assert: 2s, 4s, 8s, 16s, 30s (capped), 30s (capped) -- 6 attempts, last one exhausted.
+        assertEquals(
+            listOf(
+                RATE_LIMIT_RETRY_DELAY_1_MILLIS,
+                RATE_LIMIT_RETRY_DELAY_2_MILLIS,
+                RATE_LIMIT_RETRY_DELAY_3_MILLIS,
+                RATE_LIMIT_RETRY_DELAY_4_MILLIS,
+                RATE_LIMIT_RETRY_DELAY_CAPPED_MILLIS,
+                RATE_LIMIT_RETRY_DELAY_CAPPED_MILLIS,
+            ),
+            fixture.scheduledScanRetryDelaysMillis,
+        )
+        assertFalse(fixture.scanFailedCalls.last().willRetry)
+    }
+
+    @Test
+    fun scanRateLimitRetryAttemptCounterResetsIndependentlyOnASuccessfulScanResult(): Unit {
+        // Arrange
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED
+        )
+        fixture.runScheduledScanRetries()
+
+        // Act -- a real scan result arrives, which should reset the rate-limit attempt counter.
+        fixture.lifecycle.scanCallback.onBatchScanResults(mutableListOf())
+        fixture.lifecycle.scanCallback.onScanFailed(
+            ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED
+        )
+
+        // Assert: attempt is back at 1, not 2, because the intervening scan result reset it.
+        assertEquals(1, fixture.scanFailedCalls.last().attempt)
     }
 
     @Test

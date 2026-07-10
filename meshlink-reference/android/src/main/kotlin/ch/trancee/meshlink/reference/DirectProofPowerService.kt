@@ -6,11 +6,13 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 /**
  * Foreground service used during Android direct proof to keep the process and CPU awake
@@ -31,6 +33,20 @@ public class DirectProofPowerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Android validates at service-creation time that the app holds every permission its
+        // declared foregroundServiceType ("connectedDevice") requires, and throws SecurityException
+        // -- not a silent failure -- if BLUETOOTH_CONNECT is missing at the exact moment
+        // startForeground() is called. This can happen if the user revokes the permission while
+        // this service is (or is about to be) running (see android-17-ble-migration skill #7).
+        if (!hasBluetoothConnectPermission()) {
+            Log.w(
+                TAG,
+                "REFERENCE_AUTOMATION direct-proof service stage=onStartCommand " +
+                    "missing BLUETOOTH_CONNECT; aborting startForeground and stopping self",
+            )
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, buildNotification())
         acquireWakeLock()
         Log.i(
@@ -39,6 +55,14 @@ public class DirectProofPowerService : Service() {
                 "wakeLockHeld=${wakeLock?.isHeld == true} flags=$flags startId=$startId",
         )
         return START_STICKY
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        // BLUETOOTH_CONNECT only exists as a runtime permission from API 31 (S) onward; below
+        // that, foreground-service-type enforcement for "connectedDevice" doesn't gate on it.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
     override fun onDestroy(): Unit {

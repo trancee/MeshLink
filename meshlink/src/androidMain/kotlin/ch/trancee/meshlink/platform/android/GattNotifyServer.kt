@@ -229,6 +229,19 @@ internal class BluetoothGattNotifyServer(
                 }
             }
 
+            override fun onExecuteWrite(device: BluetoothDevice, requestId: Int, execute: Boolean) {
+                val gattServer = server ?: return
+                // This server's own writes are always WRITE_TYPE_NO_RESPONSE (see
+                // GattNotifyClient), never a queued/prepared "reliable write" -- but any GATT
+                // central is free to attempt one against a PERMISSION_WRITE characteristic
+                // regardless of what this app's own client does. Android requires a response to
+                // onExecuteWrite even when nothing was actually buffered for prepared-write
+                // commit/cancel; without it the remote peer hangs until its own ATT timeout (see
+                // android-gatt-server skill: "sendResponse() is REQUIRED for ... onExecuteWrite").
+                log("GATT notify server execute write addr=${device.address} execute=$execute")
+                gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+            }
+
             override fun onNotificationSent(device: BluetoothDevice, status: Int) {
                 log("GATT notify server notification sent addr=${device.address} status=$status")
             }

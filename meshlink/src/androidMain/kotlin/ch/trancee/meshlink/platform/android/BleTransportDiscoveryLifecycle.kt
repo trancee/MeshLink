@@ -68,6 +68,20 @@ private val RETRYABLE_SCAN_ERROR_CODES =
 private const val MAX_SCAN_RETRY_ATTEMPTS = 3
 private const val SCAN_RETRY_BASE_DELAY_MILLIS = 500L
 
+// SCAN_FAILED_APPLICATION_REGISTRATION_FAILED is treated as its own, separately-tracked retry
+// family rather than folded into RETRYABLE_SCAN_ERROR_CODES above. Android throttles scan
+// start/stop cycles to roughly 5 per rolling 30s window and returns this code -- usually with no
+// exception and no log line -- once that budget is exhausted (enforced more strictly from Android
+// 17 onward). The fast, short-backoff family above (500ms/1s/2s, 3 attempts, ~3.5s total) exists
+// for transient hardware/internal-error conditions and would exhaust itself long before a 30s
+// throttle window clears, so a rate-limited scan start needs a slower, longer-lived backoff that
+// is tracked independently of (and does not consume) the fast family's attempt budget.
+private val RATE_LIMITED_SCAN_ERROR_CODES =
+    setOf(ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED)
+private const val MAX_SCAN_RATE_LIMIT_RETRY_ATTEMPTS = 6
+private const val SCAN_RATE_LIMIT_RETRY_BASE_DELAY_MILLIS = 2_000L
+private const val SCAN_RATE_LIMIT_RETRY_MAX_DELAY_MILLIS = 30_000L
+
 // Defense-in-depth against BLE stacks that silently stop delivering scan results without ever
 // invoking onScanFailed -- observed in physical-fleet testing as an intermittent, device-specific
 // chipset/firmware scan wedge (see
@@ -146,6 +160,11 @@ internal class BleTransportDiscoveryLifecycle(
     private var advertiseRetryAttempt: Int = 0
     private var scanRetryAttempt: Int = 0
 
+    // Tracks SCAN_FAILED_APPLICATION_REGISTRATION_FAILED (rate-limit) retries separately from
+    // scanRetryAttempt above -- see RATE_LIMITED_SCAN_ERROR_CODES for why these need an
+    // independent, longer backoff budget.
+    private var scanRateLimitRetryAttempt: Int = 0
+
     // Written from stop()/refresh() (invoked from the adapter's IO-dispatcher coroutineScope) and
     // read from scanCallback (invoked on the main thread by the framework). @Volatile guarantees
     // cross-thread visibility so a scan result delivered after stop() has flipped this cannot slip
@@ -220,6 +239,7 @@ internal class BleTransportDiscoveryLifecycle(
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 if (isStopped) return
                 scanRetryAttempt = 0
+                scanRateLimitRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
                 consecutiveWedgedScanRestarts = 0
                 handleScanResult(result)
@@ -228,6 +248,7 @@ internal class BleTransportDiscoveryLifecycle(
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
                 if (isStopped) return
                 scanRetryAttempt = 0
+                scanRateLimitRetryAttempt = 0
                 lastScanResultAtMillis = nowMillis()
                 consecutiveWedgedScanRestarts = 0
                 results.forEach(handleScanResult)
@@ -235,8 +256,19 @@ internal class BleTransportDiscoveryLifecycle(
 
             override fun onScanFailed(errorCode: Int) {
                 log("scan failed errorCode=$errorCode errorName=${scanErrorCodeName(errorCode)}")
-                val willRetry = maybeRetryScan(errorCode)
-                onScanFailed(errorCode, scanErrorCodeName(errorCode), willRetry, scanRetryAttempt)
+                val willRetry =
+                    if (errorCode in RATE_LIMITED_SCAN_ERROR_CODES) {
+                        maybeRetryScanRateLimited(errorCode)
+                    } else {
+                        maybeRetryScan(errorCode)
+                    }
+                val attempt =
+                    if (errorCode in RATE_LIMITED_SCAN_ERROR_CODES) {
+                        scanRateLimitRetryAttempt
+                    } else {
+                        scanRetryAttempt
+                    }
+                onScanFailed(errorCode, scanErrorCodeName(errorCode), willRetry, attempt)
             }
         }
 
@@ -290,6 +322,7 @@ internal class BleTransportDiscoveryLifecycle(
     }
 
     fun stop(hardware: BleTransportDiscoveryHardware): Unit {
+        scanRateLimitRetryAttempt = 0
         isStopped = true
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
@@ -304,6 +337,7 @@ internal class BleTransportDiscoveryLifecycle(
         isStopped = !started
         advertiseRetryAttempt = 0
         scanRetryAttempt = 0
+        scanRateLimitRetryAttempt = 0
         scanWatchdogGeneration += 1
         consecutiveWedgedScanRestarts = 0
         log(
@@ -463,6 +497,32 @@ internal class BleTransportDiscoveryLifecycle(
         // itself fail with SCAN_FAILED_ALREADY_STARTED.
         hardware.stopScan(scanCallback)
         hardware.startScan(currentPowerProfile, scanCallback)
+    }
+
+    private fun maybeRetryScanRateLimited(errorCode: Int): Boolean {
+        val hardware = lastHardware
+        if (
+            hardware == null ||
+                isStopped ||
+                isDiscoverySuspended ||
+                !hardware.hasScanner ||
+                errorCode !in RATE_LIMITED_SCAN_ERROR_CODES ||
+                scanRateLimitRetryAttempt >= MAX_SCAN_RATE_LIMIT_RETRY_ATTEMPTS
+        ) {
+            return false
+        }
+        scanRateLimitRetryAttempt += 1
+        val delayMillis =
+            minOf(
+                SCAN_RATE_LIMIT_RETRY_BASE_DELAY_MILLIS shl (scanRateLimitRetryAttempt - 1),
+                SCAN_RATE_LIMIT_RETRY_MAX_DELAY_MILLIS,
+            )
+        log(
+            "scan rate-limit retry scheduled attempt=$scanRateLimitRetryAttempt " +
+                "delayMillis=$delayMillis errorCode=$errorCode errorName=${scanErrorCodeName(errorCode)}"
+        )
+        scheduleScanRetry(delayMillis) { retryScan() }
+        return true
     }
 
     private fun buildPayload(l2capPsm: UByte): BleDiscoveryPayload {

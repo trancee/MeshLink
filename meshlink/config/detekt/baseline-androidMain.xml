@@ -6,6 +6,7 @@
     <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasAdvertiser</ID>
     <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasAdvertiser || errorCode !in RETRYABLE_ADVERTISE_ERROR_CODES || advertiseRetryAttempt >= MAX_ADVERTISE_RETRY_ATTEMPTS</ID>
     <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner</ID>
+    <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner || errorCode !in RATE_LIMITED_SCAN_ERROR_CODES || scanRateLimitRetryAttempt >= MAX_SCAN_RATE_LIMIT_RETRY_ATTEMPTS</ID>
     <ID>ComplexCondition:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle$hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner || errorCode !in RETRYABLE_SCAN_ERROR_CODES || scanRetryAttempt >= MAX_SCAN_RETRY_ATTEMPTS</ID>
     <ID>CyclomaticComplexMethod:BleTransportAdapterScanSupport.kt$internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit</ID>
     <ID>InjectDispatcher:BleTransportAdapter.kt$BleTransportAdapter$IO</ID>
