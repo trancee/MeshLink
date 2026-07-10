@@ -51,6 +51,7 @@ internal class MeshEngineTransportSupport(
         when (event) {
             is TransportEvent.FrameReceived -> handleInboundFrame(event)
             is TransportEvent.PeerDiscovered -> handleDiscoveredPeer(event)
+            is TransportEvent.InboundPeerClaimed -> callbacks.prewarmHopSession(event.peerId)
             is TransportEvent.PeerLost ->
                 handleDisconnectedPeer(
                     peerId = event.peerId,

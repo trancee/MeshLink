@@ -47,6 +47,27 @@ class MeshEngineTransportSupportTest {
         }
 
     @Test
+    fun `handleTransportEvent prewarms an inbound-claimed peer without announcing presence`() =
+        runBlocking<Unit> {
+            // Arrange -- a device that only ever accepts inbound GATT connections (never
+            // independently scan-discovers its peer) still needs to be able to self-initiate a
+            // handshake once an inbound connection claims a peer id (see
+            // ch.trancee.meshlink.platform.android.BleTransportAdapter.registerProvisionalGattPeer
+            // and TransportEvent.InboundPeerClaimed's doc comment for the real regression this
+            // covers: a genuinely asymmetric-BLE-discovery pairing previously deadlocked with
+            // neither side ever attempting a handshake).
+            val harness = transportSupportHarness()
+            val peerId = PeerId("peer-abcdef")
+
+            // Act
+            harness.support.handleTransportEvent(TransportEvent.InboundPeerClaimed(peerId = peerId))
+
+            // Assert
+            assertTrue(harness.mutablePeerEvents.replayCache.isEmpty())
+            assertEquals(listOf(peerId.value), harness.prewarmedPeerIds)
+        }
+
+    @Test
     fun `transport mode changed to gatt keeps the peer connected`() =
         runBlocking<Unit> {
             // Arrange
