@@ -115,9 +115,28 @@ def tier_memory(kb: str) -> str:
     if not kb:
         return "—"
     gb = round(int(kb) / 1024 / 1024)
-    for tier in (2, 4, 6, 8, 12):
-        if abs(tier - gb) <= 1:
-            return f"{tier} GB"
+    # Prefer the larger candidate on an exact tie between two adjacent tiers (e.g. gb=7 is
+    # equidistant from 6 and 8): real hardware's live-reported MemTotal is always somewhat below
+    # its marketed capacity (reserved kernel/hardware memory), so "round up to the marketed tier"
+    # is the correct general direction, not "round down" -- discovered 2026-07-10 when this
+    # silently regressed the OnePlus Nord CE5 5G (CPH2719, genuinely marketed as 8 GB, live
+    # MemTotal ~7.3 GB rounded) down to an incorrect "6 GB" on a routine --write regeneration.
+    # The tier list itself also gained 3 GB (previously only 2/4/6/8/12): a genuinely common
+    # marketed tier (confirmed for the Xiaomi Redmi A3/23129RN51X, which GSMArena lists with a
+    # real 3 GB RAM SKU) that the original list omitted entirely, misclassifying its live
+    # MemTotal (~2.7 GB, rounds to 3, equidistant from both 2 and 4) as one of the wrong
+    # neighboring tiers instead.
+    best_tier: int | None = None
+    best_distance: int | None = None
+    for tier in (2, 3, 4, 6, 8, 12):
+        distance = abs(tier - gb)
+        if distance > 1:
+            continue
+        if best_distance is None or distance < best_distance or (distance == best_distance and tier > best_tier):
+            best_tier = tier
+            best_distance = distance
+    if best_tier is not None:
+        return f"{best_tier} GB"
     return f"{gb} GB"
 
 
@@ -365,7 +384,7 @@ def render_markdown(rows: list[dict]) -> str:
     lines = [
         "# Device test matrix reference",
         "",
-        "Last verified: 2026-07-06",
+        "Last verified: 2026-07-10",
         "",
         "This page tracks the Android devices currently attached to the MeshLink test",
         "bench and the device facts that matter for validation.",

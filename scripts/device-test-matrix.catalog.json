@@ -1955,5 +1955,57 @@
     "build": "CPH2719_16.0.5.700(EX01)",
     "gsma_url": "https://www.gsmarena.com/oneplus_nord_ce5_5g-13792.php",
     "ds_url": "https://www.devicespecifications.com/en/model/109c62e5"
+  },
+  {
+    "device": "Xiaomi Redmi A3",
+    "brand": "Xiaomi",
+    "model": "23129RN51X",
+    "android_sdk": "Android 16 / SDK 36",
+    "memory": "3 GB",
+    "storage": "64 GB",
+    "screen": "6.71\" (720x1650 @ 268 dpi)",
+    "chipset_name": "Helio G36",
+    "chipset_model": "MT6765",
+    "bluetooth": "5.4",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH",
+      "Ed25519"
+    ],
+    "build": "16.V816.0.6.0.WGREUXM",
+    "gsma_url": "https://www.gsmarena.com/xiaomi_redmi_a3-12822.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/fe595f2e",
+    "quirks": "Ed25519 confirmed functional via on-device crypto benchmark but runs on the pure-Kotlin fallback path (Ed25519KeyGen ~9.8ms, Sign ~8.5ms, Verify ~28.7ms), consistent with an MT6765/Helio G36-class device lacking hardware-backed Ed25519 in AndroidKeyStore."
+  },
+  {
+    "device": "OPPO Reno13 5G",
+    "brand": "OPPO",
+    "model": "CPH2689",
+    "android_sdk": "Android 16 / SDK 36",
+    "memory": "12 GB",
+    "storage": "256 GB",
+    "screen": "6.59\" (1256x2760 @ 460 dpi)",
+    "chipset_name": "Dimensity 8350",
+    "chipset_model": "MT6897",
+    "bluetooth": "5.4",
+    "crypto": [
+      "AES-GCM",
+      "ChaCha20-Poly1305",
+      "SHA-256",
+      "HMAC-SHA256",
+      "RSA",
+      "ECDSA",
+      "X25519/XDH",
+      "Ed25519"
+    ],
+    "build": "CPH2689_16.0.5.701(EX01)",
+    "gsma_url": "https://www.gsmarena.com/oppo_reno13-13515.php",
+    "ds_url": "https://www.devicespecifications.com/en/model/2e3f6274",
+    "quirks": "Confirmed native/hardware-accelerated crypto (JcaCryptoProvider) via on-device benchmark: all ops 41-183\u00b5s, consistent with the same Dimensity 8350/MT6897 platform as the catalogued OnePlus Nord CE5 5G (CPH2719), which OnePlus markets as \"Dimensity 8350 Apex\" -- OPPO's own spec sheet for this device names the chip plainly as \"Dimensity 8350\"."
   }
 ]
