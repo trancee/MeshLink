@@ -464,13 +464,19 @@ internal class BleTransportDiscoveryLifecycle(
         hardware.startAdvertising(currentPowerProfile, currentDiscoveryPayload, advertiseCallback)
     }
 
+    // Shared eligibility guard for both scan-retry families below: the scanner must still be an
+    // active target (hardware present, discovery running and not suspended, a real scanner on
+    // this device) before either family schedules a retry at all. Extracted so the fast-error and
+    // rate-limited retry paths share one guard shape instead of duplicating it, and so neither
+    // grows a six-clause ComplexCondition of its own.
+    private fun canScheduleScanRetry(hardware: BleTransportDiscoveryHardware?): Boolean {
+        return hardware != null && !isStopped && !isDiscoverySuspended && hardware.hasScanner
+    }
+
     private fun maybeRetryScan(errorCode: Int): Boolean {
         val hardware = lastHardware
         if (
-            hardware == null ||
-                isStopped ||
-                isDiscoverySuspended ||
-                !hardware.hasScanner ||
+            !canScheduleScanRetry(hardware) ||
                 errorCode !in RETRYABLE_SCAN_ERROR_CODES ||
                 scanRetryAttempt >= MAX_SCAN_RETRY_ATTEMPTS
         ) {
@@ -502,10 +508,7 @@ internal class BleTransportDiscoveryLifecycle(
     private fun maybeRetryScanRateLimited(errorCode: Int): Boolean {
         val hardware = lastHardware
         if (
-            hardware == null ||
-                isStopped ||
-                isDiscoverySuspended ||
-                !hardware.hasScanner ||
+            !canScheduleScanRetry(hardware) ||
                 errorCode !in RATE_LIMITED_SCAN_ERROR_CODES ||
                 scanRateLimitRetryAttempt >= MAX_SCAN_RATE_LIMIT_RETRY_ATTEMPTS
         ) {

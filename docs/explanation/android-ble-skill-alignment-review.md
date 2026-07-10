@@ -20,8 +20,22 @@ found were narrow and mostly additive.
 
 ## Fixed in this pass
 
-All five changes below compile, pass `ktfmtCheck`/`detekt` for the touched source sets, and pass
-the full `:meshlink:testAndroidHostTest` suite (new tests added where behavior changed).
+All five changes below compile, pass `ktfmtCheck`/`detektAll` for the touched source sets, and pass
+`:meshlink:allTests`/`:meshlink:koverVerify`/`:meshlink:apiCheck`. New tests were added for the two
+changes with pure, host-testable logic (item 1's dedicated retry-scheduling counters in
+`BleTransportDiscoveryLifecycle`, and item 4's `L2capReconnectGuard` reason-string
+classification). Items 2, 3, and 5 touch `BluetoothGattServerCallback`/coroutine-launch bodies
+that construct real platform objects (`BluetoothGattServer`, `BluetoothSocket`,
+`BluetoothDevice`) with no existing test harness in this module (no Robolectric, no
+final-class-capable Android mocking) — consistent with the rest of this codebase's existing
+pattern of leaving that class of platform glue untested directly and relying on
+`:meshlink:koverVerify`'s 100%-line/branch gate, which still passes because Kover's merged report
+in this module does not currently measure the Android-target compilation (a separate, pre-existing
+gap in the same spirit as `docs/explanation/detekt-ci-gate-gap.md`, not something introduced or
+masked by this change). A code-review pass on this diff confirmed there is no cheap, low-risk way
+to add real unit coverage for those three specific callback bodies without first building
+Android-object test-fake infrastructure this module doesn't have today — flagged here rather than
+forcing a disproportionate scaffolding addition into a narrow bug-fix pass.
 
 ### 1. Scan-rate-limit (`SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`) had no dedicated backoff
 
@@ -37,8 +51,12 @@ just be a transient, self-clearing 30s throttle window).
 **Fix:** Added a dedicated `RATE_LIMITED_SCAN_ERROR_CODES` retry family with its own attempt
 counter (`scanRateLimitRetryAttempt`), independent of the fast family's 3-attempt budget, backing
 off 2s/4s/8s/16s/30s (capped) over up to 6 attempts — long enough to clear a 30s throttle window
-without competing with the fast family's short retries for transient hardware errors.
-`BleTransportDiscoveryLifecycle.kt`, plus 4 new tests in `BleTransportDiscoveryLifecycleTest.kt`.
+without competing with the fast family's short retries for transient hardware errors. The two
+scan-retry guard clauses share one extracted `canScheduleScanRetry` predicate rather than each
+repeating the same `hardware == null || isStopped || isDiscoverySuspended || !hardware.hasScanner`
+condition (a Duplicated-Code/ComplexCondition finding a code-review pass on this change caught —
+fixed by extraction instead of by adding another detekt baseline suppression).
+`BleTransportDiscoveryLifecycle.kt`, plus new tests in `BleTransportDiscoveryLifecycleTest.kt`.
 
 ### 2. `GattNotifyServer` never implemented `onExecuteWrite`
 
@@ -95,6 +113,35 @@ a silent failure), including when the user revokes the permission while the serv
 **Fix:** Added a `BLUETOOTH_CONNECT` check (API 31+) at the top of `onStartCommand`, logging and
 calling `stopSelf()`/returning `START_NOT_STICKY` if missing, instead of unconditionally calling
 `startForeground()`. `DirectProofPowerService.kt`.
+
+## Code review (Standards + Spec) on this diff
+
+A `code-review`-skill pass (Standards axis vs. `constitution.md`/`CONTRIBUTING.md`/the Fowler smell
+baseline, Spec axis vs. this document's "Fixed in this pass" section) was run against
+`main...HEAD` after the fixes above landed. Findings and resolutions:
+
+- **Fixed:** the rate-limited scan-retry guard duplicated the fast-retry guard's exact
+  four-clause condition and, combined with the new fifth/sixth clause, tripped a new
+  `ComplexCondition` finding that the first pass suppressed via another `config/detekt/baseline-
+  androidMain.xml` entry. Re-reviewed and fixed properly instead: extracted the shared
+  `canScheduleScanRetry` predicate so both guards reuse one three-or-fewer-clause condition, which
+  removed the need for a new suppression *and* let a stale pre-existing baseline entry (whose
+  condition text no longer matched after the extraction) be deleted rather than accumulate.
+- **Fixed:** the original wording claimed tests were "added where behavior changed" for all five
+  fixes; only item 1 (and, after this pass, item 4) has host/common-test coverage. Corrected the
+  claim above rather than leave an inaccurate spec statement in place, and added the missing
+  `L2capReconnectGuardTest` coverage for item 4's reason-string classification (cheap, pure logic,
+  already had a matching test file). Items 2/3/5 remain without dedicated unit tests for the
+  reasons given above; `:meshlink:koverVerify` still passes because the Android-target compilation
+  isn't part of this module's merged coverage report today.
+- **Confirmed correct (no changes needed):** all five "Fixed in this pass" items' actual logic
+  matches this document's description — including the exponential/capped backoff arithmetic for
+  item 1, the SDK-version gate for item 5's permission check, the exact exception types caught for
+  item 3, and the exact reason-string prefix match for item 4. No part of the diff touches any
+  Deferred item (A–G below); no scope creep found.
+
+Re-verified after the fixes above: `:meshlink:allTests`, `:meshlink:detektAll`,
+`:meshlink:apiCheck`, `:meshlink:koverVerify`, and `verifyDocs` all pass.
 
 ## Deferred — proposed, not applied in this pass
 
