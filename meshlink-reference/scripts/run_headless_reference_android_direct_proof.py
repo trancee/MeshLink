@@ -2267,7 +2267,22 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     app_id = args.app_id or f"{DEFAULT_APP_ID_PREFIX}.{timestamp()}"
     storage_subdirectory = run_dir.name.replace("/", "_")
-    peer_resolution_wait_seconds = min(max(args.android_ready_seconds, 1.0), 5.0)
+    # Bounds how long we wait to resolve a role's own identity via the discovery-seed
+    # file-polling mechanism (read_passive_peer_id), used both to seed the *other* role's
+    # target-peer filter and to gate the sender's phase-2 (auto-send-enabled) relaunch below.
+    # Previously hard-capped at 5.0s regardless of --android-ready-seconds (default 30s) -- the
+    # same ~5s budget as the app's own AndroidDiscoverySeed probe (see that file) -- and confirmed
+    # too tight under realistic concurrent load: running two device pairs concurrently on the same
+    # host (matrix fleet run, 2026-07-11) measurably slowed identity-seed resolution enough to
+    # blow this budget for an otherwise fully healthy pair. The underlying MeshLink transport,
+    # discovery, and Noise handshake had already completed successfully (confirmed via logcat --
+    # TRUST_ESTABLISHED and HOP_SESSION_ESTABLISHED both fired for the correct peer, and the L2CAP
+    # link kept exchanging keepalive traffic for the rest of the run); only this harness-side
+    # polling timed out, silently skipping the phase-2 relaunch that enables the real hello send,
+    # so the run was misclassified as a transport-level "capture stall" when it was actually a
+    # harness-timing gap. 15.0s gives real concurrent-host-load headroom while still failing
+    # reasonably fast for a genuinely broken pair.
+    peer_resolution_wait_seconds = min(max(args.android_ready_seconds, 1.0), 15.0)
     discovered_peer_id: str | None = args.target_peer_id
     stage = "input-validation"
     sender_process: BackgroundProcess | None = None
