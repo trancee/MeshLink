@@ -123,7 +123,10 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
     started = true
     registerBluetoothStateChangeReceiver()
     registerBackgroundScanReceiver()
-    startBackgroundScan()
+    registerScreenStateReceiver()
+    if (!context.isScreenInteractive()) {
+        startBackgroundScan()
+    }
     refreshDiscoveryState()
 }
 

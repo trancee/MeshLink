@@ -163,6 +163,11 @@ internal class BleTransportAdapter(
     internal var acceptLoopJob: Job? = null
     internal var bluetoothStateChangeReceiver: android.content.BroadcastReceiver? = null
     internal var backgroundScanReceiver: android.content.BroadcastReceiver? = null
+    internal var screenStateReceiver: android.content.BroadcastReceiver? = null
+    // Tracks whether the supplementary PendingIntent scan channel (see BackgroundScanSupport.kt)
+    // is currently registered with the platform, so startBackgroundScan()/stopBackgroundScan() are
+    // idempotent no-ops when called redundantly (e.g. two ACTION_SCREEN_OFF broadcasts in a row).
+    @Volatile internal var backgroundScanActive: Boolean = false
     internal val bluetoothStateChangeDebouncer =
         BluetoothStateChangeDebouncer(
             scheduleRestart = { delayMillis, restart ->

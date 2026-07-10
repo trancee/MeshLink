@@ -373,6 +373,7 @@ internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Un
     transportStopping = true
     stopBackgroundScan()
     unregisterBackgroundScanReceiver()
+    unregisterScreenStateReceiver()
     unregisterBluetoothStateChangeReceiver()
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()

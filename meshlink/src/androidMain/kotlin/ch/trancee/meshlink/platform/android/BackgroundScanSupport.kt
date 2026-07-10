@@ -23,6 +23,19 @@ import kotlinx.coroutines.launch
 // BleTransportLinkRegistry state is a single source of truth regardless of which channel a given
 // result arrived on.
 //
+// Two lessons learned the hard way from a real hardware regression (2026-07-10, see
+// docs/explanation/android-ble-skill-alignment-review.md) shape how this channel is actually run:
+//
+// 1. It must use the SAME ScanSettings.scanMode as the primary channel, not a hardcoded
+//    SCAN_MODE_LOW_POWER. Registering two concurrent scans from the same app with *different* scan
+//    modes is a known Android BLE-stack footgun: the platform can silently arbitrate down to the
+//    most conservative duty cycle across all of an app's active scan registrations, which starved
+//    the primary SCAN_MODE_LOW_LATENCY channel of results entirely on a real device pairing and
+//    deadlocked the handshake. See backgroundScanSettings().
+// 2. It should only be registered while it is actually needed -- screen off, when Doze can suspend
+//    callback-based scanning -- rather than unconditionally for the whole transport lifetime. See
+//    ScreenStateSupport.kt's registerScreenStateReceiver(), which starts/stops this channel.
+//
 // This channel only survives the current process staying alive -- the BroadcastReceiver below is
 // registered dynamically (Context.registerReceiver), not declared in a manifest, so it cannot wake
 // a fully-killed process the way a manifest-declared receiver could. Waking a killed process and
@@ -74,25 +87,40 @@ internal fun BleTransportAdapter.handleBackgroundScanIntent(intent: Intent): Uni
 
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.startBackgroundScan(): Unit {
+    if (backgroundScanActive) return
     val scanner = scanner ?: return
     val pendingIntent = backgroundScanPendingIntent()
-    runCatching { scanner.startScan(buildScanFilters(), backgroundScanSettings(), pendingIntent) }
+    runCatching {
+            scanner.startScan(
+                buildScanFilters(),
+                backgroundScanSettings(currentPowerProfile),
+                pendingIntent,
+            )
+        }
         .onFailure { error -> log("background scan start failed: ${error.message.orEmpty()}") }
-        .onSuccess { resultCode -> log("background scan start invoked resultCode=$resultCode") }
+        .onSuccess { resultCode ->
+            backgroundScanActive = true
+            log("background scan start invoked resultCode=$resultCode")
+        }
 }
 
 @SuppressLint("MissingPermission")
 internal fun BleTransportAdapter.stopBackgroundScan(): Unit {
+    if (!backgroundScanActive) return
     val scanner = scanner ?: return
+    backgroundScanActive = false
     runCatching { scanner.stopScan(backgroundScanPendingIntent()) }
         .onFailure { error -> log("background scan stop failed: ${error.message.orEmpty()}") }
 }
 
-// SCAN_MODE_LOW_POWER matches the skill's own PendingIntent-scanning example: this channel exists
-// to survive Doze/screen-off, not to compete on latency with the foreground ScanCallback path,
-// which already applies the caller-selected PowerProfile-driven scan mode.
-internal fun backgroundScanSettings(): ScanSettings {
-    return ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build()
+// Mirrors the primary ScanCallback-based channel's current PowerProfile-driven scan mode instead
+// of hardcoding SCAN_MODE_LOW_POWER: running two concurrent scan registrations from the same app
+// with different scan modes let the platform silently arbitrate both down to the more conservative
+// duty cycle, starving the primary channel of results on a real device pairing (2026-07-10). Now
+// that this channel is also screen-off-gated (see ScreenStateSupport.kt), matching the scan mode
+// is a second, independent layer of defense against that same class of interference.
+internal fun backgroundScanSettings(currentPowerProfile: PowerProfile): ScanSettings {
+    return ScanSettings.Builder().setScanMode(currentPowerProfile.scanMode).build()
 }
 
 internal fun BleTransportAdapter.backgroundScanPendingIntent(): PendingIntent {
