@@ -74,7 +74,7 @@ private fun powerManagementBlockers(context: Context): List<String> {
 /**
  * Pure decision logic behind [powerManagementBlockers], separated from [PowerManager] and [Context]
  * so it is directly unit-testable without Android framework mocking, mirroring
- * [BlePermissionContract]'s testable-contract pattern.
+ * `BlePermissionContract`'s testable-contract pattern.
  */
 internal fun powerManagementBlockers(
     hasPowerManager: Boolean,
