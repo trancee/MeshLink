@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -1354,6 +1355,61 @@ def wait_for_android_completions(
     )
 
 
+def wake_android_device(android_serial: str) -> None:
+    """Wakes the screen and clears any lock screen so the launched Activity is actually
+    resumed/visible, not just started in the background.
+
+    Confirmed root cause of a real hardware failure (OPPO Reno13 5G / CPH2689, 2026-07-11
+    investigation): the app's autoStartMesh trigger lives inside a Jetpack Compose
+    LaunchedEffect/recomposition-driven flow (MainActivity.kt), which depends on
+    Choreographer/vsync-driven recomposition scheduling. Several OEMs (OPPO/ColorOS confirmed
+    here; a Nokia X20 was previously observed hitting an equivalent "quick-doze" stall, see the
+    android_ready_seconds --help text above) suspend that scheduling when the screen is asleep --
+    exact log-timestamp comparison showed the app never progressing past
+    "meshLinkControllerLoadEnd" for the device's entire test window while dumpsys power reported
+    mWakefulness=Asleep / mIsInteractive=false, i.e. mesh.start() was never even attempted, not
+    merely slow. Both commands are idempotent no-ops if the screen is already on/unlocked, so this
+    is safe to call unconditionally on every preflight.
+    """
+    run(["adb", "-s", android_serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"], check=False)
+    run(["adb", "-s", android_serial, "shell", "wm", "dismiss-keyguard"], check=False)
+
+
+# How often the keep-awake background loop below re-sends the wake keyevent for the duration of a
+# run. A single wake at launch (wake_android_device, called from ensure_android_preflight) only
+# protects the initial Compose-recomposition stall; the same OEM Doze/quick-sleep behavior can also
+# suspend a *mid-test* BLE discovery/handshake if the screen goes back to sleep on its own default
+# timeout during a long --capture-timeout-seconds run (documented separately as a discovery stall
+# risk, not just a startup one). Re-waking periodically avoids needing to touch any persistent
+# device setting (e.g. screen_off_timeout or `svc power stayon`, both of which would need
+# SIGKILL-safe restoration -- see cleanup_android_direct_run's own force-stop-on-timeout precedent
+# -- and the latter is also gated on the device having a recognized USB/AC power source, which a
+# wireless-ADB-only bench device may not have).
+KEEP_AWAKE_INTERVAL_SECONDS: float = 20.0
+
+
+def start_keep_awake_thread(android_serials: list[str]) -> threading.Event:
+    """Starts a daemon thread that re-wakes each of `android_serials` on a fixed interval until
+    the returned Event is set. A daemon thread requires no explicit cleanup to avoid leaking or
+    blocking process exit -- including the case where an *outer* orchestrator (e.g.
+    run_headless_reference_android_direct_matrix.py) SIGKILLs this whole process on a
+    subprocess.run(..., timeout=...) expiry, which does not run this process's own `finally`
+    blocks at all (a previously-documented lesson in this codebase for the same reason). Stopping
+    it via the Event in a `finally` block is still done where convenient, purely so a graceful
+    shutdown doesn't keep waking devices needlessly after the run has already finished.
+    """
+    stop_event = threading.Event()
+
+    def _loop() -> None:
+        while not stop_event.wait(KEEP_AWAKE_INTERVAL_SECONDS):
+            for android_serial in android_serials:
+                wake_android_device(android_serial)
+
+    thread = threading.Thread(target=_loop, name="keep-awake", daemon=True)
+    thread.start()
+    return stop_event
+
+
 def ensure_android_preflight(
     android_serial: str,
     *,
@@ -1363,6 +1419,7 @@ def ensure_android_preflight(
 ) -> dict[str, float | bool]:
     timings: dict[str, float | bool] = {}
     ensure_android_device_ready(android_serial)
+    wake_android_device(android_serial)
     if not skip_android_install:
         install_started_at = time.monotonic()
         try:
@@ -2332,6 +2389,9 @@ def main(argv: list[str] | None = None) -> int:
             sender_preflight = sender_future.result()
         ensure_extra_force_stop_devices_ready(args.extra_force_stop_serial)
         print(f"==> Android preflight ready in {time.monotonic() - run_started_at:.1f}s")
+        keep_awake_stop_event = start_keep_awake_thread(
+            [args.sender_android_serial, args.passive_android_serial]
+        )
 
         try:
             stage = "launch"
@@ -2574,6 +2634,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             time.sleep(POST_RESULT_IDLE_SECONDS)
         finally:
+            keep_awake_stop_event.set()
             try:
                 cleanup_android_direct_run(
                     sender_process=sender_process,
