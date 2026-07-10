@@ -8,7 +8,7 @@ optimizations are worth keeping or pursuing.
 
 | Area | What we learned |
 |---|---|
-| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported; doze-sensitive Android devices now start a foreground wake-lock mitigation during live-proof automation |
+| direct proof | it is still the baseline physical signal, but release review now falls back to Android-only direct-guided when mixed live bootstrap is unsupported; the automated doze-mitigation foreground service documented here earlier was found unwired (see "A foreground wake-lock mitigation was implemented but never wired up" below) and has been removed |
 | direct vs relay placement | they often need different room geometry; running them back-to-back without changing placement can create fake failures |
 | direct passive automation | moving it off the UI surface closed a misleading blind spot |
 | remaining direct failures | pause/resume recovery and large-transfer proof still expose real sender/runtime blockers |
@@ -213,7 +213,7 @@ A good constrained relay run proves an ordered chain of real behaviors:
 That level of evidence makes the next debugging step much clearer when
 something regresses.
 
-### 5. A foreground wake-lock mitigation is worth keeping on Android direct proof
+### 5. A foreground wake-lock mitigation was implemented but never wired up -- removed
 
 The Nokia X20 incident showed that some Android OEM builds can enter quick-doze
 fast enough to stall peer discovery even when Bluetooth permissions and the app
@@ -222,22 +222,33 @@ logcat breadcrumbs showed `interactive=false` at `onCreate` and `onResume`, and
 the passive activity also reached `onStop` before the run timed out. That makes
 doze/screen-off a plausible contributor, but not a proven sole root cause.
 
-The reference app now starts a foreground service plus partial wake lock during
-live-proof automation so the device stays awake long enough for discovery and
-proof completion. The app also now emits retained `power.state` breadcrumbs so
-future runs can tell whether the device was interactive and whether lifecycle
-transitions suggest backgrounding or idle behavior when proof stalls.
+A `DirectProofPowerService` foreground service plus partial wake lock was added
+to the reference app to keep the device awake during live-proof automation, but
+a later BLE-skill-alignment review
+([android-ble-skill-alignment-review.md](android-ble-skill-alignment-review.md))
+found it was never actually started from any code path -- the service class,
+its manifest declaration, and the guidance text promising it were all dead
+weight, not a working mitigation. It has since been removed. The app still
+emits retained `power.state` breadcrumbs so future runs can tell whether the
+device was interactive and whether lifecycle transitions suggest backgrounding
+or idle behavior when proof stalls; only the automated foreground-service
+mitigation itself was removed.
 
-This is worth keeping because it:
+The current, actually-working mitigation for doze-sensitive devices is the
+manual operator step already carried in the readiness guidance: keep the
+screen awake or disable battery optimization for the app before starting a
+direct-proof session. If an automated foreground-service mitigation is wanted
+again, it needs to be wired to actually start (e.g. from the app's own
+`MainActivity` while visible, per the skill's foreground-service guidance) and
+checked with a retained run before being described here as active.
 
-- reduces false transport failures caused by aggressive device sleep policies
-- keeps the mitigation inside the supported reference-app shell rather than the runner
-- makes doze-related issues visible as readiness and lifecycle state instead of silent timeouts
-- gives later runs a retained signal to compare against pair-specific discovery failures
+This is worth recording because it:
 
-The mitigation is not a substitute for clean battery policy on every device, but
-it turns a flaky environment dependence into an explicit, documented operator
-step.
+- keeps the retained readiness/lifecycle breadcrumbs (`power.state`, `interactive`) as the honest
+  signal for doze-related stalls, independent of whether any automated mitigation exists
+- documents that the manual screen-awake/battery-optimization step is the currently supported
+  mitigation, not a foreground service
+- avoids a future contributor re-discovering the same "looks wired, isn't" gap without context
 
 ## Optimizations worth keeping
 

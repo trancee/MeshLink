@@ -10,9 +10,8 @@ internal fun readinessGuidance(): List<String> {
     return listOf(
         "Confirm Bluetooth is enabled and the Android device is on API 26 or newer.",
         "Use the debug install path so runtime permissions are granted where the platform allows it.",
-        "Keep the device awake during direct proof on aggressive OEM builds, or rely on the " +
-            "live-proof foreground wake-lock mitigation when the reference app starts it; doze " +
-            "can stall BLE discovery.",
+        "Keep the device awake (or disable battery optimization for this app) during direct proof " +
+            "on aggressive OEM builds; doze can stall BLE discovery.",
         "Keep the device offline and near the peer before starting the guided exchange.",
     )
 }
@@ -86,8 +85,7 @@ internal fun powerManagementBlockers(
     return if (needsMitigation) {
         listOf(
             "Keep the screen awake or disable battery optimization before starting MeshLink " +
-                "direct proof; on some Android 14 devices the live-proof foreground wake-lock " +
-                "mitigation is still needed to avoid quick-doze discovery stalls."
+                "direct proof; some Android 14 devices otherwise hit quick-doze discovery stalls."
         )
     } else {
         emptyList()
