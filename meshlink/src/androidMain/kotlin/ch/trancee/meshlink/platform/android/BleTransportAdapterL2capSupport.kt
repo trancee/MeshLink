@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothSocketException
 import android.os.Build
+import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.transport.L2CAP_KEEPALIVE_INTERVAL_MILLIS
 import ch.trancee.meshlink.transport.OutboundFrame
@@ -15,6 +16,7 @@ import ch.trancee.meshlink.wire.WireFrame
 import ch.trancee.meshlink.wire.decodeIsKeepAlive
 import ch.trancee.meshlink.wire.decodeLinkIdentityPeerIdOrNull
 import java.io.Closeable
+import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -265,6 +267,20 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                     )
                 }
             }
+        } catch (e: IOException) {
+            // Android 17 migration note: a real read error (broken pipe, ACL disconnect, stack
+            // teardown) throws here rather than returning -1 -- without this catch it propagates
+            // uncaught out of this coroutineScope.launch (a bare SupervisorJob with no installed
+            // CoroutineExceptionHandler), which crashes the process on the default thread-level
+            // handler instead of being treated as an ordinary transient link failure.
+            log { "L2CAP read error from ${link.peerHintId.value.takeLast(6)}: ${e.message}" }
+        } catch (e: MeshLinkException.TransportFailure) {
+            // A malformed/oversized length-prefixed frame (see L2capFrameBuffer.appendDetailed)
+            // must not crash the transport -- treat it the same as any other unrecoverable link
+            // failure and tear the link down so the reconnect guard can decide whether to retry.
+            log {
+                "L2CAP frame decode error from ${link.peerHintId.value.takeLast(6)}: ${e.message}"
+            }
         } finally {
             closeLink(hintPeer = link.peerHintId.value, reason = "socket closed")
         }
@@ -285,7 +301,16 @@ internal fun BleTransportAdapter.launchL2capKeepAliveLoop(link: L2capLink): Job 
             delay(L2CAP_KEEPALIVE_INTERVAL_MILLIS)
             runCatching { link.write(keepAliveFrame) }
                 .onFailure {
-                    closeLink(hintPeer = link.peerHintId.value, reason = "keepalive write failed")
+                    closeLink(
+                        hintPeer = link.peerHintId.value,
+                        // Prefixed with "send failed:" (not a bespoke "keepalive write failed"
+                        // string) so this is classified by L2capReconnectGuard.
+                        // isTransientL2capDisconnect the same way as any other transient write
+                        // I/O error -- a keepalive write is not meaningfully different from a
+                        // payload write for retry purposes, and a mismatched prefix here silently
+                        // excluded keepalive-triggered disconnects from automatic reconnect.
+                        reason = "send failed: keepalive write failed",
+                    )
                     return@launch
                 }
         }
@@ -346,6 +371,9 @@ internal suspend fun BleTransportAdapter.stopTransports(clearPeers: Boolean): Un
     // scan-processing coroutine or by a "socket closed" retry scheduled from a force-close inside
     // this very function (see cancelPendingConnects() below).
     transportStopping = true
+    stopBackgroundScan()
+    unregisterBackgroundScanReceiver()
+    unregisterBluetoothStateChangeReceiver()
     discoveryLifecycle.stop(discoveryHardware())
     acceptLoopJob?.cancel()
     acceptLoopJob = null

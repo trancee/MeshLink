@@ -50,10 +50,10 @@ If you are using the Android direct-proof launcher, note that it now accepts an
 optional `--target-peer-id` bootstrap hint. That only helps when the upstream
 runner already knows a concrete peer id; it does not replace real discovery, so
 an empty peer list can still stall the proof if no seed is supplied. On
-doze-sensitive Android builds, the reference app also starts a foreground
-wake-lock mitigation during live-proof automation; if discovery still stalls,
-check both permissions and battery optimization / screen-awake state before
-assuming it is a pure transport failure.
+doze-sensitive Android builds, keep the screen awake or disable battery
+optimization for the reference app during live-proof automation; if discovery
+still stalls, check both permissions and battery optimization / screen-awake
+state before assuming it is a pure transport failure.
 
 Important remark: if `adb install` fails with `INSTALL_FAILED_USER_RESTRICTED`
 or `Install canceled by user`, open **Developer options** on the Android device

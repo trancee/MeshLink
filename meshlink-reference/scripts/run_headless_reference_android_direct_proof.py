@@ -173,7 +173,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Keep this short so passive transport startup fails fast when the app never reaches the transport-start marker. "
             "Treat the selected sender/passive pair as part of the environment contract; some attached devices advertise and scan but never discover each other. "
             "On this host, the stable pair that completed direct proof was Spacewar (sender) + DN2103 (passive), while Nokia X20 + DN2103 repeatedly failed to discover until the screen stayed awake. "
-            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake, disable battery optimization if discovery stalls, and rely on the live-proof foreground wake-lock mitigation when the reference app starts it."
+            "The Nokia X20 runs Android 14 and was observed in Dozing with quick-doze enabled, so keep the screen awake and disable battery optimization for the app if discovery stalls."
         ),
     )
     parser.add_argument(

@@ -56,6 +56,7 @@
     <ID>FunctionNaming:SecureStorageTest.kt$SecureStorageTest$@Test fun `write stores a defensive copy and read returns the original bytes`()</ID>
     <ID>InjectDispatcher:GattSideLinkCoordinatorTest.kt$GattSideLinkCoordinatorFixture$Unconfined</ID>
     <ID>LongMethod:ScanResultSupportTest.kt$ScanResultSupportTest$@Test fun shouldConnectAfterDiscoveryReturnsTrueForGattReadyAndEligibleL2capPeers(): Unit</ID>
+    <ID>LongParameterList:GattNotifyClientTest.kt$( factory: GattNotifySessionFactory, localHintPeerId: PeerId = PeerId("local-android"), onDisconnected: (PeerId) -> Unit = {}, connectRetryDelayMillis: Long = 0L, connectRetryScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined), disconnectConfirmTimeoutMillis: Long = 0L, teardownScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined), )</ID>
     <ID>LongParameterList:GattNotifyWriteSupportTest.kt$GattNotifyWriteFixture$( private val clientReady: Boolean = true, private val hasGatt: Boolean = true, private val hasWriteCharacteristic: Boolean = true, private val maxChunkBytes: Int = 4, private val encoded: ByteArray = byteArrayOf(0x01, 0x02, 0x03), private val chunkResults: List&lt;Boolean> = List(16) { true }, private val drainResult: Boolean = true, )</ID>
     <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x03</ID>
     <ID>MagicNumber:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest$0x04</ID>
@@ -72,9 +73,11 @@
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$3</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$4</ID>
     <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$5</ID>
+    <ID>MagicNumber:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest$7</ID>
     <ID>MagicNumber:BleTransportLinkRegistryTest.kt$BleTransportLinkRegistryTest$12</ID>
     <ID>MagicNumber:BleTransportMaximumPayloadTest.kt$BleTransportMaximumPayloadTest$185</ID>
     <ID>MagicNumber:BluetoothGattNotifySessionTest.kt$BluetoothGattNotifySessionTest$0x03</ID>
+    <ID>MagicNumber:BluetoothStateChangeSupportTest.kt$BluetoothStateChangeSupportTest$3</ID>
     <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x07</ID>
     <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x0a</ID>
     <ID>MagicNumber:CryptoProviderTest.kt$CryptoProviderTest$0x16</ID>
@@ -159,6 +162,7 @@
     <ID>RedundantSuspendModifier:SendDispatchSupportTest.kt$SendDispatchFixture$suspend</ID>
     <ID>TooManyFunctions:AndroidFallbackCryptoProviderTest.kt$AndroidFallbackCryptoProviderTest</ID>
     <ID>TooManyFunctions:BleTransportDiscoveryLifecycleTest.kt$BleTransportDiscoveryLifecycleTest</ID>
+    <ID>TooManyFunctions:GattNotifyClientTest.kt$FakeGattNotifySession : GattNotifySession</ID>
     <ID>TooManyFunctions:GattNotifyClientTest.kt$GattNotifyClientTest</ID>
     <ID>TooManyFunctions:SecureStorageTest.kt$FakeSharedPreferences : SharedPreferences</ID>
     <ID>UnreachableCode:WireCompatibilitySupport.kt$return classLoader.getResourceAsStream(fileName)?.bufferedReader()?.use { reader -> reader.readText() }</ID>

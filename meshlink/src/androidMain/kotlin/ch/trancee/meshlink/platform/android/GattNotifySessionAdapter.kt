@@ -49,6 +49,23 @@ internal interface GattNotifySession {
 
     fun writeChunk(chunk: ByteArray): Boolean
 
+    /**
+     * Requests a graceful disconnect ([android.bluetooth.BluetoothGatt.disconnect]) without
+     * releasing the underlying client interface. Call this from any teardown path that is not
+     * already inside a confirmed `STATE_DISCONNECTED` callback -- see [close] for why closing
+     * synchronously right after this call is unsafe.
+     */
+    fun requestDisconnect(): Unit
+
+    /**
+     * Releases the underlying [android.bluetooth.BluetoothGatt] client interface
+     * ([android.bluetooth.BluetoothGatt.close]). Per the android-ble-gatt-status-133 skill, this
+     * MUST only be called once the connection is already confirmed `STATE_DISCONNECTED` (either
+     * because this callback fired for a connection that was already disconnected, or after
+     * [requestDisconnect] plus a bounded wait for that confirmation) -- calling it while still
+     * `STATE_CONNECTING`/`STATE_CONNECTED` races the native Bluetooth stack and can orphan internal
+     * resources or produce spurious GATT_ERROR/timeout failures on later connection attempts.
+     */
     fun close(): Unit
 }
 
@@ -181,12 +198,11 @@ internal class BluetoothGattNotifySession(
     }
 
     override fun close(): Unit {
-        // Always request a graceful disconnect before releasing the client interface -- see
-        // GattConnectionAdapter.disconnect() for why closing directly (without this) has been
-        // linked to status=133 connection failures and stuck/duplicate connection callbacks on
-        // reconnect for some OEM Bluetooth stacks in this project's device fleet.
-        connection.disconnect()
         connection.close()
+    }
+
+    override fun requestDisconnect(): Unit {
+        connection.disconnect()
     }
 
     private companion object {

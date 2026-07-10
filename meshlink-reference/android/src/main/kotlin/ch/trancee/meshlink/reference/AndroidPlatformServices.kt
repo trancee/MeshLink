@@ -710,9 +710,8 @@ private fun readinessGuidance(): List<String> {
     return listOf(
         "Confirm Bluetooth is enabled and the Android device is on API 26 or newer.",
         "Use the debug install path so runtime permissions are granted where the platform allows it.",
-        "Keep the device awake during direct proof on aggressive OEM builds, or rely on " +
-            "the live-proof foreground wake-lock mitigation when the reference app starts it; " +
-            "doze can stall BLE discovery on some devices.",
+        "Keep the device awake (or disable battery optimization for this app) during direct proof " +
+            "on aggressive OEM builds; doze can stall BLE discovery on some devices.",
         "Keep the device offline and near the peer before starting the guided exchange.",
     )
 }

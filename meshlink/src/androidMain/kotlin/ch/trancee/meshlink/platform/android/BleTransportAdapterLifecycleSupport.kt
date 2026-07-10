@@ -9,6 +9,44 @@ internal fun advertisedDiscoveryL2capPsm(
     return if (!localL2capClientSocketsSupported) 0u else (serverSocketPsm ?: 0).toUByte()
 }
 
+// Registers a BroadcastReceiver for BluetoothAdapter.ACTION_STATE_CHANGED so discovery proactively
+// resumes (after a short debounce -- see BluetoothStateChangeDebouncer) when the user manually
+// toggles Bluetooth back on, rather than waiting for some unrelated caller to invoke start()/
+// refresh() again. Registered in startTransport() and unregistered in stopTransports() so there is
+// never more than one receiver instance registered per adapter lifecycle.
+internal fun BleTransportAdapter.registerBluetoothStateChangeReceiver(): Unit {
+    if (bluetoothStateChangeReceiver != null) return
+    val receiver =
+        object : android.content.BroadcastReceiver() {
+            override fun onReceive(
+                receiverContext: android.content.Context?,
+                intent: android.content.Intent?,
+            ) {
+                val state =
+                    intent?.getIntExtra(
+                        android.bluetooth.BluetoothAdapter.EXTRA_STATE,
+                        android.bluetooth.BluetoothAdapter.ERROR,
+                    ) ?: android.bluetooth.BluetoothAdapter.ERROR
+                bluetoothStateChangeDebouncer.onStateChanged(state) {
+                    if (started && !transportStopping) {
+                        refreshDiscoveryState()
+                    }
+                }
+            }
+        }
+    context.registerDynamicReceiver(
+        receiver = receiver,
+        action = android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED,
+    )
+    bluetoothStateChangeReceiver = receiver
+}
+
+internal fun BleTransportAdapter.unregisterBluetoothStateChangeReceiver(): Unit {
+    val receiver = bluetoothStateChangeReceiver ?: return
+    bluetoothStateChangeReceiver = null
+    context.unregisterDynamicReceiverQuietly(receiver)
+}
+
 internal suspend fun BleTransportAdapter.startTransport(): Unit {
     transportStopping = false
     ensurePermissionsGranted()
@@ -83,6 +121,9 @@ internal suspend fun BleTransportAdapter.startTransport(): Unit {
     inboundFrameQueue = createInboundFrameQueue()
 
     started = true
+    registerBluetoothStateChangeReceiver()
+    registerBackgroundScanReceiver()
+    startBackgroundScan()
     refreshDiscoveryState()
 }
 

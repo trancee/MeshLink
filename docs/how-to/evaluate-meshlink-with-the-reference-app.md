@@ -59,9 +59,9 @@ non-authoritative walkthrough.
 If discovery stalls because Android or iOS is still blocked on permissions or
 the first Bluetooth prompt, fix that first with
 [How to unblock MeshLink permissions on Android and iOS](unblock-meshlink-permissions.md).
-On doze-sensitive Android devices, keep the screen awake during direct proof or
-rely on the reference app's foreground wake-lock mitigation before treating a
-slow discovery as a transport regression. For Android direct-guided proofs,
+On doze-sensitive Android devices, keep the screen awake or disable battery
+optimization for the app during direct proof before treating a slow discovery
+as a transport regression. For Android direct-guided proofs,
 treat sender `proof.complete` as required, but use retained passive evidence as
 the acceptance gate even when the passive role does not emit its own
 `proof.complete` log on this host.

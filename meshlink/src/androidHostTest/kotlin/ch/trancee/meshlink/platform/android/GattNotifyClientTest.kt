@@ -56,7 +56,10 @@ class GattNotifyClientTest {
         // Act
         factory.listener.onServicesDiscovered(status = 0)
 
-        // Assert
+        // Assert: requestDisconnect() (not close()) races the native stack per the
+        // android-ble-gatt-status-133 skill, so the graceful teardown path always requests a
+        // disconnect first -- close() only follows after the bounded safety-net delay.
+        assertEquals(1, session.requestDisconnectCalls)
         assertEquals(1, session.closeCalls)
         assertEquals(1, session.refreshServiceCacheCalls)
         assertFalse(client.isReady())
@@ -111,6 +114,7 @@ class GattNotifyClientTest {
 
         // Assert: only one refresh is attempted; the second miss gives up and closes.
         assertEquals(1, session.refreshServiceCacheCalls)
+        assertEquals(1, session.requestDisconnectCalls)
         assertEquals(1, session.closeCalls)
     }
 
@@ -610,6 +614,7 @@ class GattNotifyClientTest {
             // instead of silently corrupting the pending-write queue.
             assertFalse(written)
             assertFalse(client.isReady())
+            assertEquals(1, session.requestDisconnectCalls)
             assertEquals(1, session.closeCalls)
             assertFalse(client.write(byteArrayOf(0x04)))
         }
@@ -826,6 +831,8 @@ private fun createGattNotifyClient(
     onDisconnected: (PeerId) -> Unit = {},
     connectRetryDelayMillis: Long = 0L,
     connectRetryScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+    disconnectConfirmTimeoutMillis: Long = 0L,
+    teardownScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
 ): GattNotifyClient {
     return GattNotifyClient(
         context = Any(),
@@ -839,6 +846,8 @@ private fun createGattNotifyClient(
         sessionFactory = factory,
         connectRetryDelayMillis = connectRetryDelayMillis,
         connectRetryScope = connectRetryScope,
+        disconnectConfirmTimeoutMillis = disconnectConfirmTimeoutMillis,
+        teardownScope = teardownScope,
     )
 }
 
@@ -873,6 +882,7 @@ private class FakeGattNotifySession(
     var discoverServicesCalls: Int = 0
     var refreshServiceCacheCalls: Int = 0
     var closeCalls: Int = 0
+    var requestDisconnectCalls: Int = 0
     val writeChunks: MutableList<ByteArray> = mutableListOf()
     var writeChunkHandler: (ByteArray) -> Boolean = { true }
     private var resolutionCallIndex: Int = 0
@@ -922,5 +932,9 @@ private class FakeGattNotifySession(
 
     override fun close(): Unit {
         closeCalls += 1
+    }
+
+    override fun requestDisconnect(): Unit {
+        requestDisconnectCalls += 1
     }
 }

@@ -166,8 +166,7 @@ If you want a stable transport posture regardless of device battery state,
 choose a fixed `PowerMode` instead. That is often the cleaner and more honest
 choice.
 
-For Android direct-proof sessions on doze-sensitive devices, prefer the
-reference app's live-proof foreground wake-lock mitigation or a deliberate
+For Android direct-proof sessions on doze-sensitive devices, prefer a deliberate
 screen-awake/battery-optimization policy rather than assuming passive BLE
 scanning will stay alive on its own. Keep that mitigation in the app shell or
 operator flow, not buried in a one-off runner flag.
