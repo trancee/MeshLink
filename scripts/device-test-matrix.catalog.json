@@ -1767,7 +1767,21 @@
     "build": "WAS-LX1A 8.0.0.394(C432)",
     "gsma_url": "https://www.gsmarena.com/huawei_p10_lite-8598.php",
     "ds_url": "https://www.devicespecifications.com/en/model/8469421f",
-    "quirks": "\u2014"
+    "quirks": "\u2014",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-10",
+        "provider": "AndroidFallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 5059.049,
+        "x25519AgreementUs": 4744.529,
+        "ed25519KeyGenUs": 2755.0,
+        "ed25519SignUs": 2593.938,
+        "ed25519VerifyUs": 8576.846,
+        "chacha20SealUs": 194.469,
+        "chacha20OpenUs": 71.193
+      }
+    ]
   },
   {
     "device": "Oppo A53s",
@@ -1891,6 +1905,18 @@
         "ed25519VerifyUs": 17493.9,
         "chacha20SealUs": 207.2,
         "chacha20OpenUs": 205.4
+      },
+      {
+        "date": "2026-07-10",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 126.551,
+        "x25519AgreementUs": 196.205,
+        "ed25519KeyGenUs": 590.061,
+        "ed25519SignUs": 559.721,
+        "ed25519VerifyUs": 1798.657,
+        "chacha20SealUs": 43.411,
+        "chacha20OpenUs": 42.308
       }
     ],
     "transport_benchmark_history": [
@@ -1954,7 +1980,21 @@
     ],
     "build": "CPH2719_16.0.5.700(EX01)",
     "gsma_url": "https://www.gsmarena.com/oneplus_nord_ce5_5g-13792.php",
-    "ds_url": "https://www.devicespecifications.com/en/model/109c62e5"
+    "ds_url": "https://www.devicespecifications.com/en/model/109c62e5",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-10",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 56.546,
+        "x25519AgreementUs": 109.747,
+        "ed25519KeyGenUs": 92.778,
+        "ed25519SignUs": 98.168,
+        "ed25519VerifyUs": 96.179,
+        "chacha20SealUs": 42.241,
+        "chacha20OpenUs": 41.774
+      }
+    ]
   },
   {
     "device": "Xiaomi Redmi A3",
@@ -1980,7 +2020,21 @@
     "build": "16.V816.0.6.0.WGREUXM",
     "gsma_url": "https://www.gsmarena.com/xiaomi_redmi_a3-12822.php",
     "ds_url": "https://www.devicespecifications.com/en/model/fe595f2e",
-    "quirks": "Ed25519 confirmed functional via on-device crypto benchmark but runs on the pure-Kotlin fallback path (Ed25519KeyGen ~9.8ms, Sign ~8.5ms, Verify ~28.7ms), consistent with an MT6765/Helio G36-class device lacking hardware-backed Ed25519 in AndroidKeyStore."
+    "quirks": "Ed25519 confirmed functional via on-device crypto benchmark but runs on the pure-Kotlin fallback path (Ed25519KeyGen ~9.8ms, Sign ~8.5ms, Verify ~28.7ms), consistent with an MT6765/Helio G36-class device lacking hardware-backed Ed25519 in AndroidKeyStore.",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-10",
+        "provider": "Ed25519FallbackCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 576.663,
+        "x25519AgreementUs": 1263.266,
+        "ed25519KeyGenUs": 9075.622,
+        "ed25519SignUs": 7886.181,
+        "ed25519VerifyUs": 24918.31,
+        "chacha20SealUs": 160.378,
+        "chacha20OpenUs": 93.535
+      }
+    ]
   },
   {
     "device": "OPPO Reno13 5G",
@@ -2006,6 +2060,20 @@
     "build": "CPH2689_16.0.5.701(EX01)",
     "gsma_url": "https://www.gsmarena.com/oppo_reno13-13515.php",
     "ds_url": "https://www.devicespecifications.com/en/model/2e3f6274",
-    "quirks": "Confirmed native/hardware-accelerated crypto (JcaCryptoProvider) via on-device benchmark: all ops 41-183\u00b5s, consistent with the same Dimensity 8350/MT6897 platform as the catalogued OnePlus Nord CE5 5G (CPH2719), which OnePlus markets as \"Dimensity 8350 Apex\" -- OPPO's own spec sheet for this device names the chip plainly as \"Dimensity 8350\"."
+    "quirks": "Confirmed native/hardware-accelerated crypto (JcaCryptoProvider) via on-device benchmark: all ops 41-183\u00b5s, consistent with the same Dimensity 8350/MT6897 platform as the catalogued OnePlus Nord CE5 5G (CPH2719), which OnePlus markets as \"Dimensity 8350 Apex\" -- OPPO's own spec sheet for this device names the chip plainly as \"Dimensity 8350\".",
+    "crypto_benchmark_history": [
+      {
+        "date": "2026-07-10",
+        "provider": "JcaCryptoProvider",
+        "iterations": 200,
+        "x25519KeyGenUs": 101.234,
+        "x25519AgreementUs": 189.42,
+        "ed25519KeyGenUs": 160.602,
+        "ed25519SignUs": 168.859,
+        "ed25519VerifyUs": 170.925,
+        "chacha20SealUs": 75.129,
+        "chacha20OpenUs": 72.825
+      }
+    ]
   }
 ]
