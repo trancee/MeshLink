@@ -3,7 +3,6 @@
 package ch.trancee.meshlink.reference.platform
 
 import android.content.Context
-import android.content.Intent
 import android.util.Log
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.api.android.meshLinkBootstrap as androidMeshLinkBootstrap
@@ -62,50 +61,6 @@ public fun createAutomationPlatformServices(
                         authorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
                         nowProvider = clock,
                         surfaceOfOrigin = surfaceOfOrigin,
-                    )
-                }
-            },
-    )
-}
-
-public fun createLiveAutomationPlatformServices(
-    context: Context,
-    storageSubdirectory: String,
-    appId: String,
-    role: String,
-    requiredPeerCount: Int = 1,
-    targetPeerIndex: Int = 0,
-    targetPeerId: String? = null,
-    scenario: String = "direct-guided",
-): PlatformServices {
-    val clock = { System.currentTimeMillis() }
-    val safeStorageSubdirectory =
-        normalizeAutomationStorageSubdirectory(storageSubdirectory, "default")
-    val automationDirectory =
-        "${context.filesDir.absolutePath}/live-automation/" + safeStorageSubdirectory
-    val automationAppId = appId
-    return DefaultPlatformServices(
-        platformName = "Android",
-        defaultAuthorityMode = REFERENCE_AUTHORITY_MODE_LIVE,
-        readinessGuidance = readinessGuidance(),
-        options =
-            DefaultPlatformServicesOptions().apply {
-                readinessBlockers = readinessBlockers(context)
-                nowProvider = clock
-                this.appId = automationAppId
-                meshLinkBootstrap = createAndroidBootstrap(context)
-                automationTargetPeerId = targetPeerId
-                documentStore = OkioReferenceDocumentStore(automationDirectory, FileSystem.SYSTEM)
-                powerMitigationStatus =
-                    "Foreground wake lock active for live-proof automation sessions."
-                automationLogger = { message -> Log.i(AUTOMATION_LOG_TAG, message) }
-                stopPowerMitigation = {
-                    context.stopService(
-                        Intent()
-                            .setClassName(
-                                context.packageName,
-                                "ch.trancee.meshlink.reference.DirectProofPowerService",
-                            )
                     )
                 }
             },

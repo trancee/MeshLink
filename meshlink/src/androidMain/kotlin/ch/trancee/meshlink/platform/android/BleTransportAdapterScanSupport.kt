@@ -127,7 +127,7 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
     scanAcceptedCount.incrementAndGet()
     val resolvedPeer: DiscoveredPeer
     val emittedEventCount: Int
-    if (sameTransportAdvertisement && discoveredPeer!!.presenceAnnounced) {
+    if (sameTransportAdvertisement && discoveredPeer.presenceAnnounced) {
         // The advertisement is byte-for-byte identical to what's already recorded (same address,
         // PSM, transport mode) and presence was already announced for this peer -- upsertDiscovery
         // would be a pure no-op here (unchanged fields, no events; see

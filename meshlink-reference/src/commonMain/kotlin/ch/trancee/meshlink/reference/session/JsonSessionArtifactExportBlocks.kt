@@ -13,7 +13,7 @@ internal fun buildScenarioBlock(session: ReferenceSession): ScenarioBlock {
         scenarioId = session.scenarioId,
         title = referenceScenarioTitle(session.scenarioId),
         surface = normalizeSurface(session.configurationSnapshot["surface"]),
-        authorityMode = session.authorityMode.toString().lowercase(),
+        authorityMode = session.authorityMode.lowercase(),
         startedAt = formatExportTimestampUtc(session.startedAtEpochMillis),
         endedAt = session.endedAtEpochMillis?.let(::formatExportTimestampUtc),
         lastOutcomeSummary = referenceOutcomeLabel(session.lastOutcomeSummary),
