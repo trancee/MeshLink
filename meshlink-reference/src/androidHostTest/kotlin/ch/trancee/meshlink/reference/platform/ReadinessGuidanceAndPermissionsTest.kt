@@ -18,18 +18,20 @@ class ReadinessGuidanceAndPermissionsTest {
     }
 
     @Test
-    fun requiredPermissionsOnApi31AndAboveIncludeNearbyDeviceBluetoothPermissions() {
+    fun requiredPermissionsOnApi31AndAboveIncludeNearbyDeviceBluetoothPermissionsOnly() {
         // Arrange / Act
         val permissions = requiredPermissions(sdkInt = Build.VERSION_CODES.S)
 
-        // Assert
+        // Assert -- ACCESS_FINE_LOCATION is deliberately excluded here: the manifest declares
+        // BLUETOOTH_SCAN with usesPermissionFlags="neverForLocation" and scopes
+        // ACCESS_FINE_LOCATION itself to maxSdkVersion="30", so it is not even requestable on API
+        // 31+ and requiring it here permanently blocked "Startup" on real API 31+ hardware.
         assertEquals(
             expected =
                 listOf(
                     Manifest.permission.BLUETOOTH_SCAN,
                     Manifest.permission.BLUETOOTH_CONNECT,
                     Manifest.permission.BLUETOOTH_ADVERTISE,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
                 ),
             actual = permissions,
         )
