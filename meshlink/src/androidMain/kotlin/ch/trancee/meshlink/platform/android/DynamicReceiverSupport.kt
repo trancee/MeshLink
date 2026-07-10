@@ -23,10 +23,13 @@ internal fun Context.registerDynamicReceiver(receiver: BroadcastReceiver, action
 }
 
 /**
- * Same as the single-[action] overload above, for receivers that must react to more than one
- * system broadcast (e.g. both `ACTION_SCREEN_ON` and `ACTION_SCREEN_OFF`).
+ * Same as the single-[action] overload above, for receivers that must react to more than one system
+ * broadcast (e.g. both `ACTION_SCREEN_ON` and `ACTION_SCREEN_OFF`).
  */
-internal fun Context.registerDynamicReceiver(receiver: BroadcastReceiver, actions: List<String>): Unit {
+internal fun Context.registerDynamicReceiver(
+    receiver: BroadcastReceiver,
+    actions: List<String>,
+): Unit {
     val filter = IntentFilter()
     actions.forEach(filter::addAction)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

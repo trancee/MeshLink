@@ -40,7 +40,8 @@ class PeerRegistryTest {
     }
 
     @Test
-    fun upsertDiscoveryEmitsInboundPeerClaimedInsteadOfPeerDiscoveredWhenPresenceIsNotAnnounced(): Unit {
+    fun upsertDiscoveryEmitsInboundPeerClaimedInsteadOfPeerDiscoveredWhenPresenceIsNotAnnounced():
+        Unit {
         // Arrange -- mirrors BleTransportAdapter.registerProvisionalGattPeer, which registers a
         // peer claimed via an inbound GATT connection without treating it as a fully authenticated
         // presence announcement (see that function's doc comment). The engine still needs a

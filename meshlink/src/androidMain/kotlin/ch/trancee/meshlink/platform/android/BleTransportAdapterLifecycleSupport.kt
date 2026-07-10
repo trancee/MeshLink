@@ -147,11 +147,30 @@ internal suspend fun BleTransportAdapter.stopTransport(): Unit {
 }
 
 internal suspend fun BleTransportAdapter.updatePowerPolicyState(policy: PowerPolicy): Unit {
+    // Capture the scan mode the supplementary PendingIntent channel (if currently running --
+    // i.e. screen off, see ScreenStateSupport.kt) was started with, so a genuine scan-mode change
+    // from this power-policy update can restart just that channel to pick up the new mode. Without
+    // this, a tier change while the screen is off would leave the supplementary channel running
+    // with a stale scan mode until the next screen-off/on cycle, silently reintroducing the
+    // mismatched-concurrent-scan-mode condition backgroundScanSettings() exists to avoid (see its
+    // doc comment). Only restarting on an actual mode change (not on every call) avoids tripping
+    // Android's undocumented BLE "scanning too frequently" throttle the same way
+    // BleTransportDiscoveryLifecycle.updatePowerPolicy()'s own tierUnchanged guard already does for
+    // the primary channel.
+    val previousBackgroundScanMode =
+        if (backgroundScanActive) currentPowerProfile.scanMode else null
     discoveryLifecycle.updatePowerPolicy(
         policy = policy,
         started = started,
         hardware = discoveryHardware(),
     )
+    if (
+        previousBackgroundScanMode != null &&
+            previousBackgroundScanMode != currentPowerProfile.scanMode
+    ) {
+        stopBackgroundScan()
+        startBackgroundScan()
+    }
 }
 
 internal suspend fun BleTransportAdapter.setDiscoverySuspendedState(suspended: Boolean): Unit {

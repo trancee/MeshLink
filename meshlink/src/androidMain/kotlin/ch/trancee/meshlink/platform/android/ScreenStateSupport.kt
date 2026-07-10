@@ -45,12 +45,12 @@ internal fun BleTransportAdapter.unregisterScreenStateReceiver(): Unit {
 /**
  * Whether the screen is currently on ("interactive"). Defaults to `true` (interactive) if the
  * platform can't answer -- i.e. this errs towards *not* starting the supplementary scan channel
- * when unsure, which is the safer choice given the concurrent-scan-mode regression this channel
- * has already caused once on a real device; a missed Doze-survival window is recoverable (the next
+ * when unsure, which is the safer choice given the concurrent-scan-mode regression this channel has
+ * already caused once on a real device; a missed Doze-survival window is recoverable (the next
  * genuine ACTION_SCREEN_OFF starts it), while running an extra mismatched scan concurrently is not
  * easily observable from the field.
  */
 internal fun Context.isScreenInteractive(): Boolean {
-    return runCatching { getSystemService(PowerManager::class.java)?.isInteractive }
-        .getOrNull() ?: true
+    return runCatching { getSystemService(PowerManager::class.java)?.isInteractive }.getOrNull()
+        ?: true
 }
