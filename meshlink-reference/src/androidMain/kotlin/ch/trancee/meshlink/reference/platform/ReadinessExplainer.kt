@@ -10,7 +10,9 @@ internal fun readinessGuidance(): List<String> {
     return listOf(
         "Confirm Bluetooth is enabled and the Android device is on API 26 or newer.",
         "Use the debug install path so runtime permissions are granted where the platform allows it.",
-        "Keep the device awake during direct proof on aggressive OEM builds, or rely on the live-proof foreground wake-lock mitigation when the reference app starts it; doze can stall BLE discovery.",
+        "Keep the device awake during direct proof on aggressive OEM builds, or rely on the " +
+            "live-proof foreground wake-lock mitigation when the reference app starts it; doze " +
+            "can stall BLE discovery.",
         "Keep the device offline and near the peer before starting the guided exchange.",
     )
 }
@@ -27,7 +29,7 @@ internal fun readinessBlockers(context: Context): List<String> {
 }
 
 internal fun requiredPermissions(sdkInt: Int): List<String> {
-    return if (sdkInt >= 31) {
+    return if (sdkInt >= Build.VERSION_CODES.S) {
         listOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
@@ -59,20 +61,42 @@ internal fun readinessBlockers(
 }
 
 private fun powerManagementBlockers(context: Context): List<String> {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-        return emptyList()
-    }
-    val powerManager =
-        context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return emptyList()
-    val packageName = context.packageName
-    val ignoringOptimizations = powerManager.isIgnoringBatteryOptimizations(packageName)
-    val idleMode =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isDeviceIdleMode else false
-    val interactive = powerManager.isInteractive
-    if (!idleMode && (interactive || ignoringOptimizations)) {
-        return emptyList()
-    }
-    return listOf(
-        "Keep the screen awake or disable battery optimization before starting MeshLink direct proof; on some Android 14 devices the live-proof foreground wake-lock mitigation is still needed to avoid quick-doze discovery stalls."
+    val powerManager = context.powerManagerOrNull()
+    return powerManagementBlockers(
+        hasPowerManager = powerManager != null,
+        idleMode = powerManager?.isDeviceIdleMode ?: false,
+        interactive = powerManager?.isInteractive ?: false,
+        ignoringOptimizations =
+            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false,
     )
+}
+
+/**
+ * Pure decision logic behind [powerManagementBlockers], separated from [PowerManager] and [Context]
+ * so it is directly unit-testable without Android framework mocking, mirroring
+ * `BlePermissionContract`'s testable-contract pattern.
+ */
+internal fun powerManagementBlockers(
+    hasPowerManager: Boolean,
+    idleMode: Boolean,
+    interactive: Boolean,
+    ignoringOptimizations: Boolean,
+): List<String> {
+    val needsMitigation = hasPowerManager && (idleMode || (!interactive && !ignoringOptimizations))
+    return if (needsMitigation) {
+        listOf(
+            "Keep the screen awake or disable battery optimization before starting MeshLink " +
+                "direct proof; on some Android 14 devices the live-proof foreground wake-lock " +
+                "mitigation is still needed to avoid quick-doze discovery stalls."
+        )
+    } else {
+        emptyList()
+    }
+}
+
+private fun Context.powerManagerOrNull(): PowerManager? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+        return null
+    }
+    return getSystemService(Context.POWER_SERVICE) as? PowerManager
 }
