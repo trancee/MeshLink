@@ -14,6 +14,20 @@ private const val ENV_VALUE_YES: String = "yes"
 internal const val TRANSPORT_TELEMETRY_ENV: String = "MESHLINK_TRANSPORT_TELEMETRY"
 internal const val TRANSPORT_DEBUG_ENV: String = "MESHLINK_TRANSPORT_DEBUG"
 
+/**
+ * Diagnostic-only override for [shouldInitiateL2cap]'s normal key-hash tie-break, used to make
+ * connection-admission-control validation (`hasConnectionBudget()`, see power/PowerPolicy.kt)
+ * reproducible on physical hardware. The tie-break that decides which side of a peer pair locally
+ * initiates the outgoing L2CAP connect is otherwise effectively random per mesh identity (it
+ * compares each side's key hash), so exercising the admission gate's deferral branch against a real
+ * multi-peer physical fleet could not be forced -- see
+ * docs/explanation/ble-connection-robustness.md's iOS admission-control validation notes. Setting
+ * this to a truthy value (see [readEnvironmentFlag]) makes this device always attempt to locally
+ * initiate the L2CAP connect for every discovered L2CAP-capable peer, regardless of key-hash
+ * comparison. Never read outside of [shouldInitiateL2cap]; never set in normal product usage.
+ */
+internal const val FORCE_L2CAP_INITIATOR_ENV: String = "MESHLINK_FORCE_L2CAP_INITIATOR"
+
 internal inline fun BleTransportAdapter.log(message: () -> String): Unit {
     if (transportDebugLoggingEnabled) {
         emitTransportLog(message())
