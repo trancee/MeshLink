@@ -57,7 +57,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(viewModel.logs.enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .font(.footnote.monospaced())
+                            .font(Font.system(.footnote, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }

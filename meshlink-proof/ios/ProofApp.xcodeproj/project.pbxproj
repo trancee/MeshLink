@@ -11,6 +11,7 @@
 		1A034B04B101B24A8FF9E89B /* ProofGattBenchmarkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83D24A11C1D13B53B355B15 /* ProofGattBenchmarkProtocol.swift */; };
 		1D3F42D45F21C11385FE27BF /* ProofLaunchConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C2812928D385FE500985FF /* ProofLaunchConfig.swift */; };
 		23F2C7D99A97B029F1FA632E /* ProofViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */; };
+		33519C7A5EA5DB2DA5FE3983 /* BluetoothPermissionGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A255CA355643D613BABAF86 /* BluetoothPermissionGrant.swift */; };
 		395F70816C081CC331C99357 /* ProofApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B450AC2ED51A141367368720 /* ProofApp.swift */; };
 		42630CF73715BDDA8DC5E72E /* ProofGattBenchmarkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */; };
 		486E383EE20727A7748D21FF /* RecipientConfirmedBenchmarkDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */; };
@@ -47,13 +48,13 @@
 		1FBE0222244C6DE578732F69 /* ProofBenchmarkEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofBenchmarkEnvelope.swift; sourceTree = "<group>"; };
 		3456A572AE79E7AF8E4E4F40 /* ProofGattNotifyBenchmarkServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattNotifyBenchmarkServer.swift; sourceTree = "<group>"; };
 		38B26770518856564F031445 /* TransportPerformanceBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPerformanceBenchmark.swift; sourceTree = "<group>"; };
+		3A255CA355643D613BABAF86 /* BluetoothPermissionGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothPermissionGrant.swift; sourceTree = "<group>"; };
 		41FA7EB63D3FCC9D89A53CC6 /* ProofBenchmarks.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProofBenchmarks.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		42AE38A6A4182F543FAA1B57 /* ProofApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProofApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		449C6808F0174CE46FCA8BC6 /* ProofViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofViewModel.swift; sourceTree = "<group>"; };
 		4760E0CB0EEA45F245AA20F3 /* ProofBenchmarkTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofBenchmarkTransport.swift; sourceTree = "<group>"; };
 		512365B1B6AB58412EFF7D72 /* MeshLinkTransportBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshLinkTransportBridge.swift; sourceTree = "<group>"; };
 		6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdStartBenchmark.swift; sourceTree = "<group>"; };
-		81F2E52ACDF038035D9F5DFC /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		838B0CE5BBB49A2F8A7254E2 /* ProofGattBenchmarkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofGattBenchmarkClient.swift; sourceTree = "<group>"; };
 		B2C2812928D385FE500985FF /* ProofLaunchConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofLaunchConfig.swift; sourceTree = "<group>"; };
 		B450AC2ED51A141367368720 /* ProofApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApp.swift; sourceTree = "<group>"; };
@@ -106,8 +107,8 @@
 		DF30AE0347A16DD3AFDD08A2 /* ProofBenchmarks */ = {
 			isa = PBXGroup;
 			children = (
-				81F2E52ACDF038035D9F5DFC /* .gitkeep */,
 				D8425B56578082E0CBC21735 /* BenchmarkTestSupport.swift */,
+				3A255CA355643D613BABAF86 /* BluetoothPermissionGrant.swift */,
 				6469225EB29E7FF131D51123 /* ColdStartBenchmark.swift */,
 				033612DB1CD3421011142A10 /* PowerProfileBenchmark.swift */,
 				198714BAC74453D5299F3D2C /* RecipientConfirmedBenchmarkDiagnostic.swift */,
@@ -221,6 +222,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				72FF2746CA1351980C970D33 /* BenchmarkTestSupport.swift in Sources */,
+				33519C7A5EA5DB2DA5FE3983 /* BluetoothPermissionGrant.swift in Sources */,
 				A27123E5BC9F56E96A7FE533 /* ColdStartBenchmark.swift in Sources */,
 				4CA77348EDB28F13CDC12398 /* PowerProfileBenchmark.swift in Sources */,
 				486E383EE20727A7748D21FF /* RecipientConfirmedBenchmarkDiagnostic.swift in Sources */,
@@ -267,9 +269,8 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 7ZX3WPAP4Y;
 				INFOPLIST_FILE = Support/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -287,9 +288,8 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 7ZX3WPAP4Y;
 				INFOPLIST_FILE = Support/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -340,10 +340,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited) \"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -354,18 +351,11 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Support/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					MeshLink,
-				);
+				OTHER_LDFLAGS = "$(inherited) -framework MeshLink";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -379,7 +369,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -397,7 +387,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -450,10 +440,7 @@
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited) \"$(SRCROOT)/../../meshlink/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -470,19 +457,12 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Support/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					MeshLink,
-				);
+				OTHER_LDFLAGS = "$(inherited) -framework MeshLink";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
