@@ -185,6 +185,12 @@ internal fun BleTransportAdapter.shouldInitiateL2cap(
     remoteKeyHash: ByteArray,
     remotePlatformFamily: BleDiscoveryPlatformFamily,
 ): Boolean {
+    // See FORCE_L2CAP_INITIATOR_ENV's doc comment (BleTransportAdapterLogging.kt): diagnostic-only
+    // escape hatch so physical connection-admission-control validation isn't at the mercy of the
+    // normal key-hash tie-break below.
+    if (forceL2capInitiatorEnabled) {
+        return true
+    }
     return shouldLocalPeerInitiateL2capConnection(
         localKeyHash = localKeyHash,
         localPlatformFamily = currentDiscoveryPayload.platformFamily,

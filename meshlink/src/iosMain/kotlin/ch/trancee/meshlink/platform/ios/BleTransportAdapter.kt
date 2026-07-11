@@ -30,6 +30,8 @@ internal class BleTransportAdapter(internal val appId: String, advertisementKeyH
     internal val localKeyHash: ByteArray = advertisementKeyHash.copyOf()
     internal val telemetryEnabled: Boolean = readEnvironmentFlag(TRANSPORT_TELEMETRY_ENV)
     internal val transportDebugLoggingEnabled: Boolean = readEnvironmentFlag(TRANSPORT_DEBUG_ENV)
+    internal val forceL2capInitiatorEnabled: Boolean =
+        readEnvironmentFlag(FORCE_L2CAP_INITIATOR_ENV)
     internal val peerBindings = PeerBindings()
     internal val peerRegistry = PeerRegistry(peerBindings)
     internal val activeLinksByHint: MutableMap<String, L2capLink> = linkedMapOf()
