@@ -26,9 +26,12 @@
 # --ios-deploy-device explicitly to bypass auto-discovery entirely for a
 # specific run.
 #
-# ios-deploy has no install-only mode (unlike devicectl's separate
-# install/launch subcommands): installing via ios-deploy always launches the
-# app too, regardless of whether --launch was passed.
+# ios-deploy always launches ProofApp when it installs it (there is no plain
+# install-only mode for a build meant to actually run), and keeping it running
+# requires an attached debugger the whole time -- see the launch-crash note
+# further down. ReferenceApp, which only ever needs to be *installed* as a
+# trust anchor (never run), uses --nostart instead to avoid launching it at
+# all.
 #
 # Uninstalling ProofApp on an ios-deploy-managed device can silently revoke
 # the on-device "trust this developer" record and force you to manually
@@ -43,6 +46,28 @@
 # app signed by the same certificate is always there to keep the device's
 # trust record alive across ProofApp's own uninstall/reinstall cycles.
 # ReferenceApp itself is never uninstalled by this script.
+#
+# ProofApp itself will reliably CRASH within seconds of a plain
+# "install-and-launch-then-detach" (e.g. --justlaunch) on this kind of build:
+# Xcode's Debug-configuration "stub executor" launch mechanism (the ProofApp
+# binary is a small stub that dyld-loads the real code from
+# ProofApp.debug.dylib at startup) synchronizes that load through a dyld
+# debugger-notify breakpoint (`brk 0` in `lldb_image_notifier`) that only an
+# *attached* debugger services; detaching before that point leaves the
+# breakpoint trap uncaught, which the OS treats as an uncaught SIGTRAP
+# (EXC_BREAKPOINT) and kills the process almost immediately -- confirmed via
+# `idevicecrashreport` (`brew install libimobiledevice`) pulling a crash
+# report showing exactly this frame, and via `ios-deploy --get_pid` reporting
+# no running process (pid: -1) within seconds of a "successful" --justlaunch.
+# devicectl-managed devices do not hit this (Apple's own tooling handles the
+# handshake correctly), so this is specific to the ios-deploy path. The only
+# reliable fix is to keep a debugger attached for as long as the app needs to
+# keep running, so this script launches ProofApp on ios-deploy-managed
+# devices in the background (nohup + disown, detached from this script's own
+# lifetime) and leaves it running rather than detaching immediately -- stop it
+# yourself when done testing, or just rerun this script (the next uninstall
+# step terminates the app, and the lingering debugger session along with it,
+# before reinstalling fresh).
 #
 # This script exists because headless/automation shells (no logged-in GUI/Aqua
 # session) cannot unlock the login keychain's Apple Development private key --
@@ -110,6 +135,10 @@ bundle_id="ch.trancee.meshlink.proof.ios"
 reference_app_project_path="$repo_root/meshlink-reference/ios/ReferenceApp.xcodeproj"
 reference_app_scheme="ReferenceApp"
 reference_app_bundle_id="ch.trancee.meshlink.reference.ios"
+# Every per-device ios-deploy invocation below is bounded by this so a
+# device that is slow to respond (or briefly unreachable) fails fast instead
+# of hanging indefinitely -- ios-deploy has no default connection timeout.
+ios_deploy_timeout=30
 
 development_team=""
 devices=()
@@ -408,7 +437,7 @@ if [[ ${#ios_deploy_devices[@]} -gt 0 ]]; then
   needs_reference_app=0
   for device in "${ios_deploy_devices[@]:-}"; do
     [[ -z "$device" ]] && continue
-    if ! ios-deploy --id "$device" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
+    if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
       needs_reference_app=1
       break
     fi
@@ -438,28 +467,77 @@ fi
 for device in "${ios_deploy_devices[@]:-}"; do
   [[ -z "$device" ]] && continue
 
-  if [[ -n "$reference_app_path" ]] && ! ios-deploy --id "$device" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
+  if [[ -n "$reference_app_path" ]] && ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
     echo
     echo "==> $device (ios-deploy): installing ReferenceApp as a trust anchor (never uninstalled by this script)"
-    if ! ios-deploy --id "$device" --bundle "$reference_app_path" --justlaunch; then
-      echo "    (ios-deploy exited non-zero for ReferenceApp on $device -- check the output above; this can happen even on a successful install+launch)"
+    # --nostart: ReferenceApp only needs to be *installed*, never launched, so
+    # this deliberately avoids ever running it at all -- sidestepping the
+    # dyld-debugger-notify crash documented below for ProofApp's own launch,
+    # since an app that never runs can never hit it. Also gives a reliable
+    # exit code (unlike --justlaunch/--noninteractive -d).
+    if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --bundle "$reference_app_path" --nostart; then
+      echo "    (ios-deploy exited non-zero installing ReferenceApp on $device -- check the output above)"
     fi
   fi
 
   echo
   echo "==> $device (ios-deploy): uninstalling any previous ${bundle_id} install"
-  if ! ios-deploy --id "$device" --uninstall_only --bundle_id "$bundle_id"; then
+  if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --uninstall_only --bundle_id "$bundle_id"; then
     echo "    (no previous install found, or uninstall failed harmlessly -- continuing)"
   fi
 
-  echo "==> $device (ios-deploy): installing freshly built app (this also launches it -- ios-deploy has no install-only mode)"
-  # ios-deploy's own exit code is not reliable for --justlaunch (it can be
-  # non-zero even after the output clearly shows "success"), so a non-zero
-  # exit here is downgraded to a warning rather than aborting the whole run;
-  # check the output above for actual error text (e.g. "invalid code
-  # signature", "Cannot launch") if a device does not actually come up.
-  if ! ios-deploy --id "$device" --bundle "$app_path" --justlaunch; then
-    echo "    (ios-deploy exited non-zero for $device -- check the output above; this can happen even on a successful install+launch)"
+  echo "==> $device (ios-deploy): installing and launching freshly built app"
+  # A plain "install and launch, then exit" (--justlaunch, or any other mode
+  # that detaches lldb) reliably CRASHES the app moments after launch on this
+  # kind of build: Xcode's Debug-configuration "stub executor" launch
+  # mechanism (the ProofApp binary is a small stub that dyld-loads the real
+  # code from ProofApp.debug.dylib at startup) synchronizes that load through
+  # a dyld debugger-notify breakpoint (`brk 0` in `lldb_image_notifier`) that
+  # only an *attached* debugger services; detaching before that point leaves
+  # the breakpoint trap uncaught, which the OS treats as an uncaught SIGTRAP
+  # (EXC_BREAKPOINT) and kills the process -- confirmed via `idevicecrashreport`
+  # (`brew install libimobiledevice`) pulling a crash report showing exactly
+  # this frame, and via `ios-deploy --get_pid` reporting no running process
+  # (pid: -1) within seconds of a "successful" --justlaunch. devicectl-managed
+  # devices do not hit this (Apple's own tooling handles the handshake
+  # correctly), so this is specific to the ios-deploy path.
+  #
+  # The only reliable fix is to keep a debugger attached for as long as the
+  # app needs to keep running: launch in the background with --noninteractive
+  # -d (no --justlaunch) and leave that process running, detached from this
+  # script's own lifetime (nohup + disown) so the script can still return.
+  # Stop it yourself when done testing (e.g. `pkill -f "ios-deploy.*$device"`),
+  # or just rerun this script -- the next uninstall step below will terminate
+  # the app (and this lingering debugger session along with it) before
+  # reinstalling fresh.
+  pkill -f "ios-deploy --id $device " 2>/dev/null || true
+  ios_deploy_log="$repo_root/build/ios-deploy-launch-${device}.log"
+  # setsid(1) does not exist on macOS (it is a Linux/util-linux tool) --
+  # nohup (detach from the controlling terminal/SIGHUP) plus disown (remove
+  # from this shell's job table so it is never waited-on or signaled) is the
+  # portable BSD/macOS-safe equivalent for "launch and leave running
+  # independent of this script's own process".
+  nohup ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --bundle "$app_path" --noninteractive -d \
+    > "$ios_deploy_log" 2>&1 &
+  disown
+
+  # Installing (not just launching) can take well over a few seconds on an
+  # older device, so poll for a running pid rather than checking once
+  # immediately, bounded by the same ios_deploy_timeout used everywhere else.
+  launched=0
+  poll_interval=3
+  poll_attempts=$(( (ios_deploy_timeout + poll_interval - 1) / poll_interval ))
+  for _ in $(seq 1 "$poll_attempts"); do
+    sleep "$poll_interval"
+    if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --get_pid --bundle_id "$bundle_id" 2>/dev/null | tail -1 | grep -q 'pid: -1'; then
+      launched=1
+      break
+    fi
+  done
+  if [[ "$launched" -eq 1 ]]; then
+    echo "    launched and left running in the background (log: $ios_deploy_log); stop it yourself when done testing"
+  else
+    echo "    (warning: ${bundle_id} does not appear to be running on $device after launch -- see $ios_deploy_log)"
   fi
 done
 
