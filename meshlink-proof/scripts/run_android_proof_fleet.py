@@ -1009,6 +1009,17 @@ def _run_full_mesh_batch(
     so launching every device this way exercises genuine concurrent all-to-all
     mesh connectivity - including with an odd device count, since there is no
     pairing to leave a device out of.
+
+    Known duplication (flagged in code review, deliberately not merged yet):
+    the launch/capture/mode/logcat-collection and
+    stuck-Bluetooth-stack-detection-and-retry scaffolding below closely
+    mirrors _run_pair_batch's. They were kept separate rather than unified
+    behind one shared "launch spec" helper because the two loops differ in a
+    load-bearing way (per-pair two-role launch vs. per-device single-role
+    launch) and this function's current form has already been validated
+    against physical hardware multiple times (see meshlink-benchmark/
+    history.md's 2026-07-11 entry); unifying them deserves its own dedicated
+    hardware-revalidation pass rather than folding into this change.
     """
     launch_results: list[dict[str, Any]] = []
     capture_results: list[dict[str, Any]] = []
