@@ -73,6 +73,12 @@ internal class GattNotifyClient(
     private val disconnectConfirmTimeoutMillis: Long = DISCONNECT_CONFIRM_TIMEOUT_MILLIS,
     private val teardownScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    // Overridable for the same reason as connectRetryScope/teardownScope above: tests need an
+    // immediate/unconfined scope to observe the proactive identity announcement (see
+    // announceIdentityIfNeeded() and its onDescriptorWrite call site) deterministically instead of
+    // racing a real Dispatchers.Default coroutine.
+    private val identityAnnounceScope: CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     @Volatile private var session: GattNotifySession? = null
     @Volatile
@@ -274,6 +280,7 @@ internal class GattNotifyClient(
                 }
                 val address = session?.address.orEmpty()
                 log("GATT notify side link ready for ${peerHintId.value.takeLast(6)} addr=$address")
+                ensureIdentityAnnounced()
             }
 
             override fun onCharacteristicChanged(characteristicUuid: String, value: ByteArray) {
@@ -354,50 +361,13 @@ internal class GattNotifyClient(
 
     suspend fun write(payload: ByteArray): Boolean {
         return writeMutex.withLock {
+            // Snapshot once and reuse for both phases (identity announce, then payload), matching
+            // this method's pre-refactor behavior exactly: a concurrent close()/reconnect during
+            // the identity-announce suspend point must not let the payload phase observe a
+            // different session reference than the one the announce just used.
             val session = session
-            if (!identityAnnounced) {
-                // A fresh tracker per writeViaGattNotify() call: drainPendingWrites() awaits
-                // exactly these chunks' own deferreds rather than inferring "done" from shared
-                // queue emptiness (see drainPendingWrites() for why that inference is unsound).
-                val announceChunks = mutableListOf<PendingGattWrite>()
-                val announced =
-                    writeViaGattNotify(
-                        payload = WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)),
-                        context =
-                            GattNotifyWriteContext(
-                                peerLogSuffix = peerHintId.value.takeLast(6),
-                                clientReady = lifecycleState.ready,
-                                hasGatt = session != null,
-                                hasWriteCharacteristic = session?.hasWriteCharacteristic() == true,
-                                maxChunkBytes = maximumWriteChunkBytes(),
-                            ),
-                        dependencies =
-                            GattNotifyWriteDependencies(
-                                encode = frameBuffer::encode,
-                                writeChunk = { payloadBytes, encodedBytes, chunk ->
-                                    if (session == null) {
-                                        false
-                                    } else {
-                                        enqueueEncodedChunk(
-                                            session = session,
-                                            payloadBytes = payloadBytes,
-                                            encodedBytes = encodedBytes,
-                                            chunk = chunk,
-                                            pendingChunks = announceChunks,
-                                        )
-                                    }
-                                },
-                                drain = { drainPendingWrites(announceChunks) },
-                                log = log,
-                            ),
-                    )
-                if (!announced) {
-                    return@withLock false
-                }
-                identityAnnounced = true
-                log(
-                    "GATT notify side link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
-                )
+            if (!announceIdentityIfNeededLocked(session)) {
+                return@withLock false
             }
             val payloadChunks = mutableListOf<PendingGattWrite>()
             writeViaGattNotify(
@@ -433,8 +403,95 @@ internal class GattNotifyClient(
         }
     }
 
+    /**
+     * Announces this device's [localHintPeerId] over the notify characteristic if that hasn't
+     * happened yet on the current session, otherwise a no-op that returns `true` immediately. Must
+     * be called while holding [writeMutex].
+     *
+     * Takes [session] as a parameter rather than reading the volatile [GattNotifyClient.session]
+     * field itself, so [write] can snapshot it once and share that exact snapshot across both its
+     * identity-announce and payload-write phases (see [write]'s own comment), while
+     * [ensureIdentityAnnounced]'s standalone proactive call site takes its own fresh snapshot.
+     *
+     * This used to run lazily, inline in [write], as a prefix to the first real payload write --
+     * which meant a device that is the Noise-XX handshake *responder* towards [peerHintId] (per
+     * [ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection]-style key-hash
+     * tie-break) never wrote anything on this link at all, since a pure protocol responder waits
+     * for the initiator's first message rather than sending anything proactively. If the peer's
+     * *own* BLE scanner also never independently discovers this device (e.g. a transient
+     * scan-result wedge -- see docs/explanation/ble-connection-robustness.md's scan-wedge
+     * findings), the peer has no way to learn this device's identity either, and the pairing
+     * deadlocks permanently: this is the same class of asymmetric-discovery deadlock
+     * [ch.trancee.meshlink.transport.TransportEvent.InboundPeerClaimed] exists to mitigate, just
+     * reached through "the responder never had a reason to write" instead of "neither side
+     * scan-discovered the other". See [ensureIdentityAnnounced] for the proactive fix.
+     */
+    private suspend fun announceIdentityIfNeededLocked(session: GattNotifySession?): Boolean {
+        if (identityAnnounced) {
+            return true
+        }
+        // A fresh tracker per writeViaGattNotify() call: drainPendingWrites() awaits exactly
+        // these chunks' own deferreds rather than inferring "done" from shared queue emptiness
+        // (see drainPendingWrites() for why that inference is unsound).
+        val announceChunks = mutableListOf<PendingGattWrite>()
+        val announced =
+            writeViaGattNotify(
+                payload = WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)),
+                context =
+                    GattNotifyWriteContext(
+                        peerLogSuffix = peerHintId.value.takeLast(6),
+                        clientReady = lifecycleState.ready,
+                        hasGatt = session != null,
+                        hasWriteCharacteristic = session?.hasWriteCharacteristic() == true,
+                        maxChunkBytes = maximumWriteChunkBytes(),
+                    ),
+                dependencies =
+                    GattNotifyWriteDependencies(
+                        encode = frameBuffer::encode,
+                        writeChunk = { payloadBytes, encodedBytes, chunk ->
+                            if (session == null) {
+                                false
+                            } else {
+                                enqueueEncodedChunk(
+                                    session = session,
+                                    payloadBytes = payloadBytes,
+                                    encodedBytes = encodedBytes,
+                                    chunk = chunk,
+                                    pendingChunks = announceChunks,
+                                )
+                            }
+                        },
+                        drain = { drainPendingWrites(announceChunks) },
+                        log = log,
+                    ),
+            )
+        if (announced) {
+            identityAnnounced = true
+            log(
+                "GATT notify side link ${peerHintId.value.takeLast(6)} announced local LinkIdentity=${localHintPeerId.value.takeLast(6)}"
+            )
+        }
+        return announced
+    }
+
+    /**
+     * Proactively announces [localHintPeerId] as soon as the link is ready, independent of whether
+     * this device ever calls [write] with a real payload. Launched (not suspended) from the
+     * synchronous [BluetoothGattCallback]-driven ready path in [sessionListener]'s
+     * `onDescriptorWrite`; see [announceIdentityIfNeededLocked]'s doc comment for the deadlock this
+     * closes. A failed announce attempt here is silently retried by the next real [write] call (or
+     * the next successful reconnect), matching every other best-effort recovery path in this class
+     * -- there is no dedicated retry loop for this specific proactive attempt.
+     */
+    private fun ensureIdentityAnnounced(): Unit {
+        identityAnnounceScope.launch {
+            writeMutex.withLock { announceIdentityIfNeededLocked(session) }
+        }
+    }
+
     fun close(): Unit {
         connectRetryScope.cancel()
+        identityAnnounceScope.cancel()
         closeInternal(markClosedByOwner = true)
     }
 
