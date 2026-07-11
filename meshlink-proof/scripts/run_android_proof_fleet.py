@@ -251,11 +251,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "- see capture_full_logcat()."
         ),
     )
+    parser.add_argument(
+        "--full-mesh",
+        action="store_true",
+        default=False,
+        help=(
+            "Instead of the default 1:1 initiator/receiver pairing, launch every selected "
+            "device (the whole fleet, or the --device list if given) simultaneously as a "
+            "benchmark-sending initiator, and report a full NxN directed delivery matrix "
+            "built from every device's own proof.log rather than a single assigned pair's "
+            "evidence. Because the proof app already auto-sends to every peer it discovers "
+            "(not just one assigned partner), this exercises genuine all-to-all mesh "
+            "connectivity and works with an odd device count too (no device is left "
+            "unpaired). See build_full_mesh_matrix(). Cannot be combined with --pair-label."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.devices and args.pair_labels:
         parser.error("--device cannot be combined with --pair-label")
-    if args.devices and len(args.devices) != 2:
+    if args.full_mesh and args.pair_labels:
+        parser.error("--full-mesh cannot be combined with --pair-label")
+    if args.devices and not args.full_mesh and len(args.devices) != 2:
         parser.error("--device must be passed exactly twice (initiator, then receiver)")
+    if args.devices and args.full_mesh and len(args.devices) < 2:
+        parser.error("--full-mesh with --device needs at least 2 devices")
     if args.max_concurrent_pairs < 1:
         parser.error("--max-concurrent-pairs must be at least 1")
     return args
@@ -967,6 +986,271 @@ def _run_pair_batch(
     }
 
 
+_BENCHMARK_RECEIPT_CONFIRMED_RE = re.compile(
+    r"BENCHMARK receipt confirmed peer=([0-9a-fA-F]{6}) token=([0-9a-fA-F]+) bytes=(\d+)"
+)
+
+
+def _run_full_mesh_batch(
+    devices: list["DeviceRecord"],
+    *,
+    run_root: Path,
+    app_id: str,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    """Launch every selected device simultaneously as a benchmark-sending peer.
+
+    Unlike _run_pair_batch (which assigns exactly one initiator/receiver role
+    per pair and runs a bounded number of pairs at a time to keep BLE airtime
+    pressure low), this intentionally launches the *entire* selected fleet at
+    once with every device acting as a benchmark initiator. The proof app
+    already auto-sends to every peer it discovers, not just one assigned
+    partner (see MeshLinkProofRuntime.kt's auto-send-on-PeerEvent.Found path),
+    so launching every device this way exercises genuine concurrent all-to-all
+    mesh connectivity - including with an odd device count, since there is no
+    pairing to leave a device out of.
+
+    Known duplication (flagged in code review, deliberately not merged yet):
+    the launch/capture/mode/logcat-collection and
+    stuck-Bluetooth-stack-detection-and-retry scaffolding below closely
+    mirrors _run_pair_batch's. They were kept separate rather than unified
+    behind one shared "launch spec" helper because the two loops differ in a
+    load-bearing way (per-pair two-role launch vs. per-device single-role
+    launch) and this function's current form has already been validated
+    against physical hardware multiple times (see meshlink-benchmark/
+    history.md's 2026-07-11 entry); unifying them deserves its own dedicated
+    hardware-revalidation pass rather than folding into this change.
+    """
+    launch_results: list[dict[str, Any]] = []
+    capture_results: list[dict[str, Any]] = []
+    mode_results: list[dict[str, Any]] = []
+    logcat_results: list[dict[str, Any]] = []
+    bluetooth_recovery_actions: list[dict[str, Any]] = []
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(2, len(devices))) as executor:
+            futures = [
+                executor.submit(
+                    launch_app,
+                    device.resolved_serial,
+                    app_id=app_id,
+                    power_mode=args.power_mode,
+                    initiator=True,
+                    payload_bytes=args.payload_bytes,
+                )
+                for device in devices
+            ]
+            for future in as_completed(futures):
+                launch_results.append(future.result())
+
+        time.sleep(args.wait_seconds)
+
+        with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+            capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+            mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), devices))
+
+        with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+            logcat_results = list(
+                executor.map(
+                    lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                    devices,
+                )
+            )
+
+        if args.auto_recover_bluetooth:
+            stuck_serials = {
+                device.resolved_serial
+                for device in devices
+                if proof_log_shows_stuck_bluetooth_stack(
+                    (run_root / "logs" / f"{device.resolved_serial}.proof.log").read_text(
+                        encoding="utf-8", errors="ignore"
+                    )
+                )
+            }
+            if stuck_serials:
+                device_by_serial = {device.resolved_serial: device for device in devices}
+                with ThreadPoolExecutor(max_workers=min(len(stuck_serials), 16)) as executor:
+                    restart_results = list(executor.map(restart_bluetooth_stack, sorted(stuck_serials)))
+                for restart_result, serial in zip(restart_results, sorted(stuck_serials)):
+                    device = device_by_serial[serial]
+                    bluetooth_recovery_actions.append(
+                        {
+                            "serial": serial,
+                            "model": device.model,
+                            "reason": "exhausted DISCOVERY_ADVERTISE_FAILED/DISCOVERY_SCAN_FAILED retries",
+                            "before": restart_result["before"],
+                            "after": restart_result["after"],
+                        }
+                    )
+
+                with ThreadPoolExecutor(max_workers=max(2, len(devices))) as executor:
+                    retry_futures = [
+                        executor.submit(
+                            launch_app,
+                            device.resolved_serial,
+                            app_id=app_id,
+                            power_mode=args.power_mode,
+                            initiator=True,
+                            payload_bytes=args.payload_bytes,
+                        )
+                        for device in devices
+                    ]
+                    for future in as_completed(retry_futures):
+                        launch_results.append(future.result())
+
+                time.sleep(args.wait_seconds)
+
+                with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+                    retry_capture_results = list(executor.map(lambda device: capture_proof_log(device.resolved_serial, run_root=run_root), devices))
+                capture_results.extend(retry_capture_results)
+
+                with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+                    retry_mode_results = list(executor.map(lambda device: capture_transport_mode(device.resolved_serial), devices))
+                mode_results.extend(retry_mode_results)
+
+                with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+                    retry_logcat_results = list(
+                        executor.map(
+                            lambda device: capture_full_logcat(device.resolved_serial, run_root=run_root, tail_lines=args.logcat_tail_lines),
+                            devices,
+                        )
+                    )
+                logcat_results.extend(retry_logcat_results)
+    finally:
+        with ThreadPoolExecutor(max_workers=min(len(devices), 16)) as executor:
+            list(executor.map(stop_proof_app, [device.resolved_serial for device in devices]))
+
+    mesh_matrix = build_full_mesh_matrix(devices, run_root)
+
+    return {
+        "launchResults": launch_results,
+        "captureResults": capture_results,
+        "modeResults": mode_results,
+        "logcatResults": logcat_results,
+        "bluetoothRecoveryActions": bluetooth_recovery_actions,
+        "meshMatrix": mesh_matrix,
+    }
+
+
+def build_full_mesh_matrix(devices: list["DeviceRecord"], run_root: Path) -> dict[str, Any]:
+    """Build a full NxN directed delivery matrix from every device's own proof.log.
+
+    A pair-scoped evidence check (see summarize_pair()) only ever looks for
+    evidence between one pre-assigned initiator/receiver pair, so it can
+    report "no evidence" for that pair even when the mesh actually delivered
+    and confirmed a real benchmark payload between two *other* devices in the
+    same run (observed in a 2026-07-11 4-device simultaneous fleet run: a
+    device's own assigned partner never completed a handshake, but it
+    completed two full send+receive+receipt round trips with cross-pair
+    peers instead - genuine mesh connectivity the pair-scoped check couldn't
+    see). This function instead treats every selected device as both a
+    potential sender and a potential receiver and reports the full directed
+    N*(N-1) matrix of confirmed round trips, independent of any assigned
+    pairing.
+
+    Confirmation is scoped to "BENCHMARK receipt confirmed peer=<hint>
+    token=<token> bytes=<bytes>" lines, which only appear in a sender's own
+    proof.log once its benchmark payload's ACK has actually arrived back -
+    i.e. a genuine recipient-confirmed round trip, not just a one-way send.
+    """
+    own_hash_by_serial: dict[str, str | None] = {}
+    log_lines_by_serial: dict[str, list[str]] = {}
+    for device in devices:
+        log_path = run_root / "logs" / f"{device.resolved_serial}.proof.log"
+        lines = log_path.read_text(encoding="utf-8", errors="ignore").splitlines() if log_path.exists() else []
+        log_lines_by_serial[device.resolved_serial] = lines
+        own_hash_by_serial[device.resolved_serial] = _extract_own_key_hash(lines)
+
+    hint_to_serials: dict[str, list[str]] = {}
+    for serial, own_hash in own_hash_by_serial.items():
+        if not own_hash:
+            continue
+        hint_to_serials.setdefault(own_hash[-6:], []).append(serial)
+
+    confirmed: list[dict[str, Any]] = []
+    ambiguous_hints: set[str] = set()
+    for device in devices:
+        for line in log_lines_by_serial[device.resolved_serial]:
+            match = _BENCHMARK_RECEIPT_CONFIRMED_RE.search(line)
+            if not match:
+                continue
+            hint, token, total_bytes = match.groups()
+            candidate_serials = hint_to_serials.get(hint, [])
+            # A 6-hex-char hint could in principle collide across two selected
+            # devices' key hashes; flag that rather than silently attributing
+            # the confirmation to the wrong peer.
+            if len(candidate_serials) != 1:
+                if len(candidate_serials) > 1:
+                    ambiguous_hints.add(hint)
+                continue
+            receiver_serial = candidate_serials[0]
+            if receiver_serial == device.resolved_serial:
+                continue
+            confirmed.append(
+                {
+                    "senderSerial": device.resolved_serial,
+                    "receiverSerial": receiver_serial,
+                    "token": token,
+                    "bytes": int(total_bytes),
+                    "line": line,
+                }
+            )
+
+    directed_pairs_total = len(devices) * (len(devices) - 1)
+    confirmed_directed_pairs = {(row["senderSerial"], row["receiverSerial"]) for row in confirmed}
+    return {
+        "devices": [
+            {
+                "serial": device.resolved_serial,
+                "model": device.model,
+                "apiLevel": device.api_level,
+                "ownKeyHash": own_hash_by_serial.get(device.resolved_serial),
+            }
+            for device in devices
+        ],
+        "confirmedDeliveries": confirmed,
+        "directedPairsTotal": directed_pairs_total,
+        "directedPairsConfirmed": len(confirmed_directed_pairs),
+        "ambiguousHints": sorted(ambiguous_hints),
+    }
+
+
+def render_full_mesh_matrix_markdown(mesh_matrix: dict[str, Any]) -> str:
+    devices = mesh_matrix["devices"]
+    confirmed_pairs = {
+        (row["senderSerial"], row["receiverSerial"]) for row in mesh_matrix["confirmedDeliveries"]
+    }
+    lines: list[str] = []
+    lines.append("# Full-mesh directed delivery matrix")
+    lines.append("")
+    lines.append(
+        f"- Directed pairs confirmed: `{mesh_matrix['directedPairsConfirmed']}` / "
+        f"`{mesh_matrix['directedPairsTotal']}`"
+    )
+    if mesh_matrix["ambiguousHints"]:
+        lines.append(
+            f"- Ambiguous 6-char peer hints (skipped, could not attribute uniquely): "
+            f"`{', '.join(mesh_matrix['ambiguousHints'])}`"
+        )
+    lines.append("")
+    header = "| Sender \\ Receiver | " + " | ".join(device["model"] for device in devices) + " |"
+    separator = "|---|" + "---|" * len(devices)
+    lines.append(header)
+    lines.append(separator)
+    for sender in devices:
+        cells = []
+        for receiver in devices:
+            if sender["serial"] == receiver["serial"]:
+                cells.append("-")
+            else:
+                confirmed = (sender["serial"], receiver["serial"]) in confirmed_pairs
+                cells.append("✅" if confirmed else "—")
+        lines.append(f"| {sender['model']} | " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
 def canonical_transport_label(modes: list[str | None]) -> str:
     candidates = [mode for mode in modes if mode]
     if not candidates:
@@ -1134,6 +1418,144 @@ def render_compact_summary(summary: dict[str, Any]) -> str:
 
 
 
+def _run_full_mesh_main(
+    devices: list["DeviceRecord"],
+    *,
+    run_root: Path,
+    app_id: str,
+    args: argparse.Namespace,
+    apk_freshness_warning: str | None,
+) -> int:
+    """--full-mesh entry point: launch the whole selected fleet at once and
+    report a full NxN directed delivery matrix instead of pair-scoped evidence.
+
+    See build_full_mesh_matrix()/_run_full_mesh_batch() for why this exists.
+    """
+    if args.devices:
+        device_lookup = {device.resolved_serial: device for device in devices}
+        device_lookup.update({device.listed_id: device for device in devices})
+        selected_devices: list[DeviceRecord] = []
+        for token in args.devices:
+            device = device_lookup.get(token)
+            if device is None:
+                try:
+                    listed_id, info = normalize_android_serial(token)
+                except RuntimeError as error:
+                    raise SystemExit(f"Unknown --device {token!r}: {error}")
+                device = DeviceRecord(
+                    listed_id=listed_id,
+                    resolved_serial=listed_id,
+                    model=str(info.get("model") or token),
+                    api_level=int(info.get("apiLevel") or 0),
+                    raw="",
+                )
+            selected_devices.append(device)
+    else:
+        selected_devices = list(devices)
+
+    inventory = {
+        "runRoot": str(run_root),
+        "capturedAt": datetime.now(timezone.utc).isoformat(),
+        "appId": app_id,
+        "apk": str(APK),
+        "apkFreshnessWarning": apk_freshness_warning,
+        "package": PACKAGE_NAME,
+        "activity": ACTIVITY_NAME,
+        "powerMode": args.power_mode,
+        "payloadBytes": args.payload_bytes,
+        "waitSeconds": args.wait_seconds,
+        "fullMesh": True,
+        "fleetDeviceCount": len(devices),
+        "deviceCount": len(selected_devices),
+        "pairCount": 0,
+        "devices": [
+            {
+                "listedId": device.listed_id,
+                "resolvedSerial": device.resolved_serial,
+                "model": device.model,
+                "apiLevel": device.api_level,
+                "raw": device.raw,
+            }
+            for device in devices
+        ],
+        "selectedDevices": [
+            {
+                "listedId": device.listed_id,
+                "resolvedSerial": device.resolved_serial,
+                "model": device.model,
+                "apiLevel": device.api_level,
+                "raw": device.raw,
+            }
+            for device in selected_devices
+        ],
+    }
+    (run_root / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+
+    install_results, prep_results, bluetooth_checks = _install_prep_and_check_bluetooth(selected_devices)
+
+    try:
+        batch_results = _run_full_mesh_batch(selected_devices, run_root=run_root, app_id=app_id, args=args)
+    finally:
+        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+            list(executor.map(stop_proof_app, [device.resolved_serial for device in selected_devices]))
+
+    mesh_matrix = batch_results["meshMatrix"]
+    summary = {
+        **inventory,
+        "installResults": install_results,
+        "prepResults": prep_results,
+        "bluetoothChecks": bluetooth_checks,
+        "bluetoothRecoveryActions": batch_results["bluetoothRecoveryActions"],
+        "batchErrors": [],
+        "launchResults": batch_results["launchResults"],
+        "captureResults": batch_results["captureResults"],
+        "modeResults": batch_results["modeResults"],
+        "logcatResults": batch_results["logcatResults"],
+        "pairRows": [],
+        "meshMatrix": mesh_matrix,
+    }
+    (run_root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    mesh_matrix_markdown = render_full_mesh_matrix_markdown(mesh_matrix)
+    (run_root / "mesh-matrix.md").write_text(mesh_matrix_markdown, encoding="utf-8")
+    (run_root / "summary.md").write_text(mesh_matrix_markdown, encoding="utf-8")
+    (run_root / "compact-summary.md").write_text(mesh_matrix_markdown, encoding="utf-8")
+
+    print(json.dumps({
+        "runRoot": str(run_root),
+        "appId": app_id,
+        "fleetDevices": len(devices),
+        "devices": len(selected_devices),
+        "directedPairsConfirmed": mesh_matrix["directedPairsConfirmed"],
+        "directedPairsTotal": mesh_matrix["directedPairsTotal"],
+        "summary": str(run_root / "mesh-matrix.md"),
+    }, indent=2))
+    return 0
+
+
+def _install_prep_and_check_bluetooth(
+    selected_devices: list["DeviceRecord"],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Install the proof APK, grant its runtime permissions, and preflight
+    Bluetooth on every selected device, in that order, each step fully
+    parallelized across devices.
+
+    Shared by both the pair-based main() flow and the --full-mesh flow
+    (_run_full_mesh_main): both need the exact same per-device setup before
+    any pair/batch launch begins, and previously duplicated this block
+    verbatim.
+    """
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
+
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        prep_results = list(executor.map(grant_permissions, selected_devices))
+
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+
+    return install_results, prep_results, bluetooth_checks
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     apk_freshness_warning = check_apk_freshness()
@@ -1147,6 +1569,10 @@ def main(argv: list[str] | None = None) -> int:
     app_id = args.app_id or f"demo.meshlink.proof.{timestamp_value}"
 
     devices = collect_devices()
+
+    if args.full_mesh:
+        return _run_full_mesh_main(devices, run_root=run_root, app_id=app_id, args=args, apk_freshness_warning=apk_freshness_warning)
+
     all_pairs = cross_generation_pairs(devices)
     if args.devices:
         device_lookup = {device.resolved_serial: device for device in devices}
@@ -1241,14 +1667,7 @@ def main(argv: list[str] | None = None) -> int:
     batch_errors: list[dict[str, Any]] = []
 
     try:
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            prep_results = list(executor.map(grant_permissions, selected_devices))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+        install_results, prep_results, bluetooth_checks = _install_prep_and_check_bluetooth(selected_devices)
 
         # Run pairs in sequential batches rather than all at once. See
         # DEFAULT_MAX_CONCURRENT_PAIRS / --max-concurrent-pairs: launching every

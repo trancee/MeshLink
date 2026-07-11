@@ -353,6 +353,110 @@ this work, to confirm the fixes measurably reduce the visible flakiness on
 real hardware, but was left to reviewer discretion given the scope of the
 automated test coverage above.
 
+## Platform limits on concurrent GATT/L2CAP connections (research, 2026-07-11)
+
+Produced while investigating the 2026-07-11 simultaneous 5-device fleet run
+(see `meshlink-benchmark/history.md`'s 2026-07-11 entry) to understand
+whether the fleet's observed handshake failures under N-way simultaneous
+load could be a hard connection-count ceiling rather than a
+negotiation/timing issue.
+
+### There is no public Android API to query or raise the limit
+
+There is no `BluetoothAdapter`/`BluetoothManager` method that reports "how
+many more GATT connections can I open" and no way for an app to raise the
+ceiling. Apps only discover it empirically, by having a `connectGatt()` call
+fail or hang once the ceiling is reached.
+
+### The limit is a global, per-device (not per-app) host-stack constant
+
+Android's Bluetooth host stack (Bluedroid, and its successor Fluoride/
+Gabeldorsche, both living in `packages/modules/Bluetooth` / historically
+`system/bt`) hardcodes a maximum number of simultaneous LE ACL links shared
+by *every app on the device*, not a per-app budget. The two governing
+constants are `GATT_MAX_PHY_CHANNEL` (GATT/ATT layer) and `MAX_L2CAP_LINKS`
+(link layer) -- both were historically set to `7` and are compiled into the
+Bluetooth mainline module, independent of what the underlying radio/chipset
+can actually support. A commit in `platform/external/bluetooth/bluedroid`
+titled "LE: Increase number of simultaneous connections" raised an earlier
+`4`-connection ceiling (Android 4.3-era) to what became the long-standing
+`7`; at least one later report describes `MAX_L2CAP_LINKS` as `13` on a
+specific Android 10 build, so the exact value has continued to drift across
+AOSP releases and is not guaranteed stable across Android versions.
+(Sources: <https://stackoverflow.com/questions/41365009/what-is-the-max-concurrent-ble-connections-android-m-can-have>,
+<https://stackoverflow.com/questions/64360109/maximum-concurrent-bluetooth-le-devices-on-ios-and-android>,
+<https://github.com/dariuszseweryn/RxAndroidBle/issues/696>.)
+
+### OEMs frequently patch the constant, so it is genuinely per-device
+
+Several independent reports agree that some OEMs (Samsung specifically named
+in multiple sources) raise the AOSP default to match what their Bluetooth
+chipset can actually sustain (one report cites a Samsung Galaxy Tab A 10.1
+handling 15 concurrent connections unmodified), while stock/Pixel-class
+devices stay at the AOSP default. Google's own AOSP guidance for Android 8+
+is that vendors should stop patching this value, but adoption is inconsistent
+in practice. **There is no way to determine a specific device's real ceiling
+other than testing that device.**
+
+### L2CAP CoC channels ride the same ACL link, plus their own per-request cap
+
+An L2CAP LE Credit-Based Connection Request can ask for up to 5 channels in
+one request per the Bluetooth Core specification, but every LE L2CAP CoC
+channel to a given peer still consumes that peer's single shared ACL link
+slot (one of the `MAX_L2CAP_LINKS`/`GATT_MAX_PHY_CHANNEL` budget) -- multiple
+L2CAP channels to the *same* peer do not cost multiple ACL-link slots, but a
+separate peer always does.
+
+### Adjacent, separately-documented throttles that also apply per fleet device
+
+These are not connection-count limits but were confirmed relevant during the
+same investigation and can independently starve handshake attempts in a
+congested fleet, so are worth listing alongside the connection ceiling:
+
+- **Scan-start throttle**: Android silently rate-limits `startScan()` to 5
+  calls per 30 seconds per app (undocumented, no `onScanFailed` callback --
+  scanning just silently stops finding new results). Already covered by the
+  `android-17-ble-migration` skill and `ScanResultSupport.kt`'s watchdog.
+- **Unfiltered-scan 30-second auto-stop**: since Android 7, an unfiltered
+  scan (no `ScanFilter`) is silently stopped by the OS after 30 seconds with
+  no callback.
+- **GATT operations are effectively serialized per connection**: issuing a
+  second `read`/`write`/`setCharacteristicNotification` before the previous
+  operation's callback fires silently corrupts stack state on many chipsets
+  (see the `android-ble-gatt-sequential-queue` skill; MeshLink already
+  serializes this via its own per-link operation queue).
+
+### Relevance to the observed 2026-07-11 fleet failures
+
+None of the 5-device `--full-mesh` runs came close to the classic 7-link
+ceiling: each device only ever needed at most 4 simultaneous peer links (one
+per other fleet device), well under even the conservative AOSP default. The
+connection-*count* ceiling is therefore **not** the explanation for why the
+two oldest/lowest-spec devices failed every handshake in that investigation
+-- the bottleneck there was negotiation/CPU/radio-scheduling capacity under
+N simultaneous *in-flight* connection attempts, not a hard slot limit being
+reached. The ceiling would become directly relevant at larger fleet sizes
+(a single device meshed with 8+ peers) or if MeshLink's mixed-bearer design
+ever opened a second physical GATT connection per peer for tuning purposes,
+which `GattSideLinkCoordinator.kt` already explicitly avoids for exactly this
+reason (see its class doc comment).
+
+### `PowerPolicy.maxConnections` is currently a diagnostics-only value, not an enforced cap
+
+MeshLink's own `PowerPolicy.kt` already models a per-power-tier connection
+budget (`PERFORMANCE` = 7, `BALANCED` = 5, `POWER_SAVER` = 3) that not
+coincidentally mirrors the classic AOSP `GATT_MAX_PHY_CHANNEL` default of 7
+for its least-conservative tier. However, a full-codebase search found
+`maxConnections` is only ever read to populate a diagnostics map
+(`MeshEngineInternalModels.kt`'s `POWER_MODE_CHANGED` payload) -- there is no
+code path that refuses a new connection, defers a handshake, or otherwise
+admission-controls against this budget. If MeshLink is ever used in
+larger-fleet or many-peer scenarios, actually enforcing `maxConnections` (or
+letting it inform how many *simultaneous in-flight handshake attempts* a
+device permits, independent of the hard OS ceiling) is a real, currently-
+unimplemented follow-up candidate -- distinct from, but complementary to, the
+N-way negotiation-capacity finding above.
+
 ## Related documentation
 
 - [hop-session-replay-protection.md](hop-session-replay-protection.md) --
