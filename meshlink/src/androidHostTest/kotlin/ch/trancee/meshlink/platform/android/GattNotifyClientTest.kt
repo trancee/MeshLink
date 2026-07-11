@@ -16,6 +16,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 
+// This suite already covered every GATT connection-lifecycle branch (connect retries, MTU/
+// service-discovery races, write pipelining/congestion/failure paths) before the proactive
+// identity-announce-on-ready tests below were added; splitting it now would scatter closely
+// related connection-lifecycle test groups across files rather than isolate a genuine unrelated
+// concern. See constitution.md Principle V: split only to isolate a demonstrated, unrelated
+// change hotspot, not merely to satisfy a line-count heuristic.
+@Suppress("LargeClass")
 class GattNotifyClientTest {
     @Test
     fun startOpensTheSessionOnceAndConnectedEventRequestsDiscoveryWhenMtuRequestFails(): Unit {
@@ -185,6 +192,91 @@ class GattNotifyClientTest {
         assertTrue(client.isReady())
         assertTrue(written)
         assertTrue(session.writeChunks.size >= 2)
+        assertEquals(
+            (expectedIdentityChunk + expectedEncodedChunk).toList(),
+            concatenatedWrites.toList(),
+        )
+    }
+
+    @Test
+    fun readyProactivelyAnnouncesLinkIdentityEvenWithoutAnyRealPayloadWrite(): Unit = runBlocking {
+        // Arrange: a device that is the Noise-XX handshake *responder* towards its peer never
+        // calls write(payload) at all (it only waits for inbound frames) -- see
+        // announceIdentityIfNeededLocked()'s doc comment for the asymmetric-discovery deadlock
+        // this proactive announce closes. Model that by never calling client.write() below.
+        val localHintPeerId = PeerId("local-android")
+        val expectedIdentityChunk =
+            L2capFrameBuffer().encode(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        session.writeChunkHandler = { chunk ->
+            factory.listener.onCharacteristicWrite(
+                characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                status = 0,
+            )
+            true
+        }
+        val client = createGattNotifyClient(factory = factory, localHintPeerId = localHintPeerId)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+
+        // Act: only the descriptor-write success that marks the link ready -- no client.write()
+        // call at all.
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Assert
+        assertTrue(client.isReady())
+        val concatenatedWrites =
+            session.writeChunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk }
+        assertEquals(expectedIdentityChunk.toList(), concatenatedWrites.toList())
+    }
+
+    @Test
+    fun writeAfterReadyDoesNotReannounceLinkIdentityTwice(): Unit = runBlocking {
+        // Arrange: proactive announce-on-ready (previous test) must not double-announce once a
+        // real write(payload) follows it.
+        val localHintPeerId = PeerId("local-android")
+        val expectedIdentityChunk =
+            L2capFrameBuffer().encode(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+        val expectedEncodedChunk = L2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
+        val session =
+            FakeGattNotifySession(
+                characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                hasWriteCharacteristicFlag = true,
+                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+            )
+        val factory = FakeGattNotifySessionFactory(session)
+        session.writeChunkHandler = { chunk ->
+            factory.listener.onCharacteristicWrite(
+                characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                status = 0,
+            )
+            true
+        }
+        val client = createGattNotifyClient(factory = factory, localHintPeerId = localHintPeerId)
+        client.start()
+        factory.listener.onServicesDiscovered(status = 0)
+        factory.listener.onDescriptorWrite(
+            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
+            status = 0,
+        )
+
+        // Act
+        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+        // Assert: exactly one identity announcement followed by one payload write, not a
+        // second identity announcement.
+        val concatenatedWrites =
+            session.writeChunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk }
+        assertTrue(written)
         assertEquals(
             (expectedIdentityChunk + expectedEncodedChunk).toList(),
             concatenatedWrites.toList(),
@@ -825,6 +917,13 @@ private const val GATT_CONNECTION_CONGESTED_STATUS: Int = 143
 // exercise genuine cross-thread scheduling rather than the Unconfined+0ms synchronous default.
 private const val RETRY_DELAY_MILLIS: Long = 200L
 
+// Mirrors GattNotifyClient's own constructor, which already carries this exact suppression (see
+// GattNotifyClient.kt) for the same reason: every parameter overrides a distinct, independently
+// meaningful test seam (retry delay/scope, teardown timeout/scope, identity-announce scope), not
+// speculative generality -- collapsing them into a single options object would only relocate the
+// long-parameter-list smell rather than resolve it, and no call site currently needs less than
+// this granularity of control.
+@Suppress("LongParameterList")
 private fun createGattNotifyClient(
     factory: GattNotifySessionFactory,
     localHintPeerId: PeerId = PeerId("local-android"),
@@ -833,6 +932,7 @@ private fun createGattNotifyClient(
     connectRetryScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
     disconnectConfirmTimeoutMillis: Long = 0L,
     teardownScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+    identityAnnounceScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
 ): GattNotifyClient {
     return GattNotifyClient(
         context = Any(),
@@ -848,6 +948,7 @@ private fun createGattNotifyClient(
         connectRetryScope = connectRetryScope,
         disconnectConfirmTimeoutMillis = disconnectConfirmTimeoutMillis,
         teardownScope = teardownScope,
+        identityAnnounceScope = identityAnnounceScope,
     )
 }
 
