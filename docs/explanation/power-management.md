@@ -22,6 +22,19 @@ The power model balances those goals with three ideas:
 This is intentionally simple. A host app does not need to manage a large matrix
 of BLE knobs. It only needs to understand which tier MeshLink chose and why.
 
+**Max connections is an enforced admission-control budget on Android, not
+just a reported number.** Before starting a new GATT side-link or L2CAP
+connection for a newly discovered peer, Android's transport adapter checks
+the device's current active-connection count against this budget; once the
+budget is spent, a not-yet-connected peer is deferred (it stays known and is
+admitted once a slot frees up) rather than competing for a connection
+Android's own Bluetooth stack may not reliably support anyway -- see
+[BLE connection robustness](ble-connection-robustness.md#platform-limits-on-concurrent-gattl2cap-connections-research-2026-07-11)
+for why the historical Android default of 7 concurrent connections exists in
+the first place. An already-connected peer is never dropped just because the
+budget is at capacity. This enforcement is currently Android-only; iOS still
+only reports `maxConnections` in diagnostics.
+
 ## Why automatic mode exists
 
 Most applications do not want to pick a transport posture manually. They want
@@ -149,3 +162,4 @@ The current design does not try to be infinitely configurable. It optimizes for:
 - [How to structure a robust MeshLink integration](../how-to/structure-a-robust-meshlink-integration.md)
 - [About integrating MeshLink well](about-integrating-meshlink.md)
 - [Regulatory compliance and region clamping](regulatory-compliance.md)
+- [BLE connection robustness](ble-connection-robustness.md) -- the Android connection-budget admission-control implementation and the platform connection-limit research behind the `maxConnections` default values.

@@ -441,21 +441,48 @@ ever opened a second physical GATT connection per peer for tuning purposes,
 which `GattSideLinkCoordinator.kt` already explicitly avoids for exactly this
 reason (see its class doc comment).
 
-### `PowerPolicy.maxConnections` is currently a diagnostics-only value, not an enforced cap
+### `PowerPolicy.maxConnections` is now an enforced admission-control cap on Android (was diagnostics-only)
 
-MeshLink's own `PowerPolicy.kt` already models a per-power-tier connection
+MeshLink's own `PowerPolicy.kt` already modeled a per-power-tier connection
 budget (`PERFORMANCE` = 7, `BALANCED` = 5, `POWER_SAVER` = 3) that not
 coincidentally mirrors the classic AOSP `GATT_MAX_PHY_CHANNEL` default of 7
-for its least-conservative tier. However, a full-codebase search found
-`maxConnections` is only ever read to populate a diagnostics map
-(`MeshEngineInternalModels.kt`'s `POWER_MODE_CHANGED` payload) -- there is no
-code path that refuses a new connection, defers a handshake, or otherwise
-admission-controls against this budget. If MeshLink is ever used in
-larger-fleet or many-peer scenarios, actually enforcing `maxConnections` (or
-letting it inform how many *simultaneous in-flight handshake attempts* a
-device permits, independent of the hard OS ceiling) is a real, currently-
-unimplemented follow-up candidate -- distinct from, but complementary to, the
-N-way negotiation-capacity finding above.
+for its least-conservative tier. When this section was first written, a
+full-codebase search found `maxConnections` was only ever read to populate a
+diagnostics map (`MeshEngineInternalModels.kt`'s `POWER_MODE_CHANGED`
+payload) -- there was no code path that refused a new connection, deferred a
+handshake, or otherwise admission-controlled against this budget.
+
+That gap is now closed on Android (PR #100, `feat/enforce-connection-budget`):
+
+- `hasConnectionBudget()` (commonMain, `power/PowerPolicy.kt`) is the shared,
+  platform-agnostic admission decision: an already-connected peer is always
+  admitted (a budget check never forcibly drops an existing connection), and
+  a not-yet-connected peer is only admitted while the device's active
+  connection count is under the tier's `maxConnections`.
+- Android's `BleTransportAdapterScanSupport.onScanResult` calls this before
+  starting a new GATT side-link or L2CAP connection for a newly discovered
+  peer, using the union of active L2CAP links
+  (`BleTransportLinkRegistry.activeHintIds()`) and active GATT side-links
+  (`GattSideLinkCoordinator.activeHintIds()`, added alongside this change) as
+  the active connection count. A peer that arrives once the budget is already
+  spent stays known/discovered and is admitted later once a slot frees up;
+  nothing already connected is torn down to make room for it.
+
+A live 5-device `--full-mesh` hardware rerun after this change confirmed it
+is a behavior-preserving no-op at the fleet sizes exercised in the
+2026-07-11 investigation above (all runs stayed well under the 7-connection
+PERFORMANCE-tier budget, so the gate never actually triggered) -- this
+closes the admission-control gap for future larger-fleet or many-peer
+scenarios without changing any of the results already recorded in
+`meshlink-benchmark/history.md`'s 2026-07-11 entries, none of which were
+connection-count-related.
+
+**Known scope limitation:** enforcement is wired into Android only.
+`hasConnectionBudget()` itself is platform-agnostic commonMain code and
+compiles cleanly for iOS targets, but no iOS transport-adapter call site
+invokes it yet -- wiring iOS enforcement is an explicit, disclosed follow-up
+for whenever an iOS build/simulator environment is available to validate it,
+rather than a silent cross-platform behavior gap.
 
 ## Related documentation
 

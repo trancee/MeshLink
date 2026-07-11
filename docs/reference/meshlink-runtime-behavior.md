@@ -245,6 +245,12 @@ flowchart TD
 | `BALANCED` | `500 ms` | `250 ms` | `50%` | `5` | `2048 bytes` |
 | `POWER_SAVER` | `1000 ms` | `500 ms` | `5%` | `3` | `512 bytes` |
 
+`Max connections` is admission-controlled on Android: a not-yet-connected
+peer is only admitted while the device's active connection count is under
+this value, and an already-connected peer is never dropped to enforce it. On
+iOS, `Max connections` is currently reported in `POWER_MODE_CHANGED`
+diagnostics only and is not yet admission-controlled.
+
 ### Regional clamps
 
 | Region | Clamp |
