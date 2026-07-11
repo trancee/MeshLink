@@ -361,10 +361,14 @@ internal class GattNotifyClient(
 
     suspend fun write(payload: ByteArray): Boolean {
         return writeMutex.withLock {
-            if (!announceIdentityIfNeededLocked()) {
+            // Snapshot once and reuse for both phases (identity announce, then payload), matching
+            // this method's pre-refactor behavior exactly: a concurrent close()/reconnect during
+            // the identity-announce suspend point must not let the payload phase observe a
+            // different session reference than the one the announce just used.
+            val session = session
+            if (!announceIdentityIfNeededLocked(session)) {
                 return@withLock false
             }
-            val session = session
             val payloadChunks = mutableListOf<PendingGattWrite>()
             writeViaGattNotify(
                 payload = payload,
@@ -404,6 +408,11 @@ internal class GattNotifyClient(
      * happened yet on the current session, otherwise a no-op that returns `true` immediately. Must
      * be called while holding [writeMutex].
      *
+     * Takes [session] as a parameter rather than reading the volatile [GattNotifyClient.session]
+     * field itself, so [write] can snapshot it once and share that exact snapshot across both its
+     * identity-announce and payload-write phases (see [write]'s own comment), while
+     * [ensureIdentityAnnounced]'s standalone proactive call site takes its own fresh snapshot.
+     *
      * This used to run lazily, inline in [write], as a prefix to the first real payload write --
      * which meant a device that is the Noise-XX handshake *responder* towards [peerHintId] (per
      * [ch.trancee.meshlink.transport.shouldLocalPeerInitiateL2capConnection]-style key-hash
@@ -417,11 +426,10 @@ internal class GattNotifyClient(
      * reached through "the responder never had a reason to write" instead of "neither side
      * scan-discovered the other". See [ensureIdentityAnnounced] for the proactive fix.
      */
-    private suspend fun announceIdentityIfNeededLocked(): Boolean {
+    private suspend fun announceIdentityIfNeededLocked(session: GattNotifySession?): Boolean {
         if (identityAnnounced) {
             return true
         }
-        val session = session
         // A fresh tracker per writeViaGattNotify() call: drainPendingWrites() awaits exactly
         // these chunks' own deferreds rather than inferring "done" from shared queue emptiness
         // (see drainPendingWrites() for why that inference is unsound).
@@ -476,7 +484,9 @@ internal class GattNotifyClient(
      * -- there is no dedicated retry loop for this specific proactive attempt.
      */
     private fun ensureIdentityAnnounced(): Unit {
-        identityAnnounceScope.launch { writeMutex.withLock { announceIdentityIfNeededLocked() } }
+        identityAnnounceScope.launch {
+            writeMutex.withLock { announceIdentityIfNeededLocked(session) }
+        }
     }
 
     fun close(): Unit {

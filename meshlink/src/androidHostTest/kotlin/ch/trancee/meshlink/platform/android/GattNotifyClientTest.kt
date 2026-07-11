@@ -240,48 +240,74 @@ class GattNotifyClientTest {
     }
 
     @Test
-    fun writeAfterReadyDoesNotReannounceLinkIdentityTwice(): Unit = runBlocking {
-        // Arrange: proactive announce-on-ready (previous test) must not double-announce once a
-        // real write(payload) follows it.
-        val localHintPeerId = PeerId("local-android")
-        val expectedIdentityChunk =
-            L2capFrameBuffer().encode(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
-        val expectedEncodedChunk = L2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
-        val session =
-            FakeGattNotifySession(
-                characteristicResolution = GattNotifyCharacteristicResolution.READY,
-                hasWriteCharacteristicFlag = true,
-                enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
-            )
-        val factory = FakeGattNotifySessionFactory(session)
-        session.writeChunkHandler = { chunk ->
-            factory.listener.onCharacteristicWrite(
-                characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+    @Suppress("InjectDispatcher")
+    fun readyProactivelyAnnouncesLinkIdentityOnceEvenIfWriteFollowsBeforeItSettles(): Unit =
+        runBlocking {
+            // Arrange: a device that is the Noise-XX handshake *responder* towards its peer never
+            // calls write(payload) at all on its own (it only waits for inbound frames) -- see
+            // announceIdentityIfNeededLocked()'s doc comment for the asymmetric-discovery
+            // deadlock this proactive announce closes. Uses a real (non-Unconfined)
+            // identityAnnounceScope dispatcher -- deliberately, matching the same rationale as
+            // concurrentEnsureStartedCallDuringAPendingStatus133RetryDoesNotOpenADuplicateConnection
+            // below: the whole point is to prove correctness under genuine cross-thread
+            // scheduling, not virtual time -- so the proactive announce launched from
+            // onDescriptorWrite is still genuinely in flight, not already synchronously
+            // finished, when write(payload) is called immediately after, exercising the
+            // writeMutex/identityAnnounced race guard for real instead of only under an
+            // Unconfined dispatcher where the two calls can never actually overlap.
+            val localHintPeerId = PeerId("local-android")
+            val expectedIdentityChunk =
+                L2capFrameBuffer().encode(WireCodec.encode(WireFrame.LinkIdentity(localHintPeerId)))
+            val expectedEncodedChunk = L2capFrameBuffer().encode(byteArrayOf(0x01, 0x02, 0x03))
+            val session =
+                FakeGattNotifySession(
+                    characteristicResolution = GattNotifyCharacteristicResolution.READY,
+                    hasWriteCharacteristicFlag = true,
+                    enableNotificationsResult = GattNotifyEnableNotificationsResult.REQUESTED,
+                )
+            val factory = FakeGattNotifySessionFactory(session)
+            session.writeChunkHandler = { chunk ->
+                factory.listener.onCharacteristicWrite(
+                    characteristicUuid = BleDiscoveryContract.GATT_WRITE_CHARACTERISTIC_UUID,
+                    status = 0,
+                )
+                true
+            }
+            val client =
+                createGattNotifyClient(
+                    factory = factory,
+                    localHintPeerId = localHintPeerId,
+                    identityAnnounceScope = CoroutineScope(Dispatchers.Default),
+                )
+            client.start()
+            factory.listener.onServicesDiscovered(status = 0)
+
+            // Act, part 1: the descriptor-write success that marks the link ready -- no
+            // client.write() call at all yet. The proactive announce this triggers races a real
+            // background dispatcher, so nothing is guaranteed written the instant this call
+            // returns.
+            factory.listener.onDescriptorWrite(
+                descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
                 status = 0,
             )
-            true
+
+            // Act, part 2: immediately call write(payload), racing the still-possibly-in-flight
+            // proactive announce. Whichever of the two actually performs the announce, the
+            // shared writeMutex + identityAnnounced guard must ensure it happens exactly once.
+            val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
+
+            // Assert: exactly one identity announcement followed by exactly one payload write --
+            // never a duplicated identity announcement, regardless of which call site actually
+            // performed it.
+            val concatenatedWrites =
+                session.writeChunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk }
+            assertTrue(client.isReady())
+            assertTrue(written)
+            assertEquals(
+                (expectedIdentityChunk + expectedEncodedChunk).toList(),
+                concatenatedWrites.toList(),
+            )
         }
-        val client = createGattNotifyClient(factory = factory, localHintPeerId = localHintPeerId)
-        client.start()
-        factory.listener.onServicesDiscovered(status = 0)
-        factory.listener.onDescriptorWrite(
-            descriptorUuid = "00002902-0000-1000-8000-00805f9b34fb",
-            status = 0,
-        )
-
-        // Act
-        val written = client.write(byteArrayOf(0x01, 0x02, 0x03))
-
-        // Assert: exactly one identity announcement followed by one payload write, not a
-        // second identity announcement.
-        val concatenatedWrites =
-            session.writeChunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk }
-        assertTrue(written)
-        assertEquals(
-            (expectedIdentityChunk + expectedEncodedChunk).toList(),
-            concatenatedWrites.toList(),
-        )
-    }
 
     @Test
     fun writePipelinesMultipleChunksBeforeSuspendingOnTheBoundedWriteWindow(): Unit = runBlocking {
