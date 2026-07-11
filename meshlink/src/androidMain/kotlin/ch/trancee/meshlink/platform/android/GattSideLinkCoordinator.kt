@@ -175,6 +175,19 @@ internal class GattSideLinkCoordinator(
         return synchronized(stateLock) { clientsByHint[hintPeerIdValue] }?.isReady() == true
     }
 
+    /**
+     * Snapshot of every peer this coordinator currently holds a GATT side-link client for
+     * (connecting, connected, or ready -- not just ready), keyed the same way as
+     * [BleTransportLinkRegistry.activeHintIds]. Used alongside that L2CAP-side registry to compute
+     * a device's total active-connection count for [ch.trancee.meshlink.power.hasConnectionBudget]
+     * admission control: a GATT side-link that's still connecting already holds a live ACL link to
+     * its peer (see this class's own doc comment on why GATT side-links matter for ACL-level
+     * tuning), so it counts as spending a connection slot even before it's ready.
+     */
+    internal fun activeHintIds(): Set<String> {
+        return synchronized(stateLock) { clientsByHint.keys.toSet() }
+    }
+
     internal fun stopAll(): Unit {
         val (jobs, clients) =
             synchronized(stateLock) {

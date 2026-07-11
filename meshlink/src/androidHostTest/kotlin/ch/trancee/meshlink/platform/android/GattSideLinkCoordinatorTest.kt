@@ -125,6 +125,50 @@ class GattSideLinkCoordinatorTest {
     }
 
     @Test
+    fun activeHintIdsIsEmptyBeforeAnyClientIsCreated(): Unit {
+        // Arrange
+        val fixture = GattSideLinkCoordinatorFixture()
+
+        // Act / Assert
+        assertEquals(emptySet(), fixture.coordinator.activeHintIds())
+    }
+
+    @Test
+    fun activeHintIdsIncludesAPeerAsSoonAsItsClientIsCreatedEvenBeforeItIsReady(): Unit {
+        // Arrange
+        val fixture = GattSideLinkCoordinatorFixture()
+        val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.ANDROID)
+        fixture.enqueueClient(FakeGattSideLinkClient(ready = false))
+
+        // Act
+        fixture.coordinator.ensureStarted(
+            peer = peer,
+            localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+        )
+
+        // Assert
+        assertEquals(setOf(peer.hintPeerId.value), fixture.coordinator.activeHintIds())
+    }
+
+    @Test
+    fun activeHintIdsDropsAPeerOnceItsClientIsRemovedByDisconnect(): Unit {
+        // Arrange
+        val fixture = GattSideLinkCoordinatorFixture(hasActiveL2capLink = false)
+        val peer = discoveredPeer(platformFamily = BleDiscoveryPlatformFamily.ANDROID)
+        fixture.enqueueClient(FakeGattSideLinkClient(ready = true))
+        fixture.coordinator.ensureStarted(
+            peer = peer,
+            localPlatformFamily = BleDiscoveryPlatformFamily.ANDROID,
+        )
+
+        // Act
+        fixture.coordinator.handleDisconnected(peer.hintPeerId)
+
+        // Assert
+        assertEquals(emptySet(), fixture.coordinator.activeHintIds())
+    }
+
+    @Test
     fun handleDisconnectedEmitsPeerLostWhenNoActiveL2capLinkRemains(): Unit {
         // Arrange
         val fixture = GattSideLinkCoordinatorFixture(hasActiveL2capLink = false)

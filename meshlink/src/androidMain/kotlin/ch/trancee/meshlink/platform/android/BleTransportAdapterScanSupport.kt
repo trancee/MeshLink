@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.power.hasConnectionBudget
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.RediscoveryWithoutLinkDecisionRequest
@@ -167,22 +168,40 @@ internal fun BleTransportAdapter.handleScanResult(result: ScanResult): Unit {
         transportMode = discovery.transportMode,
         address = result.device.address,
     )
-    gattSideLinks.ensureStarted(
-        peer = resolvedPeer,
-        localPlatformFamily = currentDiscoveryPayload.platformFamily,
-    )
+    val activeHintIds = linkRegistry.activeHintIds() + gattSideLinks.activeHintIds()
     if (
-        shouldConnectAfterDiscovery(
-            transportMode = discovery.transportMode,
-            localPlatformFamily = currentDiscoveryPayload.platformFamily,
-            remotePlatformFamily = resolvedPeer.platformFamily,
-            localL2capClientSocketsSupported = supportsL2capClientSockets(),
-            shouldInitiateL2cap =
-                shouldInitiateL2cap(discovery.payload.keyHash, discovery.payload.platformFamily),
-            gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),
+        hasConnectionBudget(
+            peerAlreadyConnected = resolvedPeer.hintPeerId.value in activeHintIds,
+            activeConnectionCount = activeHintIds.size,
+            maxConnections = currentPowerProfile.maxConnections,
         )
     ) {
-        connectIfNeeded(resolvedPeer)
+        gattSideLinks.ensureStarted(
+            peer = resolvedPeer,
+            localPlatformFamily = currentDiscoveryPayload.platformFamily,
+        )
+        if (
+            shouldConnectAfterDiscovery(
+                transportMode = discovery.transportMode,
+                localPlatformFamily = currentDiscoveryPayload.platformFamily,
+                remotePlatformFamily = resolvedPeer.platformFamily,
+                localL2capClientSocketsSupported = supportsL2capClientSockets(),
+                shouldInitiateL2cap =
+                    shouldInitiateL2cap(
+                        discovery.payload.keyHash,
+                        discovery.payload.platformFamily,
+                    ),
+                gattSideLinkReady = gattSideLinks.hasReadyLink(resolvedPeer.hintPeerId.value),
+            )
+        ) {
+            connectIfNeeded(resolvedPeer)
+        }
+    } else {
+        log(
+            "connection budget exhausted, deferring connect for " +
+                "${resolvedPeer.hintPeerId.value.takeLast(6)} " +
+                "activeConnections=${activeHintIds.size} maxConnections=${currentPowerProfile.maxConnections}"
+        )
     }
 }
 
