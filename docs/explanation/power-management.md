@@ -38,7 +38,23 @@ only locally-initiated connection its transport adapter opens -- the L2CAP
 channel connect -- while still counting active GATT notify side-links
 (inherently peer-initiated on iOS, since the local device is the GATT
 peripheral there) toward the active-connection total so the budget reflects
-the device's actual concurrent BLE connection load either way.
+the device's actual concurrent BLE connection load either way. The same
+admission check also runs on the send path (not just discovery-driven
+auto-connect): a `send()` call to a not-yet-connected peer this device would
+locally initiate a connection for is deferred the same way once the budget is
+spent, rather than bypassing the gate.
+
+**The budget is admission-control only, not an active eviction policy.**
+Dropping to a lower tier (for example `PERFORMANCE` -> `POWER_SAVER` while
+automatic mode reacts to a battery-level change) never closes
+already-connected peers to fit the new, smaller budget, even if the device is
+currently over the new tier's limit. There is no eviction step keyed on
+connection age, signal stability, RSSI, or any other quality metric --
+existing connections are only ever removed by their own normal lifecycle
+(peer loss, explicit disconnect, link failure), never by a tier change. A
+tier downgrade only affects new connection attempts from that point forward;
+the device's active count settles back under the new budget purely through
+natural attrition as peers come and go.
 
 ## Why automatic mode exists
 

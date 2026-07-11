@@ -81,6 +81,29 @@ class L2capSendSupportTest {
         }
 
     @Test
+    fun sendViaAndroidL2capWhenReadyDoesNotTriggerConnectWhenTheConnectionBudgetIsExhausted():
+        Unit = runBlocking {
+        // Arrange
+        val fixture = L2capSendFixture(shouldInitiateL2cap = true, hasConnectionBudget = false)
+        val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
+
+        // Act
+        val result = fixture.run(frame = frame, link = null)
+
+        // Assert
+        assertEquals(
+            "Android BLE L2CAP connection is not ready",
+            (result as TransportSendResult.Dropped).reason,
+        )
+        assertEquals(
+            0,
+            fixture.connectCalls,
+            "Expected the exhausted connection budget to defer the send-triggered connect " +
+                "attempt, mirroring the discovery-time admission gate",
+        )
+    }
+
+    @Test
     fun sendViaAndroidL2capWhenReadyDelegatesToTheActiveLink(): Unit = runBlocking {
         // Arrange
         val fixture = L2capSendFixture()
@@ -100,6 +123,7 @@ private class L2capSendFixture(
     transportMode: TransportMode = TransportMode.L2CAP,
     advertisedL2capPsm: Int = 192,
     private val shouldInitiateL2cap: Boolean = true,
+    private val hasConnectionBudget: Boolean = true,
 ) {
     val context =
         L2capSendContext(
@@ -117,6 +141,7 @@ private class L2capSendFixture(
                 L2capSendDependencies(
                     currentLink = { link },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
+                    hasConnectionBudget = { hasConnectionBudget },
                     triggerConnectIfNeeded = { connectCalls += 1 },
                     log = {},
                 ),
