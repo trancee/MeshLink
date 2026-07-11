@@ -1,10 +1,34 @@
 #!/usr/bin/env bash
-# Build, codesign, and freshly (re)install the MeshLink ProofApp on one or more
-# attached physical iPhones. Optionally also builds the ProofBenchmarks XCTest
-# target (build-for-testing) and can run a specific test against each device
-# (test-without-building) -- e.g. BluetoothPermissionGrant, which auto-taps the
-# system Bluetooth permission prompt via an XCUITest interruption monitor (see
-# meshlink-proof/ios/ProofBenchmarks/BluetoothPermissionGrant.swift).
+# Build, codesign, and freshly (re)install the MeshLink ProofApp on every
+# attached physical iPhone -- both newer devices reachable via `xcrun
+# devicectl` and older devices (e.g. an iPhone SE (2016) on iOS 15) only
+# reachable via `ios-deploy` (`brew install ios-deploy`). Also builds the
+# ProofBenchmarks XCTest runner (build-for-testing) by default, so it is ready
+# to run one-time device setup tests such as BluetoothPermissionGrant (see
+# meshlink-proof/ios/ProofBenchmarks/BluetoothPermissionGrant.swift), which
+# auto-taps the system Bluetooth permission prompt via an XCUITest
+# interruption monitor.
+#
+# All of this is automatic with just --team: no --device/--ios-deploy-device
+# flags are required. Auto-discovery works like this:
+#   1. `xcrun devicectl list devices` supplies every "available (paired)"
+#      device.
+#   2. `ios-deploy -c` supplies every connected device's id and friendly name.
+#      devicectl and ios-deploy use *incompatible* device-identifier schemes
+#      for the very same physical device (devicectl's CoreDevice identifier
+#      vs. ios-deploy's ECID-derived id), so ids alone cannot be compared.
+#      Instead, any ios-deploy device whose friendly name (case-insensitively)
+#      does not match a name already covered by devicectl in step 1 is
+#      treated as reachable via ios-deploy only (e.g. an iPhone SE devicectl
+#      cannot tunnel into at all) and is installed via ios-deploy instead.
+# This name-based heuristic can under- or over-match if a device's name is
+# inconsistent between the two tools (rare in practice); pass --device /
+# --ios-deploy-device explicitly to bypass auto-discovery entirely for a
+# specific run.
+#
+# ios-deploy has no install-only mode (unlike devicectl's separate
+# install/launch subcommands): installing via ios-deploy always launches the
+# app too, regardless of whether --launch was passed.
 #
 # This script exists because headless/automation shells (no logged-in GUI/Aqua
 # session) cannot unlock the login keychain's Apple Development private key --
@@ -20,37 +44,37 @@
 # reinstalls in place over a stale build.
 #
 # Usage:
-#   scripts/build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID> [--device <udid>]...
-#     [--launch] [--build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
-#
-# With no --device flags, it targets every "available (paired)" device
-# reported by `xcrun devicectl list devices`.
+#   scripts/build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID>
+#     [--device <udid>]... [--ios-deploy-device <udid>]... [--launch]
+#     [--skip-build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
 #
 # Example (build your Apple Development team ID first, e.g. via
 # `security find-certificate -c "Apple Development: <you>" -p | openssl x509
-# -noout -subject`, the OU= field):
+# -noout -subject`, the OU= field) -- installs on every attached iPhone, old
+# and new, and builds the XCTest runner, with zero other flags:
 #
-#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y
+#   scripts/build_and_install_ios_proof_app.sh --team <YOUR_TEAM_ID>
 #
-# Example targeting specific devices only:
+# Example targeting specific devices only (disables auto-discovery for
+# whichever of --device/--ios-deploy-device you pass):
 #
-#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y \
+#   scripts/build_and_install_ios_proof_app.sh --team <YOUR_TEAM_ID> \
 #     --device 6972CDF5-F3EB-5602-B53B-583BDB6D1AD1 \
-#     --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467
+#     --ios-deploy-device 0f2bc050bcf08e3582b3d62af450df61a59d3039
 #
-# Example: also build the XCTest runner (ProofBenchmarks) for physical devices,
-# without running any test yet:
+# Example: skip building the XCTest runner (app-only, slightly faster):
 #
-#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y --build-tests
+#   scripts/build_and_install_ios_proof_app.sh --team <YOUR_TEAM_ID> --skip-build-tests
 #
-# Example: build the XCTest runner and run the one-time Bluetooth
-# permission-grant test against every target device (only needs to succeed
-# once per device -- see BluetoothPermissionGrant.swift's doc comment):
+# Example: also run the one-time Bluetooth permission-grant test against every
+# devicectl-managed target device (only needs to succeed once per device --
+# see BluetoothPermissionGrant.swift's doc comment; ios-deploy-managed devices
+# are not supported by --run-test since it drives devices through devicectl):
 #
-#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y \
+#   scripts/build_and_install_ios_proof_app.sh --team <YOUR_TEAM_ID> \
 #     --run-test ProofBenchmarks/BluetoothPermissionGrant
 #
-# Note: at the time this flag was added, running any XCTest UI-test runner
+# Note: at the time --run-test was added, running any XCTest UI-test runner
 # against certain physical device/Xcode pairings in this project's own
 # development environment failed with "Root install style is not supported on
 # this device" while installing the runner -- a pre-existing Xcode/devicectl
@@ -69,31 +93,50 @@ bundle_id="ch.trancee.meshlink.proof.ios"
 
 development_team=""
 devices=()
+ios_deploy_devices=()
+devices_explicit=0
+ios_deploy_devices_explicit=0
 launch_after_install=0
-build_tests=0
+build_tests=1
 run_test=""
 
 usage() {
   cat <<'EOF'
-Usage: build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID> [--device <udid>]...
-         [--launch] [--build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
+Usage: build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID>
+         [--device <udid>]... [--ios-deploy-device <udid>]... [--launch]
+         [--skip-build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
 
-  --team <id>      Apple Development Team ID used for DEVELOPMENT_TEAM (required)
-  --device <udid>  CoreDevice identifier to target (repeatable). Defaults to
-                    every "available (paired)" device from
-                    `xcrun devicectl list devices` when omitted.
-  --launch         Launch the app on each target device after installing it.
-  --build-tests    Also build the ProofBenchmarks XCTest target for physical
-                    devices (`xcodebuild build-for-testing`), producing the
-                    XCTest runner app usable with --run-test or your own
-                    `xcodebuild test-without-building` invocation. Implied by
-                    --run-test.
-  --run-test <id>  Run this test identifier (e.g.
-                    ProofBenchmarks/BluetoothPermissionGrant) against every
-                    target device via `xcodebuild test-without-building`,
-                    after building the test target. Repeatable is not
-                    supported; pass one identifier per invocation.
-  -h, --help       Show this help text.
+  --team <id>              Apple Development Team ID used for DEVELOPMENT_TEAM. If
+                            omitted, auto-detected from your keychain's
+                            codesigning identities when unambiguous, or asked
+                            interactively (with a choice, if more than one is
+                            found) otherwise. Never hardcode a real team ID in
+                            any script, commit, or committed file -- it is
+                            never written anywhere by this script.
+  --device <udid>          CoreDevice identifier to target (repeatable). Disables
+                            devicectl auto-discovery for this run once passed at
+                            least once.
+  --ios-deploy-device <id> Device id (from `ios-deploy -c`) to install via
+                            ios-deploy instead of devicectl (repeatable).
+                            Disables ios-deploy auto-discovery for this run
+                            once passed at least once. Installing via
+                            ios-deploy always launches the app too (ios-deploy
+                            has no install-only mode). Not supported by
+                            --run-test.
+  --launch                 Launch the app on each --device (devicectl) target
+                            after installing it.
+  --skip-build-tests       Do not build the ProofBenchmarks XCTest target
+                            (build-for-testing is on by default).
+  --run-test <id>          Run this test identifier (e.g.
+                            ProofBenchmarks/BluetoothPermissionGrant) against every
+                            --device target via `xcodebuild test-without-building`,
+                            after building the test target. Repeatable is not
+                            supported; pass one identifier per invocation.
+  -h, --help               Show this help text.
+
+With no --device/--ios-deploy-device flags at all, every attached iPhone is
+targeted automatically -- see this script's header comment for exactly how
+devicectl- and ios-deploy-reachable devices are told apart.
 EOF
 }
 
@@ -105,14 +148,20 @@ while [[ $# -gt 0 ]]; do
       ;;
     --device)
       devices+=("${2:?--device requires a value}")
+      devices_explicit=1
+      shift 2
+      ;;
+    --ios-deploy-device)
+      ios_deploy_devices+=("${2:?--ios-deploy-device requires a value}")
+      ios_deploy_devices_explicit=1
       shift 2
       ;;
     --launch)
       launch_after_install=1
       shift
       ;;
-    --build-tests)
-      build_tests=1
+    --skip-build-tests)
+      build_tests=0
       shift
       ;;
     --run-test)
@@ -132,32 +181,168 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$development_team" ]]; then
-  echo "error: --team <DEVELOPMENT_TEAM_ID> is required" >&2
-  usage >&2
+# Never hardcode or default a real team ID anywhere in this script (including
+# its own usage examples/comments above) -- it is auto-detected from your own
+# keychain when unambiguous, or asked interactively otherwise, and is never
+# written to any file this script touches.
+resolve_development_team() {
+  if [[ -n "$development_team" ]]; then
+    return
+  fi
+
+  local identity_names=()
+  while IFS= read -r identity_name; do
+    identity_names+=("$identity_name")
+  done < <(
+    security find-identity -v -p codesigning 2>/dev/null \
+      | grep -oE '"[^"]+"' \
+      | tr -d '"' \
+      | sort -u
+  )
+
+  local team_ids=()
+  local identity_name team_id already_seen seen_id
+  for identity_name in "${identity_names[@]:-}"; do
+    [[ -z "$identity_name" ]] && continue
+    team_id=$(
+      security find-certificate -c "$identity_name" -p 2>/dev/null \
+        | openssl x509 -noout -subject 2>/dev/null \
+        | grep -oE 'OU=[^,]+' \
+        | head -n1 \
+        | cut -d= -f2
+    )
+    [[ -z "$team_id" ]] && continue
+    already_seen=0
+    for seen_id in "${team_ids[@]:-}"; do
+      if [[ "$seen_id" == "$team_id" ]]; then
+        already_seen=1
+        break
+      fi
+    done
+    [[ "$already_seen" -eq 1 ]] || team_ids+=("$team_id")
+  done
+
+  if [[ ${#team_ids[@]} -eq 1 ]]; then
+    development_team="${team_ids[0]}"
+    echo "Using the one Apple Development Team ID found in your keychain (not stored/committed anywhere)." >&2
+    return
+  fi
+
+  if [[ ${#team_ids[@]} -gt 1 ]]; then
+    echo "Multiple Apple Development Team IDs found in your keychain:" >&2
+    local i
+    for i in "${!team_ids[@]}"; do
+      echo "  $((i + 1))) ${team_ids[$i]}" >&2
+    done
+    if [[ -t 0 ]]; then
+      local choice
+      read -r -p "Which one do you want to use? [1-${#team_ids[@]}]: " choice
+      if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#team_ids[@]} )); then
+        development_team="${team_ids[$((choice - 1))]}"
+        return
+      fi
+      echo "error: invalid selection" >&2
+      exit 1
+    fi
+    echo "error: pass --team <DEVELOPMENT_TEAM_ID> explicitly to pick one (not running interactively)" >&2
+    exit 1
+  fi
+
+  # Nothing found in the keychain; fall back to asking directly.
+  if [[ -t 0 ]]; then
+    read -r -p "Apple Development Team ID (not stored/committed anywhere): " development_team
+  fi
+  if [[ -z "$development_team" ]]; then
+    echo "error: --team <DEVELOPMENT_TEAM_ID> is required (or run interactively to be prompted)" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+resolve_development_team
+
+if [[ -n "$run_test" && ${#ios_deploy_devices[@]} -gt 0 ]]; then
+  echo "error: --run-test only supports --device (devicectl) targets, not --ios-deploy-device" >&2
   exit 1
 fi
 
-if [[ ${#devices[@]} -eq 0 ]]; then
+devicectl_names=()
+
+if [[ "$devices_explicit" -eq 0 ]]; then
   echo "No --device given; discovering attached, paired iPhones via xcrun devicectl..."
   # Columns: Name  Hostname  Identifier  State  Model. Only take rows whose
   # State column starts with "available" (skips "unavailable" entries like a
   # device that was recently unplugged but still cached by devicectl).
-  while IFS= read -r udid; do
-    devices+=("$udid")
+  while IFS=$'\t' read -r name identifier; do
+    devices+=("$identifier")
+    devicectl_names+=("$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')")
   done < <(
     xcrun devicectl list devices 2>/dev/null \
-      | awk 'NR > 2 && $0 ~ /available \(paired\)/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-Fa-f-]{36}$/) print $i }'
+      | awk 'NR > 2 && $0 ~ /available \(paired\)/ {
+          identifier = ""
+          for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-Fa-f-]{36}$/) identifier = $i
+          # Name never contains a "."; Hostname always does (e.g.
+          # "iPhone-15.coredevice.local") -- stop accumulating the Name
+          # column the moment a dotted (Hostname) or identifier field is hit,
+          # so a multi-word name like "iPhone 12 mini" is captured correctly
+          # without also swallowing the Hostname column that immediately
+          # follows it.
+          name = ""
+          for (i = 1; i <= NF; i++) {
+            if ($i == identifier || $i ~ /\./) break
+            name = (name == "" ? $i : name " " $i)
+          }
+          print name "\t" identifier
+        }'
   )
 fi
 
-if [[ ${#devices[@]} -eq 0 ]]; then
-  echo "error: no attached, paired devices found (and none passed via --device)" >&2
+if [[ "$ios_deploy_devices_explicit" -eq 0 ]]; then
+  echo "No --ios-deploy-device given; discovering ios-deploy-only iPhones via ios-deploy -c..."
+  if ! command -v ios-deploy >/dev/null 2>&1; then
+    echo "    (ios-deploy not found on PATH -- skipping; brew install ios-deploy to enable this)"
+  else
+    seen_ios_deploy_ids=()
+    while IFS=$'\t' read -r ios_deploy_id ios_deploy_name; do
+      [[ -z "$ios_deploy_id" ]] && continue
+      # Dedupe ios-deploy's own list (the same device can appear twice, once
+      # per transport, e.g. once via WIFI and once via USB with the same id).
+      already_seen=0
+      for seen_id in "${seen_ios_deploy_ids[@]:-}"; do
+        if [[ "$seen_id" == "$ios_deploy_id" ]]; then
+          already_seen=1
+          break
+        fi
+      done
+      [[ "$already_seen" -eq 1 ]] && continue
+      seen_ios_deploy_ids+=("$ios_deploy_id")
+
+      lowercase_name="$(printf '%s' "$ios_deploy_name" | tr '[:upper:]' '[:lower:]')"
+      covered_by_devicectl=0
+      for devicectl_name in "${devicectl_names[@]:-}"; do
+        if [[ "$devicectl_name" == "$lowercase_name" ]]; then
+          covered_by_devicectl=1
+          break
+        fi
+      done
+      if [[ "$covered_by_devicectl" -eq 0 ]]; then
+        ios_deploy_devices+=("$ios_deploy_id")
+      fi
+    done < <(
+      ios-deploy -c --timeout 8 2>/dev/null \
+        | sed -n "s/^\[\.\.\.\.\] Found \([0-9A-Fa-f-]*\).* a\.k\.a\. '\([^']*\)'.*/\1\t\2/p"
+    )
+  fi
+fi
+
+if [[ ${#devices[@]} -eq 0 && ${#ios_deploy_devices[@]} -eq 0 ]]; then
+  echo "error: no attached, paired devices found (and none passed via --device/--ios-deploy-device)" >&2
   exit 1
 fi
 
-echo "Target devices (${#devices[@]}):"
-printf '  %s\n' "${devices[@]}"
+echo "Target devices (${#devices[@]} via devicectl, ${#ios_deploy_devices[@]} via ios-deploy):"
+printf '  %s (devicectl)\n' "${devices[@]:-}"
+printf '  %s (ios-deploy)\n' "${ios_deploy_devices[@]:-}"
 
 echo
 echo "==> Building ProofApp fresh for physical iOS (generic/platform=iOS, DEVELOPMENT_TEAM=$development_team)"
@@ -178,7 +363,8 @@ if [[ -z "$app_path" ]]; then
 fi
 echo "Built app: $app_path"
 
-for device in "${devices[@]}"; do
+for device in "${devices[@]:-}"; do
+  [[ -z "$device" ]] && continue
   echo
   echo "==> $device: uninstalling any previous ${bundle_id} install"
   if ! xcrun devicectl device uninstall app --device "$device" "$bundle_id"; then
@@ -194,10 +380,29 @@ for device in "${devices[@]}"; do
   fi
 done
 
+for device in "${ios_deploy_devices[@]:-}"; do
+  [[ -z "$device" ]] && continue
+  echo
+  echo "==> $device (ios-deploy): uninstalling any previous ${bundle_id} install"
+  if ! ios-deploy --id "$device" --uninstall_only --bundle_id "$bundle_id"; then
+    echo "    (no previous install found, or uninstall failed harmlessly -- continuing)"
+  fi
+
+  echo "==> $device (ios-deploy): installing freshly built app (this also launches it -- ios-deploy has no install-only mode)"
+  # ios-deploy's own exit code is not reliable for --justlaunch (it can be
+  # non-zero even after the output clearly shows "success"), so a non-zero
+  # exit here is downgraded to a warning rather than aborting the whole run;
+  # check the output above for actual error text (e.g. "invalid code
+  # signature", "Cannot launch") if a device does not actually come up.
+  if ! ios-deploy --id "$device" --bundle "$app_path" --justlaunch; then
+    echo "    (ios-deploy exited non-zero for $device -- check the output above; this can happen even on a successful install+launch)"
+  fi
+done
+
 echo
-echo "Done. Installed a fresh ${scheme}.app build on: ${devices[*]}"
-if [[ "$launch_after_install" -eq 0 ]]; then
-  echo "Launch manually with:"
+echo "Done. Installed a fresh ${scheme}.app build on: ${devices[*]:-} ${ios_deploy_devices[*]:-}"
+if [[ "$launch_after_install" -eq 0 && ${#devices[@]} -gt 0 ]]; then
+  echo "Launch manually on devicectl-managed devices with:"
   echo "  xcrun devicectl device process launch --device <udid> $bundle_id"
 fi
 
@@ -219,7 +424,8 @@ if [[ "$build_tests" -eq 1 ]]; then
 fi
 
 if [[ -n "$run_test" ]]; then
-  for device in "${devices[@]}"; do
+  for device in "${devices[@]:-}"; do
+    [[ -z "$device" ]] && continue
     echo
     echo "==> $device: running $run_test"
     xcodebuild test-without-building \
@@ -232,5 +438,5 @@ if [[ -n "$run_test" ]]; then
       "-only-testing:$run_test"
   done
   echo
-  echo "Done running $run_test on: ${devices[*]}"
+  echo "Done running $run_test on: ${devices[*]:-}"
 fi
