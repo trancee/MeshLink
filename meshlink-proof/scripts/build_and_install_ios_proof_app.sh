@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Build, codesign, and freshly (re)install the MeshLink ProofApp on one or more
-# attached physical iPhones.
+# attached physical iPhones. Optionally also builds the ProofBenchmarks XCTest
+# target (build-for-testing) and can run a specific test against each device
+# (test-without-building) -- e.g. BluetoothPermissionGrant, which auto-taps the
+# system Bluetooth permission prompt via an XCUITest interruption monitor (see
+# meshlink-proof/ios/ProofBenchmarks/BluetoothPermissionGrant.swift).
 #
 # This script exists because headless/automation shells (no logged-in GUI/Aqua
 # session) cannot unlock the login keychain's Apple Development private key --
@@ -17,6 +21,7 @@
 #
 # Usage:
 #   scripts/build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID> [--device <udid>]...
+#     [--launch] [--build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
 #
 # With no --device flags, it targets every "available (paired)" device
 # reported by `xcrun devicectl list devices`.
@@ -32,27 +37,62 @@
 #   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y \
 #     --device 6972CDF5-F3EB-5602-B53B-583BDB6D1AD1 \
 #     --device 7F5320D7-1D8E-56F5-9D6E-0A6967B25467
+#
+# Example: also build the XCTest runner (ProofBenchmarks) for physical devices,
+# without running any test yet:
+#
+#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y --build-tests
+#
+# Example: build the XCTest runner and run the one-time Bluetooth
+# permission-grant test against every target device (only needs to succeed
+# once per device -- see BluetoothPermissionGrant.swift's doc comment):
+#
+#   scripts/build_and_install_ios_proof_app.sh --team 7ZX3WPAP4Y \
+#     --run-test ProofBenchmarks/BluetoothPermissionGrant
+#
+# Note: at the time this flag was added, running any XCTest UI-test runner
+# against certain physical device/Xcode pairings in this project's own
+# development environment failed with "Root install style is not supported on
+# this device" while installing the runner -- a pre-existing Xcode/devicectl
+# tooling limitation reproduced even against the project's older, unmodified
+# benchmark tests, not something this script can work around. If you hit that
+# error, it is an Xcode/device-pairing issue to resolve on your machine (e.g. a
+# stale device-support cache), not a bug in this script or the test itself.
 
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 project_path="$repo_root/meshlink-proof/ios/ProofApp.xcodeproj"
 scheme="ProofApp"
+tests_scheme="ProofBenchmarks"
 bundle_id="ch.trancee.meshlink.proof.ios"
 
 development_team=""
 devices=()
 launch_after_install=0
+build_tests=0
+run_test=""
 
 usage() {
   cat <<'EOF'
-Usage: build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID> [--device <udid>]... [--launch]
+Usage: build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID> [--device <udid>]...
+         [--launch] [--build-tests] [--run-test <TARGET/TestClass[/testMethod]>]
 
   --team <id>      Apple Development Team ID used for DEVELOPMENT_TEAM (required)
   --device <udid>  CoreDevice identifier to target (repeatable). Defaults to
                     every "available (paired)" device from
                     `xcrun devicectl list devices` when omitted.
   --launch         Launch the app on each target device after installing it.
+  --build-tests    Also build the ProofBenchmarks XCTest target for physical
+                    devices (`xcodebuild build-for-testing`), producing the
+                    XCTest runner app usable with --run-test or your own
+                    `xcodebuild test-without-building` invocation. Implied by
+                    --run-test.
+  --run-test <id>  Run this test identifier (e.g.
+                    ProofBenchmarks/BluetoothPermissionGrant) against every
+                    target device via `xcodebuild test-without-building`,
+                    after building the test target. Repeatable is not
+                    supported; pass one identifier per invocation.
   -h, --help       Show this help text.
 EOF
 }
@@ -70,6 +110,15 @@ while [[ $# -gt 0 ]]; do
     --launch)
       launch_after_install=1
       shift
+      ;;
+    --build-tests)
+      build_tests=1
+      shift
+      ;;
+    --run-test)
+      run_test="${2:?--run-test requires a value}"
+      build_tests=1
+      shift 2
       ;;
     -h|--help)
       usage
@@ -150,4 +199,38 @@ echo "Done. Installed a fresh ${scheme}.app build on: ${devices[*]}"
 if [[ "$launch_after_install" -eq 0 ]]; then
   echo "Launch manually with:"
   echo "  xcrun devicectl device process launch --device <udid> $bundle_id"
+fi
+
+tests_derived_data="$repo_root/build/ios-proof-benchmarks-derived-data"
+
+if [[ "$build_tests" -eq 1 ]]; then
+  echo
+  echo "==> Building ${tests_scheme} for testing on physical iOS (generic/platform=iOS, DEVELOPMENT_TEAM=$development_team)"
+  # Reuses a dedicated derivedDataPath (separate from the app build above) so
+  # xcodebuild can later resolve the built test products/.xctestrun by scheme
+  # + derivedDataPath alone in the test-without-building step below.
+  xcodebuild build-for-testing \
+    -project "$project_path" \
+    -scheme "$tests_scheme" \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$tests_derived_data" \
+    DEVELOPMENT_TEAM="$development_team" \
+    -allowProvisioningUpdates
+fi
+
+if [[ -n "$run_test" ]]; then
+  for device in "${devices[@]}"; do
+    echo
+    echo "==> $device: running $run_test"
+    xcodebuild test-without-building \
+      -project "$project_path" \
+      -scheme "$tests_scheme" \
+      -destination "id=$device" \
+      -derivedDataPath "$tests_derived_data" \
+      DEVELOPMENT_TEAM="$development_team" \
+      -allowProvisioningUpdates \
+      "-only-testing:$run_test"
+  done
+  echo
+  echo "Done running $run_test on: ${devices[*]}"
 fi
