@@ -1480,14 +1480,7 @@ def _run_full_mesh_main(
     }
     (run_root / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
 
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        prep_results = list(executor.map(grant_permissions, selected_devices))
-
-    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-        bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+    install_results, prep_results, bluetooth_checks = _install_prep_and_check_bluetooth(selected_devices)
 
     try:
         batch_results = _run_full_mesh_batch(selected_devices, run_root=run_root, app_id=app_id, args=args)
@@ -1526,6 +1519,30 @@ def _run_full_mesh_main(
         "summary": str(run_root / "mesh-matrix.md"),
     }, indent=2))
     return 0
+
+
+def _install_prep_and_check_bluetooth(
+    selected_devices: list["DeviceRecord"],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Install the proof APK, grant its runtime permissions, and preflight
+    Bluetooth on every selected device, in that order, each step fully
+    parallelized across devices.
+
+    Shared by both the pair-based main() flow and the --full-mesh flow
+    (_run_full_mesh_main): both need the exact same per-device setup before
+    any pair/batch launch begins, and previously duplicated this block
+    verbatim.
+    """
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
+
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        prep_results = list(executor.map(grant_permissions, selected_devices))
+
+    with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
+        bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+
+    return install_results, prep_results, bluetooth_checks
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1639,14 +1656,7 @@ def main(argv: list[str] | None = None) -> int:
     batch_errors: list[dict[str, Any]] = []
 
     try:
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            install_results = list(executor.map(install_apk, [device.resolved_serial for device in selected_devices]))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            prep_results = list(executor.map(grant_permissions, selected_devices))
-
-        with ThreadPoolExecutor(max_workers=min(len(selected_devices), 16)) as executor:
-            bluetooth_checks = list(executor.map(ensure_bluetooth_on, selected_devices))
+        install_results, prep_results, bluetooth_checks = _install_prep_and_check_bluetooth(selected_devices)
 
         # Run pairs in sequential batches rather than all at once. See
         # DEFAULT_MAX_CONCURRENT_PAIRS / --max-concurrent-pairs: launching every
