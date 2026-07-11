@@ -7,9 +7,62 @@ final class ProofViewModel: ObservableObject {
     @Published private(set) var stateText: String = "Uninitialized"
     @Published private(set) var peers: [PeerId] = []
     @Published private(set) var logs: [String] = []
+    /// Mirrors the Android proof app's `MeshLinkProofRuntime.isRunning` (derived the same way --
+    /// from the live `MeshLinkState` flow, not from tracking start()/stop() call results locally)
+    /// so both platforms' proof-app UIs can drive a single Start/Stop toggle button off the same
+    /// kind of state. Only updated while `bindFlows()` is subscribed (the default `meshLink`
+    /// transport mode); the `gatt`/`gatt-notify` prototype benchmark transport modes manage their
+    /// own lifecycle via `ProofBenchmarkModeController` and never touch this flag.
+    @Published private(set) var isRunning: Bool = false
 
     var logText: String {
         logs.joined(separator: "\n")
+    }
+
+    /// Mirrors the Android proof app's `MeshLinkProofRuntime.summarizeLifecycleStatus`: the most
+    /// recent control-flow log line, compacted to a short status phrase for display above the raw
+    /// log feed.
+    var lifecycleStatusText: String {
+        let controlLog = logs.last { line in
+            line.hasPrefix("runtime stop requested") || line.hasPrefix("mesh.start() requested")
+                || line.hasPrefix("mesh.start() ->") || line.hasPrefix("mesh.start() failed")
+                || line.contains("Bluetooth preflight blocked")
+                || line.contains("Bluetooth permissions denied")
+                || line.contains("Bluetooth permissions granted")
+        }
+        guard let controlLog else {
+            return "Lifecycle: idle"
+        }
+        return "Lifecycle: \(Self.compactLifecycleStatus(controlLog))"
+    }
+
+    private static func compactLifecycleStatus(_ logLine: String) -> String {
+        if logLine.hasPrefix("runtime stop requested") {
+            return "Stop requested"
+        }
+        if logLine.hasPrefix("mesh.start() requested") {
+            return "Start requested"
+        }
+        if logLine.hasPrefix("mesh.start() ->") {
+            let withoutPrefix = logLine.replacingOccurrences(of: "mesh.start() -> ", with: "")
+            if let range = withoutPrefix.range(of: " elapsedMs=") {
+                return String(withoutPrefix[withoutPrefix.startIndex..<range.lowerBound])
+            }
+            return withoutPrefix
+        }
+        if logLine.hasPrefix("mesh.start() failed") {
+            return "Start failed"
+        }
+        if logLine.contains("Bluetooth preflight blocked") {
+            return "Bluetooth blocked"
+        }
+        if logLine.contains("Bluetooth permissions denied") {
+            return "Permissions denied"
+        }
+        if logLine.contains("Bluetooth permissions granted") {
+            return "Permissions granted"
+        }
+        return logLine
     }
 
     private let runtime: MeshLink.MeshLinkRuntime
@@ -161,6 +214,12 @@ final class ProofViewModel: ObservableObject {
             Task { @MainActor [weak self] in
                 for await state in currentRuntime.state {
                     self?.stateText = String(describing: state)
+                    switch onEnum(of: state) {
+                    case .running:
+                        self?.isRunning = true
+                    default:
+                        self?.isRunning = false
+                    }
                 }
             },
             Task { @MainActor [weak self] in
