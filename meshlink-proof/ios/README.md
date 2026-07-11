@@ -76,6 +76,24 @@ xcodebuild \
 If local cached signing assets are not enough, rerun with
 `-allowProvisioningUpdates`.
 
+**Codesigning requires an interactive, logged-in GUI/Aqua session.** An
+automation/agent shell without one fails at the `codesign` step with
+`errSecInternalComponent` (the login keychain's Apple Development private key
+cannot be unlocked non-interactively) -- see
+[How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md#6-if-iphone-signing-fails-before-launch-check-the-keychain-first)
+for the recovery path. Run builds/installs against physical devices yourself,
+interactively, rather than from such a shell.
+
+For building and freshly (re)installing across every attached, paired iPhone
+in one step -- uninstalling any previous install first, per the physical-device
+rule in `AGENTS.md` -- use
+[`meshlink-proof/scripts/build_and_install_ios_proof_app.sh`](../scripts/build_and_install_ios_proof_app.sh)
+instead of the manual steps below:
+
+```bash
+meshlink-proof/scripts/build_and_install_ios_proof_app.sh --team <your-team-id>
+```
+
 On the first physical iPhone launch, allow Bluetooth access if iOS prompts for
 it. If permissions are the blocker, use
 [How to unblock MeshLink permissions on Android and iOS](../../docs/how-to/unblock-meshlink-permissions.md).
