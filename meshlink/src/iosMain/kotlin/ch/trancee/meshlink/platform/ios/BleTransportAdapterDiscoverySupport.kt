@@ -5,6 +5,7 @@ package ch.trancee.meshlink.platform.ios
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.apple.BleTransportBridgeRegistry
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.power.hasConnectionBudget
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.TransportMode
@@ -222,8 +223,22 @@ internal fun BleTransportAdapter.handleL2capDiscovery(
         identifier = identifier,
     )
     if (shouldInitiateL2cap(payload.keyHash, payload.platformFamily)) {
-        log("initiating L2CAP connect to ${hintPeerId.logSuffix()}")
-        connectIfNeeded(peer)
+        val activeHintIds = activeLinksByHint.keys + gattNotifyRegistry.activeHintIds()
+        if (
+            hasConnectionBudget(
+                peerAlreadyConnected = hintPeerId.value in activeHintIds,
+                activeConnectionCount = activeHintIds.size,
+                maxConnections = currentPowerProfile.maxConnections,
+            )
+        ) {
+            log("initiating L2CAP connect to ${hintPeerId.logSuffix()}")
+            connectIfNeeded(peer)
+        } else {
+            log(
+                "connection budget exhausted, deferring connect for ${hintPeerId.logSuffix()} " +
+                    "activeConnections=${activeHintIds.size} maxConnections=${currentPowerProfile.maxConnections}"
+            )
+        }
     }
 }
 

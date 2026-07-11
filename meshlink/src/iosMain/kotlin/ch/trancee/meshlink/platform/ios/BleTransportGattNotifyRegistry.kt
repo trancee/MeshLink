@@ -9,6 +9,16 @@ internal class BleTransportGattNotifyRegistry {
     internal val size: Int
         get() = linksByHint.size
 
+    /**
+     * Mirrors Android's `GattSideLinkCoordinator.activeHintIds()`: the set of peer hints that
+     * currently occupy a GATT notify side-link connection slot. Used alongside
+     * [BleTransportAdapter.activeLinksByHint]'s keys to compute the active connection count for
+     * [ch.trancee.meshlink.power.hasConnectionBudget]'s admission-control check.
+     */
+    internal fun activeHintIds(): Set<String> {
+        return linksByHint.keys
+    }
+
     internal fun hasLink(hintPeerIdValue: String): Boolean {
         return linksByHint.containsKey(hintPeerIdValue)
     }
