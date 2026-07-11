@@ -22,6 +22,15 @@ internal class L2capSendDependencies
 internal constructor(
     internal val currentLink: () -> L2capSendLink?,
     internal val shouldInitiateL2cap: () -> Boolean,
+    // See BleTransportAdapterScanSupport.onScanResult's identical use of
+    // ch.trancee.meshlink.power.hasConnectionBudget: the discovery-driven auto-connect path was
+    // gated against the tier's connection budget, but this send-triggered connect path called
+    // triggerConnectIfNeeded() unconditionally -- a send to a freshly-discovered, not-yet-connected
+    // peer could still spend a new connection slot even once the device was already at its budget
+    // cap. This dependency closes that gap the same way: a peer this device would otherwise
+    // locally initiate a connection for is deferred (not connected) once the budget is already
+    // spent, exactly mirroring the discovery-time decision.
+    internal val hasConnectionBudget: () -> Boolean,
     internal val triggerConnectIfNeeded: () -> Unit,
     internal val log: (String) -> Unit,
 )
@@ -46,6 +55,16 @@ internal suspend fun sendViaL2capWhenReady(
         if (!dependencies.shouldInitiateL2cap()) {
             dependencies.log(
                 "send(${context.hintPeerId.value.takeLast(6)}) no active link, waiting for inbound link"
+            )
+            return waitForConnectAndSend(
+                frame = frame,
+                context = context,
+                dependencies = dependencies,
+            )
+        }
+        if (!dependencies.hasConnectionBudget()) {
+            dependencies.log(
+                "send(${context.hintPeerId.value.takeLast(6)}) connection budget exhausted, deferring connect"
             )
             return waitForConnectAndSend(
                 frame = frame,

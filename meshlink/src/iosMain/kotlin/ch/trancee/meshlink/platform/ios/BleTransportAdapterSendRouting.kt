@@ -5,6 +5,7 @@ import ch.trancee.meshlink.engine.DirectWireFrame
 import ch.trancee.meshlink.engine.gattDataBearerDecisionLogLine
 import ch.trancee.meshlink.engine.gattDataBearerResultLogLine
 import ch.trancee.meshlink.engine.resolveGattDataBearerMode
+import ch.trancee.meshlink.power.hasConnectionBudget
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
@@ -139,6 +140,14 @@ internal suspend fun BleTransportAdapter.sendViaL2capWhenReady(
                 },
                 ensureConnectAttempt = { connectIfNeeded(peer) },
                 shouldInitiateL2cap = { shouldInitiateL2cap(peer.keyHash, peer.platformFamily) },
+                hasConnectionBudget = {
+                    val activeHintIds = activeLinksByHint.keys + gattNotifyRegistry.activeHintIds()
+                    hasConnectionBudget(
+                        peerAlreadyConnected = peer.hintPeerId.value in activeHintIds,
+                        activeConnectionCount = activeHintIds.size,
+                        maxConnections = currentPowerProfile.maxConnections,
+                    )
+                },
                 closeLink = ::closeLink,
                 log = ::log,
             ),

@@ -46,6 +46,30 @@ class L2capSendSupportTest {
         }
 
     @Test
+    fun sendViaIosL2capWhenReadyDoesNotRequestConnectWhenTheConnectionBudgetIsExhausted(): Unit =
+        runBlocking {
+            // Arrange
+            val fixture = L2capSendFixture(shouldInitiateL2cap = true, hasConnectionBudget = false)
+            val frame = OutboundFrame(peerId = fixture.context.hintPeerId, payload = byteArrayOf(1))
+
+            // Act
+            val result = fixture.run(frame = frame, link = null)
+
+            // Assert
+            assertEquals(
+                "iOS BLE L2CAP connection is not ready",
+                (result as TransportSendResult.Dropped).reason,
+            )
+            assertEquals(
+                0,
+                fixture.connectCalls,
+                "Expected the exhausted connection budget to defer the send-triggered connect " +
+                    "attempt, mirroring the discovery-time admission gate",
+            )
+            assertEquals(emptyList(), fixture.closedLinks)
+        }
+
+    @Test
     fun sendViaIosL2capWhenReadyReturnsDeliveredWhenTheLinkAcceptsTheFrame(): Unit = runBlocking {
         // Arrange
         val fixture = L2capSendFixture()
@@ -118,6 +142,7 @@ class L2capSendSupportTest {
 private class L2capSendFixture(
     private val shouldInitiateL2cap: Boolean = true,
     private val linkAppearsAfterPolls: Int = -1,
+    private val hasConnectionBudget: Boolean = true,
 ) {
     val context = L2capSendContext(hintPeerId = PeerId("peer-ios"))
     var connectCalls: Int = 0
@@ -133,6 +158,7 @@ private class L2capSendFixture(
                     currentLink = { link },
                     ensureConnectAttempt = { connectCalls += 1 },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
+                    hasConnectionBudget = { hasConnectionBudget },
                     closeLink = { hintPeer, reason -> closedLinks += "$hintPeer|$reason" },
                     log = {},
                 ),
@@ -154,6 +180,7 @@ private class L2capSendFixture(
                     },
                     ensureConnectAttempt = { connectCalls += 1 },
                     shouldInitiateL2cap = { shouldInitiateL2cap },
+                    hasConnectionBudget = { hasConnectionBudget },
                     closeLink = { hintPeer, reason -> closedLinks += "$hintPeer|$reason" },
                     log = {},
                 ),

@@ -595,6 +595,27 @@ characteristic is what creates the link, not a local decision this adapter
 could defer), but they still count toward the active-connection total so the
 budget reflects the device's real concurrent BLE connection load.
 
+**Second, related gap closed (same day, follow-up):** the discovery-driven
+admission gate above only covered the scan-result-driven auto-connect path.
+Both platforms' send path (`L2capSendSupport.kt`'s `sendViaL2capWhenReady`)
+had its own, separate way to trigger a brand-new outgoing L2CAP connection --
+when a host app calls `send()` for a peer with no active link yet and this
+device would locally initiate the connection, the send path called
+`connectIfNeeded()` (`ensureConnectAttempt`/`triggerConnectIfNeeded`)
+unconditionally, with no `hasConnectionBudget()` check at all. This meant a
+send to a freshly-discovered, not-yet-connected peer could still spend a new
+connection slot even once the device was already at its tier's budget cap,
+regardless of whether discovery-time auto-connect was itself correctly gated.
+This existed identically on Android (unchanged since PR #100 introduced the
+discovery-time gate) and iOS (PR #105), since both platforms share the same
+send-triggered-connect architecture. Both `L2capSendDependencies` now carry a
+`hasConnectionBudget` callback threaded from the same active-link-union
+computation the discovery path already uses, checked before
+`ensureConnectAttempt`/`triggerConnectIfNeeded`; when the budget is already
+spent, the send path logs a deferral (mirroring the discovery-time log line)
+and falls through to its existing wait-for-inbound-link behavior instead of
+forcing a new connection.
+
 ## Related documentation
 
 - [hop-session-replay-protection.md](hop-session-replay-protection.md) --

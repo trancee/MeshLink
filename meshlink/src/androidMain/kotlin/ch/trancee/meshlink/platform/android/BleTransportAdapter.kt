@@ -15,6 +15,7 @@ import ch.trancee.meshlink.engine.resolveGattDataBearerMode
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy
+import ch.trancee.meshlink.power.hasConnectionBudget
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.BleTransport
@@ -377,21 +378,7 @@ internal class BleTransportAdapter(
                 transportMode = peer.transportMode,
                 advertisedL2capPsm = peer.l2capPsm,
             )
-        val l2capDependencies =
-            L2capSendDependencies(
-                currentLink = {
-                    activeLinkFor(peer)?.let { link ->
-                        object : L2capSendLink {
-                            override suspend fun send(frame: OutboundFrame): TransportSendResult {
-                                return sendViaConnectedLink(frame = frame, link = link)
-                            }
-                        }
-                    }
-                },
-                shouldInitiateL2cap = { shouldInitiateL2cap(peer.keyHash, peer.platformFamily) },
-                triggerConnectIfNeeded = { connectIfNeeded(peer) },
-                log = ::log,
-            )
+        val l2capDependencies = l2capSendDependenciesFor(peer)
         val readyLink = l2capDependencies.currentLink()
         log(
             gattDataBearerDecisionLogLine(
@@ -426,6 +413,38 @@ internal class BleTransportAdapter(
                 }
             }
         }
+    }
+
+    /**
+     * Builds [L2capSendDependencies] for [peer]'s send-triggered L2CAP connect path. The
+     * [L2capSendDependencies.hasConnectionBudget] check mirrors
+     * [ch.trancee.meshlink.platform.android.BleTransportAdapterScanSupport]'s discovery-driven
+     * admission gate: a send to a not-yet-connected peer must not spend a new connection slot the
+     * tier's budget doesn't have, any more than a scan-driven auto-connect would.
+     */
+    private fun l2capSendDependenciesFor(peer: DiscoveredPeer): L2capSendDependencies {
+        return L2capSendDependencies(
+            currentLink = {
+                activeLinkFor(peer)?.let { link ->
+                    object : L2capSendLink {
+                        override suspend fun send(frame: OutboundFrame): TransportSendResult {
+                            return sendViaConnectedLink(frame = frame, link = link)
+                        }
+                    }
+                }
+            },
+            shouldInitiateL2cap = { shouldInitiateL2cap(peer.keyHash, peer.platformFamily) },
+            hasConnectionBudget = {
+                val activeHintIds = linkRegistry.activeHintIds() + gattSideLinks.activeHintIds()
+                hasConnectionBudget(
+                    peerAlreadyConnected = peer.hintPeerId.value in activeHintIds,
+                    activeConnectionCount = activeHintIds.size,
+                    maxConnections = currentPowerProfile.maxConnections,
+                )
+            },
+            triggerConnectIfNeeded = { connectIfNeeded(peer) },
+            log = ::log,
+        )
     }
 
     private suspend fun tryPreferredGattSend(

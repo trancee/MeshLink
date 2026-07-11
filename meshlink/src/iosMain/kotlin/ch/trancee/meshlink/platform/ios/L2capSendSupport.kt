@@ -19,6 +19,15 @@ internal constructor(
     internal val currentLink: () -> L2capSendLink?,
     internal val ensureConnectAttempt: () -> Unit,
     internal val shouldInitiateL2cap: () -> Boolean,
+    // See BleTransportAdapterDiscoverySupport.handleL2capDiscovery's identical use of
+    // ch.trancee.meshlink.power.hasConnectionBudget: the discovery-driven auto-connect path was
+    // gated against the tier's connection budget (issue #101), but this send-triggered connect
+    // path called ensureConnectAttempt() unconditionally -- a send to a freshly-discovered,
+    // not-yet-connected peer could still spend a new connection slot even once the device was
+    // already at its budget cap. This dependency closes that gap the same way: a peer this device
+    // would otherwise locally initiate a connection for is deferred (not connected) once the
+    // budget is already spent, exactly mirroring the discovery-time decision.
+    internal val hasConnectionBudget: () -> Boolean,
     internal val closeLink: (String, String) -> Unit,
     internal val log: (String) -> Unit,
 )
@@ -39,13 +48,17 @@ internal suspend fun sendViaL2capWhenReady(
     if (directLink != null) {
         return sendViaLink(link = directLink, frame = frame, dependencies = dependencies)
     }
-    if (dependencies.shouldInitiateL2cap()) {
+    if (!dependencies.shouldInitiateL2cap()) {
+        dependencies.log("send(${context.hintPeerId.logSuffix()}) waiting for inbound L2CAP link")
+    } else if (!dependencies.hasConnectionBudget()) {
+        dependencies.log(
+            "send(${context.hintPeerId.logSuffix()}) connection budget exhausted, deferring connect"
+        )
+    } else {
         dependencies.ensureConnectAttempt()
         dependencies.log(
             "send(${context.hintPeerId.logSuffix()}) no active link, triggering connect"
         )
-    } else {
-        dependencies.log("send(${context.hintPeerId.logSuffix()}) waiting for inbound L2CAP link")
     }
     return waitForConnectAndSend(frame = frame, dependencies = dependencies)
 }
