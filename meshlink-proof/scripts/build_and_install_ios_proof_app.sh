@@ -30,6 +30,20 @@
 # install/launch subcommands): installing via ios-deploy always launches the
 # app too, regardless of whether --launch was passed.
 #
+# Uninstalling ProofApp on an ios-deploy-managed device can silently revoke
+# the on-device "trust this developer" record and force you to manually
+# re-trust it on every single run. iOS ties that trust to *some app signed by
+# the same certificate actually being installed*, not to the certificate
+# alone -- if ProofApp's uninstall ever leaves the device with zero apps
+# signed by your certificate (even for a moment), the trust record is lost.
+# To prevent this without giving up ProofApp's own fresh
+# uninstall-then-install cycle (see the physical-device rule above), this
+# script installs meshlink-reference's ReferenceApp on every ios-deploy-
+# managed device too, once, if it is not already present -- so a second
+# app signed by the same certificate is always there to keep the device's
+# trust record alive across ProofApp's own uninstall/reinstall cycles.
+# ReferenceApp itself is never uninstalled by this script.
+#
 # This script exists because headless/automation shells (no logged-in GUI/Aqua
 # session) cannot unlock the login keychain's Apple Development private key --
 # `codesign` fails with `errSecInternalComponent` -- see
@@ -90,6 +104,12 @@ project_path="$repo_root/meshlink-proof/ios/ProofApp.xcodeproj"
 scheme="ProofApp"
 tests_scheme="ProofBenchmarks"
 bundle_id="ch.trancee.meshlink.proof.ios"
+# ReferenceApp is installed (once, if missing) as a trust anchor on every
+# ios-deploy-managed device -- see the ios-deploy trust-loss note further
+# down for why.
+reference_app_project_path="$repo_root/meshlink-reference/ios/ReferenceApp.xcodeproj"
+reference_app_scheme="ReferenceApp"
+reference_app_bundle_id="ch.trancee.meshlink.reference.ios"
 
 development_team=""
 devices=()
@@ -380,8 +400,52 @@ for device in "${devices[@]:-}"; do
   fi
 done
 
+reference_app_path=""
+if [[ ${#ios_deploy_devices[@]} -gt 0 ]]; then
+  # Only build ReferenceApp if at least one ios-deploy device might actually
+  # need it installed; checked per-device below via --exists so an already-
+  # trust-anchored device's ReferenceApp is left untouched.
+  needs_reference_app=0
+  for device in "${ios_deploy_devices[@]:-}"; do
+    [[ -z "$device" ]] && continue
+    if ! ios-deploy --id "$device" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
+      needs_reference_app=1
+      break
+    fi
+  done
+
+  if [[ "$needs_reference_app" -eq 1 ]]; then
+    echo
+    echo "==> Building ReferenceApp fresh for physical iOS (trust anchor for ios-deploy-managed devices, generic/platform=iOS, DEVELOPMENT_TEAM=$development_team)"
+    xcodebuild \
+      -project "$reference_app_project_path" \
+      -scheme "$reference_app_scheme" \
+      -destination 'generic/platform=iOS' \
+      -derivedDataPath "$repo_root/build/ios-reference-app-derived-data" \
+      DEVELOPMENT_TEAM="$development_team" \
+      -allowProvisioningUpdates \
+      build
+
+    reference_app_path=$(find "$repo_root/build/ios-reference-app-derived-data/Build/Products" -maxdepth 2 -type d -name "${reference_app_scheme}.app" -path "*iphoneos*" | head -n1)
+    if [[ -z "$reference_app_path" ]]; then
+      echo "error: could not locate built ${reference_app_scheme}.app under Build/Products" >&2
+      exit 1
+    fi
+    echo "Built ReferenceApp: $reference_app_path"
+  fi
+fi
+
 for device in "${ios_deploy_devices[@]:-}"; do
   [[ -z "$device" ]] && continue
+
+  if [[ -n "$reference_app_path" ]] && ! ios-deploy --id "$device" --exists --bundle_id "$reference_app_bundle_id" >/dev/null 2>&1; then
+    echo
+    echo "==> $device (ios-deploy): installing ReferenceApp as a trust anchor (never uninstalled by this script)"
+    if ! ios-deploy --id "$device" --bundle "$reference_app_path" --justlaunch; then
+      echo "    (ios-deploy exited non-zero for ReferenceApp on $device -- check the output above; this can happen even on a successful install+launch)"
+    fi
+  fi
+
   echo
   echo "==> $device (ios-deploy): uninstalling any previous ${bundle_id} install"
   if ! ios-deploy --id "$device" --uninstall_only --bundle_id "$bundle_id"; then
