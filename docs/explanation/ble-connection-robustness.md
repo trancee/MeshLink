@@ -298,6 +298,105 @@ initial slow period. No dedicated fix was scoped for the OS-level portion of
 this symptom; it is called out here for completeness since it was part of the
 original investigation.
 
+## Symptom 7: a Noise-XX handshake *responder* can permanently deadlock if its peer's scanner never discovers it
+
+Found 2026-07-11 while investigating why a specific device (Huawei WAS-LX1A,
+API 26) was substantially interacting with other fleet devices in
+simultaneous full-mesh runs but never once completing a confirmed round trip
+with any of them (see `meshlink-benchmark/history.md`'s 2026-07-11 entries).
+
+### Root cause
+
+MeshLink's Android GATT-notify side link piggybacks its `LinkIdentity`
+announcement (`GattNotifyClient.write()`'s `identityAnnounced` guard) onto
+the *first real payload write* on that link, rather than sending it
+proactively as soon as the link becomes ready. This is harmless for a device
+that is the Noise-XX handshake *initiator* towards a given peer (the
+deterministic key-hash tie-break -- see
+`shouldLocalPeerInitiateL2capConnection`/`shouldInitiateHandshakeTowards` --
+decides this per pairing), since an initiator always has a real handshake
+message to write almost immediately, and the identity rides along with it.
+
+But a device that is the handshake *responder* towards a given peer
+legitimately never writes anything first -- by protocol design, a Noise-XX
+responder waits for the initiator's message1. If that peer's own BLE
+scanner also never independently discovers the responder's advertisement
+(confirmed as a real, reproducible occurrence in this same investigation --
+see the scan-wedge findings in the "Platform limits" section below, which hit
+two different devices' scanners across repeated runs), the peer has no way
+to learn the responder's identity at all: not from its own scan (wedged),
+and not from the responder's GATT link (never announced, because the
+responder never had a reason to write). The pairing deadlocks permanently --
+the underlying GATT connection is fully established (connected, MTU
+negotiated, notifications subscribed) and stays that way for the rest of the
+test window, but zero further protocol activity ever happens on it.
+
+Live-hardware log evidence (isolated 2-device pair, Huawei WAS-LX1A as GATT
+client/Noise responder, Xiaomi 23129RN51X as GATT server/Noise initiator,
+Xiaomi's scanner wedged that run): Xiaomi's logcat shows its GATT *server*
+accepting WAS-LX1A's inbound connection, negotiating MTU, and completing the
+CCCD descriptor write (WAS-LX1A subscribing to notifications) -- then
+nothing else, ever, on either device's log for the rest of the 45s run.
+WAS-LX1A's own logcat confirms `GATT notify side link ready for <peer>` fired
+normally, but no `GATT side-link send attempt` / `BEARER decision` line ever
+followed, because nothing ever called `write()` on that ready client.
+
+This is the same class of asymmetric-discovery deadlock that
+`TransportEvent.InboundPeerClaimed` (`transport/BleTransport.kt`) already
+exists to mitigate (its own doc comment describes "neither side ever calls
+prewarmHopSession() and the pairing deadlocks with no handshake ever
+attempted"), but reached through a different path: `InboundPeerClaimed`
+assumes the peer *can* still learn the responder's identity some other way
+once it claims the inbound connection, but that assumption silently failed
+here because the responder's own GATT link never carried the identity
+announcement that `InboundPeerClaimed`'s handling depends on.
+
+### Fix
+
+Extracted the identity-announce logic already used by `write()` into
+`announceIdentityIfNeededLocked()` and added `ensureIdentityAnnounced()`,
+called from `GattNotifyClient`'s `onDescriptorWrite` ready callback --
+immediately once the link becomes ready, independent of whether this device
+ever calls `write()` with a real payload. A pure Noise-XX responder now
+announces its identity as soon as its side of the GATT link is ready,
+closing the deadlock regardless of the peer's own scan-discovery state.
+
+The proactive announce runs on a new overridable `identityAnnounceScope`
+(matching the existing `connectRetryScope`/`teardownScope` testability
+pattern), launched rather than awaited from the synchronous
+`BluetoothGattCallback`-driven `onDescriptorWrite`. It reuses the same
+`writeMutex` and `identityAnnounced` guard as `write()`, so a real payload
+write that races the proactive announcement never double-announces.
+
+### Trade-off
+
+A failed proactive announce attempt (e.g. a transient write failure right as
+the link becomes ready) has no dedicated retry loop of its own -- it relies
+on the next real `write()` call, or the next successful reconnect, to retry
+the announcement, matching every other best-effort recovery path already in
+this class. This was judged acceptable because the alternative (a permanent,
+silent deadlock with a fully-connected but otherwise-dead GATT link) is
+strictly worse, and a genuinely repeated write failure on an established link
+is already handled by this class's existing close-and-reconnect paths.
+
+### Validation
+
+Live hardware, same fleet used in the original 2026-07-11 investigation:
+
+- Before the fix: isolated 2-device pairs failed 1/2 (Huawei+Xiaomi) and 0/2
+  (Huawei+Samsung), both times with the exact "ready but zero further
+  activity" signature above on at least one side.
+- After the fix: 6/6 confirmed round trips across 4 repeated Huawei+Xiaomi
+  isolated pairs and 3/3 across repeated Huawei+Samsung isolated pairs -- a
+  clean reversal on both previously-failing pairings.
+- A full 5-device `--full-mesh` rerun after the fix still showed the
+  already-documented RF-congestion-driven failures at that fleet size (`4/20`
+  confirmed, `HOP_SESSION_FAILED stage=transport.handshake.message1.send`
+  after a real, logged send *attempt* -- not the silent no-attempt deadlock
+  this fix targets). This fix closes the silent-deadlock failure mode
+  specifically; it does not change the separate, already-documented N-way RF
+  congestion behavior at larger fleet sizes.
+
 ## What was *not* changed: BLE pairing/bonding
 
 During this investigation it was confirmed (and is worth stating explicitly,
