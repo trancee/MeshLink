@@ -22,18 +22,23 @@ The power model balances those goals with three ideas:
 This is intentionally simple. A host app does not need to manage a large matrix
 of BLE knobs. It only needs to understand which tier MeshLink chose and why.
 
-**Max connections is an enforced admission-control budget on Android, not
-just a reported number.** Before starting a new GATT side-link or L2CAP
-connection for a newly discovered peer, Android's transport adapter checks
+**Max connections is an enforced admission-control budget on both Android and
+iOS, not just a reported number.** Before starting a new GATT side-link or
+L2CAP connection for a newly discovered peer, the transport adapter checks
 the device's current active-connection count against this budget; once the
 budget is spent, a not-yet-connected peer is deferred (it stays known and is
-admitted once a slot frees up) rather than competing for a connection
-Android's own Bluetooth stack may not reliably support anyway -- see
+admitted once a slot frees up) rather than competing for a connection the
+platform's own Bluetooth stack may not reliably support anyway -- see
 [BLE connection robustness](ble-connection-robustness.md#platform-limits-on-concurrent-gattl2cap-connections-research-2026-07-11)
 for why the historical Android default of 7 concurrent connections exists in
 the first place. An already-connected peer is never dropped just because the
-budget is at capacity. This enforcement is currently Android-only; iOS still
-only reports `maxConnections` in diagnostics.
+budget is at capacity. Only Android has a locally-initiated GATT side-link
+connection to gate (it acts as GATT client); iOS's admission gate covers the
+only locally-initiated connection its transport adapter opens -- the L2CAP
+channel connect -- while still counting active GATT notify side-links
+(inherently peer-initiated on iOS, since the local device is the GATT
+peripheral there) toward the active-connection total so the budget reflects
+the device's actual concurrent BLE connection load either way.
 
 ## Why automatic mode exists
 

@@ -576,12 +576,24 @@ scenarios without changing any of the results already recorded in
 `meshlink-benchmark/history.md`'s 2026-07-11 entries, none of which were
 connection-count-related.
 
-**Known scope limitation:** enforcement is wired into Android only.
-`hasConnectionBudget()` itself is platform-agnostic commonMain code and
-compiles cleanly for iOS targets, but no iOS transport-adapter call site
-invokes it yet -- wiring iOS enforcement is an explicit, disclosed follow-up
-for whenever an iOS build/simulator environment is available to validate it,
-rather than a silent cross-platform behavior gap.
+**Known scope limitation (closed 2026-07-11):** enforcement was Android-only
+when this section was first written. It is now wired into iOS as well
+(issue #101): `PowerMonitor.profileFor`/`defaultProfile` on iOS thread
+`PowerPolicy.maxConnections` into `PowerProfile.maxConnections` exactly as
+Android's `PowerMonitor` already did, and
+`BleTransportAdapterDiscoverySupport.handleL2capDiscovery` calls
+`hasConnectionBudget()` before initiating an outgoing L2CAP connect, using
+the union of `activeLinksByHint.keys` (active L2CAP channel links) and the
+new `BleTransportGattNotifyRegistry.activeHintIds()` (active GATT notify
+side-links) as the active connection count -- mirroring Android's union of
+`BleTransportLinkRegistry.activeHintIds()` and
+`GattSideLinkCoordinator.activeHintIds()`. iOS only gates the L2CAP connect
+because it is the only connection its transport adapter initiates locally;
+iOS's GATT notify side-links are inherently peer-initiated (the local device
+is the GATT peripheral there, so a remote central subscribing to the notify
+characteristic is what creates the link, not a local decision this adapter
+could defer), but they still count toward the active-connection total so the
+budget reflects the device's real concurrent BLE connection load.
 
 ## Related documentation
 

@@ -245,11 +245,13 @@ flowchart TD
 | `BALANCED` | `500 ms` | `250 ms` | `50%` | `5` | `2048 bytes` |
 | `POWER_SAVER` | `1000 ms` | `500 ms` | `5%` | `3` | `512 bytes` |
 
-`Max connections` is admission-controlled on Android: a not-yet-connected
-peer is only admitted while the device's active connection count is under
-this value, and an already-connected peer is never dropped to enforce it. On
-iOS, `Max connections` is currently reported in `POWER_MODE_CHANGED`
-diagnostics only and is not yet admission-controlled.
+`Max connections` is admission-controlled on both Android and iOS: a
+not-yet-connected peer is only admitted while the device's active connection
+count is under this value, and an already-connected peer is never dropped to
+enforce it. Android gates its locally-initiated GATT side-link connections
+and its L2CAP connections; iOS gates its only locally-initiated connection
+(the L2CAP channel connect) while still counting active GATT notify
+side-links -- inherently peer-initiated on iOS -- toward the active count.
 
 ### Regional clamps
 
