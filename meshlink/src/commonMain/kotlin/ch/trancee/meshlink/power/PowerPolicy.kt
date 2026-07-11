@@ -332,3 +332,29 @@ private fun AutomaticTierState.isBootstrapActive(
     val startedAtMillis = bootstrapStartedAtMillis ?: return false
     return nowMillis - startedAtMillis < config.bootstrapDurationMillis
 }
+
+/**
+ * Admission-control check for the connection budget a [PowerPolicy] tier expresses via
+ * [PowerPolicy.maxConnections] (7/5/3 for PERFORMANCE/BALANCED/POWER_SAVER).
+ *
+ * Historically [PowerPolicy.maxConnections] was computed and surfaced only in diagnostics (the
+ * `POWER_MODE_CHANGED` payload) with nothing actually admission-controlling new connections against
+ * it -- see docs/explanation/ble-connection-robustness.md's "PowerPolicy.maxConnections is
+ * currently a diagnostics-only value" note. This function is the shared, platform-agnostic decision
+ * a transport adapter calls before spending a new connection slot (opening a GATT side-link or an
+ * L2CAP socket) on a newly discovered peer: an already-connected peer is always allowed to
+ * keep/refresh its existing connection (it isn't spending a *new* slot), but a peer with no
+ * connection yet is only admitted while [activeConnectionCount] is still under [maxConnections].
+ *
+ * Deliberately takes plain `Int`s rather than a full [PowerPolicy] so either platform's transport
+ * adapter can call it with whatever it already has on hand (Android currently reads
+ * `PowerProfile.maxConnections`, itself sourced from `PowerPolicy.maxConnections` -- see
+ * `platform/android/PowerMonitor.kt`) without needing a full [PowerPolicy] object at the call site.
+ */
+internal fun hasConnectionBudget(
+    peerAlreadyConnected: Boolean,
+    activeConnectionCount: Int,
+    maxConnections: Int,
+): Boolean {
+    return peerAlreadyConnected || activeConnectionCount < maxConnections
+}

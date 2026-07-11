@@ -4,6 +4,7 @@ import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PowerPolicyTest {
@@ -256,5 +257,63 @@ class PowerPolicyTest {
             policy.clampWarnings.any { warning -> warning.contains("advertisementIntervalMillis") }
         )
         assertTrue(policy.clampWarnings.any { warning -> warning.contains("scanDutyCyclePercent") })
+    }
+
+    @Test
+    fun `hasConnectionBudget admits an already-connected peer regardless of active count`() {
+        // Arrange / Act / Assert: an already-connected peer isn't spending a *new* slot, so it's
+        // always admitted even when the active count already meets or exceeds the budget.
+        assertTrue(
+            hasConnectionBudget(
+                peerAlreadyConnected = true,
+                activeConnectionCount = 7,
+                maxConnections = 7,
+            )
+        )
+        assertTrue(
+            hasConnectionBudget(
+                peerAlreadyConnected = true,
+                activeConnectionCount = 99,
+                maxConnections = 3,
+            )
+        )
+    }
+
+    @Test
+    fun `hasConnectionBudget admits a new peer while active count is under the budget`() {
+        // Arrange / Act / Assert
+        assertTrue(
+            hasConnectionBudget(
+                peerAlreadyConnected = false,
+                activeConnectionCount = 0,
+                maxConnections = 7,
+            )
+        )
+        assertTrue(
+            hasConnectionBudget(
+                peerAlreadyConnected = false,
+                activeConnectionCount = 6,
+                maxConnections = 7,
+            )
+        )
+    }
+
+    @Test
+    fun `hasConnectionBudget refuses a new peer once active count reaches the budget`() {
+        // Arrange / Act / Assert
+        assertFalse(
+            hasConnectionBudget(
+                peerAlreadyConnected = false,
+                activeConnectionCount = 7,
+                maxConnections = 7,
+            )
+        )
+        assertFalse(
+            hasConnectionBudget(
+                peerAlreadyConnected = false,
+                activeConnectionCount = 10,
+                maxConnections = 7,
+            )
+        )
     }
 }
