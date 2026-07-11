@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = ProofViewModel()
+    @State private var peerDetailsVisible: Bool = false
+    @State private var previousPeerCount: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -9,29 +11,46 @@ struct ContentView: View {
                 .font(.headline)
                 .accessibilityIdentifier("proof.state")
 
-            if viewModel.peers.isEmpty {
-                Text("Peers: none")
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Peers:")
-                    ForEach(viewModel.peers, id: \.value) { peer in
-                        Text("- \(peer.value)")
-                            .font(.footnote)
+            Text(peersSummaryText)
+                .accessibilityIdentifier("proof.peersSummary")
+
+            Text(viewModel.lifecycleStatusText)
+                .font(.subheadline)
+                .accessibilityIdentifier("proof.lifecycleStatus")
+
+            if !viewModel.peers.isEmpty {
+                Button(peerDetailsVisible ? "Hide peer IDs" : "Show peer IDs") {
+                    peerDetailsVisible.toggle()
+                }
+                .accessibilityIdentifier("proof.togglePeerDetails")
+
+                if peerDetailsVisible {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Peer IDs:")
+                        ForEach(viewModel.peers, id: \.value) { peer in
+                            Text("- \(peer.value.suffix(6))")
+                                .font(.footnote)
+                        }
                     }
+                    .accessibilityIdentifier("proof.peerDetails")
                 }
             }
 
             HStack {
-                Button("Start MeshLink") {
-                    viewModel.start()
+                Button(viewModel.isRunning ? "Stop Proof" : "Start Proof") {
+                    if viewModel.isRunning {
+                        viewModel.stop()
+                    } else {
+                        viewModel.start()
+                    }
                 }
-                Button("Stop MeshLink") {
-                    viewModel.stop()
-                }
+                .accessibilityIdentifier("proof.startStop")
+
                 Button("Send Hello") {
                     viewModel.sendHello()
                 }
                 .disabled(viewModel.peers.isEmpty)
+                .accessibilityIdentifier("proof.sendHello")
             }
 
             ScrollView {
@@ -52,5 +71,23 @@ struct ContentView: View {
                 .accessibilityIdentifier("proof.logsAggregate")
         }
         .padding()
+        // Mirrors the Android proof app's auto-expand/auto-collapse behavior
+        // (MainActivity.renderSnapshot's shouldAutoExpandPeers/shouldCollapsePeers): peer details
+        // auto-expand the moment the peer list transitions from empty to non-empty (unless the
+        // user already hid them), and auto-collapse once every peer is lost, without overriding a
+        // manual toggle otherwise. Uses the single-parameter onChange(of:perform:) overload (not
+        // the iOS 17+ two-parameter one) to keep this app's iOS 14.0+ deployment target working.
+        .onChange(of: viewModel.peers.count) { newCount in
+            if newCount > 0 && previousPeerCount == 0 && !peerDetailsVisible {
+                peerDetailsVisible = true
+            } else if newCount == 0 && previousPeerCount > 0 && peerDetailsVisible {
+                peerDetailsVisible = false
+            }
+            previousPeerCount = newCount
+        }
+    }
+
+    private var peersSummaryText: String {
+        "Peers: \(viewModel.peers.count)"
     }
 }
