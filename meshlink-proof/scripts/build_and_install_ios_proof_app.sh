@@ -26,26 +26,39 @@
 # --ios-deploy-device explicitly to bypass auto-discovery entirely for a
 # specific run.
 #
-# ios-deploy always launches ProofApp when it installs it (there is no plain
-# install-only mode for a build meant to actually run), and keeping it running
-# requires an attached debugger the whole time -- see the launch-crash note
-# further down. ReferenceApp, which only ever needs to be *installed* as a
-# trust anchor (never run), uses --nostart instead to avoid launching it at
-# all.
+# ios-deploy always launches ProofApp when it installs it in a single
+# invocation (there is no plain install-only mode for a build meant to
+# actually run in that combined form), and keeping it running requires an
+# attached debugger the whole time -- see the launch note further down.
+# ReferenceApp, which only ever needs to be *installed* as a trust anchor
+# (never run), uses --nostart to avoid launching it at all.
 #
-# Uninstalling ProofApp on an ios-deploy-managed device can silently revoke
-# the on-device "trust this developer" record and force you to manually
-# re-trust it on every single run. iOS ties that trust to *some app signed by
-# the same certificate actually being installed*, not to the certificate
-# alone -- if ProofApp's uninstall ever leaves the device with zero apps
-# signed by your certificate (even for a moment), the trust record is lost.
-# To prevent this without giving up ProofApp's own fresh
-# uninstall-then-install cycle (see the physical-device rule above), this
-# script installs meshlink-reference's ReferenceApp on every ios-deploy-
-# managed device too, once, if it is not already present -- so a second
-# app signed by the same certificate is always there to keep the device's
-# trust record alive across ProofApp's own uninstall/reinstall cycles.
-# ReferenceApp itself is never uninstalled by this script.
+# This script never uninstalls ProofApp (or ReferenceApp) on iOS -- every
+# install is an overwrite-in-place of whatever is already there, on both
+# devicectl- and ios-deploy-managed devices. This is a deliberate, disclosed
+# exception to AGENTS.md's general physical-device rule (which otherwise
+# calls for uninstall-then-install), scoped specifically to this script,
+# because uninstalling on iOS has two real, concrete costs neither of which
+# exist on Android:
+#   1. Uninstalling ProofApp on an ios-deploy-managed device can silently
+#      revoke the on-device "trust this developer" record and force a manual
+#      re-trust in Settings on every single run. iOS ties that trust to *some
+#      app signed by the same certificate actually being installed*, not to
+#      the certificate alone -- if ProofApp's uninstall ever left the device
+#      with zero apps signed by your certificate (even for a moment), the
+#      trust record was lost. (ReferenceApp is still installed as a trust
+#      anchor below out of caution/defense-in-depth -- e.g. if you uninstall
+#      ProofApp yourself between runs -- even though this script's own
+#      overwrite-in-place installs no longer trigger this on their own.)
+#   2. A fresh install immediately followed by a launch reliably gets
+#      SIGKILLed by the OS a few seconds in (see the launch note further
+#      down for the confirmed mechanism) -- relaunching an *already-installed,
+#      unmodified* app does not hit this, which overwrite-in-place gives you
+#      for every run after the first.
+# A rebuilt app is still always installed fresh from this run's build output
+# before being (re)launched -- "never uninstall" only means the previous
+# install is overwritten rather than removed-then-recreated; you are never
+# left running stale, previously-installed code.
 #
 # ProofApp itself will reliably CRASH within seconds of a plain
 # "install-and-launch-then-detach" (e.g. --justlaunch) on this kind of build:
@@ -60,14 +73,23 @@
 # report showing exactly this frame, and via `ios-deploy --get_pid` reporting
 # no running process (pid: -1) within seconds of a "successful" --justlaunch.
 # devicectl-managed devices do not hit this (Apple's own tooling handles the
-# handshake correctly), so this is specific to the ios-deploy path. The only
-# reliable fix is to keep a debugger attached for as long as the app needs to
-# keep running, so this script launches ProofApp on ios-deploy-managed
-# devices in the background (nohup + disown, detached from this script's own
-# lifetime) and leaves it running rather than detaching immediately -- stop it
-# yourself when done testing, or just rerun this script (the next uninstall
-# step terminates the app, and the lingering debugger session along with it,
-# before reinstalling fresh).
+# handshake correctly), so this is specific to the ios-deploy path.
+#
+# Separately, a *fresh install* immediately followed by a launch *in the same
+# ios-deploy invocation* (even with the debugger kept attached) gets
+# SIGKILLed by the OS a few seconds after successfully starting -- confirmed
+# via `idevicesyslog` showing "termination reported by launchd" / SIGKILL(9)
+# against a visibly-foreground, non-crashed process. Relaunching an
+# *already-installed* app in a separate invocation does not hit this. So
+# install and launch are always two separate ios-deploy invocations below:
+# install with --nostart (never launches, so it can never hit either issue
+# above), then launch separately with --noinstall (it is already installed)
+# plus --noninteractive -d (keep the debugger attached, working around the
+# first issue) run in the background (nohup + disown, detached from this
+# script's own lifetime) so the script can still return. Stop the launched
+# process yourself when done testing (e.g. `pkill -f "ios-deploy.*$device"`),
+# or just rerun this script (which kills any lingering process for that
+# device before reinstalling).
 #
 # This script exists because headless/automation shells (no logged-in GUI/Aqua
 # session) cannot unlock the login keychain's Apple Development private key --
@@ -78,9 +100,11 @@
 # documented limitation. Run this script yourself, interactively, on the
 # physical Mac -- not from an automation/agent shell.
 #
-# Per AGENTS.md's physical-device rule, this script always rebuilds fresh and
-# uninstalls any previous install before installing the new one; it never
-# reinstalls in place over a stale build.
+# Per AGENTS.md's physical-device rule, this script always rebuilds fresh
+# before every install -- it never reinstalls a stale, previously-built
+# binary. Unlike that rule's general Android/adb guidance, iOS installs are
+# deliberately overwrite-in-place rather than uninstall-then-install; see the
+# "never uninstalls" note above for the concrete, iOS-specific reasons why.
 #
 # Usage:
 #   scripts/build_and_install_ios_proof_app.sh --team <DEVELOPMENT_TEAM_ID>
@@ -415,12 +439,7 @@ echo "Built app: $app_path"
 for device in "${devices[@]:-}"; do
   [[ -z "$device" ]] && continue
   echo
-  echo "==> $device: uninstalling any previous ${bundle_id} install"
-  if ! xcrun devicectl device uninstall app --device "$device" "$bundle_id"; then
-    echo "    (no previous install found, or uninstall failed harmlessly -- continuing)"
-  fi
-
-  echo "==> $device: installing freshly built app"
+  echo "==> $device: installing freshly built app (overwrite in place, no uninstall -- see the no-uninstall note above)"
   xcrun devicectl device install app --device "$device" "$app_path"
 
   if [[ "$launch_after_install" -eq 1 ]]; then
@@ -481,12 +500,25 @@ for device in "${ios_deploy_devices[@]:-}"; do
   fi
 
   echo
-  echo "==> $device (ios-deploy): uninstalling any previous ${bundle_id} install"
-  if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --uninstall_only --bundle_id "$bundle_id"; then
-    echo "    (no previous install found, or uninstall failed harmlessly -- continuing)"
+  echo "==> $device (ios-deploy): installing freshly built app (overwrite in place, no uninstall)"
+  # Splitting install and launch into two separate ios-deploy invocations (as
+  # opposed to a single "--bundle <path> --noninteractive -d" call that
+  # installs and launches together) works around a real, reproducible issue:
+  # a fresh install immediately followed by a launch in the same invocation
+  # gets SIGKILLed by the OS a few seconds after successfully starting
+  # (confirmed via idevicesyslog showing
+  # "termination reported by launchd" / "SIGKILL(9)" against a
+  # visibly-foreground, non-crashed process), while relaunching an
+  # *already-installed* app in its own separate invocation does not. The
+  # install step below uses --nostart for the same reason ReferenceApp does
+  # (see above): it only needs to install, not run, so it can never hit
+  # either this kill or the dyld-debugger-notify crash documented below.
+  pkill -f "ios-deploy --id $device " 2>/dev/null || true
+  if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --bundle "$app_path" --nostart; then
+    echo "    (ios-deploy exited non-zero installing $device -- check the output above)"
   fi
 
-  echo "==> $device (ios-deploy): installing and launching freshly built app"
+  echo "==> $device (ios-deploy): launching freshly installed app"
   # A plain "install and launch, then exit" (--justlaunch, or any other mode
   # that detaches lldb) reliably CRASHES the app moments after launch on this
   # kind of build: Xcode's Debug-configuration "stub executor" launch
@@ -504,40 +536,54 @@ for device in "${ios_deploy_devices[@]:-}"; do
   #
   # The only reliable fix is to keep a debugger attached for as long as the
   # app needs to keep running: launch in the background with --noninteractive
-  # -d (no --justlaunch) and leave that process running, detached from this
+  # -d --noinstall (relaunching the app installed by the step above, not
+  # installing again) and leave that process running, detached from this
   # script's own lifetime (nohup + disown) so the script can still return.
   # Stop it yourself when done testing (e.g. `pkill -f "ios-deploy.*$device"`),
-  # or just rerun this script -- the next uninstall step below will terminate
-  # the app (and this lingering debugger session along with it) before
-  # reinstalling fresh.
-  pkill -f "ios-deploy --id $device " 2>/dev/null || true
+  # or just rerun this script (which starts by killing any lingering process
+  # for that device before reinstalling).
   ios_deploy_log="$repo_root/build/ios-deploy-launch-${device}.log"
   # setsid(1) does not exist on macOS (it is a Linux/util-linux tool) --
   # nohup (detach from the controlling terminal/SIGHUP) plus disown (remove
   # from this shell's job table so it is never waited-on or signaled) is the
   # portable BSD/macOS-safe equivalent for "launch and leave running
   # independent of this script's own process".
-  nohup ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --bundle "$app_path" --noninteractive -d \
-    > "$ios_deploy_log" 2>&1 &
-  disown
-
-  # Installing (not just launching) can take well over a few seconds on an
-  # older device, so poll for a running pid rather than checking once
-  # immediately, bounded by the same ios_deploy_timeout used everywhere else.
+  #
+  # Separately from the deterministic crash fixed above, this app also
+  # sometimes (not always, and not reliably reproducible on demand) gets
+  # SIGKILLed by the OS a few seconds after a fully successful launch on this
+  # specific old device via ios-deploy -- confirmed via idevicesyslog, not a
+  # crash, and not consistently tied to any one variable we could isolate
+  # (occurred both with and without a prior uninstall, for instance). Retry
+  # launching a few times rather than chasing full determinism further.
   launched=0
   poll_interval=3
   poll_attempts=$(( (ios_deploy_timeout + poll_interval - 1) / poll_interval ))
-  for _ in $(seq 1 "$poll_attempts"); do
-    sleep "$poll_interval"
-    if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --get_pid --bundle_id "$bundle_id" 2>/dev/null | tail -1 | grep -q 'pid: -1'; then
-      launched=1
+  for attempt in 1 2 3; do
+    pkill -f "ios-deploy --id $device " 2>/dev/null || true
+    nohup ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --bundle "$app_path" --noinstall --noninteractive -d \
+      > "$ios_deploy_log" 2>&1 &
+    disown
+
+    # Installing (not just launching) can take well over a few seconds on an
+    # older device, so poll for a running pid rather than checking once
+    # immediately, bounded by the same ios_deploy_timeout used everywhere else.
+    for _ in $(seq 1 "$poll_attempts"); do
+      sleep "$poll_interval"
+      if ! ios-deploy --id "$device" --timeout "$ios_deploy_timeout" --get_pid --bundle_id "$bundle_id" 2>/dev/null | tail -1 | grep -q 'pid: -1'; then
+        launched=1
+        break
+      fi
+    done
+    if [[ "$launched" -eq 1 ]]; then
       break
     fi
+    echo "    launch attempt $attempt did not stay running -- retrying" >&2
   done
   if [[ "$launched" -eq 1 ]]; then
     echo "    launched and left running in the background (log: $ios_deploy_log); stop it yourself when done testing"
   else
-    echo "    (warning: ${bundle_id} does not appear to be running on $device after launch -- see $ios_deploy_log)"
+    echo "    (warning: ${bundle_id} does not appear to be running on $device after 3 launch attempts -- see $ios_deploy_log)"
   fi
 done
 
