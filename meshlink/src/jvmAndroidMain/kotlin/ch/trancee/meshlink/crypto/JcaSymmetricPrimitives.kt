@@ -73,16 +73,24 @@ internal class JcaSymmetricPrimitives {
         cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext)
     }
+}
 
-    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
-        return object : ThreadLocal<T>() {
-            override fun initialValue(): T {
-                return create()
-            }
+/**
+ * Shared thread-local caching helper for JCA primitive instances ([MessageDigest], [Mac], [Cipher],
+ * and, on each platform's own `CryptoProvider`, `KeyFactory`/`KeyPairGenerator`/
+ * `KeyAgreement`/`Signature`) -- these JCA types are not thread-safe to share across threads, but
+ * are expensive enough to construct that per-call allocation is wasteful, so both
+ * `JvmCryptoProvider` and Android's `JcaCryptoProvider` cache one instance per thread via this same
+ * helper instead of each hand-rolling their own copy.
+ */
+internal fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
+    return object : ThreadLocal<T>() {
+        override fun initialValue(): T {
+            return create()
         }
     }
+}
 
-    private fun <T> ThreadLocal<T>.value(): T {
-        return checkNotNull(get())
-    }
+internal fun <T> ThreadLocal<T>.value(): T {
+    return checkNotNull(get())
 }

@@ -6,6 +6,8 @@ import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.JcaSymmetricPrimitives
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
+import ch.trancee.meshlink.crypto.threadLocal
+import ch.trancee.meshlink.crypto.value
 import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
@@ -147,18 +149,6 @@ internal class JcaCryptoProvider : CryptoProvider {
 
     private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
         return size >= prefix.size && prefix.indices.all { index -> this[index] == prefix[index] }
-    }
-
-    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
-        return object : ThreadLocal<T>() {
-            override fun initialValue(): T {
-                return create()
-            }
-        }
-    }
-
-    private fun <T> ThreadLocal<T>.value(): T {
-        return checkNotNull(get())
     }
 
     private companion object {

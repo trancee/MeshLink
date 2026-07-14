@@ -187,18 +187,6 @@ internal class JvmCryptoProvider : CryptoProvider {
         return padded.reversedArray()
     }
 
-    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
-        return object : ThreadLocal<T>() {
-            override fun initialValue(): T {
-                return create()
-            }
-        }
-    }
-
-    private fun <T> ThreadLocal<T>.value(): T {
-        return checkNotNull(get())
-    }
-
     private companion object {
         // RFC 7748 SS5 decodeUCoordinate: only the low 255 bits of the u-coordinate are
         // significant, so the top bit of the final byte must be masked off before use.

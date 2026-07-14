@@ -66,6 +66,15 @@ kotlin {
         val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
         jvmMain.get().dependsOn(jvmAndroidMain)
         androidMain.get().dependsOn(jvmAndroidMain)
+        // Mirrors jvmAndroidMain above: one shared JcaSymmetricPrimitivesTest exercises the
+        // sha256/hmacSha256/randomBytes/chacha20Poly1305 plumbing once for both platforms instead
+        // of duplicating the same test on jvmTest and androidHostTest separately.
+        val jvmAndroidTest by creating {
+            dependsOn(commonTest.get())
+            dependencies { implementation(libs.kotlin.test) }
+        }
+        jvmTest.get().dependsOn(jvmAndroidTest)
+        getByName("androidHostTest").dependsOn(jvmAndroidTest)
         jvmTest.dependencies { implementation(libs.kotlin.test) }
         getByName("androidHostTest").dependencies { implementation(libs.kotlin.test) }
         getByName("androidDeviceTest").dependencies {
