@@ -57,3 +57,22 @@ cross-platform consistency, performance, and maintainable design:
 - [Governance](constitution.md#governance) (amendment process and versioning)
 
 Day-to-day conventions below constitutional level live in `docs/`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues on `trancee/MeshLink`, managed via the
+`gh` CLI. External PRs are not treated as a triage surface. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+Default label vocabulary -- each of the five canonical roles maps 1:1 to a
+label of the same name. See
+[docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context layout -- one `CONTEXT.md` + `docs/adr/` at the repo root. See
+[docs/agents/domain.md](docs/agents/domain.md).
