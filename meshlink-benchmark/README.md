@@ -31,20 +31,49 @@ Rows not listed above are retained as regression-tracked evidence only.
 
 ## Latest retained evidence
 
-### JVM evidence (2026-06-13)
+### JVM evidence (2026-07-14)
+
+Wire codec rows updated after issue #117's hot-path allocation fixes
+(`WireEnvelope` redundant-copy removal, `FlatBufferTableBuilder` dense-array
+field bookkeeping); other rows carried forward unchanged from 2026-06-13
+since they were out of that issue's scope and are within normal run-to-run
+noise.
 
 | Metric | Latest result | Interpretation |
 |---|---:|---|
 | Convergence, 10-node topology change | 0.344 ms/op | Meets the route-convergence target |
-| Wire encode message | 0.269 us/op | Meets the codec target |
-| Wire decode message | 0.083 us/op | Meets the codec target |
-| Wire encode transfer chunk | 0.210 us/op | Meets the codec target |
-| Wire decode transfer chunk | 0.083 us/op | Meets the codec target |
+| Wire encode message | 0.191 us/op | Meets the codec target; ~29% faster than the pre-#117 0.269 us/op baseline |
+| Wire decode message | 0.116 us/op | Meets the codec target; pre-#117 baseline (0.083 us/op) measured under a different JVM warm-up profile -- see re-measured before/after pair below for a like-for-like comparison |
+| Wire encode transfer chunk | 0.314 us/op | Meets the codec target; pre-#117 baseline (0.210 us/op) measured under a different JVM warm-up profile -- see re-measured before/after pair below for a like-for-like comparison |
+| Wire decode transfer chunk | 0.222 us/op | Meets the codec target; pre-#117 baseline (0.083 us/op) measured under a different JVM warm-up profile -- see re-measured before/after pair below for a like-for-like comparison |
 | X25519 keypair, JCA/JVM provider | 89.649 us/op | Baseline retained result for the platform-backed provider. |
 | X25519 keypair, pure fallback provider | 282.161 us/op | About 3.1x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
 | X25519 agreement, JCA/JVM provider | 92.409 us/op | Baseline retained result for the platform-backed provider. |
 | X25519 agreement, pure fallback provider | 277.250 us/op | About 3.0x slower than the JCA baseline; acceptable compatibility-path evidence, not a preferred fast path. |
 | 8-peer steady-state memory budget | 3,993,216 retained bytes | Meets the memory target |
+
+### Issue #117 wire-codec/L2CAP hot-path allocation fixes: before/after (2026-07-14, `:meshlink-benchmark:jvmBenchmark`, same host, immediate succession)
+
+Captured immediately before and after issue #117's changes (`WireEnvelope`
+redundant-copy removal, `FlatBufferTableBuilder` dense-array field
+bookkeeping, `L2capFrameBuffer`/`appendDetailed()` hot-path allocation
+fixes, `MeshEngineSequenceGenerator` Mutex-to-AtomicLong swap) on the same
+host in immediate succession, so this pair is a like-for-like comparison
+unaffected by machine-to-machine noise (unlike the 2026-06-13 JVM evidence
+above, captured on different hardware under a different warm-up profile).
+
+| Metric | Before | After | Change |
+|---|---:|---:|---:|
+| Wire encode message | 0.376 us/op | 0.191 us/op | -49% |
+| Wire decode message | 0.160 us/op | 0.116 us/op | -27% |
+| Wire encode transfer chunk | 0.443 us/op | 0.314 us/op | -29% |
+| Wire decode transfer chunk | 0.273 us/op | 0.222 us/op | -19% |
+
+All four metrics improved; none regressed. No wire-format change: the
+underlying encode/decode byte output is unchanged (confirmed by
+`WireEnvelopeContractTest`'s pinned-fixture round-trip test), so this is a
+pure allocation/copy-count reduction on the same code path, not a different
+measurement target.
 
 ### Physical mobile evidence
 
