@@ -12,14 +12,19 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
-This repo is single-context:
+This repo is single-context. The repo has several top-level modules
+(`:meshlink` the shipped SDK, plus `meshlink-benchmark`, `meshlink-proof`,
+`meshlink-reference`), but one shared `CONTEXT.md` and `docs/adr/` at the
+root cover all of them:
 
 ```
 /
 ├── CONTEXT.md
 ├── docs/adr/
-└── meshlink/
-    └── src/
+├── meshlink/               (shipped SDK)
+├── meshlink-benchmark/
+├── meshlink-proof/
+└── meshlink-reference/
 ```
 
 ## Use the glossary's vocabulary
