@@ -15,6 +15,7 @@ import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundTransferPreparation
 import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundTransferPreparationRoutingContext
 import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundTransferPreparationSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore

@@ -23,6 +23,7 @@ import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.transport.MeshEnginePlatformBridge
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.power.NoOpBatteryMonitor
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.transport.BleTransport

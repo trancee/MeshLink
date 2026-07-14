@@ -3,6 +3,8 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.engine.assembly.MeshEngine
+import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent
@@ -22,6 +24,7 @@ class MeshEngineTest {
             val meshLink =
                 MeshEngine.create(
                     config = meshLinkConfig { appId = "mesh-engine-test" },
+                    localIdentity = LocalIdentity.fromAppId("mesh-engine-test"),
                     bleTransport = transport,
                 )
 

@@ -9,6 +9,7 @@ import ch.trancee.meshlink.engine.internal.HopSession
 import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
 import ch.trancee.meshlink.engine.internal.PendingResponderHandshake
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

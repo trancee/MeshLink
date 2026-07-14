@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.handshake.canonicalPeerIdForTemporaryTransportPeer
 import ch.trancee.meshlink.engine.handshake.isTemporaryTransportPeerId
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

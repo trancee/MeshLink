@@ -2,10 +2,7 @@ package ch.trancee.meshlink.identity
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.CryptoProvider
-import ch.trancee.meshlink.crypto.Ed25519KeyPair
 import ch.trancee.meshlink.crypto.NoiseIdentity
-import ch.trancee.meshlink.crypto.PlaceholderCryptoProvider
-import ch.trancee.meshlink.crypto.X25519KeyPair
 
 internal class LocalIdentity
 internal constructor(
@@ -39,54 +36,6 @@ internal constructor(
     internal val meshDomainHash: ByteArray = meshDomainHash.copyOf()
 
     internal companion object {
-        internal fun fromAppId(
-            appId: String,
-            meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
-        ): LocalIdentity {
-            return fromPeerId(
-                peerId = PeerId(appId),
-                identitySeed = appId,
-                meshDomainHash = meshDomainHash,
-            )
-        }
-
-        internal fun fromPeerId(
-            peerId: PeerId,
-            identitySeed: String,
-            meshDomainHash: ByteArray = DEFAULT_MESH_DOMAIN_HASH,
-        ): LocalIdentity {
-            val noiseIdentity =
-                NoiseIdentity(
-                    ed25519KeyPair =
-                        Ed25519KeyPair(
-                            privateKey =
-                                deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
-                            publicKey =
-                                deterministicBytes("$identitySeed|ed25519", size = KEY_SIZE_BYTES),
-                        ),
-                    x25519KeyPair =
-                        X25519KeyPair(
-                            privateKey =
-                                deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
-                            publicKey =
-                                deterministicBytes("$identitySeed|x25519", size = KEY_SIZE_BYTES),
-                        ),
-                )
-            val publicKeyHash =
-                PlaceholderCryptoProvider.sha256(
-                    noiseIdentity.ed25519KeyPair.publicKey + noiseIdentity.x25519KeyPair.publicKey
-                )
-            return LocalIdentity(
-                peerId = peerId,
-                identityFingerprintBytes = publicKeyHash,
-                noiseIdentity = noiseIdentity,
-                cryptoProvider = PlaceholderCryptoProvider,
-                advertisementKeyHash =
-                    publicKeyHash.copyOfRange(0, ADVERTISEMENT_KEY_HASH_SIZE_BYTES),
-                meshDomainHash = meshDomainHash,
-            )
-        }
-
         internal fun fromNoiseIdentity(
             noiseIdentity: NoiseIdentity,
             provider: CryptoProvider,
@@ -124,7 +73,6 @@ internal constructor(
         private const val MESH_DOMAIN_PROLOGUE_PREFIX: String = "MeshLink-mesh-domain-v1:"
         private val DEFAULT_MESH_DOMAIN_HASH: ByteArray = ByteArray(0)
         private const val ADVERTISEMENT_KEY_HASH_SIZE_BYTES: Int = 12
-        private const val KEY_SIZE_BYTES: Int = 32
 
         /**
          * Must match [ch.trancee.meshlink.transport.BleDiscoveryContract.KEY_HASH_SIZE_BYTES], the
@@ -137,22 +85,6 @@ internal constructor(
          */
         private const val PEER_ID_SIZE_BYTES: Int = 12
     }
-}
-
-private fun deterministicBytes(seed: String, size: Int): ByteArray {
-    val encodedSeed = seed.encodeToByteArray()
-    val seedBytes = if (encodedSeed.isNotEmpty()) encodedSeed else byteArrayOf(ZERO_BYTE)
-    var state = FNV_OFFSET_BASIS.toInt()
-    val output =
-        ByteArray(size) { index ->
-            val mixedInput = (seedBytes[index % seedBytes.size].toInt() and BYTE_MASK) + index
-            state = (state xor mixedInput) * FNV_PRIME
-            (state ushr ((index and BYTE_INDEX_MASK) * BITS_PER_BYTE)).toByte()
-        }
-    if (output.all { byte -> byte == ZERO_BYTE }) {
-        output[0] = NON_ZERO_SENTINEL_BYTE
-    }
-    return output
 }
 
 internal fun ByteArray.toHexString(): String {
@@ -230,13 +162,8 @@ private fun decodeHexNibble(value: Int): Int? {
 }
 
 private const val BYTE_MASK: Int = 0xFF
-private const val BITS_PER_BYTE: Int = 8
-private const val BYTE_INDEX_MASK: Int = 3
-private const val FNV_OFFSET_BASIS: UInt = 0x811C9DC5u
-private const val FNV_PRIME: Int = 16777619
 private const val HEX_ALPHA_OFFSET: Int = 10
 private const val HEX_BYTE_LENGTH: Int = 2
 private const val HEX_RADIX: Int = 16
 private const val HIGH_NIBBLE_SHIFT: Int = 4
-private const val NON_ZERO_SENTINEL_BYTE: Byte = 1
 private const val ZERO_BYTE: Byte = 0

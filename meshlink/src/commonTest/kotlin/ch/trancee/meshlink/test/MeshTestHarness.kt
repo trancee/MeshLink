@@ -6,6 +6,7 @@ import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromPeerId
 import ch.trancee.meshlink.transport.TransportMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

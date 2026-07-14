@@ -6,6 +6,7 @@ import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
 import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerForgetCallbacks
 import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerForgetSupport
+import ch.trancee.meshlink.identity.fromAppId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

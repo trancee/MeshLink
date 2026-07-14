@@ -18,6 +18,7 @@ import ch.trancee.meshlink.engine.routing.MeshEngineInboundTransport
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.engine.transport.ReplayedHopPayloadException
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
