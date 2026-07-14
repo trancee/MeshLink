@@ -1,10 +1,10 @@
 package ch.trancee.meshlink.platform.ios
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
-import ch.trancee.meshlink.engine.gattDataBearerDecisionLogLine
-import ch.trancee.meshlink.engine.gattDataBearerResultLogLine
-import ch.trancee.meshlink.engine.resolveGattDataBearerMode
+import ch.trancee.meshlink.engine.transport.DirectWireFrame
+import ch.trancee.meshlink.engine.transport.gattDataBearerDecisionLogLine
+import ch.trancee.meshlink.engine.transport.gattDataBearerResultLogLine
+import ch.trancee.meshlink.engine.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.power.hasConnectionBudget
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import ch.trancee.meshlink.transport.OutboundFrame

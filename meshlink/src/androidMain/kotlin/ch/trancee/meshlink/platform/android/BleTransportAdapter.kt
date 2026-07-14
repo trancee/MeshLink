@@ -8,10 +8,10 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.Log
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.DirectWireFrame
-import ch.trancee.meshlink.engine.gattDataBearerDecisionLogLine
-import ch.trancee.meshlink.engine.gattDataBearerResultLogLine
-import ch.trancee.meshlink.engine.resolveGattDataBearerMode
+import ch.trancee.meshlink.engine.transport.DirectWireFrame
+import ch.trancee.meshlink.engine.transport.gattDataBearerDecisionLogLine
+import ch.trancee.meshlink.engine.transport.gattDataBearerResultLogLine
+import ch.trancee.meshlink.engine.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.power.PowerPolicy

@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.MeshEngineRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals

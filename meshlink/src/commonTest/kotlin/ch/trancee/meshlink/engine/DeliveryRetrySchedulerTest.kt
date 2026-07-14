@@ -1,6 +1,9 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.MeshLinkState
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
+import ch.trancee.meshlink.engine.transfer.DeliveryRetryScheduler
+import ch.trancee.meshlink.engine.transfer.RetryWakeup
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

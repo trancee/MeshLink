@@ -4,7 +4,7 @@ import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.test.RecordingDiagnosticSink

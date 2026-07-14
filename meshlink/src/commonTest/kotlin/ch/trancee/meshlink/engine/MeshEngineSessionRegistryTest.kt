@@ -2,6 +2,12 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.crypto.NoiseXXHandshakeManager
+import ch.trancee.meshlink.engine.handshake.CreatedInitiatorHandshake
+import ch.trancee.meshlink.engine.handshake.InitiatorHandshakeReservation
+import ch.trancee.meshlink.engine.handshake.MeshEngineSessionRegistry
+import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
+import ch.trancee.meshlink.engine.internal.PendingResponderHandshake
 import ch.trancee.meshlink.identity.LocalIdentity
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -2,6 +2,10 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.ForgetPeerResult
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
+import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerForgetCallbacks
+import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerForgetSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

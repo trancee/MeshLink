@@ -7,7 +7,7 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.android.AndroidBootstrapContextCarrier
 import ch.trancee.meshlink.api.android.AndroidMeshLinkBootstrap
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.platform.android.AndroidBatteryMonitor
 import ch.trancee.meshlink.platform.android.BleTransportAdapter
 import ch.trancee.meshlink.platform.android.JcaCryptoProviderFactory

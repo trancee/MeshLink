@@ -14,6 +14,11 @@ import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.engine.assembly.MeshEngineCompatibilityRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.MeshEnginePublishedRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntime
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeFacadeOperations
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

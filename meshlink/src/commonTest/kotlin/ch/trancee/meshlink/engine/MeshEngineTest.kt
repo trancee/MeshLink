@@ -2,6 +2,7 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.MeshLinkState
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.transport.BleTransport
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportEvent

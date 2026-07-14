@@ -19,7 +19,7 @@ import ch.trancee.meshlink.crypto.PureX25519
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.toBytes
 import ch.trancee.meshlink.routing.RouteCoordinator

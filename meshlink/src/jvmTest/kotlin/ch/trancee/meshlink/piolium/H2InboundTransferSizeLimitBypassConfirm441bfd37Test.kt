@@ -2,10 +2,10 @@ package ch.trancee.meshlink.piolium
 
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.MAX_SUPPORTED_PAYLOAD_BYTES
-import ch.trancee.meshlink.engine.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.MeshEngineInboundTransferSupport
-import ch.trancee.meshlink.engine.MeshEngineInboundTransferSupportCallbacks
+import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
+import ch.trancee.meshlink.engine.transfer.MAX_SUPPORTED_PAYLOAD_BYTES
+import ch.trancee.meshlink.engine.transfer.MeshEngineInboundTransferSupport
+import ch.trancee.meshlink.engine.transfer.MeshEngineInboundTransferSupportCallbacks
 import ch.trancee.meshlink.transfer.InboundTransferSession
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test

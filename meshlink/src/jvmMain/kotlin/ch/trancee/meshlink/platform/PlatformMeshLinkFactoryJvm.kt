@@ -4,7 +4,7 @@ import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.crypto.JvmCryptoProvider
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 
 private val jvmCryptoProvider = JvmCryptoProvider()

@@ -3,6 +3,13 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.meshLinkConfig
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeAssemblyEnvironment
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeAssemblySupport
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeFoundationAssembly
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeLateBindingContext
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.buildMeshEngineRuntimeFoundationAssembly
+import ch.trancee.meshlink.engine.transport.MeshEnginePlatformBridge
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.power.NoOpBatteryMonitor
 import ch.trancee.meshlink.test.InMemorySecureStorage
