@@ -337,6 +337,173 @@ class WireEnvelopeContractTest {
                         ),
                     encodedBytes = encodedBytes,
                 )
+            "v1_hello.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.HELLO,
+                    expectedFrame =
+                        WireFrame.Hello(
+                            peerId = PeerId("fixture-hello-peer-001"),
+                            helloIntervalMillis = 2_000,
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_ihu.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.IHU,
+                    expectedFrame =
+                        WireFrame.Ihu(peerId = PeerId("fixture-ihu-peer-001"), receiveCost = 96),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_link_identity.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.LINK_IDENTITY,
+                    expectedFrame =
+                        WireFrame.LinkIdentity(peerId = PeerId("fixture-link-identity-peer-001")),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_link_keepalive.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.LINK_KEEPALIVE,
+                    expectedFrame = WireFrame.KeepAlive(),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_route_retraction.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.ROUTE_RETRACTION,
+                    expectedFrame =
+                        WireFrame.RouteRetraction(
+                            destinationPeerId = PeerId("fixture-destination-004"),
+                            seqNo = 77,
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_seqno_request.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.SEQNO_REQUEST,
+                    expectedFrame =
+                        WireFrame.SeqNoRequest(
+                            destinationPeerId = PeerId("fixture-destination-005"),
+                            requestedSeqNo = 101,
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_route_digest.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.ROUTE_DIGEST,
+                    expectedFrame =
+                        WireFrame.RouteDigest(
+                            peerId = PeerId("fixture-digest-peer-001"),
+                            digest = byteArrayOf(0x09, 0x08, 0x07, 0x06),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_transfer_start.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.TRANSFER_START,
+                    expectedFrame =
+                        WireFrame.TransferStart(
+                            route =
+                                WireFrame.TransferStartRoute(
+                                    transferId = "fixture-transfer-001",
+                                    messageId = "fixture-message-002",
+                                    originPeerId = PeerId("fixture-origin-002"),
+                                    destinationPeerId = PeerId("fixture-destination-006"),
+                                ),
+                            sizing =
+                                WireFrame.TransferStartSizing(
+                                    totalBytes = 65_520,
+                                    totalChunks = 64,
+                                    maxChunkPayloadBytes = 1_024,
+                                ),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_transfer_chunk.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.TRANSFER_CHUNK,
+                    expectedFrame =
+                        WireFrame.TransferChunk(
+                            transferId = "fixture-transfer-001",
+                            chunkIndex = 7,
+                            payload = byteArrayOf(3, 1, 4, 1, 5, 9),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_transfer_complete.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.TRANSFER_COMPLETE,
+                    expectedFrame = WireFrame.TransferComplete(transferId = "fixture-transfer-001"),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_transfer_abort.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.TRANSFER_ABORT,
+                    expectedFrame =
+                        WireFrame.TransferAbort(
+                            transferId = "fixture-transfer-002",
+                            reasonCode = 42,
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_e2e_handshake_message_1.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_1,
+                    expectedFrame =
+                        WireFrame.EndToEndHandshakeMessage1(
+                            route =
+                                WireFrame.EndToEndHandshakeRoute(
+                                    handshakeId = "fixture-handshake-001",
+                                    originPeerId = PeerId("fixture-origin-e2e-001"),
+                                    destinationPeerId = PeerId("fixture-destination-e2e-001"),
+                                ),
+                            payload = byteArrayOf(1, 2, 3, 4),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_e2e_handshake_message_2.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_2,
+                    expectedFrame =
+                        WireFrame.EndToEndHandshakeMessage2(
+                            route =
+                                WireFrame.EndToEndHandshakeRoute(
+                                    handshakeId = "fixture-handshake-001",
+                                    originPeerId = PeerId("fixture-origin-e2e-001"),
+                                    destinationPeerId = PeerId("fixture-destination-e2e-001"),
+                                ),
+                            payload = byteArrayOf(5, 6, 7, 8, 9),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
+            "v1_e2e_handshake_message_3.hex" ->
+                WireCompatibilityFixture(
+                    fileName = fileName,
+                    expectedType = WireEnvelopeType.E2E_HANDSHAKE_MESSAGE_3,
+                    expectedFrame =
+                        WireFrame.EndToEndHandshakeMessage3(
+                            route =
+                                WireFrame.EndToEndHandshakeRoute(
+                                    handshakeId = "fixture-handshake-001",
+                                    originPeerId = PeerId("fixture-origin-e2e-001"),
+                                    destinationPeerId = PeerId("fixture-destination-e2e-001"),
+                                ),
+                            payload = byteArrayOf(10, 11),
+                        ),
+                    encodedBytes = encodedBytes,
+                )
             else -> error("Unsupported wire compatibility fixture $fileName")
         }
     }
