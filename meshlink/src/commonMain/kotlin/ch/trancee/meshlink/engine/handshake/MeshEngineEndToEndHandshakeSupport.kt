@@ -7,7 +7,8 @@ import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.wire.WireFrame
@@ -16,15 +17,7 @@ import kotlinx.coroutines.CompletableDeferred
 internal data class MeshEngineEndToEndHandshakeCallbacks(
     val sendFrameTowardsPeer: suspend (PeerId, WireFrame, String) -> Boolean,
     val createHandshakeId: suspend () -> String,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 /**
@@ -137,7 +130,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
                         DiagnosticCode.TRANSPORT_FRAME_REJECTED,
                         DiagnosticSeverity.WARN,
                         "e2eHandshake.message1.process",
-                        originPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        originPeerId.diagnosticSuffix(),
                         DiagnosticReason.DELIVERY_FAILURE,
                         mapOf("cause" to exception::class.simpleName.orEmpty()),
                     )
@@ -171,7 +164,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
                 DiagnosticCode.TRANSPORT_FRAME_REJECTED,
                 DiagnosticSeverity.WARN,
                 "e2eHandshake.message2.unexpected",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.DELIVERY_FAILURE,
                 emptyMap(),
             )
@@ -272,7 +265,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
             DiagnosticCode.TRUST_ESTABLISHED,
             DiagnosticSeverity.INFO,
             "e2eHandshake.message2.complete",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.STATE_CHANGE,
             emptyMap(),
         )
@@ -295,7 +288,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
             DiagnosticCode.TRUST_FAILURE,
             DiagnosticSeverity.WARN,
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             reason,
             metadata,
         )
@@ -309,7 +302,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
                 DiagnosticCode.TRANSPORT_FRAME_REJECTED,
                 DiagnosticSeverity.WARN,
                 "e2eHandshake.message3.unexpected",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.DELIVERY_FAILURE,
                 emptyMap(),
             )
@@ -328,7 +321,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
                 DiagnosticCode.TRUST_FAILURE,
                 DiagnosticSeverity.WARN,
                 "e2eHandshake.message3.trust",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.TRUST_FAILURE,
                 emptyMap(),
             )
@@ -343,7 +336,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
             DiagnosticCode.TRUST_ESTABLISHED,
             DiagnosticSeverity.INFO,
             "e2eHandshake.message3.complete",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.STATE_CHANGE,
             emptyMap(),
         )
@@ -361,7 +354,7 @@ internal class MeshEngineEndToEndHandshakeSupport(
                     DiagnosticCode.TRANSPORT_FRAME_REJECTED,
                     DiagnosticSeverity.WARN,
                     "e2eHandshake.message3.process",
-                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    peerId.diagnosticSuffix(),
                     DiagnosticReason.DELIVERY_FAILURE,
                     mapOf("cause" to exception::class.simpleName.orEmpty()),
                 )

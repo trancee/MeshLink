@@ -10,7 +10,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 
 internal data class MeshEngineSendConfig(
     val maxSupportedPayloadBytes: Int,
@@ -31,15 +32,7 @@ internal data class MeshEngineSendCallbacks(
             MeshEngineHardRunToken,
         ) -> SendResult,
     val scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
-    val emitDiagnostic:
-        (
-            code: DiagnosticCode,
-            severity: DiagnosticSeverity,
-            stage: String,
-            peerSuffix: String?,
-            reason: DiagnosticReason?,
-            metadata: Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 internal const val MAX_SUPPORTED_PAYLOAD_BYTES: Int = 64 * 1024
@@ -73,7 +66,7 @@ internal class MeshEngineSendSupport(
                     DiagnosticCode.SIZE_LIMIT_REJECTED,
                     DiagnosticSeverity.WARN,
                     "delivery.send",
-                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    peerId.diagnosticSuffix(),
                     DiagnosticReason.SIZE_LIMIT,
                     mapOf("payloadBytes" to payload.size.toString()),
                 )
@@ -114,15 +107,7 @@ internal fun buildMeshEngineRuntimeSendSupport(
             MeshEngineHardRunToken,
         ) -> SendResult,
     scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
-    emitDiagnostic:
-        (
-            code: DiagnosticCode,
-            severity: DiagnosticSeverity,
-            stage: String,
-            peerSuffix: String?,
-            reason: DiagnosticReason?,
-            metadata: Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineSendSupport {
     return MeshEngineSendSupport(
         config =

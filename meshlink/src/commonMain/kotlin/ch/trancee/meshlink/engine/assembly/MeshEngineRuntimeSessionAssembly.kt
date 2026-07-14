@@ -12,6 +12,7 @@ import ch.trancee.meshlink.engine.handshake.buildMeshEngineRuntimeInitiatorHands
 import ch.trancee.meshlink.engine.handshake.buildMeshEngineRuntimeResponderHandshakeSupport
 import ch.trancee.meshlink.engine.handshake.buildMeshEngineRuntimeSessionSupport
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
 import ch.trancee.meshlink.engine.lifecycle.buildMeshEngineRuntimePeerFlowSupport
 import ch.trancee.meshlink.engine.transport.buildMeshEngineRuntimeHopTransportSupport
@@ -20,8 +21,7 @@ import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineRuntimeSessionAssembly(
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
-    val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     val sendEncryptedDirectWireFrame:
         suspend (PeerId, HopSession, WireFrame, String) -> TransportSendResult,
     val decryptHopPayload: suspend (HopSession, ByteArray) -> ByteArray,

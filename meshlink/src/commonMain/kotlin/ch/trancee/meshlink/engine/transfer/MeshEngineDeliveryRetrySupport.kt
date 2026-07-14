@@ -5,7 +5,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import kotlin.time.Duration
 
 internal data class MeshEngineDeliveryRetryState(val attempt: Int, val topologyVersion: Long)
@@ -27,15 +28,7 @@ internal sealed class MeshEngineDeliveryRetryResult {
 internal data class MeshEngineDeliveryRetryCallbacks(
     val awaitRetry: suspend (Int, Duration, Long, MeshEngineHardRunToken) -> RetryWakeup,
     val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 internal class MeshEngineDeliveryRetrySupport(
@@ -108,7 +101,7 @@ internal class MeshEngineDeliveryRetrySupport(
             code,
             DiagnosticSeverity.WARN,
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.DELIVERY_RETRY,
             callbacks.routeMetadata(peerId, mapOf("attempt" to attempt.toString())),
         )
@@ -118,15 +111,7 @@ internal class MeshEngineDeliveryRetrySupport(
 internal fun buildMeshEngineRuntimeDeliveryRetrySupport(
     awaitRetry: suspend (Int, Duration, Long, MeshEngineHardRunToken) -> RetryWakeup,
     routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineDeliveryRetrySupport {
     return MeshEngineDeliveryRetrySupport(
         callbacks =

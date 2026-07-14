@@ -13,11 +13,9 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
-import ch.trancee.meshlink.diagnostics.DiagnosticReason
-import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.transport.MeshEnginePlatformBridge
 import ch.trancee.meshlink.identity.LocalIdentity
@@ -46,15 +44,7 @@ internal data class MeshEngineRuntimeAssemblyEnvironment(
 )
 
 internal data class MeshEngineRuntimeAssemblySupport(
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
     val sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
 )

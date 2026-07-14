@@ -6,10 +6,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.engine.internal.HopSession
 import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.unexpectedFramePrefixHex
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
@@ -94,10 +94,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
                     DiagnosticReason.DELIVERY_FAILURE,
                     mapOf(
                         "payloadBytes" to payload.size.toString(),
-                        "payloadPrefixHex" to
-                            payload
-                                .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                                .toHexString(),
+                        "payloadPrefixHex" to payload.unexpectedFramePrefixHex(),
                     ),
                 )
                 return null
@@ -110,10 +107,7 @@ internal class MeshEngineInitiatorHandshakeSupport(
                 DiagnosticReason.DELIVERY_FAILURE,
                 mapOf(
                     "payloadBytes" to payload.size.toString(),
-                    "payloadPrefixHex" to
-                        payload
-                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                            .toHexString(),
+                    "payloadPrefixHex" to payload.unexpectedFramePrefixHex(),
                 ),
             )
         }
@@ -382,5 +376,3 @@ internal fun buildMeshEngineRuntimeInitiatorHandshakeSupport(
         callbacks = callbacks,
     )
 }
-
-internal const val UNEXPECTED_FRAME_HEX_SNIPPET_BYTES: Int = 16

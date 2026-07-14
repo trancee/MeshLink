@@ -9,8 +9,9 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.handshake.EndToEndSessionEstablishmentOutcome
 import ch.trancee.meshlink.engine.handshake.MeshEngineEndToEndSessionRegistry
 import ch.trancee.meshlink.engine.handshake.MeshEngineSessionRegistry
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.presence.PresenceTransition
@@ -43,15 +44,7 @@ internal class MeshEngineTransportSupport(
     private val peerState: MeshEngineTransportPeerState,
     private val routingContext: MeshEngineTransportRoutingContext,
     private val callbacks: MeshEngineTransportCallbacks,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     suspend fun handleTransportEvent(event: TransportEvent): Unit {
         when (event) {
@@ -240,7 +233,7 @@ internal class MeshEngineTransportSupport(
             DiagnosticCode.TRANSPORT_MODE_CHANGED,
             DiagnosticSeverity.INFO,
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.TRANSPORT_CHANGE,
             mapOf(
                 "accepted" to accepted.toString(),
@@ -259,7 +252,7 @@ internal class MeshEngineTransportSupport(
                         DiagnosticCode.TRANSPORT_FRAME_REJECTED,
                         DiagnosticSeverity.WARN,
                         "transport.frame.malformed",
-                        event.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        event.peerId.diagnosticSuffix(),
                         DiagnosticReason.DELIVERY_FAILURE,
                         mapOf("cause" to exception::class.simpleName.orEmpty()),
                     )
@@ -290,15 +283,7 @@ internal fun buildMeshEngineRuntimeTransportSupport(
     handleHandshakeMessage2: suspend (PeerId, ByteArray) -> Unit,
     handleHandshakeMessage3: suspend (PeerId, ByteArray) -> Unit,
     handleEncryptedDataFrame: suspend (PeerId, ByteArray) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineTransportSupport {
     return MeshEngineTransportSupport(
         peerState =

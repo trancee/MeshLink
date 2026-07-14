@@ -6,10 +6,11 @@ import ch.trancee.meshlink.crypto.NoiseXXResponderResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.engine.internal.HopSession
 import ch.trancee.meshlink.engine.internal.PendingResponderHandshake
+import ch.trancee.meshlink.engine.internal.isTransientLinkNotReady
+import ch.trancee.meshlink.engine.internal.unexpectedFramePrefixHex
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
@@ -51,10 +52,7 @@ internal class MeshEngineResponderHandshakeSupport(
                         "hasPendingResponderHandshake" to
                             (existingPendingResponder != null).toString(),
                         "payloadBytes" to payload.size.toString(),
-                        "payloadPrefixHex" to
-                            payload
-                                .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                                .toHexString(),
+                        "payloadPrefixHex" to payload.unexpectedFramePrefixHex(),
                     ),
                 )
                 return
@@ -201,10 +199,7 @@ internal class MeshEngineResponderHandshakeSupport(
                 DiagnosticReason.DELIVERY_FAILURE,
                 mapOf(
                     "payloadBytes" to payload.size.toString(),
-                    "payloadPrefixHex" to
-                        payload
-                            .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                            .toHexString(),
+                    "payloadPrefixHex" to payload.unexpectedFramePrefixHex(),
                 ),
             )
         }
@@ -304,13 +299,6 @@ internal fun buildMeshEngineRuntimeResponderHandshakeSupport(
         routingContext = routingContext,
         callbacks = callbacks,
     )
-}
-
-// See the matching helper in MeshEngineSessionSupport.kt for rationale: widened to match any
-// bearer's transient "not ready" wording, not just the L2CAP-specific string.
-private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
-    return reason.contains("connection is not ready", ignoreCase = true) ||
-        reason.contains("client not ready", ignoreCase = true)
 }
 
 // Widened from 3s -> 6s alongside HANDSHAKE_TIMEOUT in MeshEngineSessionSupport.kt for the same

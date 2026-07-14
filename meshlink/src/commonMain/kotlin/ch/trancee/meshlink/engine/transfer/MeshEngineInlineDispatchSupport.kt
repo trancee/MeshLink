@@ -6,9 +6,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
@@ -27,17 +28,7 @@ internal data class MeshEngineInlineDispatchDependencies(
         suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
 )
 
-internal data class MeshEngineInlineDispatchCallbacks(
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit
-)
+internal data class MeshEngineInlineDispatchCallbacks(val emitDiagnostic: MeshEngineEmitDiagnostic)
 
 internal sealed class MeshEngineInlineDispatchResolution {
     internal class Ready
@@ -138,7 +129,7 @@ internal class MeshEngineInlineDispatchSupport(
                     DiagnosticCode.DELIVERY_SUCCEEDED,
                     DiagnosticSeverity.INFO,
                     "delivery.send",
-                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    peerId.diagnosticSuffix(),
                     null,
                     routeMetadata(peerId),
                 )

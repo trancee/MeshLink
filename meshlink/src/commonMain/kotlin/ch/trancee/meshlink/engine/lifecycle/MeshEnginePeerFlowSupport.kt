@@ -7,8 +7,11 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
 import ch.trancee.meshlink.engine.handshake.shouldInitiateHandshakeTowards
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEnginePeerRouteMetadata
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -26,20 +29,11 @@ internal data class MeshEnginePeerFlowContext(
 internal data class MeshEnginePeerFlowCallbacks(
     val runtimeGate: MeshEngineRuntimeGate,
     val captureHardRunToken: () -> MeshEngineHardRunToken,
-    val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     val ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
     val maximumPayloadBytesPerDelivery: (PeerId) -> Int?,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
-    val peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
+    val peerRouteMetadata: MeshEnginePeerRouteMetadata,
 )
 
 internal class MeshEnginePeerFlowSupport(
@@ -112,7 +106,7 @@ internal class MeshEnginePeerFlowSupport(
         action: String,
         hardRunToken: MeshEngineHardRunToken,
     ): Unit {
-        val peerSuffix = destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)
+        val peerSuffix = destinationPeerId.diagnosticSuffix()
         val diagnosticMetadata =
             mapOf("originPeerId" to originPeerId.value, "forwardAction" to "relay")
         val nextHopPeerId = context.routeCoordinator.nextHopFor(destinationPeerId)
@@ -174,19 +168,11 @@ internal fun buildMeshEngineRuntimePeerFlowSupport(
     coroutineScope: CoroutineScope,
     runtimeGate: MeshEngineRuntimeGate,
     captureHardRunToken: () -> MeshEngineHardRunToken,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     ensureHopSession: suspend (PeerId) -> SessionEstablishmentOutcome,
     maximumPayloadBytesPerDelivery: (PeerId) -> Int?,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
-    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
+    peerRouteMetadata: MeshEnginePeerRouteMetadata,
 ): MeshEnginePeerFlowSupport {
     return MeshEnginePeerFlowSupport(
         localIdentity = localIdentity,

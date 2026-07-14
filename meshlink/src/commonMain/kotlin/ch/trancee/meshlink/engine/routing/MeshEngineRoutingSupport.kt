@@ -4,9 +4,10 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.internal.routeRemovalLabel
 import ch.trancee.meshlink.engine.internal.routeRemovalStage
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -14,7 +15,6 @@ import ch.trancee.meshlink.routing.RouteEntry
 import ch.trancee.meshlink.routing.RouteSelectionChange
 import ch.trancee.meshlink.routing.RoutingAdvertisement
 import ch.trancee.meshlink.routing.RoutingMutation
-import ch.trancee.meshlink.wire.WireFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -22,17 +22,8 @@ internal class MeshEngineRoutingSupport(
     private val routeCoordinator: RouteCoordinator,
     private val runtimeGate: MeshEngineRuntimeGate,
     private val coroutineScope: CoroutineScope,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
-    private val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
+    private val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
 ) {
     suspend fun dispatchMutation(
         mutation: RoutingMutation,
@@ -124,7 +115,7 @@ internal class MeshEngineRoutingSupport(
             DiagnosticCode.ROUTE_DISCOVERED,
             DiagnosticSeverity.INFO,
             "$stage.routeAvailable",
-            change.route.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            change.route.destinationPeerId.diagnosticSuffix(),
             DiagnosticReason.ROUTE_CHANGE,
             peerRouteMetadata(
                 peerId = change.route.destinationPeerId,
@@ -143,7 +134,7 @@ internal class MeshEngineRoutingSupport(
             DiagnosticCode.ROUTE_UPDATED,
             DiagnosticSeverity.DEBUG,
             "$stage.routeUpdated",
-            change.route.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            change.route.destinationPeerId.diagnosticSuffix(),
             DiagnosticReason.ROUTE_CHANGE,
             peerRouteMetadata(
                 peerId = change.route.destinationPeerId,
@@ -164,7 +155,7 @@ internal class MeshEngineRoutingSupport(
             removalCode,
             DiagnosticSeverity.WARN,
             routeRemovalStage(stage = stage, removalCode = removalCode),
-            change.previousRoute.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            change.previousRoute.destinationPeerId.diagnosticSuffix(),
             DiagnosticReason.ROUTE_CHANGE,
             peerRouteMetadata(
                 peerId = change.previousRoute.destinationPeerId,

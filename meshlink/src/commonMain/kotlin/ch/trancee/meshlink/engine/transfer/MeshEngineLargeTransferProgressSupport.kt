@@ -3,11 +3,11 @@ package ch.trancee.meshlink.engine.transfer
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.transfer.AcknowledgementSettlementResult
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.wire.WireFrame
@@ -26,15 +26,7 @@ internal data class MeshEngineLargeTransferProgressDependencies(
 )
 
 internal data class MeshEngineLargeTransferProgressCallbacks(
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
     val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
 )
 
@@ -105,7 +97,7 @@ internal class MeshEngineLargeTransferProgressSupport(
             DiagnosticCode.TRANSFER_PROGRESS,
             DiagnosticSeverity.DEBUG,
             "transfer.send.progress",
-            session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            session.destinationPeerId.diagnosticSuffix(),
             null,
             callbacks.routeMetadata(
                 session.destinationPeerId,

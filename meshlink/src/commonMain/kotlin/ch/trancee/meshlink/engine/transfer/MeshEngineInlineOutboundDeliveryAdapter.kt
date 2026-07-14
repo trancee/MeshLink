@@ -8,9 +8,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.lifecycle.MeshEngineDiscoverySuspensionSupport
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.transport.TransportSendResult
@@ -30,15 +31,7 @@ internal data class MeshEngineInlineOutboundDeliveryAdapterDependencies(
 )
 
 internal data class MeshEngineInlineOutboundDeliveryAdapterCallbacks(
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
     val ttlMillisFor: (DeliveryPriority) -> Int,
 )
 
@@ -104,7 +97,7 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
                             DiagnosticCode.TRUST_FAILURE,
                             DiagnosticSeverity.ERROR,
                             "delivery.send.noTrust",
-                            context.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                            context.peerId.diagnosticSuffix(),
                             DiagnosticReason.TRUST_FAILURE,
                             emptyMap(),
                         )
@@ -153,7 +146,7 @@ internal class MeshEngineInlineOutboundDeliveryAdapter(
             DiagnosticCode.DELIVERY_UNREACHABLE,
             DiagnosticSeverity.ERROR,
             "delivery.retryExpired",
-            context.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            context.peerId.diagnosticSuffix(),
             DiagnosticReason.DELIVERY_FAILURE,
             dependencies.dispatchSupport.routeMetadata(context.peerId),
         )
@@ -180,15 +173,7 @@ internal fun buildMeshEngineRuntimeInlineOutboundDeliveryAdapter(
     discoverySuspensionSupport: MeshEngineDiscoverySuspensionSupport,
     ttlMillisFor: (DeliveryPriority) -> Int,
     scheduleRetryDiagnostic: suspend (PeerId, DeliveryPriority) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineInlineOutboundDeliveryAdapter {
     val dispatchSupport =
         MeshEngineInlineDispatchSupport(

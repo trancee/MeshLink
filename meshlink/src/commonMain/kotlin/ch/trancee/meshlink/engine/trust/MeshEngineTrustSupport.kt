@@ -4,7 +4,8 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.trust.TofuTrustStore
@@ -14,15 +15,7 @@ import ch.trancee.meshlink.trust.TrustRecord
 internal class MeshEngineTrustSupport(
     private val localIdentity: LocalIdentity,
     private val trustStore: TofuTrustStore,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     suspend fun verifyAndPersistTrust(
         peerId: PeerId,
@@ -59,7 +52,7 @@ internal class MeshEngineTrustSupport(
                     DiagnosticCode.TRUST_FAILURE,
                     DiagnosticSeverity.ERROR,
                     "trust.verify",
-                    peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    peerId.diagnosticSuffix(),
                     DiagnosticReason.TRUST_FAILURE,
                     emptyMap(),
                 )
@@ -83,7 +76,7 @@ internal class MeshEngineTrustSupport(
                 DiagnosticCode.TRUST_FAILURE,
                 DiagnosticSeverity.WARN,
                 "trust.verify.untrusted",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.TRUST_FAILURE,
                 emptyMap(),
             )
@@ -105,7 +98,7 @@ internal class MeshEngineTrustSupport(
                 DiagnosticCode.TRUST_FAILURE,
                 DiagnosticSeverity.ERROR,
                 "trust.verify.fingerprint",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.TRUST_FAILURE,
                 emptyMap(),
             )
@@ -137,7 +130,7 @@ internal class MeshEngineTrustSupport(
             DiagnosticCode.TRUST_ESTABLISHED,
             DiagnosticSeverity.INFO,
             "trust.pin",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.STATE_CHANGE,
             emptyMap(),
         )

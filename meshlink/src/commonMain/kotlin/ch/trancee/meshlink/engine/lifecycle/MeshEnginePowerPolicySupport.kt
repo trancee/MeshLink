@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.BatterySnapshot
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.powerPolicyMetadata
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyController
@@ -54,15 +55,7 @@ internal fun buildMeshEngineRuntimePowerPolicySupport(
     powerPolicyNowMillis: () -> Long,
     updateTransportPowerPolicy: suspend (PowerPolicy) -> Unit,
     launchTransportPowerPolicyUpdate: (PowerPolicy) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEnginePowerPolicySupport {
     val powerPolicyState =
         MeshEnginePowerPolicyState(

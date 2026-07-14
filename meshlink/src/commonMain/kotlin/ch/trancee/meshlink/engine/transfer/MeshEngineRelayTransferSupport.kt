@@ -2,12 +2,12 @@ package ch.trancee.meshlink.engine.transfer
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
 import ch.trancee.meshlink.transfer.RelayTransferSession
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineRelayTransferCallbacks(
-    val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     val sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 )
@@ -97,7 +97,7 @@ internal class MeshEngineRelayTransferSupport(
 
 internal fun buildMeshEngineRuntimeRelayTransferSupport(
     transferRegistry: MeshEngineTransferRegistry,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
 ): MeshEngineRelayTransferSupport {

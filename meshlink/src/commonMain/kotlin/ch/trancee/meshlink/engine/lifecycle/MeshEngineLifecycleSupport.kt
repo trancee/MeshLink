@@ -9,6 +9,7 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineCompatibilityRuntimeSurface
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.transfer.MeshEngineTransferRegistry
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 
@@ -170,15 +171,7 @@ internal fun buildMeshEngineRuntimeLifecycleSupport(
     clearVolatileRuntimeView: suspend (String, DiagnosticCode, Map<String, String>) -> Unit,
     abortCommittedTransfers: suspend (TransferAbortReasonCode) -> Unit,
     clearOutboundTransfers: suspend () -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
     powerPolicySupport: MeshEnginePowerPolicySupport,
 ): MeshEngineLifecycleSupport {
     val lifecycleState =

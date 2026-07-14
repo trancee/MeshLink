@@ -11,8 +11,8 @@ import ch.trancee.meshlink.engine.handshake.MeshEngineHandshakeRoutingContext
 import ch.trancee.meshlink.engine.handshake.MeshEngineHandshakeState
 import ch.trancee.meshlink.engine.handshake.MeshEngineResponderHandshakeSupport
 import ch.trancee.meshlink.engine.handshake.MeshEngineSessionRegistry
-import ch.trancee.meshlink.engine.handshake.UNEXPECTED_FRAME_HEX_SNIPPET_BYTES
 import ch.trancee.meshlink.engine.handshake.canonicalPeerIdForTemporaryTransportPeer
+import ch.trancee.meshlink.engine.internal.UNEXPECTED_FRAME_HEX_SNIPPET_BYTES
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport

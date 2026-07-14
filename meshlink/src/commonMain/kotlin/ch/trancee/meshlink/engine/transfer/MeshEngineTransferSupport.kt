@@ -6,7 +6,9 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
@@ -41,15 +43,7 @@ internal class MeshEngineTransferSupport(
     private val inboundSupport: MeshEngineInboundTransferSupport,
     private val relaySupport: MeshEngineRelayTransferSupport,
     private val abortSupport: MeshEngineTransferAbortSupport,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     suspend fun handleTransferStart(peerId: PeerId, frame: WireFrame.TransferStart): Unit {
         val hardRunToken = callbacks.captureHardRunToken()
@@ -103,7 +97,7 @@ internal class MeshEngineTransferSupport(
                 DiagnosticCode.TRANSFER_FAILED,
                 DiagnosticSeverity.ERROR,
                 "transfer.abort",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.TRANSFER_FAILURE,
                 mapOf("reasonCode" to frame.reasonCode.toString()),
             )
@@ -120,22 +114,14 @@ internal fun buildMeshEngineRuntimeTransferSupport(
     isLocalPeerId: (PeerId) -> Boolean,
     transferRegistry: MeshEngineTransferRegistry,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
     routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineTransferSupport {
     val state = MeshEngineTransferState(transferRegistry = transferRegistry)
     val inboundSupport =

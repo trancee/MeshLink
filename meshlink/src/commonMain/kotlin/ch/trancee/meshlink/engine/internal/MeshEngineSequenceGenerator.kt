@@ -12,17 +12,17 @@ internal class MeshEngineSequenceGenerator(
 
     suspend fun createMessageId(): String {
         val current = nextSequence()
-        return "${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
+        return "${localIdentity.peerId.diagnosticSuffix()}-$current"
     }
 
     suspend fun createTransferId(): String {
         val current = nextSequence()
-        return "transfer-${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
+        return "transfer-${localIdentity.peerId.diagnosticSuffix()}-$current"
     }
 
     suspend fun createHandshakeId(): String {
         val current = nextSequence()
-        return "e2e-handshake-${localIdentity.peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH)}-$current"
+        return "e2e-handshake-${localIdentity.peerId.diagnosticSuffix()}-$current"
     }
 
     private suspend fun nextSequence(): Long {

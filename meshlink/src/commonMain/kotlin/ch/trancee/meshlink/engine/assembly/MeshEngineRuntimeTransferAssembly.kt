@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
 import ch.trancee.meshlink.engine.lifecycle.buildMeshEngineRuntimeDiscoverySuspensionSupport
 import ch.trancee.meshlink.engine.routing.buildMeshEngineRuntimeInboundSupport
 import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundDeliveryMode
@@ -118,7 +119,7 @@ internal fun buildMeshEngineRuntimeTransferAndInboundPhase(
 
 private fun createMeshEngineRuntimeSendTransferTowardsDestination(
     routeCoordinator: ch.trancee.meshlink.routing.RouteCoordinator,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
 ): suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean {
     return { peerId, frame, action, hardRunToken ->
         val route = routeCoordinator.routeFor(peerId)

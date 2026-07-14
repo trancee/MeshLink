@@ -7,7 +7,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.transfer.OutboundTransferSession
 import ch.trancee.meshlink.wire.WireFrame
 
@@ -19,15 +20,7 @@ internal data class MeshEngineLargeTransferTerminalDependencies(
 
 internal data class MeshEngineLargeTransferTerminalCallbacks(
     val routeMetadata: suspend (PeerId) -> Map<String, String>,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 internal class MeshEngineLargeTransferTerminalSupport(
@@ -52,7 +45,7 @@ internal class MeshEngineLargeTransferTerminalSupport(
                 DiagnosticCode.DELIVERY_UNREACHABLE,
                 DiagnosticSeverity.ERROR,
                 "transfer.retryExpired",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.DELIVERY_FAILURE,
                 callbacks.routeMetadata(peerId),
             )
@@ -62,7 +55,7 @@ internal class MeshEngineLargeTransferTerminalSupport(
                 DiagnosticCode.TRANSFER_FAILED,
                 DiagnosticSeverity.ERROR,
                 "transfer.send.timeout",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.TRANSFER_FAILURE,
                 callbacks.routeMetadata(peerId),
             )
@@ -89,7 +82,7 @@ internal class MeshEngineLargeTransferTerminalSupport(
             DiagnosticCode.TRANSFER_COMPLETED,
             DiagnosticSeverity.INFO,
             "transfer.send.complete",
-            session.destinationPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            session.destinationPeerId.diagnosticSuffix(),
             null,
             callbacks.routeMetadata(session.destinationPeerId),
         )

@@ -3,11 +3,9 @@ package ch.trancee.meshlink.engine.transfer
 import ch.trancee.meshlink.api.DeliveryPriority
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendResult
-import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.diagnostics.DiagnosticReason
-import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.lifecycle.MeshEngineDiscoverySuspensionSupport
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.transfer.OutboundTransferSession
@@ -145,15 +143,7 @@ internal fun buildMeshEngineRuntimeLargeTransferOutboundDeliveryAdapter(
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineLargeTransferOutboundDeliveryAdapter {
     val progressSupport =
         MeshEngineLargeTransferProgressSupport(

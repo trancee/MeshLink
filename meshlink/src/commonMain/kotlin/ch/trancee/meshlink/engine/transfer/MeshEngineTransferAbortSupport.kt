@@ -5,14 +5,15 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.internal.inboundTransferMetadata
 import ch.trancee.meshlink.wire.TransferAbortReasonCode
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineTransferAbortCallbacks(
-    val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     val sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     val clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
@@ -23,29 +24,13 @@ internal class MeshEngineTransferAbortSupport(
     private val transferRegistry: MeshEngineTransferRegistry,
     private val outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
     private val callbacks: MeshEngineTransferAbortCallbacks,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     constructor(
         state: MeshEngineTransferState,
         outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
         callbacks: MeshEngineTransferAbortCallbacks,
-        emitDiagnostic:
-            (
-                DiagnosticCode,
-                DiagnosticSeverity,
-                String,
-                String?,
-                DiagnosticReason?,
-                Map<String, String>,
-            ) -> Unit,
+        emitDiagnostic: MeshEngineEmitDiagnostic,
     ) : this(
         transferRegistry = state.transferRegistry,
         outboundTransferLifecycleSupport = outboundTransferLifecycleSupport,
@@ -144,7 +129,7 @@ internal class MeshEngineTransferAbortSupport(
             DiagnosticCode.TRANSFER_FAILED,
             DiagnosticSeverity.ERROR,
             "transfer.abort.runtimeStop",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.TRANSFER_FAILURE,
             metadata,
         )
@@ -161,20 +146,12 @@ internal class MeshEngineTransferAbortSupport(
 internal fun buildMeshEngineRuntimeTransferAbortSupport(
     transferRegistry: MeshEngineTransferRegistry,
     outboundTransferLifecycleSupport: MeshEngineOutboundTransferLifecycleSupport,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     sendTransferTowardsDestination:
         suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
     clearQueuedOutboundFrames: suspend (PeerId, String) -> Unit,
     routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineTransferAbortSupport {
     return MeshEngineTransferAbortSupport(
         transferRegistry = transferRegistry,

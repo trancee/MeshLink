@@ -7,8 +7,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.handshake.MeshEngineEndToEndSessionRegistry
 import ch.trancee.meshlink.engine.handshake.MeshEngineSessionRegistry
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
 import ch.trancee.meshlink.engine.internal.MeshEngineSequenceGenerator
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.engine.transfer.DeliveryRetryScheduler
 import ch.trancee.meshlink.engine.transfer.MeshEngineTransferRegistry
@@ -142,7 +142,7 @@ internal fun buildMeshEngineRuntimeScheduleRetryDiagnostic(
             DiagnosticCode.NO_ROUTE_AVAILABLE,
             DiagnosticSeverity.WARN,
             "delivery.noRoute",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.DELIVERY_FAILURE,
             routingSupport.peerRouteMetadata(
                 peerId,

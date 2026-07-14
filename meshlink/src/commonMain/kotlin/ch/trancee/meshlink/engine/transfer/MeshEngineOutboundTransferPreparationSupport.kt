@@ -4,12 +4,12 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.api.SendFailureReason
 import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
-import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.OutboundTransferPreparation
 import ch.trancee.meshlink.engine.internal.chunkTransferPayload
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transfer.OutboundTransferSession
@@ -24,15 +24,7 @@ internal data class MeshEngineOutboundTransferPreparationCallbacks(
     val createMessageId: suspend () -> String,
     val createTransferId: suspend () -> String,
     val emitEncryptFailure: suspend (PeerId, String) -> Unit,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 internal class MeshEngineOutboundTransferPreparationSupport(
@@ -100,7 +92,7 @@ internal class MeshEngineOutboundTransferPreparationSupport(
             DiagnosticCode.TRANSFER_STARTED,
             DiagnosticSeverity.INFO,
             "transfer.send.start",
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             null,
             routingContext.routingSupport.peerRouteMetadata(peerId),
         )
@@ -118,15 +110,7 @@ internal fun buildMeshEngineRuntimeOutboundTransferPreparationSupport(
     createMessageId: suspend () -> String,
     createTransferId: suspend () -> String,
     emitEncryptFailure: suspend (PeerId, String) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineOutboundTransferPreparationSupport {
     return MeshEngineOutboundTransferPreparationSupport(
         localIdentity = localIdentity,

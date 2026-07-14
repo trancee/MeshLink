@@ -7,10 +7,13 @@ import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEnginePeerRouteMetadata
 import ch.trancee.meshlink.engine.internal.PendingInitiatorHandshake
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
+import ch.trancee.meshlink.engine.internal.isTransientLinkNotReady
 import ch.trancee.meshlink.engine.lifecycle.MeshEngineRuntimeTimedWaitResult
 import ch.trancee.meshlink.engine.lifecycle.waitWithRuntimeGate
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
@@ -380,16 +383,8 @@ internal fun buildMeshEngineRuntimeSessionSupport(
         suspend (
             PeerId, DirectWireFrame, String, ch.trancee.meshlink.transport.TransportMode?,
         ) -> TransportSendResult,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
-    peerRouteMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
+    peerRouteMetadata: MeshEnginePeerRouteMetadata,
 ): MeshEngineSessionSupport {
     return MeshEngineSessionSupport(
         localIdentity = localIdentity,
@@ -405,7 +400,7 @@ internal fun buildMeshEngineRuntimeSessionSupport(
                         DiagnosticCode.HOP_SESSION_FAILED,
                         DiagnosticSeverity.WARN,
                         stage,
-                        peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                        peerId.diagnosticSuffix(),
                         reason,
                         peerRouteMetadata(peerId, metadata),
                     )
@@ -422,19 +417,6 @@ private suspend fun CompletableDeferred<SessionEstablishmentOutcome>.completedOu
     } else {
         fallback
     }
-}
-
-// Matches transient "link not ready yet" drop reasons across bearers (GATT and L2CAP, Android
-// and iOS) rather than a single hardcoded L2CAP string. Bearer-specific wording varies (e.g.
-// "L2CAP connection is not ready", "client not ready"), but all of them share the general "not
-// ready" phrasing and all represent the same underlying condition: the physical BLE side-link is
-// still mid-negotiation (connect/MTU/discovery/CCCD) and a retry within the handshake window is
-// likely to succeed once it completes. Permanent/config failures (e.g. "transport is not
-// implemented", "peer has not been discovered") intentionally do not match this substring and
-// are still treated as non-retryable.
-private fun TransportSendResult.Dropped.isTransientLinkNotReady(): Boolean {
-    return reason.contains("connection is not ready", ignoreCase = true) ||
-        reason.contains("client not ready", ignoreCase = true)
 }
 
 /**

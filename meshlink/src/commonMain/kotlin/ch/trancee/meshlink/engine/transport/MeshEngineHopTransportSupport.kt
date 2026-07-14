@@ -7,9 +7,10 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeAwaitActiveResult
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.internal.preferredTransportModeForEncryptedFrame
 import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.identity.LocalIdentity
@@ -46,15 +47,7 @@ internal class MeshEngineHopTransportSupport(
         suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     private val sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     suspend fun sendEncryptedWireFrame(
         peerId: PeerId,
@@ -189,7 +182,7 @@ internal class MeshEngineHopTransportSupport(
             DiagnosticCode.HOP_SESSION_ESTABLISHED,
             DiagnosticSeverity.DEBUG,
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             DiagnosticReason.STATE_CHANGE,
             routingSupport.peerRouteMetadata(peerId),
         )
@@ -205,7 +198,7 @@ internal class MeshEngineHopTransportSupport(
             DiagnosticCode.HOP_SESSION_FAILED,
             severityForHopSessionFailedStage(stage),
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             reason,
             routingSupport.peerRouteMetadata(peerId, metadata = metadata),
         )
@@ -384,15 +377,7 @@ internal fun buildMeshEngineRuntimeHopTransportSupport(
     ensureHopSession: suspend (PeerId, MeshEngineHardRunToken) -> SessionEstablishmentOutcome,
     sendDirectWireFrame:
         suspend (PeerId, DirectWireFrame, String, TransportMode?) -> TransportSendResult,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineHopTransportSupport {
     return MeshEngineHopTransportSupport(
         localIdentity = localIdentity,

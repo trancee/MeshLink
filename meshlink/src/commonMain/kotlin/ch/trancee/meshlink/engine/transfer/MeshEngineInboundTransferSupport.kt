@@ -6,7 +6,9 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.MeshEngineSendEncryptedWireFrame
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.internal.inboundAckMetadata
 import ch.trancee.meshlink.engine.internal.inboundTransferChunkMetadata
 import ch.trancee.meshlink.engine.internal.inboundTransferChunkStage
@@ -17,20 +19,11 @@ import ch.trancee.meshlink.transfer.toTransferStartDescriptor
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class MeshEngineInboundTransferSupportCallbacks(
-    val sendEncryptedWireFrame:
-        suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    val sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     val deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
     val routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    val emitDiagnostic: MeshEngineEmitDiagnostic,
 )
 
 internal class MeshEngineInboundTransferSupport(
@@ -53,7 +46,7 @@ internal class MeshEngineInboundTransferSupport(
                 DiagnosticCode.SIZE_LIMIT_REJECTED,
                 DiagnosticSeverity.WARN,
                 "transfer.receive.start",
-                peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                peerId.diagnosticSuffix(),
                 DiagnosticReason.SIZE_LIMIT,
                 mapOf(
                     "transferId" to frame.transferId,
@@ -228,7 +221,7 @@ internal class MeshEngineInboundTransferSupport(
             DiagnosticCode.TRANSFER_PROGRESS,
             DiagnosticSeverity.DEBUG,
             stage,
-            peerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            peerId.diagnosticSuffix(),
             null,
             callbacks.routeMetadata(peerId, inboundTransferMetadata(session) + metadata),
         )
@@ -237,19 +230,11 @@ internal class MeshEngineInboundTransferSupport(
 
 internal fun buildMeshEngineRuntimeInboundTransferSupport(
     transferRegistry: MeshEngineTransferRegistry,
-    sendEncryptedWireFrame: suspend (PeerId, WireFrame, String, MeshEngineHardRunToken?) -> Boolean,
+    sendEncryptedWireFrame: MeshEngineSendEncryptedWireFrame,
     deliverInnerEnvelope:
         suspend (PeerId, PeerId, ByteArray, DeliveryPriority, MeshEngineHardRunToken) -> Unit,
     routeMetadata: suspend (PeerId, Map<String, String>) -> Map<String, String>,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineInboundTransferSupport {
     return MeshEngineInboundTransferSupport(
         transferRegistry = transferRegistry,

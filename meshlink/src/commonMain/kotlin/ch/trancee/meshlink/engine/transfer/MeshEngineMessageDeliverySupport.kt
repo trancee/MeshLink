@@ -10,7 +10,8 @@ import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeAwaitActiveResult
 import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.internal.DIAGNOSTIC_PEER_SUFFIX_LENGTH
+import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
+import ch.trancee.meshlink.engine.internal.diagnosticSuffix
 import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
@@ -25,15 +26,7 @@ internal class MeshEngineMessageDeliverySupport(
     private val mutableMessages: MutableSharedFlow<InboundMessage>,
     private val emitHopSessionFailed:
         suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
-    private val emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    private val emitDiagnostic: MeshEngineEmitDiagnostic,
 ) {
     suspend fun deliverInnerEnvelope(
         immediatePeerId: PeerId,
@@ -101,7 +94,7 @@ internal class MeshEngineMessageDeliverySupport(
                     DiagnosticCode.TRUST_FAILURE,
                     DiagnosticSeverity.ERROR,
                     "transport.data.open",
-                    envelope.senderPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+                    envelope.senderPeerId.diagnosticSuffix(),
                     DiagnosticReason.TRUST_FAILURE,
                     mapOf("cause" to exception::class.simpleName.orEmpty()),
                 )
@@ -127,7 +120,7 @@ internal class MeshEngineMessageDeliverySupport(
             DiagnosticCode.DELIVERY_SUCCEEDED,
             DiagnosticSeverity.INFO,
             "transport.data.deliver",
-            originPeerId.value.takeLast(DIAGNOSTIC_PEER_SUFFIX_LENGTH),
+            originPeerId.diagnosticSuffix(),
             null,
             mapOf(
                 "peerId" to originPeerId.value,
@@ -145,15 +138,7 @@ internal fun buildMeshEngineRuntimeMessageDeliverySupport(
     trustSupport: MeshEngineTrustSupport,
     mutableMessages: MutableSharedFlow<InboundMessage>,
     emitHopSessionFailed: suspend (PeerId, String, DiagnosticReason, Map<String, String>) -> Unit,
-    emitDiagnostic:
-        (
-            DiagnosticCode,
-            DiagnosticSeverity,
-            String,
-            String?,
-            DiagnosticReason?,
-            Map<String, String>,
-        ) -> Unit,
+    emitDiagnostic: MeshEngineEmitDiagnostic,
 ): MeshEngineMessageDeliverySupport {
     return MeshEngineMessageDeliverySupport(
         localIdentity = localIdentity,

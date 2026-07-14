@@ -6,13 +6,12 @@ import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.engine.handshake.MeshEngineSessionRegistry
-import ch.trancee.meshlink.engine.handshake.UNEXPECTED_FRAME_HEX_SNIPPET_BYTES
 import ch.trancee.meshlink.engine.internal.HopSession
+import ch.trancee.meshlink.engine.internal.unexpectedFramePrefixHex
 import ch.trancee.meshlink.engine.transfer.MeshEngineTransferSupport
 import ch.trancee.meshlink.engine.transport.ReplayedHopPayloadException
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.identity.hexContentEquals
-import ch.trancee.meshlink.identity.toHexString
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
@@ -113,10 +112,7 @@ internal class MeshEngineInboundSupport(
                         DiagnosticReason.DELIVERY_FAILURE,
                         mapOf(
                             "payloadBytes" to payload.size.toString(),
-                            "payloadPrefixHex" to
-                                payload
-                                    .copyOf(minOf(payload.size, UNEXPECTED_FRAME_HEX_SNIPPET_BYTES))
-                                    .toHexString(),
+                            "payloadPrefixHex" to payload.unexpectedFramePrefixHex(),
                         ),
                     )
                     return@getOrElse null
