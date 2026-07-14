@@ -191,6 +191,36 @@ internal fun BleTransportAdapter.launchAcceptLoop(serverSocket: BluetoothServerS
     }
 }
 
+/**
+ * Handles one decoded L2CAP frame: emitting an empty-frame diagnostic via [onEmpty] (only
+ * meaningfully populated when the caller decoded via [L2capFrameBuffer.appendDetailed]), consuming
+ * the frame if it is a control frame (keepalive or in-band [WireFrame.LinkIdentity]), or otherwise
+ * surfacing it as a [TransportEvent.FrameReceived]. Shared by both the debug-logging-on
+ * ([L2capFrameBuffer.appendDetailed]) and debug-logging-off ([L2capFrameBuffer.append]) decode
+ * paths in [registerConnectedSocket]'s read loop so the per-frame dispatch rules stay in one place
+ * regardless of which decode path produced [payload].
+ */
+private suspend fun BleTransportAdapter.dispatchDecodedL2capFrame(
+    link: L2capLink,
+    payload: ByteArray,
+    onEmpty: () -> Unit,
+): Unit {
+    when {
+        payload.isEmpty() -> onEmpty()
+        decodeIsKeepAlive(payload) -> Unit
+        else -> {
+            val claimedPeerId = decodeLinkIdentityPeerIdOrNull(payload)
+            if (claimedPeerId != null) {
+                bindL2capLinkIdentity(link = link, claimedPeerId = claimedPeerId)
+            } else {
+                mutableEvents.emit(
+                    TransportEvent.FrameReceived(peerId = link.peerHintId, payload = payload)
+                )
+            }
+        }
+    }
+}
+
 internal fun BleTransportAdapter.registerConnectedSocket(
     hintPeerId: PeerId,
     socket: BluetoothSocket,
@@ -250,30 +280,35 @@ internal fun BleTransportAdapter.registerConnectedSocket(
                 log(
                     "L2CAP read ${link.peerHintId.value.takeLast(6)} bytes=$read prefix=${readBuffer.copyOf(minOf(read, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
                 )
-                val appendResult =
-                    link.incomingFrames.appendDetailed(source = readBuffer, length = read)
-                appendResult.frames.forEachIndexed { frameIndex, payload ->
-                    val currentPeerId = link.peerHintId
-                    if (payload.isEmpty()) {
-                        logEmptyFrameObservation(
-                            peerId = currentPeerId,
-                            readBytes = read,
-                            appendResult = appendResult,
-                            observation = appendResult.observations.getOrNull(frameIndex),
-                        )
-                        return@forEachIndexed
+                // appendDetailed() unconditionally computes hex snippets and builds a
+                // DecodedFrameObservation per decoded frame, which is only ever consulted in the
+                // rare empty-payload diagnostic branch below -- paying for that on every single
+                // L2CAP read regardless of whether debug logging is even enabled works directly
+                // against the constitution's throughput/memory budgets for this hot path. Use the
+                // lean append() path (no diagnostics allocation) whenever debug logging is off,
+                // and only fall back to appendDetailed() when the detailed observation could
+                // actually be logged.
+                if (transportDebugLoggingEnabled) {
+                    val appendResult =
+                        link.incomingFrames.appendDetailed(source = readBuffer, length = read)
+                    appendResult.frames.forEachIndexed { frameIndex, payload ->
+                        dispatchDecodedL2capFrame(link = link, payload = payload) {
+                            logEmptyFrameObservation(
+                                peerId = link.peerHintId,
+                                readBytes = read,
+                                appendResult = appendResult,
+                                observation = appendResult.observations.getOrNull(frameIndex),
+                            )
+                        }
                     }
-                    if (decodeIsKeepAlive(payload)) {
-                        return@forEachIndexed
+                } else {
+                    val frames = link.incomingFrames.append(source = readBuffer, length = read)
+                    frames.forEach { payload ->
+                        // Debug logging is off, so there is no reader for the detailed per-frame
+                        // observation appendDetailed() would otherwise report -- do nothing extra
+                        // for the empty-frame case beyond skipping it.
+                        dispatchDecodedL2capFrame(link = link, payload = payload, onEmpty = {})
                     }
-                    val claimedPeerId = decodeLinkIdentityPeerIdOrNull(payload)
-                    if (claimedPeerId != null) {
-                        bindL2capLinkIdentity(link = link, claimedPeerId = claimedPeerId)
-                        return@forEachIndexed
-                    }
-                    mutableEvents.emit(
-                        TransportEvent.FrameReceived(peerId = currentPeerId, payload = payload)
-                    )
                 }
             }
         } catch (e: IOException) {
