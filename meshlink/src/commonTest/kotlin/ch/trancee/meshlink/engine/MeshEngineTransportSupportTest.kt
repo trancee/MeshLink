@@ -19,6 +19,7 @@ import ch.trancee.meshlink.engine.transport.MeshEngineTransportPeerState
 import ch.trancee.meshlink.engine.transport.MeshEngineTransportRoutingContext
 import ch.trancee.meshlink.engine.transport.MeshEngineTransportSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.TransportEvent

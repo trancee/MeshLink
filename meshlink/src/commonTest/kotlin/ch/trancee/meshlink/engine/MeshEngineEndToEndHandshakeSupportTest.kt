@@ -11,6 +11,7 @@ import ch.trancee.meshlink.engine.handshake.MeshEngineEndToEndHandshakeSupport
 import ch.trancee.meshlink.engine.handshake.MeshEngineEndToEndSessionRegistry
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys

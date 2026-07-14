@@ -2,6 +2,20 @@ package ch.trancee.meshlink.crypto
 
 import ch.trancee.meshlink.api.MeshLinkException
 
+/**
+ * Deterministic, non-cryptographic [CryptoProvider] stand-in used only by tests and benchmarks that
+ * need fast, reproducible "crypto" without exercising a real JCA/fallback implementation.
+ *
+ * This type lives in `commonTest`, not `commonMain`, on purpose: per issue #118, it was previously
+ * reachable from production `commonMain` defaults ([ch.trancee.meshlink.identity.LocalIdentity]'s
+ * `fromAppId`/`fromPeerId` test-identity factories, and transitively `MeshEngine.create`'s default
+ * `localIdentity` parameter) with no runtime or compile-time guard against a future integration
+ * path silently ending up on fake crypto. Moving it here makes that impossible by construction --
+ * `commonMain` production code cannot depend on `commonTest` types at all, so this object is now
+ * unreachable from any shipped code path rather than merely unused by convention. See
+ * `ch.trancee.meshlink.identity.LocalIdentityTestFactories` (same source set) for the
+ * `fromAppId`/`fromPeerId` factories that were moved alongside it for the same reason.
+ */
 internal object PlaceholderCryptoProvider : CryptoProvider {
     private var nonceSeed: Int = INITIAL_NONCE_SEED
 

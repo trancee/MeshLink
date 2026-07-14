@@ -15,6 +15,7 @@ import ch.trancee.meshlink.engine.handshake.MeshEngineSessionSupport
 import ch.trancee.meshlink.engine.internal.HopSession
 import ch.trancee.meshlink.engine.internal.SessionEstablishmentOutcome
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.transport.TransportSendResult
 import kotlin.test.Test
 import kotlin.test.assertContentEquals

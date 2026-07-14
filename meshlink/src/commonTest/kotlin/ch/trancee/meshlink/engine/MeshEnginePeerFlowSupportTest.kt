@@ -13,6 +13,7 @@ import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerFlowConfig
 import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerFlowContext
 import ch.trancee.meshlink.engine.lifecycle.MeshEnginePeerFlowSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.trust.TrustPublicKeys
 import ch.trancee.meshlink.trust.TrustRecord

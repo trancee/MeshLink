@@ -12,6 +12,7 @@ import ch.trancee.meshlink.engine.transfer.MeshEngineMessageDeliverySupport
 import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys

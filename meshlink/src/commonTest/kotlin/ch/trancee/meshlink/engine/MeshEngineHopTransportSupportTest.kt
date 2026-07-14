@@ -15,6 +15,7 @@ import ch.trancee.meshlink.engine.transport.HopFrameFormatException
 import ch.trancee.meshlink.engine.transport.MeshEngineHopTransportSupport
 import ch.trancee.meshlink.engine.transport.ReplayedHopPayloadException
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult

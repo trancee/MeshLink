@@ -5,6 +5,8 @@ import ch.trancee.meshlink.config.RegulatoryRegion
 import ch.trancee.meshlink.config.meshLinkConfig
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.engine.assembly.MeshEngine
+import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.test.MeshTestHarness
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
@@ -165,6 +167,7 @@ class MeshLinkContractTest {
         val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "create.meshlink" },
+                localIdentity = LocalIdentity.fromAppId("create.meshlink"),
                 bleTransport = transport,
                 diagnosticSink = diagnosticSink,
             )
@@ -183,7 +186,10 @@ class MeshLinkContractTest {
         runBlocking<Unit> {
             // Arrange
             val meshLink =
-                MeshEngine.create(config = meshLinkConfig { appId = "lifecycle.meshlink" })
+                MeshEngine.create(
+                    config = meshLinkConfig { appId = "lifecycle.meshlink" },
+                    localIdentity = LocalIdentity.fromAppId("lifecycle.meshlink"),
+                )
 
             // Act
             val stopFromConfigured = meshLink.stop()
@@ -220,7 +226,10 @@ class MeshLinkContractTest {
         runBlocking<Unit> {
             // Arrange
             val meshLink =
-                MeshEngine.create(config = meshLinkConfig { appId = "send-invalid.meshlink" })
+                MeshEngine.create(
+                    config = meshLinkConfig { appId = "send-invalid.meshlink" },
+                    localIdentity = LocalIdentity.fromAppId("send-invalid.meshlink"),
+                )
             meshLink.start()
             meshLink.pause()
 
@@ -240,6 +249,7 @@ class MeshLinkContractTest {
         val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "permission.meshlink" },
+                localIdentity = LocalIdentity.fromAppId("permission.meshlink"),
                 bleTransport =
                     object : BleTransport {
                         override val events: Flow<TransportEvent> = emptyFlow()
@@ -272,6 +282,7 @@ class MeshLinkContractTest {
         val meshLink =
             MeshEngine.create(
                 config = meshLinkConfig { appId = "failing.meshlink" },
+                localIdentity = LocalIdentity.fromAppId("failing.meshlink"),
                 bleTransport =
                     object : BleTransport {
                         override val events: Flow<TransportEvent> = emptyFlow()

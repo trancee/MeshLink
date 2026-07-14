@@ -9,6 +9,7 @@ import ch.trancee.meshlink.engine.handshake.MeshEngineEndToEndSessionRegistry
 import ch.trancee.meshlink.engine.handshake.PendingEndToEndInitiatorHandshake
 import ch.trancee.meshlink.engine.handshake.PendingEndToEndResponderHandshake
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test
 import kotlin.test.assertEquals

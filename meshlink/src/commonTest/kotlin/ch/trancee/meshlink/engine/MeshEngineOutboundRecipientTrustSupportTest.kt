@@ -5,6 +5,7 @@ import ch.trancee.meshlink.engine.handshake.EndToEndSession
 import ch.trancee.meshlink.engine.handshake.EndToEndSessionEstablishmentOutcome
 import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundRecipientTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.identity.fromAppId
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.trust.TrustPublicKeys
