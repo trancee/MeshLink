@@ -1,8 +1,13 @@
 package ch.trancee.meshlink.transport
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 
 class L2capReconnectGuardTest {
     @Test
@@ -84,5 +89,53 @@ class L2capReconnectGuardTest {
 
         // Assert
         assertTrue(guard.shouldRetry(hintPeerIdValue = "peer-123", reason = "socket closed"))
+    }
+
+    @Test
+    fun `concurrent callers across different peers never corrupt or drop each other's retry budget`() {
+        runBlocking<Unit> {
+            // Arrange -- this is the correctness property that must survive the
+            // linkedMapOf-to-AtomicReference-compare-and-swap change in L2capReconnectGuard:
+            // concurrent connect/disconnect paths for many different peers, racing on
+            // Dispatchers.Default, must each observe exactly maxAttempts approved retries for
+            // their own hintPeerIdValue -- no peer's budget may be corrupted, lost, or leaked into
+            // another peer's count by a lost update under concurrent map access.
+            val guard = L2capReconnectGuard()
+            val peerCount = 64
+            val attemptsPerPeer = 3
+
+            // Act: each peer's attempts run concurrently with every other peer's attempts (and,
+            // within a peer, sequentially -- shouldRetry's own return value is the retry-budget
+            // signal, so this models the guard being invoked concurrently from unrelated peers'
+            // connect-failure paths, which is the actual production concurrency shape).
+            val approvedCountsByPeer =
+                (1..peerCount)
+                    .map { peerIndex ->
+                        async(Dispatchers.Default) {
+                            val hintPeerIdValue = "peer-$peerIndex"
+                            val approvedCount =
+                                (1..attemptsPerPeer + 1).count { attempt ->
+                                    guard.shouldRetry(
+                                        hintPeerIdValue = hintPeerIdValue,
+                                        reason = "socket closed",
+                                    )
+                                }
+                            hintPeerIdValue to approvedCount
+                        }
+                    }
+                    .awaitAll()
+                    .toMap()
+
+            // Assert: every peer independently observed exactly attemptsPerPeer approved retries
+            // (the (attemptsPerPeer + 1)-th call is always denied), regardless of how many other
+            // peers were racing against the same guard instance at the same time.
+            for (peerIndex in 1..peerCount) {
+                assertEquals(
+                    attemptsPerPeer,
+                    approvedCountsByPeer.getValue("peer-$peerIndex"),
+                    "peer-$peerIndex should have exactly $attemptsPerPeer approved retries",
+                )
+            }
+        }
     }
 }
