@@ -3,25 +3,18 @@ package ch.trancee.meshlink.platform.android.crypto
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.crypto.CryptoProvider
 import ch.trancee.meshlink.crypto.Ed25519KeyPair
+import ch.trancee.meshlink.crypto.JcaSymmetricPrimitives
 import ch.trancee.meshlink.crypto.X25519KeyPair
 import ch.trancee.meshlink.crypto.requireValidX25519SharedSecret
 import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
-import java.security.MessageDigest
-import java.security.SecureRandom
 import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
-import javax.crypto.Cipher
-import javax.crypto.Mac
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 internal class JcaCryptoProvider : CryptoProvider {
-    private val secureRandom: SecureRandom = SecureRandom()
-    private val sha256Digests = threadLocal { MessageDigest.getInstance("SHA-256") }
-    private val hmacSha256Macs = threadLocal { Mac.getInstance("HmacSHA256") }
+    private val symmetricPrimitives = JcaSymmetricPrimitives()
     private val xdhKeyPairGenerators = threadLocal(::xdhKeyPairGenerator)
     private val xdhKeyAgreements = threadLocal(::xdhKeyAgreement)
     private val xdhKeyFactories = threadLocal(::xdhKeyFactory)
@@ -29,25 +22,17 @@ internal class JcaCryptoProvider : CryptoProvider {
     private val ed25519KeyFactories = threadLocal { KeyFactory.getInstance("Ed25519") }
     private val ed25519Signatures = threadLocal { Signature.getInstance("Ed25519") }
     private val ed25519Verifiers = threadLocal { Signature.getInstance("Ed25519") }
-    private val chacha20Poly1305EncryptCiphers = threadLocal {
-        Cipher.getInstance("ChaCha20-Poly1305")
-    }
-    private val chacha20Poly1305DecryptCiphers = threadLocal {
-        Cipher.getInstance("ChaCha20-Poly1305")
-    }
 
     override fun randomBytes(size: Int): ByteArray {
-        return ByteArray(size).also(secureRandom::nextBytes)
+        return symmetricPrimitives.randomBytes(size)
     }
 
     override fun sha256(input: ByteArray): ByteArray {
-        return sha256Digests.value().digest(input)
+        return symmetricPrimitives.sha256(input)
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = hmacSha256Macs.value()
-        mac.init(SecretKeySpec(key, "HmacSHA256"))
-        return mac.doFinal(data)
+        return symmetricPrimitives.hmacSha256(key, data)
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
@@ -104,10 +89,12 @@ internal class JcaCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        val cipher = chacha20Poly1305EncryptCiphers.value()
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
-        cipher.updateAAD(aad)
-        return cipher.doFinal(plaintext)
+        return symmetricPrimitives.chacha20Poly1305Seal(
+            key = key,
+            nonce = nonce,
+            aad = aad,
+            plaintext = plaintext,
+        )
     }
 
     override fun chacha20Poly1305Open(
@@ -116,10 +103,12 @@ internal class JcaCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        val cipher = chacha20Poly1305DecryptCiphers.value()
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
-        cipher.updateAAD(aad)
-        return cipher.doFinal(ciphertext)
+        return symmetricPrimitives.chacha20Poly1305Open(
+            key = key,
+            nonce = nonce,
+            aad = aad,
+            ciphertext = ciphertext,
+        )
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
