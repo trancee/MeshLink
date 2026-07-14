@@ -3,6 +3,7 @@ package ch.trancee.meshlink.platform.android
 import android.bluetooth.BluetoothDevice
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.identity.toBytes
+import ch.trancee.meshlink.platform.android.gatt.resolveIncomingGattFrameDisposition
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode

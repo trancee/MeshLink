@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.crypto
 
-import ch.trancee.meshlink.platform.android.AndroidFallbackCryptoProvider
+import ch.trancee.meshlink.platform.android.crypto.AndroidFallbackCryptoProvider
 
 /**
  * Exercises the pure-Kotlin [AndroidFallbackCryptoProvider] (rather than `null`/the platform JCA

@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.crypto
 
-import ch.trancee.meshlink.platform.android.JcaCryptoProvider
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProvider
 import kotlin.test.Test
 
 /**

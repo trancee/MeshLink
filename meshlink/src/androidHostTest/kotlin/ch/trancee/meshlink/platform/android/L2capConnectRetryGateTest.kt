@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.l2cap.shouldAttemptL2capConnectRetry
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

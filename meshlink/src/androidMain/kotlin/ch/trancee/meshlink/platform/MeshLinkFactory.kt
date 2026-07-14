@@ -8,10 +8,10 @@ import ch.trancee.meshlink.api.android.AndroidBootstrapContextCarrier
 import ch.trancee.meshlink.api.android.AndroidMeshLinkBootstrap
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.engine.assembly.MeshEngine
-import ch.trancee.meshlink.platform.android.AndroidBatteryMonitor
 import ch.trancee.meshlink.platform.android.BleTransportAdapter
-import ch.trancee.meshlink.platform.android.JcaCryptoProviderFactory
-import ch.trancee.meshlink.platform.android.PreferencesSecureStorage
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProviderFactory
+import ch.trancee.meshlink.platform.android.power.AndroidBatteryMonitor
+import ch.trancee.meshlink.platform.android.storage.PreferencesSecureStorage
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 
 private const val ANDROID_BOOTSTRAP_REQUIRED_MESSAGE =

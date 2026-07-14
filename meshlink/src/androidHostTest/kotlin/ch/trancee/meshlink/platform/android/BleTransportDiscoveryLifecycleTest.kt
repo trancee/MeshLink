@@ -3,6 +3,12 @@ package ch.trancee.meshlink.platform.android
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.ScanCallback
 import ch.trancee.meshlink.config.RegulatoryRegion
+import ch.trancee.meshlink.platform.android.scan.BleTransportDiscoveryHardware
+import ch.trancee.meshlink.platform.android.scan.BleTransportDiscoveryLifecycle
+import ch.trancee.meshlink.platform.android.scan.MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION
+import ch.trancee.meshlink.platform.android.scan.SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS
+import ch.trancee.meshlink.platform.android.scan.advertiseErrorCodeName
+import ch.trancee.meshlink.platform.android.scan.scanErrorCodeName
 import ch.trancee.meshlink.power.PowerPolicy
 import ch.trancee.meshlink.power.PowerPolicyProfile
 import ch.trancee.meshlink.power.PowerTier

@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothStatusCodes
+import ch.trancee.meshlink.platform.android.gatt.writeGattCharacteristic
+import ch.trancee.meshlink.platform.android.gatt.writeGattDescriptor
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

@@ -1,5 +1,27 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.gatt.BluetoothGattNotifyServer
+import ch.trancee.meshlink.platform.android.l2cap.L2capSocketFactory
+import ch.trancee.meshlink.platform.android.l2cap.launchAcceptLoop
+import ch.trancee.meshlink.platform.android.l2cap.stopTransports
+import ch.trancee.meshlink.platform.android.scan.AndroidDiscoveryAdvertisementConfig
+import ch.trancee.meshlink.platform.android.scan.BleTransportDiscoveryHardware
+import ch.trancee.meshlink.platform.android.scan.androidPermissionDenied
+import ch.trancee.meshlink.platform.android.scan.buildAdvertiseData
+import ch.trancee.meshlink.platform.android.scan.buildAdvertiseSettings
+import ch.trancee.meshlink.platform.android.scan.buildScanFilters
+import ch.trancee.meshlink.platform.android.scan.buildScanSettings
+import ch.trancee.meshlink.platform.android.scan.ensurePermissionsGranted
+import ch.trancee.meshlink.platform.android.scan.isScreenInteractive
+import ch.trancee.meshlink.platform.android.scan.refreshDiscoveryState
+import ch.trancee.meshlink.platform.android.scan.registerBackgroundScanReceiver
+import ch.trancee.meshlink.platform.android.scan.registerDynamicReceiver
+import ch.trancee.meshlink.platform.android.scan.registerScreenStateReceiver
+import ch.trancee.meshlink.platform.android.scan.startBackgroundScan
+import ch.trancee.meshlink.platform.android.scan.stopBackgroundScan
+import ch.trancee.meshlink.platform.android.scan.supportsL2capClientSockets
+import ch.trancee.meshlink.platform.android.scan.supportsL2capServerSockets
+import ch.trancee.meshlink.platform.android.scan.unregisterDynamicReceiverQuietly
 import ch.trancee.meshlink.power.PowerPolicy
 
 internal fun advertisedDiscoveryL2capPsm(

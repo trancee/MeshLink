@@ -1,6 +1,9 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.platform.android.gatt.GattSideLinkClient
+import ch.trancee.meshlink.platform.android.gatt.GattSideLinkCoordinator
+import ch.trancee.meshlink.platform.android.gatt.GattSideLinkCoordinatorDependencies
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test

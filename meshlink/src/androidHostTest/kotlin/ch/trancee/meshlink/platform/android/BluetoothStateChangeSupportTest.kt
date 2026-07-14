@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothAdapter
+import ch.trancee.meshlink.platform.android.scan.BLUETOOTH_STATE_CHANGE_RESTART_DEBOUNCE_MILLIS
+import ch.trancee.meshlink.platform.android.scan.BluetoothStateChangeDebouncer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

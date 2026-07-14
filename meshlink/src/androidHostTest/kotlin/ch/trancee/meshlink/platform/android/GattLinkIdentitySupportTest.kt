@@ -1,6 +1,9 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.platform.android.gatt.IncomingGattFrameDisposition
+import ch.trancee.meshlink.platform.android.gatt.resolveIncomingGattFrameDisposition
+import ch.trancee.meshlink.platform.android.l2cap.L2capFrameBuffer
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.test.Test

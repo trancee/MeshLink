@@ -2,6 +2,10 @@ package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
+import ch.trancee.meshlink.platform.android.gatt.PreferredGattSendClient
+import ch.trancee.meshlink.platform.android.gatt.PreferredGattSendContext
+import ch.trancee.meshlink.platform.android.gatt.PreferredGattSendDependencies
+import ch.trancee.meshlink.platform.android.gatt.sendViaPreferredGattSideLinkOrNull
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode

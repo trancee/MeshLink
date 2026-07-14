@@ -1,5 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyWriteContext
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyWriteDependencies
+import ch.trancee.meshlink.platform.android.gatt.writeViaGattNotify
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

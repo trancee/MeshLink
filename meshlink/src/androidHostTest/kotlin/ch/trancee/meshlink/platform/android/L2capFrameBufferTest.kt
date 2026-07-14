@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.MeshLinkException
+import ch.trancee.meshlink.platform.android.l2cap.L2capFrameBuffer
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
