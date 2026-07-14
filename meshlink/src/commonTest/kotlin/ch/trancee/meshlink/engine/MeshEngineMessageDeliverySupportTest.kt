@@ -7,6 +7,10 @@ import ch.trancee.meshlink.crypto.MessageSealer
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
+import ch.trancee.meshlink.engine.transfer.MeshEngineMessageDeliverySupport
+import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
+import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore

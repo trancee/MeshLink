@@ -3,7 +3,7 @@ package ch.trancee.meshlink.platform
 import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.MeshLinkBootstrap
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.platform.ios.BleTransportAdapter
 import ch.trancee.meshlink.platform.ios.BridgeCryptoProvider
 import ch.trancee.meshlink.platform.ios.DefaultsSecureStorage

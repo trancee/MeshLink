@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.l2cap.L2capSocketFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

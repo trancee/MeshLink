@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.platform.android.l2cap.hasPendingConnect
+import ch.trancee.meshlink.platform.android.l2cap.promoteTemporaryLink
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test

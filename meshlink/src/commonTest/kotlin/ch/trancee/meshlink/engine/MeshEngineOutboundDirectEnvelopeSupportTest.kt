@@ -1,6 +1,11 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.handshake.EndToEndSessionEstablishmentOutcome
+import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundDirectEnvelopePreparation
+import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundDirectEnvelopeSupport
+import ch.trancee.meshlink.engine.transfer.MeshEngineOutboundRecipientTrustSupport
+import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore

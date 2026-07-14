@@ -1,8 +1,8 @@
 package ch.trancee.meshlink.crypto
 
 import ch.trancee.meshlink.api.MeshLinkException
-import ch.trancee.meshlink.platform.android.JcaCapabilityProbe
-import ch.trancee.meshlink.platform.android.JcaCryptoProviderFactory
+import ch.trancee.meshlink.platform.android.crypto.JcaCapabilityProbe
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProviderFactory
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 

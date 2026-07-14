@@ -3,6 +3,7 @@ package ch.trancee.meshlink.engine
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.test.InMemorySecureStorage
 import ch.trancee.meshlink.trust.TofuTrustStore

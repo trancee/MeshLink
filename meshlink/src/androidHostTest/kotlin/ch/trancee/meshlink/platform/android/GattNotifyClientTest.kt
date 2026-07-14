@@ -2,6 +2,13 @@ package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothProfile
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyCharacteristicResolution
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyClient
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyEnableNotificationsResult
+import ch.trancee.meshlink.platform.android.gatt.GattNotifySession
+import ch.trancee.meshlink.platform.android.gatt.GattNotifySessionFactory
+import ch.trancee.meshlink.platform.android.gatt.GattNotifySessionListener
+import ch.trancee.meshlink.platform.android.l2cap.L2capFrameBuffer
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame

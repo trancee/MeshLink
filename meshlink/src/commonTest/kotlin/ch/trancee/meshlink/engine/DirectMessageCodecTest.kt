@@ -2,6 +2,8 @@ package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.transport.DirectMessageEnvelope
+import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

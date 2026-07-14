@@ -4,6 +4,8 @@ import android.os.Build
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.trancee.meshlink.crypto.CryptoProvider
+import ch.trancee.meshlink.platform.android.crypto.JcaCapabilityProbe
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProviderFactory
 import java.util.Locale
 import kotlin.test.Test
 import org.junit.runner.RunWith

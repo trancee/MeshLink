@@ -2,6 +2,7 @@ package ch.trancee.meshlink.platform.android
 
 import android.app.Application
 import android.content.SharedPreferences
+import ch.trancee.meshlink.platform.android.storage.PreferencesSecureStorage
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

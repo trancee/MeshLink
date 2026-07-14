@@ -8,6 +8,11 @@ import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticReason
 import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
+import ch.trancee.meshlink.engine.assembly.MeshEngineCompatibilityRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.MeshEnginePublishedRuntimeSurface
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeAwaitActiveResult
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeInterruption
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeSurface
 import ch.trancee.meshlink.test.RecordingDiagnosticSink
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,6 +1,6 @@
 package ch.trancee.meshlink.platform.ios
 
-import ch.trancee.meshlink.engine.DirectWireFrame
+import ch.trancee.meshlink.engine.transport.DirectWireFrame
 
 internal class L2capFrameTelemetry
 internal constructor(

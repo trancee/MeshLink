@@ -1,5 +1,9 @@
 package ch.trancee.meshlink.engine
 
+import ch.trancee.meshlink.engine.transport.DirectWireFrame
+import ch.trancee.meshlink.engine.transport.gattDataBearerDecisionLogLine
+import ch.trancee.meshlink.engine.transport.gattDataBearerResultLogLine
+import ch.trancee.meshlink.engine.transport.resolveGattDataBearerMode
 import ch.trancee.meshlink.transport.GattDataBearerMode
 import kotlin.test.Test
 import kotlin.test.assertEquals

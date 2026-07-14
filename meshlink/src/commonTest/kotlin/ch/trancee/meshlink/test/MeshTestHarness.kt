@@ -4,7 +4,7 @@ import ch.trancee.meshlink.api.MeshLink
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.MeshLinkConfig
 import ch.trancee.meshlink.config.meshLinkConfig
-import ch.trancee.meshlink.engine.MeshEngine
+import ch.trancee.meshlink.engine.assembly.MeshEngine
 import ch.trancee.meshlink.identity.LocalIdentity
 import ch.trancee.meshlink.transport.TransportMode
 import kotlinx.coroutines.CoroutineScope

@@ -1,5 +1,10 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.gatt.closedGattNotifyLifecycle
+import ch.trancee.meshlink.platform.android.gatt.connectedGattNotifyLifecycle
+import ch.trancee.meshlink.platform.android.gatt.descriptorWrittenGattNotifyLifecycle
+import ch.trancee.meshlink.platform.android.gatt.mtuChangedGattNotifyLifecycle
+import ch.trancee.meshlink.platform.android.gatt.startedGattNotifyLifecycle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

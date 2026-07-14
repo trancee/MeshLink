@@ -2,6 +2,9 @@ package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothSocketException
 import android.os.Build
+import ch.trancee.meshlink.platform.android.l2cap.isRetryableL2capConnectFailure
+import ch.trancee.meshlink.platform.android.l2cap.isTerminalL2capErrorCode
+import ch.trancee.meshlink.platform.android.l2cap.l2capConnectFailureErrorCode
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertFalse

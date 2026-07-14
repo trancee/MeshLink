@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.api.PeerId
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
+import ch.trancee.meshlink.engine.transport.MeshEnginePlatformBridge
 import ch.trancee.meshlink.platform.PlatformPermissionDeniedException
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.transport.BleTransport

@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.platform.android
 
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyCallbackRelay
+import ch.trancee.meshlink.platform.android.gatt.GattNotifySessionListener
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

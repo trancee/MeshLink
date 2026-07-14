@@ -4,6 +4,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanSettings
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
+import ch.trancee.meshlink.platform.android.power.PowerMonitor
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.power.PowerTier
 import ch.trancee.meshlink.transport.BlePowerMode

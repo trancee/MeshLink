@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.MeshEngineHardRunToken
+import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
 import ch.trancee.meshlink.wire.WireFrame
 
 internal data class InboundChunkAcceptance(

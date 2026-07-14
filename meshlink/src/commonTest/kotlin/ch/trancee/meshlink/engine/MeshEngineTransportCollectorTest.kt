@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.engine
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.engine.transport.MeshEngineTransportCollector
 import ch.trancee.meshlink.transport.TransportEvent
 import ch.trancee.meshlink.transport.TransportMode
 import kotlin.test.Test

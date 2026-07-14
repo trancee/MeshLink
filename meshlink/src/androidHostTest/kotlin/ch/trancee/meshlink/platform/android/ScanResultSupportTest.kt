@@ -1,6 +1,10 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.identity.toHexString
+import ch.trancee.meshlink.platform.android.scan.parseDiscoveryScanResultOrNull
+import ch.trancee.meshlink.platform.android.scan.shouldConnectAfterDiscovery
+import ch.trancee.meshlink.platform.android.scan.supportsL2capClientSockets
+import ch.trancee.meshlink.platform.android.scan.supportsL2capServerSockets
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import ch.trancee.meshlink.transport.BleDiscoveryPayload
 import ch.trancee.meshlink.transport.BleDiscoveryPlatformFamily

@@ -1,6 +1,10 @@
 package ch.trancee.meshlink.platform.android
 
 import ch.trancee.meshlink.api.PeerId
+import ch.trancee.meshlink.platform.android.l2cap.L2capSendContext
+import ch.trancee.meshlink.platform.android.l2cap.L2capSendDependencies
+import ch.trancee.meshlink.platform.android.l2cap.L2capSendLink
+import ch.trancee.meshlink.platform.android.l2cap.sendViaL2capWhenReady
 import ch.trancee.meshlink.transport.OutboundFrame
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult

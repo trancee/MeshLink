@@ -1,8 +1,8 @@
 package ch.trancee.meshlink.api
 
 import ch.trancee.meshlink.config.MeshLinkConfig
-import ch.trancee.meshlink.engine.MeshEngine
-import ch.trancee.meshlink.platform.android.JcaCryptoProviderFactory
+import ch.trancee.meshlink.engine.assembly.MeshEngine
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProviderFactory
 import ch.trancee.meshlink.platform.loadOrCreateLocalIdentityBlocking
 import ch.trancee.meshlink.storage.InMemorySecureStorage
 

@@ -1,10 +1,10 @@
 package ch.trancee.meshlink.transfer
 
 import ch.trancee.meshlink.api.PeerId
-import ch.trancee.meshlink.engine.MeshEngineHardRunToken
-import ch.trancee.meshlink.engine.MeshEngineRuntimeGate
-import ch.trancee.meshlink.engine.MeshEngineRuntimeTimedWaitResult
-import ch.trancee.meshlink.engine.waitWithRuntimeGate
+import ch.trancee.meshlink.engine.assembly.MeshEngineHardRunToken
+import ch.trancee.meshlink.engine.assembly.MeshEngineRuntimeGate
+import ch.trancee.meshlink.engine.lifecycle.MeshEngineRuntimeTimedWaitResult
+import ch.trancee.meshlink.engine.lifecycle.waitWithRuntimeGate
 import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration
 import kotlin.time.TimeSource

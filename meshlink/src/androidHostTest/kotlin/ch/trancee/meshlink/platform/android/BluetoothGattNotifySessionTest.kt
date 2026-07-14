@@ -2,6 +2,13 @@ package ch.trancee.meshlink.platform.android
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.os.Build
+import ch.trancee.meshlink.platform.android.gatt.BluetoothGattNotifySession
+import ch.trancee.meshlink.platform.android.gatt.GattCharacteristicAdapter
+import ch.trancee.meshlink.platform.android.gatt.GattConnectionAdapter
+import ch.trancee.meshlink.platform.android.gatt.GattDescriptorAdapter
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyCharacteristicResolution
+import ch.trancee.meshlink.platform.android.gatt.GattNotifyEnableNotificationsResult
+import ch.trancee.meshlink.platform.android.gatt.GattServiceAdapter
 import ch.trancee.meshlink.transport.BleDiscoveryContract
 import kotlin.test.Test
 import kotlin.test.assertContentEquals

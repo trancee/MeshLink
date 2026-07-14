@@ -2,6 +2,9 @@ package ch.trancee.meshlink.platform.android
 
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.trancee.meshlink.platform.android.crypto.AndroidFallbackCryptoProvider
+import ch.trancee.meshlink.platform.android.crypto.JcaCapabilityProbe
+import ch.trancee.meshlink.platform.android.crypto.JcaCryptoProviderFactory
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
