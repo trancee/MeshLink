@@ -4,20 +4,20 @@
 
 Implemented. This document explains the design of the per-hop transport
 session's nonce/sequence-number scheme in
-[`MeshEngineHopTransportSupport.kt`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineHopTransportSupport.kt)
-and [`HopSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineInternalModels.kt),
+[`MeshEngineHopTransportSupport.kt`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/transport/MeshEngineHopTransportSupport.kt)
+and [`HopSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/internal/MeshEngineInternalModels.kt),
 the vulnerability it replaces, the security properties it provides, and the
 risks that come with the new design and how they are mitigated.
 
 ## Background: what a `HopSession` is
 
-A [`HopSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineInternalModels.kt)
+A [`HopSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/internal/MeshEngineInternalModels.kt)
 is a single-hop (directly connected peer) transport-layer session, established
 by a direct Noise XX handshake between two adjacent mesh peers. It carries a
 symmetric `sendKey`/`receiveKey` pair, and every `DirectWireFrame.Data` frame
 sent or received on the connection is individually sealed with
 ChaCha20-Poly1305 under that session's keys. This is distinct from an
-[`EndToEndSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/MeshEngineEndToEndHandshakeModels.kt),
+[`EndToEndSession`](../../meshlink/src/commonMain/kotlin/ch/trancee/meshlink/engine/handshake/MeshEngineEndToEndHandshakeModels.kt),
 which stays valid across multiple hops; this document covers only the hop
 (single physical/direct connection) layer. `EndToEndSession` has an
 analogous, independently-incrementing `sendNonce`/`receiveNonce` pair that was
