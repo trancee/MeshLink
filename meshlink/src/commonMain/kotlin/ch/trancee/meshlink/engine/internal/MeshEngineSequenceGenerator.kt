@@ -1,14 +1,21 @@
 package ch.trancee.meshlink.engine.internal
 
 import ch.trancee.meshlink.identity.LocalIdentity
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.fetchAndIncrement
 
+@OptIn(ExperimentalAtomicApi::class)
 internal class MeshEngineSequenceGenerator(
     private val localIdentity: LocalIdentity,
-    private var nextSequenceNumber: Long = 1L,
+    initialSequenceNumber: Long = 1L,
 ) {
-    private val sequenceMutex = Mutex()
+    // An AtomicLong increment has no suspension point, unlike the previous Mutex.withLock, so
+    // concurrent outbound message/transfer/handshake-id creation no longer serializes on a
+    // coroutine-level lock just to bump a counter -- fetchAndIncrement is still fully correct
+    // under concurrent access from multiple coroutines (e.g. Dispatchers.Default), the same
+    // concurrency guarantee the Mutex previously provided.
+    private val nextSequenceNumber = AtomicLong(initialSequenceNumber)
 
     suspend fun createMessageId(): String {
         val current = nextSequence()
@@ -25,11 +32,7 @@ internal class MeshEngineSequenceGenerator(
         return "e2e-handshake-${localIdentity.peerId.diagnosticSuffix()}-$current"
     }
 
-    private suspend fun nextSequence(): Long {
-        return sequenceMutex.withLock {
-            val current = nextSequenceNumber
-            nextSequenceNumber += 1L
-            current
-        }
+    private fun nextSequence(): Long {
+        return nextSequenceNumber.fetchAndIncrement()
     }
 }

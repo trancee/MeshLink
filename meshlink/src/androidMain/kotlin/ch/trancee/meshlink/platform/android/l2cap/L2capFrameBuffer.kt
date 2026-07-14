@@ -3,21 +3,64 @@ package ch.trancee.meshlink.platform.android.l2cap
 import ch.trancee.meshlink.api.MeshLinkException
 import ch.trancee.meshlink.identity.toHexString
 
-internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX_FRAME_SIZE_BYTES) {
+internal const val DEFAULT_L2CAP_MAX_FRAME_SIZE_BYTES: Int = 128 * 1024
+private const val LENGTH_PREFIX_SIZE_BYTES: Int = 4
+private const val INITIAL_CAPACITY_BYTES: Int = 1024
+private const val HEX_SNIPPET_BYTES: Int = 16
+private const val BYTE_MASK: Int = 0xFF
+private const val BITS_PER_BYTE: Int = 8
+private const val SHIFT_1_BYTE: Int = BITS_PER_BYTE
+private const val SHIFT_2_BYTES: Int = BITS_PER_BYTE * 2
+private const val SHIFT_3_BYTES: Int = BITS_PER_BYTE * 3
+private const val BYTE_INDEX_1: Int = 1
+private const val BYTE_INDEX_2: Int = 2
+private const val BYTE_INDEX_3: Int = 3
+
+private fun writeIntLittleEndian(target: ByteArray, offset: Int, value: Int): Unit {
+    target[offset] = (value and BYTE_MASK).toByte()
+    target[offset + BYTE_INDEX_1] = ((value shr SHIFT_1_BYTE) and BYTE_MASK).toByte()
+    target[offset + BYTE_INDEX_2] = ((value shr SHIFT_2_BYTES) and BYTE_MASK).toByte()
+    target[offset + BYTE_INDEX_3] = ((value shr SHIFT_3_BYTES) and BYTE_MASK).toByte()
+}
+
+private fun readIntLittleEndian(source: ByteArray, offset: Int): Int {
+    return (source[offset].toInt() and BYTE_MASK) or
+        ((source[offset + BYTE_INDEX_1].toInt() and BYTE_MASK) shl SHIFT_1_BYTE) or
+        ((source[offset + BYTE_INDEX_2].toInt() and BYTE_MASK) shl SHIFT_2_BYTES) or
+        ((source[offset + BYTE_INDEX_3].toInt() and BYTE_MASK) shl SHIFT_3_BYTES)
+}
+
+/**
+ * Length-prefixes [frame] for the L2CAP wire framing without allocating an [L2capFrameBuffer]
+ * instance -- this is the hot outbound-write path (every single L2CAP write goes through it), and
+ * framing is a pure function of [frame] and [maxFrameSizeBytes] with no buffered read state
+ * involved, so there is nothing an [L2capFrameBuffer] instance provides here beyond the throwaway
+ * cost of its eagerly-allocated 1 KB internal buffer.
+ */
+internal fun encodeL2capFrame(
+    frame: ByteArray,
+    maxFrameSizeBytes: Int = DEFAULT_L2CAP_MAX_FRAME_SIZE_BYTES,
+): ByteArray {
+    if (frame.size > maxFrameSizeBytes) {
+        throw MeshLinkException.TransportFailure(
+            "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
+        )
+    }
+    return ByteArray(LENGTH_PREFIX_SIZE_BYTES + frame.size).also { encoded ->
+        writeIntLittleEndian(encoded, 0, frame.size)
+        frame.copyInto(encoded, destinationOffset = LENGTH_PREFIX_SIZE_BYTES)
+    }
+}
+
+internal class L2capFrameBuffer(
+    private val maxFrameSizeBytes: Int = DEFAULT_L2CAP_MAX_FRAME_SIZE_BYTES
+) {
     private var buffer: ByteArray = ByteArray(INITIAL_CAPACITY_BYTES)
     private var size: Int = 0
     private var readOffset: Int = 0
 
     internal fun encode(frame: ByteArray): ByteArray {
-        if (frame.size > maxFrameSizeBytes) {
-            throw MeshLinkException.TransportFailure(
-                "L2CAP frame exceeds max size $maxFrameSizeBytes bytes"
-            )
-        }
-        return ByteArray(LENGTH_PREFIX_SIZE_BYTES + frame.size).also { encoded ->
-            writeIntLittleEndian(encoded, 0, frame.size)
-            frame.copyInto(encoded, destinationOffset = LENGTH_PREFIX_SIZE_BYTES)
-        }
+        return encodeL2capFrame(frame = frame, maxFrameSizeBytes = maxFrameSizeBytes)
     }
 
     internal fun append(chunk: ByteArray): List<ByteArray> {
@@ -167,20 +210,6 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
         buffer = buffer.copyOf(newCapacity)
     }
 
-    private fun writeIntLittleEndian(target: ByteArray, offset: Int, value: Int): Unit {
-        target[offset] = (value and 0xFF).toByte()
-        target[offset + 1] = ((value shr 8) and 0xFF).toByte()
-        target[offset + 2] = ((value shr 16) and 0xFF).toByte()
-        target[offset + 3] = ((value shr 24) and 0xFF).toByte()
-    }
-
-    private fun readIntLittleEndian(source: ByteArray, offset: Int): Int {
-        return (source[offset].toInt() and 0xFF) or
-            ((source[offset + 1].toInt() and 0xFF) shl 8) or
-            ((source[offset + 2].toInt() and 0xFF) shl 16) or
-            ((source[offset + 3].toInt() and 0xFF) shl 24)
-    }
-
     private fun ByteArray.hexSnippetFromStart(length: Int): String {
         return copyOf(minOf(length, HEX_SNIPPET_BYTES)).toHexString()
     }
@@ -216,11 +245,4 @@ internal class L2capFrameBuffer(private val maxFrameSizeBytes: Int = DEFAULT_MAX
         val appendedChunkPrefixHex: String,
         val appendedChunkSuffixHex: String,
     )
-
-    private companion object {
-        private const val DEFAULT_MAX_FRAME_SIZE_BYTES: Int = 128 * 1024
-        private const val INITIAL_CAPACITY_BYTES: Int = 1024
-        private const val LENGTH_PREFIX_SIZE_BYTES: Int = 4
-        private const val HEX_SNIPPET_BYTES: Int = 16
-    }
 }
