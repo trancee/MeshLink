@@ -21,11 +21,12 @@ internal object MessageSealer {
                 recipientX25519PublicKey = recipientTrust.x25519PublicKey,
             )
         val sharedSecret =
-            provider.x25519(
-                privateKey = senderIdentity.noiseIdentity.x25519KeyPair.privateKey,
-                publicKey = recipientTrust.x25519PublicKey,
+            requireValidX25519SharedSecret(
+                provider.x25519(
+                    privateKey = senderIdentity.noiseIdentity.x25519KeyPair.privateKey,
+                    publicKey = recipientTrust.x25519PublicKey,
+                )
             )
-        requireContributorySharedSecret(sharedSecret)
         val key =
             deriveEncryptionKey(
                 provider = provider,
@@ -90,11 +91,12 @@ internal object MessageSealer {
         }
 
         val sharedSecret =
-            provider.x25519(
-                privateKey = recipientIdentity.noiseIdentity.x25519KeyPair.privateKey,
-                publicKey = senderTrust.x25519PublicKey,
+            requireValidX25519SharedSecret(
+                provider.x25519(
+                    privateKey = recipientIdentity.noiseIdentity.x25519KeyPair.privateKey,
+                    publicKey = senderTrust.x25519PublicKey,
+                )
             )
-        requireContributorySharedSecret(sharedSecret)
         val key =
             deriveEncryptionKey(
                 provider = provider,
@@ -140,12 +142,6 @@ internal object MessageSealer {
         buffer.writeIntLittleEndian(recipientX25519PublicKey.size)
         buffer.writeBytes(recipientX25519PublicKey)
         return buffer.toByteArray()
-    }
-
-    private fun requireContributorySharedSecret(sharedSecret: ByteArray): Unit {
-        if (sharedSecret.isEmpty() || sharedSecret.all { byte -> byte == 0.toByte() }) {
-            throw MeshLinkException.CryptoFailure("Derived X25519 shared secret is invalid")
-        }
     }
 
     private const val BYTE_MASK: Int = 0xFF
