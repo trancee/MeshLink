@@ -78,6 +78,32 @@ private fun writeLongLittleEndian(target: ByteArray, offset: Int, value: Long): 
     writeLittleEndian(target = target, offset = offset, value = value, byteCount = LONG_SIZE_BYTES)
 }
 
+private fun writeFieldBodies(
+    encoded: ByteArray,
+    tableStart: Int,
+    fields: Array<FlatBufferField?>,
+    fieldOffsets: IntArray,
+    offsetFieldStarts: IntArray,
+): Unit {
+    fields.forEach { field ->
+        if (field != null) {
+            val fieldPosition = tableStart + fieldOffsets[field.index]
+            when (field) {
+                is FlatBufferField.ByteField -> encoded[fieldPosition] = field.value
+                is FlatBufferField.IntField ->
+                    writeIntLittleEndian(encoded, fieldPosition, field.value)
+                is FlatBufferField.LongField ->
+                    writeLongLittleEndian(encoded, fieldPosition, field.value)
+                is FlatBufferField.OffsetField -> {
+                    val objectStart = offsetFieldStarts[field.index]
+                    writeIntLittleEndian(encoded, fieldPosition, objectStart - fieldPosition)
+                    field.objectBytes.copyInto(encoded, destinationOffset = objectStart)
+                }
+            }
+        }
+    }
+}
+
 private sealed class FlatBufferField(
     internal val index: Int,
     internal val size: Int,
@@ -105,7 +131,12 @@ private sealed class FlatBufferField(
  * FlatBuffers runtime.
  */
 internal class FlatBufferTableBuilder internal constructor(private val fieldCount: Int) {
-    private val fields: MutableMap<Int, FlatBufferField> = linkedMapOf()
+    // Field indices are small (single digits across every current payload schema; see
+    // WirePayloadCodecSchema.kt's *_FIELD_COUNT constants) and dense/known up front from
+    // fieldCount, so a plain array indexed directly by field index avoids the hashing, boxing,
+    // and insertion-order bookkeeping a Map would otherwise pay on every single encoded message
+    // (finish() runs at least once, often twice via the outer WireEnvelope, per encoded frame).
+    private val fields: Array<FlatBufferField?> = arrayOfNulls(fieldCount)
 
     internal fun addByte(
         fieldIndex: Int,
@@ -159,18 +190,24 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
     internal fun finish(): ByteArray {
         // Scalars stay inline in the object body. Strings and byte vectors live
         // in the tail and are referenced by relative offsets from the field slot.
-        val presentFields = fields.values.sortedBy { field -> field.index }
-        val maxAlignment =
-            presentFields
-                .maxOfOrNull { field -> field.alignment }
-                ?.coerceAtLeast(MIN_TABLE_ALIGNMENT) ?: MIN_TABLE_ALIGNMENT
+        // Iterating `fields` directly in ascending index order (rather than collecting into a
+        // sorted list) is sufficient because the array is already dense and index-ordered by
+        // construction; absent fields are simply skipped in place.
+        var maxAlignment = MIN_TABLE_ALIGNMENT
+        fields.forEach { field ->
+            if (field != null) {
+                maxAlignment = maxOf(maxAlignment, field.alignment)
+            }
+        }
         val fieldOffsets = IntArray(fieldCount)
 
         var objectCursor = INT_SIZE_BYTES
-        presentFields.forEach { field ->
-            objectCursor = align(objectCursor, field.alignment)
-            fieldOffsets[field.index] = objectCursor
-            objectCursor += field.size
+        fields.forEach { field ->
+            if (field != null) {
+                objectCursor = align(objectCursor, field.alignment)
+                fieldOffsets[field.index] = objectCursor
+                objectCursor += field.size
+            }
         }
         val objectSize = align(objectCursor, maxAlignment)
 
@@ -178,9 +215,9 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
         val vtableStart = VTABLE_START_OFFSET_BYTES
         val tableStart = align(vtableStart + vtableSize, maxAlignment)
 
-        val offsetFieldStarts: MutableMap<Int, Int> = linkedMapOf()
+        val offsetFieldStarts = IntArray(fieldCount)
         var tailCursor = align(tableStart + objectSize, INT_ALIGNMENT)
-        presentFields.forEach { field ->
+        fields.forEach { field ->
             if (field is FlatBufferField.OffsetField) {
                 tailCursor = align(tailCursor, field.alignment)
                 offsetFieldStarts[field.index] = tailCursor
@@ -200,22 +237,13 @@ internal class FlatBufferTableBuilder internal constructor(private val fieldCoun
             writeShortLittleEndian(encoded, entryOffset, fieldOffsets[fieldIndex])
         }
         writeIntLittleEndian(encoded, tableStart, tableStart - vtableStart)
-
-        presentFields.forEach { field ->
-            val fieldPosition = tableStart + fieldOffsets[field.index]
-            when (field) {
-                is FlatBufferField.ByteField -> encoded[fieldPosition] = field.value
-                is FlatBufferField.IntField ->
-                    writeIntLittleEndian(encoded, fieldPosition, field.value)
-                is FlatBufferField.LongField ->
-                    writeLongLittleEndian(encoded, fieldPosition, field.value)
-                is FlatBufferField.OffsetField -> {
-                    val objectStart = offsetFieldStarts.getValue(field.index)
-                    writeIntLittleEndian(encoded, fieldPosition, objectStart - fieldPosition)
-                    field.objectBytes.copyInto(encoded, destinationOffset = objectStart)
-                }
-            }
-        }
+        writeFieldBodies(
+            encoded = encoded,
+            tableStart = tableStart,
+            fields = fields,
+            fieldOffsets = fieldOffsets,
+            offsetFieldStarts = offsetFieldStarts,
+        )
 
         return encoded
     }
