@@ -5,9 +5,7 @@ import java.math.BigInteger
 import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
-import java.security.MessageDigest
 import java.security.PublicKey
-import java.security.SecureRandom
 import java.security.Signature
 import java.security.interfaces.EdECPrivateKey
 import java.security.interfaces.EdECPublicKey
@@ -19,16 +17,10 @@ import java.security.spec.EdECPublicKeySpec
 import java.security.spec.NamedParameterSpec
 import java.security.spec.XECPrivateKeySpec
 import java.security.spec.XECPublicKeySpec
-import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
-import javax.crypto.Mac
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 internal class JvmCryptoProvider : CryptoProvider {
-    private val secureRandom: SecureRandom = SecureRandom()
-    private val sha256Digests = threadLocal { MessageDigest.getInstance("SHA-256") }
-    private val hmacSha256Macs = threadLocal { Mac.getInstance("HmacSHA256") }
+    private val symmetricPrimitives = JcaSymmetricPrimitives()
     private val x25519KeyPairGenerators = threadLocal {
         KeyPairGenerator.getInstance("X25519").apply { initialize(NamedParameterSpec.X25519) }
     }
@@ -38,25 +30,17 @@ internal class JvmCryptoProvider : CryptoProvider {
     private val ed25519KeyFactories = threadLocal { KeyFactory.getInstance("Ed25519") }
     private val ed25519Signatures = threadLocal { Signature.getInstance("Ed25519") }
     private val ed25519Verifiers = threadLocal { Signature.getInstance("Ed25519") }
-    private val chacha20Poly1305EncryptCiphers = threadLocal {
-        Cipher.getInstance("ChaCha20-Poly1305")
-    }
-    private val chacha20Poly1305DecryptCiphers = threadLocal {
-        Cipher.getInstance("ChaCha20-Poly1305")
-    }
 
     override fun randomBytes(size: Int): ByteArray {
-        return ByteArray(size).also(secureRandom::nextBytes)
+        return symmetricPrimitives.randomBytes(size)
     }
 
     override fun sha256(input: ByteArray): ByteArray {
-        return sha256Digests.value().digest(input)
+        return symmetricPrimitives.sha256(input)
     }
 
     override fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = hmacSha256Macs.value()
-        mac.init(SecretKeySpec(key, "HmacSHA256"))
-        return mac.doFinal(data)
+        return symmetricPrimitives.hmacSha256(key, data)
     }
 
     override fun generateX25519KeyPair(): X25519KeyPair {
@@ -108,10 +92,12 @@ internal class JvmCryptoProvider : CryptoProvider {
         aad: ByteArray,
         plaintext: ByteArray,
     ): ByteArray {
-        val cipher = chacha20Poly1305EncryptCiphers.value()
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
-        cipher.updateAAD(aad)
-        return cipher.doFinal(plaintext)
+        return symmetricPrimitives.chacha20Poly1305Seal(
+            key = key,
+            nonce = nonce,
+            aad = aad,
+            plaintext = plaintext,
+        )
     }
 
     override fun chacha20Poly1305Open(
@@ -120,10 +106,12 @@ internal class JvmCryptoProvider : CryptoProvider {
         aad: ByteArray,
         ciphertext: ByteArray,
     ): ByteArray {
-        val cipher = chacha20Poly1305DecryptCiphers.value()
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
-        cipher.updateAAD(aad)
-        return cipher.doFinal(ciphertext)
+        return symmetricPrimitives.chacha20Poly1305Open(
+            key = key,
+            nonce = nonce,
+            aad = aad,
+            ciphertext = ciphertext,
+        )
     }
 
     private fun x25519PrivateKey(bytes: ByteArray) =
@@ -197,18 +185,6 @@ internal class JvmCryptoProvider : CryptoProvider {
         val padded = ByteArray(size)
         bigEndian.copyInto(padded, destinationOffset = size - bigEndian.size)
         return padded.reversedArray()
-    }
-
-    private fun <T> threadLocal(create: () -> T): ThreadLocal<T> {
-        return object : ThreadLocal<T>() {
-            override fun initialValue(): T {
-                return create()
-            }
-        }
-    }
-
-    private fun <T> ThreadLocal<T>.value(): T {
-        return checkNotNull(get())
     }
 
     private companion object {

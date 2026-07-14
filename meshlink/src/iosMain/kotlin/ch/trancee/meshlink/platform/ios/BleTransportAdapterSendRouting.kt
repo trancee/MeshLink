@@ -21,6 +21,11 @@ internal suspend fun BleTransportAdapter.sendWhenStarted(
                 sendToResolvedPeerOrNull = {
                     resolvePeer(frame.peerId)?.let { peer -> sendToPeer(frame, peer) }
                 },
+                sendToTemporaryLinkOrNull = {
+                    activeLinksByHint[frame.peerId.value]?.let { temporaryLink ->
+                        sendViaConnectedRawLink(frame = frame, link = temporaryLink)
+                    }
+                },
                 dropWhenPeerIsMissing = {
                     dropSend(
                         frame,
@@ -30,6 +35,35 @@ internal suspend fun BleTransportAdapter.sendWhenStarted(
                 },
             ),
     )
+}
+
+/**
+ * Sends [frame] directly over an already-active [L2capLink] found by raw hint id, without going
+ * through peer resolution or bearer-mode selection -- the recovery path used when no
+ * [DiscoveredPeer] record exists yet under [frame]'s peer id (see
+ * [SendDispatchDependencies.sendToTemporaryLinkOrNull]). Mirrors Android's
+ * `platform.android.sendViaConnectedLink`.
+ */
+internal suspend fun BleTransportAdapter.sendViaConnectedRawLink(
+    frame: OutboundFrame,
+    link: L2capLink,
+): TransportSendResult {
+    return runCatching {
+            if (!link.enqueue(frame.payload)) {
+                closeLink(hintPeer = link.hintPeerId.value, reason = "send queue closed")
+                return@runCatching TransportSendResult.Dropped(
+                    "iOS BLE send queue is not accepting frames"
+                )
+            }
+            TransportSendResult.Delivered
+        }
+        .getOrElse { error ->
+            closeLink(
+                hintPeer = link.hintPeerId.value,
+                reason = "send failed: ${error.message.orEmpty()}",
+            )
+            TransportSendResult.Dropped("iOS BLE send failed: ${error.message.orEmpty()}")
+        }
 }
 
 /**

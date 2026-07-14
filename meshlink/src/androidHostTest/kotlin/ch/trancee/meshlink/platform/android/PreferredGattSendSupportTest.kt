@@ -96,7 +96,12 @@ class PreferredGattSendSupportTest {
 
     @Test
     fun sendViaPreferredGattSideLinkOrNullWaitsForClientReadiness(): Unit = runBlocking {
-        // Arrange
+        // Arrange -- this polling-for-readiness behavior is Android-specific: the GATT side-link
+        // handshake (connect -> MTU negotiation -> service discovery -> CCCD write) has no
+        // completion callback, unlike iOS's GattNotifyLink.enqueue, which owns its own internal
+        // pump queue and never waits here (see platform.ios.PreferredGattSendSupportTest's
+        // sendViaPreferredGattNotifyLinkOrNullDoesNotPollForReadinessBeforeEnqueueing). This is a
+        // documented, intentional platform difference -- not a parity gap.
         val fixture = PreferredGattSendFixture()
         val frame =
             OutboundFrame(

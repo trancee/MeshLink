@@ -177,6 +177,39 @@ The current design does not try to be infinitely configurable. It optimizes for:
 - clear operator visibility
 - shared Android and iOS semantics
 
+## Platform translation of the shared tiers
+
+`PowerPolicy` and its tiers/thresholds/clamps above are entirely `commonMain`
+and identical on both platforms. Each platform's `PowerMonitor` translates
+that shared `PowerTier`/policy into its own platform's native BLE tuning
+constants (`PowerProfile`) -- and Android's `PowerProfile` carries more fields
+than iOS's:
+
+| Field | Android | iOS |
+|---|---|---|
+| `discoveryPowerMode` | yes | yes |
+| `maxConnections` | yes | yes |
+| `advertiseMode` | yes (`AdvertiseSettings` constant) | not present |
+| `txPowerLevel` | yes (`AdvertiseSettings` constant) | not present |
+| `scanMode` | yes (`ScanSettings` constant) | not present |
+| `connectionPriority` | yes (`BluetoothGatt` constant) | not present |
+
+This is a genuine CoreBluetooth API limitation, not a parity gap MeshLink
+chose not to close. `CBCentralManager`/`CBPeripheralManager` do not expose any
+app-facing equivalent of Android's advertise mode, TX power level, scan
+mode/duty-cycle, or GATT connection priority -- iOS's peripheral advertising
+API is limited to two dictionary keys (local name and service UUIDs), and
+neither the central nor peripheral manager APIs offer a power/latency tuning
+knob at all. There is no additional iOS-side state this workstream could add
+to reach field-level parity with Android's `PowerProfile`; the underlying
+platform simply does not offer that control surface to applications.
+
+Both platforms still apply the same shared `PowerTier`/threshold/hysteresis
+decision logic above, and both platforms' `PowerProfile.maxConnections` and
+`discoveryPowerMode` stay in lockstep with it -- the divergence is confined to
+the handful of platform-only BLE tuning constants neither platform's
+counterpart can express.
+
 ## Related docs
 
 - [MeshLink runtime behavior reference](../reference/meshlink-runtime-behavior.md)

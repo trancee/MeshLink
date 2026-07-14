@@ -54,6 +54,27 @@ kotlin {
             // budget (see constitution.md Technical Constraints).
             implementation(libs.kotlinx.serialization.json)
         }
+        // Manual intermediate source set shared only by the JVM and Android targets --
+        // applyDefaultHierarchyTemplate() does not link these two targets together (its default
+        // hierarchy only groups Android with the Kotlin/Native targets under nativeMain/appleMain,
+        // and JVM stands alone), so this is wired by hand per the standard KMP custom-intermediate-
+        // source-set pattern. Holds JCA-backed symmetric-primitive plumbing (sha256/hmacSha256/
+        // randomBytes/chacha20Poly1305 + the ThreadLocal caching helper) shared verbatim between
+        // JvmCryptoProvider and JcaCryptoProvider -- see crypto/JcaSymmetricPrimitives.kt. This is
+        // strictly a compile-time code-sharing seam: it introduces no new dependency, and nothing
+        // in it is reachable from commonMain, iosMain, or any other target.
+        val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
+        jvmMain.get().dependsOn(jvmAndroidMain)
+        androidMain.get().dependsOn(jvmAndroidMain)
+        // Mirrors jvmAndroidMain above: one shared JcaSymmetricPrimitivesTest exercises the
+        // sha256/hmacSha256/randomBytes/chacha20Poly1305 plumbing once for both platforms instead
+        // of duplicating the same test on jvmTest and androidHostTest separately.
+        val jvmAndroidTest by creating {
+            dependsOn(commonTest.get())
+            dependencies { implementation(libs.kotlin.test) }
+        }
+        jvmTest.get().dependsOn(jvmAndroidTest)
+        getByName("androidHostTest").dependsOn(jvmAndroidTest)
         jvmTest.dependencies { implementation(libs.kotlin.test) }
         getByName("androidHostTest").dependencies { implementation(libs.kotlin.test) }
         getByName("androidDeviceTest").dependencies {
