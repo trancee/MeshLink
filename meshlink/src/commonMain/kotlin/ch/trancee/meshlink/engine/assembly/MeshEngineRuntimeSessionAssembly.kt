@@ -18,6 +18,7 @@ import ch.trancee.meshlink.engine.lifecycle.buildMeshEngineRuntimePeerFlowSuppor
 import ch.trancee.meshlink.engine.transport.buildMeshEngineRuntimeHopTransportSupport
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.wire.WireFrame
+import kotlinx.coroutines.CancellationException
 
 internal data class MeshEngineRuntimeSessionAssembly(
     val ensureHopSession: suspend (PeerId, MeshEngineHardRunToken?) -> SessionEstablishmentOutcome,
@@ -116,6 +117,14 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
                         )
                     }
                     .getOrElse { exception ->
+                        // promoteTemporaryPeer is a suspend call; a cancellation while it is in
+                        // flight (e.g. runtime shutdown racing an in-progress handshake
+                        // completion) must propagate immediately to unwind this coroutine
+                        // normally, not be reported as an ordinary promoteTemporaryPeer failure
+                        // below.
+                        if (exception is CancellationException) {
+                            throw exception
+                        }
                         hopTransportSupport.emitHopSessionFailed(
                             temporaryPeerId,
                             "transport.handshake.promoteTemporaryPeer",

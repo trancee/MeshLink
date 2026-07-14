@@ -13,7 +13,10 @@ import ch.trancee.meshlink.api.SendResult
 import ch.trancee.meshlink.api.StartResult
 import ch.trancee.meshlink.api.StopResult
 import ch.trancee.meshlink.config.MeshLinkConfig
+import ch.trancee.meshlink.diagnostics.DiagnosticCode
 import ch.trancee.meshlink.diagnostics.DiagnosticEvent
+import ch.trancee.meshlink.diagnostics.DiagnosticReason
+import ch.trancee.meshlink.diagnostics.DiagnosticSeverity
 import ch.trancee.meshlink.diagnostics.DiagnosticSink
 import ch.trancee.meshlink.engine.internal.MeshEngineEmitDiagnostic
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
@@ -26,6 +29,7 @@ import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TofuTrustStore
 import ch.trancee.meshlink.wire.WireFrame
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -183,12 +187,42 @@ private fun buildMeshEngineRuntimeAssemblyEnvironment(
         config = config,
         localIdentity = localIdentity,
         trustStore = TofuTrustStore(secureStorage),
-        coroutineScope = coroutineScope,
+        coroutineScope = coroutineScope.withUncaughtExceptionDiagnostic(runtimeSurface),
         platformBridge = MeshEnginePlatformBridge(bleTransport),
         batteryMonitor = batteryMonitor,
         publishedSurface = runtimeSurface,
         compatibilitySurface = runtimeSurface,
     )
+}
+
+/**
+ * Wraps [coroutineScope] so an exception that escapes a fire-and-forget `launch { }` on it (e.g. a
+ * per-advertisement or per-forwarded-frame coroutine with no caller left to observe a thrown
+ * exception directly) is reported through the same [MeshEngineRuntimeSurface.emitDiagnostic] path
+ * every other unexpected engine failure already uses, instead of falling through to the
+ * platform-default uncaught-exception handler and disappearing from MeshLink's own diagnostic event
+ * stream. Shares the original scope's [kotlinx.coroutines.Job] (so cancellation/structured
+ * concurrency semantics are unchanged) and only adds the [CoroutineExceptionHandler] side of the
+ * context.
+ *
+ * Reuses [DiagnosticCode.TRANSPORT_FRAME_REJECTED] -- the closest existing code already used
+ * throughout the engine for "something unexpected happened at the transport/frame level and was
+ * dropped" -- rather than adding a new code, since the constitution fixes the shared
+ * [DiagnosticCode] catalog at 29 entries and any addition requires a constitutional amendment.
+ */
+private fun CoroutineScope.withUncaughtExceptionDiagnostic(
+    runtimeSurface: MeshEngineRuntimeSurface
+): CoroutineScope {
+    val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        runtimeSurface.emitDiagnostic(
+            code = DiagnosticCode.TRANSPORT_FRAME_REJECTED,
+            severity = DiagnosticSeverity.ERROR,
+            stage = "engine.uncaughtCoroutineException",
+            reason = DiagnosticReason.DELIVERY_FAILURE,
+            metadata = mapOf("cause" to (throwable::class.simpleName ?: "Throwable")),
+        )
+    }
+    return CoroutineScope(coroutineContext + exceptionHandler)
 }
 
 private fun buildMeshEngineRuntimeAssemblySupport(

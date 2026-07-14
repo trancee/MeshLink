@@ -15,6 +15,7 @@ import ch.trancee.meshlink.identity.hexContentEquals
 import ch.trancee.meshlink.routing.RouteCoordinator
 import ch.trancee.meshlink.wire.WireCodec
 import ch.trancee.meshlink.wire.WireFrame
+import kotlinx.coroutines.CancellationException
 
 internal data class MeshEngineInboundRoutingContext(
     val routeCoordinator: RouteCoordinator,
@@ -105,6 +106,14 @@ internal class MeshEngineInboundSupport(
     ): ByteArray? {
         return runCatching { transport.decryptHopPayload(session, payload) }
             .getOrElse { exception ->
+                // decryptHopPayload suspends on session.inboundMutex.withLock; a cancellation
+                // while waiting for or holding that lock must propagate immediately to unwind
+                // this coroutine normally (e.g. as part of runtime shutdown), not be treated as an
+                // ordinary decrypt failure and reported as a "transport.data.decrypt" diagnostic
+                // below.
+                if (exception is CancellationException) {
+                    throw exception
+                }
                 if (exception === ReplayedHopPayloadException) {
                     transport.emitHopSessionFailed(
                         peerId,
