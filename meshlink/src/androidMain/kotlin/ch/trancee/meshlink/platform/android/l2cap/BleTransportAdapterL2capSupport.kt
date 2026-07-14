@@ -600,7 +600,7 @@ internal class L2capLink(
     }
 
     private fun writeFrame(payload: ByteArray): Unit {
-        val encoded = L2capFrameBuffer().encode(payload)
+        val encoded = encodeL2capFrame(payload)
         log(
             "L2CAP write ${peerHintId.value.takeLast(6)} payloadBytes=${payload.size} encodedBytes=${encoded.size} payloadPrefix=${payload.copyOf(minOf(payload.size, 8)).joinToString(separator = "") { byte -> "%02x".format(byte) }}"
         )
