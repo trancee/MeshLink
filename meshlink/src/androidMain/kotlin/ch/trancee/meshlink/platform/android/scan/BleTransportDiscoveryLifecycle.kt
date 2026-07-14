@@ -158,14 +158,23 @@ internal class BleTransportDiscoveryLifecycle(
     private val appId: String = appId
     private val localKeyHash: ByteArray = localKeyHash.copyOf()
     private val localMeshHash: UShort = BleDiscoveryContract.computeMeshHash(appId)
-    private var lastHardware: BleTransportDiscoveryHardware? = null
-    private var advertiseRetryAttempt: Int = 0
-    private var scanRetryAttempt: Int = 0
+
+    // The fields below are all written from refresh()/stop()/updatePowerPolicy() (invoked from the
+    // adapter's IO-dispatcher coroutineScope) and/or from scheduleScanWatchdogCheck's/
+    // scheduleAdvertiseRetry's/scheduleScanRetry's delayed coroutine callbacks, while also being
+    // read (and in some cases written) from advertiseCallback/scanCallback -- both invoked on the
+    // Android BLE stack's own callback thread, not the coroutineScope's dispatcher thread. Each is
+    // an independent scalar/enum slot with no compound check-then-act invariant spanning multiple
+    // fields in the same critical section, so @Volatile (matching the isStopped precedent already
+    // established below) is sufficient for cross-thread visibility without a lock.
+    @Volatile private var lastHardware: BleTransportDiscoveryHardware? = null
+    @Volatile private var advertiseRetryAttempt: Int = 0
+    @Volatile private var scanRetryAttempt: Int = 0
 
     // Tracks SCAN_FAILED_APPLICATION_REGISTRATION_FAILED (rate-limit) retries separately from
     // scanRetryAttempt above -- see RATE_LIMITED_SCAN_ERROR_CODES for why these need an
     // independent, longer backoff budget.
-    private var scanRateLimitRetryAttempt: Int = 0
+    @Volatile private var scanRateLimitRetryAttempt: Int = 0
 
     // Written from stop()/refresh() (invoked from the adapter's IO-dispatcher coroutineScope) and
     // read from scanCallback (invoked on the main thread by the framework). @Volatile guarantees
@@ -177,30 +186,33 @@ internal class BleTransportDiscoveryLifecycle(
     // start/restart, used as the baseline immediately after (re)starting). Compared against
     // nowMillis() by the scan watchdog below to detect a stack that has silently stopped
     // delivering results.
-    private var lastScanResultAtMillis: Long = 0L
+    @Volatile private var lastScanResultAtMillis: Long = 0L
 
     // Incremented on every refresh()/stop() so stale, already-superseded watchdog check loops
     // (scheduled by an earlier refresh cycle) recognize they're outdated and stop rescheduling
     // themselves instead of running alongside a newer loop.
-    private var scanWatchdogGeneration: Int = 0
+    @Volatile private var scanWatchdogGeneration: Int = 0
 
     // Counts consecutive watchdog-triggered scan restarts that did not clear the idle wedge
     // (i.e. the scanner was still idle past the threshold the very next time it was checked).
     // Reset to 0 whenever a real scan result arrives or discovery is stopped/refreshed, so a
     // healthy scanner that occasionally goes quiet for one cycle doesn't accumulate escalation
-    // credit across unrelated idle periods.
-    private var consecutiveWedgedScanRestarts: Int = 0
+    // credit across unrelated idle periods. Only ever mutated from the sequential watchdog-check/
+    // scan-callback/stop/refresh call chain (never incremented concurrently from two threads at
+    // once), so @Volatile is sufficient here too -- no separate lock is needed for its
+    // read-increment-write step.
+    @Volatile private var consecutiveWedgedScanRestarts: Int = 0
 
     // The tier behind the most recently *computed* PowerPolicy, regardless of whether it was ever
     // actually applied to the hardware (see lastAppliedPowerTier below).
-    private var currentPowerTier: PowerTier = PowerTier.BALANCED
+    @Volatile private var currentPowerTier: PowerTier = PowerTier.BALANCED
 
     // The tier that produced the scan/advertise settings currently applied to the hardware, kept
     // in sync every time refresh() actually restarts scan/advertise (whether triggered by
     // updatePowerPolicy or by another caller such as the initial startTransport()/setSuspended()
     // refresh). Used by updatePowerPolicy to skip a redundant restart when the newly-computed tier
     // already matches what's live -- see updatePowerPolicy for why this matters.
-    private var lastAppliedPowerTier: PowerTier = PowerTier.BALANCED
+    @Volatile private var lastAppliedPowerTier: PowerTier = PowerTier.BALANCED
 
     var currentPowerProfile: PowerProfile = PowerMonitor.defaultProfile()
         private set

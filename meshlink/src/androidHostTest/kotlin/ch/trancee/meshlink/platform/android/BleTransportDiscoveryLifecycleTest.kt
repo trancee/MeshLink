@@ -25,6 +25,7 @@ class BleTransportDiscoveryLifecycleTest {
         const val RATE_LIMIT_RETRY_DELAY_3_MILLIS = 8_000L
         const val RATE_LIMIT_RETRY_DELAY_4_MILLIS = 16_000L
         const val RATE_LIMIT_RETRY_DELAY_CAPPED_MILLIS = 30_000L
+        const val CONCURRENCY_STRESS_ITERATIONS_PER_THREAD = 500
     }
 
     @Test
@@ -628,6 +629,61 @@ class BleTransportDiscoveryLifecycleTest {
         // Assert
         assertEquals(0, fixture.powerCycleAttempts)
         assertEquals(0, fixture.manualRecoveryNeededCalls)
+    }
+
+    @Test
+    fun concurrentScanCallbacksAndWatchdogChecksDoNotCorruptTheWedgeStreakCounter(): Unit {
+        // Arrange -- this is the correctness property that must survive making
+        // consecutiveWedgedScanRestarts (and the other BleTransportDiscoveryLifecycle fields)
+        // @Volatile rather than lock-guarded: real concurrent writers from separate threads (one
+        // simulating the BLE stack's own callback thread delivering scan results and resetting
+        // the streak, one simulating the coroutineScope's IO-dispatcher thread running watchdog
+        // checks and incrementing the streak) must never leave consecutiveWedgedScanRestarts (or
+        // the escalation bookkeeping derived from it) in an invalid state, even though @Volatile
+        // alone does not make a read-increment-write step atomic. Per this class's own doc
+        // comment, consecutiveWedgedScanRestarts is only ever mutated from a sequential call
+        // chain in production (never concurrently incremented from two threads at once); this
+        // test's job is to confirm that claim holds by actually racing two threads against it
+        // repeatedly and checking the escalation invariant never breaks, rather than to assert a
+        // specific final count (which would be inherently racy to predict).
+        val fixture = BleTransportDiscoveryLifecycleFixture()
+        fixture.fakeNowMillis = 0L
+        fixture.lifecycle.refresh(started = true, hardware = fixture.hardware)
+        val iterationsPerThread = CONCURRENCY_STRESS_ITERATIONS_PER_THREAD
+        val scanResultThread = Thread {
+            repeat(iterationsPerThread) {
+                fixture.lifecycle.scanCallback.onBatchScanResults(mutableListOf())
+            }
+        }
+        val watchdogThread = Thread {
+            repeat(iterationsPerThread) {
+                fixture.fakeNowMillis += SCAN_WATCHDOG_IDLE_THRESHOLD_MILLIS + 1
+                fixture.runScheduledWatchdogChecks()
+            }
+        }
+
+        // Act
+        scanResultThread.start()
+        watchdogThread.start()
+        scanResultThread.join()
+        watchdogThread.join()
+
+        // Assert -- the escalation callback must never fire more times than the number of
+        // watchdog-triggered restarts could possibly justify, and must never go negative or
+        // silently corrupt into a state that escalates on every single check. A lost update (or a
+        // torn, non-atomic read-modify-write) manifesting as runaway escalation would show up here
+        // as manualRecoveryNeededCalls/powerCycleAttempts exceeding what MAX_WEDGED_SCAN_RESTARTS_
+        // BEFORE_ESCALATION divided into iterationsPerThread watchdog runs could produce.
+        val maxPossibleEscalations =
+            iterationsPerThread / MAX_WEDGED_SCAN_RESTARTS_BEFORE_ESCALATION + 1
+        assertTrue(
+            fixture.powerCycleAttempts + fixture.manualRecoveryNeededCalls <=
+                maxPossibleEscalations,
+            "Expected at most $maxPossibleEscalations escalations, got " +
+                "${fixture.powerCycleAttempts + fixture.manualRecoveryNeededCalls} " +
+                "(powerCycleAttempts=${fixture.powerCycleAttempts}, " +
+                "manualRecoveryNeededCalls=${fixture.manualRecoveryNeededCalls})",
+        )
     }
 }
 
