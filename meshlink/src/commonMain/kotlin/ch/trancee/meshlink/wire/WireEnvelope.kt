@@ -31,10 +31,14 @@ internal class WireEnvelope
 internal constructor(
     internal val version: UByte,
     internal val type: WireEnvelopeType,
-    payload: ByteArray,
+    // Not copied here: both call sites (WireCodec.encodeEnvelope's freshly-built
+    // FlatBufferTableBuilder.finish() output, and WireEnvelope.decode's freshly-read
+    // table.readByteVector() result) hand in a ByteArray that was just allocated locally and
+    // never escapes to any other mutable-owning reference before reaching this constructor, so an
+    // additional defensive copy here would only duplicate bytes that are already provably
+    // exclusively owned by this instance going forward.
+    internal val payload: ByteArray,
 ) {
-    internal val payload: ByteArray = payload.copyOf()
-
     internal fun encode(): ByteArray {
         return FlatBufferTableBuilder(fieldCount = FIELD_COUNT)
             .addByte(fieldIndex = VERSION_FIELD_INDEX, value = version.toByte())
