@@ -36,16 +36,8 @@ private const val PRIORITY_CODE_HIGH: Byte = 1
 private const val PRIORITY_CODE_NORMAL: Byte = 2
 private const val PRIORITY_CODE_LOW: Byte = 3
 
-internal const val HELLO_FIELD_COUNT: Int = 2
-internal const val HELLO_PEER_ID_FIELD_INDEX: Int = 0
-internal const val HELLO_INTERVAL_FIELD_INDEX: Int = 1
-
 internal const val LINK_IDENTITY_FIELD_COUNT: Int = 1
 internal const val LINK_IDENTITY_PEER_ID_FIELD_INDEX: Int = 0
-
-internal const val IHU_FIELD_COUNT: Int = 2
-internal const val IHU_PEER_ID_FIELD_INDEX: Int = 0
-internal const val IHU_RECEIVE_COST_FIELD_INDEX: Int = 1
 
 internal const val ROUTE_UPDATE_FIELD_COUNT: Int = 7
 internal const val ROUTE_UPDATE_DESTINATION_FIELD_INDEX: Int = 0

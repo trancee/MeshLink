@@ -1,8 +1,6 @@
 package ch.trancee.meshlink.wire
 
 internal enum class WireEnvelopeType private constructor(internal val code: Byte) {
-    HELLO(HELLO_CODE),
-    IHU(IHU_CODE),
     ROUTE_UPDATE(ROUTE_UPDATE_CODE),
     ROUTE_RETRACTION(ROUTE_RETRACTION_CODE),
     SEQNO_REQUEST(SEQNO_REQUEST_CODE),
@@ -72,8 +70,6 @@ internal constructor(
 }
 
 private const val BYTE_MASK: Int = 0xFF
-private const val HELLO_CODE: Byte = 1
-private const val IHU_CODE: Byte = 2
 private const val ROUTE_UPDATE_CODE: Byte = 3
 private const val ROUTE_RETRACTION_CODE: Byte = 4
 private const val SEQNO_REQUEST_CODE: Byte = 5

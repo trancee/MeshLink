@@ -166,7 +166,6 @@ internal class MeshEngineInboundSupport(
                     metadata = mapOf("retractedByPeerId" to peerId.value),
                 )
             is WireFrame.RouteDigest -> routingContext.routeCoordinator.onRouteDigest(peerId, frame)
-            is WireFrame.Hello -> Unit
             is WireFrame.LinkIdentity -> Unit
             // Platform transports must consume cleartext LinkIdentity frames before they ever reach
             // the encrypted direct-frame pipeline. If one shows up here, the transport leaked a
@@ -176,7 +175,6 @@ internal class MeshEngineInboundSupport(
             // layer before they ever reach the encrypted direct-frame pipeline. If one shows up
             // here, the transport leaked a link-level control frame into the hop-session dispatch
             // path.
-            is WireFrame.Ihu -> Unit
             is WireFrame.SeqNoRequest -> Unit
             is WireFrame.TransferStart -> transferCallbacks.handleTransferStart(peerId, frame)
             is WireFrame.TransferChunk -> transferCallbacks.handleTransferChunk(peerId, frame)

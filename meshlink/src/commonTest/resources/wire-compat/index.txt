@@ -1,8 +1,6 @@
 v1_message.hex
 v1_route_update.hex
 v1_transfer_ack.hex
-v1_hello.hex
-v1_ihu.hex
 v1_link_identity.hex
 v1_link_keepalive.hex
 v1_route_retraction.hex

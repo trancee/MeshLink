@@ -34,14 +34,14 @@ class MeshEngineRuntimeLateBindingContextTest {
             var observedEpoch: Long? = null
             context.registerRoutingAdvertisementSender { peerId, frame, action, hardRunToken ->
                 observedPeerId = peerId.value
-                observedFramePeerId = (frame as WireFrame.Hello).peerId.value
+                observedFramePeerId = (frame as WireFrame.RouteDigest).peerId.value
                 observedAction = action
                 observedEpoch = hardRunToken?.epoch
                 true
             }
             val sender = context.routingAdvertisementSender()
             val peerId = PeerId("peer-abcdef")
-            val frame = WireFrame.Hello(PeerId("peer-fedcba"), 1_000)
+            val frame = WireFrame.RouteDigest(PeerId("peer-fedcba"), byteArrayOf(1, 2, 3, 4))
             val hardRunToken = MeshEngineHardRunToken(epoch = 7L)
 
             // Act
