@@ -4,6 +4,7 @@ import ch.trancee.meshlink.api.PeerId
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class RouteDigestTrackerTest {
     @Test
@@ -66,6 +67,38 @@ class RouteDigestTrackerTest {
 
         // Assert
         assertContentEquals(firstDigest, secondDigest)
+    }
+
+    @Test
+    fun `routeDigestFrame changes when seqNo differs only in high 32 bits`() {
+        // Arrange
+        val localPeerId = PeerId("local")
+        val lowBits = 1L
+        val highBitsOnlyDifference = lowBits + (1L shl 32)
+        val lowSeqRoute =
+            routeEntry(
+                destinationPeerIdValue = "peer-a",
+                nextHopPeerIdValue = "relay-a",
+                seqNo = lowBits,
+            )
+        val highSeqRoute =
+            routeEntry(
+                destinationPeerIdValue = "peer-a",
+                nextHopPeerIdValue = "relay-a",
+                seqNo = highBitsOnlyDifference,
+            )
+        val lowTracker = RouteDigestTracker()
+        val highTracker = RouteDigestTracker()
+
+        // Act
+        lowTracker.upsert(lowSeqRoute)
+        highTracker.upsert(highSeqRoute)
+        val lowDigest = lowTracker.routeDigestFrame(localPeerId).digest
+        val highDigest = highTracker.routeDigestFrame(localPeerId).digest
+
+        // Assert
+        assertFalse(lowDigest.contentEquals(highDigest))
+        assertTrue(highSeqRoute.seqNo.toInt() == lowSeqRoute.seqNo.toInt())
     }
 
     @Test

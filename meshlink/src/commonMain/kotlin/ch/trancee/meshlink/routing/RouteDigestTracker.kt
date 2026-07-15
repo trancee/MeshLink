@@ -57,7 +57,7 @@ internal class RouteDigestTracker {
         // excluded here because they are observer-relative in any distance-vector topology.
         buffer.writeIntLittleEndian(route.destinationPeerIdBytes.size)
         buffer.writeBytes(route.destinationPeerIdBytes)
-        buffer.writeIntLittleEndian(route.seqNo.toInt())
+        buffer.writeLongLittleEndian(route.seqNo)
         buffer.writeIntLittleEndian(route.ed25519PublicKey.size)
         buffer.writeBytes(route.ed25519PublicKey)
         buffer.writeIntLittleEndian(route.x25519PublicKey.size)
