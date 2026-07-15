@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.power
 
+import ch.trancee.meshlink.concurrent.compareAndSetLoop
 import ch.trancee.meshlink.config.PowerMode
 import ch.trancee.meshlink.config.RegulatoryRegion
 import kotlin.concurrent.atomics.AtomicReference
@@ -52,8 +53,8 @@ private data class AutomaticTierState(
 /**
  * Mutable fields of [PowerPolicyController] captured as a single immutable snapshot so that every
  * observation (battery update, mesh start, policy read) is applied atomically via
- * [AtomicReference.compareAndSetLoop] instead of touching several unsynchronized fields
- * independently. This keeps battery observation callbacks non-suspend (they can arrive from
+ * [ch.trancee.meshlink.concurrent.compareAndSetLoop] instead of touching several unsynchronized
+ * fields independently. This keeps battery observation callbacks non-suspend (they can arrive from
  * arbitrary platform callback threads, e.g. a system battery broadcast receiver) while still being
  * safe under concurrent access from the engine's multi-threaded
  * [kotlinx.coroutines.Dispatchers.Default] scope.
@@ -64,17 +65,6 @@ private data class PowerPolicyControllerState(
     val bootstrapStartedAtMillis: Long? = null,
     val lastTier: PowerTier? = null,
 )
-
-@OptIn(ExperimentalAtomicApi::class)
-private fun <T> AtomicReference<T>.compareAndSetLoop(transform: (T) -> T): T {
-    while (true) {
-        val previous = load()
-        val next = transform(previous)
-        if (compareAndSet(previous, next)) {
-            return next
-        }
-    }
-}
 
 @OptIn(ExperimentalAtomicApi::class)
 internal class PowerPolicyController

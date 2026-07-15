@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.transport
 
+import ch.trancee.meshlink.concurrent.compareAndSetLoop
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -23,9 +24,9 @@ internal class L2capReconnectGuard(
     // `synchronized(lock)` is a JVM/Android-only Kotlin intrinsic and does not compile for the
     // iOS/Native target. attemptCounts is instead guarded by an immutable-map compare-and-swap
     // loop over an AtomicReference, following the same established pattern already used by
-    // PowerPolicyController's AtomicReference<T>.compareAndSetLoop in this same module, so
-    // concurrent connect/disconnect paths for different peers can no longer corrupt or silently
-    // reset each other's retry budget on any platform.
+    // PowerPolicyController's shared ch.trancee.meshlink.concurrent.compareAndSetLoop in this same
+    // module, so concurrent connect/disconnect paths for different peers can no longer corrupt or
+    // silently reset each other's retry budget on any platform.
     private val attemptCounts = AtomicReference<Map<String, Int>>(emptyMap())
 
     internal fun shouldRetry(hintPeerIdValue: String, reason: String): Boolean {
@@ -60,17 +61,6 @@ internal class L2capReconnectGuard(
 
     internal fun clear(): Unit {
         attemptCounts.compareAndSetLoop { emptyMap() }
-    }
-}
-
-@OptIn(ExperimentalAtomicApi::class)
-private fun <T> AtomicReference<T>.compareAndSetLoop(transform: (T) -> T): T {
-    while (true) {
-        val previous = load()
-        val next = transform(previous)
-        if (compareAndSet(previous, next)) {
-            return next
-        }
     }
 }
 
