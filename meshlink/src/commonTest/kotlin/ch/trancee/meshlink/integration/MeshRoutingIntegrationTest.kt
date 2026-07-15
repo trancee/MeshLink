@@ -607,15 +607,25 @@ class MeshRoutingIntegrationTest {
             val observer = harness.createNode("peer-c")
             val payload = "digest mismatch recovery".encodeToByteArray()
 
+            // Keep the relay<->observer link disconnected until after relay has already learned the
+            // destination route. This removes startup-order races around what the "first" relay->
+            // observer delivery is, making the drop rule deterministic for this scenario.
             harness.linkPeers(destination, relay)
-            harness.linkPeers(relay, observer)
-            // Drop the first relay->observer route update after startup. The following digest frame
-            // still arrives and should trigger the mismatch-recovery full-table resend.
-            harness.dropNextDeliveries(sender = relay, recipient = observer, count = 1)
 
             destination.meshLink.start()
             relay.meshLink.start()
             observer.meshLink.start()
+
+            awaitDiagnosticForPeer(
+                diagnostics = relay.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = destination.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
+
+            harness.dropNextDeliveries(sender = relay, recipient = observer, count = 1)
+            harness.linkPeers(relay, observer)
 
             awaitDiagnosticForPeer(
                 diagnostics = observer.diagnosticSink::events,
