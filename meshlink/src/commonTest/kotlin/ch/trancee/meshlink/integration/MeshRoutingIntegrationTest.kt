@@ -410,7 +410,12 @@ class MeshRoutingIntegrationTest {
                     configOverride =
                         meshLinkConfig {
                             appId = "peer-a-reconnect"
-                            deliveryRetryDeadline = 3.seconds
+                            // Keep generous margin over this scenario's forced relink delay:
+                            // send starts after testDelay(100)=500ms, relink happens after
+                            // testDelay(250)=1250ms, leaving only ~1750ms of the previous
+                            // 3s budget for handshake + route rediscovery + delivery under CI
+                            // contention. 6s leaves ~4750ms post-relink budget.
+                            deliveryRetryDeadline = 6.seconds
                         },
                 )
             val recipient = harness.createNode("peer-b")
@@ -489,7 +494,11 @@ class MeshRoutingIntegrationTest {
                     configOverride =
                         meshLinkConfig {
                             appId = "peer-a-expiry"
-                            deliveryRetryDeadline = 500.milliseconds
+                            // This test validates unreachable-after-expiry ordering, not an
+                            // aggressive retry deadline. 500ms is too close to the forced
+                            // unlink/expiry waits under CI contention; 2s keeps intent while
+                            // avoiding deadline-driven flakiness.
+                            deliveryRetryDeadline = 2.seconds
                         },
                 )
             val recipient = harness.createNode("peer-b")
