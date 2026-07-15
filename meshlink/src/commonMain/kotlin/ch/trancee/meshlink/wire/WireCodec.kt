@@ -5,10 +5,6 @@ import ch.trancee.meshlink.api.PeerId
 
 /** Envelope-level frame model for the unreleased MeshLink wire format. */
 internal sealed class WireFrame {
-    internal class Hello
-    internal constructor(public val peerId: PeerId, public val helloIntervalMillis: Int) :
-        WireFrame()
-
     internal class LinkIdentity internal constructor(public val peerId: PeerId) : WireFrame()
 
     /**
@@ -19,9 +15,6 @@ internal sealed class WireFrame {
      * never be forwarded to [ch.trancee.meshlink.transport.TransportEvent.FrameReceived].
      */
     internal class KeepAlive internal constructor() : WireFrame()
-
-    internal class Ihu
-    internal constructor(public val peerId: PeerId, public val receiveCost: Int) : WireFrame()
 
     internal class RouteUpdateMetrics
     internal constructor(
@@ -209,8 +202,6 @@ internal object WireCodec {
             WireEnvelopeType.MESSAGE -> MessagePayloadCodec.decode(table)
             WireEnvelopeType.LINK_IDENTITY -> LinkIdentityPayloadCodec.decode(table)
             WireEnvelopeType.LINK_KEEPALIVE -> WireFrame.KeepAlive()
-            WireEnvelopeType.HELLO,
-            WireEnvelopeType.IHU,
             WireEnvelopeType.ROUTE_UPDATE,
             WireEnvelopeType.ROUTE_RETRACTION,
             WireEnvelopeType.SEQNO_REQUEST,
@@ -232,8 +223,6 @@ internal object WireCodec {
             is WireFrame.Message -> MessagePayloadCodec.encode(frame)
             is WireFrame.LinkIdentity -> LinkIdentityPayloadCodec.encode(frame)
             is WireFrame.KeepAlive -> FlatBufferTableBuilder(fieldCount = 0).finish()
-            is WireFrame.Hello,
-            is WireFrame.Ihu,
             is WireFrame.RouteUpdate,
             is WireFrame.RouteRetraction,
             is WireFrame.SeqNoRequest,
@@ -251,10 +240,8 @@ internal object WireCodec {
 
     private fun envelopeType(frame: WireFrame): WireEnvelopeType {
         return when (frame) {
-            is WireFrame.Hello -> WireEnvelopeType.HELLO
             is WireFrame.LinkIdentity -> WireEnvelopeType.LINK_IDENTITY
             is WireFrame.KeepAlive -> WireEnvelopeType.LINK_KEEPALIVE
-            is WireFrame.Ihu -> WireEnvelopeType.IHU
             is WireFrame.RouteUpdate -> WireEnvelopeType.ROUTE_UPDATE
             is WireFrame.RouteRetraction -> WireEnvelopeType.ROUTE_RETRACTION
             is WireFrame.SeqNoRequest -> WireEnvelopeType.SEQNO_REQUEST

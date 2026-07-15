@@ -12,17 +12,6 @@ import ch.trancee.meshlink.api.PeerId
 internal object RoutingPayloadCodec {
     fun decode(type: WireEnvelopeType, table: FlatBufferTable): WireFrame {
         return when (type) {
-            WireEnvelopeType.HELLO ->
-                WireFrame.Hello(
-                    peerId =
-                        PeerId(requireString(table, HELLO_PEER_ID_FIELD_INDEX, "HELLO.peerId")),
-                    helloIntervalMillis = table.readInt(HELLO_INTERVAL_FIELD_INDEX),
-                )
-            WireEnvelopeType.IHU ->
-                WireFrame.Ihu(
-                    peerId = PeerId(requireString(table, IHU_PEER_ID_FIELD_INDEX, "IHU.peerId")),
-                    receiveCost = table.readInt(IHU_RECEIVE_COST_FIELD_INDEX),
-                )
             WireEnvelopeType.ROUTE_UPDATE -> decodeRouteUpdate(table)
             WireEnvelopeType.ROUTE_RETRACTION ->
                 WireFrame.RouteRetraction(
@@ -71,16 +60,6 @@ internal object RoutingPayloadCodec {
 
     fun encode(frame: WireFrame): ByteArray {
         return when (frame) {
-            is WireFrame.Hello ->
-                FlatBufferTableBuilder(fieldCount = HELLO_FIELD_COUNT)
-                    .addString(HELLO_PEER_ID_FIELD_INDEX, frame.peerId.value)
-                    .addInt(HELLO_INTERVAL_FIELD_INDEX, frame.helloIntervalMillis)
-                    .finish()
-            is WireFrame.Ihu ->
-                FlatBufferTableBuilder(fieldCount = IHU_FIELD_COUNT)
-                    .addString(IHU_PEER_ID_FIELD_INDEX, frame.peerId.value)
-                    .addInt(IHU_RECEIVE_COST_FIELD_INDEX, frame.receiveCost)
-                    .finish()
             is WireFrame.RouteUpdate -> encodeRouteUpdate(frame)
             is WireFrame.RouteRetraction ->
                 FlatBufferTableBuilder(fieldCount = ROUTE_RETRACTION_FIELD_COUNT)

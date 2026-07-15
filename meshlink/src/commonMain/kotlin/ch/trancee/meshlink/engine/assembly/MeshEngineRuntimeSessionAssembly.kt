@@ -101,6 +101,7 @@ internal fun buildMeshEngineRuntimeSessionAssembly(
         MeshEngineHandshakeRoutingContext(
             routeCoordinator = sharedState.routeCoordinator,
             routingSupport = routingAndTrust.routingSupport,
+            localSelfRouteSeqNo = sharedState.localSelfRouteSeqNo,
         )
     val handshakeCallbacks =
         buildMeshEngineRuntimeHandshakeCallbacks(

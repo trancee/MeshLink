@@ -15,6 +15,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -538,6 +539,107 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
+    fun `destination self-reported route seqno stays constant within one running instance and changes across restarts`() =
+        runBlocking<Unit> {
+            // Arrange: first engine instance with two neighbors.
+            val firstHarness = harness()
+            val destinationFirstStart = firstHarness.createNode("peer-a")
+            val firstNeighbor = firstHarness.createNode("peer-b")
+            val secondNeighbor = firstHarness.createNode("peer-c")
+
+            firstHarness.linkPeers(destinationFirstStart, firstNeighbor)
+            firstHarness.linkPeers(destinationFirstStart, secondNeighbor)
+
+            destinationFirstStart.meshLink.start()
+            firstNeighbor.meshLink.start()
+            secondNeighbor.meshLink.start()
+
+            // Act: collect the self-origin seqNo observed by both neighbors of one running
+            // instance.
+            val firstNeighborSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = firstNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destinationFirstStart.peerId.value,
+                )
+            val secondNeighborSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = secondNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destinationFirstStart.peerId.value,
+                )
+
+            // Assert property 1: one running engine instance reports the same seqNo to all
+            // neighbors.
+            assertTrue(firstNeighborSeqNo > 0L)
+            assertEquals(firstNeighborSeqNo, secondNeighborSeqNo)
+
+            // Arrange: stop and start a fresh engine instance for the same destination peer id.
+            firstHarness.stopAll()
+            testDelay(5)
+
+            val secondHarness = harness()
+            val destinationSecondStart = secondHarness.createNode("peer-a")
+            val restartNeighbor = secondHarness.createNode("peer-z")
+
+            secondHarness.linkPeers(destinationSecondStart, restartNeighbor)
+
+            destinationSecondStart.meshLink.start()
+            restartNeighbor.meshLink.start()
+
+            // Act
+            val restartedSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = restartNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destinationSecondStart.peerId.value,
+                )
+
+            // Assert property 2: a fresh engine start reports a different self-origin seqNo.
+            assertTrue(restartedSeqNo > 0L)
+            assertNotEquals(firstNeighborSeqNo, restartedSeqNo)
+        }
+
+    @Test
+    fun `route digest mismatch triggers a full-table resend that repairs the missing route`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val destination = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val observer = harness.createNode("peer-c")
+            val payload = "digest mismatch recovery".encodeToByteArray()
+
+            harness.linkPeers(destination, relay)
+            harness.linkPeers(relay, observer)
+            // Drop the first relay->observer route update after startup. The following digest frame
+            // still arrives and should trigger the mismatch-recovery full-table resend.
+            harness.dropNextDeliveries(sender = relay, recipient = observer, count = 1)
+
+            destination.meshLink.start()
+            relay.meshLink.start()
+            observer.meshLink.start()
+
+            awaitDiagnosticForPeer(
+                diagnostics = observer.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = destination.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
+
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) { destination.meshLink.messages.first() }
+                }
+
+            // Act
+            val sendResult = observer.meshLink.send(destination.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+        }
+
+    @Test
     fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() =
         runBlocking<Unit> {
             if (!supportsRelayRoutingStressScenarios()) {
@@ -651,6 +753,38 @@ class MeshRoutingIntegrationTest {
             ) {
                 testDelay(10)
             }
+        }
+    }
+
+    private suspend fun awaitLatestRouteSeqNo(
+        diagnostics: () -> List<DiagnosticEvent>,
+        destinationPeerIdValue: String,
+    ): Long {
+        return testWithTimeout(5_000) {
+            while (true) {
+                val seqNo =
+                    diagnostics()
+                        .asReversed()
+                        .firstOrNull { event ->
+                            (event.code == DiagnosticCode.ROUTE_DISCOVERED ||
+                                event.code == DiagnosticCode.ROUTE_UPDATED) &&
+                                event.metadata["peerId"] == destinationPeerIdValue &&
+                                event.metadata["routeAvailable"] == "true"
+                        }
+                        ?.metadata
+                        ?.get("routeSeqNo")
+                        ?.toLongOrNull()
+
+                // The initial direct-route install path can emit a placeholder seqNo=0 before the
+                // destination's self-origin RouteUpdate lands. This helper waits for the post-
+                // self-origin state (seqNo > 0), so the test asserts against the intended signal
+                // rather than racing the placeholder diagnostic.
+                if (seqNo != null && seqNo > 0L) {
+                    return@testWithTimeout seqNo
+                }
+                testDelay(10)
+            }
+            error("Unreachable")
         }
     }
 

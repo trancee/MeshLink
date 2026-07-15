@@ -602,64 +602,6 @@ class MeshEngineInboundSupportTest {
         }
 
     @Test
-    fun `handleEncryptedDataFrame ignores hello frames after decryption`() =
-        runBlocking<Unit> {
-            // Arrange
-            val localIdentity = LocalIdentity.fromAppId("inbound-local")
-            val peerId = PeerId("peer-abcdef")
-            val sessionRegistry = MeshEngineSessionRegistry()
-            seedInboundSession(
-                localIdentity = localIdentity,
-                sessionRegistry = sessionRegistry,
-                peerId = peerId,
-            )
-            val fixture =
-                inboundSupportFixture(
-                    localIdentity = localIdentity,
-                    sessionRegistry = sessionRegistry,
-                    decryptedFrame = WireFrame.Hello(peerId = peerId, helloIntervalMillis = 5_000),
-                )
-
-            // Act
-            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
-
-            // Assert
-            assertTrue(fixture.failures.isEmpty())
-            assertTrue(fixture.forwardedMessages.isEmpty())
-            assertTrue(fixture.deliveredMessages.isEmpty())
-            assertTrue(fixture.transferEvents.isEmpty())
-        }
-
-    @Test
-    fun `handleEncryptedDataFrame ignores ihu frames after decryption`() =
-        runBlocking<Unit> {
-            // Arrange
-            val localIdentity = LocalIdentity.fromAppId("inbound-local")
-            val peerId = PeerId("peer-abcdef")
-            val sessionRegistry = MeshEngineSessionRegistry()
-            seedInboundSession(
-                localIdentity = localIdentity,
-                sessionRegistry = sessionRegistry,
-                peerId = peerId,
-            )
-            val fixture =
-                inboundSupportFixture(
-                    localIdentity = localIdentity,
-                    sessionRegistry = sessionRegistry,
-                    decryptedFrame = WireFrame.Ihu(peerId = peerId, receiveCost = 1),
-                )
-
-            // Act
-            fixture.support.handleEncryptedDataFrame(peerId = peerId, payload = byteArrayOf(1))
-
-            // Assert
-            assertTrue(fixture.failures.isEmpty())
-            assertTrue(fixture.forwardedMessages.isEmpty())
-            assertTrue(fixture.deliveredMessages.isEmpty())
-            assertTrue(fixture.transferEvents.isEmpty())
-        }
-
-    @Test
     fun `handleEncryptedDataFrame ignores seqno request frames after decryption`() =
         runBlocking<Unit> {
             // Arrange

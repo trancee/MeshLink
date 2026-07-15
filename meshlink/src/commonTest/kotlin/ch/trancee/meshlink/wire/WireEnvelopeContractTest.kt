@@ -42,10 +42,8 @@ class WireEnvelopeContractTest {
         // Arrange
         val frames =
             listOf<WireFrame>(
-                WireFrame.Hello(peerId = PeerId("hello-peer-001"), helloIntervalMillis = 2_000),
                 WireFrame.LinkIdentity(peerId = PeerId("link-identity-peer-001")),
                 WireFrame.KeepAlive(),
-                WireFrame.Ihu(peerId = PeerId("ihu-peer-001"), receiveCost = 96),
                 WireFrame.RouteUpdate(
                     destinationPeerId = PeerId("destination-peer-002"),
                     nextHopPeerId = PeerId("next-hop-peer-002"),
@@ -337,25 +335,6 @@ class WireEnvelopeContractTest {
                         ),
                     encodedBytes = encodedBytes,
                 )
-            "v1_hello.hex" ->
-                WireCompatibilityFixture(
-                    fileName = fileName,
-                    expectedType = WireEnvelopeType.HELLO,
-                    expectedFrame =
-                        WireFrame.Hello(
-                            peerId = PeerId("fixture-hello-peer-001"),
-                            helloIntervalMillis = 2_000,
-                        ),
-                    encodedBytes = encodedBytes,
-                )
-            "v1_ihu.hex" ->
-                WireCompatibilityFixture(
-                    fileName = fileName,
-                    expectedType = WireEnvelopeType.IHU,
-                    expectedFrame =
-                        WireFrame.Ihu(peerId = PeerId("fixture-ihu-peer-001"), receiveCost = 96),
-                    encodedBytes = encodedBytes,
-                )
             "v1_link_identity.hex" ->
                 WireCompatibilityFixture(
                     fileName = fileName,
@@ -530,21 +509,9 @@ class WireEnvelopeContractTest {
 
     private fun assertFrameEquals(expected: WireFrame, actual: WireFrame): Unit {
         when (expected) {
-            is WireFrame.Hello -> {
-                val decoded = actual as WireFrame.Hello
-                assertEquals(expected.peerId.value, decoded.peerId.value)
-                assertEquals(expected.helloIntervalMillis, decoded.helloIntervalMillis)
-            }
-
             is WireFrame.LinkIdentity -> {
                 val decoded = actual as WireFrame.LinkIdentity
                 assertEquals(expected.peerId.value, decoded.peerId.value)
-            }
-
-            is WireFrame.Ihu -> {
-                val decoded = actual as WireFrame.Ihu
-                assertEquals(expected.peerId.value, decoded.peerId.value)
-                assertEquals(expected.receiveCost, decoded.receiveCost)
             }
 
             is WireFrame.RouteUpdate -> {

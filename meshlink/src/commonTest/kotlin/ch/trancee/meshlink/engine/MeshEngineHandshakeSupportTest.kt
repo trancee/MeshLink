@@ -97,7 +97,12 @@ class MeshEngineHandshakeSupportTest {
 
         // Act
         val state = MeshEngineHandshakeState(sessionRegistry)
-        val routingContext = MeshEngineHandshakeRoutingContext(routeCoordinator, routingSupport)
+        val routingContext =
+            MeshEngineHandshakeRoutingContext(
+                routeCoordinator = routeCoordinator,
+                routingSupport = routingSupport,
+                localSelfRouteSeqNo = 1L,
+            )
 
         // Assert
         assertSame(sessionRegistry, state.sessionRegistry)

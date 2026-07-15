@@ -297,9 +297,10 @@ public class BenchmarkRouteCoordinator public constructor(localPeerId: PeerId) {
             .toBenchmarkAdvertisements()
     }
 
-    public fun onRouteDigest(fromPeerId: PeerId, digest: BenchmarkWireFrame.RouteDigest): Unit {
-        delegate.onRouteDigest(fromPeerId = fromPeerId, frame = digest.toInternal())
-    }
+    public fun onRouteDigest(fromPeerId: PeerId, digest: BenchmarkWireFrame.RouteDigest): Unit =
+        runBlocking {
+            delegate.onRouteDigest(fromPeerId = fromPeerId, frame = digest.toInternal())
+        }
 
     public fun nextHopFor(destinationPeerId: PeerId): PeerId? = runBlocking {
         delegate.nextHopFor(destinationPeerId = destinationPeerId)

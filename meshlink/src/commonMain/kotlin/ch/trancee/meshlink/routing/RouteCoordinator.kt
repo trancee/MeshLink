@@ -19,11 +19,12 @@ import kotlinx.coroutines.sync.withLock
 internal class RouteCoordinator internal constructor(private val localPeerId: PeerId) {
     private val routingMutex = Mutex()
     private val connectedPeers: MutableSet<String> = linkedSetOf()
-    private val directRouteSeqNos: MutableMap<String, Long> = linkedMapOf()
     private val selectedRoutes: MutableMap<String, RouteEntry> = linkedMapOf()
     private val feasibilityDistances: MutableMap<String, FeasibilityDistance> = linkedMapOf()
     private val mutableTopologyVersion: MutableStateFlow<Long> = MutableStateFlow(0L)
     private val routeDigestTracker = RouteDigestTracker()
+    private val lastDigestMismatchResponseByPeer: MutableMap<String, DigestMismatchResponse> =
+        linkedMapOf()
 
     internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
@@ -32,9 +33,8 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         trustRecord: TrustRecord,
     ): RoutingMutation = routingMutex.withLock {
         connectedPeers += peerId.value
+        lastDigestMismatchResponseByPeer.remove(peerId.value)
 
-        val seqNo = (directRouteSeqNos[peerId.value] ?: 0L) + 1L
-        directRouteSeqNos[peerId.value] = seqNo
         val directRoute =
             RouteEntry(
                 destinationPeerId = peerId,
@@ -42,7 +42,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
                 metrics =
                     RouteMetrics(
                         metric = DIRECT_ROUTE_METRIC,
-                        seqNo = seqNo,
+                        seqNo = 0L,
                         feasibilityMetric = DIRECT_ROUTE_METRIC,
                         isDirect = true,
                     ),
@@ -80,6 +80,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     internal suspend fun onPeerDisconnected(peerId: PeerId): RoutingMutation =
         routingMutex.withLock {
             connectedPeers -= peerId.value
+            lastDigestMismatchResponseByPeer.remove(peerId.value)
 
             val removedRoutes =
                 selectedRoutes.values
@@ -120,6 +121,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
 
         connectedPeers.clear()
+        lastDigestMismatchResponseByPeer.clear()
         val removedRoutes = selectedRoutes.values.toList()
         selectedRoutes.clear()
         feasibilityDistances.clear()
@@ -137,26 +139,13 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         fromPeerId: PeerId,
         update: WireFrame.RouteUpdate,
     ): RoutingMutation = routingMutex.withLock {
-        val candidate =
-            RouteEntry(
-                destinationPeerId = update.destinationPeerId,
-                nextHopPeerId = fromPeerId,
-                metrics =
-                    RouteMetrics(
-                        metric = update.metric + 1,
-                        seqNo = update.seqNo,
-                        feasibilityMetric = update.feasibilityMetric,
-                        isDirect = false,
-                    ),
-                publicKeys =
-                    RoutePublicKeys(
-                        ed25519PublicKey = update.destinationEd25519PublicKey,
-                        x25519PublicKey = update.destinationX25519PublicKey,
-                    ),
-            )
+        val isSelfOriginUpdate = update.destinationPeerId.value == fromPeerId.value
+        val candidate = candidateForRouteUpdate(update, fromPeerId, isSelfOriginUpdate)
         val current = selectedRoutes[update.destinationPeerId.value]
+        val hasConnectedDirectPeer = connectedPeers.contains(update.destinationPeerId.value)
         val shouldIgnoreUpdate =
             update.destinationPeerId.value == localPeerId.value ||
+                (!isSelfOriginUpdate && hasConnectedDirectPeer && current?.isDirect == true) ||
                 (!isFeasible(candidate) && current?.nextHopPeerId?.value != fromPeerId.value) ||
                 !shouldSelect(candidate, current)
 
@@ -215,8 +204,35 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {}
+    internal suspend fun onRouteDigest(
+        fromPeerId: PeerId,
+        frame: WireFrame.RouteDigest,
+    ): RoutingMutation = routingMutex.withLock {
+        val localDigest = routeDigestTracker.routeDigestFrame(localPeerId).digest
+        if (frame.digest.contentEquals(localDigest)) {
+            lastDigestMismatchResponseByPeer.remove(fromPeerId.value)
+            return@withLock RoutingMutation.EMPTY
+        }
+
+        val responseKey =
+            DigestMismatchResponse(remoteDigest = frame.digest.copyOf(), localDigest = localDigest)
+        val previousResponse = lastDigestMismatchResponseByPeer[fromPeerId.value]
+        if (previousResponse == responseKey) {
+            return@withLock RoutingMutation.EMPTY
+        }
+
+        lastDigestMismatchResponseByPeer[fromPeerId.value] = responseKey
+        RoutingMutation(
+            advertisements =
+                RouteAdvertisementPlanner.forRouteDigestMismatch(
+                    targetPeerId = fromPeerId,
+                    selectedRoutes = selectedRoutes.values,
+                    routeDigestTracker = routeDigestTracker,
+                    localPeerId = localPeerId,
+                ),
+            routeChanges = emptyList(),
+        )
+    }
 
     internal suspend fun nextHopFor(destinationPeerId: PeerId): PeerId? = routingMutex.withLock {
         selectedRoutes[destinationPeerId.value]?.nextHopPeerId
@@ -224,6 +240,39 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal suspend fun routeFor(destinationPeerId: PeerId): RouteEntry? = routingMutex.withLock {
         selectedRoutes[destinationPeerId.value]
+    }
+
+    private fun candidateForRouteUpdate(
+        update: WireFrame.RouteUpdate,
+        fromPeerId: PeerId,
+        isSelfOriginUpdate: Boolean,
+    ): RouteEntry {
+        val metrics =
+            if (isSelfOriginUpdate) {
+                RouteMetrics(
+                    metric = DIRECT_ROUTE_METRIC,
+                    seqNo = update.seqNo,
+                    feasibilityMetric = DIRECT_ROUTE_METRIC,
+                    isDirect = true,
+                )
+            } else {
+                RouteMetrics(
+                    metric = update.metric + 1,
+                    seqNo = update.seqNo,
+                    feasibilityMetric = update.feasibilityMetric,
+                    isDirect = false,
+                )
+            }
+        return RouteEntry(
+            destinationPeerId = update.destinationPeerId,
+            nextHopPeerId = fromPeerId,
+            metrics = metrics,
+            publicKeys =
+                RoutePublicKeys(
+                    ed25519PublicKey = update.destinationEd25519PublicKey,
+                    x25519PublicKey = update.destinationX25519PublicKey,
+                ),
+        )
     }
 
     private fun isFeasible(candidate: RouteEntry): Boolean {
@@ -248,5 +297,22 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal companion object {
         private const val DIRECT_ROUTE_METRIC: Int = 1
+    }
+}
+
+private data class DigestMismatchResponse(val remoteDigest: ByteArray, val localDigest: ByteArray) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) {
+            return true
+        }
+        if (other !is DigestMismatchResponse) {
+            return false
+        }
+        return remoteDigest.contentEquals(other.remoteDigest) &&
+            localDigest.contentEquals(other.localDigest)
+    }
+
+    override fun hashCode(): Int {
+        return 31 * remoteDigest.contentHashCode() + localDigest.contentHashCode()
     }
 }

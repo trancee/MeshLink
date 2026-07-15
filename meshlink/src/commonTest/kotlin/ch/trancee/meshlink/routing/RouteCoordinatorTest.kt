@@ -212,6 +212,125 @@ class RouteCoordinatorTest {
         }
 
     @Test
+    fun `onRouteDigest mismatch pushes full table to advertising peer`() =
+        runBlocking<Unit> {
+            // Arrange
+            val coordinator = RouteCoordinator(PeerId("local"))
+            val relayPeerId = PeerId("relay")
+            val observerPeerId = PeerId("observer")
+            val remotePeerId = PeerId("remote-1")
+            coordinator.onPeerConnected(
+                peerId = relayPeerId,
+                trustRecord = trustRecord(relayPeerId, 1),
+            )
+            coordinator.onPeerConnected(
+                peerId = observerPeerId,
+                trustRecord = trustRecord(observerPeerId, 2),
+            )
+            coordinator.onRouteUpdate(
+                fromPeerId = relayPeerId,
+                update = routeUpdate(remotePeerId, relayPeerId, seqNo = 5L),
+            )
+
+            // Act
+            val mutation =
+                coordinator.onRouteDigest(
+                    fromPeerId = observerPeerId,
+                    frame = WireFrame.RouteDigest(observerPeerId, byteArrayOf(9, 9, 9, 9)),
+                )
+
+            // Assert
+            assertEquals(0, mutation.routeChanges.size)
+            assertEquals(
+                2,
+                mutation.advertisements.count { advertisement ->
+                    advertisement.targetPeerId.value == observerPeerId.value &&
+                        advertisement.frame is WireFrame.RouteUpdate
+                },
+            )
+            assertEquals(
+                1,
+                mutation.advertisements.count { advertisement ->
+                    advertisement.targetPeerId.value == observerPeerId.value &&
+                        advertisement.frame is WireFrame.RouteDigest
+                },
+            )
+        }
+
+    @Test
+    fun `onRouteDigest deduplicates repeated mismatches until one side changes digest`() =
+        runBlocking<Unit> {
+            // Arrange
+            val coordinator = RouteCoordinator(PeerId("local"))
+            val relayPeerId = PeerId("relay")
+            val observerPeerId = PeerId("observer")
+            val remotePeerId = PeerId("remote-1")
+            coordinator.onPeerConnected(
+                peerId = relayPeerId,
+                trustRecord = trustRecord(relayPeerId, 1),
+            )
+            coordinator.onPeerConnected(
+                peerId = observerPeerId,
+                trustRecord = trustRecord(observerPeerId, 2),
+            )
+            coordinator.onRouteUpdate(
+                fromPeerId = relayPeerId,
+                update = routeUpdate(remotePeerId, relayPeerId, seqNo = 5L),
+            )
+            val mismatchedDigest = WireFrame.RouteDigest(observerPeerId, byteArrayOf(9, 9, 9, 9))
+
+            // Act
+            val firstMutation =
+                coordinator.onRouteDigest(fromPeerId = observerPeerId, frame = mismatchedDigest)
+            val repeatedMutation =
+                coordinator.onRouteDigest(fromPeerId = observerPeerId, frame = mismatchedDigest)
+            coordinator.onRouteUpdate(
+                fromPeerId = relayPeerId,
+                update = routeUpdate(PeerId("remote-2"), relayPeerId, seqNo = 7L),
+            )
+            val changedLocalDigestMutation =
+                coordinator.onRouteDigest(fromPeerId = observerPeerId, frame = mismatchedDigest)
+
+            // Assert
+            assertTrue(firstMutation.advertisements.isNotEmpty())
+            assertEquals(0, repeatedMutation.advertisements.size)
+            assertTrue(changedLocalDigestMutation.advertisements.isNotEmpty())
+        }
+
+    @Test
+    fun `onRouteUpdate keeps direct route when relay reports a higher seqno`() =
+        runBlocking<Unit> {
+            // Arrange
+            val coordinator = RouteCoordinator(PeerId("local"))
+            val destination = PeerId("destination")
+            val relay = PeerId("relay")
+            coordinator.onPeerConnected(
+                peerId = destination,
+                trustRecord = trustRecord(destination, 1),
+            )
+            coordinator.onPeerConnected(peerId = relay, trustRecord = trustRecord(relay, 2))
+            coordinator.onRouteUpdate(
+                fromPeerId = destination,
+                update = routeUpdate(destination, destination, seqNo = 3L),
+            )
+
+            // Act
+            val mutation =
+                coordinator.onRouteUpdate(
+                    fromPeerId = relay,
+                    update = routeUpdate(destination, relay, seqNo = 9L),
+                )
+
+            // Assert
+            assertEquals(0, mutation.advertisements.size)
+            assertEquals(0, mutation.routeChanges.size)
+            val route = checkNotNull(coordinator.routeFor(destination))
+            assertEquals(destination.value, route.nextHopPeerId.value)
+            assertTrue(route.isDirect)
+            assertEquals(3L, route.seqNo)
+        }
+
+    @Test
     fun `onRouteUpdate ignores infeasible updates from a different relay`() =
         runBlocking<Unit> {
             // Arrange

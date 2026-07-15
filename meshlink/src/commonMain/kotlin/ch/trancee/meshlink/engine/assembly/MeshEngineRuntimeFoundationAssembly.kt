@@ -13,6 +13,7 @@ import ch.trancee.meshlink.engine.routing.MeshEngineRoutingSupport
 import ch.trancee.meshlink.engine.transfer.DeliveryRetryScheduler
 import ch.trancee.meshlink.engine.transfer.MeshEngineTransferRegistry
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
+import ch.trancee.meshlink.platform.currentEpochMillis
 import ch.trancee.meshlink.power.PowerPolicyController
 import ch.trancee.meshlink.presence.PeerPresenceTracker
 import ch.trancee.meshlink.routing.RouteCoordinator
@@ -33,6 +34,7 @@ internal data class MeshEngineRuntimeSharedState(
     val transferRegistry: MeshEngineTransferRegistry,
     val sequenceGenerator: MeshEngineSequenceGenerator,
     val runtimePolicies: MeshEngineRuntimePolicies,
+    val localSelfRouteSeqNo: Long,
 ) {
     suspend fun outboundTransfers():
         Map<String, ch.trancee.meshlink.transfer.OutboundTransferSession> =
@@ -76,6 +78,7 @@ private fun buildMeshEngineRuntimeSharedState(
 ): MeshEngineRuntimeSharedState {
     val routeCoordinator = RouteCoordinator(environment.localIdentity.peerId)
     val engineClock = TimeSource.Monotonic.markNow()
+    val localSelfRouteSeqNo = maxOf(1L, currentEpochMillis())
     return MeshEngineRuntimeSharedState(
         presenceTracker = PeerPresenceTracker(),
         routeCoordinator = routeCoordinator,
@@ -94,6 +97,7 @@ private fun buildMeshEngineRuntimeSharedState(
                 config = environment.config,
                 powerPolicyNowMillis = { engineClock.elapsedNow().inWholeMilliseconds },
             ),
+        localSelfRouteSeqNo = localSelfRouteSeqNo,
     )
 }
 

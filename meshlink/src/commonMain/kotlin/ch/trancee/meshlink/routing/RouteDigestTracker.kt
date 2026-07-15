@@ -52,11 +52,11 @@ internal class RouteDigestTracker {
 
     private fun encode(route: RouteEntry): ByteArray {
         val buffer = WriteBuffer()
+        // Route digests are compared across different observers, so they must hash only
+        // observer-invariant route identity/freshness fields. nextHop/metric are intentionally
+        // excluded here because they are observer-relative in any distance-vector topology.
         buffer.writeIntLittleEndian(route.destinationPeerIdBytes.size)
         buffer.writeBytes(route.destinationPeerIdBytes)
-        buffer.writeIntLittleEndian(route.nextHopPeerIdBytes.size)
-        buffer.writeBytes(route.nextHopPeerIdBytes)
-        buffer.writeIntLittleEndian(route.metric)
         buffer.writeIntLittleEndian(route.seqNo.toInt())
         buffer.writeIntLittleEndian(route.ed25519PublicKey.size)
         buffer.writeBytes(route.ed25519PublicKey)
