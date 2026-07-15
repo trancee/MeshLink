@@ -33,7 +33,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class MeshRoutingIntegrationTest {
     private companion object {
-        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 5
+        // Widened from 5 to 10 after repeated CI-only flakiness across several different
+        // reconnect/rediscovery/expiry scenarios in this file (see issue #142) -- individually
+        // bumping each scenario's own explicit deadline was proving to be a whack-a-mole fix, since
+        // a different scenario in this same file flaked on nearly every subsequent CI run. Widening
+        // the shared multiplier gives every wait/delay in this file proportionally more headroom at
+        // once, rather than continuing to patch one hardcoded timeout after another.
+        private const val TEST_TIMING_SLACK_MULTIPLIER: Long = 10
     }
 
     @Test
