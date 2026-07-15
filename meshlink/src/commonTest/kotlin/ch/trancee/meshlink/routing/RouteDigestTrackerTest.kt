@@ -38,6 +38,37 @@ class RouteDigestTrackerTest {
     }
 
     @Test
+    fun `routeDigestFrame ignores next-hop and metric differences for the same destination and seqNo`() {
+        // Arrange
+        val localPeerId = PeerId("local")
+        val firstView =
+            routeEntry(
+                destinationPeerIdValue = "peer-a",
+                nextHopPeerIdValue = "relay-a",
+                seqNo = 3L,
+                metric = 1,
+            )
+        val secondView =
+            routeEntry(
+                destinationPeerIdValue = "peer-a",
+                nextHopPeerIdValue = "relay-b",
+                seqNo = 3L,
+                metric = 9,
+            )
+        val firstTracker = RouteDigestTracker()
+        val secondTracker = RouteDigestTracker()
+
+        // Act
+        firstTracker.upsert(firstView)
+        secondTracker.upsert(secondView)
+        val firstDigest = firstTracker.routeDigestFrame(localPeerId).digest
+        val secondDigest = secondTracker.routeDigestFrame(localPeerId).digest
+
+        // Assert
+        assertContentEquals(firstDigest, secondDigest)
+    }
+
+    @Test
     fun `routeDigestFrame changes when a route for the same destination is replaced`() {
         // Arrange
         val localPeerId = PeerId("local")
@@ -121,12 +152,19 @@ private fun routeEntry(
     destinationPeerIdValue: String,
     nextHopPeerIdValue: String,
     seqNo: Long,
+    metric: Int = 1,
 ): RouteEntry {
     val seed = destinationPeerIdValue.last().code
     return RouteEntry(
         destinationPeerId = PeerId(destinationPeerIdValue),
         nextHopPeerId = PeerId(nextHopPeerIdValue),
-        metrics = RouteMetrics(metric = 1, seqNo = seqNo, feasibilityMetric = 1, isDirect = false),
+        metrics =
+            RouteMetrics(
+                metric = metric,
+                seqNo = seqNo,
+                feasibilityMetric = metric,
+                isDirect = false,
+            ),
         publicKeys =
             RoutePublicKeys(
                 ed25519PublicKey = repeatedByteArray(seed),
