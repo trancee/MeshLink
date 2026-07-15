@@ -774,7 +774,12 @@ class MeshRoutingIntegrationTest {
                         ?.metadata
                         ?.get("routeSeqNo")
                         ?.toLongOrNull()
-                if (seqNo != null) {
+
+                // The initial direct-route install path can emit a placeholder seqNo=0 before the
+                // destination's self-origin RouteUpdate lands. This helper waits for the post-
+                // self-origin state (seqNo > 0), so the test asserts against the intended signal
+                // rather than racing the placeholder diagnostic.
+                if (seqNo != null && seqNo > 0L) {
                     return@testWithTimeout seqNo
                 }
                 testDelay(10)
