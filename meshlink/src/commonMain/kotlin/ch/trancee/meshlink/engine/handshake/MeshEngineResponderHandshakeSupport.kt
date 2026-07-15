@@ -292,7 +292,12 @@ internal class MeshEngineResponderHandshakeSupport(
         return WireFrame.RouteUpdate(
             destinationPeerId = localIdentity.peerId,
             nextHopPeerId = localIdentity.peerId,
-            metrics = WireFrame.RouteUpdateMetrics(metric = 1, seqNo = 1L, feasibilityMetric = 1),
+            metrics =
+                WireFrame.RouteUpdateMetrics(
+                    metric = 1,
+                    seqNo = routingContext.localSelfRouteSeqNo,
+                    feasibilityMetric = 1,
+                ),
             publicKeys =
                 WireFrame.RouteUpdatePublicKeys(
                     destinationEd25519PublicKey = localIdentity.ed25519PublicKey,

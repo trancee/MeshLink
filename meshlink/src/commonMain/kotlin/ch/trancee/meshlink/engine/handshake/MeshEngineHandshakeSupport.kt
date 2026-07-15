@@ -14,6 +14,7 @@ internal data class MeshEngineHandshakeState(val sessionRegistry: MeshEngineSess
 internal data class MeshEngineHandshakeRoutingContext(
     val routeCoordinator: RouteCoordinator,
     val routingSupport: MeshEngineRoutingSupport,
+    val localSelfRouteSeqNo: Long,
 )
 
 internal data class MeshEngineHandshakeCallbacks(

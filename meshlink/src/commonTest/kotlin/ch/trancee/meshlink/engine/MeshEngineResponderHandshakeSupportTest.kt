@@ -436,6 +436,7 @@ private fun responderHandshakeFixture(
                 MeshEngineHandshakeRoutingContext(
                     routeCoordinator = routeCoordinator,
                     routingSupport = routingSupport,
+                    localSelfRouteSeqNo = 1L,
                 ),
             callbacks =
                 MeshEngineHandshakeCallbacks(

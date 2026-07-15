@@ -15,6 +15,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -538,36 +539,62 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
-    fun `two neighbors converge on the same destination self-reported route seqno`() =
+    fun `destination self-reported route seqno stays constant within one running instance and changes across restarts`() =
         runBlocking<Unit> {
-            // Arrange
-            val harness = harness()
-            val destination = harness.createNode("peer-a")
-            val firstNeighbor = harness.createNode("peer-b")
-            val secondNeighbor = harness.createNode("peer-c")
+            // Arrange: first engine instance with two neighbors.
+            val firstHarness = harness()
+            val destinationFirstStart = firstHarness.createNode("peer-a")
+            val firstNeighbor = firstHarness.createNode("peer-b")
+            val secondNeighbor = firstHarness.createNode("peer-c")
 
-            harness.linkPeers(destination, firstNeighbor)
-            harness.linkPeers(destination, secondNeighbor)
+            firstHarness.linkPeers(destinationFirstStart, firstNeighbor)
+            firstHarness.linkPeers(destinationFirstStart, secondNeighbor)
 
-            destination.meshLink.start()
+            destinationFirstStart.meshLink.start()
             firstNeighbor.meshLink.start()
             secondNeighbor.meshLink.start()
 
-            // Act
+            // Act: collect the self-origin seqNo observed by both neighbors of one running
+            // instance.
             val firstNeighborSeqNo =
                 awaitLatestRouteSeqNo(
                     diagnostics = firstNeighbor.diagnosticSink::events,
-                    destinationPeerIdValue = destination.peerId.value,
+                    destinationPeerIdValue = destinationFirstStart.peerId.value,
                 )
             val secondNeighborSeqNo =
                 awaitLatestRouteSeqNo(
                     diagnostics = secondNeighbor.diagnosticSink::events,
-                    destinationPeerIdValue = destination.peerId.value,
+                    destinationPeerIdValue = destinationFirstStart.peerId.value,
                 )
 
-            // Assert
+            // Assert property 1: one running engine instance reports the same seqNo to all
+            // neighbors.
             assertTrue(firstNeighborSeqNo > 0L)
             assertEquals(firstNeighborSeqNo, secondNeighborSeqNo)
+
+            // Arrange: stop and start a fresh engine instance for the same destination peer id.
+            firstHarness.stopAll()
+            testDelay(5)
+
+            val secondHarness = harness()
+            val destinationSecondStart = secondHarness.createNode("peer-a")
+            val restartNeighbor = secondHarness.createNode("peer-z")
+
+            secondHarness.linkPeers(destinationSecondStart, restartNeighbor)
+
+            destinationSecondStart.meshLink.start()
+            restartNeighbor.meshLink.start()
+
+            // Act
+            val restartedSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = restartNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destinationSecondStart.peerId.value,
+                )
+
+            // Assert property 2: a fresh engine start reports a different self-origin seqNo.
+            assertTrue(restartedSeqNo > 0L)
+            assertNotEquals(firstNeighborSeqNo, restartedSeqNo)
         }
 
     @Test
