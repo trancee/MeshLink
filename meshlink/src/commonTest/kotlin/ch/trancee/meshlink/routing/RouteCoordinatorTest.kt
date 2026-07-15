@@ -212,6 +212,52 @@ class RouteCoordinatorTest {
         }
 
     @Test
+    fun `onRouteDigest mismatch pushes full table to advertising peer`() =
+        runBlocking<Unit> {
+            // Arrange
+            val coordinator = RouteCoordinator(PeerId("local"))
+            val relayPeerId = PeerId("relay")
+            val observerPeerId = PeerId("observer")
+            val remotePeerId = PeerId("remote-1")
+            coordinator.onPeerConnected(
+                peerId = relayPeerId,
+                trustRecord = trustRecord(relayPeerId, 1),
+            )
+            coordinator.onPeerConnected(
+                peerId = observerPeerId,
+                trustRecord = trustRecord(observerPeerId, 2),
+            )
+            coordinator.onRouteUpdate(
+                fromPeerId = relayPeerId,
+                update = routeUpdate(remotePeerId, relayPeerId, seqNo = 5L),
+            )
+
+            // Act
+            val mutation =
+                coordinator.onRouteDigest(
+                    fromPeerId = observerPeerId,
+                    frame = WireFrame.RouteDigest(observerPeerId, byteArrayOf(9, 9, 9, 9)),
+                )
+
+            // Assert
+            assertEquals(0, mutation.routeChanges.size)
+            assertEquals(
+                2,
+                mutation.advertisements.count { advertisement ->
+                    advertisement.targetPeerId.value == observerPeerId.value &&
+                        advertisement.frame is WireFrame.RouteUpdate
+                },
+            )
+            assertEquals(
+                1,
+                mutation.advertisements.count { advertisement ->
+                    advertisement.targetPeerId.value == observerPeerId.value &&
+                        advertisement.frame is WireFrame.RouteDigest
+                },
+            )
+        }
+
+    @Test
     fun `onRouteUpdate ignores infeasible updates from a different relay`() =
         runBlocking<Unit> {
             // Arrange

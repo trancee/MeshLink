@@ -165,7 +165,12 @@ internal class MeshEngineInboundSupport(
                     removalCode = DiagnosticCode.ROUTE_RETRACTED,
                     metadata = mapOf("retractedByPeerId" to peerId.value),
                 )
-            is WireFrame.RouteDigest -> routingContext.routeCoordinator.onRouteDigest(peerId, frame)
+            is WireFrame.RouteDigest ->
+                routingContext.routingSupport.dispatchMutation(
+                    mutation = routingContext.routeCoordinator.onRouteDigest(peerId, frame),
+                    stage = "routing.routeDigest",
+                    metadata = mapOf("advertisedByPeerId" to peerId.value),
+                )
             is WireFrame.LinkIdentity -> Unit
             // Platform transports must consume cleartext LinkIdentity frames before they ever reach
             // the encrypted direct-frame pipeline. If one shows up here, the transport leaked a

@@ -215,8 +215,26 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    internal fun onRouteDigest(fromPeerId: PeerId, frame: WireFrame.RouteDigest): Unit {}
+    internal suspend fun onRouteDigest(
+        fromPeerId: PeerId,
+        frame: WireFrame.RouteDigest,
+    ): RoutingMutation = routingMutex.withLock {
+        val localDigest = routeDigestTracker.routeDigestFrame(localPeerId).digest
+        if (frame.digest.contentEquals(localDigest)) {
+            return@withLock RoutingMutation.EMPTY
+        }
+
+        RoutingMutation(
+            advertisements =
+                RouteAdvertisementPlanner.forRouteDigestMismatch(
+                    targetPeerId = fromPeerId,
+                    selectedRoutes = selectedRoutes.values,
+                    routeDigestTracker = routeDigestTracker,
+                    localPeerId = localPeerId,
+                ),
+            routeChanges = emptyList(),
+        )
+    }
 
     internal suspend fun nextHopFor(destinationPeerId: PeerId): PeerId? = routingMutex.withLock {
         selectedRoutes[destinationPeerId.value]?.nextHopPeerId

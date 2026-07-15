@@ -113,6 +113,34 @@ internal object RouteAdvertisementPlanner {
         }
     }
 
+    internal fun forRouteDigestMismatch(
+        targetPeerId: PeerId,
+        selectedRoutes: Collection<RouteEntry>,
+        routeDigestTracker: RouteDigestTracker,
+        localPeerId: PeerId,
+    ): List<RoutingAdvertisement> {
+        val advertisements = mutableListOf<RoutingAdvertisement>()
+        selectedRoutes.forEach { route ->
+            if (
+                route.destinationPeerId.value == targetPeerId.value ||
+                    route.nextHopPeerId.value == targetPeerId.value
+            ) {
+                return@forEach
+            }
+            advertisements +=
+                RoutingAdvertisement(
+                    targetPeerId = targetPeerId,
+                    frame = route.asRouteUpdateFrame(),
+                )
+        }
+        advertisements +=
+            RoutingAdvertisement(
+                targetPeerId = targetPeerId,
+                frame = routeDigestTracker.routeDigestFrame(localPeerId),
+            )
+        return advertisements
+    }
+
     private fun addFrameAndDigest(
         targetPeerIds: Sequence<PeerId>,
         frame: WireFrame,
