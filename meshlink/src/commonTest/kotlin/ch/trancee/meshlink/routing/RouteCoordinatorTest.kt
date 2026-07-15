@@ -258,6 +258,39 @@ class RouteCoordinatorTest {
         }
 
     @Test
+    fun `onRouteUpdate keeps direct route when relay reports a higher seqno`() =
+        runBlocking<Unit> {
+            // Arrange
+            val coordinator = RouteCoordinator(PeerId("local"))
+            val destination = PeerId("destination")
+            val relay = PeerId("relay")
+            coordinator.onPeerConnected(
+                peerId = destination,
+                trustRecord = trustRecord(destination, 1),
+            )
+            coordinator.onPeerConnected(peerId = relay, trustRecord = trustRecord(relay, 2))
+            coordinator.onRouteUpdate(
+                fromPeerId = destination,
+                update = routeUpdate(destination, destination, seqNo = 3L),
+            )
+
+            // Act
+            val mutation =
+                coordinator.onRouteUpdate(
+                    fromPeerId = relay,
+                    update = routeUpdate(destination, relay, seqNo = 9L),
+                )
+
+            // Assert
+            assertEquals(0, mutation.advertisements.size)
+            assertEquals(0, mutation.routeChanges.size)
+            val route = checkNotNull(coordinator.routeFor(destination))
+            assertEquals(destination.value, route.nextHopPeerId.value)
+            assertTrue(route.isDirect)
+            assertEquals(3L, route.seqNo)
+        }
+
+    @Test
     fun `onRouteUpdate ignores infeasible updates from a different relay`() =
         runBlocking<Unit> {
             // Arrange

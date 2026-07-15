@@ -11,9 +11,12 @@ import ch.trancee.meshlink.engine.internal.unexpectedFramePrefixHex
 import ch.trancee.meshlink.engine.transport.DirectWireFrame
 import ch.trancee.meshlink.engine.trust.MeshEngineTrustSupport
 import ch.trancee.meshlink.identity.LocalIdentity
+import ch.trancee.meshlink.routing.RoutingAdvertisement
+import ch.trancee.meshlink.routing.RoutingMutation
 import ch.trancee.meshlink.transport.TransportMode
 import ch.trancee.meshlink.transport.TransportSendResult
 import ch.trancee.meshlink.trust.TrustRecord
+import ch.trancee.meshlink.wire.WireFrame
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -267,6 +270,34 @@ internal class MeshEngineResponderHandshakeSupport(
             mutation = routingContext.routeCoordinator.onPeerConnected(peerId, trustRecord),
             stage = "transport.handshake.message3.complete",
             metadata = mapOf("connectedPeerId" to peerId.value),
+        )
+        routingContext.routingSupport.dispatchMutation(
+            mutation =
+                RoutingMutation(
+                    advertisements =
+                        listOf(
+                            RoutingAdvertisement(
+                                targetPeerId = peerId,
+                                frame = localSelfRouteUpdateFrame(),
+                            )
+                        ),
+                    routeChanges = emptyList(),
+                ),
+            stage = "transport.handshake.message3.selfRouteUpdate",
+            metadata = mapOf("connectedPeerId" to peerId.value),
+        )
+    }
+
+    private fun localSelfRouteUpdateFrame(): WireFrame.RouteUpdate {
+        return WireFrame.RouteUpdate(
+            destinationPeerId = localIdentity.peerId,
+            nextHopPeerId = localIdentity.peerId,
+            metrics = WireFrame.RouteUpdateMetrics(metric = 1, seqNo = 1L, feasibilityMetric = 1),
+            publicKeys =
+                WireFrame.RouteUpdatePublicKeys(
+                    destinationEd25519PublicKey = localIdentity.ed25519PublicKey,
+                    destinationX25519PublicKey = localIdentity.x25519PublicKey,
+                ),
         )
     }
 
