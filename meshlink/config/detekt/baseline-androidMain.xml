@@ -66,35 +66,40 @@
     <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$L2capLink$6</ID>
     <ID>MagicNumber:BleTransportAdapterL2capSupport.kt$L2capLink$8</ID>
     <ID>MagicNumber:BleTransportAdapterScanSupport.kt$6</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0x7fffL</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$0x7fffL</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$0xFF</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$0xffL</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$0xffedL</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$0xffffL</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$10</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$100</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$14</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$15</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$16</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$20</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$3</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$37L</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$38L</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$5</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$50</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$65535L</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$65536L</ID>
+    <ID>MagicNumber:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$8</ID>
+    <ID>MagicNumber:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$0xFF</ID>
+    <ID>MagicNumber:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$31</ID>
+    <ID>MagicNumber:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$4</ID>
+    <ID>MagicNumber:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$7</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xFF</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffL</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffedL</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$0xffffL</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$10</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$100</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$12</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$127</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$128L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$14</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$15</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$16</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$16L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$20</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$248</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$255L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$3</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$31</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$37L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$38L</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$4</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$5</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$50</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$63</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$64</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$65535L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$65536L</ID>
-    <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$7</ID>
     <ID>MagicNumber:Ed25519Fallback.kt$Ed25519Fallback$8</ID>
     <ID>MagicNumber:GattNotifyClient.kt$GattNotifyClient$6</ID>
     <ID>MagicNumber:GattNotifyClient.kt$GattNotifyClient.&lt;no name provided>$517</ID>
@@ -108,11 +113,6 @@
     <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$0x45</ID>
     <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$12</ID>
     <ID>MagicNumber:JcaCapabilityProbe.kt$JcaCapabilityProbe$32</ID>
-    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$0xFF</ID>
-    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$16</ID>
-    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$24</ID>
-    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$3</ID>
-    <ID>MagicNumber:L2capFrameBuffer.kt$L2capFrameBuffer$8</ID>
     <ID>MagicNumber:L2capSendSupport.kt$6</ID>
     <ID>MagicNumber:PreferredGattSendSupport.kt$25</ID>
     <ID>MagicNumber:PreferredGattSendSupport.kt$6</ID>
@@ -201,12 +201,13 @@
     <ID>TooManyFunctions:BleTransportAdapterL2capSupport.kt$ch.trancee.meshlink.platform.android.l2cap.BleTransportAdapterL2capSupport.kt</ID>
     <ID>TooManyFunctions:BleTransportDiscoveryLifecycle.kt$BleTransportDiscoveryLifecycle</ID>
     <ID>TooManyFunctions:BleTransportLinkRegistry.kt$BleTransportLinkRegistry&lt;T></ID>
+    <ID>TooManyFunctions:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic</ID>
+    <ID>TooManyFunctions:Curve25519PointArithmetic.kt$Curve25519PointArithmetic</ID>
     <ID>TooManyFunctions:Ed25519Fallback.kt$Ed25519Fallback</ID>
     <ID>TooManyFunctions:GattNotifyClient.kt$GattNotifyClient</ID>
     <ID>TooManyFunctions:GattNotifySessionAdapter.kt$BluetoothGattNotifySession : GattNotifySession</ID>
     <ID>TooManyFunctions:GattNotifySessionAdapter.kt$GattNotifySession</ID>
     <ID>TooManyFunctions:JcaCryptoProvider.kt$JcaCryptoProvider : CryptoProvider</ID>
-    <ID>TooManyFunctions:L2capFrameBuffer.kt$L2capFrameBuffer</ID>
     <ID>TopLevelPropertyNaming:ScanResultSupport.kt$private const val L2capSupportedSdkInt: Int = 34</ID>
     <ID>UnnecessaryAbstractClass:GattNotifyCallbackSupport.kt$BaseGattNotifyCallback$BaseGattNotifyCallback</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$advertiser = try { adapter.bluetoothLeAdvertiser } catch (exception: SecurityException) { throw androidPermissionDenied(exception) }</ID>
@@ -232,14 +233,14 @@
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val gattNotifyServer = BluetoothGattNotifyServer( context = context, peerBindings = peerBindings, onUnknownPeerFrame = ::registerProvisionalGattPeer, onClaimedPeerIdentity = ::registerClaimedGattPeer, onFrameReceived = ::enqueueInboundFrame, log = ::log, )</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val l2capServerSupported = supportsL2capServerSockets()</ID>
     <ID>UnreachableCode:BleTransportAdapterLifecycleSupport.kt$val serverSocket = if (l2capServerSupported) { runCatching { L2capSocketFactory.listenInsecure(adapter) } .onFailure { error -> log("L2CAP server socket unavailable: ${error.message.orEmpty()}") } .getOrNull() } else { log("L2CAP server socket unavailable: runtime capability probe returned false") null }</ID>
-    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$row[digit - 1]!!</ID>
-    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit - 1]!!</ID>
-    <ID>UnsafeCallOnNullableType:Ed25519Fallback.kt$Ed25519Fallback$table[digit]!!</ID>
+    <ID>UnsafeCallOnNullableType:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$row[digit - 1]!!</ID>
+    <ID>UnsafeCallOnNullableType:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$table[digit - 1]!!</ID>
+    <ID>UnsafeCallOnNullableType:Curve25519PointArithmetic.kt$Curve25519PointArithmetic$table[digit]!!</ID>
     <ID>UnusedParameter:L2capSendSupport.kt$context: L2capSendContext</ID>
-    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_100_0 = fieldElement()</ID>
-    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_10_0 = fieldElement()</ID>
-    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_20_0 = fieldElement()</ID>
-    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_50_0 = fieldElement()</ID>
-    <ID>VariableNaming:Ed25519Fallback.kt$Ed25519Fallback$val z2_5_0 = fieldElement()</ID>
+    <ID>VariableNaming:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$val z2_100_0 = fieldElement()</ID>
+    <ID>VariableNaming:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$val z2_10_0 = fieldElement()</ID>
+    <ID>VariableNaming:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$val z2_20_0 = fieldElement()</ID>
+    <ID>VariableNaming:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$val z2_50_0 = fieldElement()</ID>
+    <ID>VariableNaming:Curve25519FieldArithmetic.kt$Curve25519FieldArithmetic$val z2_5_0 = fieldElement()</ID>
   </CurrentIssues>
 </SmellBaseline>
