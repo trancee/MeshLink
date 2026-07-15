@@ -23,6 +23,8 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     private val feasibilityDistances: MutableMap<String, FeasibilityDistance> = linkedMapOf()
     private val mutableTopologyVersion: MutableStateFlow<Long> = MutableStateFlow(0L)
     private val routeDigestTracker = RouteDigestTracker()
+    private val lastDigestMismatchResponseByPeer: MutableMap<String, DigestMismatchResponse> =
+        linkedMapOf()
 
     internal val topologyVersion: StateFlow<Long> = mutableTopologyVersion.asStateFlow()
 
@@ -31,6 +33,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         trustRecord: TrustRecord,
     ): RoutingMutation = routingMutex.withLock {
         connectedPeers += peerId.value
+        lastDigestMismatchResponseByPeer.remove(peerId.value)
 
         val directRoute =
             RouteEntry(
@@ -77,6 +80,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     internal suspend fun onPeerDisconnected(peerId: PeerId): RoutingMutation =
         routingMutex.withLock {
             connectedPeers -= peerId.value
+            lastDigestMismatchResponseByPeer.remove(peerId.value)
 
             val removedRoutes =
                 selectedRoutes.values
@@ -117,6 +121,7 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
         }
 
         connectedPeers.clear()
+        lastDigestMismatchResponseByPeer.clear()
         val removedRoutes = selectedRoutes.values.toList()
         selectedRoutes.clear()
         feasibilityDistances.clear()
@@ -205,9 +210,18 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
     ): RoutingMutation = routingMutex.withLock {
         val localDigest = routeDigestTracker.routeDigestFrame(localPeerId).digest
         if (frame.digest.contentEquals(localDigest)) {
+            lastDigestMismatchResponseByPeer.remove(fromPeerId.value)
             return@withLock RoutingMutation.EMPTY
         }
 
+        val responseKey =
+            DigestMismatchResponse(remoteDigest = frame.digest.copyOf(), localDigest = localDigest)
+        val previousResponse = lastDigestMismatchResponseByPeer[fromPeerId.value]
+        if (previousResponse == responseKey) {
+            return@withLock RoutingMutation.EMPTY
+        }
+
+        lastDigestMismatchResponseByPeer[fromPeerId.value] = responseKey
         RoutingMutation(
             advertisements =
                 RouteAdvertisementPlanner.forRouteDigestMismatch(
@@ -283,5 +297,22 @@ internal class RouteCoordinator internal constructor(private val localPeerId: Pe
 
     internal companion object {
         private const val DIRECT_ROUTE_METRIC: Int = 1
+    }
+}
+
+private data class DigestMismatchResponse(val remoteDigest: ByteArray, val localDigest: ByteArray) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) {
+            return true
+        }
+        if (other !is DigestMismatchResponse) {
+            return false
+        }
+        return remoteDigest.contentEquals(other.remoteDigest) &&
+            localDigest.contentEquals(other.localDigest)
+    }
+
+    override fun hashCode(): Int {
+        return 31 * remoteDigest.contentHashCode() + localDigest.contentHashCode()
     }
 }

@@ -538,6 +538,81 @@ class MeshRoutingIntegrationTest {
         }
 
     @Test
+    fun `two neighbors converge on the same destination self-reported route seqno`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val destination = harness.createNode("peer-a")
+            val firstNeighbor = harness.createNode("peer-b")
+            val secondNeighbor = harness.createNode("peer-c")
+
+            harness.linkPeers(destination, firstNeighbor)
+            harness.linkPeers(destination, secondNeighbor)
+
+            destination.meshLink.start()
+            firstNeighbor.meshLink.start()
+            secondNeighbor.meshLink.start()
+
+            // Act
+            val firstNeighborSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = firstNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destination.peerId.value,
+                )
+            val secondNeighborSeqNo =
+                awaitLatestRouteSeqNo(
+                    diagnostics = secondNeighbor.diagnosticSink::events,
+                    destinationPeerIdValue = destination.peerId.value,
+                )
+
+            // Assert
+            assertTrue(firstNeighborSeqNo > 0L)
+            assertEquals(firstNeighborSeqNo, secondNeighborSeqNo)
+        }
+
+    @Test
+    fun `route digest mismatch triggers a full-table resend that repairs the missing route`() =
+        runBlocking<Unit> {
+            // Arrange
+            val harness = harness()
+            val destination = harness.createNode("peer-a")
+            val relay = harness.createNode("peer-b")
+            val observer = harness.createNode("peer-c")
+            val payload = "digest mismatch recovery".encodeToByteArray()
+
+            harness.linkPeers(destination, relay)
+            harness.linkPeers(relay, observer)
+            // Drop the first relay->observer route update after startup. The following digest frame
+            // still arrives and should trigger the mismatch-recovery full-table resend.
+            harness.dropNextDeliveries(sender = relay, recipient = observer, count = 1)
+
+            destination.meshLink.start()
+            relay.meshLink.start()
+            observer.meshLink.start()
+
+            awaitDiagnosticForPeer(
+                diagnostics = observer.diagnosticSink::events,
+                code = DiagnosticCode.ROUTE_DISCOVERED,
+                peerIdValue = destination.peerId.value,
+                routeAvailable = true,
+                timeoutMillis = 5_000,
+            )
+
+            val receivedMessageDeferred =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    testWithTimeout(2_000) { destination.meshLink.messages.first() }
+                }
+
+            // Act
+            val sendResult = observer.meshLink.send(destination.peerId, payload)
+            val receivedMessage = receivedMessageDeferred.await()
+
+            // Assert
+            assertIs<SendResult.Sent>(sendResult)
+            assertContentEquals(payload, receivedMessage.payload)
+        }
+
+    @Test
     fun `relay nodes do not surface end-to-end plaintext for forwarded traffic`() =
         runBlocking<Unit> {
             if (!supportsRelayRoutingStressScenarios()) {
@@ -651,6 +726,33 @@ class MeshRoutingIntegrationTest {
             ) {
                 testDelay(10)
             }
+        }
+    }
+
+    private suspend fun awaitLatestRouteSeqNo(
+        diagnostics: () -> List<DiagnosticEvent>,
+        destinationPeerIdValue: String,
+    ): Long {
+        return testWithTimeout(5_000) {
+            while (true) {
+                val seqNo =
+                    diagnostics()
+                        .asReversed()
+                        .firstOrNull { event ->
+                            (event.code == DiagnosticCode.ROUTE_DISCOVERED ||
+                                event.code == DiagnosticCode.ROUTE_UPDATED) &&
+                                event.metadata["peerId"] == destinationPeerIdValue &&
+                                event.metadata["routeAvailable"] == "true"
+                        }
+                        ?.metadata
+                        ?.get("routeSeqNo")
+                        ?.toLongOrNull()
+                if (seqNo != null) {
+                    return@testWithTimeout seqNo
+                }
+                testDelay(10)
+            }
+            error("Unreachable")
         }
     }
 
