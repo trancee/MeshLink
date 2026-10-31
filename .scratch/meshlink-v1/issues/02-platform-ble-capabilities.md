@@ -21,4 +21,4 @@ Android background operation needs a live process: a typed `connectedDevice` FGS
 
 RPAs rotate on both platforms, so the BLE address is never a peer identity.
 
-Findings: branch `research/platform-ble-capabilities`, file `docs/research/2026-10-31-platform-ble-capabilities.md`.
+Findings: [`docs/research/2026-10-31-platform-ble-capabilities.md`](../../../docs/research/2026-10-31-platform-ble-capabilities.md) (merged into `main` from `research/platform-ble-capabilities` on 2026-11-01).

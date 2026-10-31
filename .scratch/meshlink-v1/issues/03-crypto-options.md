@@ -22,4 +22,4 @@ Provider candidates:
 
 cryptography-kotlin 0.6.0 has no PQ algorithms. Conscrypt 2.8.0 exposes ML-KEM and X-Wing only through HPKE on old Android.
 
-Findings: branch `research/crypto-options`, file `docs/research/2026-10-31-crypto-options.md`.
+Findings: [`docs/research/2026-10-31-crypto-options.md`](../../../docs/research/2026-10-31-crypto-options.md) (merged into `main` from `research/crypto-options` on 2026-11-01).

@@ -28,4 +28,4 @@ Shortlist for simulation:
 
 Recommended tool: a throwaway Kotlin/JVM link-level discrete-event simulation calibrated from device-lab link setup, lifetime and throughput. The ONE is GPLv3 and has no connection caps. The note proposes metrics and density × size × mobility × preset scenarios.
 
-Findings: branch `research/routing-topology-strategies`, file `docs/research/2026-10-31-routing-topology-strategies.md`.
+Findings: [`docs/research/2026-10-31-routing-topology-strategies.md`](../../../docs/research/2026-10-31-routing-topology-strategies.md) (merged into `main` from `research/routing-topology-strategies` on 2026-11-01).

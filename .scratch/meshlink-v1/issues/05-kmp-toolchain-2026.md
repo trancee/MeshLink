@@ -22,4 +22,4 @@ Verified on 2026-10-31 from primary sources. This is a candidate baseline, not a
 
 GitHub Actions versions with pinned SHAs are in the findings file.
 
-Findings: branch `research/kmp-toolchain-2026`, file `docs/research/2026-10-31-kmp-toolchain-2026.md`.
+Findings: [`docs/research/2026-10-31-kmp-toolchain-2026.md`](../../../docs/research/2026-10-31-kmp-toolchain-2026.md) (merged into `main` from `research/kmp-toolchain-2026` on 2026-11-01).

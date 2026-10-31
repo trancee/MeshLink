@@ -29,4 +29,4 @@ Briar uses Classic RFCOMM with contact-only sync, so it is not a mesh. Multipeer
 
 There is no published density evaluation of phone BLE meshes at 50–200 peers. SIG Mesh studies show broadcast storms and timing sensitivity, so flood parameters must come from simulation and a device lab.
 
-Findings: branch `research/prior-art-ble-meshes`, file `docs/research/2026-10-31-prior-art-ble-meshes.md`.
+Findings: [`docs/research/2026-10-31-prior-art-ble-meshes.md`](../../../docs/research/2026-10-31-prior-art-ble-meshes.md) (merged into `main` from `research/prior-art-ble-meshes` on 2026-11-01).

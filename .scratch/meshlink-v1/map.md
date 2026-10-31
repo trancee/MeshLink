@@ -17,7 +17,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - **Evidence bar:** radio decisions need real-device evidence across Android↔Android, Android↔iOS, iOS↔iOS. Device lab: 29 Android phones (`../android-devices/devices.md`); iPhones on this Mac (`xcrun devicectl list devices` for iOS 17+, `idevice_id -l` for iOS 15/16; inventory in the same devices.md). Xcode 16.4 is a hard constraint.
 - **Prior art (study only, never copy code):** `../MeshLink-template` (SPEC.md, `docs/explanation/template-design-review.md` = its self-critique), `../cairn` (`docs/agents/lessons.md`, ADRs 0001/0003/0025/0038–0042, `docs/research/`).
 - **Skills to consult:** grilling + domain-modeling (always for HITL); research; prototype; ble-protocol-stack, ble-throughput, android-ble*, corebluetooth, noise-protocol, kotlin-multiplatform, kotlin-gradle, skie, ubique-uniffi, robolectric, diataxis, wycheproof as relevant.
-- **Research findings** live on local `research/<slug>` branches (worktrees, committed, not pushed); tickets link the branch + file.
+- **Research findings** live in `docs/research/` on `main`; new research lands on a `research/<slug>` branch and is merged into `main` when its ticket resolves.
 
 ## Decisions so far
 
