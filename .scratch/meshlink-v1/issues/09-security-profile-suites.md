@@ -18,3 +18,4 @@ Decide per profile: handshake pattern, primitives, identity/key model and rotati
 - No Wycheproof vectors exist for Noise hfs/PQNoise/X-Wing: plan our own cross-implementation vectors.
 - Bounds and DoS limits for unauthenticated, fragmented 1.2 KB+ handshake messages.
 ([crypto findings](03-crypto-options.md))
+- With Xcode 16.4 fixed (iOS 18.5 SDK), CryptoKit ML-KEM/X-Wing can't be compiled against: iOS post-quantum must use bundled crypto ([device lab](06-device-lab-readiness.md)).
