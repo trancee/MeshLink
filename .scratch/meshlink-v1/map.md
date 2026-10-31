@@ -26,6 +26,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - [What is the most modern stable KMP toolchain in 2026?](issues/05-kmp-toolchain-2026.md): candidate baseline is Kotlin 2.4.21, AGP 9.3.x, Gradle 9.7, SKIE, SwiftPM only (CocoaPods trunk freezes 2026-12-02), Robolectric 4.17, Kover and Dokka 2.2. detekt 2 and ABI validation aren't stable yet, and Kover can't cover iOS code.
 - [Is the device lab ready for cross-platform radio evidence?](issues/06-device-lab-readiness.md): all five iPhones are ready (iOS 15.8, 16.7, 17.6, 18.7, 27.0); iOS 15/16 are driven through libimobiledevice. Xcode 16.4 is a hard constraint: smoke-test the newest Kotlin and fall back to 2.2.20. No CryptoKit post-quantum crypto on iOS.
 - [Which constitution amendments should MeshLink adopt?](issues/07-constitution-amendments.md): MeshLink forks the constitution as 3.1.0. T9 now requires an evidence record for hardware claims; C10 makes the protocol spec and its vectors authoritative; O8 requires a human and an agent docs layer from one source. Kotlin guidance lives in root `KOTLIN.md`, and other stack guides follow the root `<STACK>.md` pattern. The T3 iOS coverage question waits for the toolchain baseline.
+- [What is the threat model, and what does each security profile guarantee?](issues/08-threat-model.md): adversaries A1–A7 are in scope; the host app is trusted. Secured profiles use authenticated links plus end-to-end encryption, open or mesh-key-gated admission, Ed25519 broadcast signatures and per-hop reassembly. Relays see only rotating routing tags; on-air identifiers rotate. Post-quantum covers confidentiality only; there is no forward secrecy for store-and-forward. Resources are always bounded and delivery is never guaranteed. Recorded in ADR 0001.
 - [Which crypto options fit each security profile?](issues/03-crypto-options.md): no secured profile can rely on platform crypto alone at Android 26 / iOS 15. Classical fits standard Noise (XX, then IK/KK; every message <100 B). Post-quantum means hybrid X25519 + ML-KEM-768 with classical authentication, via Noise hfs (~2.4 KB) or a cairn-style pairing plus a 106 B resume, and always needs fragmentation. Candidate providers: libsodium, Rust aws-lc-rs, or a platform split.
 - [Which routing and topology strategies suit phone BLE meshes?](issues/04-routing-topology-strategies.md): with only 3–6 links per phone, neighbor selection matters as much as routing, and mesh-wide flooding won't scale to ~1,000 nodes without a hop limit. The simulation shortlist covers neighbor selection, unicast, broadcast and store-and-forward strategies.
 
@@ -33,7 +34,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 
 - Wire format and codec (framing, fragmentation, versioning, stable IDs) — hangs on bearer, security and routing.
 - Delivery/read receipt semantics and message lifecycle states.
-- Store-and-forward design (quota, TTL, custody, privacy of held messages).
+- Store-and-forward design (quota, TTL, custody, privacy of held messages; candidate bounded-lifetime store-and-forward keys for forward secrecy; clock-tolerance bound for message lifetime).
 - Message size cap.
 - Power policy across presets and density.
 - Diagnostics and troubleshooting surface (stable diagnostic codes, field tooling).
@@ -41,7 +42,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Protocol spec format and conformance vectors.
 - Release, versioning and API-compatibility process.
 - CI integration with the device lab.
-- Neighbor-list privacy: whether link-state and route messages are hidden from passive listeners per security profile.
+- Neighbor-list privacy: link encryption hides route messages from passive outsiders in the secured profiles (threat model); still open is what neighbour and route information members learn.
 - Node ID and duplicate-detection key sizes (drive every overhead estimate).
 - Compression: none vs bounded (Bridgefy gzip-bomb and side-channel lessons).
 - Energy measurements (cost per KB and per connection-hour on lab phones) to back battery claims.
@@ -50,6 +51,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 
 ## Out of scope
 
+- Post-quantum signatures in v1: ruled out by the [threat model](issues/08-threat-model.md). Signatures stay classical (Ed25519); SQIsign is the leading candidate for a later suite version once NIST standardizes it.
 - Encrypted named groups (group key agreement, e.g. MLS).
 - File transfer and streaming.
 - Targets other than Android and iOS.

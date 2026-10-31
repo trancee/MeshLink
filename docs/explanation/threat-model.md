@@ -1,0 +1,106 @@
+# Threat model
+
+This page explains whom MeshLink defends against, what it protects, and why each security profile promises what it does. The exact per-profile guarantees are in [Security profile guarantees](../reference/security-profile-guarantees.md); the decision record is [ADR 0001](../adr/0001-threat-model-and-profile-guarantees.md). Terms follow [`GLOSSARY.md`](../../GLOSSARY.md).
+
+Status: accepted for v1 planning (2026-10-31). Concrete algorithms, wire layout and mechanisms are decided later in the security-profile-suite, discovery, routing and store-and-forward work. Where this page names a primitive (Noise, X25519, ML-KEM-768, Ed25519), it states a constraint already agreed, not a final suite.
+
+## What MeshLink protects
+
+| Asset | Examples |
+|---|---|
+| Message content | Unicast messages, mesh broadcasts, held store-and-forward messages, receipts |
+| Metadata | Who talks to whom, when, how often, message sizes, routing state, neighbour lists |
+| Identities | Installation identity keys; the mesh key of a gated mesh |
+| Location and presence | Whether, where and when a given node is nearby; long-term movement profiles |
+| Node resources | Memory, storage, airtime, connection slots, battery |
+
+## Trust boundary
+
+The application that embeds MeshLink is trusted. MeshLink protects its users from the radio network and from other nodes, not from their own app. Binding an installation identity to a person or contact is the application's job; MeshLink proves only that a frame came from the holder of a given installation key, and offers the tools (trust-on-first-use pinning, fingerprints, short-authentication-string and QR verification helpers) to make that binding.
+
+## Adversaries in scope
+
+| ID | Adversary | Capabilities |
+|---|---|---|
+| A1 | Passive eavesdropper | Records all radio traffic in range, possibly with several colluding sniffers |
+| A2 | Active on-path attacker | Injects, modifies, replays, relabels and relays frames; attempts man-in-the-middle |
+| A3 | Malicious mesh member | A legitimate-looking node that drops, delays, modifies or selectively forwards traffic; creates Sybil identities; blackholes routes |
+| A4 | Resource-exhaustion attacker | Floods messages, opens connections to occupy slots, starts but never finishes reassemblies |
+| A5 | Tracker | Correlates on-air identifiers over time and place to follow a node |
+| A6 | Harvest-now-decrypt-later | Records traffic today to decrypt it with a future quantum computer |
+| A7 | Device compromised after the fact | Extracts keys from a node after the traffic happened |
+
+## Out of scope
+
+These are stated limits, not defended threats:
+
+- RF jamming: detected and reported, not prevented.
+- A live compromise of the OS, kernel or Bluetooth baseband.
+- Hardware side channels.
+- Physical coercion of a user.
+- A malicious host application.
+- A global observer doing traffic analysis: MeshLink makes no anonymity claim.
+
+## How the design answers each adversary
+
+### Two encryption layers
+
+In the secured profiles (`classical`, `post-quantum`), every link between neighbours is mutually authenticated and encrypted, and every unicast message and receipt is additionally end-to-end encrypted between source and destination.
+
+- The **link layer** hides routing headers from A1, defeats injection and relabelling by A2, and lets a node authenticate a neighbour before relaying or caching anything it sends. This is the main defence against relay-cache poisoning of the kind found in bitchat (CVE-2026-51376).
+- The **end-to-end layer** keeps content away from relays (A3) and from store-and-forward carriers. Bridgefy showed that hop-by-hop protection alone lets every relay read and forge traffic.
+
+### Mesh admission: open or gated
+
+The app chooses per mesh:
+
+- An **open mesh** lets any node with the mesh identifier and security profile join. Link encryption then protects only against outsiders who do not run MeshLink, and mesh broadcasts are effectively public.
+- A **gated mesh** additionally requires a **mesh key**, distributed by the app out of band and mixed into every link handshake. Only key holders can join, relay or read broadcasts, which also makes Sybil identities (A3) cost a stolen mesh key.
+
+A leaked mesh key admits outsiders until the app re-keys the mesh; v1 has no revocation.
+
+### Broadcast authenticity and confidentiality
+
+Every mesh broadcast in a secured profile carries an Ed25519 origin signature that relays verify before relaying, so no member can forge another member's broadcast. Broadcast content is readable by every member: in an open mesh it is not private; in a gated mesh it is private to mesh-key holders. There is no per-recipient confidentiality for broadcasts, because encrypted groups are out of scope.
+
+### Fragmentation is per hop
+
+A relay reassembles a whole message, verifies it (link AEAD; for broadcasts also the origin signature), and only then re-fragments it for each next link. Fragments carry a message ID, index, count and per-fragment CRC. Reassembly buffers are bounded per neighbour in size and time, and incomplete messages are dropped with a typed diagnostic. A forged or corrupt fragment therefore never travels further than one hop, and the destination only ever receives whole, verified messages. The cost is per-hop latency for multi-fragment messages, which bounded message sizes keep acceptable; the routing simulation measures it.
+
+### Metadata visible to relays
+
+Relays must read routing headers. In the secured profiles, source and destination appear as epoch-rotating pseudonymous tags derived from the identity key, so a relay that does not already know a node's public key cannot link its traffic across epochs. Contacts who know the key can. This requirement stands unless the routing simulation shows the epoch rollover cost to be unacceptable, in which case it returns to the project owner rather than silently weakening.
+
+### Tracking resistance
+
+In the secured profiles, every on-air identifier rotates in step with the BLE address and cannot be linked across rotations by A5: advertisement payloads, readable GATT values and routing tags seen on air. A gated mesh's on-air identifier derives from its mesh key and rotates too. What is not hidden: that a MeshLink node is present (its service UUID) and, in an open mesh, possibly which mesh it belongs to. The discovery work decides the mechanism.
+
+### Harvest-now-decrypt-later
+
+The `post-quantum` profile uses hybrid X25519 + ML-KEM-768 key establishment, so recorded traffic stays confidential unless both are broken. Authentication stays classical, including broadcast signatures: forging a signature or handshake needs a quantum computer during the exchange, which A6 does not have today, while post-quantum authentication would add 1.1–2.4 KB per handshake or broadcast (ML-DSA-44 signatures are 2,420 B). The signature algorithm is bound to the protocol suite and never negotiated, so a later protocol version can adopt a post-quantum signature once standardized. SQIsign (level 1: 83 B public key, 200 B signature) is the leading candidate but is still a NIST round-3 candidate.
+
+### Forward secrecy and key compromise
+
+Links and interactive end-to-end sessions use ephemeral keys, so a key stolen later (A7) does not decrypt them. Store-and-forward messages and first messages to an offline recipient are encrypted to the recipient's static key and have no forward secrecy against later theft of that key. Bounded-lifetime store-and-forward keys are a candidate for the store-and-forward design.
+
+A stolen installation key lets A7 impersonate that node and read store-and-forward messages addressed to it until the app performs an identity reset. Peers then see a key change, which MeshLink always reports as a typed event and never accepts silently. There is no revocation protocol in v1, because a stolen key could forge revocations as well. Keys at rest are protected by the platform keystore (Android Keystore; iOS Keychain, this device only).
+
+### Replay
+
+Link frames use AEAD with counter nonces, so replays are rejected. End-to-end messages and broadcasts carry a message ID and are de-duplicated per origin for their lifetime, and expired messages are rejected. This assumes device clocks agree within a tolerance that the wire-format and store-and-forward work fixes; the de-duplication state is bounded by the message lifetime.
+
+### Availability
+
+MeshLink does not guarantee delivery against A3 or A4. It does guarantee bounded resources: no remote input can push a node beyond its configured memory, storage, airtime or connection budgets. In the secured profiles it authenticates before relaying or caching and rate-limits each neighbour.
+
+### Profile `none`
+
+`none` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `none` frames, even relabelled ones, never enter a secured mesh. Receipts in `none` can be forged.
+
+## Lessons this model builds on
+
+- Bridgefy (CT-RSA 2021, USENIX Security 2022): a good primitive inside a protocol with unauthenticated relay metadata, compression and a shared broadcast key is not a secure system.
+- bitchat (2025–2026): broken identity verification allowed impersonation; relay cache poisoning (CVE-2026-51376); no forward secrecy for mail; the authors call metadata "the weakest part".
+- Apple Multipeer Connectivity: any peer can force an unencrypted session, which is a negotiated downgrade; MeshLink never negotiates its security profile.
+
+Sources and details: research branches `research/prior-art-ble-meshes` and `research/crypto-options` (`docs/research/2026-10-31-*.md`).

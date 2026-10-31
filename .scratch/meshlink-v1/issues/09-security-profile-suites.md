@@ -19,3 +19,4 @@ Decide per profile: handshake pattern, primitives, identity/key model and rotati
 - Bounds and DoS limits for unauthenticated, fragmented 1.2 KB+ handshake messages.
 ([crypto findings](03-crypto-options.md))
 - With Xcode 16.4 fixed (iOS 18.5 SDK), CryptoKit ML-KEM/X-Wing can't be compiled against: iOS post-quantum must use bundled crypto ([device lab](06-device-lab-readiness.md)).
+- From the [threat model](08-threat-model.md): the suites must provide link handshakes with an optional mesh-key (`psk`) input for gated meshes, an end-to-end layer for unicast messages and receipts (interactive, plus one-shot to an offline recipient's static key), Ed25519 broadcast origin signatures in both secured profiles, and hybrid X25519 + ML-KEM-768 confidentiality with classical authentication for `post-quantum`. No signature negotiation; the signature algorithm is bound to the suite.

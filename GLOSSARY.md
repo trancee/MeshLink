@@ -4,6 +4,10 @@ MeshLink lets nearby phones form a peer-to-peer mesh over Bluetooth Low Energy a
 
 ## Mesh
 
+**Mesh**:
+The set of nodes that share one mesh identifier and one security profile and can reach each other directly or through peers.
+_Avoid_: Network (too broad), group, swarm
+
 **Node**:
 One running instance of the library on one device, identified by its installation identity.
 _Avoid_: Device, phone, peer (when meaning the local instance)
@@ -47,3 +51,15 @@ _Avoid_: Caching, offline queue
 **Security profile**:
 The single protection level (none, classical, or post-quantum) shared by every node of a mesh; nodes with a different profile do not join rather than downgrade.
 _Avoid_: Security level, crypto mode, tier
+
+**Mesh key**:
+A secret shared out of band by the application that a node must hold to join a gated mesh; it grants membership, not individual identity.
+_Avoid_: Network key, password, group key
+
+**Open mesh**:
+A mesh that any node with its mesh identifier and security profile may join.
+_Avoid_: Public mesh, unsecured mesh
+
+**Gated mesh**:
+A mesh that only nodes holding its mesh key may join; available only with a secured security profile.
+_Avoid_: Private mesh, closed group

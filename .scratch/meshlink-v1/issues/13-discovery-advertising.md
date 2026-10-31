@@ -14,3 +14,4 @@ Prototype advertising/scanning: identifier format and rotation (tracking resista
 - iPhone X / SE 2016 see no extended adverts; Coded PHY reception on iOS unknown.
 - Can tiny presence/summary messages ride in advertising packets across platforms?
 - Google Play: does a phone-to-phone mesh qualify for the connectedDevice foreground-service type?
+- From the [threat model](08-threat-model.md): in the secured profiles, every on-air identifier (advert payload, readable GATT values, on-air routing tags) rotates in step with the BLE address and can't be linked across rotations. A gated mesh's on-air identifier is derived from the mesh key and rotates. The service UUID, and possibly an open mesh's identifier, may remain visible.
