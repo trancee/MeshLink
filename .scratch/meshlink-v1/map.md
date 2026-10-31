@@ -46,6 +46,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - CI integration with the device lab.
 - Neighbor-list privacy: link encryption hides route messages from passive outsiders in the secured profiles (threat model); still open is what neighbour and route information members learn.
 - Node ID and duplicate-detection key sizes (drive every overhead estimate).
+- libp2p post-quantum Noise watch (ADR 0002 amendment): track specs#727 and snow#210; adopt published `XXhfs` vectors when they appear, and return any divergence from Noise HFS to the user.
 - libsodium HPKE upstream offer (ADR 0004): draft an "Ideas" thread once MeshLink's HPKE passes the hpke-pq vectors; posting needs explicit approval.
 - Compression: none vs bounded (Bridgefy gzip-bomb and side-channel lessons).
 - Energy measurements (cost per KB and per connection-hour on lab phones) to back battery claims.

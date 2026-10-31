@@ -22,3 +22,4 @@ Fix the version tuple, plugins, static analysis, formatting, coverage, API compa
   - Measure arm64 size against the ≤ 1 MB per ABI gate.
   - Pin the test-only Rust reference toolchain and crates, each with an E3 rationale (never published).
   - Run primitive microbenchmarks on the oldest Android and iOS lab phones as T9 evidence.
+- From libp2p alignment (ADR 0002 amendment): the test-only Rust reference should cross-check `XXhfs` against snow with ML-KEM-768 `hfs` (snow#210, open on 2026-11-01). If it's unmerged at baseline time, ask before pinning a fork or commit.
