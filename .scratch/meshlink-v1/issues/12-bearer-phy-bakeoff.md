@@ -13,3 +13,4 @@ Device-lab bake-off: GATT (notify/write-without-response) vs L2CAP CoC, 1M vs 2M
 - Measure max concurrent connections per platform and role (iOS is undocumented; Android ~5–6 confirmed in source).
 - Test insecure and secure (bonded) CoC across Android↔iOS, both directions.
 - Crossed simultaneous connections: define a deterministic keep-one rule (Android 8/9 can't tell the two links apart).
+- From the [suite decision](09-security-profile-suites.md): measure first-message latency (classical vs post-quantum, ≈+2.3 KB) and `XXhfs` link-establishment cost (≈2.5 KB) on real devices, plus effective GATT/CoC throughput, to replace the illustrative 10–50 KB/s range.

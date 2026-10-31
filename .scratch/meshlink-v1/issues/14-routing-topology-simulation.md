@@ -14,3 +14,4 @@ Build a throwaway simulation comparing the shortlisted strategies (incl. neighbo
 - Throwaway Kotlin/JVM discrete-event simulator calibrated from device-lab timings; kalasim needs dependency approval; ONE is GPLv3 (external reference only).
 - Also decide the routing metric (hops + failures vs RSSI) and peer-table size/eviction that resists fake identities.
 - From the [threat model](08-threat-model.md): measure (1) the cost of route relearning when source/destination tags rotate per epoch, across epoch lengths and density classes, and (2) the extra latency of per-hop reassembly for multi-fragment messages. If (1) is unacceptable, return to the user; don't silently fall back to stable IDs.
+- From the [suite decision](09-security-profile-suites.md): model `XXhfs` link-establishment airtime under link churn, and first-message latency for classical vs post-quantum by hop count and density class (an explicit metric; the budget is set by the user).
