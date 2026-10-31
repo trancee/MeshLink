@@ -237,6 +237,43 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Expect Android BLE stack instability and budget for a device lab.
 - Exchanging membership lists on contact is a linkability leak.
 
+### libp2p — modular P2P networking stack (added 2026-11-01)
+
+Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/libp2p/libp2p), [libp2p/specs](https://github.com/libp2p/specs), read 2026-11-01.
+
+**Security handshake [L1]**
+- [noise-libp2p](https://github.com/libp2p/specs/blob/master/noise/README.md) uses one fixed suite, `Noise_XX_25519_ChaChaPoly_SHA256`, with no negotiation inside it.
+- **Why XX:** an earlier Noise Pipes design (IK + XXfallback) was dropped as "too much complexity to be worth the benefit".
+- **Why ChaChaPoly:** it is safe to implement in software on every platform, unlike AES.
+- **Distinct keys:** a separate identity key signs the Noise static key (`identity_sig` in a protobuf `NoiseHandshakePayload`). The static key may be regenerated per session and must not be persisted.
+- **Early data:** extensions ride in the handshake payload, restricted to internal libp2p use.
+
+**Post-quantum (open, not merged) [L2]**
+- [specs#723](https://github.com/libp2p/specs/issues/723) and draft [specs#727](https://github.com/libp2p/specs/pull/727) propose `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256` as a separately negotiated protocol. Authentication stays classical (the identity signature); only confidentiality is hybrid. Token placement and KDF order are deferred to the Noise HFS spec. Still open: the protocol id, test vectors, and whether to cover the whole ML-KEM family.
+- **Reference implementations:**
+  - [rust-libp2p#6481](https://github.com/libp2p/rust-libp2p/pull/6481) (draft);
+  - [snow#210](https://github.com/mcginty/snow/pull/210) (open), which adds ML-KEM-768 to snow's `hfs`. snow 0.10.0 ships `hfs` with Kyber1024 only.
+
+  The PR author claims that four implementations in four languages interoperate. That claim is unverified.
+
+**Dissemination [L3]**
+- [gossipsub](https://github.com/libp2p/specs/tree/master/pubsub/gossipsub):
+  - v1.0: a mesh of degree `D` with GRAFT/PRUNE, plus lazy IHAVE/IWANT gossip.
+  - v1.1: peer scoring, flood publishing, adaptive gossip.
+  - v1.2: IDONTWANT, which suppresses duplicate full messages.
+- Other specs: Kademlia DHT, mDNS discovery, rendezvous, circuit relay with DCUtR.
+
+**Transport**
+- The specs index has no Bluetooth/BLE transport spec, and a search of the specs issues for "bluetooth" returned nothing. BLE use exists only out of tree, e.g. Berty/Wesh above.
+- The full stack (multistream-select negotiation, yamux multiplexing, protobuf framing, multihash peer IDs) is not designed for 20–512 B BLE frames. Its per-link overhead is unquantified here.
+
+**Lessons**
+- libp2p independently converged on MeshLink's link handshake (ADR 0002): XX only, ChaChaPoly + SHA-256, one fixed suite.
+- It also converged on our identity model (ADR 0003): an identity key that certifies a rotatable Noise static key.
+- Its post-quantum proposal is our `post-quantum` link suite. Aligning byte-for-byte lets both projects share `XXhfs` vectors.
+- gossipsub v1.1 peer scoring and v1.2 IDONTWANT are relevant to mesh broadcast under Sybil pressure and at high density.
+- Don't adopt the libp2p stack itself over BLE (user decision 2026-11-01: study only, plus aligned `XXhfs`).
+
 ### Apple Multipeer Connectivity — Apple platforms only
 
 - **Transport [A1]:** infrastructure Wi-Fi, peer-to-peer Wi-Fi (AWDL) and Bluetooth PAN on iOS.
@@ -387,4 +424,5 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
   - Wesh's lack of multi-hop (inferred)
   - current Bridgefy SDK status after 2022
 - bitchat's density parameters are design statements, not measured results.
+- libp2p: the interop claim in snow#210 and the stack overhead over BLE are unverified.
 - Cairn claims not re-verified here and not relied on: Exposure Notification / Find My as rotating-identifier references, and the SIG Mesh Network PDU field layout.

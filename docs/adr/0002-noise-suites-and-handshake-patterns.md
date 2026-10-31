@@ -41,3 +41,15 @@ Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each 
 ## Migration
 
 None: greenfield. A suite change is a new protocol version with new vectors (C6, C7, C10).
+
+## Amendments
+
+2026-11-01, libp2p alignment (user decision: study only, plus aligned `XXhfs`):
+
+- **Context:** libp2p's Noise spec uses the same suite and identity model. Its open post-quantum proposal ([specs#723](https://github.com/libp2p/specs/issues/723), [#727](https://github.com/libp2p/specs/pull/727)) is `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`, with token placement and KDF order taken from the Noise HFS spec.
+- **Decision:**
+  - MeshLink's `XXhfs` handshake is byte-compatible with that proposal at the Noise layer: the same protocol name string, the same `e1`/`ekem1` token placement, the same mixing order.
+  - MeshLink's handshake payload and protocol identifier stay its own. There is no libp2p payload compatibility and no libp2p stack.
+  - Vectors are cross-checked against snow with ML-KEM-768 `hfs` ([snow#210](https://github.com/mcginty/snow/pull/210), once merged, or a pinned commit if approved) and any vectors libp2p publishes.
+  - If the libp2p proposal diverges from the Noise HFS spec, the HFS spec wins and the divergence goes back to the project owner.
+- **Status:** the libp2p proposal and snow#210 are open as of 2026-11-01.
