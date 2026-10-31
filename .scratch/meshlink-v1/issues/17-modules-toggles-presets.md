@@ -7,3 +7,4 @@ Blocked by: 09, 12, 14
 ## Question
 
 Decide artifacts (core, bearers, routing, store-and-forward, security profiles), which features are runtime configuration vs separate modules, how presets map to modules and settings, and the dependency graph.
+- From the [crypto provider decision](10-rust-approval.md): decide whether MeshLink's Kotlin Noise implementation (XX/XXpsk3/IK/hfs) ships as a standalone artifact, and where `CryptoProvider` and the libsodium binding live; `none` builds should not need native crypto if feasible.
