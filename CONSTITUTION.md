@@ -46,7 +46,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 - T6 Assertions D failure context; structural equality only for tested structure.
 - T7 R public/stable-internal contracts; X source text/incidental order/private detail/time/shared-state dependence unless tested behavior itself.
 - T8 Multi-process/node/network/distributed tests D deterministic virtual environment in default suite.
-- T9 Mock/simulator != hardware proof; hardware behavior R supported-hardware execution pre-release.
+- T9 Mock/simulator != hardware proof; hardware behavior R supported-hardware execution pre-release. Hardware-dependent claim (interop/connection limits/throughput/latency/range/power/background) R evidence record {devices+OS/firmware, covered platform pairs, commit, method, raw results, date}; missing record or pair=>claim labelled unverified.
 - T10 Security/protocol/parser/serializer R applicable malformed/truncated/boundary/replayed/incompatible/adversarial tests.
 - T11 Performance-critical R retained representative benchmarks+comparison-environment metadata.
 
@@ -61,6 +61,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 - C7 Breaking persisted/network format R MAJOR+migration+compatibility tests.
 - C8 Public API change R same-change reference docs+examples for every affected platform.
 - C9 API above platform minimum R runtime guard or supported fallback.
+- C10 Published wire protocol R implementation-independent normative spec+conformance vectors; spec=authority; wire change R spec+vectors updated in same change or earlier; implementation divergence=defect.
 
 ## P: performance
 
@@ -93,6 +94,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 - O5 Checkable examples R compile/execute.
 - O6 Docs-only R repo link/spelling/format/markup checks.
 - O7 Day-to-day conventions R narrow scoped docs; X Constitution duplication.
+- O8 Public docs R human layer (O4) + agent layer (machine-oriented index, contract reference, diagnostic index); both generated from or CI-checked against one source; X hand-maintained divergent copies.
 
 ## E: dependencies/tooling
 
@@ -124,5 +126,6 @@ Pre-merge, all applicable:
 - V5 Ownership D designated review for Constitution/security/release/CI/protocol/schema/persistence paths.
 - V6 Lower convention R narrowest relevant doc; X duplication here.
 
-`version=3.0.1; ratified=2026-04-30; amended=2026-10-05`
+`version=3.1.0; ratified=2026-04-30; amended=2026-10-31`
 Amendment: rationale=AI context compression; impact=wording only, IDs/obligations unchanged; migration=none; approval=user "optimize all the files for AI usage...without losing context".
+Amendment 3.1.0: rationale=MeshLink fork of cairn 3.0.1 (hardware-claim evidence, protocol spec authority, AI-consumable docs); impact=T9 expanded, C10+O8 added, no removals; migration=none (greenfield: no claims/protocol/docs yet); approval=user, ticket "Which constitution amendments should MeshLink adopt?" 2026-10-31.

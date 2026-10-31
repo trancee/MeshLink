@@ -4,7 +4,7 @@ R full [`CONSTITUTION.md`](CONSTITUTION.md) before mutation; summary != source. 
 
 ## START
 
-1. Load governing `AGENTS.md`, task specs/ADRs, [`PROJECT.md`](PROJECT.md) if present; Kotlin task => R [`guidance/kotlin.md`](guidance/kotlin.md).
+1. Load governing `AGENTS.md`, task specs/ADRs, [`PROJECT.md`](PROJECT.md) if present; Kotlin task => R [`KOTLIN.md`](KOTLIN.md); other stacks => R root `<STACK>.md` (e.g. `SWIFT.md`) when present.
 2. Same-priority instructions: narrower path refines broader; unresolved same-scope conflict => ASK. Lower priority X weaken higher.
 3. Inspect worktree; preserve user/concurrent changes. Derive stack/layout/framework/commands from scripts/config/build/CI; missing facts => unverified, X invent.
 4. Map affected contracts/callers/tests/artifacts/platforms/docs/gates.
