@@ -21,6 +21,12 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 
 ## Decisions so far
 
+- [What do existing BLE P2P meshes teach us?](issues/01-prior-art-ble-meshes.md): SIG Mesh can't be used phone-to-phone, so MeshLink needs its own dual-role protocol. Borrow managed flooding and learned next-hop routing, authenticate before relay or cache, rotate on-air identifiers, and never negotiate a downgrade.
+- [What does each platform's BLE stack support in 2026?](issues/02-platform-ble-capabilities.md): GATT works everywhere; L2CAP CoC is available on both platforms (Android 29+, iOS 11+), with its port exchanged over GATT; Android↔iOS CoC is unproven, so the device-lab bake-off decides it. Discovery uses a legacy UUID-only advert plus an optional 2M extended advert. Expect about 5–6 Android links per phone; the 512 B attribute cap holds. Background is best-effort, and the BLE address is never an identity.
+- [What is the most modern stable KMP toolchain in 2026?](issues/05-kmp-toolchain-2026.md): candidate baseline is Kotlin 2.4.21, AGP 9.3.x, Gradle 9.7, SKIE, SwiftPM only (CocoaPods trunk freezes 2026-12-02), Robolectric 4.17, Kover and Dokka 2.2. detekt 2 and ABI validation aren't stable yet, and Kover can't cover iOS code.
+- [Which crypto options fit each security profile?](issues/03-crypto-options.md): no secured profile can rely on platform crypto alone at Android 26 / iOS 15. Classical fits standard Noise (XX, then IK/KK; every message <100 B). Post-quantum means hybrid X25519 + ML-KEM-768 with classical authentication, via Noise hfs (~2.4 KB) or a cairn-style pairing plus a 106 B resume, and always needs fragmentation. Candidate providers: libsodium, Rust aws-lc-rs, or a platform split.
+- [Which routing and topology strategies suit phone BLE meshes?](issues/04-routing-topology-strategies.md): with only 3–6 links per phone, neighbor selection matters as much as routing, and mesh-wide flooding won't scale to ~1,000 nodes without a hop limit. The simulation shortlist covers neighbor selection, unicast, broadcast and store-and-forward strategies.
+
 ## Not yet specified
 
 - Wire format and codec (framing, fragmentation, versioning, stable IDs) — hangs on bearer, security and routing.
@@ -33,6 +39,12 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Protocol spec format and conformance vectors.
 - Release, versioning and API-compatibility process.
 - CI integration with the device lab.
+- Neighbor-list privacy: whether link-state and route messages are hidden from passive listeners per security profile.
+- Node ID and duplicate-detection key sizes (drive every overhead estimate).
+- Compression: none vs bounded (Bridgefy gzip-bomb and side-channel lessons).
+- Energy measurements (cost per KB and per connection-hour on lab phones) to back battery claims.
+- Shared cross-platform limits table, enforced by conformance tests.
+- Optional non-BLE bearers (Wi-Fi Aware, Multipeer Connectivity, Nearby Connections) for throughput, with BLE as baseline; may belong in Out of scope.
 
 ## Out of scope
 
