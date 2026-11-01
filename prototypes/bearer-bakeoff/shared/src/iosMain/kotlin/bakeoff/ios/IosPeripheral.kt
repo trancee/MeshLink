@@ -117,12 +117,27 @@ class IosPeripheral(private val sink: ResultSink) : PeripheralDriver {
                 else -> ByteArray(0)
             }
             val offset = request.offset.toInt()
+            if (offset == 0 && request.characteristic.UUID.matches(BakeoffUuids.CONTROL)) reopenIfStale(request.central)
             if (offset > full.size) {
                 peripheral.respondToRequest(request, withResult = CBATTErrorInvalidOffset)
                 return
             }
             request.value = full.copyOfRange(offset, full.size).toNSData()
             peripheral.respondToRequest(request, withResult = CBATTErrorSuccess)
+        }
+
+        /**
+         * iOS keeps the CCCD state of a reconnecting unbonded central until its old link times out, so no new
+         * didSubscribe arrives; the control read that starts every connection reopens the GATT link instead.
+         */
+        private fun reopenIfStale(central: CBCentral) {
+            val address = central.identifier.UUIDString
+            val existing = links[address]
+            if (existing != null && !existing.isClosed) return
+            listener.onEvent("reopened_on_control_read", address, if (existing == null) "no_link" else "closed_link")
+            val link = ServerLink(central)
+            links[address] = link
+            listener.onGattLink(address, link)
         }
 
         override fun peripheralManager(peripheral: CBPeripheralManager, didReceiveWriteRequests: List<*>) {

@@ -40,7 +40,7 @@ DEVICES = {
     # iOS: tool = devicectl (iOS 17+) or imd (libimobiledevice, iOS 15/16).
     "ip15": {"platform": "ios", "udid": "ip15", "team": "apple-team-1", "tool": "devicectl"},
     "se2020": {"platform": "ios", "udid": "se2020", "team": "apple-team-1", "tool": "devicectl"},
-    "ip12mini": {"platform": "ios", "udid": "ip12mini", "team": "apple-team-1", "tool": "devicectl"},
+    "ip12mini": {"platform": "ios", "udid": "ip12mini", "team": "apple-team-1", "tool": "devicectl", "grant_attach": True},
     "se2016": {"platform": "ios", "udid": "se2016", "team": "apple-team-2", "tool": "imd"},
     "ipx": {"platform": "ios", "udid": "ipx", "team": "apple-team-2", "tool": "imd"},
 }
@@ -92,8 +92,8 @@ def build(platforms):
                 "xcodebuild", "-project", str(ROOT / "iosApp/BakeoffHost.xcodeproj"), "-scheme", "BakeoffHost",
                 "-configuration", "Release", "-destination", "generic/platform=iOS",
                 "-derivedDataPath", str(ROOT / f"iosApp/build/dd-{team}"), f"DEVELOPMENT_TEAM={team}",
-                f"PRODUCT_BUNDLE_IDENTIFIER={bundle}", "-allowProvisioningUpdates",
-                "-allowProvisioningDeviceRegistration", "-quiet", "build",
+                f"LAB_BUNDLE_ID={bundle}", "-allowProvisioningUpdates",
+                "-allowProvisioningDeviceRegistration", "-quiet", "build-for-testing",
             ], timeout=1800)
 
 
@@ -222,6 +222,39 @@ def pair_run(central, peripheral, run_id, central_args, peripheral_args, timeout
     return finished
 
 
+def grant_ios(name):
+    """Runs the XCUITest runner that accepts the Bluetooth alert by exact label; logs every label it saw."""
+    device = DEVICES[name]
+    if device["platform"] != "ios":
+        raise SystemExit(f"{name} is not an iPhone")
+    products = ROOT / f"iosApp/build/dd-{device['team']}/Build/Products"
+    xctestrun = sorted(products.glob("*.xctestrun"))
+    if not xctestrun:
+        raise SystemExit(f"no .xctestrun in {products}; run `build ios` first")
+    out_dir = RESULTS / "grant"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    log_file = out_dir / f"{name}-{time.strftime('%Y%m%dT%H%M%S')}.log"
+    cmd = ["xcodebuild", "test-without-building", "-xctestrun", str(xctestrun[0]),
+           "-destination", f"id={device['udid']}", "-allowProvisioningUpdates"]
+    env = dict(os.environ)
+    if device.get("grant_attach"):
+        # XCUIApplication.launch() fails on this iOS with Xcode 16.4; launch the app ourselves, the runner attaches.
+        env["TEST_RUNNER_GRANT_ATTACH"] = "1"
+        stop(name)
+        launch(name, ["grant=1"])
+        time.sleep(3)
+    log("$ " + " ".join(cmd))
+    with open(log_file, "w") as handle:
+        result = subprocess.run(cmd, stdout=handle, stderr=subprocess.STDOUT, timeout=600, env=env)
+    text = log_file.read_text(errors="replace")
+    for line in text.splitlines():
+        if "BAKEOFF-GRANT" in line or "error:" in line or "Test Case" in line:
+            print("  " + line.strip()[:300])
+    ok = result.returncode == 0 and "** TEST EXECUTE SUCCEEDED **" in text
+    log(f"grant-ios {name}: {'passed' if ok else 'FAILED (exit %d)' % result.returncode}; log {log_file}")
+    return ok
+
+
 def solo_run(name, run_id, args, timeout_s):
     commit = git_commit()
     out_dir = RESULTS / run_id
@@ -255,6 +288,8 @@ def main():
     s.add_argument("--run", required=True)
     s.add_argument("--timeout", type=int, default=900)
     s.add_argument("args", nargs="+")
+    g = sub.add_parser("grant-ios", help="accept the iOS Bluetooth permission alert via the XCUITest runner")
+    g.add_argument("devices", nargs="+", choices=[n for n, d in DEVICES.items() if d["platform"] == "ios"])
     f = sub.add_parser("fetch")
     f.add_argument("device", choices=sorted(DEVICES))
     f.add_argument("--run", required=True)
@@ -270,6 +305,9 @@ def main():
             sys.exit(0 if ok else 2)
         elif args.command == "solo":
             sys.exit(0 if solo_run(args.device, args.run, args.args, args.timeout) else 2)
+        elif args.command == "grant-ios":
+            results = {name: grant_ios(name) for name in args.devices}
+            sys.exit(0 if all(results.values()) else 2)
         elif args.command == "fetch":
             destination = RESULTS / args.run / f"{args.device}.jsonl"
             ok = fetch(args.device, args.run, destination)

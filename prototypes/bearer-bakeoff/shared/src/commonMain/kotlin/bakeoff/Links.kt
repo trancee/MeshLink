@@ -22,6 +22,8 @@ interface ByteLink {
 abstract class ChannelByteLink(override val label: String) : ByteLink {
     private val inbound = Channel<ByteArray>(Channel.UNLIMITED)
 
+    val isClosed: Boolean get() = inbound.isClosedForSend
+
     fun deliver(bytes: ByteArray) {
         inbound.trySend(bytes)
     }
