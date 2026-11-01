@@ -44,7 +44,7 @@ fun main(args: Array<String>) {
                   timeseries       LCC over time for steady-state justification (writes DIR/timeseries.csv)
                   stage-a          run the stage A grid into DIR/stage-a-raw.csv (resumable) [--seeds 10] [--plan full|pruned]
                   aggregate        DIR/stage-a-raw.csv -> DIR/stage-a-aggregate.csv
-                  report           DIR/stage-a-aggregate.csv -> DIR/stage-a-report.html
+                  report           DIR/stage-a-raw.csv (+ optional findings.html, run-notes.txt) -> DIR/stage-a-report.html
                 """.trimIndent(),
             )
     }
@@ -219,6 +219,6 @@ private fun aggregate(out: File) {
 private fun report(out: File) {
     val rows = Aggregate.aggregate(RawCsv.read(File(out, "stage-a-raw.csv")))
     val file = File(out, "stage-a-report.html")
-    file.writeText(HtmlReport.render(rows, File(out, "timeseries.csv").takeIf { it.exists() }, File(out, "run-notes.txt").takeIf { it.exists() }))
+    file.writeText(HtmlReport.render(rows, File(out, "timeseries.csv").takeIf { it.exists() }, File(out, "run-notes.txt").takeIf { it.exists() }, File(out, "findings.html").takeIf { it.exists() }))
     println("wrote ${file.path}")
 }

@@ -60,6 +60,7 @@ object HtmlReport {
         rows: List<AggregateRow>,
         timeseries: File?,
         notes: File?,
+        findings: File? = null,
     ): String {
         val main = rows.filter { it.key["sybilShare"]!!.toDouble() == 0.0 && it.key["dropMeanS"] == "default" }
         val sybil = rows.filter { it.key["sybilShare"]!!.toDouble() > 0.0 }
@@ -67,6 +68,7 @@ object HtmlReport {
         val sb = StringBuilder()
         sb.append(head())
         sb.append(intro(rows, notes))
+        if (findings != null) sb.append("<h2>What we found</h2>").append(findings.readText())
         sb.append(scoreboard(main))
         for (density in listOf("low", "medium", "high")) sb.append(densitySection(main, density))
         sb.append(degreeSection(main))
@@ -303,7 +305,7 @@ object HtmlReport {
                     title = if (id == "lcc") "Honest largest connected group" else m.label,
                     unit = m.unit,
                     explain = m.explain,
-                    labels = cats.map { (sh, d, mob) -> "${d.take(3)} ${mobShort(mob)}" to "${(sh.toDouble() * 100).toInt()}% fake" },
+                    labels = cats.map { (sh, d, mob) -> "$d ${mobShort(mob)}" to "${(sh.toDouble() * 100).toInt()}% fake" },
                     series = listOf(N0, N12).associateWith { s -> cats.map { (sh, d, mob) -> sybil.firstOrNull { it.key["sybilShare"] == sh && it.key["density"] == d && it.key["mobility"] == mob && it.key["strategy"] == s }?.let { it.m(id) to it.c(id) } } },
                 ),
             )

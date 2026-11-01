@@ -30,7 +30,7 @@ java -cp "$CP" $M calibrate-drop                            # supervision-drop f
 java -cp "$CP" $M timeseries --out DIR                      # warm-up justification
 java -Xmx3g -cp "$CP" $M stage-a --out DIR --threads 4 --seeds 10 --plan full   # resumable
 java -cp "$CP" $M aggregate --out DIR
-java -cp "$CP" $M report --out DIR                          # DIR/stage-a-report.html
+java -cp "$CP" $M report --out DIR                          # DIR/stage-a-report.html (embeds DIR/findings.html and DIR/run-notes.txt if present)
 ```
 
 `stage-a` writes `stage-a-raw.csv` (one row per run), resumes by skipping run IDs already present, then writes
@@ -119,7 +119,8 @@ and until LCC ≥ 0.9 × radio LCC (censored at 420 s).
   strategies × 10 seeds = 240 runs.
 - Supervision-drop sensitivity: mean 180 s and no drops × medium × N = 200 × {static, waypoint, group} × Android ×
   d = 5 × 2 strategies × 10 seeds = 120 runs.
-- `--plan pruned` exists as a fallback (fewer mobility × d cells at N = 1000) but was not needed; see the run notes.
+- `--plan pruned` exists as a fallback (fewer mobility × d cells at N = 1000) but was not needed: the full grid
+  (7,560 runs) took 70 min wall at 4 threads on the shared machine (pilot extrapolation: ~50 min).
 
 ## Deviations and caveats
 
@@ -132,5 +133,9 @@ and until LCC ≥ 0.9 × radio LCC (censored at 420 s).
 - Diameter is a lower bound when the LCC has more than 300 nodes.
 - The N1 shuffle mainly adds knowledge (passive-view entries); it only adds reachability once a link is dialled,
   which still needs a scan sighting (the simulated radio cannot dial a node it has not heard).
+- Stage A carries no data traffic, so N0's "idle ≥ 30 s" rotation rule equals "link age ≥ 30 s": with supervision
+  drops switched off, N0 link lifetimes pile up at ~31 s. With real traffic N0 would rotate less.
+- Diameter is measured on the largest connected group, so it is only comparable when both strategies reach a similar
+  group size (at d = 3, N1+N2's larger group also has a larger diameter).
 - The Sybil attacker is strong (dials every advertiser it hears, +10 dB) and the strategies have no dedicated
   defenses; the Sybil results measure the strategies' inherent exposure, not MeshLink's final design.
