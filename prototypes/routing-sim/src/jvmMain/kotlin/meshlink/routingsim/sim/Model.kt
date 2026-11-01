@@ -80,6 +80,7 @@ enum class StrategyKind(
 ) {
     N0("N0"),
     N1N2("N1+N2"),
+    N1N2_BRIDGE("N1+N2+bridge"),
 }
 
 data class Scenario(

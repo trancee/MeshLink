@@ -35,6 +35,23 @@ fun main(args: Array<String>) {
         "stage-a" -> stageA(out, threads, arg(args, "seeds", "10").toInt(), arg(args, "plan", "full"))
         "aggregate" -> aggregate(out)
         "report" -> report(out)
+        "b-probe" ->
+            stageBProbe(
+                args.drop(1).filter { !it.startsWith("--") && it.contains(',') },
+                arg(args, "only", "").takeIf { it.isNotEmpty() }?.split('+')?.toSet(),
+            )
+        "stage-b" -> {
+            val plan = stageBPlanFrom(args)
+            val specs = stageBSpecs(plan)
+            if (args.contains("--dry")) {
+                specs.groupBy { "${it.scenario.nodes} ${it.set.label}" }.toSortedMap().forEach { (k, v) -> println("$k: ${v.size}") }
+                println("total ${specs.size}")
+            } else {
+                StageBRunner().runAll(specs, File(out, "stage-b-raw.csv"), threads)
+                stageBAggregate(out)
+            }
+        }
+        "stage-b-aggregate" -> stageBAggregate(out)
         else ->
             println(
                 """
@@ -44,6 +61,10 @@ fun main(args: Array<String>) {
                   timeseries       LCC over time for steady-state justification (writes DIR/timeseries.csv)
                   stage-a          run the stage A grid into DIR/stage-a-raw.csv (resumable) [--seeds 10] [--plan full|pruned]
                   aggregate        DIR/stage-a-raw.csv -> DIR/stage-a-aggregate.csv
+                  b-probe CELL..   stage B: one run per density,N,mobility,platform,d[,seed[,set[,strategy]]], prints every instance [--only U1+U3]
+                  stage-b          run the stage B plan into DIR/stage-b-raw.csv (resumable) [--n1000-mobility static] [--n1000-seeds 10]
+                                   [--n1000-u3-seeds 10] [--n1000-degrees 5,6] [--dry]
+                  stage-b-aggregate DIR/stage-b-raw.csv -> DIR/stage-b-aggregate.csv
                   report           DIR/stage-a-raw.csv (+ optional findings.html, run-notes.txt) -> DIR/stage-a-report.html
                 """.trimIndent(),
             )
@@ -221,4 +242,19 @@ private fun report(out: File) {
     val file = File(out, "stage-a-report.html")
     file.writeText(HtmlReport.render(rows, File(out, "timeseries.csv").takeIf { it.exists() }, File(out, "run-notes.txt").takeIf { it.exists() }, File(out, "findings.html").takeIf { it.exists() }))
     println("wrote ${file.path}")
+}
+
+private fun stageBPlanFrom(args: Array<String>): StageBPlan =
+    StageBPlan(
+        seeds = arg(args, "seeds", "10").toInt(),
+        n1000Mobility = arg(args, "n1000-mobility", "static,waypoint,group,corridor").split(',').map { m -> MobilityKind.entries.first { it.label == m } },
+        n1000Seeds = arg(args, "n1000-seeds", "10").toInt(),
+        n1000U3Seeds = arg(args, "n1000-u3-seeds", "10").toInt(),
+        n1000Degrees = arg(args, "n1000-degrees", "5,6").split(',').map { it.toInt() },
+    )
+
+private fun stageBAggregate(out: File) {
+    val rows = StageBAggregate.aggregate(RawCsv.read(File(out, "stage-b-raw.csv")))
+    StageBAggregate.write(rows, File(out, "stage-b-aggregate.csv"))
+    println("aggregated ${rows.size} rows into ${File(out, "stage-b-aggregate.csv").path}")
 }

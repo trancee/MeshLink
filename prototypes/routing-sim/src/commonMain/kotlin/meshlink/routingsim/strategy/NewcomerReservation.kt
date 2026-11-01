@@ -33,6 +33,14 @@ class SelectionParams(
     val rssiFloorDbm: Double = -85.0,
     /** N2: how long a former neighbor's list stays usable for scoring. */
     val formerListTtlMs: Long = 120_000,
+    /** Bridge variant: a peer unheard for this long counts as newly discovered when heard again. */
+    val bridgeNoveltyGapMs: Long = 60_000,
+    /** Bridge variant: only peers first heard (again) within this window are bridge candidates. */
+    val bridgeNewMs: Long = 10_000,
+    /** Bridge variant: at most one bridge attempt per this interval. */
+    val bridgeMinGapMs: Long = 10_000,
+    /** Bridge variant: relaxed RSSI floor for bridge candidates (radio sensitivity is −88 dBm). */
+    val bridgeRssiFloorDbm: Double = -88.0,
 )
 
 /**

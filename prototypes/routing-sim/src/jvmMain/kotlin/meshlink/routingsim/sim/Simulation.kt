@@ -24,9 +24,10 @@ class RunResult(
     val strategy: StrategyKind,
     val seed: Int,
     val metrics: LinkedHashMap<String, Double>,
+    val instances: List<Pair<InstanceConfig, LinkedHashMap<String, Double>>> = emptyList(),
 )
 
-private class Link(
+internal class Link(
     val a: Int,
     val b: Int,
     val upAt: Long,
@@ -36,6 +37,12 @@ private class Link(
     var alive = true
     var busyAB = 0L
     var busyBA = 0L
+
+    /** Stage B: per protocol instance and direction, when the link's queue drains. */
+    var rq: LongArray? = null
+
+    /** Stage B: routing packets queued or in flight on this link. */
+    var inflight: ArrayList<Any>? = null
 
     fun other(id: Int) = if (id == a) b else a
 }
@@ -62,6 +69,7 @@ class Simulation(
     private val extent: Double,
     private val sizes: WireSizes = WireSizes(),
     private val timeSeries: ((Long, Map<String, Double>) -> Unit)? = null,
+    routingSetup: RoutingSetup? = null,
 ) {
     private val n = scenario.nodes
     private val worldRng = Random(seedOf("world", scenario.key, seed))
@@ -127,6 +135,51 @@ class Simulation(
         radio.rebuild()
     }
 
+    private val access =
+        object : SimAccess {
+            override val n get() = this@Simulation.n
+            override val now get() = this@Simulation.now
+            override val warmupMs get() = scenario.warmupMs
+            override val durationMs get() = scenario.durationMs
+
+            override fun active(i: Int) = this@Simulation.active(i)
+
+            override fun online(i: Int) = this@Simulation.online[i]
+
+            override fun incarnation(i: Int) = this@Simulation.incarnation[i]
+
+            override fun link(
+                a: Int,
+                b: Int,
+            ) = linkBetween(a, b)
+
+            override fun peers(i: Int) = IntArray(links[i].size) { links[i][it].other(i) }
+
+            override fun at(
+                t: Long,
+                block: () -> Unit,
+            ) = this@Simulation.at(t, block)
+
+            override fun componentLabels(): IntArray {
+                components()
+                return comp.copyOf()
+            }
+
+            override fun distancesFrom(s: Int): IntArray {
+                bfs(s)
+                return dist
+            }
+
+            override fun x(i: Int) = radio.xs[i]
+
+            override fun y(i: Int) = radio.ys[i]
+
+            override fun capacityByteSeconds() = capacityByteSeconds
+        }
+
+    private val layer: RoutingLayer? =
+        routingSetup?.let { RoutingLayer(access, it, seedOf("routing", scenario.key, seed), BooleanArray(n) { i -> !sybil[i] }) }
+
     private inner class NodePort(
         val id: Int,
         rngSeed: Long,
@@ -178,6 +231,7 @@ class Simulation(
         return when {
             sybil[id] -> SybilSelection(ctx, sybilIds)
             strategyKind == StrategyKind.N0 -> StrongestSignalSelection(ctx, params)
+            strategyKind == StrategyKind.N1N2_BRIDGE -> DiverseViewSelection(ctx, params, bridge = true)
             else -> DiverseViewSelection(ctx, params)
         }
     }
@@ -303,6 +357,7 @@ class Simulation(
         }
         strategies[a]!!.onLinkUp(b, inbound = false)
         if (link.alive) strategies[b]!!.onLinkUp(a, inbound = true)
+        if (link.alive) layer?.onLinkUp(link)
     }
 
     private fun noteFirstLink(i: Int) {
@@ -333,6 +388,7 @@ class Simulation(
                 }
             strategies[e]?.onLinkDown(link.other(e), reason)
         }
+        if (link.rq != null) layer?.onLinkDown(link)
     }
 
     private fun sendControl(
@@ -373,6 +429,7 @@ class Simulation(
         online[i] = true
         incarnation[i]++
         strategies[i] = newStrategy(i)
+        layer?.onJoin(i)
         // Joins still unconnected when the node leaves or the run ends count with their elapsed time (a lower bound).
         if (measuring() && !sybil[i] && now <= scenario.durationMs - 120_000 && awake[i]) {
             var peers = 0
@@ -396,6 +453,7 @@ class Simulation(
         }
         online[i] = false
         dropEverything(i)
+        layer?.onLeave(i)
         at(now + cal.churnOffMs) { join(i) }
     }
 
@@ -602,7 +660,7 @@ class Simulation(
         var honestLinkCount = 0
         for (i in 0 until n) for (l in links[i]) if (l.a == i && !sybil[l.a] && !sybil[l.b]) {
             honestLinkCount++
-            capacityByteSeconds += l.capacityBps * SAMPLE_MS / 1000.0
+            if (measuring()) capacityByteSeconds += l.capacityBps * SAMPLE_MS / 1000.0
         }
         val row =
             linkedMapOf(
@@ -694,13 +752,15 @@ class Simulation(
         at(cal.mobilityTickMs) { mobilityTick() }
         at(SAMPLE_MS) { sample() }
         at(scenario.warmupMs) { diameterSample() }
+        layer?.start()
         while (queue.size > 0 && queue.peekTime() <= scenario.durationMs) {
             val e = queue.pop()
             now = e.time
             e.fire()
         }
         now = scenario.durationMs
-        return RunResult(scenario, strategyKind, seed, collect())
+        val metrics = collect()
+        return RunResult(scenario, strategyKind, seed, metrics, layer?.results() ?: emptyList())
     }
 
     private fun scheduleWake(

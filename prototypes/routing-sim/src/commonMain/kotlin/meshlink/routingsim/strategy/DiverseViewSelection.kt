@@ -11,11 +11,21 @@ package meshlink.routingsim.strategy
  * - Diversity (N2): neighbors exchange their neighbor lists. A candidate is scored by how many
  *   peers it would add that are already reachable within two hops; lower is better. Every
  *   30 s, the most redundant link is replaced if a clearly more diverse candidate is heard.
+ * - Bridge preference ([bridge], stage B variant "N1+N2+bridge"): a newly discovered peer (not
+ *   heard in the last 60 s) that is outside the known 1–2-hop neighborhood probably belongs to
+ *   another group. It is dialed first, with the RSSI floor relaxed, even into the reserved slot
+ *   (or after evicting the most redundant link); once linked, the most redundant other link is
+ *   rotated out to restore the newcomer reservation. At most one bridge attempt per 10 s.
  */
 class DiverseViewSelection(
     ctx: NodeContext,
     params: SelectionParams,
+    private val bridge: Boolean = false,
 ) : NewcomerReservingSelection(ctx, params) {
+    private val firstHeard = HashMap<Int, Long>()
+    private val lastHeardAny = HashMap<Int, Long>()
+    private var lastBridgeAt = Long.MIN_VALUE / 2
+    private var bridgePeer = -1
     private val passive = LinkedHashMap<Int, HeardPeer>()
     private val lists = HashMap<Int, IntArray>()
     private val formerLists = HashMap<Int, IntArray>()
@@ -31,7 +41,46 @@ class DiverseViewSelection(
 
     override fun onScan(results: List<ScanResult>) {
         val t = now()
-        for (r in results) insertPassive(r.peer, r.rssi, t)
+        for (r in results) {
+            if (bridge) {
+                val prev = lastHeardAny[r.peer]
+                if (prev == null || t - prev > params.bridgeNoveltyGapMs) firstHeard[r.peer] = t
+                lastHeardAny[r.peer] = t
+            }
+            insertPassive(r.peer, r.rssi, t)
+        }
+        if (bridge && lastHeardAny.size > 8 * capacity) {
+            val stale = lastHeardAny.filterValues { t - it > 2 * params.bridgeNoveltyGapMs }.keys
+            for (k in stale) {
+                lastHeardAny.remove(k)
+                firstHeard.remove(k)
+            }
+        }
+    }
+
+    /** Dials a newly discovered peer outside the 1–2-hop neighborhood (bridge preference). */
+    private fun tryBridge(t: Long) {
+        if (bridgePeer >= 0 || t - lastBridgeAt < params.bridgeMinGapMs) return
+        val reach = reachable(-1)
+        var best = -1
+        var bestRssi = -Double.MAX_VALUE
+        for ((p, h) in passive) {
+            if (t - h.lastHeard > params.freshMs || h.rssi < params.bridgeRssiFloorDbm || !isDialable(p)) continue
+            if (p in reach || t - (firstHeard[p] ?: Long.MIN_VALUE / 2) > params.bridgeNewMs) continue
+            if (h.rssi > bestRssi) {
+                best = p
+                bestRssi = h.rssi
+            }
+        }
+        if (best < 0) return
+        if (links.usedSlots() >= budget) {
+            val worst = worstLink(-1)
+            if (worst < 0 || redundancy(worst) == 0) return
+            ctx.port.disconnect(worst)
+            coolDown(worst)
+        }
+        lastBridgeAt = t
+        if (ctx.port.dial(best)) bridgePeer = best
     }
 
     private fun insertPassive(
@@ -68,6 +117,7 @@ class DiverseViewSelection(
             nextShuffleAt = t + (params.shuffleIntervalMs * (0.5 + ctx.random.nextDouble())).toLong()
         }
         rotateWhenFull(t)
+        if (bridge) tryBridge(t)
         if (t >= nextDiversityAt) {
             nextDiversityAt = t + params.diversityCheckMs
             replaceRedundant()
@@ -85,7 +135,7 @@ class DiverseViewSelection(
             return
         }
         if (t - fullSince < params.fullRotationMs) return
-        val worst = worstLink()
+        val worst = worstLink(-1)
         if (worst >= 0) {
             ctx.port.disconnect(worst)
             coolDown(worst)
@@ -95,7 +145,7 @@ class DiverseViewSelection(
 
     private fun replaceRedundant() {
         if (replacementDial >= 0 || links.usedSlots() != budget - 1) return
-        val worst = worstLink()
+        val worst = worstLink(-1)
         if (worst < 0) return
         val reach = reachable(-1)
         val candidate = bestCandidate(reach)
@@ -148,11 +198,12 @@ class DiverseViewSelection(
         return list.count { it != ctx.self && it in reach }
     }
 
-    private fun worstLink(): Int {
+    private fun worstLink(exclude: Int): Int {
         var worst = -1
         var worstRed = -1
         var worstRssi = Double.MAX_VALUE
         for (p in links.linkedPeers()) {
+            if (p == exclude) continue
             val red = redundancy(p)
             val rssi = links.linkRssi(p)
             if (red > worstRed || (red == worstRed && rssi < worstRssi)) {
@@ -227,6 +278,16 @@ class DiverseViewSelection(
             replacementDial = -1
             replacing = -1
         }
+        if (peer == bridgePeer) {
+            bridgePeer = -1
+            if (links.usedSlots() > budget - 1) {
+                val worst = worstLink(peer)
+                if (worst >= 0) {
+                    ctx.port.disconnect(worst)
+                    coolDown(worst)
+                }
+            }
+        }
     }
 
     override fun onLinkDown(
@@ -257,6 +318,7 @@ class DiverseViewSelection(
             replacementDial = -1
             replacing = -1
         }
+        if (peer == bridgePeer) bridgePeer = -1
         fill()
     }
 
