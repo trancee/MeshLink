@@ -39,6 +39,8 @@ import kotlin.coroutines.resume
 
 /** AOSP default scan quota is 5 starts per 30 s; pace starts so long attempt loops never hit it. */
 private const val MIN_SCAN_START_INTERVAL_MS = 6_500L
+private const val BUSY_RETRIES = 80
+private const val BUSY_RETRY_DELAY_MS = 25L
 
 @SuppressLint("MissingPermission")
 /** Opt-in mitigation knobs for the 147/133 and legacy write-stall investigations (all off by default). */
@@ -212,15 +214,44 @@ class AndroidCentralConnection(
         if (status == BluetoothGatt.GATT_SUCCESS) deferred.complete(value) else deferred.completeExceptionally(IllegalStateException("gatt status $status"))
     }
 
-    /** Runs one GATT operation at a time; Android drops a second request while one is outstanding. */
-    private suspend fun <T> operation(name: String, timeoutMs: Long = 10_000, start: (BluetoothGatt) -> Boolean): T {
+    /** Busy retries per operation name, surfaced as `busy_<name>_x<n>` timing marks. */
+    private val busyCounts = mutableMapOf<String, Int>()
+
+    /** Reads BluetoothGatt.mDeviceBusy (diagnostic only; null if hidden-API access is refused). */
+    private fun deviceBusy(gatt: BluetoothGatt): Boolean? = runCatching {
+        val field = BluetoothGatt::class.java.getDeclaredField("mDeviceBusy")
+        field.isAccessible = true
+        field.get(gatt) as? Boolean
+    }.getOrNull()
+
+    /**
+     * Runs one GATT operation at a time; Android drops a second request while one is outstanding.
+     * A false return from the start call (stack busy) is retried like writes, up to [busyRetries] times.
+     */
+    private suspend fun <T> operation(
+        name: String,
+        timeoutMs: Long = 10_000,
+        busyRetries: Int = BUSY_RETRIES,
+        start: (BluetoothGatt) -> Boolean,
+    ): T {
         val currentGatt = gatt ?: throw LinkClosedException("not connected")
         return opMutex.withLock {
             if (disconnected.isCompleted) throw LinkClosedException(disconnected.getCompleted())
             val deferred = CompletableDeferred<Any?>()
             pending = deferred
             try {
-                if (!start(currentGatt)) throw IllegalStateException("$name not started")
+                var retries = 0
+                while (!start(currentGatt)) {
+                    if (disconnected.isCompleted) throw LinkClosedException(disconnected.getCompleted())
+                    if (retries >= busyRetries) {
+                        val detail = if (busyRetries > 0) " after $retries busy retries (mDeviceBusy=${deviceBusy(currentGatt)})" else ""
+                        throw IllegalStateException("$name not started$detail")
+                    }
+                    if (retries == 0) sink.log("$name not started, mDeviceBusy=${deviceBusy(currentGatt)}; retrying")
+                    retries++
+                    delay(BUSY_RETRY_DELAY_MS)
+                }
+                if (retries > 0) busyCounts[name] = (busyCounts[name] ?: 0) + retries
                 @Suppress("UNCHECKED_CAST")
                 withTimeout(timeoutMs) { deferred.await() } as T
             } finally {
@@ -257,6 +288,7 @@ class AndroidCentralConnection(
         val cccd = notify.getDescriptor(UUID.fromString(BakeoffUuids.CCCD))
         operation<Unit>("cccd") { writeDescriptor(it, cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) }
         clock.mark("subscribed")
+        busyCounts.forEach { (op, n) -> clock.mark("busy_${op}_x$n") }
     }
 
     @Suppress("DEPRECATION")
@@ -279,7 +311,7 @@ class AndroidCentralConnection(
                 BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
             }
             val started = runCatching {
-                operation<Unit>("write", 5_000) { gatt ->
+                operation<Unit>("write", 5_000, busyRetries = 0) { gatt ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
                     } else {
