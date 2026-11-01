@@ -28,8 +28,10 @@ abstract class ChannelByteLink(override val label: String) : ByteLink {
         inbound.trySend(bytes)
     }
 
-    override suspend fun read(): ByteArray =
-        inbound.receiveCatching().getOrNull() ?: throw LinkClosedException("$label closed")
+    override suspend fun read(): ByteArray {
+        val result = inbound.receiveCatching()
+        return result.getOrNull() ?: throw (result.exceptionOrNull() ?: LinkClosedException("$label closed"))
+    }
 
     protected fun closeInbound(reason: String) {
         inbound.close(LinkClosedException("$label closed: $reason"))

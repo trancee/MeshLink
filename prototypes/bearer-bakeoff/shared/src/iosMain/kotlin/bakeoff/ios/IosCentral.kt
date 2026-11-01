@@ -24,9 +24,17 @@ import platform.CoreBluetooth.CBManagerStatePoweredOn
 import platform.CoreBluetooth.CBPeripheral
 import platform.CoreBluetooth.CBPeripheralDelegateProtocol
 import platform.CoreBluetooth.CBService
+import platform.CoreBluetooth.CBAdvertisementDataIsConnectable
+import platform.CoreBluetooth.CBAdvertisementDataLocalNameKey
+import platform.CoreBluetooth.CBAdvertisementDataOverflowServiceUUIDsKey
+import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
+import platform.CoreBluetooth.CBCentralManagerScanOptionAllowDuplicatesKey
+import platform.CoreBluetooth.CBUUID
 import platform.Foundation.NSError
 import platform.Foundation.NSNumber
 import platform.darwin.NSObject
+import kotlinx.coroutines.delay
+import kotlin.time.TimeSource
 
 /** CoreBluetooth central on the main queue (queue = null), driven from Dispatchers.Main. */
 class IosCentral(private val sink: ResultSink) : CentralDriver {
@@ -48,6 +56,7 @@ class IosCentral(private val sink: ResultSink) : CentralDriver {
             advertisementData: Map<Any?, *>,
             RSSI: NSNumber,
         ) {
+            survey?.invoke(didDiscoverPeripheral, advertisementData, RSSI)
             if (didDiscoverPeripheral.identifier.UUIDString in excluded) return
             discovery?.complete(didDiscoverPeripheral)
         }
@@ -68,6 +77,48 @@ class IosCentral(private val sink: ResultSink) : CentralDriver {
     }
 
     private val manager = CBCentralManager(delegate = delegate, queue = null)
+
+    private var survey: ((CBPeripheral, Map<Any?, *>, NSNumber) -> Unit)? = null
+
+    /**
+     * Diagnostic scan (no connect): reports every advertiser seen in [seconds], with or without the service
+     * filter, and whether the service UUID arrived in the main or the overflow service list.
+     */
+    suspend fun survey(seconds: Int, filtered: Boolean, emit: (Map<String, Any?>) -> Unit) {
+        withTimeoutOrNull(60_000) { poweredOn.await() } ?: throw IllegalStateException("central not powered on")
+        val seen = linkedMapOf<String, MutableMap<String, Any?>>()
+        val start = TimeSource.Monotonic.markNow()
+        survey = { peripheral, data, rssi ->
+            val id = peripheral.identifier.UUIDString
+            val entry = seen.getOrPut(id) {
+                mutableMapOf("identifier" to id, "first_ms" to start.elapsedNow().inWholeMilliseconds, "count" to 0)
+            }
+            entry["count"] = (entry["count"] as Int) + 1
+            entry["rssi"] = rssi.intValue
+            fun uuids(key: Any?) = (data[key] as? List<*>)?.mapNotNull { (it as? CBUUID)?.UUIDString }
+            uuids(CBAdvertisementDataServiceUUIDsKey)?.let { entry["service_uuids"] = it }
+            uuids(CBAdvertisementDataOverflowServiceUUIDsKey)?.let { entry["overflow_service_uuids"] = it }
+            (data[CBAdvertisementDataLocalNameKey] as? String)?.let { entry["local_name"] = it }
+            (data[CBAdvertisementDataIsConnectable] as? NSNumber)?.let { entry["connectable"] = it.boolValue }
+            entry["keys"] = data.keys.map { it.toString() }.sorted()
+            peripheral.name?.let { entry["gap_name"] = it }
+        }
+        manager.scanForPeripheralsWithServices(
+            if (filtered) listOf(cbuuid(BakeoffUuids.SERVICE)) else null,
+            options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to true),
+        )
+        try {
+            delay(seconds * 1000L)
+        } finally {
+            manager.stopScan()
+            survey = null
+        }
+        seen.values.forEach { entry ->
+            val all = (entry["service_uuids"] as? List<*>).orEmpty() + (entry["overflow_service_uuids"] as? List<*>).orEmpty()
+            entry["has_bakeoff_service"] = all.any { (it as String).equals(BakeoffUuids.SERVICE, ignoreCase = true) }
+            emit(entry)
+        }
+    }
 
     override suspend fun connect(request: ConnectRequest, clock: PhaseClock): CentralConnection {
         withTimeoutOrNull(60_000) { poweredOn.await() }

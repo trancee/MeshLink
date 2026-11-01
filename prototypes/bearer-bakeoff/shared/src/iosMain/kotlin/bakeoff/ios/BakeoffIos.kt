@@ -3,6 +3,7 @@ package bakeoff.ios
 import bakeoff.BakeoffConfig
 import bakeoff.BakeoffRunner
 import bakeoff.DeviceInfo
+import bakeoff.Recorder
 import bakeoff.ResultSink
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -55,8 +56,24 @@ object BakeoffIos {
         val config = BakeoffConfig.parse(tokens)
         val sink = FileLogSink(resultsPath(config.runId))
         val info = DeviceInfo(model = "Apple ${machine()}", os = "iOS ${UIDevice.currentDevice.systemVersion}", platform = "ios")
-        val runner = BakeoffRunner(config, info, sink, IosCentral(sink), IosPeripheral(sink), onStatus)
+        val central = IosCentral(sink)
         sink.emit(authorizationRecord(config, info))
+        config.raw["survey"]?.toIntOrNull()?.let { seconds ->
+            val recorder = Recorder(config, info, sink)
+            val filtered = config.raw["survey_filter"] != "0"
+            onStatus("survey ${config.runId} ${seconds}s filtered=$filtered")
+            job = scope.launch {
+                val outcome = runCatching {
+                    central.survey(seconds, filtered) { entry ->
+                        recorder.record("scan_survey_advertiser", "ok", null, null, extra = entry + ("filtered" to filtered))
+                    }
+                }
+                recorder.record("done", if (outcome.isSuccess) "ok" else "fail", null, null, error = outcome.exceptionOrNull()?.toString())
+                onStatus("survey done")
+            }
+            return
+        }
+        val runner = BakeoffRunner(config, info, sink, central, IosPeripheral(sink), onStatus)
         onStatus("run ${config.runId} role=${config.role} bt_auth=${authorizationName()}")
         job = runner.start(scope)
     }
