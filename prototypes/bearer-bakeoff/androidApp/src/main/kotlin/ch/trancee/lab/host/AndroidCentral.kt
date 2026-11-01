@@ -276,12 +276,18 @@ class AndroidCentralConnection(
         runCatching { operation<Int>("mtu", 5_000) { it.requestMtu(tuning.requestMtu) } }
         clock.mark("mtu")
         gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-        if (phy != Phy.DEFAULT) {
-            phyUpdate = CompletableDeferred()
-            gatt?.setPreferredPhy(phyMask, phyMask, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
-            withTimeoutOrNull(2_000) { phyUpdate.await() }
+        // LE PHY HCI commands need a BT 5 controller. On the P10 lite (Android 8.0, BT 4.2) readPhy() aborts the
+        // Bluetooth process (gatt_api.cc "Assert failed: len == 5"), so skip PHY commands when 2M is unsupported.
+        if (adapter.isLe2MPhySupported) {
+            if (phy != Phy.DEFAULT) {
+                phyUpdate = CompletableDeferred()
+                gatt?.setPreferredPhy(phyMask, phyMask, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
+                withTimeoutOrNull(2_000) { phyUpdate.await() }
+            }
+            runCatching { operation<Unit>("readPhy", 3_000) { it.readPhy(); true } }
+        } else {
+            clock.mark("phy_commands_skipped")
         }
-        runCatching { operation<Unit>("readPhy", 3_000) { it.readPhy(); true } }
         clock.mark("phy")
         val notify = service.getCharacteristic(UUID.fromString(BakeoffUuids.DATA_NOTIFY))
         gatt?.setCharacteristicNotification(notify, true)
