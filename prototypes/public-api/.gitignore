@@ -4,3 +4,4 @@ build/
 swift/.build/
 swift/.swiftpm/
 swift/DerivedData/
+swift/Frameworks/
