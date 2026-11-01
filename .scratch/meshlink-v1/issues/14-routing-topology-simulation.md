@@ -101,3 +101,23 @@ These results are simulated, not measured on devices. Evidence: throwaway branch
 - **Q7, tag rotation:** judged per density class, where every protocol stays within budget. Only U2 and U3 exceed it in single cells (+11.2% transmissions; −1.75 pp delivery), and both are dropped.
 - **Q8, cuts:** at N=1000, stage B ran static only, with 5 seeds, and without U3. Accepted; stage C keeps the same N=1000 scope.
   - Stage C also runs 1-hour simulated runs for the 1 h and 24 h lifetimes, about 3 h in total.
+
+## Dynamic local density (accepted 2026-11-01)
+
+The user pointed out that density changes over time. A phone walking to a festival goes from low to medium to high density, and a dense core and a sparse edge coexist in one mesh. Stage C is rescoped around this. Accepted:
+
+- **Q1:** each node estimates its own local density from what it observes alone: a smoothed count of distinct peers heard in recent scans, plus its link count. There is no mesh-wide coordination. The count window must be shorter than the identifier rotation period.
+- **Q2:** class switches use hysteresis (different up and down thresholds) plus a minimum dwell time of 30–60 s. Target: at most a few switches per hour for a phone at a threshold. Stage C sets the values.
+- **Q3:** adapting changes only local forwarding behavior, never the wire format. Every node always receives and relays every message type, so phones in different modes interoperate across a density boundary. Mixed-mode meshes are tested.
+- **Q4:** adapted per class:
+  - unicast and broadcast mode;
+  - target degree d;
+  - scan and advertise duty cycle;
+  - bridge rate limit;
+  - store-and-forward eagerness.
+- **Q5:** presets set limits and bias, not a fixed class. The default is automatic, and an app may pin a class. The class and switch events appear in diagnostics only; ADR 0007 is unchanged.
+- **Q6:** stage C adds dynamic scenarios: arrival, departure, dense core with sparse edge, surge, and threshold oscillation.
+  - Each compares the adaptive policy with the best single fixed configuration and with flooding everywhere.
+  - Metrics: delivery and p95 latency during transitions and across the boundary between modes, time to switch, switches per hour, busiest-phone load, and control traffic.
+  - Budget: about 4–5 h.
+- **Q7:** "Local density" is added to the glossary. The class boundaries stay provisional until stage C confirms or revises them.

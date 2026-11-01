@@ -2,6 +2,8 @@
 
 Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 1.
 
+Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
+
 ## Context
 
 [ADR 0001](0001-threat-model-and-profile-guarantees.md) fixes what each security profile guarantees: authenticated, encrypted links plus end-to-end encryption in the secured profiles, open or mesh-key-gated admission, rotating on-air identifiers, and hybrid confidentiality with classical authentication for `post-quantum`. No platform provider covers both secured profiles at Android 26 / iOS 15, and Xcode 16.4 (iOS 18.5 SDK) rules out CryptoKit ML-KEM/X-Wing, so crypto is bundled. Rule S6 requires established constructions and S7 requires conformance vectors.
@@ -35,7 +37,7 @@ Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each 
 
 - `hfs` is an unofficial Noise extension with no public vectors. Mitigated by two-implementation vectors and expert review before release.
 - HPKE with X-Wing: standardization status and provider support are unverified; the crypto-provider ticket verifies them.
-- Post-quantum first messages are about 2.3 KB larger than classical. Modelled at roughly 13–24 ms per hop on ideal radio, or 45–230 ms per hop at an illustrative 10–50 KB/s; unmeasured. Mitigated by the latency safeguard.
+- Post-quantum first messages are about 2.3 KB larger than classical. Modeled at roughly 13–24 ms per hop on ideal radio, or 45–230 ms per hop at an illustrative 10–50 KB/s; unmeasured. Mitigated by the latency safeguard.
 - `XXhfs` costs about 2.5 KB per link establishment, which may be high under link churn at high density. The simulation and bake-off measure it.
 
 ## Migration

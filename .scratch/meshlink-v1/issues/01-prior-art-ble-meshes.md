@@ -12,11 +12,13 @@ Survey bitchat, Briar, Bridgefy, Meshtastic, Berty/Wesh, Apple Multipeer Connect
 Bluetooth SIG Mesh does not fit phone-to-phone meshes. iOS and Android apps cannot emit its advertising bearer. The spec (Table 3.13) lets only nodes that also support ADV act as Relay or Proxy. So phones are only GATT edge clients of a proxy, and there is no standard forwarding path between phones alone. Its shared NetKey with Provisioner admission also conflicts with per-installation identity. MeshLink needs its own connection-based BLE protocol; bitchat, Bridgefy and Berty all use dual-role GATT.
 
 Best-documented designs to borrow:
+
 - **Mesh broadcast:** managed flooding — seen-set dedup, relay jitter with cancel-on-duplicate, degree-adaptive TTL and fanout, split horizon, implicit ACK (bitchat, Meshtastic).
 - **Directed messages:** learned next-hop with flood fallback (Meshtastic 2.6).
 - **Store-and-forward:** bounded spray-and-wait with quotas (bitchat).
 
 Recurring failures to design against:
+
 - Unauthenticated relay or cache admission: bitchat CVE-2026-51376, Bridgefy impersonation.
 - Shared-key "broadcast authenticity": Meshtastic, Bridgefy, SIG Mesh.
 - Static or cleartext on-air identities and relay trails: bitchat, Bridgefy, Meshtastic.

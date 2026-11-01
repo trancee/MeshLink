@@ -14,6 +14,7 @@ Re-trust the two ECID-only iPhones (iPhone10,6, iPhone8,4), bring the iPhone 12 
 ## Answer
 
 Done. iPhone inventory is recorded in the iOS section of `../android-devices/devices.md`:
+
 - SE (2016) iOS 15.8.8 and iPhone X iOS 16.7.16: USB, paired; reachable only via libimobiledevice (CoreDevice/`devicectl` lists iOS < 17 by ECID only). iPhone X has Developer Mode on; iOS 15 has no such setting.
 - iPhone 15 iOS 17.6.1 (USB) and SE (2020) iOS 18.7.8 (Wi-Fi): connected, Developer Mode on.
 - iPhone 12 mini iOS 27.0.1: USB, paired, Developer Mode on (brought online by the user, 2026-10-31). Xcode 16.4 lists it as a device (`xcrun xctrace list devices`); DDI-backed `devicectl` calls (app list, process list, app launch) work. Building and debugging from Xcode 16.4 on iOS 27 is still untested; the toolchain-baseline smoke build covers it.

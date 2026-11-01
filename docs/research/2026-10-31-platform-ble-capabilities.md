@@ -35,47 +35,47 @@ Unverifiable items must be marked as such.
 ### Android: primary
 
 - **API reference** (each "Added in API level" was extracted from the HTML):
-  - BluetoothAdapter: https://developer.android.com/reference/android/bluetooth/BluetoothAdapter
-  - BluetoothDevice: https://developer.android.com/reference/android/bluetooth/BluetoothDevice
-  - BluetoothGatt: https://developer.android.com/reference/android/bluetooth/BluetoothGatt
-  - BluetoothGattServer: https://developer.android.com/reference/android/bluetooth/BluetoothGattServer
-  - BluetoothGattConnectionSettings: https://developer.android.com/reference/android/bluetooth/BluetoothGattConnectionSettings
-  - BluetoothSocketSettings: https://developer.android.com/reference/android/bluetooth/BluetoothSocketSettings
-  - ScanSettings.Builder: https://developer.android.com/reference/android/bluetooth/le/ScanSettings.Builder
-  - AdvertisingSetParameters.Builder: https://developer.android.com/reference/android/bluetooth/le/AdvertisingSetParameters.Builder
-  - BluetoothLeAdvertiser: https://developer.android.com/reference/android/bluetooth/le/BluetoothLeAdvertiser
-  - AdvertiseCallback: https://developer.android.com/reference/android/bluetooth/le/AdvertiseCallback
-  - CompanionDeviceManager: https://developer.android.com/reference/android/companion/CompanionDeviceManager
+  - BluetoothAdapter: <https://developer.android.com/reference/android/bluetooth/BluetoothAdapter>
+  - BluetoothDevice: <https://developer.android.com/reference/android/bluetooth/BluetoothDevice>
+  - BluetoothGatt: <https://developer.android.com/reference/android/bluetooth/BluetoothGatt>
+  - BluetoothGattServer: <https://developer.android.com/reference/android/bluetooth/BluetoothGattServer>
+  - BluetoothGattConnectionSettings: <https://developer.android.com/reference/android/bluetooth/BluetoothGattConnectionSettings>
+  - BluetoothSocketSettings: <https://developer.android.com/reference/android/bluetooth/BluetoothSocketSettings>
+  - ScanSettings.Builder: <https://developer.android.com/reference/android/bluetooth/le/ScanSettings.Builder>
+  - AdvertisingSetParameters.Builder: <https://developer.android.com/reference/android/bluetooth/le/AdvertisingSetParameters.Builder>
+  - BluetoothLeAdvertiser: <https://developer.android.com/reference/android/bluetooth/le/BluetoothLeAdvertiser>
+  - AdvertiseCallback: <https://developer.android.com/reference/android/bluetooth/le/AdvertiseCallback>
+  - CompanionDeviceManager: <https://developer.android.com/reference/android/companion/CompanionDeviceManager>
 - **Guides and policy:**
-  - Permissions: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions
-  - Background BLE: https://developer.android.com/develop/connectivity/bluetooth/ble/background
-  - FGS types: https://developer.android.com/develop/background-work/services/fgs/service-types
-  - Android 14 behavior changes (MTU 517): https://developer.android.com/about/versions/14/behavior-changes-all
-  - Android 15, 16 and 17 behavior-change pages (all-apps and targeting): https://developer.android.com/about/versions/15/behavior-changes-all, https://developer.android.com/about/versions/16/behavior-changes-all, https://developer.android.com/about/versions/17/behavior-changes-all and the `-15`/`-16`/`-17` targeting pages
-  - Google Play FGS policy: https://support.google.com/googleplay/android-developer/answer/13392821
+  - Permissions: <https://developer.android.com/develop/connectivity/bluetooth/bt-permissions>
+  - Background BLE: <https://developer.android.com/develop/connectivity/bluetooth/ble/background>
+  - FGS types: <https://developer.android.com/develop/background-work/services/fgs/service-types>
+  - Android 14 behavior changes (MTU 517): <https://developer.android.com/about/versions/14/behavior-changes-all>
+  - Android 15, 16 and 17 behavior-change pages (all-apps and targeting): <https://developer.android.com/about/versions/15/behavior-changes-all>, <https://developer.android.com/about/versions/16/behavior-changes-all>, <https://developer.android.com/about/versions/17/behavior-changes-all> and the `-15`/`-16`/`-17` targeting pages
+  - Google Play FGS policy: <https://support.google.com/googleplay/android-developer/answer/13392821>
 - **AOSP `main`:**
   - `packages/modules/Bluetooth` files: `system/stack/gatt/gatt_utils.cc`, `system/internal_include/bt_target.h`, `android/app/src/com/android/bluetooth/le_scan/{ScanManager,AppScanStats}.java` and `android/app/src/com/android/bluetooth/btservice/AdapterService.java`
-  - Base URL: https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/heads/main/
+  - Base URL: <https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/heads/main/>
 
 ### Apple: primary
 
 - **Core Bluetooth documentation** (per-symbol availability taken from the doc JSON at `developer.apple.com/tutorials/data/documentation/corebluetooth/...`):
-  - `CBPeripheralManager.startAdvertising(_:)`: https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:)
-  - `CBCentralManager.scanForPeripherals(withServices:options:)`: https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/scanforperipherals(withservices:options:)
-  - `CBL2CAPChannel`: https://developer.apple.com/documentation/corebluetooth/cbl2capchannel
-  - `publishL2CAPChannel(withEncryption:)`: https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/publishl2capchannel(withencryption:)
-  - `CBCentralManager.Feature`: https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/feature
-  - `maximumWriteValueLength(for:)`: https://developer.apple.com/documentation/corebluetooth/cbperipheral/maximumwritevaluelength(for:)
-  - `CBConnectPeripheralOptionEnableAutoReconnect`: https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenableautoreconnect
-  - `CBAdvertisementDataOverflowServiceUUIDsKey`: https://developer.apple.com/documentation/corebluetooth/cbadvertisementdataoverflowserviceuuidskey
-  - Channel Sounding symbols (iOS 27): https://developer.apple.com/documentation/corebluetooth
+  - `CBPeripheralManager.startAdvertising(_:)`: <https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:)>
+  - `CBCentralManager.scanForPeripherals(withServices:options:)`: <https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/scanforperipherals(withservices:options:)>
+  - `CBL2CAPChannel`: <https://developer.apple.com/documentation/corebluetooth/cbl2capchannel>
+  - `publishL2CAPChannel(withEncryption:)`: <https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/publishl2capchannel(withencryption:)>
+  - `CBCentralManager.Feature`: <https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/feature>
+  - `maximumWriteValueLength(for:)`: <https://developer.apple.com/documentation/corebluetooth/cbperipheral/maximumwritevaluelength(for:)>
+  - `CBConnectPeripheralOptionEnableAutoReconnect`: <https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenableautoreconnect>
+  - `CBAdvertisementDataOverflowServiceUUIDsKey`: <https://developer.apple.com/documentation/corebluetooth/cbadvertisementdataoverflowserviceuuidskey>
+  - Channel Sounding symbols (iOS 27): <https://developer.apple.com/documentation/corebluetooth>
 - **Other Apple sources:**
-  - Accessory Design Guidelines R32 (2026-10-23), §56–57 BLE: https://developer.apple.com/accessories/Accessory-Design-Guidelines.pdf
-  - Core Bluetooth Programming Guide, Background Processing (archived): https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformanceTipsForIOSApps.html
+  - Accessory Design Guidelines R32 (2026-10-23), §56–57 BLE: <https://developer.apple.com/accessories/Accessory-Design-Guidelines.pdf>
+  - Core Bluetooth Programming Guide, Background Processing (archived): <https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html>
 
 ### Bluetooth SIG: primary
 
-Bluetooth Core Specification 6.1 HTML: https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-61/out/en/
+Bluetooth Core Specification 6.1 HTML: <https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-61/out/en/index-en.html>
 
 - Vol 3 Part F (ATT) §3.2.9
 - Vol 3 Part A (L2CAP) §4.22 and Table 4.15

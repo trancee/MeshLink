@@ -46,7 +46,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 - T6 Assertions D failure context; structural equality only for tested structure.
 - T7 R public/stable-internal contracts; X source text/incidental order/private detail/time/shared-state dependence unless tested behavior itself.
 - T8 Multi-process/node/network/distributed tests D deterministic virtual environment in default suite.
-- T9 Mock/simulator != hardware proof; hardware behavior R supported-hardware execution pre-release. Hardware-dependent claim (interop/connection limits/throughput/latency/range/power/background) R evidence record {devices+OS/firmware, covered platform pairs, commit, method, raw results, date}; missing record or pair=>claim labelled unverified.
+- T9 Mock/simulator != hardware proof; hardware behavior R supported-hardware execution pre-release. Hardware-dependent claim (interop/connection limits/throughput/latency/range/power/background) R evidence record {devices+OS/firmware, covered platform pairs, commit, method, raw results, date}; missing record or pair=>claim labeled unverified.
 - T10 Security/protocol/parser/serializer R applicable malformed/truncated/boundary/replayed/incompatible/adversarial tests.
 - T11 Performance-critical R retained representative benchmarks+comparison-environment metadata.
 
@@ -126,7 +126,8 @@ Pre-merge, all applicable:
 - V5 Ownership D designated review for Constitution/security/release/CI/protocol/schema/persistence paths.
 - V6 Lower convention R narrowest relevant doc; X duplication here.
 
-`version=4.0.0; ratified=2026-04-30; amended=2026-11-01`
+`version=4.0.1; ratified=2026-04-30; amended=2026-11-01`
 Amendment: rationale=AI context compression; impact=wording only, IDs/obligations unchanged; migration=none; approval=user "optimize all the files for AI usage...without losing context".
 Amendment 3.1.0: rationale=MeshLink fork of cairn 3.0.1 (hardware-claim evidence, protocol spec authority, AI-consumable docs); impact=T9 expanded, C10+O8 added, no removals; migration=none (greenfield: no claims/protocol/docs yet); approval=user, ticket "Which constitution amendments should MeshLink adopt?" 2026-10-31.
 Amendment 4.0.0: rationale=no CI tool measures Kotlin/Native coverage (Kover lacks native targets, kotlinx-kover#293; Kotlin 2.4.21 rejects `-Xcoverage`), so 100% T3 is unattainable for iosMain; impact=T3 100% line+branch narrowed to targets with a CI coverage tool, unmeasurable targets limited to thin CI-named adapters with on-target tests (obligation relaxed => MAJOR per V3); migration=none (greenfield: no code yet); approval=user, ticket "What is the toolchain and dependency baseline?" 2026-11-01 (ADR 0005).
+Amendment 4.0.1: rationale=docs spelling standard is US English (ADR 0006) and the `typos` CI gate enforces it; impact=spelling only (British "-ll-" past tense of "label" changed to US "-l-"), obligations unchanged (PATCH per V3); migration=removed the CONSTITUTION.md exclusion from `_typos.toml` (V4); approval=user 2026-11-01.
