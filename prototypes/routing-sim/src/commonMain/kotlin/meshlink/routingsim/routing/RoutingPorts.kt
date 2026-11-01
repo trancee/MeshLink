@@ -63,6 +63,23 @@ data class RoutingParams(
     val sleepyRelayDelayMs: Long = 150,
     /** Stage C adaptive unicast (UA): behavior per local density class, or null for a fixed protocol. */
     val classPolicy: UnicastClassPolicy? = null,
+    // Stage D: keep routes alive during conversations, sparse senders flood.
+    /** K1: a route used by a message stays valid this long after the last message (0 = active route time only). */
+    val convKeepMs: Long = 0,
+    /** K2: the destination acknowledges every routed message along the path; the ack re-arms the routes. */
+    val deliveryAck: Boolean = false,
+    /** K2: a sender without an ack after this long (plus per-hop time) re-discovers and re-sends once. */
+    val ackWaitMs: Long = 1_000,
+    /** K3: every phone a routed message or ring copy passes keeps the way back to its source this long (0 = off). */
+    val reverseCacheMs: Long = 0,
+    /** S: a phone whose own density estimate is below this floods its own messages (0 = off). */
+    val sparseFloodBelow: Double = 0.0,
+    /** F: with no route, send a full-range route request at once (alongside the data ring) instead of an expanding ring. */
+    val fullRangeDiscovery: Boolean = false,
+    /** Pinned low class: the adaptive broadcast floods in every class. */
+    val pinFlood: Boolean = false,
+    /** Plumtree catch-up: on a new link, announce (IHAVE) cached messages younger than this (0 = off). */
+    val catchUpMs: Long = 0,
     // B2 fanout subsetting: forward to ceil(log2(links)) links, at least this many.
     val fanoutMin: Int = 2,
     // B3 Plumtree.
@@ -183,6 +200,9 @@ interface RoutingPort {
 
     /** This phone's own local density class (0 low, 1 medium, 2 high), from its own observations only. */
     fun densityClass(): Int = 1
+
+    /** This phone's own smoothed count of peers heard (driving estimator), −1 before its first scan. */
+    fun densityEstimate(): Double = -1.0
 }
 
 /**

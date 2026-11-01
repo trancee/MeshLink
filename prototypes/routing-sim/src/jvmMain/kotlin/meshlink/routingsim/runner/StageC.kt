@@ -37,6 +37,9 @@ enum class Topo(
 
     /** As [ADAPT] but 5 links in every class (follow-up after the main grid). */
     ADAPT_D5("adaptive-d5", 5, true, true),
+
+    /** Stage D "pinned low class" preset: the low-class topology settings at every density. */
+    PINNED("pinned-low", 6, true, true),
 }
 
 enum class CSet(
@@ -49,6 +52,20 @@ enum class CSet(
     LIFE("life"),
     LONG("long"),
     NONE("none"),
+
+    /** Stage D sets (see StageD.kt). */
+    D_MAIN("d-main"),
+    D_CONV("d-conv"),
+    D_BIG("d-big"),
+    D_LIFE("d-life"),
+    D_PIN("d-pin"),
+
+    /** Stage D follow-up: the recommended v1 unicast (F+K2) in the life and N = 1000 cells. */
+    D_LIFE_V1("d-life-v1"),
+    D_BIG_V1("d-big-v1"),
+
+    /** Stage D addendum: iOS inbound cap of 4 and the bearer bake-off calibration (half-iOS cells). */
+    D_IOS4("d-ios4"),
 }
 
 fun stageCInstances(set: CSet): List<InstanceConfig> =
@@ -77,6 +94,7 @@ fun stageCInstances(set: CSet): List<InstanceConfig> =
                 listOf(3_600_000L, 86_400_000L).map { life -> InstanceConfig(p, life, 10_000L, 30_000L, rotation = true) }
             }
         CSet.NONE -> emptyList()
+        else -> stageDInstances(set)
     }
 
 data class CSpec(
@@ -88,10 +106,12 @@ data class CSpec(
     val bridgeGapMs: Long,
     /** Driving estimator and classifier ("w10e:s1h25/d60"); null = the default. */
     val drive: String? = null,
+    /** Named calibration ([Calibration.named]); null = the default. Recorded in the "drive" column. */
+    val calib: String? = null,
 ) {
     val id get() =
         "${scenario.key}|dur${scenario.durationMs / 1000}|${topo.label}|gap${gapLabel(bridgeGapMs)}|$seed|${set.label}" +
-            (drive?.let { "|drive=$it" } ?: "")
+            (drive?.let { "|drive=$it" } ?: "") + (calib?.let { "|cal=$it" } ?: "")
 }
 
 fun gapLabel(ms: Long) = if (ms < 0) "off" else (ms / 1000).toString()
@@ -126,6 +146,8 @@ class StageCRunner(
     fun settingsFor(topo: Topo): ClassSettings? =
         when {
             !topo.adaptive -> null
+            topo == Topo.PINNED ->
+                ClassSettings(topo.label, intArrayOf(6, 6, 6), intArrayOf(1, 1, 1), booleanArrayOf(true, true, true), bridge.perClassMs)
             topo.duty ->
                 ClassSettings(
                     topo.label, if (topo == Topo.ADAPT_D5) intArrayOf(5, 5, 5) else intArrayOf(6, 5, 5), intArrayOf(1, 2, 3), booleanArrayOf(true, true, false), bridge.perClassMs,
@@ -145,10 +167,10 @@ class StageCRunner(
         val strategy = if (bridgeOn) StrategyKind.N1N2_BRIDGE else StrategyKind.N1N2
         val params = SelectionParams(bridgeMinGapMs = if (spec.bridgeGapMs >= 0) spec.bridgeGapMs else 10_000)
         val list = stageCInstances(spec.set)
-        val setup = if (list.isEmpty()) null else RoutingSetup(list)
+        val setup = if (list.isEmpty()) null else RoutingSetup(list, stageDTraffic(spec.set))
         val r =
             Simulation(
-                s, strategy, spec.seed, cal, params, extent,
+                s, strategy, spec.seed, spec.calib?.let { Calibration.named(it) } ?: cal, params, extent,
                 routingSetup = setup,
                 densitySetup = densitySetup(settingsFor(spec.topo), spec.drive),
             ).run()
@@ -222,7 +244,7 @@ object CRaw {
     val keyColumns =
         listOf(
             "runId", "set", "scenario", "density", "nodes", "platform", "degree", "topo", "bridgeGapS", "durationS", "seed",
-            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref",
+            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref", "variant",
         )
     private val headers = HashMap<String, List<String>>()
 
@@ -274,7 +296,7 @@ object CRaw {
             values["bridgeGapS"] = gapLabel(spec.bridgeGapMs)
             values["durationS"] = (s.durationMs / 1000).toString()
             values["seed"] = spec.seed.toString()
-            values["drive"] = spec.drive ?: "default"
+            values["drive"] = spec.drive ?: spec.calib ?: "default"
             values["wallMs"] = wallMs.toString()
             for ((k, v) in r.metrics) values["t_$k"] = RawCsv.fmt(v)
             if (inst == null) {
@@ -289,6 +311,7 @@ object CRaw {
                 values["skewS"] = (cfg.skewMs / 1000).toString()
                 values["rotation"] = if (cfg.rotation) "1" else "0"
                 values["pref"] = if (cfg.pref) "1" else "0"
+                values["variant"] = cfg.variant.ifEmpty { "-" }
                 for ((k, v) in m) values[k] = RawCsv.fmt(v)
             }
             sb.append(header.joinToString(",") { values[it] ?: "" }).append('\n')

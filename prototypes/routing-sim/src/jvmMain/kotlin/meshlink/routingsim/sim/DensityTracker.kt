@@ -122,6 +122,9 @@ internal class DensityTracker(
     /** Driving class, LOW until the phone's first scan. */
     fun classOf(i: Int) = maxOf(0, drive[i].current)
 
+    /** Driving estimator's smoothed count (−1 before the first scan). */
+    fun estimateOf(i: Int) = est[i][setup.driveEstimator].value
+
     /** Feeds one scan; returns true when the driving class changed. */
     fun onScan(
         i: Int,

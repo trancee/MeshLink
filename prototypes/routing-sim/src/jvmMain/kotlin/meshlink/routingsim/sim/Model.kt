@@ -47,7 +47,50 @@ data class Calibration(
     val partitionWalkSpeed: Double = 1.4,
     val partitionSplitAtMs: Long = 240_000,
     val partitionReturnAtMs: Long = 480_000,
-)
+    /** Extra connect attempts inside one dial after a failed attempt, each after [retryBackoffMs] × attempt. */
+    val connectRetries: Int = 0,
+    val retryBackoffMs: Long = 500,
+    /** Link throughput and RTT by the central's platform (stage D measured calibration); off = the ranges above. */
+    val perPlatformLinks: Boolean = false,
+    val androidCentralBpsMin: Double = 47_000.0,
+    val androidCentralBpsMax: Double = 79_000.0,
+    val iosCentralBpsMin: Double = 19_000.0,
+    val iosCentralBpsMax: Double = 31_000.0,
+    val androidCentralRttMinMs: Long = 30,
+    val androidCentralRttMaxMs: Long = 45,
+    val iosCentralRttMs: Long = 60,
+    /** Inbound (peripheral-role) links an iOS node keeps; further incoming connections are refused. */
+    val iosInboundCap: Int = Int.MAX_VALUE,
+    /** Fix candidate: an iOS node stops advertising while its inbound links are at [iosInboundCap]. */
+    val iosHideAtInboundCap: Boolean = false,
+) {
+    companion object {
+        /**
+         * Named calibrations for the stage D recheck: "base" (stages A–D), "meas" (bearer bake-off measurements:
+         * per-platform throughput and RTT, GATT setup 1.3–3.7 s, PQ XXhfs handshake 101–255 ms, up to 3 connect
+         * retries with 500 ms × n backoff), plus "+cap4" (iOS keeps at most 4 inbound links) and "+hide" (iOS stops
+         * advertising while at that cap).
+         */
+        fun named(label: String): Calibration {
+            var c = Calibration()
+            for (part in label.split('+')) {
+                c =
+                    when (part) {
+                        "base" -> c
+                        "meas" ->
+                            c.copy(
+                                connectMinMs = 1_300, connectMaxMs = 3_700, handshakeMinMs = 101, handshakeMaxMs = 255,
+                                connectRetries = 3, perPlatformLinks = true,
+                            )
+                        "cap4" -> c.copy(iosInboundCap = 4)
+                        "hide" -> c.copy(iosHideAtInboundCap = true)
+                        else -> error("unknown calibration part $part")
+                    }
+            }
+            return c
+        }
+    }
+}
 
 enum class Density(
     val label: String,

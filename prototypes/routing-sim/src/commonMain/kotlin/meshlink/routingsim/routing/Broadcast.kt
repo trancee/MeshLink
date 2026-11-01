@@ -19,10 +19,12 @@ class MessageCache(
 ) {
     private val entries = LinkedHashMap<Int, DataPacket>()
     private val until = HashMap<Int, Long>()
+    private val putAt = HashMap<Int, Long>()
 
     fun put(p: DataPacket) {
         prune()
         entries[p.id] = p
+        putAt[p.id] = port.now()
         until[p.id] = minOf(p.expiresAt, port.now() + port.params.cacheWindowMs)
     }
 
@@ -40,7 +42,14 @@ class MessageCache(
             if ((until[id] ?: 0) >= t) break
             it.remove()
             until.remove(id)
+            putAt.remove(id)
         }
+    }
+
+    /** Unexpired cached messages received within the last [windowMs]. */
+    fun recentIds(windowMs: Long): IntArray {
+        val t = port.now()
+        return entries.keys.filter { (putAt[it] ?: Long.MIN_VALUE) >= t - windowMs && get(it) != null }.toIntArray()
     }
 
     val size get() = entries.size
@@ -57,6 +66,10 @@ class MessageCache(
  *   so neighbors in different modes interoperate.
  * - Relay preference: in Plumtree mode a node that sleeps delays its eager push, so its neighbors
  *   receive first from awake peers and PRUNE the sleeping one (the tree forms over awake nodes).
+ *
+ * Stage D catch-up ([RoutingParams.catchUpMs] > 0): when a link comes up, each side announces (IHAVE) the
+ * unexpired messages it received within the window, so a phone that slept through a message (background
+ * iOS wake windows) or just joined pulls it with GRAFT. Same wire format; costs one IHAVE per new link.
  */
 class Plumtree(
     private val port: RoutingPort,
@@ -68,7 +81,7 @@ class Plumtree(
     /** Current mode from the phone's local density class (hysteresis and dwell live in the classifier). */
     private fun floodMode(): Boolean {
         if (!adaptive) return false
-        val now = port.densityClass() == 0
+        val now = port.params.pinFlood || port.densityClass() == 0
         if (now != flooding) modeSwitches++
         flooding = now
         return flooding
@@ -90,6 +103,11 @@ class Plumtree(
     override fun onLinkUp(peer: Int) {
         lazy.remove(peer)
         eager.add(peer)
+        val w = port.params.catchUpMs
+        if (w > 0) {
+            val ids = cache.recentIds(w)
+            if (ids.isNotEmpty()) port.send(peer, IdsControl(IdsControl.Kind.IHAVE, ids))
+        }
     }
 
     override fun onLinkDown(peer: Int) {

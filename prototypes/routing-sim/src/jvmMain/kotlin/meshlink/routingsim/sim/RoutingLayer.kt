@@ -59,12 +59,16 @@ data class InstanceConfig(
     val rotation: Boolean = false,
     /** Stage C relay preference (awake relays first). */
     val pref: Boolean = false,
+    /** Stage D variant flags (see [StageDVariant]), e.g. "K1+S5". */
+    val variant: String = "",
 ) {
     val label get() =
         "${protocol.label}/life${lifetimeMs / 1000}/hold${minHoldMs / 1000}/skew${skewMs / 1000}/rot${if (rotation) 1 else 0}" +
-            if (pref) "/pref" else ""
+            (if (pref) "/pref" else "") + (if (variant.isNotEmpty()) "/$variant" else "")
 
-    fun params(base: RoutingParams): RoutingParams =
+    fun params(base: RoutingParams): RoutingParams = StageDVariant.apply(variant, stageCParams(base))
+
+    private fun stageCParams(base: RoutingParams): RoutingParams =
         base.copy(
             minHoldMs = minHoldMs,
             relayPreference = pref,
@@ -93,6 +97,10 @@ data class TrafficConfig(
     val firstMessageOverheadClassical: Int = 96,
     /** Post-quantum first message adds about 2.3 KB (ADR 0002). */
     val firstMessageOverheadPq: Int = 96 + 2_300,
+    /** Stage D conversation traffic: the recipient answers with this probability (0 = one-way chat only). */
+    val replyProb: Double = 0.0,
+    /** Mean reply delay (exponential). */
+    val replyMeanDelayMs: Double = 30_000.0,
     /** Mean gap between mesh broadcasts in the whole mesh (Poisson, random honest source). */
     val broadcastMeanGapMs: Double = 15_000.0,
     val trafficStartMs: Long = 60_000,
@@ -157,6 +165,9 @@ internal interface SimAccess {
 
     /** The phone's own current density class (stage C driving classifier). */
     fun densityClass(i: Int): Int
+
+    /** The phone's own smoothed density estimate (driving estimator), −1 before its first scan. */
+    fun densityEstimate(i: Int): Double
 
     val transitionWindowMs: LongRange?
 }
@@ -239,6 +250,7 @@ internal class RoutingLayer(
     private val procRng = Array(k) { Random(seed xor mix64(1_000L + it)) }
     private val trafficRng = Random(seed xor 0x7a11cL)
     private val broadcastRng = Random(seed xor 0xb0adL)
+    private val replyRng = Random(seed xor 0x4e91eL)
     private val skewUnit = DoubleArray(n) { Random(seed xor mix64(5_000L + it)).nextDouble() * 2 - 1 }
     private val params = inst.map { it.params(setup.params) }
     private val msgs = ArrayList<Msg>()
@@ -361,6 +373,8 @@ internal class RoutingLayer(
         override fun peerStable(peer: Int) = sim.stable(peer)
 
         override fun densityClass() = sim.densityClass(i)
+
+        override fun densityEstimate() = sim.densityEstimate(i)
     }
 
     private fun create(
@@ -546,6 +560,17 @@ internal class RoutingLayer(
         }
     }
 
+    /** Conversation traffic: the recipient answers (independent of delivery, so every instance sees the same traffic). */
+    private fun maybeReply(
+        src: Int,
+        dst: Int,
+    ) {
+        if (tc.replyProb <= 0.0 || replyRng.nextDouble() >= tc.replyProb) return
+        val t = sim.now + (-ln(1.0 - replyRng.nextDouble()) * tc.replyMeanDelayMs).toLong()
+        if (t > sim.durationMs) return
+        sim.at(t) { sendChat(dst, src) }
+    }
+
     private fun scheduleBroadcast(after: Long) {
         val t = after + (-ln(1.0 - broadcastRng.nextDouble()) * tc.broadcastMeanGapMs).toLong()
         if (t > sim.durationMs) return
@@ -579,6 +604,7 @@ internal class RoutingLayer(
         val first = pairSeen.add((src.toLong() shl 32) or dst.toLong())
         val pq = (mix64(seed xor ((src.toLong() shl 32) or dst.toLong())) and 1L) == 1L
         msgs.add(Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow()))
+        maybeReply(src, dst)
         val payload =
             tc.payloadBytes +
                 when {
@@ -704,6 +730,10 @@ internal class RoutingLayer(
             for (b in densityBins.indices) group("bin$b") { densityBin(it.srcPeers) == b }
             group("trans") { it.inTransition }
             group("cross") { it.crossMode }
+            group("near") { it.hopDistance in 1..3 }
+            group("far") { it.hopDistance > 3 }
+            group("repeat") { !it.first }
+            for (c in 1..2) group("${DensityClass.labels[c]}Repeat") { it.srcTrueClass == c && !it.first }
         } else {
             val g = bcastLatGroups[x]
             fun cov(m: Msg): Double = (bcastCount[x][m.id] ?: 0).toDouble() / m.eligibleCount

@@ -30,6 +30,17 @@ class RouteReply(
         s.headerBytes + 2 * s.tagBytes + 4 + s.hopFieldBytes + 4 + if (ackId >= 0) s.messageIdBytes else 0
 }
 
+/** Stage D K2: end-to-end delivery ack of a routed message, retracing the message's path hop by hop. */
+class DeliveryAck(
+    val origin: Long,
+    val dst: Long,
+    val msgId: Int,
+) : Packet() {
+    override val isControl get() = true
+
+    override fun sizeBytes(s: RoutingSizes) = s.headerBytes + 2 * s.tagBytes + s.messageIdBytes
+}
+
 /** U4 route error listing unreachable destinations. */
 class RouteError(
     val dsts: LongArray,
@@ -63,6 +74,19 @@ class RouteError(
  *   comes, the usual expanding-ring route requests continue beyond the data ring, then holding.
  * - Relay preference ([RoutingParams.relayPreference]): nodes that sleep (background iOS) delay
  *   relaying flooded requests and ring copies, so the first copy, and so the route, uses awake relays.
+ *
+ * Stage D variants:
+ * - K1 conversation lifetime ([RoutingParams.convKeepMs]): a route a message uses stays valid this long
+ *   after the last message (both directions at every hop) instead of the 30 s active route time.
+ * - K2 delivery ack ([RoutingParams.deliveryAck]): the destination acknowledges each routed message; the
+ *   ack retraces the message's path (each relay remembers the previous hop for a few seconds) and re-arms
+ *   the routes to both ends at every hop. A sender with no ack in time drops the route and re-sends once.
+ * - K3 cached reverse path ([RoutingParams.reverseCacheMs]): every phone that a routed message, ring copy
+ *   or route request passes keeps the previous hop as the route back to the source for this long.
+ * - S sparse sender ([RoutingParams.sparseFloodBelow]): a phone whose own density estimate is below the
+ *   threshold floods its own messages (as the low class does), whatever its class.
+ * - F full-range discovery ([RoutingParams.fullRangeDiscovery]): with no route, a route request for the whole
+ *   mesh goes out at once, alongside the 3-hop data ring, instead of the expanding ring 1, 3, 5, 7, then all.
  */
 class OnDemand(
     private val port: RoutingPort,
@@ -93,6 +117,12 @@ class OnDemand(
     private val lastLinkUpRetry = HashMap<Long, Long>()
     private val ringSeen = SeenCache(port)
     private val ringed = HashSet<Int>()
+
+    /** K2: previous hop of a relayed routed message (for the ack), by message id, with its expiry. */
+    private val ackBack = HashMap<Int, Pair<Int, Long>>()
+
+    /** K2: routed messages this phone sent and has not seen acknowledged. */
+    private val unacked = HashMap<Int, DataPacket>()
     private var ownSeq = (port.now() / 1000).toInt()
     private var requestId = 0
     private var started = false
@@ -108,6 +138,7 @@ class OnDemand(
         val t = port.now()
         if (requestsSeen.size > 256) requestsSeen.entries.removeAll { it.value < t }
         if (routes.size > 64) routes.entries.removeAll { !it.value.valid && t - it.value.expires > 30_000 }
+        if (ackBack.size > 64) ackBack.entries.removeAll { it.value.second < t }
         port.after(1_000) { sweepLoop() }
     }
 
@@ -149,6 +180,12 @@ class OnDemand(
     }
 
     private fun cls() = port.densityClass()
+
+    /** Lifetime a route gets from being used (K1 extends it). */
+    private fun keepMs() = maxOf(port.params.activeRouteMs, port.params.convKeepMs)
+
+    /** Lifetime of a learned way back to a message's or request's source (K3 extends it). */
+    private fun reverseMs() = maxOf(port.params.reverseRouteMs, port.params.reverseCacheMs)
 
     /** Data ring radius for this phone now (adaptive policy by local class, else the fixed parameter). */
     private fun ringHops() = port.params.classPolicy?.ringHops?.get(cls()) ?: port.params.dataRingHops
@@ -217,6 +254,7 @@ class OnDemand(
             is RouteRequest -> onRequest(from, packet)
             is RouteReply -> onReply(from, packet)
             is RouteError -> onError(from, packet)
+            is DeliveryAck -> onAck(from, packet)
             is DataPacket -> if (packet.scope >= 0) onRing(from, packet) else forward(packet, from)
             else -> {}
         }
@@ -236,7 +274,7 @@ class OnDemand(
         val t = port.now()
         if ((requestsSeen[key] ?: Long.MIN_VALUE) >= t) return
         requestsSeen[key] = t + 2 * port.params.nodeTraversalMs * port.params.netDiameter
-        upsert(q.origin, from, q.hops + 1, q.originSeq, port.params.reverseRouteMs)
+        upsert(q.origin, from, q.hops + 1, q.originSeq, reverseMs())
         // Tuned holding: the destination's own request just gave a route to it.
         if (port.params.sfTuned && pending.has(q.origin)) flush(q.origin)
         if (port.acceptsTag(q.dst)) {
@@ -260,7 +298,7 @@ class OnDemand(
         from: Int,
         a: RouteReply,
     ) {
-        val fwd = upsert(a.dst, from, a.hops + 1, a.dstSeq, 2 * port.params.activeRouteMs)
+        val fwd = upsert(a.dst, from, a.hops + 1, a.dstSeq, maxOf(2 * port.params.activeRouteMs, port.params.convKeepMs))
         if (a.ackId >= 0) pending.remove(a.dst, a.ackId)
         if (port.acceptsTag(a.origin)) {
             discoveries.remove(a.dst)
@@ -297,7 +335,9 @@ class OnDemand(
 
     override fun originate(packet: DataPacket) {
         start()
-        if (floodAll()) floodOut(packet) else forward(packet, -1)
+        val sparse = port.params.sparseFloodBelow
+        val est = port.densityEstimate()
+        if (floodAll() || (sparse > 0 && est >= 0 && est < sparse)) floodOut(packet) else forward(packet, -1)
     }
 
     /** Adaptive low class: flood the message itself (U1-like) and keep it until the destination acknowledges. */
@@ -328,8 +368,13 @@ class OnDemand(
             port.drop(p, DropReason.EXPIRED)
             return
         }
+        if (from >= 0) {
+            learnBack(p, from)
+            if (port.params.deliveryAck) ackBack[p.id] = from to port.now() + 10_000
+        }
         if (from >= 0 && port.acceptsTag(p.dstTag)) {
             port.deliver(p)
+            if (port.params.deliveryAck) port.send(from, DeliveryAck(p.srcTag, p.dstTag, p.id))
             return
         }
         val r = usable(p.dstTag)
@@ -355,14 +400,64 @@ class OnDemand(
     ): Boolean {
         if (!port.send(r.next, p.forwarded())) return false
         val t = port.now()
-        r.expires = maxOf(r.expires, t + port.params.activeRouteMs)
+        val keep = keepMs()
+        r.expires = maxOf(r.expires, t + keep)
         if (from >= 0) {
             r.precursors.add(from)
             routes[p.srcTag]?.let { back ->
-                if (back.valid && back.next == from) back.expires = maxOf(back.expires, t + port.params.activeRouteMs)
+                if (back.valid && back.next == from) back.expires = maxOf(back.expires, t + keep)
             }
+        } else if (port.params.deliveryAck && p.scope < 0 && port.acceptsTag(p.srcTag)) {
+            awaitAck(p, r.hops)
         }
         return true
+    }
+
+    /** K3 (and K1 at the destination): remember the previous hop as the way back to the source. */
+    private fun learnBack(
+        p: DataPacket,
+        from: Int,
+    ) {
+        val params = port.params
+        if (params.reverseCacheMs > 0) {
+            upsert(p.srcTag, from, p.hops, routes[p.srcTag]?.seq ?: 0, params.reverseCacheMs)
+        } else if (params.convKeepMs > 0) {
+            routes[p.srcTag]?.let { back ->
+                if (back.valid && back.next == from) back.expires = maxOf(back.expires, port.now() + keepMs())
+            }
+        }
+    }
+
+    /** K2: re-send once along a fresh discovery if no ack arrives in time. */
+    private fun awaitAck(
+        p: DataPacket,
+        hops: Int,
+    ) {
+        if (unacked.containsKey(p.id)) return
+        unacked[p.id] = p
+        val wait = port.params.ackWaitMs + 2 * port.params.dataNodeTraversalMs * hops
+        port.after(wait) {
+            val q = unacked.remove(p.id) ?: return@after
+            if (port.expired(q)) return@after
+            routes[q.dstTag]?.let { if (it.valid) it.valid = false }
+            forward(DataPacket(q.id, q.srcTag, q.dstTag, q.expiresAt, q.payloadBytes, 0, q.hopLimit), -1)
+        }
+    }
+
+    private fun onAck(
+        from: Int,
+        a: DeliveryAck,
+    ) {
+        val t = port.now()
+        routes[a.dst]?.let { fwd -> if (fwd.valid && fwd.next == from) fwd.expires = maxOf(fwd.expires, t + keepMs()) }
+        if (port.acceptsTag(a.origin)) {
+            unacked.remove(a.msgId)
+            return
+        }
+        val (back, until) = ackBack.remove(a.msgId) ?: return
+        if (until < t || !port.isLinked(back)) return
+        routes[a.origin]?.let { r -> if (r.valid && r.next == back) r.expires = maxOf(r.expires, t + keepMs()) }
+        port.send(back, a)
     }
 
     private fun discover(dst: Long) {
@@ -376,12 +471,19 @@ class OnDemand(
             ringSeen.add(head)
             val copy = head.forwarded(null, 0, minOf(hops, head.hopLimit))
             for (peer in port.linkedPeers()) port.send(peer, copy)
+            if (ringed.size > 4_096) ringed.clear()
+            if (p.fullRangeDiscovery && hops < p.netDiameter) {
+                // F: the full-range request runs alongside the ring; its timer replaces the ring's.
+                d.radius = p.netDiameter
+                d.retries = 0
+                sendRequest(dst, d)
+                return
+            }
             val gen = ++d.generation
             port.after(2 * p.dataNodeTraversalMs * (hops + 2)) { onDiscoveryTimeout(dst, d, gen) }
-            if (ringed.size > 4_096) ringed.clear()
             return
         }
-        val d = Discovery(p.ringStart, 0, 0)
+        val d = Discovery(if (p.fullRangeDiscovery) p.netDiameter else p.ringStart, 0, 0)
         discoveries[dst] = d
         sendRequest(dst, d)
     }
@@ -399,7 +501,7 @@ class OnDemand(
             port.drop(p, DropReason.EXPIRED)
             return
         }
-        upsert(p.srcTag, from, p.hops, routes[p.srcTag]?.seq ?: 0, port.params.reverseRouteMs)
+        upsert(p.srcTag, from, p.hops, routes[p.srcTag]?.seq ?: 0, reverseMs())
         if (port.acceptsTag(p.dstTag)) {
             port.deliver(p)
             ownSeq++

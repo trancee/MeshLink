@@ -53,6 +53,7 @@ private class Dial(
 ) {
     var cancelled = false
     var targetReserved = false
+    var attempt = 0
 }
 
 /**
@@ -103,6 +104,7 @@ class Simulation(
     private var lccMin = 1.0
     private var dials = 0L
     private var dialFails = 0L
+    private var capRefusals = 0L
     private var linkUps = 0L
     private var controlBytes = 0L
     private var controlBytesHonestLinks = 0L
@@ -180,6 +182,8 @@ class Simulation(
             override fun stable(i: Int) = !background[i]
 
             override fun densityClass(i: Int) = this@Simulation.densityClass(i)
+
+            override fun densityEstimate(i: Int) = density?.estimateOf(i) ?: -1.0
 
             override val transitionWindowMs get() = scenario.transitionWindowMs
 
@@ -274,6 +278,22 @@ class Simulation(
 
     private fun used(i: Int) = links[i].size + outDials[i].size + inDials[i].size
 
+    /** Peripheral-role links and reserved incoming dials (the dialer is the central, [Link.a]). */
+    private fun inbound(i: Int): Int {
+        var c = inDials[i].size
+        for (l in links[i]) if (l.b == i) c++
+        return c
+    }
+
+    private fun inboundFull(i: Int) = ios[i] && inbound(i) >= cal.iosInboundCap
+
+    private fun centralRtt(central: Int): Long =
+        when {
+            !cal.perPlatformLinks -> uniform(cal.rttMinMs, cal.rttMaxMs)
+            ios[central] -> cal.iosCentralRttMs
+            else -> uniform(cal.androidCentralRttMinMs, cal.androidCentralRttMaxMs)
+        }
+
     private fun measuring() = now >= scenario.warmupMs
 
     private fun linkBetween(
@@ -326,19 +346,30 @@ class Simulation(
     private fun connectDone(d: Dial) {
         if (d.cancelled) return
         val to = d.to
-        val retry = (lastFailure[pairKey(d.from, to)] ?: Long.MIN_VALUE / 2) >= now - cal.retryWindowMs
+        val retry = d.attempt > 0 || (lastFailure[pairKey(d.from, to)] ?: Long.MIN_VALUE / 2) >= now - cal.retryWindowMs
         val base = if (retry) cal.retryFailure else cal.firstAttemptFailure
         val pFail = minOf(cal.failureCap, base + radio.nbrCount[d.from] * cal.contentionFailurePerPeer)
+        val capRefused = inboundFull(to)
+        if (capRefused && active(to) && measuring() && !sybil[d.from]) capRefusals++
         val reachable =
-            active(to) && used(to) < budget[to] && linkBetween(d.from, to) == null &&
+            active(to) && used(to) < budget[to] && !capRefused && linkBetween(d.from, to) == null &&
                 radio.meanRssi(d.from, to) >= cal.sensitivityDbm
-        if (!reachable || protoRng.nextDouble() < pFail) {
+        if (!reachable) {
             failDial(d)
+            return
+        }
+        if (protoRng.nextDouble() < pFail) {
+            if (d.attempt < cal.connectRetries) {
+                d.attempt++
+                at(now + cal.retryBackoffMs * d.attempt + uniform(cal.connectMinMs, cal.connectMaxMs)) { connectDone(d) }
+            } else {
+                failDial(d)
+            }
             return
         }
         d.targetReserved = true
         inDials[to].add(d)
-        at(now + uniform(cal.handshakeMinMs, cal.handshakeMaxMs) + uniform(cal.rttMinMs, cal.rttMaxMs)) {
+        at(now + uniform(cal.handshakeMinMs, cal.handshakeMaxMs) + centralRtt(d.from)) {
             handshakeDone(d)
         }
     }
@@ -371,10 +402,14 @@ class Simulation(
         b: Int,
     ) {
         val peers = (radio.nbrCount[a] + radio.nbrCount[b]) / 2.0
-        val capacity =
-            (cal.throughputMinBps + protoRng.nextDouble() * (cal.throughputMaxBps - cal.throughputMinBps)) /
-                (1.0 + peers / cal.contentionThroughputPeers)
-        val link = Link(a, b, now, capacity, uniform(cal.rttMinMs, cal.rttMaxMs) / 2)
+        val (lo, hi) =
+            when {
+                !cal.perPlatformLinks -> cal.throughputMinBps to cal.throughputMaxBps
+                ios[a] -> cal.iosCentralBpsMin to cal.iosCentralBpsMax
+                else -> cal.androidCentralBpsMin to cal.androidCentralBpsMax
+            }
+        val capacity = (lo + protoRng.nextDouble() * (hi - lo)) / (1.0 + peers / cal.contentionThroughputPeers)
+        val link = Link(a, b, now, capacity, centralRtt(a) / 2)
         links[a].add(link)
         links[b].add(link)
         val dropMean = scenario.dropMeanS?.let { it * 1000.0 } ?: cal.linkDropMeanMs
@@ -519,6 +554,7 @@ class Simulation(
             for (k in 0 until radio.nbrCount[i]) {
                 val j = radio.nbr[i][k]
                 if (!active(j) || !strategies[j]!!.advertising()) continue
+                if (cal.iosHideAtInboundCap && inboundFull(j)) continue
                 val hear = if (st == null || st.fastAdvertising[densityClass(j)]) cal.scanHearProbability else slowHear
                 if (protoRng.nextDouble() >= hear) continue
                 results.add(ScanResult(j, radio.nbrRssi[i][k] + gaussian() * cal.scanNoiseSigmaDb))
@@ -678,6 +714,11 @@ class Simulation(
         var allLinks = 0
         var tableSybil = 0
         var tableAll = 0
+        var iosCount = 0
+        var andCount = 0
+        var iosLinkSum = 0.0
+        var iosInSum = 0.0
+        var andLinkSum = 0.0
         for (i in 0 until n) {
             if (sybil[i] || !active(i)) continue
             activeCount++
@@ -688,6 +729,14 @@ class Simulation(
                 allLinks++
             }
             if (honestLinks == 0) isolated++
+            if (ios[i]) {
+                iosCount++
+                iosLinkSum += links[i].size
+                iosInSum += inbound(i)
+            } else {
+                andCount++
+                andLinkSum += links[i].size
+            }
             slotSum += links[i].size.toDouble() / budget[i]
             pendingSum += (outDials[i].size + inDials[i].size).toDouble() / budget[i]
             for (k in 0 until radio.nbrCount[i]) {
@@ -728,6 +777,9 @@ class Simulation(
                 "sybilSlotShare" to if (allLinks == 0) 0.0 else sybilLinks.toDouble() / allLinks,
                 "sybilPeerTableShare" to if (tableAll == 0) 0.0 else tableSybil.toDouble() / tableAll,
                 "honestLinks" to honestLinkCount.toDouble(),
+                "iosLinks" to if (iosCount == 0) Double.NaN else iosLinkSum / iosCount,
+                "iosInbound" to if (iosCount == 0) Double.NaN else iosInSum / iosCount,
+                "androidLinks" to if (andCount == 0) Double.NaN else andLinkSum / andCount,
             )
         timeSeries?.invoke(now, row)
         if (!measuring()) return
@@ -839,13 +891,15 @@ class Simulation(
         val out = LinkedHashMap<String, Double>()
         val s = samples.coerceAtLeast(1).toDouble()
         for (k in listOf("peersInRange", "lcc", "radioLcc", "components", "isolated", "slotOccupancy",
-            "pendingOccupancy", "activeShare", "honestLinks", "sybilSlotShare", "sybilPeerTableShare")) {
+            "pendingOccupancy", "activeShare", "honestLinks", "sybilSlotShare", "sybilPeerTableShare",
+            "iosLinks", "iosInbound", "androidLinks")) {
             out[k] = (sums[k] ?: Double.NaN) / s
         }
         out["lccMin"] = lccMin
         out["diameter"] = if (diameterSamples == 0) Double.NaN else diameterSum / diameterSamples
         out["meanPathLen"] = if (diameterSamples == 0) Double.NaN else pathLenSum / diameterSamples
         out["dialsPerNodeMin"] = dials / (honestCount * minutes)
+        out["capRefusalsPerNodeMin"] = capRefusals / (honestCount * minutes)
         out["dialFailureRate"] = if (dials == 0L) Double.NaN else dialFails.toDouble() / dials
         out["linkUpsPerNodeMin"] = linkUps / (honestCount * minutes)
         out["linkLifetimeMedianS"] = percentile(lifetimes, 0.5) / 1000

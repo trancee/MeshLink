@@ -287,6 +287,69 @@ scenarios and the adaptive topology; 1-hour runs at low density only.
 Report rules: criteria are applied by the sender's true local density at the moment of sending. "Best fixed" in the
 scoreboard excludes U1 + B1, which is reported separately as option (iii), flooding everywhere.
 
+## Stage D: closing the gaps
+
+Baseline: the stage C v1 configuration with relay preference off. Variants are flags on top of the adaptive unicast (UA)
+or adaptive broadcast (BA), parsed by `sim/StageDVariant.kt`, combined with `+`:
+
+| Flag | Meaning |
+|---|---|
+| K1 | conversation keep-alive: a route stays valid for 3 min after the last message between the pair |
+| K2 | delivery ack: the recipient acks along the route, which refreshes it; no ack within the wait → one resend via a new search |
+| K3 | reverse-path cache: a received message caches the path back to its sender for 3 min |
+| S5 / S8 / S10 | sparse sender: a phone whose own estimate is below 5 / 8 / 10 peers floods its own messages |
+| F | full-range discovery: with no route, a mesh-wide route request goes out at once, alongside the 3-hop data flood |
+| PIN | pinned low class: every phone uses the low-class settings (flood unicast and broadcast, d 6, fast scan) at every density |
+| FG | faster Plumtree graft (150 ms) |
+| CU | catch-up: on link-up both sides announce message ids received in the last 60 s; the other side pulls what it lacks |
+
+Recommended v1 delta from stage C: unicast `F+K2` (medium/high class), broadcast `CU` (all classes); S5, K1 and K3 are not
+adopted. Pinned low class is a low-latency preset.
+
+### Stage D commands
+
+```sh
+java -Xmx3g -cp "$CP" $M d-pilot --out DIR --set=main --seeds=1           # pilot, prints wall per run
+java -Xmx3g -cp "$CP" $M d-run --out DIR --set=big,main,conv,life,pin     # main grid (resumable)
+java -Xmx3g -cp "$CP" $M d-run --out DIR --set=big-v1,life-v1             # follow-up for the switched v1
+java -Xmx3g -cp "$CP" $M d-run --out DIR --set=ios4 --seeds=5             # iOS inbound cap + bake-off calibration recheck
+java -cp "$CP" $M d-aggregate --out DIR && java -cp "$CP" $M d-report --out DIR   # DIR/stage-d-report.html
+```
+
+### Stage D grid
+
+| Set | Content | Runs | Wall |
+|---|---|---|---|
+| main | 16 dynamic cells × 10 seeds + 40 fixed cells (N = 50/200) × 5 seeds; U1, UA, 11 UA variants, B1, BA, BA FG, BA CU | 360 | |
+| conv | conversation traffic (reply p 0.6 after ~30 s): medium/high static N = 200 × 4 movements + arrival/core-edge, × 2 mixes × 3 seeds | 60 | |
+| big | N = 1000 half-iOS arrival × 5 seeds; UA S5+F+K1, B1, BA, BA FG, BA CU | 5 | |
+| life | 120 s lifetime, ±30 s skew, rotation on, hold 10/60 s; UA, UA S5, UA S5+F+K1, U1; stage C life cells × 10 seeds | 80 | |
+| pin | dynamic cells × 10 seeds, pinned topology; UA PIN, B1, BA PIN+CU | 160 | |
+| (one `d-run` for the five sets above) | | 665 | 3,763 s |
+| life-v1, big-v1 (follow-up) | life cells with U1, UA F, UA F+K2; N = 1000 with UA, UA F+K2 | 85 | 857 s |
+| ios4 (addendum) | half-iOS medium static N = 50/200, high static N = 200, arrival N = 200 × 5 calibrations × 5 seeds; U1, UA F+K2, B1, BA CU | 100 | 55 s |
+
+Cuts against the pre-pilot plan, to stay near the ~1 h budget after adding F: fixed cells in `main` at 5 seeds instead
+of 10; `conv` at 3 seeds instead of 5; S8 dropped from main and life (equal to S5 in the pilot); BA FG+CU dropped (FG had
+no effect in the pilot); K1, K2 and K1+K2+K3 without F dropped from conv. Total simulation wall ≈ 81 min including pilots
+and the follow-up, about 20 min over budget.
+
+### iOS inbound cap and bake-off calibration (addendum)
+
+`Calibration.named` builds the recheck calibrations; the label is recorded in the `drive` column of `raw-d-ios4.csv`.
+
+| Part | Change |
+|---|---|
+| `base` | the stage A–D calibration above |
+| `meas` | link throughput and RTT by the dialing (central) phone: Android 47–79 KB/s, 30–45 ms; iPhone 19–31 KB/s, 60 ms. GATT set-up U(1.3, 3.7) s. Handshake PQ XXhfs U(101, 255) ms. Up to 3 retries inside one dial, 500 ms × attempt backoff, each retry failing with the retry probability 0.1 (+ contention) |
+| `cap4` | an iOS phone refuses incoming connections while it holds 4 incoming links or reserved incoming dials; outgoing links unchanged |
+| `hide` | an iOS phone stops advertising while at that cap (candidate fix) |
+
+Source: MeshLink bearer bake-off on real devices (2026-11). Not changed: supervision-drop hazard (still fitted to cairn),
+first-attempt failure 0.3, contention model, iOS background windows. The iPhone peripheral-side throughput is not measured,
+so a link's throughput follows the dialing phone. A full iPhone refuses at connect time; the real phone accepts and then
+closes the link, which costs the dialer slightly more.
+
 ## Deviations and caveats
 
 - **JDK 21 instead of JDK 25** (ADR 0005 baseline): the task assumed JDK 25 was not installed and prescribed JDK 21.
@@ -322,3 +385,7 @@ scoreboard excludes U1 + B1, which is reported separately as option (iii), flood
   group size (at d = 3, N1+N2's larger group also has a larger diameter).
 - The Sybil attacker is strong (dials every advertiser it hears, +10 dB) and the strategies have no dedicated
   defenses; the Sybil results measure the strategies' inherent exposure, not MeshLink's final design.
+- Stage D: each remaining medium-cell failure is one lost message from a truly sparse sender (about 11–14 such messages
+  per run, 5 seeds), so a pass/fail there flips on a single message. Fixed cells ran 5 seeds and conversation cells 3.
+- Stage D: the main grid uses the model calibration. Only the iOS-cap recheck uses the bake-off calibration, under which
+  unicast p95 at medium/high is about 0.1–0.7 s higher (simulated).
