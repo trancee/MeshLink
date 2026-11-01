@@ -87,10 +87,10 @@ object HtmlReport {
         r.key["density"] == "medium" && r.key["nodes"] == "200" && r.key["platform"] == "android" &&
             r.key["degree"] == "5" && r.key["sybilShare"]!!.toDouble() == 0.0 && r.key["mobility"] in setOf("static", "waypoint", "group")
 
-    private fun head() =
+    internal fun head(title: String = "MeshLink routing simulation — stage A: who should a phone connect to?") =
         """
         <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-        <title>MeshLink routing simulation — stage A: who should a phone connect to?</title>
+        <title>${esc(title)}</title>
         <style>
         body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a202c;background:#fff;margin:0}
         main{max-width:1100px;margin:0 auto;padding:1.5em}
@@ -390,7 +390,7 @@ object HtmlReport {
         return sb.toString()
     }
 
-    private fun mc(
+    internal fun mc(
         r: AggregateRow,
         id: String,
     ): String {
@@ -400,7 +400,7 @@ object HtmlReport {
         return if (c.isNaN()) fmt(m) else "${fmt(m)} ± ${fmt(c)}"
     }
 
-    private fun fmt(v: Double): String =
+    internal fun fmt(v: Double): String =
         when {
             v == 0.0 -> "0"
             abs(v) >= 100 -> String.format(Locale.ROOT, "%.0f", v)
@@ -409,7 +409,7 @@ object HtmlReport {
             else -> String.format(Locale.ROOT, "%.2g", v)
         }
 
-    private fun niceMax(v: Double): Double {
+    internal fun niceMax(v: Double): Double {
         if (v <= 0 || v.isNaN()) return 1.0
         val p = 10.0.pow(floor(log10(v)))
         val f = v / p
@@ -417,12 +417,14 @@ object HtmlReport {
         return nf * p
     }
 
-    private fun barChart(
+    internal fun barChart(
         title: String,
         unit: String,
         explain: String,
         labels: List<Pair<String, String>>,
         series: Map<String, List<Pair<Double, Double>?>>,
+        palette: Map<String, String> = colors,
+        threshold: Double? = null,
     ): String {
         val n = labels.size
         val barW = 7.0
@@ -450,7 +452,7 @@ object HtmlReport {
                 val (m, c) = p
                 if (m.isNaN()) return@forEachIndexed
                 val x = gx + 2 + si * barW
-                sb.append("<rect x=\"$x\" y=\"${y(m)}\" width=\"${barW - 1}\" height=\"${max(0.0, top + plotH - y(m))}\" fill=\"${colors[s]}\"><title>$s $outer $inner: ${fmt(m)}${if (c.isNaN()) "" else " ± ${fmt(c)}"}</title></rect>")
+                sb.append("<rect x=\"$x\" y=\"${y(m)}\" width=\"${barW - 1}\" height=\"${max(0.0, top + plotH - y(m))}\" fill=\"${palette[s]}\"><title>$s $outer $inner: ${fmt(m)}${if (c.isNaN()) "" else " ± ${fmt(c)}"}</title></rect>")
                 if (!c.isNaN() && c > 0) {
                     val cx = x + (barW - 1) / 2
                     sb.append("<line x1=\"$cx\" x2=\"$cx\" y1=\"${y(m + c)}\" y2=\"${y(max(0.0, m - c))}\" stroke=\"#1a202c\" stroke-width=\"0.8\"/>")
@@ -463,6 +465,9 @@ object HtmlReport {
             }
         }
         sb.append("<line x1=\"$left\" x2=\"${w - 10}\" y1=\"${top + plotH}\" y2=\"${top + plotH}\" stroke=\"#4a5568\"/>")
+        if (threshold != null && threshold <= ymax) {
+            sb.append("<line x1=\"$left\" x2=\"${w - 10}\" y1=\"${y(threshold)}\" y2=\"${y(threshold)}\" stroke=\"#c53030\" stroke-dasharray=\"5 3\"/>")
+        }
         return sb.append("</svg></div>").toString()
     }
 
@@ -499,5 +504,5 @@ object HtmlReport {
         return sb.append("</svg></div>").toString()
     }
 
-    private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+    internal fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 }

@@ -52,6 +52,7 @@ fun main(args: Array<String>) {
             }
         }
         "stage-b-aggregate" -> stageBAggregate(out)
+        "stage-b-report" -> stageBReport(out)
         else ->
             println(
                 """
@@ -65,6 +66,7 @@ fun main(args: Array<String>) {
                   stage-b          run the stage B plan into DIR/stage-b-raw.csv (resumable) [--n1000-mobility static] [--n1000-seeds 10]
                                    [--n1000-u3-seeds 10] [--n1000-degrees 5,6] [--dry]
                   stage-b-aggregate DIR/stage-b-raw.csv -> DIR/stage-b-aggregate.csv
+                  stage-b-report   DIR/stage-b-raw.csv (+ optional findings.html, run-notes.txt) -> DIR/stage-b-report.html
                   report           DIR/stage-a-raw.csv (+ optional findings.html, run-notes.txt) -> DIR/stage-a-report.html
                 """.trimIndent(),
             )
@@ -257,4 +259,15 @@ private fun stageBAggregate(out: File) {
     val rows = StageBAggregate.aggregate(RawCsv.read(File(out, "stage-b-raw.csv")))
     StageBAggregate.write(rows, File(out, "stage-b-aggregate.csv"))
     println("aggregated ${rows.size} rows into ${File(out, "stage-b-aggregate.csv").path}")
+}
+
+private fun stageBReport(out: File) {
+    val raw = RawCsv.read(File(out, "stage-b-raw.csv"))
+    val rows = StageBAggregate.aggregate(raw)
+    val html =
+        StageBReport.render(
+            rows, raw, File(out, "run-notes.txt").takeIf { it.exists() }, File(out, "findings.html").takeIf { it.exists() },
+        )
+    File(out, "stage-b-report.html").writeText(html)
+    println("wrote ${File(out, "stage-b-report.html").path}")
 }
