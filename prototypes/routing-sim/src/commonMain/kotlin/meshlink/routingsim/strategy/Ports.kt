@@ -68,6 +68,8 @@ class ScanResult(
 /** Wire sizes used to count control bytes. */
 class WireSizes(
     val routingTagBytes: Int = 8,
+    /** Not used by stage A (no data messages); kept for later stages. */
+    val messageIdBytes: Int = 16,
     val headerBytes: Int = 4,
 )
 
