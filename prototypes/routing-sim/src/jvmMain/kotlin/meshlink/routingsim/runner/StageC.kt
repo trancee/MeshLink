@@ -34,6 +34,9 @@ enum class Topo(
 
     /** Per-class degree and bridge limit; scan and advertising stay at the fixed (fast) duty. */
     ADAPT_NODUTY("adaptive-noduty", 5, true, false),
+
+    /** As [ADAPT] but 5 links in every class (follow-up after the main grid). */
+    ADAPT_D5("adaptive-d5", 5, true, true),
 }
 
 enum class CSet(
@@ -125,7 +128,7 @@ class StageCRunner(
             !topo.adaptive -> null
             topo.duty ->
                 ClassSettings(
-                    topo.label, intArrayOf(6, 5, 5), intArrayOf(1, 2, 3), booleanArrayOf(true, true, false), bridge.perClassMs,
+                    topo.label, if (topo == Topo.ADAPT_D5) intArrayOf(5, 5, 5) else intArrayOf(6, 5, 5), intArrayOf(1, 2, 3), booleanArrayOf(true, true, false), bridge.perClassMs,
                 )
             else ->
                 ClassSettings(
@@ -386,7 +389,7 @@ object StageCPlan {
         val out = ArrayList<CSpec>()
         for ((d, m) in dynamicScenarios) {
             for (p in PlatformMix.entries) {
-                for (t in Topo.entries) {
+                for (t in listOf(Topo.FIXED5, Topo.FIXED6, Topo.ADAPT, Topo.ADAPT_NODUTY)) {
                     for (seed in 1..seeds) out.add(CSpec(scenario(d, 200, m, p, t.degree), t, seed, CSet.MAIN, fixedGap))
                 }
             }
@@ -407,6 +410,23 @@ object StageCPlan {
                 for (seed in 1..n1000Seeds) {
                     out.add(CSpec(scenario(Density.DYNAMIC, 1000, MobilityKind.ARRIVAL, p, t.degree), t, seed, CSet.BIG, fixedGap))
                 }
+            }
+        }
+        return out
+    }
+
+    /** Follow-up: the adaptive policy with 5 links in every class, on every N = 50/200 cell of the main set. */
+    fun tune(
+        fixedGap: Long,
+        seeds: Int = 10,
+    ): List<CSpec> {
+        val out = ArrayList<CSpec>()
+        for ((d, m) in dynamicScenarios) {
+            for (p in PlatformMix.entries) for (seed in 1..seeds) out.add(CSpec(scenario(d, 200, m, p, 5), Topo.ADAPT_D5, seed, CSet.MAIN, fixedGap))
+        }
+        for ((d, n) in staticCombos) {
+            for (m in staticMobility) {
+                for (p in PlatformMix.entries) for (seed in 1..seeds) out.add(CSpec(scenario(d, n, m, p, 5), Topo.ADAPT_D5, seed, CSet.MAIN, fixedGap))
             }
         }
         return out
@@ -489,6 +509,7 @@ fun stageC(
             if ("life" in sets) specs += StageCPlan.life(fixedGap)
             if ("long" in sets) specs += StageCPlan.long(fixedGap)
             if ("drives" in sets) specs += StageCPlan.drives(fixedGap)
+            if ("tune" in sets) specs += StageCPlan.tune(fixedGap)
             runner.runAll(specs, outDir, threads)
         }
         "c-aggregate" -> {

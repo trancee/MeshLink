@@ -193,6 +193,100 @@ bridge partition-merge (all sizes, topology only), bridge with traffic (low, N =
 The exact list is in `run-notes.txt` next to the results. Actual: 1,500 runs, 0 failures, 10,376 s (2 h 53 min) wall
 at 4 threads on the shared machine (N = 1000 main runs 2–5 min each, N = 200 sweep runs 3–4 min each).
 
+## Stage C: local, dynamic density and per-phone adaptation
+
+Stage C (revised scope) makes density local and dynamic: every phone estimates its own density class from its own
+observations and adapts only its own decisions. The wire format never changes; every phone receives and relays every
+message type in every mode.
+
+### Density estimator and classifier (`density/LocalDensity.kt`, `sim/DensityTracker.kt`)
+
+- **Estimator.** Distinct advertisement identifiers heard in scans within a window W, plus linked peers whose current
+  identifier was not heard, smoothed per scan with an exponential average (weight α). Variants: `w10` (W 10 s, α 1),
+  `w10e` (10 s, α 0.3), `w20e` (20 s, 0.2), `w60e` (60 s, 0.2). All variants run passively on every phone in every
+  run; one drives behavior (default `w10e`).
+- **Identifier rotation.** Advertising identifiers rotate every 15 min (900 s) at a random per-phone phase. Linked peers
+  announce their next identifier over the link, so only non-linked peers are double-counted for up to W after a
+  rotation: expected inflation ≈ W ÷ 900 s (1.1% for W = 10 s). A shadow estimator with all phones rotating at the same
+  instant (`*-aligned`) measures the worst case, including the switches it triggers.
+- **Classifier.** Bounds 10 and 50 (provisional classes) times a scale s, with hysteresis band h: up at
+  bound·s·(1+h), down at bound·s÷(1+h); at least the dwell time in a class (the first classification is immediate).
+  Variants s ∈ {1, 1.3} × h ∈ {0, 0.25, 0.5} × dwell ∈ {30, 60 s}, each on every estimator, all passive. Default drive:
+  `w10e:s1h25/d60` (up at 12.5 / 62.5, down at 8 / 40).
+- **Ground truth.** Honest active peers within the nominal radio range (≈ 40 m). A true class change counts once the
+  raw class has held for 10 s; lag = time from that change until the classifier shows the same class.
+- **Per-class settings (`ClassSettings`, adaptive topology).** Degree d: 6 / 5 / 5 (low / medium / high); scan every
+  1 / 2 / 3 ticks (2 / 4 / 6 s); fast advertising at low and medium, slow at high (hear probability 0.5 instead of 0.8,
+  an assumption); bridge rate limit 60 s in every class (from the sweep). Lowering d below the links in use only stops
+  new dials. Power index (relative, an assumption) = 0.6 × scan duty + 0.4 × advertising duty (fast 1, slow 0.4).
+
+### Stage C protocols
+
+| Protocol | Behavior |
+|---|---|
+| U4sf | U4 with tuned store-and-forward: held messages re-discover with backoff 2 s doubling to 30 s, re-try on every new link (≤ once per 5 s per destination), flush at once when the destination's own route request passes. |
+| U6 hybrid | No route known: the first waiting message is flooded 3 hops as a data ring (timeout 100 ms per hop); ring relays learn the way back, the destination answers with a route reply that also acknowledges the message; a ring relay with a fresh route forwards the copy along it. No reply: expanding-ring route requests continue beyond 3 hops, then store-and-forward as U4sf. Known route: unicast. |
+| UA adaptive unicast | Per the sender's or relay's own class: low = every message flooded (data ring with scope = hop limit, acknowledged by the destination, retried with backoff 2–30 s on failure, re-try on new links); medium and high = U6 (ring 3); high re-tries held destinations with backoff 5–60 s and not on every new link. A low-class relay keeps flooding a ring copy instead of taking a known route; medium/high relays shortcut along known routes. |
+| UA4 | As UA, but U4 (no data ring) at high. |
+| BA adaptive broadcast (`B1B3`) | Plumtree's wire format; a phone in the low class pushes eagerly on all links and never prunes (B1 behavior); medium and high run B3. |
+| +pref relay preference | Background iOS phones (awake 10 s per 60 s) delay relaying flooded requests, ring copies and eager pushes by 150 ms, so the first copy, and the route, goes through awake phones. |
+
+### Stage C scenarios (`sim/Mobility.kt` `VenueMobility`, N = 200 unless stated)
+
+- **A arrival** (20 min): phones stand in an outer area sized for ~6 peers in range, leave at U(60, 540) s and walk
+  (1.4 m/s) into a venue sized for ~100 peers, then roam it. Transition window 60–900 s.
+- **B departure** (20 min): phones roam the venue, leave at U(240, 720) s into the outer area. Window 240–1,100 s.
+- **C core + edge** (15 min): half the phones roam a core sized for ~80 peers, the others an outer ring (~5 peers).
+- **D surge** (15 min): a venue sized for 25 peers with a third of the phones; the other two thirds switch on inside
+  it at 360–420 s (~3×). Window 360–540 s.
+- **E threshold** (15 min): phones standing (static) or walking (random waypoint) at a mean of 10 or 50 peers in range.
+
+Topology variants: `fixed-d5`, `fixed-d6` (N1+N2 + bridge with a fixed rate limit), `adaptive` (per-class settings),
+`adaptive-noduty` (per-class d and bridge limit, fast scanning everywhere), `adaptive-d5` (follow-up: as adaptive with d 5 in every class). The estimator runs passively in all of them;
+UA, UA4 and BA follow the driving class in every topology.
+
+### Stage C commands
+
+```sh
+java -Xmx3g -cp "$CP" $M c-bridge --out DIR/bridge                  # bridge rate-limit sweep (topology only)
+java -Xmx3g -cp "$CP" $M c-pilot --out DIR "--only=dynamic-n200;at10&main"   # pilot subset, prints wall per run
+java -Xmx3g -cp "$CP" $M c-run --out DIR --set=main,life,long,drives  # the grid (resumable)
+java -Xmx3g -cp "$CP" $M c-run --out DIR --set=tune                  # adaptive-d5 follow-up
+java -cp "$CP" $M c-aggregate --out DIR                                # DIR/agg-<set>.csv
+java -cp "$CP" $M c-report --out DIR                                   # DIR/stage-c-report.html (+ findings.html, run-notes.txt)
+```
+
+Options: `--fixed-gap=60` (bridge limit of fixed topologies, s), `--class-gaps=60/60/60` (adaptive, per class).
+
+### Stage C grid
+
+All runs use 4 worker threads, -Xmx3g, JDK 21. Wall times on the shared 8-core laptop (simulated results; see
+`run-notes.txt` in the output folder).
+
+| Set | Content | Runs | Wall |
+|---|---|---|---|
+| bridge | partition-and-merge N = 200, Android, d 5, bridge limit off/10/30/60/120 s × low/medium/high × 10 seeds | 150 | 90 s |
+| main, dynamic | scenarios A–E (8 cells) × 2 platform mixes × {fixed-d5, fixed-d6, adaptive, adaptive-noduty} × 10 seeds | 640 | |
+| main, fixed density | low/medium N = 50, low/medium/high N = 200 × 4 movement patterns × 2 mixes × {fixed-d5, fixed-d6, adaptive} × 10 seeds | 1,200 | |
+| big | N = 1000 arrival × 2 mixes × {fixed-d5, adaptive} × 5 seeds, protocols U1, U4sf, U6, UA, B1, B3, BA only | 20 | |
+| life | U1/UA/UA4 × lifetime 60/120 s × minimum hold 0/10/60 s, skew ±30 s; A, C, low walking, low corridor × 2 mixes × 10 seeds | 80 | |
+| long | 60-min runs, low N = 200, walking and corridor × 2 mixes × 5 seeds; lifetimes 1 h and 24 h | 20 | |
+| drives | 8 dynamic cells × 2 mixes × 3 alternative estimator/classifier drives × 5 seeds | 240 | |
+| (sum of the five sets above, one `c-run`) | | 2,200 | 6,737 s |
+| tune (follow-up, `--set=tune`) | `adaptive-d5` (degree 5 in every class) on all 56 N = 50/200 main cells × 10 seeds | 560 | 639 s |
+
+`adaptive-d5` was added after the main grid because the adaptive policy's busiest phone at low density carried more
+than flooding on fixed d = 5; it tests whether d = 6 at low is worth it (it is: d = 5 cuts load 12–19 % but loses
+0.8 ± 0.3 pp of all messages at low N = 200, simulated).
+
+Scoping (no budget cut was needed; total ≈ 2 h 10 min plus ≈ 30 min of pilots): N = 1000 only for arrival, 5 seeds,
+reduced protocol set (one full-protocol N = 1000 run took 16–18 min); high density only at N = 200 (N = 50 cannot reach
+50 peers in range); `adaptive-noduty` only in the dynamic cells; alternative drives at 5 seeds; lifetime test on 4
+scenarios and the adaptive topology; 1-hour runs at low density only.
+
+Report rules: criteria are applied by the sender's true local density at the moment of sending. "Best fixed" in the
+scoreboard excludes U1 + B1, which is reported separately as option (iii), flooding everywhere.
+
 ## Deviations and caveats
 
 - **JDK 21 instead of JDK 25** (ADR 0005 baseline): the task assumed JDK 25 was not installed and prescribed JDK 21.
@@ -204,6 +298,14 @@ at 4 threads on the shared machine (N = 1000 main runs 2–5 min each, N = 200 s
   results were not re-run (both strategies carried the same bias, so the comparison is essentially unaffected).
 - Stage B: 1 h and 24 h lifetimes cannot expire inside a 15-minute run; they show the "hold until a route appears"
   limit, not long-term storage. Each run contains exactly one tag-epoch boundary.
+- **Stage C power index is an assumption** (0.6 × scan duty + 0.4 × advertising duty, slow advertising heard with
+  probability 0.5); it ranks settings, it is not a battery measurement.
+- **Stage C small sub-samples.** Per-class criteria in fixed-density cells are often computed from 150–190 messages
+  (e.g. truly low-density senders inside a medium cell), so one or two lost messages decide pass or fail; read
+  single-cell failures with that in mind.
+- **Stage C N = 1000** covers only the arrival scenario with 5 seeds and a reduced protocol set.
+- **Stage C relay preference** models background iOS phones by a 150 ms relay delay on the same on/off wake model as
+  stage A; the real iOS background behavior is unverified.
 - Stage B U3 is a simplified Babel (hop count, no ETX, no hysteresis, no source-table garbage collection). Its
   sequence-number request traffic under the calibrated link churn dominates simulator cost and likely overstates
   what a tuned babeld would send; treat U3 control-traffic numbers as an upper bound.
