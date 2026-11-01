@@ -20,7 +20,7 @@ struct BakeoffHostApp: App {
         WindowGroup {
             VStack(alignment: .leading, spacing: 16) {
                 Text("MeshLink bearer bake-off (PROTOTYPE)").font(.headline)
-                Text(state.status).font(.body.monospaced())
+                Text(state.status).font(.body.monospaced()).accessibilityIdentifier("status")
                 Spacer()
             }
             .padding()

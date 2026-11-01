@@ -4,7 +4,7 @@ options:
     iOS: "15.0"
 settings:
   base:
-    PRODUCT_BUNDLE_IDENTIFIER: ch.trancee.lab.host
+    LAB_BUNDLE_ID: ch.trancee.lab.host
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
     ENABLE_USER_SCRIPT_SANDBOXING: NO
@@ -18,6 +18,11 @@ targets:
     type: application
     platform: iOS
     sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
+    scheme:
+      testTargets: [BakeoffGrantUITests]
     info:
       path: Sources/Info.plist
       properties:
@@ -30,3 +35,17 @@ targets:
         NSBluetoothAlwaysUsageDescription: MeshLink bearer bake-off prototype measures BLE links between test phones.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
+  # UI-test runner that accepts the Bluetooth permission alert (exact labels only); see GrantBluetoothTests.swift.
+  BakeoffGrantUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: BakeoffHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID).grant
+        TEST_TARGET_NAME: BakeoffHost
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: []
+        FRAMEWORK_SEARCH_PATHS: []
