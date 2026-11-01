@@ -49,6 +49,7 @@ class AndroidPeripheral(
     private var psmValue = ByteArray(2)
     private val links = ConcurrentHashMap<String, ServerLink>()
     private val mtus = ConcurrentHashMap<String, Int>()
+    private var writesReceived = 0
     private val notifyMutex = Mutex()
     private var pendingNotify: CompletableDeferred<Int>? = null
     private val serviceAdded = CompletableDeferred<Int>()
@@ -115,7 +116,13 @@ class AndroidPeripheral(
             device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic,
             preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray,
         ) {
-            if (characteristic.uuid.toString() == BakeoffUuids.DATA_WRITE) links[device.address]?.onValueReceived(value)
+            if (characteristic.uuid.toString() == BakeoffUuids.DATA_WRITE) {
+                val link = links[device.address]
+                if (link == null) listener.onEvent("write_without_link", device.address, "${value.size} bytes")
+                link?.onValueReceived(value)
+                writesReceived++
+                if (writesReceived % 64 == 0) sink.log("writes received=$writesReceived last_seq=${value.firstOrNull()?.toInt()?.and(0xff)}")
+            }
             if (responseNeeded) server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
         }
 

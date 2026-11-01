@@ -1,5 +1,8 @@
 package bakeoff
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
@@ -115,12 +118,29 @@ class CentralSuite(private val pipe: MessagePipe, private val context: TestConte
     }
 
     suspend fun runAll(throughputBytes: Int, echoCount: Int, repetitions: Int) {
-        echo(echoCount)
-        throughputCentralToPeripheral(throughputBytes)
-        throughputPeripheralToCentral(throughputBytes)
-        transcript("handshake_xx_classical", HandshakeSizes.CLASSICAL_XX, repetitions)
-        transcript("handshake_xxhfs_pq", HandshakeSizes.PQ_XXHFS, repetitions)
-        transcript("first_message_classical", listOf(HandshakeSizes.CLASSICAL_FIRST_MESSAGE), repetitions)
-        transcript("first_message_pq", listOf(HandshakeSizes.PQ_FIRST_MESSAGE), repetitions)
+        step("echo_rtt_64b") { echo(echoCount) }
+        step("throughput_central_to_peripheral") { throughputCentralToPeripheral(throughputBytes) }
+        step("throughput_peripheral_to_central") { throughputPeripheralToCentral(throughputBytes) }
+        step("handshake_xx_classical") { transcript("handshake_xx_classical", HandshakeSizes.CLASSICAL_XX, repetitions) }
+        step("handshake_xxhfs_pq") { transcript("handshake_xxhfs_pq", HandshakeSizes.PQ_XXHFS, repetitions) }
+        step("first_message_classical") { transcript("first_message_classical", listOf(HandshakeSizes.CLASSICAL_FIRST_MESSAGE), repetitions) }
+        step("first_message_pq") { transcript("first_message_pq", listOf(HandshakeSizes.PQ_FIRST_MESSAGE), repetitions) }
+    }
+
+    /** Runs one test with its own deadline; a failure is recorded under the test name and aborts the suite. */
+    private suspend fun step(test: String, body: suspend () -> Unit) {
+        try {
+            withTimeout(STEP_TIMEOUT_MS) { body() }
+        } catch (failure: Throwable) {
+            if (failure is CancellationException && failure !is TimeoutCancellationException) throw failure
+            val error = if (failure is TimeoutCancellationException) "timeout after ${STEP_TIMEOUT_MS / 1000} s" else failure.describe()
+            context.recorder.record(
+                test = test, outcome = "fail", central = context.central, peripheral = context.peripheral,
+                bearer = context.bearer.label, phy = context.phy, mtu = context.mtu, attempt = context.attempt, error = error,
+            )
+            throw ProtocolException("$test failed: $error")
+        }
     }
 }
+
+private const val STEP_TIMEOUT_MS = 30_000L

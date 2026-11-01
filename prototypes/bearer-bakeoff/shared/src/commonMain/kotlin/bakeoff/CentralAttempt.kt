@@ -46,7 +46,12 @@ class CentralAttempt(
             for (bearer in config.bearers) {
                 allOk = runBearer(bearer, connection, gattPipe, peerInfo) && allOk
             }
-            withTimeout(5_000) { gattPipe.send(MessageType.BYE) }
+            // Teardown failures belong to the attempt, not to GATT connection setup (already recorded as ok).
+            val bye = runCatching { withTimeout(5_000) { gattPipe.send(MessageType.BYE) } }.exceptionOrNull()
+            recorder.record(
+                "attempt_end", if (bye == null) "ok" else "fail", local, peerInfo, bearer = Bearer.GATT.label,
+                attempt = attempt, error = bye?.describe(), extra = mapOf("bearers_ok" to allOk, "still_connected" to connection.isConnected),
+            )
             return allOk
         } catch (cancelled: CancellationException) {
             if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
@@ -61,6 +66,7 @@ class CentralAttempt(
     }
 
     private fun recordConnectFailure(clock: PhaseClock, connection: CentralConnection?, peerInfo: DeviceInfo?, error: String) {
+        clock.mark("failed")
         recorder.record(
             "gatt_connect", "fail", local, peerInfo, bearer = Bearer.GATT.label, phy = connection?.phyReport(),
             mtu = connection?.mtu, attempt = attempt, timings = clock.marks, error = error,
@@ -95,9 +101,11 @@ class CentralAttempt(
             return ok
         } catch (cancelled: CancellationException) {
             if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
+            clock.mark("failed")
             recorder.record("l2cap_connect", "fail", local, peerInfo, bearer = bearer.label, phy = phy, mtu = connection.mtu, attempt = attempt, timings = clock.marks, error = "timeout after ${clock.marks.keys.lastOrNull() ?: "start"}")
             return false
         } catch (failure: Throwable) {
+            clock.mark("failed")
             recorder.record("l2cap_connect", "fail", local, peerInfo, bearer = bearer.label, phy = phy, mtu = connection.mtu, attempt = attempt, timings = clock.marks, error = failure.describe())
             return false
         } finally {

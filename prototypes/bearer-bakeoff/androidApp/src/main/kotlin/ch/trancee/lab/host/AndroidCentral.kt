@@ -196,7 +196,9 @@ class AndroidCentralConnection(
             Phy.LE_2M -> BluetoothDevice.PHY_LE_2M_MASK
             else -> BluetoothDevice.PHY_LE_1M_MASK
         }
-        gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE, phyMask)
+        // Initiating PHYs must include 1M (legacy adverts are on 1M); 2M is requested after connection via setPreferredPhy.
+        val initiatingMask = BluetoothDevice.PHY_LE_1M_MASK or (if (phy == Phy.LE_2M) BluetoothDevice.PHY_LE_2M_MASK else 0)
+        gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE, initiatingMask)
         withTimeout(30_000) { connected.await() }
         clock.mark("connected")
         operation<Unit>("discover") { it.discoverServices() }
