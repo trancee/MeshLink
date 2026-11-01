@@ -102,16 +102,40 @@ class BakeoffRunner(
     }
 
     private suspend fun runHold() {
-        val clock = PhaseClock()
-        val connection = withTimeout(config.scanTimeoutSeconds * 1000L + 30_000) {
-            centralDriver.connect(ConnectRequest(config.phy, emptySet(), config.scanTimeoutSeconds * 1000L), clock)
+        var clock = PhaseClock()
+        var connection: CentralConnection? = null
+        var peer: PeerIdentity? = null
+        var pipe: MessagePipe? = null
+        for (attempt in 1..HOLD_CONNECT_ATTEMPTS) {
+            clock = PhaseClock()
+            try {
+                val opened = withTimeout(config.scanTimeoutSeconds * 1000L + 30_000) {
+                    centralDriver.connect(ConnectRequest(config.phy, emptySet(), config.scanTimeoutSeconds * 1000L), clock)
+                }
+                connection = opened
+                peer = PeerIdentity.decodeControl(withTimeout(10_000) { opened.readControl() })
+                pipe = MessagePipe(opened.gattLink).also {
+                    withTimeout(10_000) {
+                        it.send(MessageType.HELLO, identity.encodeHello())
+                        it.expect(MessageType.HELLO)
+                    }
+                }
+                break
+            } catch (cancelled: CancellationException) {
+                if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
+                recorder.record("hold_connect", "fail", local, null, bearer = "gatt", attempt = attempt, timings = clock.marks, error = "timeout")
+            } catch (failure: Throwable) {
+                recorder.record("hold_connect", "fail", local, null, bearer = "gatt", attempt = attempt, timings = clock.marks, error = failure.describe())
+            }
+            connection?.let { runCatching { it.disconnect() } }
+            connection = null
+            if (attempt == HOLD_CONNECT_ATTEMPTS) throw IllegalStateException("hold: no link after $attempt attempts")
+            delay(2_000L * attempt)
         }
-        val peer = PeerIdentity.decodeControl(connection.readControl())
-        val pipe = MessagePipe(connection.gattLink)
-        pipe.send(MessageType.HELLO, identity.encodeHello())
-        pipe.expect(MessageType.HELLO)
+        connection!!
+        pipe!!
         clock.mark("first_app_byte")
-        val peerInfo = DeviceInfo.decode(peer.info)
+        val peerInfo = DeviceInfo.decode(peer!!.info)
         recorder.record("hold_connect", "ok", local, peerInfo, bearer = "gatt", mtu = connection.mtu, phy = connection.phyReport(), timings = clock.marks)
         status("holding")
         var echoes = 0
@@ -145,3 +169,5 @@ class BakeoffRunner(
 }
 
 fun Throwable.describe(): String = "${this::class.simpleName}: ${message ?: ""}".take(400)
+
+private const val HOLD_CONNECT_ATTEMPTS = 5

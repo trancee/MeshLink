@@ -19,12 +19,19 @@ RESULTS = HOST / "results"
 
 ANDROID_10_PLUS = ["pixel6", "nothing2", "s10e", "redmi11", "oppo", "mi8"]
 IPHONES = ["ip15", "se2020", "ip12mini", "se2016", "ipx"]
-SUITE = ["n=5", "bearers=gatt+coc", "plan=suite"]
-CONNECT = ["n=50", "bearers=gatt+coc", "plan=connect"]
+# connect_retries=3: Android centrals retry a 133/147 GATT connect with backoff (iOS ignores the knob); retries stay
+# visible as retryN_<status> timing marks, so first-try failure rates are still reported by summarize.py.
+SUITE = ["n=5", "bearers=gatt+coc", "plan=suite", "connect_retries=3"]
+CONNECT = ["n=50", "bearers=gatt+coc", "plan=connect", "connect_retries=3"]
+ALL_PEERS = ["pixel6", "nothing2", "s10e", "redmi11", "oppo", "mi8", "p10lite", "xcover4", *IPHONES]
 
 
 def pair(central, peripheral, run_id, args, timeout):
     return {"kind": "pair", "central": central, "peripheral": peripheral, "run": run_id, "args": args, "timeout": timeout}
+
+
+def group(kind, hub, peers, run_id, args, timeout):
+    return {"kind": kind, "hub": hub, "peers": peers, "run": run_id, "args": args, "timeout": timeout}
 
 
 def both(a, b, prefix, args, timeout):
@@ -58,6 +65,14 @@ def phases():
             step3 += both(a, b, f"m3-{phy}-suite", [*SUITE, f"phy={phy}"], 600)
             step3 += both(a, b, f"m3-{phy}-conn", ["n=20", "bearers=gatt+coc", "plan=connect", f"phy={phy}"], 900)
     plan["step3-phy"] = step3
+    plan["step4-multi"] = [
+        group("hub", "pixel6", [d for d in ALL_PEERS if d != "pixel6"], "m4-hub-pixel6", ["phy=2m", "connect_retries=3"], 900),
+        group("hub", "ip15", [d for d in ALL_PEERS if d != "ip15"], "m4-hub-ip15", ["phy=2m"], 900),
+        group("phub", "pixel6", [d for d in ALL_PEERS if d != "pixel6"], "m4-phub-pixel6", ["phy=2m", "connect_retries=3"], 600),
+        group("phub", "ip15", [d for d in ALL_PEERS if d != "ip15"], "m4-phub-ip15", ["phy=2m", "connect_retries=3"], 600),
+        *[group("dual", a, [b], f"m4-dual-{a}-{b}", ["n=20", "round=20", "phy=2m"], 700)
+          for a, b in [("pixel6", "ip15"), ("pixel6", "s10e"), ("ip15", "se2020")]],
+    ]
     step5 = []
     for legacy in ("p10lite", "xcover4"):
         for other in ("pixel6", "ip15"):
@@ -96,10 +111,23 @@ def log(message):
         handle.write(line + "\n")
 
 
+def devices_of(entry):
+    return [entry["central"], entry["peripheral"]] if entry["kind"] == "pair" else [entry["hub"], *entry["peers"]]
+
+
+def command(entry):
+    tool = [sys.executable, str(HOST / "bakeoff.py")]
+    common = ["--run", entry["run"], "--timeout", str(entry["timeout"])]
+    if entry["kind"] == "pair":
+        return [*tool, "pair", "--central", entry["central"], "--peripheral", entry["peripheral"], *common, *entry["args"]]
+    if entry["kind"] == "dual":
+        return [*tool, "dual", entry["hub"], *entry["peers"], *common, *entry["args"]]
+    return [*tool, entry["kind"], "--hub", entry["hub"], "--peers", *entry["peers"], *common, *entry["args"]]
+
+
 def execute(entry):
     entry = dict(entry, run=fresh_run_id(entry))
-    cmd = [sys.executable, str(HOST / "bakeoff.py"), "pair", "--central", entry["central"], "--peripheral", entry["peripheral"],
-           "--run", entry["run"], "--timeout", str(entry["timeout"]), *entry["args"]]
+    cmd = command(entry)
     started = time.time()
     output = subprocess.run(cmd, capture_output=True, text=True, timeout=entry["timeout"] + 400)
     (RESULTS / entry["run"]).mkdir(parents=True, exist_ok=True)
@@ -112,8 +140,18 @@ def main():
     parser.add_argument("action", choices=["list", "run"])
     parser.add_argument("phase", choices=sorted(phases()))
     parser.add_argument("--only", help="only runs whose id contains this substring")
+    parser.add_argument("--skip", nargs="*", default=[], help="devices to leave out (pair runs are dropped, group runs lose the peer)")
     args = parser.parse_args()
-    entries = [e for e in phases()[args.phase] if not args.only or args.only in e["run"]]
+    entries = []
+    for entry in phases()[args.phase]:
+        if args.only and args.only not in entry["run"]:
+            continue
+        if entry["kind"] == "pair" or entry["kind"] == "dual" or entry["hub"] in args.skip:
+            if any(d in args.skip for d in devices_of(entry)):
+                continue
+        else:
+            entry = dict(entry, peers=[p for p in entry["peers"] if p not in args.skip])
+        entries.append(entry)
     if args.action == "list":
         for entry in entries:
             print(f"{'done ' if is_done(entry) else 'todo '} {entry['run']} {' '.join(entry['args'])}")
