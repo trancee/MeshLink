@@ -2,7 +2,7 @@
 
 Per-profile guarantees against the adversaries A1–A7 defined in the [threat model](../explanation/threat-model.md). "Yes" is a guarantee the specification commits to; "No" is a stated non-guarantee. Mechanisms and algorithms are fixed by later specification work; status: accepted for v1 planning, 2026-10-31.
 
-| Property | `none` | `classical` | `post-quantum` |
+| Property | `unsecured` | `classical` | `post-quantum` |
 |---|---|---|---|
 | Unicast content confidentiality vs outsiders (A1, A2) | No | Yes (link + end-to-end) | Yes (link + end-to-end) |
 | Unicast content confidentiality vs relays and carriers (A3) | No | Yes (end-to-end) | Yes (end-to-end) |

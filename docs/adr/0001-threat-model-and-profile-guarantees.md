@@ -2,6 +2,8 @@
 
 Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 1.
 
+Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
+
 ## Context
 
 MeshLink offers three security profiles (`none`, `classical`, `post-quantum`), one per mesh and never negotiated. Phone BLE meshes that shipped without an explicit model were broken through relay-readable content, forgeable broadcasts, cache poisoning and impersonation (Bridgefy, bitchat). The guarantees each profile makes must be fixed before suites, wire format, routing or discovery are designed. Rule O3 requires a versioned ADR for security and protocol decisions.

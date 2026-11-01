@@ -93,9 +93,9 @@ Link frames use AEAD with counter nonces, so replays are rejected. End-to-end me
 
 MeshLink does not guarantee delivery against A3 or A4. It does guarantee bounded resources: no remote input can push a node beyond its configured memory, storage, airtime or connection budgets. In the secured profiles it authenticates before relaying or caching and rate-limits each neighbor.
 
-### Profile `none`
+### Profile `unsecured`
 
-`none` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `none` frames, even relabeled ones, never enter a secured mesh. Receipts in `none` can be forged.
+`unsecured` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `unsecured` frames, even relabeled ones, never enter a secured mesh. Receipts in `unsecured` can be forged.
 
 ## Lessons this model builds on
 

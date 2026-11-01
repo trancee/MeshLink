@@ -21,8 +21,12 @@ The long-lived identity of one app installation; applications map installation i
 _Avoid_: User ID, account, device ID
 
 **Preset**:
-A named bundle of enabled features and settings that matches a reference scenario.
+A named bundle of enabled features and settings, either built in for a reference scenario or defined by the application on top of a built-in one; local to a node, so nodes with different presets can share a mesh.
 _Avoid_: Profile (reserved for security profile), mode, template
+
+**Proximity**:
+A coarse, locally measured estimate of how near a directly linked peer is; never a distance in meters and never sent to other nodes.
+_Avoid_: Distance, range, location
 
 ## Messaging
 
@@ -49,7 +53,7 @@ _Avoid_: Caching, offline queue
 ## Security
 
 **Security profile**:
-The single protection level (none, classical, or post-quantum) shared by every node of a mesh; nodes with a different profile do not join rather than downgrade.
+The single protection level (unsecured, classical, or post-quantum) shared by every node of a mesh; nodes with a different profile do not join rather than downgrade.
 _Avoid_: Security level, crypto mode, tier
 
 **Mesh key**:
@@ -58,7 +62,7 @@ _Avoid_: Network key, password, group key
 
 **Open mesh**:
 A mesh that any node with its mesh identifier and security profile may join.
-_Avoid_: Public mesh, unsecured mesh
+_Avoid_: Public mesh, unsecured mesh (an open mesh may use a secured profile)
 
 **Gated mesh**:
 A mesh that only nodes holding its mesh key may join; available only with a secured security profile.

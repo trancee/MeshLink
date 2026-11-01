@@ -28,6 +28,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 4. [libsodium as the crypto provider](adr/0004-crypto-provider-libsodium.md)
 5. [Toolchain and dependency baseline](adr/0005-toolchain-and-dependency-baseline.md)
 6. [Documentation architecture](adr/0006-documentation-architecture.md)
+7. [Public API shape and error model](adr/0007-public-api-shape.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

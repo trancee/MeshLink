@@ -2,6 +2,8 @@
 
 Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 1.
 
+Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
+
 ## Context
 
 [ADR 0001](0001-threat-model-and-profile-guarantees.md) fixes what each security profile guarantees: authenticated, encrypted links plus end-to-end encryption in the secured profiles, open or mesh-key-gated admission, rotating on-air identifiers, and hybrid confidentiality with classical authentication for `post-quantum`. No platform provider covers both secured profiles at Android 26 / iOS 15, and Xcode 16.4 (iOS 18.5 SDK) rules out CryptoKit ML-KEM/X-Wing, so crypto is bundled. Rule S6 requires established constructions and S7 requires conformance vectors.
