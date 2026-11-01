@@ -9,7 +9,7 @@ Which strategies should a simulation compare for MeshLink's unicast, mesh
 broadcast, store-and-forward and neighbor selection? MeshLink targets the
 provisional density classes (peers in radio range) low 2–10, medium 10–50 and
 high 50–200, and meshes of at most about 1,000 nodes. The ticket asks for
-behaviour at those densities, control overhead, convergence and energy.
+behavior at those densities, control overhead, convergence and energy.
 
 ## TL;DR
 
@@ -225,9 +225,9 @@ Custody: BPv7 moved custody transfer out of the base protocol into BIBE
 (RFC9171 App. A). CAIRN keeps custody on the giver until the receiver accepts
 (ADR 0033 rule 3). This is a design choice for the S&F ticket, not for routing.
 
-## 4. Behaviour by density class (expected; to be simulated)
+## 4. Behavior by density class (expected; to be simulated)
 
-| Class | In range vs `d` ≈ 4–6 | Expected behaviour |
+| Class | In range vs `d` ≈ 4–6 | Expected behavior |
 |---|---|---|
 | Low 2–10 | Often ≤ `d`: near-complete local graph | Any strategy works. Flooding (U1/B1) is cheapest to build and nearly optimal. Proactive DV overhead is tiny. Partitions come from mobility, so S&F matters most here. |
 | Medium 10–50 | Neighbors > `d` | Neighbor selection decides diameter and connectivity. Dial contention appears: CAIRN saw half of pairs never connect in a 12–15-phone fleet before slot budgeting (ADR 0025). Proactive DV is still affordable at mesh sizes ≤ about 100. |
@@ -282,7 +282,7 @@ These are link-level transmissions, not PHY packets.
   - Links are capacity-limited FIFO queues with measured setup latency, failure
     probability, throughput and supervision-drop rates.
   - Per-platform slot budgets are configurable.
-  - There is no PHY collision model at first. Add a per-neighbourhood airtime
+  - There is no PHY collision model at first. Add a per-neighborhood airtime
     contention factor for the high-density class.
   - A priority-queue event loop is small to hand-roll. KALASIM (MIT) is an
     option but needs E3 approval.

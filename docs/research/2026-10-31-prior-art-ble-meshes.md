@@ -12,7 +12,7 @@ Survey bitchat, Briar, Bridgefy, Meshtastic, Berty/Wesh, Apple Multipeer Connect
 - discovery
 - routing/flooding
 - security
-- density behaviour
+- density behavior
 - documented failures
 - published evaluations
 
@@ -106,7 +106,7 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
   - up to 3 couriers per message
   - recipient identified by a daily-rotating 16 B HMAC tag
   - spray-and-wait copy budget 4, capped at 8
-  - per-sender quotas of 5 (favourites) / 2 (verified) inside a 20-of-40 pool
+  - per-sender quotas of 5 (favorites) / 2 (verified) inside a 20-of-40 pool
   - 16 KiB payload limit, 24 h lifetime
 - Gossip sync uses a GCS (Golomb-coded set) filter every ~15 s, with 6 h retention.
 - Nostr is the internet fallback.
@@ -116,7 +116,7 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Courier mail uses Noise X, which gives no forward secrecy for that message.
 - Padding to 256/512/1024/2048-byte buckets applies to Noise frames only.
 - The peer ID is the first 8 bytes of SHA-256(Noise static key) and never rotates.
-- Announcements carry the nickname, static keys and up to 10 neighbour IDs in cleartext.
+- Announcements carry the nickname, static keys and up to 10 neighbor IDs in cleartext.
 - The whitepaper itself states "Metadata is the weakest part" and lists unlinkable presence as future work.
 
 **Failures and analyses**
@@ -284,7 +284,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 - **Encryption:** `MCEncryptionPreference` is optional, required or none. If any peer chooses none, the session is unencrypted — a negotiated downgrade.
 - **Interop:** no Android interop.
 - **Deprecation:** `MCSession` availability metadata shows "iOS 7.0–27.0". Whether this signals a planned deprecation is **UNVERIFIED**; no deprecation text was found.
-- **AWDL analysis [A2]:** AWDL and AirDrop's BLE discovery enable MITM, DoS and long-term tracking that undermines MAC randomisation.
+- **AWDL analysis [A2]:** AWDL and AirDrop's BLE discovery enable MITM, DoS and long-term tracking that undermines MAC randomization.
 - **Lesson:** not a mesh. Usable at most as an optional, iOS-only, foreground, ≤8-peer bearer. Copy neither its downgrade semantics nor its implicit trust.
 
 ### Bluetooth SIG Mesh 1.1
@@ -330,17 +330,17 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 - Silicon Labs notes that mesh nodes "also use Bluetooth connections and GATT services to communicate with devices that do not natively support Bluetooth mesh" [S5].
 
 **Evaluations**
-- [S6] Sensors 2018: the random back-off dominates round-trip time. More neighbours lower RTT until density causes collisions. The standard is "not suited to a network solely of power limited nodes".
+- [S6] Sensors 2018: the random back-off dominates round-trip time. More neighbors lower RTT until density causes collisions. The standard is "not suited to a network solely of power limited nodes".
 - [S7] arXiv 2019 simulations:
   - timing parameters are highly interdependent
-  - randomisation helps
+  - randomization helps
   - ~250 ms delay over >10 hops
   - vulnerable to Wi-Fi interference despite using 3 channels
   - "scalability is especially challenging … prone to broadcast storm, hindering … reliability for denser deployments"
 - [S8] nRF52840 testbed:
   - unicast/group modes, segmentation cost, latency for perfect reliability
-  - improvements from parameter tuning, extended advertising, power control and customised relaying (abstract only read)
-- [S9] Real-device assessment of repetition and randomisation schemes. Managed flooding suits small or highly dynamic networks; proposes tuning criteria and standard improvements (abstract only read).
+  - improvements from parameter tuning, extended advertising, power control and customized relaying (abstract only read)
+- [S9] Real-device assessment of repetition and randomization schemes. Managed flooding suits small or highly dynamic networks; proposes tuning criteria and standard improvements (abstract only read).
 
 **Verdict: SIG Mesh does not fit phone-to-phone meshes.**
 - Neither iOS nor Android apps can emit the advertising bearer.
@@ -352,7 +352,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 
 | System | Bearer (phones) | Discovery | Multi-hop | Routing | Peer auth / E2E | Broadcast authenticity | On-air identity | Store-and-forward | Platforms | Published security / scale findings |
 |---|---|---|---|---|---|---|---|---|---|---|
-| bitchat | BLE GATT, dual role | Adverts + periodic announces (4 s→15–30 s) | Yes, ≤7 hops | Managed flood (TTL clamp, log2 fanout, jitter, cancel-on-dup) + source routes | Noise XX; Noise X for mail (no FS) | Public #mesh unencrypted; signing gaps led to CVE-2026-51376 | Static 8-byte ID + cleartext nickname/keys/neighbours | Outbox + couriers (spray-and-wait, quotas) + GCS gossip | iOS, Android | Impersonation (2025, secondary sources), cache poisoning CVE, cross-platform limit divergence; no scale study |
+| bitchat | BLE GATT, dual role | Adverts + periodic announces (4 s→15–30 s) | Yes, ≤7 hops | Managed flood (TTL clamp, log2 fanout, jitter, cancel-on-dup) + source routes | Noise XX; Noise X for mail (no FS) | Public #mesh unencrypted; signing gaps led to CVE-2026-51376 | Static 8-byte ID + cleartext nickname/keys/neighbors | Outbox + couriers (spray-and-wait, quotas) + GCS gossip | iOS, Android | Impersonation (2025, secondary sources), cache poisoning CVE, cross-platform limit divergence; no scale study |
 | Bridgefy | BLE (+ Classic) | SDK-internal | Yes | Flood with 1-byte hop TTL + `track` list | libsignal over direct link only | Shared key; impersonable; compression side channel | Tracking via userId CRCs | Not established | iOS, Android | CT-RSA'21, USENIX Sec'22: MITM, impersonation, gzip-bomb DoS, tracking |
 | Briar | Bluetooth Classic RFCOMM, Wi-Fi, Tor | Contacts only | No (contact sync) | None | BTP: FS, no plaintext headers | n/a | No unlinkability claimed | Contact-to-contact sync | Android (+ desktop) | Adversary may control unlimited devices; no BLE |
 | Meshtastic | LoRa (phone↔radio via BLE) | NodeInfo broadcasts | Yes (HopLimit ≤7) | Managed flood (SNR-ordered, listen-cancel, implicit ACK) + learned next-hop DMs | X25519 + AES-CCM DMs; TOFU | Channel PSK AES-CTR, unauthenticated | NodeNum = CRC32(pubkey), static | Router roles / store-and-forward module (not reviewed) | Radios + phone apps | Self-documented: TOFU, 120-node DB eviction, PSK spoofing |
@@ -372,7 +372,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
    - Split horizon.
    - Implicit ACK by overhearing.
    - **Directed messages:** learned next-hop with flood fallback, as in Meshtastic 2.6.
-   - SIG Mesh evaluations [S6–S9] show that randomisation and back-off tuning dominate reliability and latency at density. Make these parameters explicit and simulate them.
+   - SIG Mesh evaluations [S6–S9] show that randomization and back-off tuning dominate reliability and latency at density. Make these parameters explicit and simulate them.
 3. **Authenticate before admission.**
    - Nothing enters the seen-set, relay queue, store-and-forward cache or sync set without verifying its origin signature or MAC.
    - Lessons: bitchat CVE-2026-51376, Bridgefy impersonation.
@@ -383,7 +383,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 5. **Unlinkable on-air identity.**
    - Rotate advertised and relay identifiers.
    - Disclose the installation identity only inside an encrypted handshake.
-   - Never put static IDs, neighbour lists or relay trails in cleartext. bitchat, Bridgefy's `track` list and Meshtastic all leak these.
+   - Never put static IDs, neighbor lists or relay trails in cleartext. bitchat, Bridgefy's `track` list and Meshtastic all leak these.
 6. **No negotiated downgrade.**
    - A security profile is fixed by configuration and never silently relaxed by a peer.
    - Anti-patterns: MPC `none`, bitchat's flag-based encryption (#202).

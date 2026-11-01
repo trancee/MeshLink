@@ -117,7 +117,7 @@ a 1 184 B ML-KEM-768 key, as the template's own design review says, so it is
 
 ### 4.1 `none`
 
-- No key exchange, no AEAD. Plaintext, unauthenticated, loudly labelled.
+- No key exchange, no AEAD. Plaintext, unauthenticated, loudly labeled.
 - Crypto dependency: none. Integrity against radio corruption is a framing
   concern, not a security one: cairn found a controller that corrupted 512 B
   writes while the link-layer CRC still passed, and added a per-fragment CRC
@@ -225,14 +225,14 @@ Mesh-specific implications (reasoning, not measured):
   costs ~2.4 KB for every link re-handshake. PQ-c costs that once per peer
   pair and 106 B per reconnection, but needs persistent per-pair state (up
   to ~1 000 reachable nodes).
-- End-to-end sessions to non-neighbours carry the handshake across every hop,
+- End-to-end sessions to non-neighbors carry the handshake across every hop,
   multiplying airtime by hop count, so PQ handshake bytes would dominate
   routed traffic. Still open: whether E2E sessions are established pairwise,
   pre-keyed, or one-shot (an HPKE/X-Wing seal per message costs 1 120 B per
   message).
 - Classical Noise fits every message in one ATT payload at MTU ≥ 99. PQ
   always needs the fragmentation/reassembly path during the handshake, so its
-  bounded-memory and DoS behaviour must be specified: the first messages are
+  bounded-memory and DoS behavior must be specified: the first messages are
   unauthenticated and 1.2 KB+ long.
 
 ## 7. Conformance vectors
@@ -251,7 +251,7 @@ Mesh-specific implications (reasoning, not measured):
 | Noise `hfs`, PQNoise | — | — | **none found**: an S6/S7 gap that would need self-generated cross-implementation vectors |
 
 Wycheproof and ACVP check primitive correctness on edge cases. They prove
-neither protocol correctness nor constant-time behaviour, as the template
+neither protocol correctness nor constant-time behavior, as the template
 design review also notes.
 
 ## 8. Recommendation candidates (not decisions)
@@ -260,8 +260,8 @@ design review also notes.
    + SHA-256, with XX for first contact and IK/KK for pinned peers.** This is
    the strongest S6/S7 position: no new primitive, plus Wycheproof and
    cacophony/snow vectors. The AEAD choice depends on the provider:
-   platform-only stacks favour AESGCM (Android 26 lacks platform ChaCha),
-   while libsodium favours ChaChaPoly (its AES-GCM is hardware-gated).
+   platform-only stacks favor AESGCM (Android 26 lacks platform ChaCha),
+   while libsodium favors ChaChaPoly (its AES-GCM is hardware-gated).
 2. **`post-quantum` = hybrid X25519 + ML-KEM-768 confidentiality with
    classical authentication**, in one of two shapes for the grilling session:
    - (a) Noise `hfs` with ML-KEM-768: the simplest per-link story, ~2.4 KB

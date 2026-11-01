@@ -6,7 +6,7 @@ Blocked by: 02, 08, 12
 
 ## Question
 
-Prototype advertising/scanning: identifier format and rotation (tracking resistance), mesh membership filter, iOS background overflow-area behaviour, Android↔iOS visibility, legacy vs extended advertising, duplicate-link resolution between two nodes. Decide the discovery design.
+Prototype advertising/scanning: identifier format and rotation (tracking resistance), mesh membership filter, iOS background overflow-area behavior, Android↔iOS visibility, legacy vs extended advertising, duplicate-link resolution between two nodes. Decide the discovery design.
 
 ## Scope additions (from research, 2026-10-31)
 

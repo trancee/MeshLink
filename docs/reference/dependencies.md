@@ -49,6 +49,16 @@ Facts verified 2026-11-01.
 | JUnit 4 | 4.13.2 | test | Robolectric test runner | Maintenance mode, stable | EPL-1.0 | n/a | n/a | hamcrest-core | Robolectric needs a JUnit 4 runner |
 | androidx.test core | 1.7.0 | test | `ApplicationProvider` for Robolectric | Google, stable | Apache-2.0 | n/a | n/a | n/a | Standard Robolectric companion |
 
+## CI tools (docs checks, ADR 0006)
+
+Run in CI and locally; never shipped. Actions are pinned by commit SHA with a version comment. This section is checked against the workflow files, not the version catalog.
+
+| Tool | Version | Action | License | Need | Why existing fails |
+|---|---|---|---|---|---|
+| lychee | 0.24.2 | `lycheeverse/lychee-action` v2.9.0 | Apache-2.0 OR MIT | Link check: repository links offline on every PR, external links weekly (O6) | Nothing in the build checks Markdown links |
+| markdownlint-cli2 | 0.24.0 | `DavidAnson/markdownlint-cli2-action` v25.0.0 | MIT | Markdown structure lint (O6) | Spotless/ktlint cover Kotlin only |
+| typos | 1.51.1 | `crate-ci/typos` v1.51.1 | Apache-2.0 OR MIT | Spelling, US English, offline, low false positives (O6) | No spelling gate exists; cspell needs Node and is noisier |
+
 ## Reference (test-only Rust, `tools/reference/`, never published)
 
 Pinned by `rust-toolchain.toml` (Rust 1.99.0) and a committed `Cargo.lock`. Purpose: an independent second vector set for ADR 0002 and ADR 0004.

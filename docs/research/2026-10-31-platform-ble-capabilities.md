@@ -8,7 +8,7 @@
 
 | Label | Meaning |
 |---|---|
-| **[DOC]** | Stated in a primary vendor or specification source: Android reference or behaviour-change pages, AOSP source, Apple developer documentation, Apple Accessory Design Guidelines, or Bluetooth Core 6.1. |
+| **[DOC]** | Stated in a primary vendor or specification source: Android reference or behavior-change pages, AOSP source, Apple developer documentation, Apple Accessory Design Guidelines, or Bluetooth Core 6.1. |
 | **[AOSP]** | Read directly from AOSP `packages/modules/Bluetooth` `main` source on 2026-10-31. This is implementation, not API contract, and OEM builds may differ. |
 | **[EMP:cairn]** | Observed on real devices by the sibling project *cairn* (`../cairn`). Its lessons, ADRs and issues name the device and OS. |
 | **[SEC]** | Secondary or third-party report. Not verified here. |
@@ -26,7 +26,7 @@ What can MeshLink rely on from BLE on Android (API 26 → current 37/37.2) and i
 - Advertising payload limits, including the iOS overflow area and service data
 - Background execution: iOS state restoration, Android foreground services (FGS) and CompanionDeviceService
 - Permissions
-- Address randomisation
+- Address randomization
 
 Unverifiable items must be marked as such.
 
@@ -50,8 +50,8 @@ Unverifiable items must be marked as such.
   - Permissions: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions
   - Background BLE: https://developer.android.com/develop/connectivity/bluetooth/ble/background
   - FGS types: https://developer.android.com/develop/background-work/services/fgs/service-types
-  - Android 14 behaviour changes (MTU 517): https://developer.android.com/about/versions/14/behavior-changes-all
-  - Android 15, 16 and 17 behaviour-change pages (all-apps and targeting): https://developer.android.com/about/versions/15/behavior-changes-all, https://developer.android.com/about/versions/16/behavior-changes-all, https://developer.android.com/about/versions/17/behavior-changes-all and the `-15`/`-16`/`-17` targeting pages
+  - Android 14 behavior changes (MTU 517): https://developer.android.com/about/versions/14/behavior-changes-all
+  - Android 15, 16 and 17 behavior-change pages (all-apps and targeting): https://developer.android.com/about/versions/15/behavior-changes-all, https://developer.android.com/about/versions/16/behavior-changes-all, https://developer.android.com/about/versions/17/behavior-changes-all and the `-15`/`-16`/`-17` targeting pages
   - Google Play FGS policy: https://support.google.com/googleplay/android-developer/answer/13392821
 - **AOSP `main`:**
   - `packages/modules/Bluetooth` files: `system/stack/gatt/gatt_utils.cc`, `system/internal_include/bt_target.h`, `android/app/src/com/android/bluetooth/le_scan/{ScanManager,AppScanStats}.java` and `android/app/src/com/android/bluetooth/btservice/AdapterService.java`
@@ -112,7 +112,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
 | 29 | **LE L2CAP CoC:** `BluetoothAdapter.listenUsingL2capChannel` / `listenUsingInsecureL2capChannel` and `BluetoothDevice.createL2capChannel` / `createInsecureL2capChannel`. The secure variant means the "remote device will be authenticated and communication … encrypted". The insecure variant means the "link key is not required to be authenticated". The PSM is dynamic (`BluetoothServerSocket.getPsm()`), and the "application is responsible for obtaining PSM value from remote device". | [DOC] BluetoothAdapter, BluetoothDevice |
 | 31 | Runtime permissions **BLUETOOTH_SCAN / BLUETOOTH_ADVERTISE / BLUETOOTH_CONNECT** ("Nearby devices"). `neverForLocation` on SCAN removes the location requirement. Legacy `BLUETOOTH`/`BLUETOOTH_ADMIN`/`ACCESS_FINE_LOCATION` should be `maxSdkVersion="30"`. FGS start-from-background restrictions begin. CDM `startObservingDevicePresence(String)` was added (deprecated in 36). | [DOC] bt-permissions, background guide, CDM |
 | 33 | `writeCharacteristic(char, value, type)`, `writeDescriptor(desc, value)` and `BluetoothGattServer.notifyCharacteristicChanged(dev, char, confirm, value)` return status codes. The byte-array-free overloads are deprecated. `getRemoteLeDevice(addr, addrType)` was added. | [DOC] |
-| 34 | **All apps:** on the first `requestMtu` from any GATT client on an ACL, the stack requests ATT MTU **517**. Later `requestMtu` calls on that ACL are ignored. FGS **must declare a type**; `connectedDevice` needs `FOREGROUND_SERVICE_CONNECTED_DEVICE` plus a prerequisite, which can be a granted BLUETOOTH_CONNECT/ADVERTISE/SCAN. `CONNECTION_PRIORITY_DCK`; `AdvertisingSetParameters.Builder.setDiscoverable`. | [DOC] Android 14 behaviour changes, FGS types |
+| 34 | **All apps:** on the first `requestMtu` from any GATT client on an ACL, the stack requests ATT MTU **517**. Later `requestMtu` calls on that ACL are ignored. FGS **must declare a type**; `connectedDevice` needs `FOREGROUND_SERVICE_CONNECTED_DEVICE` plus a prerequisite, which can be a granted BLUETOOTH_CONNECT/ADVERTISE/SCAN. `CONNECTION_PRIORITY_DCK`; `AdvertisingSetParameters.Builder.setDiscoverable`. | [DOC] Android 14 behavior changes, FGS types |
 | 35 | `BluetoothDevice.getAddressType()` (PUBLIC/RANDOM/ANONYMOUS/UNKNOWN); `BluetoothGatt.GATT_CONNECTION_TIMEOUT`. The BOOT_COMPLETED FGS start ban (target 35) lists dataSync, camera, mediaPlayback, phoneCall, mediaProjection and microphone; **connectedDevice is not listed**. | [DOC] |
 | 35 (stack) | The GATT connection (TCB) table is `min(max(sysprop bluetooth.core.le.max_number_of_concurrent_connections, 8), 16)`. Earlier releases used a fixed 7 (cairn). | [AOSP] `gatt_utils.cc` L106–112, `bt_target.h` L357–363 · [EMP:cairn] ADR 0025: 8/10/16 seen in fleet `dumpsys`, 7 on ≤ 34 |
 | 36 | Socket API `BluetoothAdapter.listenUsingSocketSettings(BluetoothSocketSettings)`, TYPE_LE/RFCOMM; BLUETOOTH_PRIVILEGED is needed only for an offload data path. `ObservingDevicePresenceRequest` and `CompanionDeviceService.onDevicePresenceEvent`. **Target 36:** bond-loss handling and `ACTION_KEY_MISSING`. | [DOC] |
@@ -145,7 +145,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
 
 **There is no public API for** PHY selection, ATT MTU request, DLE or connection interval. Apps can only read the results: `maximumWriteValueLength` and `maximumUpdateValueLength`. `CBPeripheralManager.setDesiredConnectionLatency` is peripheral-side only, coarse, and not guaranteed. [DOC]
 
-**What Apple devices do as a central** (ADG R32 §57, written for accessories; it describes Apple devices' behaviour):
+**What Apple devices do as a central** (ADG R32 §57, written for accessories; it describes Apple devices' behavior):
 
 - They use resolvable random addresses (§57.8).
 - They negotiate DLE 27→251 (§57.7).
@@ -179,7 +179,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
 | Connection params | `requestConnectionPriority` only. `requestLeConnectionUpdate` is hidden [DOC/EMP]. | iOS uses a 30 ms interval with a 720 ms supervision timeout, and rejects Android's 20 s supervision timeout with 0x3B [EMP:cairn]. |
 | Controller defects | A Redmi controller corrupts 512 B writes at the 251 B PDU boundary; an app-level CRC-16 fixed it [EMP:cairn lessons]. | — |
 
-## 4. Background behaviour
+## 4. Background behavior
 
 ### Android [DOC unless marked]
 
@@ -207,7 +207,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
   - After the app is terminated by the system (not force-quit by the user), iOS relaunches it for BLE events: a discovered UUID, a connection, notifications, or a write to its GATT server.
   - Each wake gets about 10 s (archived guide).
   - Scene-based apps receive nil `launchOptions`, so the restore identifier must be persisted.
-  - A user force-quit disables relaunch. This is established iOS behaviour stated in Apple guidance; an exact current page was not re-located today, so it is [DOC-archived].
+  - A user force-quit disables relaunch. This is established iOS behavior stated in Apple guidance; an exact current page was not re-located today, so it is [DOC-archived].
 - **iOS 26+ Live Activity:** grants foreground scan privileges while backgrounded (§3.2). Whether this extends to advertising is [UNVERIFIED].
 - **Background connection intervals:** cadence after backgrounding is [UNVERIFIED]. No primary source was found.
 
@@ -225,7 +225,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
    - Third parties report insecure CoC works across platforms, while secure CoC (which requires bonding) is unreliable [SEC: Ditto, Kable #588].
    - cairn never tested it.
    - Status: **[UNVERIFIED] for MeshLink**, needs device-lab proof.
-   - Secure CoC implies bonding UX and bond-state management, including Android 16/17 bond-loss and re-pair behaviour. Insecure CoC plus app-layer Noise is the only option that avoids pairing dialogs.
+   - Secure CoC implies bonding UX and bond-state management, including Android 16/17 bond-loss and re-pair behavior. Insecure CoC plus app-layer Noise is the only option that avoids pairing dialogs.
 4. **Crossed dials and ACL sharing.**
    - Bluedroid cannot distinguish two ACLs to the same address (Android 8/9).
    - `BluetoothGatt.close()` can tear down a shared ACL.
@@ -239,7 +239,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
    - Apple rejects supervision timeouts outside its range [EMP:cairn; ADG §57.6 DOC].
    - Android's `requestConnectionPriority` cannot target iOS-compliant values precisely.
    - Expect link drop and recovery as a normal event.
-7. **Address randomisation.**
+7. **Address randomization.**
    - iPhones use RPAs that rotate; a rotation produces a new address and a new link identity [DOC ADG §57.8; EMP:cairn].
    - Android advertisers use `ADDRESS_TYPE_DEFAULT` unless the app holds BLUETOOTH_PRIVILEGED [DOC]; what address that resolves to on each OEM is [UNVERIFIED].
    - The rotation period on current AOSP `main` was not located; older AOSP (via a third-party mirror, `BTM_BLE_PRIVATE_ADDR_INT_MS`) was 15 min [SEC], so the current value is [UNVERIFIED].
@@ -262,7 +262,7 @@ The "API" column shows when a member was *added*. Its availability depends on th
   - Do not design anything that needs payload in the advert.
 - **Fragmentation:** fragment body ≤ min(observed without-response length or `notify` length, 512) − MeshLink header. Never assume more than ATT_MTU 23 until measured. Add a per-fragment integrity check (cf. the Redmi controller defect).
 - **Fan-out:** plan for about **5–6 simultaneous BLE links on Android** (fewer on ≤ 34). iOS is unknown. This bounds the "high-density" profile:
-  - routing must assume a sparse neighbour set and rotate links;
+  - routing must assume a sparse neighbor set and rotate links;
   - it cannot assume a full mesh of every in-range peer.
   - This needs a feasibility check against GLOSSARY density targets.
 - **Background:**
@@ -279,10 +279,10 @@ The "API" column shows when a member was *added*. Its availability depends on th
 2. Whether Android can see or decode an iOS overflow-area advert. Also whether iOS background↔background discovery latency is acceptable.
 3. iOS 26+ Live Activity: does background **advertising** keep the local name and in-advert UUID?
 4. Maximum concurrent iOS links as central and as peripheral (iPhone SE 2/3, 12, 15, 17 class).
-5. Per-OEM Android TCB limit and 133 behaviour on API 26–34 vs 35+; the single-dial constraint on ≤ 28.
+5. Per-OEM Android TCB limit and 133 behavior on API 26–34 vs 35+; the single-dial constraint on ≤ 28.
 6. Extended-advert reception on iPhone 8/X/XR-class hardware at iOS 15–16; Coded-PHY reception on iOS.
 7. MTU and DLE matrix for every OS/role pair, including the iOS peripheral role (`maximumUpdateValueLength`).
-8. Connection-interval and supervision behaviour when iOS is backgrounded or locked.
+8. Connection-interval and supervision behavior when iOS is backgrounded or locked.
 9. Android scan quota, timeout and background downgrade on OEM builds versus AOSP defaults.
 10. iOS state-restoration cold-wake latency and the reliability of reconnecting to a mesh.
 11. RPA rotation interval on current Android and iOS, and how quickly the mesh recovers identity.

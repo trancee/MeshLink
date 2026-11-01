@@ -12,7 +12,7 @@ Propose amendments in V2 format {rationale, impact, migration, approval}. Candid
 Approved by the user on 2026-10-31. Applied, uncommitted, on branch `docs/constitution-3.1.0`.
 
 - **Ownership:** MeshLink-only fork of cairn's constitution 3.0.1, with its own version line. It is now **3.1.0** (MINOR), with an amendment record in `CONSTITUTION.md`.
-- **T9 expanded:** a hardware-dependent claim (interop, connection limits, throughput, latency, range, power, background) needs an evidence record: devices with OS/firmware, covered platform pairs, commit, method, raw results and date. Without one, the claim is labelled "unverified".
+- **T9 expanded:** a hardware-dependent claim (interop, connection limits, throughput, latency, range, power, background) needs an evidence record: devices with OS/firmware, covered platform pairs, commit, method, raw results and date. Without one, the claim is labeled "unverified".
 - **C10 added:** a published wire protocol needs an implementation-independent normative spec plus conformance vectors. The spec is the authority; spec and vectors change in the same change as the wire, or earlier. An implementation that diverges has a defect.
 - **O8 added:** public docs have a human layer (Diátaxis) plus an agent layer (machine-oriented index, contract reference, diagnostic index). Both are generated from, or CI-checked against, one source; no hand-maintained divergent copies.
 - **Kotlin guidance:** ported cairn's `guidance/kotlin.md` to root `KOTLIN.md`, plus MeshLink constraints (Xcode 16.4, Kotlin `2.2.20` fallback, the libimobiledevice host path). Convention: every stack guide lives at root `<STACK>.md`, for example `SWIFT.md`. `AGENTS.md` START was updated to match.

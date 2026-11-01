@@ -12,3 +12,4 @@ Decide artifacts (core, bearers, routing, store-and-forward, security profiles),
 ## Scope additions (from decisions)
 
 - From the [toolchain baseline](11-toolchain-baseline.md) (ADR 0005): iOS code must be thin adapters (Constitution 4.0.0 T3), so module cuts keep logic in common code. The libsodium build (NDK 30, cached XCFramework) is one native unit; decide which module owns it.
+- From the [documentation architecture](16-documentation-architecture.md) (ADR 0006): plan a build-logic home for the docs generators and checks (`checkDependencyRegister`, region sync, reference generation); nested `AGENTS.md` files arrive with module code.

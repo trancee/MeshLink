@@ -15,7 +15,7 @@ Agreed with the user in three grilling rounds on 2026-10-31. All recommendations
 - **Encryption layers:** the secured profiles use authenticated, encrypted links plus end-to-end encryption for unicast messages and receipts.
 - **Mesh admission:** open or gated per mesh. A gated mesh requires a mesh key in every link handshake. New glossary terms: Mesh, Mesh key, Open mesh, Gated mesh.
 - **Broadcasts:** an Ed25519 origin signature, verified before relay. Broadcast content is public in an open mesh and private to mesh-key holders in a gated mesh.
-- **Fragmentation:** per hop. Each relay reassembles, verifies and re-fragments, with bounded buffers per neighbour.
+- **Fragmentation:** per hop. Each relay reassembles, verifies and re-fragments, with bounded buffers per neighbor.
 - **Routing metadata:** relays see source and destination only as epoch-rotating tags. If the routing simulation finds the cost unacceptable, it comes back to the user.
 - **Tracking:** on-air identifiers rotate with the BLE address; node presence is not hidden.
 - **`post-quantum`:** hybrid confidentiality with classical authentication. SQIsign is the leading candidate for a future signature suite, not v1, since it is a NIST round-3 candidate and S6 applies.

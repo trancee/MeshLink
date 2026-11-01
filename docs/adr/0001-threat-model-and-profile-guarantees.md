@@ -12,7 +12,7 @@ MeshLink offers three security profiles (`none`, `classical`, `post-quantum`), o
 - The secured profiles use two layers: authenticated, encrypted links, plus end-to-end encryption of unicast messages and receipts.
 - Mesh admission is open or gated per mesh; a gated mesh requires a mesh key mixed into every link handshake.
 - Mesh broadcasts carry an Ed25519 origin signature, verified before relay, in both secured profiles.
-- Fragmentation is per hop: relays reassemble, verify and re-fragment; reassembly is bounded per neighbour.
+- Fragmentation is per hop: relays reassemble, verify and re-fragment; reassembly is bounded per neighbor.
 - Relays see source and destination only as epoch-rotating tags derived from the identity key, subject to a routing-simulation cost check that, if failed, returns to the project owner.
 - Every on-air identifier rotates in step with the BLE address; node presence is not hidden.
 - `post-quantum` means hybrid confidentiality with classical authentication.

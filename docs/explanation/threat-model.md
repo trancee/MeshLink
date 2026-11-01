@@ -9,7 +9,7 @@ Status: accepted for v1 planning (2026-10-31). Concrete algorithms, wire layout 
 | Asset | Examples |
 |---|---|
 | Message content | Unicast messages, mesh broadcasts, held store-and-forward messages, receipts |
-| Metadata | Who talks to whom, when, how often, message sizes, routing state, neighbour lists |
+| Metadata | Who talks to whom, when, how often, message sizes, routing state, neighbor lists |
 | Identities | Installation identity keys; the mesh key of a gated mesh |
 | Location and presence | Whether, where and when a given node is nearby; long-term movement profiles |
 | Node resources | Memory, storage, airtime, connection slots, battery |
@@ -45,9 +45,9 @@ These are stated limits, not defended threats:
 
 ### Two encryption layers
 
-In the secured profiles (`classical`, `post-quantum`), every link between neighbours is mutually authenticated and encrypted, and every unicast message and receipt is additionally end-to-end encrypted between source and destination.
+In the secured profiles (`classical`, `post-quantum`), every link between neighbors is mutually authenticated and encrypted, and every unicast message and receipt is additionally end-to-end encrypted between source and destination.
 
-- The **link layer** hides routing headers from A1, defeats injection and relabelling by A2, and lets a node authenticate a neighbour before relaying or caching anything it sends. This is the main defence against relay-cache poisoning of the kind found in bitchat (CVE-2026-51376).
+- The **link layer** hides routing headers from A1, defeats injection and relabeling by A2, and lets a node authenticate a neighbor before relaying or caching anything it sends. This is the main defense against relay-cache poisoning of the kind found in bitchat (CVE-2026-51376).
 - The **end-to-end layer** keeps content away from relays (A3) and from store-and-forward carriers. Bridgefy showed that hop-by-hop protection alone lets every relay read and forge traffic.
 
 ### Mesh admission: open or gated
@@ -65,7 +65,7 @@ Every mesh broadcast in a secured profile carries an Ed25519 origin signature th
 
 ### Fragmentation is per hop
 
-A relay reassembles a whole message, verifies it (link AEAD; for broadcasts also the origin signature), and only then re-fragments it for each next link. Fragments carry a message ID, index, count and per-fragment CRC. Reassembly buffers are bounded per neighbour in size and time, and incomplete messages are dropped with a typed diagnostic. A forged or corrupt fragment therefore never travels further than one hop, and the destination only ever receives whole, verified messages. The cost is per-hop latency for multi-fragment messages, which bounded message sizes keep acceptable; the routing simulation measures it.
+A relay reassembles a whole message, verifies it (link AEAD; for broadcasts also the origin signature), and only then re-fragments it for each next link. Fragments carry a message ID, index, count and per-fragment CRC. Reassembly buffers are bounded per neighbor in size and time, and incomplete messages are dropped with a typed diagnostic. A forged or corrupt fragment therefore never travels further than one hop, and the destination only ever receives whole, verified messages. The cost is per-hop latency for multi-fragment messages, which bounded message sizes keep acceptable; the routing simulation measures it.
 
 ### Metadata visible to relays
 
@@ -91,11 +91,11 @@ Link frames use AEAD with counter nonces, so replays are rejected. End-to-end me
 
 ### Availability
 
-MeshLink does not guarantee delivery against A3 or A4. It does guarantee bounded resources: no remote input can push a node beyond its configured memory, storage, airtime or connection budgets. In the secured profiles it authenticates before relaying or caching and rate-limits each neighbour.
+MeshLink does not guarantee delivery against A3 or A4. It does guarantee bounded resources: no remote input can push a node beyond its configured memory, storage, airtime or connection budgets. In the secured profiles it authenticates before relaying or caching and rate-limits each neighbor.
 
 ### Profile `none`
 
-`none` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `none` frames, even relabelled ones, never enter a secured mesh. Receipts in `none` can be forged.
+`none` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `none` frames, even relabeled ones, never enter a secured mesh. Receipts in `none` can be forged.
 
 ## Lessons this model builds on
 
