@@ -21,10 +21,13 @@ class RouteReply(
     val dst: Long,
     val dstSeq: Int,
     val hops: Int,
+    /** U6: the message that reached the destination through the data ring (−1 = none). */
+    val ackId: Int = -1,
 ) : Packet() {
     override val isControl get() = true
 
-    override fun sizeBytes(s: RoutingSizes) = s.headerBytes + 2 * s.tagBytes + 4 + s.hopFieldBytes + 4
+    override fun sizeBytes(s: RoutingSizes) =
+        s.headerBytes + 2 * s.tagBytes + 4 + s.hopFieldBytes + 4 + if (ackId >= 0) s.messageIdBytes else 0
 }
 
 /** U4 route error listing unreachable destinations. */
@@ -48,6 +51,18 @@ class RouteError(
  * A relay that loses its next hop buffers the message and starts its own discovery (local
  * repair). Messages wait without the hold gate while a discovery runs; when it fails they enter
  * store-and-forward holding (gated by the minimum hold time) and re-discover every 10 s.
+ *
+ * Stage C variants, switched by [RoutingParams]:
+ * - U4sf ([RoutingParams.sfTuned]): held messages re-discover with exponential backoff (2 s doubling
+ *   to 30 s) instead of every 10 s, on every new link (at most every 5 s per destination), and
+ *   flush at once when a route request from the destination itself passes by.
+ * - U6 ([RoutingParams.dataRingHops] > 0, plus sfTuned): with no route, the first waiting message is
+ *   flooded [RoutingParams.dataRingHops] hops as a data ring. Ring relays learn the way back; the
+ *   destination delivers and answers with a route reply that acknowledges the message, so later
+ *   messages are unicast. A ring relay with a fresh route forwards the copy along it. If no reply
+ *   comes, the usual expanding-ring route requests continue beyond the data ring, then holding.
+ * - Relay preference ([RoutingParams.relayPreference]): nodes that sleep (background iOS) delay
+ *   relaying flooded requests and ring copies, so the first copy, and so the route, uses awake relays.
  */
 class OnDemand(
     private val port: RoutingPort,
@@ -74,6 +89,10 @@ class OnDemand(
     private val discoveries = HashMap<Long, Discovery>()
     private val pending = PendingRoutes(port)
     private val retryScheduled = HashSet<Long>()
+    private val retryLevel = HashMap<Long, Int>()
+    private val lastLinkUpRetry = HashMap<Long, Long>()
+    private val ringSeen = SeenCache(port)
+    private val ringed = HashSet<Int>()
     private var ownSeq = (port.now() / 1000).toInt()
     private var requestId = 0
     private var started = false
@@ -129,8 +148,32 @@ class OnDemand(
         return r
     }
 
-    override fun onLinkUp(peer: Int) = start()
+    override fun onLinkUp(peer: Int) {
+        start()
+        if (!port.params.sfTuned) return
+        // A new link may connect a held destination: re-discover (rate-limited per destination).
+        val t = port.now()
+        for (dst in pending.held.destinations()) {
+            if (discoveries.containsKey(dst)) continue
+            if (t - (lastLinkUpRetry[dst] ?: Long.MIN_VALUE / 2) < port.params.sfLinkUpMinGapMs) continue
+            lastLinkUpRetry[dst] = t
+            if (usable(dst) != null) flush(dst) else discover(dst)
+        }
+    }
 
+    private fun sleepy() = port.params.relayPreference && !port.selfStable()
+
+    /** Relays a flooded packet to every link but [from]; sleeping-prone relays wait so awake paths win. */
+    private fun relayAll(
+        p: Packet,
+        from: Int,
+    ) {
+        if (sleepy()) {
+            port.after(port.params.sleepyRelayDelayMs) { for (peer in port.linkedPeers()) if (peer != from) port.send(peer, p) }
+        } else {
+            for (peer in port.linkedPeers()) if (peer != from) port.send(peer, p)
+        }
+    }
     override fun onLinkDown(peer: Int) {
         val dsts = ArrayList<Long>()
         val seqs = ArrayList<Int>()
@@ -166,7 +209,7 @@ class OnDemand(
             is RouteRequest -> onRequest(from, packet)
             is RouteReply -> onReply(from, packet)
             is RouteError -> onError(from, packet)
-            is DataPacket -> forward(packet, from)
+            is DataPacket -> if (packet.scope >= 0) onRing(from, packet) else forward(packet, from)
             else -> {}
         }
     }
@@ -186,6 +229,8 @@ class OnDemand(
         if ((requestsSeen[key] ?: Long.MIN_VALUE) >= t) return
         requestsSeen[key] = t + 2 * port.params.nodeTraversalMs * port.params.netDiameter
         upsert(q.origin, from, q.hops + 1, q.originSeq, port.params.reverseRouteMs)
+        // Tuned holding: the destination's own request just gave a route to it.
+        if (port.params.sfTuned && pending.has(q.origin)) flush(q.origin)
         if (port.acceptsTag(q.dst)) {
             ownSeq = maxOf(ownSeq + 1, q.dstSeq)
             port.send(from, RouteReply(q.origin, q.dst, ownSeq, 0))
@@ -200,7 +245,7 @@ class OnDemand(
         }
         if (q.radius <= 1) return
         val f = RouteRequest(q.requestId, q.origin, q.originSeq, q.dst, maxOf(q.dstSeq, routes[q.dst]?.seq ?: 0), q.hops + 1, q.radius - 1)
-        for (peer in port.linkedPeers()) if (peer != from) port.send(peer, f)
+        relayAll(f, from)
     }
 
     private fun onReply(
@@ -208,17 +253,18 @@ class OnDemand(
         a: RouteReply,
     ) {
         val fwd = upsert(a.dst, from, a.hops + 1, a.dstSeq, 2 * port.params.activeRouteMs)
+        if (a.ackId >= 0) pending.remove(a.dst, a.ackId)
         if (port.acceptsTag(a.origin)) {
             discoveries.remove(a.dst)
             flush(a.dst)
             return
         }
+        // A relay that was itself waiting for this destination can flush now.
+        if (pending.has(a.dst)) flush(a.dst)
         val back = usable(a.origin) ?: return
         fwd.precursors.add(back.next)
         back.precursors.add(from)
-        port.send(back.next, RouteReply(a.origin, a.dst, a.dstSeq, a.hops + 1))
-        // A relay that was itself waiting for this destination can flush now.
-        if (pending.has(a.dst)) flush(a.dst)
+        port.send(back.next, RouteReply(a.origin, a.dst, a.dstSeq, a.hops + 1, a.ackId))
     }
 
     private fun onError(
@@ -292,9 +338,56 @@ class OnDemand(
     }
 
     private fun discover(dst: Long) {
-        val d = Discovery(port.params.ringStart, 0, 0)
+        val p = port.params
+        val head = if (p.dataRingHops > 0) pending.waiting.peek(dst) ?: pending.held.peek(dst) else null
+        if (head != null && ringed.add(head.id) && !port.expired(head)) {
+            // U6: no route, so flood the message itself a few hops; it doubles as the route request.
+            val d = Discovery(p.dataRingHops, 0, 0)
+            discoveries[dst] = d
+            ringSeen.add(head)
+            val copy = head.forwarded(null, 0, p.dataRingHops)
+            for (peer in port.linkedPeers()) port.send(peer, copy)
+            val gen = ++d.generation
+            port.after(2 * p.dataNodeTraversalMs * (p.dataRingHops + 2)) { onDiscoveryTimeout(dst, d, gen) }
+            if (ringed.size > 4_096) ringed.clear()
+            return
+        }
+        val d = Discovery(p.ringStart, 0, 0)
         discoveries[dst] = d
         sendRequest(dst, d)
+    }
+
+    /** U6 data ring copy: learn the way back, deliver and acknowledge, take a known route, or flood on. */
+    private fun onRing(
+        from: Int,
+        p: DataPacket,
+    ) {
+        if (!ringSeen.add(p)) {
+            port.duplicate(p)
+            return
+        }
+        if (port.expired(p)) {
+            port.drop(p, DropReason.EXPIRED)
+            return
+        }
+        upsert(p.srcTag, from, p.hops, routes[p.srcTag]?.seq ?: 0, port.params.reverseRouteMs)
+        if (port.acceptsTag(p.dstTag)) {
+            port.deliver(p)
+            ownSeq++
+            port.send(from, RouteReply(p.srcTag, port.ownTag(), ownSeq, 0, p.id))
+            return
+        }
+        if (p.hops >= p.hopLimit) {
+            port.drop(p, DropReason.HOP_LIMIT)
+            return
+        }
+        val r = usable(p.dstTag)
+        if (r != null) {
+            sendVia(r, DataPacket(p.id, p.srcTag, p.dstTag, p.expiresAt, p.payloadBytes, p.hops, p.hopLimit), from)
+            return
+        }
+        if (p.scope <= 1) return
+        relayAll(p.forwarded(null, 0, p.scope - 1), from)
     }
 
     private fun sendRequest(
@@ -341,7 +434,16 @@ class OnDemand(
     private fun failed(dst: Long) {
         pending.promote(dst)
         if (!pending.has(dst) || !retryScheduled.add(dst)) return
-        port.after(port.params.holdRetryMs) {
+        val p = port.params
+        val delay =
+            if (!p.sfTuned) {
+                p.holdRetryMs
+            } else {
+                val level = retryLevel[dst] ?: 0
+                retryLevel[dst] = level + 1
+                minOf(p.sfRetryMaxMs, p.sfRetryMinMs shl minOf(level, 20))
+            }
+        port.after(delay) {
             retryScheduled.remove(dst)
             pending.held.sweep()
             if (pending.has(dst) && !discoveries.containsKey(dst)) {
@@ -352,6 +454,7 @@ class OnDemand(
 
     private fun flush(dst: Long) {
         val r = usable(dst)
+        if (r != null) retryLevel.remove(dst)
         for (p in pending.take(dst)) {
             if (r != null && p.hops < p.hopLimit && sendVia(r, p, -1)) continue
             pending.wait(p)
@@ -364,6 +467,8 @@ class OnDemand(
         packet: Packet,
     ) {
         val p = packet as? DataPacket ?: return
+        // A lost data ring copy is covered by the other copies and the route discovery that follows.
+        if (p.scope >= 0) return
         forward(DataPacket(p.id, p.srcTag, p.dstTag, p.expiresAt, p.payloadBytes, p.hops - 1, p.hopLimit), -1)
     }
 

@@ -31,6 +31,15 @@ enum class Protocol(
     B2("B2", true),
     B3("B3", true),
     GS("gossipsub", true),
+
+    /** Stage C: U4 with tuned store-and-forward. */
+    U4SF("U4sf", false),
+
+    /** Stage C: hybrid, route when known, else data ring flood, then route requests and holding. */
+    U6("U6", false),
+
+    /** Stage C: density-adaptive broadcast, B1 flooding at low local density, B3 Plumtree above. */
+    BA("B1B3", true),
 }
 
 /** One protocol instance multiplexed over the shared topology (isolated per-instance link queues). */
@@ -40,8 +49,20 @@ data class InstanceConfig(
     val minHoldMs: Long = 10_000,
     val skewMs: Long = 30_000,
     val rotation: Boolean = false,
+    /** Stage C relay preference (awake relays first). */
+    val pref: Boolean = false,
 ) {
-    val label get() = "${protocol.label}/life${lifetimeMs / 1000}/hold${minHoldMs / 1000}/skew${skewMs / 1000}/rot${if (rotation) 1 else 0}"
+    val label get() =
+        "${protocol.label}/life${lifetimeMs / 1000}/hold${minHoldMs / 1000}/skew${skewMs / 1000}/rot${if (rotation) 1 else 0}" +
+            if (pref) "/pref" else ""
+
+    fun params(base: RoutingParams): RoutingParams =
+        base.copy(
+            minHoldMs = minHoldMs,
+            relayPreference = pref,
+            sfTuned = protocol == Protocol.U4SF || protocol == Protocol.U6,
+            dataRingHops = if (protocol == Protocol.U6) base.u6RingHops else 0,
+        )
 }
 
 /** Offered traffic. Times in milliseconds of simulated time. */
@@ -113,6 +134,12 @@ internal interface SimAccess {
     fun y(i: Int): Double
 
     fun capacityByteSeconds(): Double
+
+    /** Android or foreground iOS (not woken only in short background windows). */
+    fun stable(i: Int): Boolean
+
+    /** Ground truth for the density estimator: active honest peers in radio range now. */
+    fun peersInRange(i: Int): Int
 }
 
 private class InFlight(
@@ -182,7 +209,7 @@ internal class RoutingLayer(
     private val trafficRng = Random(seed xor 0x7a11cL)
     private val broadcastRng = Random(seed xor 0xb0adL)
     private val skewUnit = DoubleArray(n) { Random(seed xor mix64(5_000L + it)).nextDouble() * 2 - 1 }
-    private val params = inst.map { setup.params.copy(minHoldMs = it.minHoldMs) }
+    private val params = inst.map { it.params(setup.params) }
     private val msgs = ArrayList<Msg>()
     private val delivered = Array(k) { LongArray(1024) { -1 } }
     private val bcastReached = Array(k) { HashMap<Int, BooleanArray>() }
@@ -297,6 +324,57 @@ internal class RoutingLayer(
         ) {
             if (measuring()) stats[x].drops[reason.ordinal]++
         }
+
+        override fun selfStable() = sim.stable(i)
+
+        override fun peerStable(peer: Int) = sim.stable(peer)
+
+        override fun peersHeard() = heardCount(i)
+    }
+
+    // ---- local density estimate (distinct advertisers heard recently) ----
+
+    private val heard = arrayOfNulls<HashMap<Int, Long>>(n)
+
+    fun onScan(
+        i: Int,
+        results: List<meshlink.routingsim.strategy.ScanResult>,
+    ) {
+        if (!needsDensity) return
+        val m = heard[i] ?: HashMap<Int, Long>().also { heard[i] = it }
+        val t = sim.now
+        for (r in results) m[r.peer] = t
+    }
+
+    private fun heardCount(i: Int): Int {
+        val m = heard[i] ?: return 0
+        val cutoff = sim.now - setup.params.densityWindowMs
+        m.entries.removeAll { it.value < cutoff }
+        return m.size
+    }
+
+    private val needsDensity = inst.any { it.protocol == Protocol.BA }
+
+    /** Estimator check: confusion of (true class, estimated class) with low < 10 ≤ medium < 50 ≤ high. */
+    private val densConfusion = LongArray(9)
+    private var densRatioSum = 0.0
+    private var densRatioN = 0L
+
+    private fun densClass(peers: Int) = if (peers < 10) 0 else if (peers < 50) 1 else 2
+
+    private fun sampleDensity() {
+        sim.at(sim.now + 5_000) { sampleDensity() }
+        if (!measuring()) return
+        for (i in 0 until n) {
+            if (!honest[i] || !sim.active(i)) continue
+            val truth = sim.peersInRange(i)
+            val est = heardCount(i)
+            densConfusion[3 * densClass(truth) + densClass(est)]++
+            if (truth > 0) {
+                densRatioSum += est.toDouble() / truth
+                densRatioN++
+            }
+        }
     }
 
     private fun create(
@@ -310,7 +388,8 @@ internal class RoutingLayer(
                 Protocol.B2 -> Flood(port, i, fanout = true)
                 Protocol.U2 -> ScopedSourceRoute(port, i)
                 Protocol.U3 -> DistanceVector(port, i)
-                Protocol.U4 -> OnDemand(port, i)
+                Protocol.U4, Protocol.U4SF, Protocol.U6 -> OnDemand(port, i)
+                Protocol.BA -> Plumtree(port, i, adaptive = true)
                 Protocol.B3 -> Plumtree(port, i)
                 Protocol.GS -> Gossipsub(port, i)
             }
@@ -332,11 +411,16 @@ internal class RoutingLayer(
                 for (x in 0 until k) {
                     if (!inst[x].rotation) continue
                     // The node's local clock reaches the epoch boundary at true time boundary − skew.
-                    sim.at(tc.epochBoundaryMs - skew(i, x)) { routing[x][i]?.onTagRotated() }
+                    var b = tc.epochBoundaryMs
+                    while (b - skew(i, x) <= sim.durationMs) {
+                        sim.at(b - skew(i, x)) { routing[x][i]?.onTagRotated() }
+                        b += tc.epochMs
+                    }
                 }
             }
         }
         sim.at(sim.warmupMs) { sampleState() }
+        if (needsDensity) sim.at(sim.warmupMs) { sampleDensity() }
     }
 
     fun onJoin(i: Int) {
@@ -668,6 +752,16 @@ internal class RoutingLayer(
             out["seenMean"] = s.seenSum / samples
             out["seenMax"] = s.seenMax
             out["heldMean"] = s.heldSum / samples
+            if (inst[x].protocol == Protocol.BA) {
+                val total = densConfusion.sum().toDouble()
+                out["densEstRatio"] = if (densRatioN == 0L) Double.NaN else densRatioSum / densRatioN
+                out["densClassAgree"] = if (total == 0.0) Double.NaN else (densConfusion[0] + densConfusion[4] + densConfusion[8]) / total
+                val names = listOf("low", "med", "high")
+                for (a in 0 until 3) for (b in 0 until 3) out["dens_${names[a]}_as_${names[b]}"] = densConfusion[3 * a + b] / maxOf(total, 1.0)
+                var sw = 0
+                for (i in 0 until n) sw += (routing[x][i] as? Plumtree)?.modeSwitches ?: 0
+                out["modeSwitchesPerNodeMin"] = sw / (honestCount * seconds / 60.0)
+            }
             if (DEBUG) System.err.println("${inst[x].label} packets ${s.packetCounts}")
             inst[x] to out
         }

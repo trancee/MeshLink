@@ -33,6 +33,9 @@ enum class InstanceSet(
 
     /** Topology only (bridge comparison). */
     NONE("none"),
+
+    /** Stage C candidates (probe; the stage C runner defines its own sets). */
+    C_PROBE("c-probe"),
 }
 
 fun instancesFor(set: InstanceSet): List<InstanceConfig> =
@@ -57,6 +60,13 @@ fun instancesFor(set: InstanceSet): List<InstanceConfig> =
             out
         }
         InstanceSet.NONE -> emptyList()
+        InstanceSet.C_PROBE ->
+            listOf(
+                InstanceConfig(Protocol.U1), InstanceConfig(Protocol.U4), InstanceConfig(Protocol.U4SF),
+                InstanceConfig(Protocol.U4SF, pref = true), InstanceConfig(Protocol.U6), InstanceConfig(Protocol.U6, pref = true),
+                InstanceConfig(Protocol.B1), InstanceConfig(Protocol.B3), InstanceConfig(Protocol.B3, pref = true),
+                InstanceConfig(Protocol.BA), InstanceConfig(Protocol.BA, pref = true),
+            )
     }
 
 val sweepLifetimes = listOf(30_000L, 300_000L, 3_600_000L, 86_400_000L)
@@ -232,6 +242,9 @@ fun stageBProbe(
         val strategy = StrategyKind.entries.first { it.label == p.getOrElse(7) { "N1+N2" } }
         val (r, wall) = runner.runOne(BSpec(sc, strategy, seed, set))
         val t = r.metrics
+        for ((cfg, m) in r.instances) {
+            if (cfg.protocol == Protocol.BA) println("  DENS ${cfg.label} " + m.entries.filter { it.key.startsWith("dens") || it.key.startsWith("mode") }.joinToString(" ") { "%s=%.3f".format(it.key, it.value) })
+        }
         if (System.getProperty("rsim.topo") != null) println("TOPO " + t.entries.filter { it.key != "events" }.joinToString(" ") { "${it.key}=${it.value}" })
         println(
             "${sc.key} ${strategy.label} seed $seed wall ${wall}ms events %.0f lcc %.3f diam %.1f occ %.2f merge1 %.1f mergeLcc %.1f".format(

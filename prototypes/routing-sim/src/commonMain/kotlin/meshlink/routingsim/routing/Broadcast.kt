@@ -50,11 +50,36 @@ class MessageCache(
  * B3 Plumtree (Leitão et al. 2007): eager push of the payload on tree links, lazy IHAVE on the
  * others. A duplicate turns its link lazy (PRUNE); a message announced by IHAVE but not received
  * within the timeout is pulled with GRAFT, which also makes that link eager. New links start eager.
+ *
+ * Stage C:
+ * - [adaptive] (B1/B3 adaptive): each node estimates its local density as the number of distinct
+ *   advertisers it heard in the last [RoutingParams.densityWindowMs]. It floods (B1: payload to every
+ *   link, never PRUNE) until the estimate reaches [RoutingParams.plumtreeAtHeard], then runs
+ *   Plumtree until it falls to [RoutingParams.floodAtHeard]. Both modes share one wire format, so
+ *   neighbors in different modes interoperate.
+ * - Relay preference: in Plumtree mode a node that sleeps delays its eager push, so its neighbors
+ *   receive first from awake peers and PRUNE the sleeping one (the tree forms over awake nodes).
  */
 class Plumtree(
     private val port: RoutingPort,
     private val self: Int,
+    private val adaptive: Boolean = false,
 ) : Routing {
+    private var flooding = adaptive
+
+    /** Current mode, re-evaluated with hysteresis from the local density estimate. */
+    private fun floodMode(): Boolean {
+        if (!adaptive) return false
+        val heard = port.peersHeard()
+        val before = flooding
+        if (flooding && heard >= port.params.plumtreeAtHeard) flooding = false
+        if (!flooding && heard <= port.params.floodAtHeard) flooding = true
+        if (flooding != before) modeSwitches++
+        return flooding
+    }
+
+    var modeSwitches = 0
+        private set
     private class Missing {
         val announcers = ArrayList<Int>(2)
         var armed = false
@@ -87,9 +112,26 @@ class Plumtree(
         from: Int,
     ) {
         val out = p.forwarded()
+        if (floodMode()) {
+            for (peer in port.linkedPeers()) if (peer != from) port.send(peer, out)
+            return
+        }
+        if (port.params.relayPreference && !port.selfStable() && from >= 0) {
+            port.after(port.params.sleepyRelayDelayMs) { pushTree(p.id, out, from) }
+            return
+        }
+        pushTree(p.id, out, from)
+    }
+
+    private fun pushTree(
+        id: Int,
+        out: DataPacket,
+        from: Int,
+    ) {
+        if (port.expired(out)) return
         for (peer in eager.toIntArray()) if (peer != from) port.send(peer, out)
         if (lazy.isEmpty()) return
-        val ihave = IdsControl(IdsControl.Kind.IHAVE, intArrayOf(p.id))
+        val ihave = IdsControl(IdsControl.Kind.IHAVE, intArrayOf(id))
         for (peer in lazy.toIntArray()) if (peer != from) port.send(peer, ihave)
     }
 
@@ -124,7 +166,7 @@ class Plumtree(
     ) {
         if (!seen.add(p)) {
             port.duplicate(p)
-            if (eager.remove(from)) {
+            if (!(adaptive && flooding) && eager.remove(from)) {
                 lazy.add(from)
                 port.send(from, IdsControl(IdsControl.Kind.PRUNE, IntArray(0)))
             }

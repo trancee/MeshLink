@@ -45,6 +45,29 @@ data class RoutingParams(
     val reverseRouteMs: Long = 6_000,
     /** U3/U4: a message that found no route waits this long before re-trying (if held). */
     val holdRetryMs: Long = 10_000,
+    // Stage C: tuned store-and-forward (U4sf, U6).
+    /** Tuned holding: exponential retry backoff, retry on new links, flush when the destination's own request passes. */
+    val sfTuned: Boolean = false,
+    val sfRetryMinMs: Long = 2_000,
+    val sfRetryMaxMs: Long = 30_000,
+    /** A new link re-tries discovery for each held destination at most this often. */
+    val sfLinkUpMinGapMs: Long = 5_000,
+    // Stage C: U6 hybrid. Without a route, the message itself is flooded this many hops (0 = off).
+    val dataRingHops: Int = 0,
+    /** Data ring radius that U6 instances use (copied into [dataRingHops]). */
+    val u6RingHops: Int = 3,
+    /** Per-hop allowance for the data ring timeout (data packets are larger than requests). */
+    val dataNodeTraversalMs: Long = 100,
+    // Stage C: relay preference. Nodes that sleep (background iOS) delay relaying so awake paths win.
+    val relayPreference: Boolean = false,
+    val sleepyRelayDelayMs: Long = 150,
+    // Stage C: density-adaptive broadcast (B1 flood below the threshold, B3 Plumtree above).
+    /** Window of the local density estimate (distinct advertisers heard). */
+    val densityWindowMs: Long = 30_000,
+    /** Switch to Plumtree when the estimate reaches this many peers ... */
+    val plumtreeAtHeard: Int = 12,
+    /** ... and back to flooding when it falls to this many (hysteresis). */
+    val floodAtHeard: Int = 8,
     // B2 fanout subsetting: forward to ceil(log2(links)) links, at least this many.
     val fanoutMin: Int = 2,
     // B3 Plumtree.
@@ -92,6 +115,8 @@ class DataPacket(
     /** U2 source route (tags of the remaining path, destination last), or null when flooded. */
     val route: LongArray? = null,
     val routeIndex: Int = 0,
+    /** U6 data ring: hops this flooded copy may still travel (−1 = not a ring copy). */
+    val scope: Int = -1,
 ) : Packet() {
     override val isControl get() = false
 
@@ -100,7 +125,8 @@ class DataPacket(
     fun forwarded(
         route: LongArray? = this.route,
         routeIndex: Int = this.routeIndex,
-    ) = DataPacket(id, srcTag, dstTag, expiresAt, payloadBytes, hops + 1, hopLimit, route, routeIndex)
+        scope: Int = this.scope,
+    ) = DataPacket(id, srcTag, dstTag, expiresAt, payloadBytes, hops + 1, hopLimit, route, routeIndex, scope)
 
     override fun sizeBytes(s: RoutingSizes): Int =
         s.headerBytes + s.messageIdBytes + s.tagBytes + (if (isBroadcast) 0 else s.tagBytes) + s.expiryBytes +
@@ -153,6 +179,15 @@ interface RoutingPort {
         packet: DataPacket,
         reason: DropReason,
     )
+
+    /** Whether this node stays awake (Android or foreground iOS) rather than waking in short windows. */
+    fun selfStable(): Boolean = true
+
+    /** The stable flag a linked peer announced at link set-up (1 bit). */
+    fun peerStable(peer: Int): Boolean = true
+
+    /** Distinct advertisers this node heard in its recent scans (local density estimate). */
+    fun peersHeard(): Int = 0
 }
 
 fun RoutingPort.expired(p: DataPacket) = now() > p.expiresAt
@@ -236,6 +271,18 @@ class HoldQueue(
     }
 
     fun has(dst: Long) = byDst.containsKey(dst)
+
+    fun peek(dst: Long): DataPacket? = byDst[dst]?.firstOrNull()
+
+    /** Removes the message [id] for [dst] (acknowledged by the destination). */
+    fun remove(
+        dst: Long,
+        id: Int,
+    ) {
+        val list = byDst[dst] ?: return
+        if (list.removeAll { it.id == id }) size = byDst.values.sumOf { it.size }
+        if (list.isEmpty()) byDst.remove(dst)
+    }
 
     fun destinations(): List<Long> = byDst.keys.toList()
 
@@ -412,6 +459,14 @@ class PendingRoutes(
     fun take(dst: Long): List<DataPacket> = waiting.take(dst) + held.take(dst)
 
     fun has(dst: Long) = waiting.has(dst) || held.has(dst)
+
+    fun remove(
+        dst: Long,
+        id: Int,
+    ) {
+        waiting.remove(dst, id)
+        held.remove(dst, id)
+    }
 
     fun sweep() {
         waiting.sweep()

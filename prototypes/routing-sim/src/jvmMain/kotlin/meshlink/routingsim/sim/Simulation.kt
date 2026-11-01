@@ -175,6 +175,17 @@ class Simulation(
             override fun y(i: Int) = radio.ys[i]
 
             override fun capacityByteSeconds() = capacityByteSeconds
+
+            override fun stable(i: Int) = !background[i]
+
+            override fun peersInRange(i: Int): Int {
+                var c = 0
+                for (k in 0 until radio.nbrCount[i]) {
+                    val j = radio.nbr[i][k]
+                    if (active(j) && !sybil[j]) c++
+                }
+                return c
+            }
         }
 
     private val layer: RoutingLayer? =
@@ -483,6 +494,7 @@ class Simulation(
             results.add(ScanResult(j, radio.nbrRssi[i][k] + gaussian() * cal.scanNoiseSigmaDb))
         }
         s.onScan(results)
+        layer?.onScan(i, results)
         s.onTick()
     }
 
