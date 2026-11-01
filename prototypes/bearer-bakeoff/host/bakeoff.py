@@ -166,10 +166,12 @@ def fetch(name, run_id, destination):
                       "--domain-identifier", bundle_id(device), "--source", f"Documents/results/{run_id}.jsonl",
                       "--destination", str(destination)], check=False, quiet=True, timeout=120)
         return result.returncode == 0 and destination.exists()
-    script = f"get Documents/results/{run_id}.jsonl {destination}\nquit\n"
+    # afcclient refuses to overwrite without -f (and still exits 0), so progress polls would freeze the first copy.
+    script = f"get -f Documents/results/{run_id}.jsonl {destination}\nquit\n"
     result = subprocess.run(["afcclient", "-u", device["udid"], "--container", bundle_id(device)], input=script,
                             capture_output=True, text=True, timeout=60)
-    return result.returncode == 0 and destination.exists() and destination.stat().st_size > 0
+    failed = "Error" in result.stdout or "Error" in result.stderr
+    return result.returncode == 0 and not failed and destination.exists() and destination.stat().st_size > 0
 
 
 def records(path):
