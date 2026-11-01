@@ -58,6 +58,8 @@ class IosPeripheral(private val sink: ResultSink) : PeripheralDriver {
     )
 
     private inner class ServerLink(val central: CBCentral) : GattChunkLink("gatt-peripheral:${central.identifier.UUIDString}") {
+        /** Set on the first write; the central always reads control before writing, so a used link is from an older connection. */
+        var used = false
         override fun maxValueSize(): Int = minOf(central.maximumUpdateValueLength.toInt(), 512)
         override suspend fun sendValue(value: ByteArray) = notify(central, value)
         override fun close(reason: String) = closeInbound(reason)
@@ -128,15 +130,21 @@ class IosPeripheral(private val sink: ResultSink) : PeripheralDriver {
 
         /**
          * iOS keeps the CCCD state of a reconnecting unbonded central until its old link times out, so no new
-         * didSubscribe arrives; the control read that starts every connection reopens the GATT link instead.
+         * didSubscribe arrives (and the old link may still look open); the control read that starts every
+         * connection reopens the GATT link instead.
          */
         private fun reopenIfStale(central: CBCentral) {
             val address = central.identifier.UUIDString
             val existing = links[address]
-            if (existing != null && !existing.isClosed) return
-            listener.onEvent("reopened_on_control_read", address, if (existing == null) "no_link" else "closed_link")
+            if (existing != null && !existing.isClosed && !existing.used) return
+            val why = when {
+                existing == null -> "no_link"
+                existing.isClosed -> "closed_link"
+                else -> "used_link"
+            }
+            listener.onEvent("reopened_on_control_read", address, why)
             val link = ServerLink(central)
-            links[address] = link
+            links.put(address, link)?.close("replaced on control read")
             listener.onGattLink(address, link)
         }
 
@@ -148,6 +156,7 @@ class IosPeripheral(private val sink: ResultSink) : PeripheralDriver {
                     listener.onEvent("write_without_link", address, "")
                     continue
                 }
+                link.used = true
                 link.onValueReceived(request.value?.toByteArray() ?: ByteArray(0))
             }
         }

@@ -139,7 +139,21 @@ def stop(name):
         if process and process.poll() is None:
             process.kill()
             process.wait(timeout=10)
-    # devicectl: the next launch uses --terminate-existing; peripherals also stop after `duration`.
+    elif device["tool"] == "devicectl":
+        listing = RESULTS / f".processes-{name}.json"
+        RESULTS.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["xcrun", "devicectl", "device", "info", "processes", "--device", device["udid"],
+                        "--json-output", str(listing), "-q"], capture_output=True, timeout=60)
+        try:
+            processes = json.loads(listing.read_text())["result"]["runningProcesses"]
+        except (OSError, KeyError, json.JSONDecodeError):
+            processes = []
+        finally:
+            listing.unlink(missing_ok=True)
+        for process in processes:
+            if process.get("executable", "").endswith("/BakeoffHost.app/BakeoffHost"):
+                subprocess.run(["xcrun", "devicectl", "device", "process", "terminate", "--device", device["udid"],
+                                "--pid", str(process["processIdentifier"]), "-q"], capture_output=True, timeout=60)
 
 
 # ---------------------------------------------------------------- results
@@ -201,11 +215,24 @@ def summarize(path):
 
 # ---------------------------------------------------------------- pair run
 
+def write_run_meta(out_dir, run_id, commit, roles, args, extra_args):
+    """Host-side evidence metadata: which devices (registry name, serial/UDID), args, commit, date, launch tools."""
+    values = dict(a.split("=", 1) for a in args if "=" in a)
+    meta = {
+        "run_id": run_id, "commit": commit, "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "phy": values.get("phy", "default"), "args": list(args), "peripheral_args": list(extra_args),
+        "devices": {role: {"name": name, **{k: v for k, v in DEVICES[name].items() if k != "grant_attach"}} for role, name in roles.items()},
+        "xcode": subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True).stdout.split("\n")[0],
+    }
+    (out_dir / "run.json").write_text(json.dumps(meta, indent=2) + "\n")
+
+
 def pair_run(central, peripheral, run_id, central_args, peripheral_args, timeout_s, settle_s):
     commit = git_commit()
     base = [f"run={run_id}", f"commit={commit}"]
     out_dir = RESULTS / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    write_run_meta(out_dir, run_id, commit, {"central": central, "peripheral": peripheral}, central_args, peripheral_args)
     stop(central)
     stop(peripheral)
     launch(peripheral, ["role=peripheral", *base, f"duration={timeout_s + 60}", *peripheral_args])
@@ -258,6 +285,8 @@ def grant_ios(name):
 def solo_run(name, run_id, args, timeout_s):
     commit = git_commit()
     out_dir = RESULTS / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_run_meta(out_dir, run_id, commit, {"device": name}, args, [])
     stop(name)
     launch(name, [f"run={run_id}", f"commit={commit}", *args])
     destination = out_dir / f"{name}.jsonl"
@@ -288,6 +317,8 @@ def main():
     s.add_argument("--run", required=True)
     s.add_argument("--timeout", type=int, default=900)
     s.add_argument("args", nargs="+")
+    st = sub.add_parser("stop", help="stop the lab app on devices (default: all)")
+    st.add_argument("devices", nargs="*", choices=sorted(DEVICES))
     g = sub.add_parser("grant-ios", help="accept the iOS Bluetooth permission alert via the XCUITest runner")
     g.add_argument("devices", nargs="+", choices=[n for n, d in DEVICES.items() if d["platform"] == "ios"])
     f = sub.add_parser("fetch")
@@ -305,6 +336,12 @@ def main():
             sys.exit(0 if ok else 2)
         elif args.command == "solo":
             sys.exit(0 if solo_run(args.device, args.run, args.args, args.timeout) else 2)
+        elif args.command == "stop":
+            for name in args.devices or sorted(DEVICES):
+                try:
+                    stop(name)
+                except Exception as error:  # noqa: BLE001 - best effort, offline devices are reported
+                    log(f"stop {name}: {error}")
         elif args.command == "grant-ios":
             results = {name: grant_ios(name) for name in args.devices}
             sys.exit(0 if all(results.values()) else 2)
