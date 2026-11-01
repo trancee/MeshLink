@@ -62,7 +62,7 @@ class MainActivity : Activity() {
         }
         val runner = BakeoffRunner(
             config, info, sink,
-            AndroidCentral(this, adapter, sink),
+            AndroidCentral(this, adapter, sink, CentralTuning.from(config.raw)),
             AndroidPeripheral(this, manager, adapter, sink),
         ) { text -> runOnUiThread { setStatus(text) } }
         setStatus("run ${config.runId} role=${config.role}")

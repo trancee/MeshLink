@@ -41,7 +41,33 @@ import kotlin.coroutines.resume
 private const val MIN_SCAN_START_INTERVAL_MS = 6_500L
 
 @SuppressLint("MissingPermission")
-class AndroidCentral(private val context: Context, private val adapter: BluetoothAdapter, private val sink: ResultSink) : CentralDriver {
+/** Opt-in mitigation knobs for the 147/133 and legacy write-stall investigations (all off by default). */
+class CentralTuning(
+    val connectDelayMs: Long = 0,
+    val connectRetries: Int = 0,
+    val writeAckEvery: Int = 0,
+    val paceMs: Long = 0,
+    val requestMtu: Int = 517,
+    val maxChunk: Int = 512,
+) {
+    companion object {
+        fun from(raw: Map<String, String>): CentralTuning = CentralTuning(
+            connectDelayMs = raw["connect_delay_ms"]?.toLong() ?: 0,
+            connectRetries = raw["connect_retries"]?.toInt() ?: 0,
+            writeAckEvery = raw["write_ack_every"]?.toInt() ?: 0,
+            paceMs = raw["pace_ms"]?.toLong() ?: 0,
+            requestMtu = raw["req_mtu"]?.toInt() ?: 517,
+            maxChunk = raw["max_chunk"]?.toInt() ?: 512,
+        )
+    }
+}
+
+class AndroidCentral(
+    private val context: Context,
+    private val adapter: BluetoothAdapter,
+    private val sink: ResultSink,
+    private val tuning: CentralTuning = CentralTuning(),
+) : CentralDriver {
     private var lastScanStart = 0L
 
     override suspend fun connect(request: ConnectRequest, clock: PhaseClock): CentralConnection {
@@ -52,14 +78,23 @@ class AndroidCentral(private val context: Context, private val adapter: Bluetoot
         val device = withTimeoutOrNull(request.scanTimeoutMs) { scan(request.excludedAddresses) }
             ?: throw IllegalStateException("scan timeout")
         clock.mark("discovered")
-        val connection = AndroidCentralConnection(context, adapter, device, sink)
-        try {
-            connection.open(request.phy, clock)
-        } catch (failure: Throwable) {
-            connection.disconnect()
-            throw failure
+        if (tuning.connectDelayMs > 0) delay(tuning.connectDelayMs)
+        var retry = 0
+        while (true) {
+            val connection = AndroidCentralConnection(context, adapter, device, sink, tuning)
+            try {
+                connection.open(request.phy, clock)
+                return connection
+            } catch (failure: Throwable) {
+                connection.disconnect()
+                val retryable = failure is IllegalStateException && failure.message?.startsWith("disconnected status=") == true
+                if (!retryable || retry >= tuning.connectRetries) throw failure
+                retry++
+                sink.log("connect retry $retry after ${failure.message}")
+                clock.mark("retry${retry}_${failure.message?.substringAfter("status=")}")
+                delay(500L * retry)
+            }
         }
-        return connection
     }
 
     private suspend fun scan(excluded: Set<String>): BluetoothDevice = suspendCancellableCoroutine { continuation ->
@@ -88,8 +123,11 @@ class AndroidCentralConnection(
     private val adapter: BluetoothAdapter,
     private val device: BluetoothDevice,
     private val sink: ResultSink,
+    private val tuning: CentralTuning,
 ) : CentralConnection {
     private val opMutex = Mutex()
+    private var writesCompleted = 0
+    private var busyRetriesTotal = 0
     private var pending: CompletableDeferred<Any?>? = null
     private val connected = CompletableDeferred<Unit>()
     private val disconnected = CompletableDeferred<String>()
@@ -106,7 +144,7 @@ class AndroidCentralConnection(
     override val isConnected: Boolean get() = connected.isCompleted && !disconnected.isCompleted
 
     override val gattLink: GattChunkLink = object : GattChunkLink("gatt-central:${device.address}") {
-        override fun maxValueSize(): Int = minOf(mtu - 3, 512)
+        override fun maxValueSize(): Int = minOf(mtu - 3, 512, tuning.maxChunk)
         override suspend fun sendValue(value: ByteArray) = writeData(value)
         override fun close(reason: String) = closeInbound(reason)
     }
@@ -204,7 +242,7 @@ class AndroidCentralConnection(
         operation<Unit>("discover") { it.discoverServices() }
         service = gatt?.getService(UUID.fromString(BakeoffUuids.SERVICE)) ?: throw IllegalStateException("service missing")
         clock.mark("services")
-        runCatching { operation<Int>("mtu", 5_000) { it.requestMtu(517) } }
+        runCatching { operation<Int>("mtu", 5_000) { it.requestMtu(tuning.requestMtu) } }
         clock.mark("mtu")
         gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
         if (phy != Phy.DEFAULT) {
@@ -235,18 +273,30 @@ class AndroidCentralConnection(
         val characteristic = service.getCharacteristic(UUID.fromString(BakeoffUuids.DATA_WRITE))
         var busyRetries = 0
         while (true) {
+            val writeType = if (tuning.writeAckEvery > 0 && (writesCompleted + 1) % tuning.writeAckEvery == 0) {
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            } else {
+                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            }
             val started = runCatching {
                 operation<Unit>("write", 5_000) { gatt ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeCharacteristic(characteristic, value, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) == BluetoothStatusCodes.SUCCESS
+                        gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
                     } else {
-                        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                        characteristic.writeType = writeType
                         characteristic.value = value
                         gatt.writeCharacteristic(characteristic)
                     }
                 }
             }
-            val failure = started.exceptionOrNull() ?: return
+            val failure = started.exceptionOrNull()
+            if (failure == null) {
+                writesCompleted++
+                if (tuning.paceMs > 0) delay(tuning.paceMs)
+                if (writesCompleted % 64 == 0) sink.log("central writes completed=$writesCompleted busy_retries_total=$busyRetriesTotal")
+                return
+            }
+            busyRetriesTotal++
             if (failure is IllegalStateException && failure.message == "write not started" && busyRetries++ < 200) {
                 delay(5)
                 continue

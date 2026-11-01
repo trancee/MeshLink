@@ -25,6 +25,8 @@ class BakeoffConfig(
     val scanTimeoutSeconds: Int,
     val secureL2capServer: Boolean,
     val roundSeconds: Int,
+    /** All raw `key=value` tokens, for platform-specific knobs (e.g. Android mitigation experiments). */
+    val raw: Map<String, String> = emptyMap(),
 ) {
     companion object {
         fun parse(tokens: List<String>): BakeoffConfig {
@@ -48,6 +50,7 @@ class BakeoffConfig(
                 scanTimeoutSeconds = values["scan_timeout"]?.toInt() ?: 20,
                 secureL2capServer = values["secure_server"] == "1",
                 roundSeconds = values["round"]?.toInt() ?: 20,
+                raw = values,
             )
         }
     }

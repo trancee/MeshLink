@@ -249,6 +249,64 @@ def pair_run(central, peripheral, run_id, central_args, peripheral_args, timeout
     return finished
 
 
+# ---------------------------------------------------------------- multi-device runs (step 4)
+
+def group_run(run_id, servers, server_args, clients, client_args, timeout_s, stagger_s, settle_s=8):
+    """Launch `servers` first, then `clients` staggered; wait for every client's `done`, then fetch servers.
+
+    servers/clients are lists of (device, role, file_suffix). All devices share the run id, so runTag matches.
+    """
+    commit = git_commit()
+    base = [f"run={run_id}", f"commit={commit}"]
+    out_dir = RESULTS / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    roles = {f"{suffix}:{name}": name for name, _, suffix in servers + clients}
+    write_run_meta(out_dir, run_id, commit, roles, client_args, server_args)
+    for name, _, _ in servers + clients:
+        stop(name)
+    for name, role, _ in servers:
+        launch(name, [f"role={role}", *base, *server_args])
+    if servers:
+        time.sleep(settle_s)
+    for name, role, _ in clients:
+        launch(name, [f"role={role}", *base, *client_args])
+        time.sleep(stagger_s)
+    deadline = time.time() + timeout_s
+    finished = {}
+    for name, _, suffix in clients:
+        finished[name] = wait_done(name, run_id, out_dir / f"{name}-{suffix}.jsonl", max(30, deadline - time.time()))
+    for name, _, suffix in servers:
+        fetch(name, run_id, out_dir / f"{name}-{suffix}.jsonl")
+    for name, _, _ in servers + clients:
+        try:
+            stop(name)
+        except Exception as error:  # noqa: BLE001 - best effort
+            log(f"stop {name}: {error}")
+    log(f"run {run_id}: finished={finished}; results in {out_dir}")
+    for name, _, suffix in clients:
+        print(f"-- {name}-{suffix}")
+        summarize(out_dir / f"{name}-{suffix}.jsonl")
+    return all(finished.values())
+
+
+def hub_run(hub, peers, run_id, args, timeout_s):
+    """Central-role max concurrency: `hub` dials every advertising peer and holds the links."""
+    return group_run(run_id, [(p, "peripheral", "peripheral") for p in peers], [f"duration={timeout_s + 120}"],
+                     [(hub, "hub-central", "hub")], [*args, f"duration={timeout_s - 120}"], timeout_s, 0)
+
+
+def phub_run(hub, peers, run_id, args, timeout_s, stagger_s=10):
+    """Peripheral-role max concurrency: `hub` advertises; every peer connects as a holding central (echo every 2 s)."""
+    hold = max(60, timeout_s - 60 - stagger_s * len(peers))
+    return group_run(run_id, [(hub, "peripheral", "peripheral")], [f"duration={timeout_s + 120}"],
+                     [(p, "hold", "hold") for p in peers], [*args, f"duration={hold}"], timeout_s, stagger_s)
+
+
+def dual_run(a, b, run_id, args, timeout_s):
+    """Crossed-connection probe: both nodes advertise and dial each other at wall-clock-aligned round starts."""
+    return group_run(run_id, [], [], [(a, "dual", "dual"), (b, "dual", "dual")], args, timeout_s, 0)
+
+
 def grant_ios(name):
     """Runs the XCUITest runner that accepts the Bluetooth alert by exact label; logs every label it saw."""
     device = DEVICES[name]
@@ -317,6 +375,24 @@ def main():
     s.add_argument("--run", required=True)
     s.add_argument("--timeout", type=int, default=900)
     s.add_argument("args", nargs="+")
+    h = sub.add_parser("hub", help="central-role max concurrency: --hub dials all --peers")
+    h.add_argument("--hub", required=True, choices=sorted(DEVICES))
+    h.add_argument("--peers", nargs="+", required=True, choices=sorted(DEVICES))
+    h.add_argument("--run", required=True)
+    h.add_argument("--timeout", type=int, default=900)
+    h.add_argument("args", nargs="*")
+    ph = sub.add_parser("phub", help="peripheral-role max concurrency: all --peers connect to --hub and hold")
+    ph.add_argument("--hub", required=True, choices=sorted(DEVICES))
+    ph.add_argument("--peers", nargs="+", required=True, choices=sorted(DEVICES))
+    ph.add_argument("--run", required=True)
+    ph.add_argument("--timeout", type=int, default=600)
+    ph.add_argument("args", nargs="*")
+    du = sub.add_parser("dual", help="crossed-connection rounds between two devices")
+    du.add_argument("a", choices=sorted(DEVICES))
+    du.add_argument("b", choices=sorted(DEVICES))
+    du.add_argument("--run", required=True)
+    du.add_argument("--timeout", type=int, default=900)
+    du.add_argument("args", nargs="*")
     st = sub.add_parser("stop", help="stop the lab app on devices (default: all)")
     st.add_argument("devices", nargs="*", choices=sorted(DEVICES))
     g = sub.add_parser("grant-ios", help="accept the iOS Bluetooth permission alert via the XCUITest runner")
@@ -336,6 +412,12 @@ def main():
             sys.exit(0 if ok else 2)
         elif args.command == "solo":
             sys.exit(0 if solo_run(args.device, args.run, args.args, args.timeout) else 2)
+        elif args.command == "hub":
+            sys.exit(0 if hub_run(args.hub, args.peers, args.run, args.args, args.timeout) else 2)
+        elif args.command == "phub":
+            sys.exit(0 if phub_run(args.hub, args.peers, args.run, args.args, args.timeout) else 2)
+        elif args.command == "dual":
+            sys.exit(0 if dual_run(args.a, args.b, args.run, args.args, args.timeout) else 2)
         elif args.command == "stop":
             for name in args.devices or sorted(DEVICES):
                 try:

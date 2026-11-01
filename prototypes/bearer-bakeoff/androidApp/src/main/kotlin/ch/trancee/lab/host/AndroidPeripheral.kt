@@ -176,14 +176,22 @@ class AndroidPeripheral(
     override suspend fun start(identity: PeerIdentity, secureL2cap: Boolean, listener: PeripheralListener): Int? {
         this.listener = listener
         control = identity.encodeControl()
-        val gattServer = manager.openGattServer(context, callback) ?: throw IllegalStateException("openGattServer null")
+        // API <= 28 gives up after 10 s waiting for onServerRegistered; a congested stack (seen on XCover 4) answers later.
+        var gattServer = manager.openGattServer(context, callback)
+        var openRetries = 0
+        while (gattServer == null && openRetries++ < 3) {
+            sink.log("openGattServer null, retry $openRetries")
+            delay(5_000)
+            gattServer = manager.openGattServer(context, callback)
+        }
+        if (gattServer == null) throw IllegalStateException("openGattServer null after $openRetries retries")
         server = gattServer
         val psm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startL2capServer(secureL2cap) else null
         psmValue = byteArrayOf(((psm ?: 0) shr 8).toByte(), (psm ?: 0).toByte())
         val service = BluetoothGattService(UUID.fromString(BakeoffUuids.SERVICE), BluetoothGattService.SERVICE_TYPE_PRIMARY)
         service.addCharacteristic(BluetoothGattCharacteristic(UUID.fromString(BakeoffUuids.CONTROL), BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ))
         service.addCharacteristic(notifyCharacteristic)
-        service.addCharacteristic(BluetoothGattCharacteristic(UUID.fromString(BakeoffUuids.DATA_WRITE), BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE, BluetoothGattCharacteristic.PERMISSION_WRITE))
+        service.addCharacteristic(BluetoothGattCharacteristic(UUID.fromString(BakeoffUuids.DATA_WRITE), BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE or BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE))
         service.addCharacteristic(BluetoothGattCharacteristic(UUID.fromString(BakeoffUuids.PSM), BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ))
         gattServer.addService(service)
         val status = withTimeout(5_000) { serviceAdded.await() }
