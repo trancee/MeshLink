@@ -174,7 +174,8 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
   - CoC throughput was 1.0–1.3× GATT throughput, which is below the 1.5× criterion.
   - With an Android central, the CoC echo RTT was about 13 ms lower (about 31 vs 44 ms on Nothing, S10e and Mi 8). On Pixel 6 there was no difference. With an iPhone central, both were 60 ms.
 - **Android 2M vs 1M** (Pixel 6 ↔ S10e and Pixel 6 ↔ Nothing, n=5):
-  - 2M gave 1.4–1.8× GATT and CoC throughput, except Pixel 6 → Nothing writes (+8 %).
+  - 2M gave 1.4–1.9× GATT and CoC throughput on Pixel 6 ↔ S10e and Nothing → Pixel 6.
+  - Pixel 6 → Nothing gained only 1.08–1.42×. In its 1M run the link reported `tx=2M`, so the 1M request was not fully honoured there.
   - 2M showed no extra connect failures.
 - **Crossed connections and the keep-one rule** (n=20 rounds per pair):
 
