@@ -40,7 +40,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 
 - T1 Feature/fix R intended-behavior red->smallest complete implementation->green->refactor green.
 - T2 Default CI R deterministic+isolated+repeatable+self-validating; X workstation/retained-process/hardware/manual-inspection dependency.
-- T3 Maintained production R 100% line+branch CI coverage; generated/vendor/example/benchmark/internal-tool exclusions O only CI-named; all tests R pass.
+- T3 Maintained production R 100% line+branch CI coverage on every target with a CI coverage tool; generated/vendor/example/benchmark/internal-tool exclusions O only CI-named; target without CI coverage tool => code R thin platform adapter (logic R measured shared code) + CI-named file list + each function exercised by on-target tests; all tests R pass.
 - T4 Coverage != behavior proof; R observable behavior/boundaries/invariants/transitions/precedence/real-error tests.
 - T5 One primary Act/test; visually distinct Arrange/Act/Assert; unrelated Acts=>split.
 - T6 Assertions D failure context; structural equality only for tested structure.
@@ -126,6 +126,7 @@ Pre-merge, all applicable:
 - V5 Ownership D designated review for Constitution/security/release/CI/protocol/schema/persistence paths.
 - V6 Lower convention R narrowest relevant doc; X duplication here.
 
-`version=3.1.0; ratified=2026-04-30; amended=2026-10-31`
+`version=4.0.0; ratified=2026-04-30; amended=2026-11-01`
 Amendment: rationale=AI context compression; impact=wording only, IDs/obligations unchanged; migration=none; approval=user "optimize all the files for AI usage...without losing context".
 Amendment 3.1.0: rationale=MeshLink fork of cairn 3.0.1 (hardware-claim evidence, protocol spec authority, AI-consumable docs); impact=T9 expanded, C10+O8 added, no removals; migration=none (greenfield: no claims/protocol/docs yet); approval=user, ticket "Which constitution amendments should MeshLink adopt?" 2026-10-31.
+Amendment 4.0.0: rationale=no CI tool measures Kotlin/Native coverage (Kover lacks native targets, kotlinx-kover#293; Kotlin 2.4.21 rejects `-Xcoverage`), so 100% T3 is unattainable for iosMain; impact=T3 100% line+branch narrowed to targets with a CI coverage tool, unmeasurable targets limited to thin CI-named adapters with on-target tests (obligation relaxed => MAJOR per V3); migration=none (greenfield: no code yet); approval=user, ticket "What is the toolchain and dependency baseline?" 2026-11-01 (ADR 0005).

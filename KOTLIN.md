@@ -1,8 +1,8 @@
 # Kotlin
 
-Scope=Kotlin tasks; R/X/D/O from Constitution. Ported from cairn `guidance/kotlin.md` (2026-10-05 snapshot); tool versions re-verified by the toolchain-baseline ticket before adoption.
+Scope=Kotlin tasks; R/X/D/O from Constitution. Ported from cairn `guidance/kotlin.md` (2026-10-05 snapshot). Adopted pins: [ADR 0005](docs/adr/0005-toolchain-and-dependency-baseline.md) + [dependency register](docs/reference/dependencies.md) (verified 2026-11-01); those outrank versions below.
 
-MeshLink constraints: Xcode 16.4 is the only Apple toolchain (hard constraint; iOS 18.5 SDK). Choose the newest Kotlin that builds and links with it; fallback Kotlin `2.2.20` (officially tested with Xcode 16.4). iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
+MeshLink constraints: Xcode 16.4 is the only Apple toolchain (hard constraint; iOS 18.5 SDK). Kotlin `2.4.21` proven with it (ADR 0005); fallback `2.2.20` unneeded. Gradle/AGP minor bump only once KGP's compatibility table lists it; patches allowed after smoke gates. iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
 Select latest stable supported by complete Kotlin/Gradle/AGP/JDK/platform tuple; verify official release + compatibility before adoption/upgrade. Resolution != support; suffixless version != stable component. No stable compatible tool => report gap + explicit prerelease acceptance; holds R blocker + removal condition.
 
 ## Build
@@ -22,7 +22,7 @@ Select latest stable supported by complete Kotlin/Gradle/AGP/JDK/platform tuple;
 
 ## Tool reference
 
-Snapshot=2026-10-05; review aid, not pins; re-check before adoption. Tool role below replaces a separate selection map.
+Snapshot=2026-10-05, refreshed 2026-11-01 where noted; review aid, not pins (pins=ADR 0005); re-check before adoption. Tool role below replaces a separate selection map.
 
 ### Dokka: API docs (Q1/E7/O1)
 
@@ -38,7 +38,7 @@ Snapshot=2026-10-05; review aid, not pins; re-check before adoption. Tool role b
 ### Kover: coverage (Q1/T3/E7)
 
 - [`org.jetbrains.kotlinx.kover`](https://github.com/Kotlin/kotlinx-kover): `0.9.11`, Beta; explicit pre-stable acceptance.
-- Measures JVM/Android host-unit bytecode only; not JS/Native/Android instrumentation. JVM commonMain execution does not measure other-platform actuals; X KMP-wide percentage claim.
+- Measures JVM/Android host-unit bytecode only; not JS/Native/Android instrumentation. No CI Kotlin/Native coverage tool exists (kotlinx-kover#293; `-Xcoverage` rejected by 2.4.21) => Constitution T3 (4.0.0) thin-adapter rule for iosMain. JVM commonMain execution does not measure other-platform actuals; X KMP-wide percentage claim.
 - Profile R measured scope + unmet requirements + `{modules,source_sets,test_tasks,exclusions,engine,thresholds,unmeasured_targets}`. No universal Kotlin coverage tool prescribed.
 - Tasks: `koverHtmlReport`, `koverXmlReport`, `koverBinaryReport`, `koverLog`, `koverVerify`.
 - Engine=IntelliJ default|JaCoCo; same across merged dependencies, X mixed.
@@ -47,7 +47,7 @@ Snapshot=2026-10-05; review aid, not pins; re-check before adoption. Tool role b
 
 ### Spotless: formatting/lint (Q1/E1/E7)
 
-- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.10.3`; verify selected Gradle/JDK + formatter compatibility.
+- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.10.4` (2026-11-01) + ktlint `1.8.0`; verify selected Gradle/JDK + formatter compatibility.
 - `spotlessCheck`=read-only CI; `spotlessApply`=developer mutation. One pinned `ktfmt`|`ktlint`; formatting != static analysis.
 - Rollout=isolated repo-wide format commit|`ratchetFrom origin/main`; X `HEAD`.
 - Apply twice => second zero diff; check passes. Exclude generated/build/vendor/byte-contractual fixtures.
@@ -72,7 +72,7 @@ Snapshot=2026-10-05; review aid, not pins; re-check before adoption. Tool role b
 
 ### SKIE: Apple-framework Swift interop (C2/C9/O3)
 
-- Optional [`co.touchlab.skie`](https://skie.touchlab.co/intro); only framework-producing KMP modules with live Kotlin compatibility. Snapshot support ends Kotlin `2.4.10`; X assume newer support. Re-check intro/changelog on version/config change.
+- Optional [`co.touchlab.skie`](https://skie.touchlab.co/intro); only framework-producing KMP modules with live Kotlin compatibility. `0.10.16` (tag 2026-10-27) supports Kotlin `2.4.21` (touchlab/SKIE#211); intro page still says `2.4.10` (stale) => verify via release/tag. X assume newer support. Disable analytics upload (`skie { analytics { disableUpload.set(true) } }`). Re-check intro/changelog on version/config change.
 - Proof host=macOS+Xcode; compile actual Swift consumer + test enum/sealed switches, suspend/Flow cancellation, exported dependencies.
 - Global Gradle defaults; annotations via `co.touchlab.skie:configuration-annotations:<VERSION>`.
 - Existing migration: disable broad features -> enable narrow packages/declarations; X large-consumer all-at-once.
@@ -90,7 +90,7 @@ Snapshot=2026-10-05; review aid, not pins; re-check before adoption. Tool role b
 ### Detekt: static analysis (Q1/E7)
 
 - [Compatibility](https://detekt.dev/docs/introduction/compatibility): stable `1.23.8` (`io.gitlab.arturbosch.detekt`, built Kotlin `2.0.21`); Alpha `2.0.0-alpha.6` (`dev.detekt`, built Kotlin `2.4.10`).
-- Optional; select supported tuple, X silently exchange stability for newer compiler support.
+- Optional; select supported tuple, X silently exchange stability for newer compiler support. MeshLink: `2.0.0-alpha.6` under E2 hold (ADR 0005). KMP plain `detekt` task=NO-SOURCE => wire per-source-set tasks into `check`; type resolution reports false expect/actual errors.
 - Project-owned rules/source scopes/type-resolution tasks + reviewed existing-debt baseline; X baseline hiding new findings.
 
 ### kotlinx-benchmark: performance evidence (P2/T11)
