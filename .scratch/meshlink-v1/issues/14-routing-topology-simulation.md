@@ -121,3 +121,27 @@ The user pointed out that density changes over time. A phone walking to a festiv
   - Metrics: delivery and p95 latency during transitions and across the boundary between modes, time to switch, switches per hour, busiest-phone load, and control traffic.
   - Budget: about 4–5 h.
 - **Q7:** "Local density" is added to the glossary. The class boundaries stay provisional until stage C confirms or revises them.
+
+## Stage C verdict (accepted 2026-11-01)
+
+All numbers are simulated. The stage C report is in the session files (`routing-sim/stage-c/`); the prototype is on the `prototype/routing-sim` branch (`9637738`).
+
+- **Q1:** a short stage D closes the gaps before the ADR:
+  - keep routes alive during conversations (target unicast p95 ≤1 s at medium and high density);
+  - a phone with fewer than 5 peers in range always floods its own messages;
+  - broadcast in the large half-iOS mesh at medium density (98.86% vs 99%).
+
+  What stays unfixed becomes a documented limitation.
+- **Q2:** the stage C configuration is accepted, provisional until the bearer bake-off calibration:
+  - 10 s estimator window;
+  - thresholds up at 12.5 / 62.5 and down at 8 / 40, with a 60 s dwell;
+  - d = 6 / 5 / 5;
+  - low: flood; medium and high: U6 + Plumtree;
+  - scan every 2 / 4 / 6 s;
+  - bridge limit one per 60 s;
+  - minimum lifetime 120 s;
+  - store-and-forward: 100 messages, 10 s minimum hold.
+- **Q3:** the iOS-aware relay preference is dropped from v1 (no delivery gain, +29 ms first-message p95, +4% load).
+- **Q4:** v1 offers a low-latency preset that pins the low class (flood everywhere).
+- **Q5:** radio power and real iOS background behavior are open questions to measure on devices.
+- **Q6:** the routing ADR is written after stage D, then this ticket is resolved.

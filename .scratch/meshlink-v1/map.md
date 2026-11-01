@@ -43,6 +43,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Message size cap.
 - Resisting fake identities (Sybil) in open and unsecured meshes: in simulation, 30% fake identities break the mesh apart under any neighbor selection strategy. Possible defenses: identity cost or peer scoring (routing simulation stage A).
 - Swift interop cost before v1: per-message `Data` conversion and Flow overhead, and Swift-task cancellation reaching Kotlin, benchmarked on the iPhone SE (2016) (ADR 0007).
+- Routing power and iOS background behavior on real devices: the simulation's power index and iOS wake-window model are assumptions; measure before final v1 defaults (routing simulation stage C).
 - Power policy across presets and density.
 - Diagnostics and troubleshooting surface: the code catalog (which codes, which fields) and field tooling. How codes are documented is decided (ADR 0006).
 - Testing architecture (virtual multi-node transport, Robolectric, device-lab automation, fuzzing).
