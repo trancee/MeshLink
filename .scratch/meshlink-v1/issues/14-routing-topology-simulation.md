@@ -72,3 +72,32 @@ These results are simulated, not measured on devices. The evidence is on throwaw
 - **Q5, stage B:** routing options U1–U4 and broadcast options B1–B3, plus gossipsub, all on N1+N2 topology.
   - Grid: N ∈ {50, 200, 1000} × mobility {static, walking, group, corridor} × both platform mixes × d ∈ {5, 6} × 10 seeds.
   - Pilot first. If the run is over 3 h, cut the N=1000 mobility cells and report exactly what was cut.
+
+## Stage B verdict (accepted 2026-11-01)
+
+These results are simulated, not measured on devices. Evidence: throwaway branch `prototype/routing-sim` (`4427579`, `35a8851`); the HTML report is in the session files. Stage B ran 1,500 runs with 0 failures in 2 h 53 min at 4 threads.
+
+- **Q1, low-density target:** no protocol reaches 99% delivery in every low-density cell, not even flooding (U1: 30 of 36 cells, mean 99.55%). The misses come from corridor cells, half-iOS cells and N=1000 static, so the limit is physical reach and iOS wake, not protocol choice.
+  - **Amended criterion:** at low density, delivery must come within 0.5 pp of flooding in the same cell, and 99% still applies where flooding reaches it.
+  - Medium density (99%) and high density (95%) are unchanged.
+- **Q2, unicast:**
+  - U1 is best at low and medium density (busiest-phone load at medium density: U1 3.2 KB/s, U3 4.0 KB/s).
+  - U4 is best at high density (0.38 KB/s on the busiest phone, about 10× less than flooding; p95 2.2 s). Its p95 at low density is 9.5 s.
+  - **Dropped:** U2, which behaves like flooding, and U3, which can't be simulated at N=1000, whose request traffic floods under churn and which is the most sensitive to tag rotation.
+  - Stage C compares U6, a hybrid (route when a route is known, otherwise a limited flood or hold), and U4 with tuned store-and-forward against U1.
+- **Q3, broadcast:**
+  - B1 is best at low density (32 of 36 cells).
+  - At medium density gossipsub, B3 and B1 pass, in that order (45 / 48 / 72 B/s).
+  - **Dropped:** B2, which reached only 62% in its worst cell.
+  - Stage C tests density-adaptive broadcast, switching from B1 to B3 or gossipsub, and picks one of those two.
+- **Q4, bridge rule** (prefer a newly discovered phone from another group):
+  - The first link between rejoining groups forms faster in every cell, for example 6.5 → 1.7 s (low density, N=200, half iOS) and 20.8 → 5.6 s (high density, N=1000).
+  - Cost: 40–60% more link setups in moving crowds.
+  - Adopted with a rate limit, which stage C tunes.
+- **Q5, minimum message lifetime:**
+  - A 30 s lifetime with ±30 s clock skew delivers only 55–87%; at 5 min or more, skew has no effect.
+  - Stage C runs 60 s and 120 s lifetimes to set the minimum allowed lifetime. Config validation rejects anything shorter.
+- **Q6, iOS wake windows** cause most delivery and first-message misses. Stage C adds an iOS-aware relay preference: prefer relays that are awake, such as Android or foreground phones.
+- **Q7, tag rotation:** judged per density class, where every protocol stays within budget. Only U2 and U3 exceed it in single cells (+11.2% transmissions; −1.75 pp delivery), and both are dropped.
+- **Q8, cuts:** at N=1000, stage B ran static only, with 5 seeds, and without U3. Accepted; stage C keeps the same N=1000 scope.
+  - Stage C also runs 1-hour simulated runs for the 1 h and 24 h lifetimes, about 3 h in total.
