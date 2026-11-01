@@ -122,6 +122,23 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
 - `connectGatt` always initiates on 1M|2M. A 2M-only initiating mask fails with status 147, because the legacy advert is on 1M. `phy=` then controls `setPreferredPhy`.
 - Each suite test has a 30 s deadline. A stalled test is recorded as a `fail` under its own name, and the suite then aborts.
 
+## Unreachable device: OPPO CPH2385 (Android 14, API 34, Helio G35)
+
+- **Result:** 8 step-1 runs on 2026-11-01, 15:56–18:19 CET, with 0 of 400 GATT connect attempts succeeding. Every attempt failed with `IllegalStateException: scan timeout`, in both roles, against the iPhone 15, SE 2020, 12 mini and SE 2016.
+  - The OPPO was central in `m1-oppo-ip15`, `m1-oppo-se2020`, `m1-oppo-ip12mini` and `m1-oppo-se2016`.
+  - The OPPO was peripheral in `m1-ip15-oppo`, `m1-se2020-oppo`, `m1-ip12mini-oppo` and `m1-se2016-oppo`.
+  - The raw JSONL is kept.
+- **What was checked:**
+  - Bluetooth is on (`bluetooth_on=1`, `state: ON`), the screen is awake and our activity is top-resumed.
+  - `dumpsys bluetooth_manager` shows our legacy, connectable advert with the service UUID.
+  - The controller reports `mMaxScanFilters: 0` (no hardware filters).
+  - Our app's filtered scans: 200 started, 0 results. Other apps on the same phone do get results (Google Play services 7510, `ch.trancee.cairn.android` 679).
+  - No iPhone ever discovered the OPPO's advert.
+- **Unverified explanations:**
+  1. The phone is out of radio range. It is attached over Wi-Fi adb (`oppo-wifi:5555`), not the USB hub next to the other phones.
+  2. A software scan-filter problem on this controller, which has no hardware filters.
+- **Handling:** The user approved excluding the OPPO from the remaining runs (`--skip redmi11 oppo`); there will be no rerun. The run `m1-oppo-ipx` was aborted within seconds of starting, before any result was produced (`INVALID-m1-oppo-ipx-…`).
+
 ## Findings while building (not measurements)
 
 - **K/N `NSLog` crash.** Passing a Kotlin `String` through `NSLog("%@", …)` varargs crashed with `SIGTRAP`. The `nsLog()` helper formats in Kotlin and escapes `%`.
