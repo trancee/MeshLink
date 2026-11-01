@@ -65,11 +65,18 @@ def phases():
             step3 += both(a, b, f"m3-{phy}-suite", [*SUITE, f"phy={phy}"], 600)
             step3 += both(a, b, f"m3-{phy}-conn", ["n=20", "bearers=gatt+coc", "plan=connect", f"phy={phy}"], 900)
     plan["step3-phy"] = step3
+    # Max concurrency, one link at a time until a connect fails/stalls (3 consecutive failures); every held link is
+    # echo-checked after each add (hub) or every 2 s (phub holds). Central: Android API 37 + API 31, iOS 17 + iOS 16.
+    def peers(hub):
+        return [d for d in ALL_PEERS if d != hub]
     plan["step4-multi"] = [
-        group("hub", "pixel6", [d for d in ALL_PEERS if d != "pixel6"], "m4-hub-pixel6", ["phy=2m", "connect_retries=3"], 900),
-        group("hub", "ip15", [d for d in ALL_PEERS if d != "ip15"], "m4-hub-ip15", ["phy=2m"], 900),
-        group("phub", "pixel6", [d for d in ALL_PEERS if d != "pixel6"], "m4-phub-pixel6", ["phy=2m", "connect_retries=3"], 600),
-        group("phub", "ip15", [d for d in ALL_PEERS if d != "ip15"], "m4-phub-ip15", ["phy=2m", "connect_retries=3"], 600),
+        group("hub", "pixel6", peers("pixel6"), "m4-hub-pixel6", ["phy=2m", "connect_retries=3"], 900),
+        group("hub", "s10e", peers("s10e"), "m4-hub-s10e", ["phy=2m", "connect_retries=3"], 900),
+        group("hub", "ip15", peers("ip15"), "m4-hub-ip15", ["phy=2m"], 900),
+        group("hub", "ipx", peers("ipx"), "m4-hub-ipx", ["phy=2m"], 900),
+        group("phub", "pixel6", peers("pixel6"), "m4-phub-pixel6", ["phy=2m", "connect_retries=3"], 600),
+        group("phub", "ip15", peers("ip15"), "m4-phub-ip15", ["phy=2m", "connect_retries=3"], 600),
+        group("phub", "ipx", peers("ipx"), "m4-phub-ipx", ["phy=2m", "connect_retries=3"], 600),
         *[group("dual", a, [b], f"m4-dual-{a}-{b}", ["n=20", "round=20", "phy=2m"], 700)
           for a, b in [("pixel6", "ip15"), ("pixel6", "s10e"), ("ip15", "se2020")]],
     ]
