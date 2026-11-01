@@ -56,18 +56,47 @@ Central arguments:
 | `phy` | `default`, `1m` or `2m` |
 | `plan` | `connect` (setup time and failure rate only) or `suite` |
 
-Other roles: `role=hub-central` (max concurrent connections; run it against several `role=peripheral` devices with `solo`), `role=dual` (both roles at once, for crossed connections and the keep-one rule) and `role=hold`.
-`role=hub-central` and `role=dual` compile, but neither has been run on a device yet.
+Multi-device runs. All devices share one run id, so the run tag in the control characteristic matches:
+
+```sh
+python3 host/bakeoff.py hub  --hub pixel6 --peers s10e ip15 --run h1 --timeout 900 phy=2m   # central-role max concurrency (role=hub-central vs role=peripheral)
+python3 host/bakeoff.py phub --hub pixel6 --peers s10e ip15 --run p1 --timeout 600 phy=2m   # peripheral-role max concurrency (role=peripheral vs role=hold)
+python3 host/bakeoff.py dual pixel6 ip15 --run d1 --timeout 700 n=20 round=20 phy=2m        # crossed connections + keep-one rule (role=dual on both)
+python3 host/bakeoff.py stop                 # stop the lab app on every device (Android force-stop, devicectl terminate, idevicedebug kill)
+python3 host/bakeoff.py grant-ios ip15 ipx   # XCUITest runner: accepts the Bluetooth alert by exact label (Allow/OK/Erlauben)
+```
+
+Mitigation knobs, all opt-in and Android central only (recorded in `run.json` and shown as `variant` by `summarize.py`):
+
+| Knob | Effect |
+|---|---|
+| `connect_retries=N` | Retry a GATT connect that ends `disconnected status=133/147` before connecting, with backoff `500 ms × retry`; each retry leaves a `retryN_<status>` timing mark |
+| `connect_delay_ms=N` | Wait between scan stop and `connectGatt` |
+| `write_ack_every=N` | Every Nth data write uses write-with-response |
+| `pace_ms=N` | Sleep after every data write |
+| `max_chunk=N` | Cap the GATT value size |
+| `req_mtu=N` | `requestMtu(N)` (no effect on Android 14+, which always negotiates 517) |
+
+Matrix and summary:
+
+```sh
+python3 host/matrix.py list step1-connect --skip redmi11       # done/todo per run (resumable)
+python3 host/matrix.py run  step1-connect --skip redmi11       # phases: smoke-ios step1-connect step2-suite step3-phy step4-multi step5-legacy
+python3 host/summarize.py host/results/m1-* --markdown out.md --csv out.csv
+```
+
+Matrix run ids always get a `-t<ddHHMMSS>` suffix. Device result files are append-only per run id, so a reused id would inherit an old `done` record. `summarize.py` never modifies the raw JSONL. It groups rows by (central, peripheral, requested PHY, variant, test, bearer) and reports ok/total, first-try successes, and the median/p90/min/max of the headline metric. Setup time is `setup_ms = first_app_byte - scan_start`, which excludes the scan pacing wait. It also adds hub, phub and dual tables.
 
 Every record is one JSON line: `{run_id, commit, date, central, peripheral, test, bearer, phy, mtu, attempt, outcome, timings, bytes, error}`.
 
 ## Orchestration per device class (as verified)
 
-| Device class | Install | Launch with arguments | Pull results |
-|---|---|---|---|
-| Android (remote adb, `ADB_SERVER_SOCKET=tcp:adb-server:5037`) | `adb install -r -g` plus `pm grant` ✅ | `am start -S -n ch.trancee.lab.host/.MainActivity --es args k=v,k=v` ✅ | `adb exec-out run-as ch.trancee.lab.host cat files/results/<run>.jsonl` ✅ (logcat tag `BAKEOFF` too) |
-| iOS 17+ (iPhone 15, SE 2020, 12 mini) | `xcrun devicectl device install app` ✅ | `xcrun devicectl device process launch --terminate-existing <bundle> k=v …` ⚠️ reaches the launch, but iOS refuses until the developer is trusted | `devicectl device copy from --domain-type appDataContainer` (unverified: no file exists yet) |
-| iOS 15/16 (SE 2016, iPhone X) | `ideviceinstaller -i` ✅ | `idevicedebug -u <udid> run <bundle> k=v …` ⚠️ DDI/debugserver work with Xcode 16.4; launch is refused until trusted | `afcclient --container <bundle>`: listing ✅, `get` unverified |
+| Device class | Install | Launch with arguments | Pull results | Stop |
+|---|---|---|---|---|
+| Android (remote adb, `ADB_SERVER_SOCKET=tcp:adb-server:5037`) | `adb install -r -g` ✅. Redmi Note 11: `INSTALL_FAILED_USER_RESTRICTED` (needs the on-device MIUI confirmation / *Install via USB*) | `am start -S -n ch.trancee.lab.host/.MainActivity --es args k=v,k=v` ✅ | `adb exec-out run-as ch.trancee.lab.host cat files/results/<run>.jsonl` ✅ (logcat tag `BAKEOFF` too) | `am force-stop` ✅ |
+| iOS 17+ (iPhone 15, SE 2020, 12 mini) | `xcrun devicectl device install app` ✅ (in-place update) | `xcrun devicectl device process launch --terminate-existing <bundle> k=v …` ✅ | `devicectl device copy from --domain-type appDataContainer --domain-identifier <bundle>` ✅ | `devicectl device info processes` + `process terminate --pid` ✅ |
+| iOS 15/16 (SE 2016, iPhone X) | `ideviceinstaller -i` ✅ | `idevicedebug -u <udid> run <bundle> k=v …` ✅ (Xcode 16.4 DDI) | `afcclient --container <bundle> get` (see the matrix report) | kill the `idevicedebug` process ✅ |
+| iOS permission (all) | — | `grant-ios`: `xcodebuild test-without-building -xctestrun … -destination id=<udid>` ✅ on iOS 15.8, 16.7, 17.6, 18.7 and 27.0. On iOS 27, `XCUIApplication.launch()` fails ("process identifier … could not be determined"); the host launches the app with `grant=1` and the runner attaches (`TEST_RUNNER_GRANT_ATTACH=1`) | log in `host/results/grant/` | — |
 
 ## Signing (free personal teams, automatic signing, `-allowProvisioningUpdates`)
 
@@ -81,7 +110,8 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
 ## Human-in-the-loop steps
 
 1. On each iPhone: Settings → General → VPN & Device Management → trust "Apple Development: owner". Team B's certificate may show a different name.
-2. At the first launch on each iPhone, tap **Allow** on the Bluetooth permission prompt.
+2. At the first launch on each iPhone, tap **Allow** on the Bluetooth permission prompt, or run `grant-ios`. The tap path is unverified: every phone already had the permission, so no alert appeared. The app logs `ios_bt_authorization` as the first JSONL record.
+3. Redmi Note 11: confirm the MIUI install prompt / enable *Install via USB*. Its runs are skipped until then (`--skip redmi11`).
 
 ## Deviations from the agreed design
 
@@ -91,3 +121,21 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
 - Android scans are paced at least 6.5 s apart, to stay under the 5-scans-per-30 s limit.
 - `connectGatt` always initiates on 1M|2M. A 2M-only initiating mask fails with status 147, because the legacy advert is on 1M. `phy=` then controls `setPreferredPhy`.
 - Each suite test has a 30 s deadline. A stalled test is recorded as a `fail` under its own name, and the suite then aborts.
+
+## Findings while building (not measurements)
+
+- **K/N `NSLog` crash.** Passing a Kotlin `String` through `NSLog("%@", …)` varargs crashed with `SIGTRAP`. The `nsLog()` helper formats in Kotlin and escapes `%`.
+- **iOS peripheral, link reuse.** An unbonded Android central that reconnects gets no new `didSubscribe`. The control read (offset 0) therefore replaces a missing, closed or already-used server link (`reopened_on_control_read` event).
+- **iOS central latency quantisation.** iOS centrals use a connection interval of about 30 ms, which apps cannot set. With an iPhone central, RTT quantises to 60/120 ms.
+- **XCover 4 (API 28) c→p stall.** The central completes every write-without-response callback, but the XCover 4 app gets fewer than 128 `onCharacteristicWriteRequest` calls and then none. Write-with-response every 16 writes, `pace_ms=20` and `max_chunk=182` (alone and combined) did not fix it. The XCover 4 stack is congested: `onServerRegistered` arrives about 17 s late, which makes `openGattServer` return null after its 10 s wait (the app now retries), and Google Play services runs a continuous 25 % duty scan with more than 1.1 M results.
+- **133/147 connect failures** (n=20, `plan=connect`, 1M, 2026-11-01):
+
+  | Run | Direction | Variant | Result |
+  |---|---|---|---|
+  | `m147-px-s10e-base` | Pixel 6 → S10e | baseline | 9/20 (11× status 147) |
+  | `m147-px-s10e-delay` | Pixel 6 → S10e | `connect_delay_ms=500` | 8/20 |
+  | `m147-px-s10e-retry` | Pixel 6 → S10e | `connect_retries=3` | 19/20 (13 first try) |
+  | `m147-s10e-px-base` | S10e → Pixel 6 | baseline | 14/20 (6× status 133) |
+  | `m147-s10e-px-retry` | S10e → Pixel 6 | `connect_retries=3` | 20/20 (16 first try) |
+
+  Retrying with backoff fixes these failures; a pre-connect delay does not. The matrix uses `connect_retries=3`.
