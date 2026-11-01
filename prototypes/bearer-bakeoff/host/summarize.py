@@ -79,8 +79,9 @@ def load(run_dirs):
                 record["_phy_requested"] = requested_phy(Path(run_dir))
                 record["_variant"] = variant(Path(run_dir))
                 timings = record.get("timings")
-                if isinstance(timings, dict) and isinstance(timings.get("first_app_byte"), (int, float)) and isinstance(timings.get("scan_start"), (int, float)):
-                    timings["setup_ms"] = round(timings["first_app_byte"] - timings["scan_start"], 3)
+                if isinstance(timings, dict) and isinstance(timings.get("first_app_byte"), (int, float)):
+                    # GATT: from scan start; CoC: already relative to the PSM read that starts the L2CAP step.
+                    timings["setup_ms"] = round(timings["first_app_byte"] - (timings.get("scan_start") or 0), 3)
                 rows.append(record)
         # Failed attempts carry no peer identity; attribute them to the run's (single) observed peer.
         peers = defaultdict(set)

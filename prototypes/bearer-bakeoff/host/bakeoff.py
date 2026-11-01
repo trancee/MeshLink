@@ -122,12 +122,9 @@ def launch(name, args):
         run(["xcrun", "devicectl", "device", "process", "launch", "--device", device["udid"], "--terminate-existing",
              bundle_id(device), *args], timeout=120)
     else:
-        # idevicedebug keeps a debugserver session open while the app runs; it is our own child, stopped by PID.
-        cmd = ["idevicedebug", "-u", device["udid"], "run", bundle_id(device), *args]
-        log("$ " + " ".join(cmd) + " &")
-        process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
-        _background.append(process)
-        device["debug_process"] = process
+        # --detach: an attached debugserver session sometimes reports a stop (T11) right after launch and
+        # idevicedebug then kills the app, leaving it idle/argument-less; detached launches run reliably.
+        run(["idevicedebug", "-u", device["udid"], "--detach", "run", bundle_id(device), *args], timeout=120)
 
 
 def stop(name):
@@ -135,10 +132,7 @@ def stop(name):
     if device["platform"] == "android":
         adb(device, "shell", "am", "force-stop", ANDROID_PACKAGE, check=False, quiet=True)
     elif device["tool"] == "imd":
-        process = device.pop("debug_process", None)
-        if process and process.poll() is None:
-            process.kill()
-            process.wait(timeout=10)
+        subprocess.run(["idevicedebug", "-u", device["udid"], "kill", bundle_id(device)], capture_output=True, timeout=60)
     elif device["tool"] == "devicectl":
         listing = RESULTS / f".processes-{name}.json"
         RESULTS.mkdir(parents=True, exist_ok=True)
