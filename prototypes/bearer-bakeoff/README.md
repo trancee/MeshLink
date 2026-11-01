@@ -156,3 +156,49 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
   | `m147-s10e-px-retry` | S10e → Pixel 6 | `connect_retries=3` | 20/20 (16 first try) |
 
   Retrying with backoff fixes these failures; a pre-connect delay does not. The matrix uses `connect_retries=3`.
+
+## Full matrix (2026-11-01, 13:11–23:46 CET)
+
+- **Driver:** `python3 host/matrix.py run <phase> --skip redmi11 oppo` for `step1-connect` (n=50), `step2-suite` (n=5), `step3-phy` (1M vs 2M, n=5), `step4-multi` (hubs, peripheral hubs, crossed duals) and `step5-legacy` (P10 lite, XCover 4).
+- **Summaries:** `python3 host/summarize.py host/results/m1-*-t* --markdown … --csv …`. Run it once per phase, because a pair's rows merge across the dirs you pass.
+- **Raw data:** the JSONL under `host/results/` is gitignored; it is meant to move to `docs/evidence/2026-11-bearer-bakeoff/` later. The app binaries were built from `be5c761`. Each record's `commit` is the host `HEAD` when the run was launched.
+- **Branch switch:** at 15:32 an external `git checkout main` removed the tracked files, and 29 queued runs exited with code 2 and no data. The branch was restored and those runs were rerun. No data was lost.
+
+### Observed (not yet a decision)
+
+- **Insecure CoC between Android and iOS works in both directions on every pair.**
+  - When GATT connected, the CoC opened 98–100 % of the time. The minimum was 49/50 per pair.
+  - Failures:
+    - iPhone central: `LinkClosedException … closed` (1 per affected pair).
+    - iPhone X → Mi 8: `l2cap open failed NSError CBErrorDomain:0`.
+  - CoC throughput was 1.0–1.3× GATT throughput, which is below the 1.5× criterion.
+  - With an Android central, the CoC echo RTT was about 13 ms lower (about 31 vs 44 ms on Nothing, S10e and Mi 8). On Pixel 6 there was no difference. With an iPhone central, both were 60 ms.
+- **Android 2M vs 1M** (Pixel 6 ↔ S10e and Pixel 6 ↔ Nothing, n=5):
+  - 2M gave 1.4–1.8× GATT and CoC throughput, except Pixel 6 → Nothing writes (+8 %).
+  - 2M showed no extra connect failures.
+- **Crossed connections and the keep-one rule** (n=20 rounds per pair):
+
+  | Pair | Crossed rounds | Result |
+  |---|---|---|
+  | iPhone 15 ↔ SE 2020 | 20/20 | The keep-one rule (keep the central with the lower node ID) was applied correctly every time. |
+  | Pixel 6 ↔ S10e | 4/20 | Applied correctly every time. The other rounds ended with one link, because the second connect failed with status 133/147. |
+  | Pixel 6 ↔ iPhone 15 | 0/20 | The iPhone central discovered the Pixel but timed out while connecting, while the Pixel → iPhone link was up. |
+
+  There were 0 rule violations. The median time to detect a crossed link was 299 ms.
+- **Maximum concurrent connections** (all of these are lower bounds limited by how many peers were reachable; the peers included iPhones):
+
+  | Hub and role | Max reached | First failure |
+  |---|---|---|
+  | Pixel 6 (Android API 37), central | 8 | `timeout` |
+  | S10e (Android API 31), central | 7 | `disconnected status=133`, then `timeout` |
+  | iPhone 15 (iOS 17.6.1), central | 9 | `timeout`. 8 of 9 links stayed healthy; the XCover 4 link failed with `echo timeout`. |
+  | iPhone X (iOS 16.7.16), central | 8 | `scan timeout` |
+  | Pixel 6, peripheral | 8 | — |
+  | iPhone 15, peripheral | 4 at once | Links were closed by the iPhone peripheral (`LinkClosedException … closed`, and on the SE 2016 `CBErrorDomain:6`). |
+  | iPhone X, peripheral | 4 | No iPhone central could discover it (`scan timeout`). The cause is unverified. |
+
+- **Legacy phones:**
+  - P10 lite (API 26) as central failed 0/25 against both peers, with `cccd not started` or `disconnected status=133`.
+  - P10 lite as peripheral: iPhone 15 central 25/25, Pixel 6 central 12/25 (`status=147`).
+  - XCover 4 (API 28): central 2/25 to Pixel 6 and 0/25 to iPhone 15, mostly `scan failed 2`. As peripheral: Pixel 6 central 0/25 (`scan timeout`, `status=147`), iPhone 15 central 2/25.
+- **iPhone central suites:** in attempts 2 and later, `handshake_xx_classical` over GATT often failed with `LinkClosedException: gatt-central:<uuid> closed` about 22 s after notify throughput finished. The worst case was the SE 2016 against Android peripherals, at 1/5 to 2/5 OK. Attempt 1 always passed. The cause is unverified.
