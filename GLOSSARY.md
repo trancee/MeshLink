@@ -46,6 +46,14 @@ _Avoid_: Flood (that names a forwarding technique), multicast, group message
 Holding a message for a destination that is currently unreachable and forwarding it when a route appears, within a bounded lifetime and storage quota.
 _Avoid_: Caching, offline queue
 
+**Message lifetime**:
+The time, set by the sender, after which a message is invalid everywhere and no node forwards or holds it.
+_Avoid_: TTL, expiry (ambiguous), time-to-live
+
+**Hop limit**:
+The largest number of relays a message may cross before it is no longer forwarded.
+_Avoid_: TTL, hop count (that is the number already crossed), range
+
 ## Security
 
 **Security profile**:

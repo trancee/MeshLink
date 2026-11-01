@@ -40,6 +40,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Delivery/read receipt semantics and message lifecycle states.
 - Store-and-forward design (quota, TTL, custody, privacy of held messages; candidate bounded-lifetime store-and-forward keys for forward secrecy; clock-tolerance bound for message lifetime).
 - Message size cap.
+- Resisting fake identities (Sybil) in open and unsecured meshes: in simulation, 30% fake identities break the mesh apart under any neighbor selection strategy. Possible defenses: identity cost or peer scoring (routing simulation stage A).
 - Power policy across presets and density.
 - Diagnostics and troubleshooting surface: the code catalog (which codes, which fields) and field tooling. How codes are documented is decided (ADR 0006).
 - Testing architecture (virtual multi-node transport, Robolectric, device-lab automation, fuzzing).
