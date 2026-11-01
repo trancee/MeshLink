@@ -148,9 +148,17 @@ class OnDemand(
         return r
     }
 
+    private fun cls() = port.densityClass()
+
+    /** Data ring radius for this phone now (adaptive policy by local class, else the fixed parameter). */
+    private fun ringHops() = port.params.classPolicy?.ringHops?.get(cls()) ?: port.params.dataRingHops
+
+    private fun floodAll() = ringHops() >= UnicastClassPolicy.FLOOD_ALL
+
     override fun onLinkUp(peer: Int) {
         start()
-        if (!port.params.sfTuned) return
+        val retry = port.params.classPolicy?.linkUpRetry?.get(cls()) ?: port.params.sfTuned
+        if (!retry) return
         // A new link may connect a held destination: re-discover (rate-limited per destination).
         val t = port.now()
         for (dst in pending.held.destinations()) {
@@ -289,7 +297,27 @@ class OnDemand(
 
     override fun originate(packet: DataPacket) {
         start()
-        forward(packet, -1)
+        if (floodAll()) floodOut(packet) else forward(packet, -1)
+    }
+
+    /** Adaptive low class: flood the message itself (U1-like) and keep it until the destination acknowledges. */
+    private fun floodOut(p: DataPacket) {
+        if (port.expired(p)) {
+            port.drop(p, DropReason.EXPIRED)
+            return
+        }
+        ringSeen.add(p)
+        ringed.add(p.id)
+        val copy = p.forwarded(null, 0, p.hopLimit)
+        for (peer in port.linkedPeers()) port.send(peer, copy)
+        pending.wait(p)
+        val dst = p.dstTag
+        if (discoveries.containsKey(dst) || retryScheduled.contains(dst)) return
+        val params = port.params
+        val d = Discovery(params.netDiameter, params.rreqRetries, 0)
+        discoveries[dst] = d
+        val gen = ++d.generation
+        port.after(2 * params.dataNodeTraversalMs * (params.netDiameter + 2)) { onDiscoveryTimeout(dst, d, gen) }
     }
 
     private fun forward(
@@ -339,16 +367,17 @@ class OnDemand(
 
     private fun discover(dst: Long) {
         val p = port.params
-        val head = if (p.dataRingHops > 0) pending.waiting.peek(dst) ?: pending.held.peek(dst) else null
+        val hops = minOf(ringHops(), p.netDiameter)
+        val head = if (hops > 0) pending.waiting.peek(dst) ?: pending.held.peek(dst) else null
         if (head != null && ringed.add(head.id) && !port.expired(head)) {
             // U6: no route, so flood the message itself a few hops; it doubles as the route request.
-            val d = Discovery(p.dataRingHops, 0, 0)
+            val d = Discovery(hops, if (hops >= p.netDiameter) p.rreqRetries else 0, 0)
             discoveries[dst] = d
             ringSeen.add(head)
-            val copy = head.forwarded(null, 0, p.dataRingHops)
+            val copy = head.forwarded(null, 0, minOf(hops, head.hopLimit))
             for (peer in port.linkedPeers()) port.send(peer, copy)
             val gen = ++d.generation
-            port.after(2 * p.dataNodeTraversalMs * (p.dataRingHops + 2)) { onDiscoveryTimeout(dst, d, gen) }
+            port.after(2 * p.dataNodeTraversalMs * (hops + 2)) { onDiscoveryTimeout(dst, d, gen) }
             if (ringed.size > 4_096) ringed.clear()
             return
         }
@@ -382,7 +411,8 @@ class OnDemand(
             return
         }
         val r = usable(p.dstTag)
-        if (r != null) {
+        // Adaptive: a low-density relay keeps flooding (routes are short-lived there); others take a known route.
+        if (r != null && !(port.params.classPolicy != null && floodAll())) {
             sendVia(r, DataPacket(p.id, p.srcTag, p.dstTag, p.expiresAt, p.payloadBytes, p.hops, p.hopLimit), from)
             return
         }
@@ -441,7 +471,10 @@ class OnDemand(
             } else {
                 val level = retryLevel[dst] ?: 0
                 retryLevel[dst] = level + 1
-                minOf(p.sfRetryMaxMs, p.sfRetryMinMs shl minOf(level, 20))
+                val c = cls()
+                val lo = p.classPolicy?.retryMinMs?.get(c) ?: p.sfRetryMinMs
+                val hi = p.classPolicy?.retryMaxMs?.get(c) ?: p.sfRetryMaxMs
+                minOf(hi, lo shl minOf(level, 20))
             }
         port.after(delay) {
             retryScheduled.remove(dst)

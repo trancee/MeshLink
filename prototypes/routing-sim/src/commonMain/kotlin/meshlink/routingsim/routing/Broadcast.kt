@@ -52,11 +52,9 @@ class MessageCache(
  * within the timeout is pulled with GRAFT, which also makes that link eager. New links start eager.
  *
  * Stage C:
- * - [adaptive] (B1/B3 adaptive): each node estimates its local density as the number of distinct
- *   advertisers it heard in the last [RoutingParams.densityWindowMs]. It floods (B1: payload to every
- *   link, never PRUNE) until the estimate reaches [RoutingParams.plumtreeAtHeard], then runs
- *   Plumtree until it falls to [RoutingParams.floodAtHeard]. Both modes share one wire format, so
- *   neighbors in different modes interoperate.
+ * - [adaptive] (B1/B3 adaptive): a phone whose own local density class is low floods (B1: payload to
+ *   every link, never PRUNE); in medium and high it runs Plumtree. Both modes share one wire format,
+ *   so neighbors in different modes interoperate.
  * - Relay preference: in Plumtree mode a node that sleeps delays its eager push, so its neighbors
  *   receive first from awake peers and PRUNE the sleeping one (the tree forms over awake nodes).
  */
@@ -67,14 +65,12 @@ class Plumtree(
 ) : Routing {
     private var flooding = adaptive
 
-    /** Current mode, re-evaluated with hysteresis from the local density estimate. */
+    /** Current mode from the phone's local density class (hysteresis and dwell live in the classifier). */
     private fun floodMode(): Boolean {
         if (!adaptive) return false
-        val heard = port.peersHeard()
-        val before = flooding
-        if (flooding && heard >= port.params.plumtreeAtHeard) flooding = false
-        if (!flooding && heard <= port.params.floodAtHeard) flooding = true
-        if (flooding != before) modeSwitches++
+        val now = port.densityClass() == 0
+        if (now != flooding) modeSwitches++
+        flooding = now
         return flooding
     }
 

@@ -56,6 +56,15 @@ enum class Density(
     LOW("low", 6.0),
     MEDIUM("medium", 25.0),
     HIGH("high", 100.0),
+
+    /** Stage C dynamic scenarios: density changes within the run (geometry in [VenueMobility]). */
+    DYNAMIC("dynamic", 6.0),
+
+    /** Stage C scenario E: crowd hovering at the low/medium boundary. */
+    AT10("at10", 10.0),
+
+    /** Stage C scenario E: crowd hovering at the medium/high boundary. */
+    AT50("at50", 50.0),
 }
 
 enum class MobilityKind(
@@ -66,6 +75,18 @@ enum class MobilityKind(
     GROUP("group"),
     CORRIDOR("corridor"),
     PARTITION_MERGE("partition-merge"),
+
+    /** Stage C A: a crowd converges on a venue (low → medium → high over about 10 min). */
+    ARRIVAL("arrival"),
+
+    /** Stage C B: the crowd leaves the venue (high → low). */
+    DEPARTURE("departure"),
+
+    /** Stage C C: dense core and sparse edge in one mesh. */
+    CORE_EDGE("core-edge"),
+
+    /** Stage C D: two thirds of the phones join within 60 s (3× peers). */
+    SURGE("surge"),
 }
 
 enum class PlatformMix(
@@ -95,6 +116,16 @@ data class Scenario(
     /** Overrides [Calibration.linkDropMeanMs] (seconds; 0 = no supervision drops) for the sensitivity sweep. */
     val dropMeanS: Int? = null,
 ) {
+    /** Stage C: true-time window in which density transitions happen (null = none or the whole run). */
+    val transitionWindowMs: LongRange?
+        get() =
+            when (mobility) {
+                MobilityKind.ARRIVAL -> 60_000L..900_000L
+                MobilityKind.DEPARTURE -> 240_000L..1_100_000L
+                MobilityKind.SURGE -> VenueMobility.SURGE_AT_MS..VenueMobility.SURGE_AT_MS + 180_000L
+                else -> null
+            }
+
     val key: String
         get() =
             "${density.label}-n$nodes-${mobility.label}-${platform.label}-d$degree-sybil${(sybilShare * 100).toInt()}" +

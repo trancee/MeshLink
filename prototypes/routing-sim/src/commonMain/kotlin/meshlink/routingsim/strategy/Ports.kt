@@ -55,6 +55,9 @@ interface LinkTable {
     fun linkUpAt(peer: Int): Long
 
     fun lastActivityAt(peer: Int): Long
+
+    /** Bridge rate limit chosen by this phone's local density class (null = fixed parameter, negative = bridge off). */
+    fun bridgeGapMs(): Long? = null
 }
 
 fun LinkTable.usedSlots(): Int = linkCount() + pendingCount()

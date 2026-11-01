@@ -60,7 +60,8 @@ class DiverseViewSelection(
 
     /** Dials a newly discovered peer outside the 1–2-hop neighborhood (bridge preference). */
     private fun tryBridge(t: Long) {
-        if (bridgePeer >= 0 || t - lastBridgeAt < params.bridgeMinGapMs) return
+        val gap = ctx.links.bridgeGapMs() ?: params.bridgeMinGapMs
+        if (gap < 0 || bridgePeer >= 0 || t - lastBridgeAt < gap) return
         val reach = reachable(-1)
         var best = -1
         var bestRssi = -Double.MAX_VALUE

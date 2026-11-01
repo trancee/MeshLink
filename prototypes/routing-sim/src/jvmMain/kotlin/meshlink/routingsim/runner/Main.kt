@@ -53,6 +53,8 @@ fun main(args: Array<String>) {
         }
         "stage-b-aggregate" -> stageBAggregate(out)
         "stage-b-report" -> stageBReport(out)
+        "c-bridge", "c-pilot", "c-run", "c-aggregate" -> stageC(command, args.drop(1), out)
+        "c-report" -> stageCReport(out)
         else ->
             println(
                 """

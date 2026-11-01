@@ -1,5 +1,6 @@
 package meshlink.routingsim.sim
 
+import meshlink.routingsim.density.DensityClass
 import meshlink.routingsim.routing.BROADCAST
 import meshlink.routingsim.routing.DataPacket
 import meshlink.routingsim.routing.DistanceVector
@@ -14,6 +15,7 @@ import meshlink.routingsim.routing.RoutingParams
 import meshlink.routingsim.routing.RoutingPort
 import meshlink.routingsim.routing.RoutingSizes
 import meshlink.routingsim.routing.ScopedSourceRoute
+import meshlink.routingsim.routing.UnicastClassPolicy
 import meshlink.routingsim.strategy.Randomness
 import kotlin.math.ceil
 import kotlin.math.ln
@@ -40,6 +42,12 @@ enum class Protocol(
 
     /** Stage C: density-adaptive broadcast, B1 flooding at low local density, B3 Plumtree above. */
     BA("B1B3", true),
+
+    /** Stage C adaptive unicast: U1-like flood at low local density, U6 at medium and high. */
+    UA("UA", false),
+
+    /** Stage C adaptive unicast: U1-like flood at low, U6 at medium, U4 (tuned holding) at high. */
+    UA4("UA4", false),
 }
 
 /** One protocol instance multiplexed over the shared topology (isolated per-instance link queues). */
@@ -60,8 +68,14 @@ data class InstanceConfig(
         base.copy(
             minHoldMs = minHoldMs,
             relayPreference = pref,
-            sfTuned = protocol == Protocol.U4SF || protocol == Protocol.U6,
+            sfTuned = protocol == Protocol.U4SF || protocol == Protocol.U6 || protocol == Protocol.UA || protocol == Protocol.UA4,
             dataRingHops = if (protocol == Protocol.U6) base.u6RingHops else 0,
+            classPolicy =
+                when (protocol) {
+                    Protocol.UA -> adaptivePolicy("UA", base.u6RingHops, base.u6RingHops)
+                    Protocol.UA4 -> adaptivePolicy("UA4", base.u6RingHops, 0)
+                    else -> null
+                },
         )
 }
 
@@ -140,6 +154,11 @@ internal interface SimAccess {
 
     /** Ground truth for the density estimator: active honest peers in radio range now. */
     fun peersInRange(i: Int): Int
+
+    /** The phone's own current density class (stage C driving classifier). */
+    fun densityClass(i: Int): Int
+
+    val transitionWindowMs: LongRange?
 }
 
 private class InFlight(
@@ -166,7 +185,19 @@ private class Msg(
     val hopDistance: Int,
     val labels: IntArray?,
     val eligibleCount: Int,
-)
+    /** Stage C: true peers in the sender's radio range at send, and classes of every phone at send. */
+    val srcPeers: Int = -1,
+    val inTransition: Boolean = false,
+    val classes: ByteArray? = null,
+) {
+    val srcTrueClass get() = DensityClass.of(srcPeers.toDouble())
+    val crossMode get() = dst >= 0 && classes != null && classes[src] != classes[dst]
+}
+
+/** Upper bounds of the true-density bins (peers in range) used to confirm the class boundaries. */
+val densityBins = intArrayOf(2, 5, 10, 20, 35, 50, 100, Int.MAX_VALUE)
+
+fun densityBin(peers: Int) = densityBins.indexOfFirst { peers < it }
 
 private class Stats(
     n: Int,
@@ -329,52 +360,7 @@ internal class RoutingLayer(
 
         override fun peerStable(peer: Int) = sim.stable(peer)
 
-        override fun peersHeard() = heardCount(i)
-    }
-
-    // ---- local density estimate (distinct advertisers heard recently) ----
-
-    private val heard = arrayOfNulls<HashMap<Int, Long>>(n)
-
-    fun onScan(
-        i: Int,
-        results: List<meshlink.routingsim.strategy.ScanResult>,
-    ) {
-        if (!needsDensity) return
-        val m = heard[i] ?: HashMap<Int, Long>().also { heard[i] = it }
-        val t = sim.now
-        for (r in results) m[r.peer] = t
-    }
-
-    private fun heardCount(i: Int): Int {
-        val m = heard[i] ?: return 0
-        val cutoff = sim.now - setup.params.densityWindowMs
-        m.entries.removeAll { it.value < cutoff }
-        return m.size
-    }
-
-    private val needsDensity = inst.any { it.protocol == Protocol.BA }
-
-    /** Estimator check: confusion of (true class, estimated class) with low < 10 ≤ medium < 50 ≤ high. */
-    private val densConfusion = LongArray(9)
-    private var densRatioSum = 0.0
-    private var densRatioN = 0L
-
-    private fun densClass(peers: Int) = if (peers < 10) 0 else if (peers < 50) 1 else 2
-
-    private fun sampleDensity() {
-        sim.at(sim.now + 5_000) { sampleDensity() }
-        if (!measuring()) return
-        for (i in 0 until n) {
-            if (!honest[i] || !sim.active(i)) continue
-            val truth = sim.peersInRange(i)
-            val est = heardCount(i)
-            densConfusion[3 * densClass(truth) + densClass(est)]++
-            if (truth > 0) {
-                densRatioSum += est.toDouble() / truth
-                densRatioN++
-            }
-        }
+        override fun densityClass() = sim.densityClass(i)
     }
 
     private fun create(
@@ -388,7 +374,7 @@ internal class RoutingLayer(
                 Protocol.B2 -> Flood(port, i, fanout = true)
                 Protocol.U2 -> ScopedSourceRoute(port, i)
                 Protocol.U3 -> DistanceVector(port, i)
-                Protocol.U4, Protocol.U4SF, Protocol.U6 -> OnDemand(port, i)
+                Protocol.U4, Protocol.U4SF, Protocol.U6, Protocol.UA, Protocol.UA4 -> OnDemand(port, i)
                 Protocol.BA -> Plumtree(port, i, adaptive = true)
                 Protocol.B3 -> Plumtree(port, i)
                 Protocol.GS -> Gossipsub(port, i)
@@ -420,7 +406,6 @@ internal class RoutingLayer(
             }
         }
         sim.at(sim.warmupMs) { sampleState() }
-        if (needsDensity) sim.at(sim.warmupMs) { sampleDensity() }
     }
 
     fun onJoin(i: Int) {
@@ -593,7 +578,7 @@ internal class RoutingLayer(
         val dist = if (eligible) sim.distancesFrom(src)[dst] else -1
         val first = pairSeen.add((src.toLong() shl 32) or dst.toLong())
         val pq = (mix64(seed xor ((src.toLong() shl 32) or dst.toLong())) and 1L) == 1L
-        msgs.add(Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0))
+        msgs.add(Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow()))
         val payload =
             tc.payloadBytes +
                 when {
@@ -616,7 +601,7 @@ internal class RoutingLayer(
         val labels = sim.componentLabels()
         var count = 0
         for (j in 0 until n) if (j != src && labels[j] == labels[src] && labels[src] >= 0) count++
-        msgs.add(Msg(id, src, -1, sim.now, measured, count > 0, false, false, -1, labels, count))
+        msgs.add(Msg(id, src, -1, sim.now, measured, count > 0, false, false, -1, labels, count, sim.peersInRange(src), inTransition(), classesNow()))
         for (x in broadcast) {
             val r = routing[x][src] ?: continue
             val local = localNow(src, x)
@@ -625,6 +610,15 @@ internal class RoutingLayer(
             r.originate(DataPacket(id, ownTag(src, x), BROADCAST, local + inst[x].lifetimeMs, tc.payloadBytes + tc.laterMessageOverhead, 0, tc.hopLimit))
         }
     }
+
+    private val transition = sim.transitionWindowMs
+
+    private fun inTransition() = transition != null && sim.now in transition
+
+    private fun classesNow() = ByteArray(n) { sim.densityClass(it).toByte() }
+
+    /** Broadcast latencies per instance: [0..2] sender's true class, 3 transition window, 4 cross-mode receivers. */
+    private val bcastLatGroups = Array(k) { Array(5) { ArrayList<Double>() } }
 
     private fun onDeliver(
         x: Int,
@@ -649,7 +643,12 @@ internal class RoutingLayer(
             if (labels[i] != labels[m.src]) return
             bcastCount[x][p.id] = (bcastCount[x][p.id] ?: 0) + 1
             if (m.measured) {
-                bcastLatency[x].add((sim.now - m.sentAt).toDouble())
+                val lat = (sim.now - m.sentAt).toDouble()
+                bcastLatency[x].add(lat)
+                val g = bcastLatGroups[x]
+                g[m.srcTrueClass].add(lat)
+                if (m.inTransition) g[3].add(lat)
+                if (m.classes != null && m.classes[i] != m.classes[m.src]) g[4].add(lat)
                 stats[x].hops[minOf(p.hops, 256)]++
             }
         }
@@ -683,6 +682,59 @@ internal class RoutingLayer(
     }
 
     // ---- results ----
+
+    /** Stage C: delivery and p95 by the sender's true class, density bin, transition window and mode boundary. */
+    private fun densityResults(
+        x: Int,
+        out: LinkedHashMap<String, Double>,
+    ) {
+        val bcast = inst[x].protocol.broadcast
+        val ms = msgs.filter { it.measured && it.eligible && (it.dst < 0) == bcast && it.srcPeers >= 0 }
+        if (!bcast) {
+            fun group(
+                name: String,
+                sel: (Msg) -> Boolean,
+            ) {
+                val g = ms.filter(sel)
+                val del = g.map { if (delivered[x][it.id] >= 0) 1.0 else 0.0 }
+                val lat = g.filter { delivered[x][it.id] >= 0 }.map { (delivered[x][it.id] - it.sentAt).toDouble() }
+                putGroup(out, name, del, g.size, lat)
+            }
+            for (c in 0 until 3) group(DensityClass.labels[c]) { it.srcTrueClass == c }
+            for (b in densityBins.indices) group("bin$b") { densityBin(it.srcPeers) == b }
+            group("trans") { it.inTransition }
+            group("cross") { it.crossMode }
+        } else {
+            val g = bcastLatGroups[x]
+            fun cov(m: Msg): Double = (bcastCount[x][m.id] ?: 0).toDouble() / m.eligibleCount
+            for (c in 0 until 3) {
+                val sel = ms.filter { it.srcTrueClass == c }
+                putGroup(out, DensityClass.labels[c], sel.map { cov(it) }, sel.size, g[c])
+            }
+            for (b in densityBins.indices) {
+                val sel = ms.filter { densityBin(it.srcPeers) == b }
+                putGroup(out, "bin$b", sel.map { cov(it) }, sel.size, emptyList())
+            }
+            val tr = ms.filter { it.inTransition }
+            putGroup(out, "trans", tr.map { cov(it) }, tr.size, g[3])
+            // Cross-mode: share of eligible receivers in another class than the sender that got the message.
+            var crossElig = 0
+            var crossGot = 0
+            for (m in ms) {
+                val cl = m.classes ?: continue
+                val labels = m.labels!!
+                val reached = bcastReached[x][m.id]
+                for (j in 0 until n) {
+                    if (j == m.src || labels[j] != labels[m.src] || cl[j] == cl[m.src]) continue
+                    crossElig++
+                    if (reached != null && reached[j]) crossGot++
+                }
+            }
+            out["n_cross"] = crossElig.toDouble()
+            out["del_cross"] = if (crossElig == 0) Double.NaN else crossGot.toDouble() / crossElig
+            out["p95_cross"] = percentile(g[4], 0.95)
+        }
+    }
 
     fun results(): List<Pair<InstanceConfig, LinkedHashMap<String, Double>>> {
         val seconds = (sim.durationMs - sim.warmupMs) / 1000.0
@@ -753,15 +805,11 @@ internal class RoutingLayer(
             out["seenMax"] = s.seenMax
             out["heldMean"] = s.heldSum / samples
             if (inst[x].protocol == Protocol.BA) {
-                val total = densConfusion.sum().toDouble()
-                out["densEstRatio"] = if (densRatioN == 0L) Double.NaN else densRatioSum / densRatioN
-                out["densClassAgree"] = if (total == 0.0) Double.NaN else (densConfusion[0] + densConfusion[4] + densConfusion[8]) / total
-                val names = listOf("low", "med", "high")
-                for (a in 0 until 3) for (b in 0 until 3) out["dens_${names[a]}_as_${names[b]}"] = densConfusion[3 * a + b] / maxOf(total, 1.0)
                 var sw = 0
                 for (i in 0 until n) sw += (routing[x][i] as? Plumtree)?.modeSwitches ?: 0
-                out["modeSwitchesPerNodeMin"] = sw / (honestCount * seconds / 60.0)
+                out["modeSwitchesPerNodeH"] = sw / (honestCount * seconds / 3600.0)
             }
+            densityResults(x, out)
             if (DEBUG) System.err.println("${inst[x].label} packets ${s.packetCounts}")
             inst[x] to out
         }
@@ -769,3 +817,33 @@ internal class RoutingLayer(
 }
 
 private val DEBUG = System.getProperty("rsim.debug") != null
+
+/**
+ * Adaptive unicast per local density class. Low: flood every message and keep it until acknowledged,
+ * re-trying on every new link with a 2–30 s backoff (eager store-and-forward). Medium: data ring of
+ * [mediumRing] hops, same retries. High: data ring of [highRing] hops (0 = route requests only),
+ * no re-try on new links (links come and go constantly in a crowd) and a 5–60 s backoff.
+ */
+fun adaptivePolicy(
+    label: String,
+    mediumRing: Int,
+    highRing: Int,
+) = UnicastClassPolicy(
+    label,
+    ringHops = intArrayOf(UnicastClassPolicy.FLOOD_ALL, mediumRing, highRing),
+    linkUpRetry = booleanArrayOf(true, true, false),
+    retryMinMs = longArrayOf(2_000, 2_000, 5_000),
+    retryMaxMs = longArrayOf(30_000, 30_000, 60_000),
+)
+
+private fun putGroup(
+    out: LinkedHashMap<String, Double>,
+    name: String,
+    deliveries: List<Double>,
+    count: Int,
+    latencies: List<Double>,
+) {
+    out["n_$name"] = count.toDouble()
+    out["del_$name"] = if (count == 0) Double.NaN else deliveries.sum() / count
+    out["p95_$name"] = percentile(latencies, 0.95)
+}

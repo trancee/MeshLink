@@ -61,13 +61,8 @@ data class RoutingParams(
     // Stage C: relay preference. Nodes that sleep (background iOS) delay relaying so awake paths win.
     val relayPreference: Boolean = false,
     val sleepyRelayDelayMs: Long = 150,
-    // Stage C: density-adaptive broadcast (B1 flood below the threshold, B3 Plumtree above).
-    /** Window of the local density estimate (distinct advertisers heard). */
-    val densityWindowMs: Long = 30_000,
-    /** Switch to Plumtree when the estimate reaches this many peers ... */
-    val plumtreeAtHeard: Int = 12,
-    /** ... and back to flooding when it falls to this many (hysteresis). */
-    val floodAtHeard: Int = 8,
+    /** Stage C adaptive unicast (UA): behavior per local density class, or null for a fixed protocol. */
+    val classPolicy: UnicastClassPolicy? = null,
     // B2 fanout subsetting: forward to ceil(log2(links)) links, at least this many.
     val fanoutMin: Int = 2,
     // B3 Plumtree.
@@ -186,8 +181,26 @@ interface RoutingPort {
     /** The stable flag a linked peer announced at link set-up (1 bit). */
     fun peerStable(peer: Int): Boolean = true
 
-    /** Distinct advertisers this node heard in its recent scans (local density estimate). */
-    fun peersHeard(): Int = 0
+    /** This phone's own local density class (0 low, 1 medium, 2 high), from its own observations only. */
+    fun densityClass(): Int = 1
+}
+
+/**
+ * Stage C adaptive unicast: what a phone does with its own messages and relays in each local
+ * density class (index 0 low, 1 medium, 2 high). The wire format is the same in every class.
+ */
+class UnicastClassPolicy(
+    val label: String,
+    /** Data ring radius when no route is known: [FLOOD_ALL] floods every message (U1-like), 0 = route requests only (U4). */
+    val ringHops: IntArray,
+    /** Re-try held destinations when a new link comes up. */
+    val linkUpRetry: BooleanArray,
+    val retryMinMs: LongArray,
+    val retryMaxMs: LongArray,
+) {
+    companion object {
+        const val FLOOD_ALL = 1_000
+    }
 }
 
 fun RoutingPort.expired(p: DataPacket) = now() > p.expiresAt

@@ -70,6 +70,7 @@ class Simulation(
     private val sizes: WireSizes = WireSizes(),
     private val timeSeries: ((Long, Map<String, Double>) -> Unit)? = null,
     routingSetup: RoutingSetup? = null,
+    densitySetup: DensitySetup? = null,
 ) {
     private val n = scenario.nodes
     private val worldRng = Random(seedOf("world", scenario.key, seed))
@@ -178,6 +179,10 @@ class Simulation(
 
             override fun stable(i: Int) = !background[i]
 
+            override fun densityClass(i: Int) = this@Simulation.densityClass(i)
+
+            override val transitionWindowMs get() = scenario.transitionWindowMs
+
             override fun peersInRange(i: Int): Int {
                 var c = 0
                 for (k in 0 until radio.nbrCount[i]) {
@@ -187,6 +192,22 @@ class Simulation(
                 return c
             }
         }
+
+    private val density: DensityTracker? =
+        densitySetup?.let { ds ->
+            val rng = Random(seedOf("advert", scenario.key, seed))
+            DensityTracker(ds, n, LongArray(n) { (rng.nextDouble() * ds.advertRotationMs).toLong() })
+        }
+    private val classSettings = densitySetup?.settings
+    private val slowHear = densitySetup?.slowAdvertisingHear ?: cal.scanHearProbability
+    private val tickCount = IntArray(n)
+
+    private fun densityClass(i: Int) = density?.classOf(i) ?: 1
+
+    private fun applyClass(i: Int) {
+        val st = classSettings ?: return
+        if (!sybil[i]) budget[i] = st.degree[densityClass(i)]
+    }
 
     private val layer: RoutingLayer? =
         routingSetup?.let { RoutingLayer(access, it, seedOf("routing", scenario.key, seed), BooleanArray(n) { i -> !sybil[i] }) }
@@ -223,6 +244,8 @@ class Simulation(
 
         // Stage A carries no application data, so a link's last data activity is its set-up time.
         override fun lastActivityAt(peer: Int) = linkUpAt(peer)
+
+        override fun bridgeGapMs(): Long? = classSettings?.bridgeGapMs?.get(densityClass(id))
 
         override fun dial(peer: Int): Boolean = startDial(id, peer)
 
@@ -439,6 +462,8 @@ class Simulation(
     private fun join(i: Int) {
         online[i] = true
         incarnation[i]++
+        density?.reset(i)
+        applyClass(i)
         strategies[i] = newStrategy(i)
         layer?.onJoin(i)
         // Joins still unconnected when the node leaves or the run ends count with their elapsed time (a lower bound).
@@ -486,15 +511,31 @@ class Simulation(
         if (recurring) at(now + cal.tickMs) { tick(i, inc) }
         if (!awake[i]) return
         val s = strategies[i]!!
-        val results = ArrayList<ScanResult>(radio.nbrCount[i])
-        for (k in 0 until radio.nbrCount[i]) {
-            val j = radio.nbr[i][k]
-            if (!active(j) || !strategies[j]!!.advertising()) continue
-            if (protoRng.nextDouble() >= cal.scanHearProbability) continue
-            results.add(ScanResult(j, radio.nbrRssi[i][k] + gaussian() * cal.scanNoiseSigmaDb))
+        val st = classSettings
+        val c = densityClass(i)
+        val scanNow = st == null || tickCount[i]++ % st.scanEvery[c] == 0
+        if (scanNow) {
+            val results = ArrayList<ScanResult>(radio.nbrCount[i])
+            for (k in 0 until radio.nbrCount[i]) {
+                val j = radio.nbr[i][k]
+                if (!active(j) || !strategies[j]!!.advertising()) continue
+                val hear = if (st == null || st.fastAdvertising[densityClass(j)]) cal.scanHearProbability else slowHear
+                if (protoRng.nextDouble() >= hear) continue
+                results.add(ScanResult(j, radio.nbrRssi[i][k] + gaussian() * cal.scanNoiseSigmaDb))
+            }
+            s.onScan(results)
+            val dt = density
+            if (dt != null && !sybil[i]) {
+                val peers = IntArray(links[i].size) { links[i][it].other(i) }
+                if (dt.onScan(i, now, results, peers, measuring())) applyClass(i)
+            }
         }
-        s.onScan(results)
-        layer?.onScan(i, results)
+        density?.let { dt ->
+            if (!sybil[i]) {
+                val power = if (st == null) 1.0 else 0.6 * (if (scanNow) 1.0 else 0.0) + 0.4 * (if (st.fastAdvertising[c]) 1.0 else 0.4)
+                dt.sample(i, now, access.peersInRange(i), measuring(), power)
+            }
+        }
         s.onTick()
     }
 
@@ -754,7 +795,8 @@ class Simulation(
 
     fun run(): RunResult {
         for (i in 0 until n) {
-            at((worldRng.nextDouble() * 10_000).toLong()) { join(i) }
+            val early = (worldRng.nextDouble() * 10_000).toLong()
+            at(mobility.lateJoinMs(i) ?: early) { join(i) }
             if (background[i]) {
                 val phase = (worldRng.nextDouble() * cal.iosCycleMs).toLong()
                 awake[i] = false
@@ -825,6 +867,7 @@ class Simulation(
             out["mergeFirstLinkS"] = Double.NaN
             out["mergeLccRecoverS"] = Double.NaN
         }
+        density?.results(out, cal.tickMs)
         out["events"] = queue.processed.toDouble()
         return out
     }
