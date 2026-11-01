@@ -1,0 +1,28 @@
+plugins {
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kmp.library)
+}
+
+kotlin {
+    jvmToolchain(21)
+
+    android {
+        namespace = "ch.trancee.lab.bakeoff.shared"
+        compileSdk = libs.versions.compileSdk.get().toInt()
+        minSdk = libs.versions.minSdk.get().toInt()
+    }
+
+    iosArm64 {
+        binaries.framework {
+            baseName = "Bakeoff"
+            isStatic = true
+            binaryOption("bundleId", "ch.trancee.lab.bakeoff")
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+        }
+    }
+}
