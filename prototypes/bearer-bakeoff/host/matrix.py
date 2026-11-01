@@ -86,6 +86,13 @@ def phases():
             step5 += both(other, legacy, "m5-suite", ["n=5", "bearers=gatt", "plan=suite", "phy=2m"], 600)
             step5 += both(other, legacy, "m5-conn", ["n=20", "bearers=gatt", "plan=connect", "phy=2m"], 900)
     plan["step5-legacy"] = step5
+    # Rerun after the busy-retry fix (31ac3f7), now with connect_retries=3 like steps 1-4; m5-* runs are kept.
+    step5b = []
+    for legacy in ("p10lite", "xcover4"):
+        for other in ("pixel6", "ip15"):
+            step5b += both(other, legacy, "m5b-suite", ["n=5", "bearers=gatt", "plan=suite", "phy=2m", "connect_retries=3"], 600)
+            step5b += both(other, legacy, "m5b-conn", ["n=20", "bearers=gatt", "plan=connect", "phy=2m", "connect_retries=3"], 900)
+    plan["step5b-legacy"] = step5b
     return plan
 
 
