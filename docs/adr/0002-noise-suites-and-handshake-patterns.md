@@ -37,7 +37,7 @@ Terminology note (2026-11-01, ADR 0007): the profile written `none` here is name
 
 - `hfs` is an unofficial Noise extension with no public vectors. Mitigated by two-implementation vectors and expert review before release.
 - HPKE with X-Wing: standardization status and provider support are unverified; the crypto-provider ticket verifies them.
-- Post-quantum first messages are about 2.3 KB larger than classical. Modelled at roughly 13–24 ms per hop on ideal radio, or 45–230 ms per hop at an illustrative 10–50 KB/s; unmeasured. Mitigated by the latency safeguard.
+- Post-quantum first messages are about 2.3 KB larger than classical. Modeled at roughly 13–24 ms per hop on ideal radio, or 45–230 ms per hop at an illustrative 10–50 KB/s; unmeasured. Mitigated by the latency safeguard.
 - `XXhfs` costs about 2.5 KB per link establishment, which may be high under link churn at high density. The simulation and bake-off measure it.
 
 ## Migration

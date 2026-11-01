@@ -3,11 +3,13 @@
 Every dependency and tool MeshLink uses, with its Constitution E3 rationale. The decision behind this baseline is [ADR 0005](../adr/0005-toolchain-and-dependency-baseline.md).
 
 Rules:
+
 - `gradle/libs.versions.toml` is the only source of versions; this page never overrides it. A CI check fails if any catalog entry has no row here.
 - Native and Rust entries have no catalog entry, so their pins live in the build scripts and `tools/reference/`, and they are listed here by hand.
 - Adding or removing a dependency needs user approval and a row here in the same change.
 
 Scope legend:
+
 - `runtime`: ships inside a published artifact.
 - `build`: Gradle or compiler tooling.
 - `test`: test sources only.
@@ -58,6 +60,7 @@ Run in CI and locally; never shipped. Actions are pinned by commit SHA with a ve
 | lychee | 0.24.2 | `lycheeverse/lychee-action` v2.9.0 | Apache-2.0 OR MIT | Link check: repository links offline on every PR, external links weekly (O6) | Nothing in the build checks Markdown links |
 | markdownlint-cli2 | 0.24.0 | `DavidAnson/markdownlint-cli2-action` v25.0.0 | MIT | Markdown structure lint (O6) | Spotless/ktlint cover Kotlin only |
 | typos | 1.51.1 | `crate-ci/typos` v1.51.1 | Apache-2.0 OR MIT | Spelling, US English, offline, low false positives (O6) | No spelling gate exists; cspell needs Node and is noisier |
+| actions/checkout | 7.0.1 | `actions/checkout` v7.0.1 | MIT | Check out the repository for the docs jobs | GitHub's own checkout action; nothing to replace |
 
 ## Reference (test-only Rust, `tools/reference/`, never published)
 

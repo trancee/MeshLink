@@ -1,0 +1,3 @@
+# typos config (ADR 0006, decision 10): docs use US English.
+[default]
+locale = "en-us"

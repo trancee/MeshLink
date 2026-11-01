@@ -21,7 +21,7 @@ size, transitives}`, availability on Android 26+ / iOS 15+, conformance vectors
 ## 2. Key findings (short)
 
 1. **iOS 15 has no platform ML-KEM/X-Wing.** CryptoKit `MLKEM768` and
-   `XWingMLKEM768X25519` are iOS **26.0+** [A1][A2]. Classical primitives are
+   `XWingMLKEM768X25519` are iOS **26.0+** [A1, A2]. Classical primitives are
    iOS 13+ (HKDF iOS 14+) [A3]. A `post-quantum` profile on iOS 15–25 needs a
    bundled implementation, or the PQ profile's minimum iOS must be raised.
 2. **Android 26 has no platform X25519 or ML-KEM.** Platform JCA: `XDH`
@@ -32,7 +32,7 @@ size, transitives}`, availability on Android 26+ / iOS 15+, conformance vectors
    Android 26–32.
 3. **libsodium 1.0.22 (2026-04-09) now has ML-KEM-768 and X-Wing**
    (`crypto_kem_mlkem768_*`, `crypto_kem_xwing_*`, pk 1216 B / ct 1120 B),
-   plus SHA-3 [C1][C2]. Together with its existing X25519, Ed25519,
+   plus SHA-3 [C1, C2]. Together with its existing X25519, Ed25519,
    ChaCha20-Poly1305 and HMAC-SHA-256/512, it is the only single ISC-licensed
    C library found that covers *both* secured profiles on both platforms. Its
    AES-256-GCM requires ARM Crypto Extensions and has no software fallback
@@ -43,7 +43,7 @@ size, transitives}`, availability on Android 26+ / iOS 15+, conformance vectors
    has X25519, ChaCha20-Poly1305, XChaCha20-Poly1305, ML-KEM and X-Wing key
    generation, and HPKE suites `MLKEM_768/…` and `XWING/…`. Its raw JCA
    `KEM.ML-KEM*` and `KDF.HKDF-*` registrations happen only when the
-   `javax.crypto.KEM` / `javax.crypto.KDF` classes exist [D1][D2]. On Android
+   `javax.crypto.KEM` / `javax.crypto.KDF` classes exist [D1, D2]. On Android
    26 that leaves no raw KEM encaps/decaps, only one-shot HPKE. **Unverified:**
    whether any shipped Android API level exposes `javax.crypto.KEM`.
 5. **cryptography-kotlin 0.6.0** (whyoleg, Apache-2.0, released 2026-04-02,
@@ -78,39 +78,39 @@ a 1 184 B ML-KEM-768 key, as the template's own design review says, so it is
 
 | Id | Source |
 |---|---|
-| A1 | https://developer.apple.com/documentation/cryptokit/mlkem768.md (availability iOS 26.0) |
-| A2 | https://developer.apple.com/documentation/cryptokit/xwingmlkem768x25519.md (iOS 26.0; "draft-connolly-cfrg-xwing-kem-06") |
-| A3 | https://developer.apple.com/documentation/cryptokit/{curve25519/keyagreement,chachapoly,aes/gcm,sha384,hmac}.md (iOS 13.0), `hkdf.md` (iOS 14.0) |
-| A4 | https://developer.apple.com/documentation/cryptokit/mldsa65.md (iOS 26.0) |
-| B1 | https://developer.android.com/reference/javax/crypto/KeyAgreement (XDH 33+) |
-| B2 | https://developer.android.com/reference/javax/crypto/Cipher (AES GCM 10+, AES_256 GCM 26+, ChaCha20/Poly1305 28+) |
-| B3 | https://developer.android.com/reference/java/security/Signature (Ed25519 33+), …/KeyPairGenerator (XDH 33+) |
-| B4 | https://developer.android.com/reference/android/security/keystore/KeyProperties (KEY_ALGORITHM_ML_DSA* added API 37; no ML-KEM constant) |
-| B5 | https://developer.android.com/reference/android/bluetooth/BluetoothGatt#requestMtu(int) (Android 14+ requests ATT MTU 517) |
-| C1 | https://github.com/jedisct1/libsodium/releases/tag/1.0.22-RELEASE |
-| C2 | https://github.com/jedisct1/libsodium/blob/master/src/libsodium/include/sodium/crypto_kem_xwing.h |
-| C3 | https://github.com/jedisct1/libsodium-doc/blob/master/secret-key_cryptography/aes-256-gcm.md |
-| C4 | https://github.com/ionspin/kotlin-multiplatform-libsodium (README, CHANGELOG 0.9.5) |
-| D1 | https://github.com/google/conscrypt/releases (2.8.0 2026-10-20, 2.7.0 2026-08-31) |
-| D2 | https://github.com/google/conscrypt/blob/2.8.0/common/src/main/java/org/conscrypt/OpenSSLProvider.java; `android/build.gradle` (minSdk 21); Maven Central `conscrypt-android-2.8.0.aar` (4 985 129 B) |
-| E1 | https://github.com/whyoleg/cryptography-kotlin (README, releases, repo tree) |
-| E2 | https://github.com/whyoleg/cryptography-kotlin/blob/main/cryptography-providers/cryptokit/build.gradle.kts (Swift interop module) |
+| A1 | <https://developer.apple.com/documentation/cryptokit/mlkem768.md> (availability iOS 26.0) |
+| A2 | <https://developer.apple.com/documentation/cryptokit/xwingmlkem768x25519.md> (iOS 26.0; "draft-connolly-cfrg-xwing-kem-06") |
+| A3 | `https://developer.apple.com/documentation/cryptokit/{curve25519/keyagreement,chachapoly,aes/gcm,sha384,hmac}.md` (iOS 13.0), `hkdf.md` (iOS 14.0) |
+| A4 | <https://developer.apple.com/documentation/cryptokit/mldsa65.md> (iOS 26.0) |
+| B1 | <https://developer.android.com/reference/javax/crypto/KeyAgreement> (XDH 33+) |
+| B2 | <https://developer.android.com/reference/javax/crypto/Cipher> (AES GCM 10+, AES_256 GCM 26+, ChaCha20/Poly1305 28+) |
+| B3 | <https://developer.android.com/reference/java/security/Signature> (Ed25519 33+), …/KeyPairGenerator (XDH 33+) |
+| B4 | <https://developer.android.com/reference/android/security/keystore/KeyProperties> (KEY_ALGORITHM_ML_DSA* added API 37; no ML-KEM constant) |
+| B5 | <https://developer.android.com/reference/android/bluetooth/BluetoothGatt#requestMtu(int)> (Android 14+ requests ATT MTU 517) |
+| C1 | <https://github.com/jedisct1/libsodium/releases/tag/1.0.22-RELEASE> |
+| C2 | <https://github.com/jedisct1/libsodium/blob/master/src/libsodium/include/sodium/crypto_kem_xwing.h> |
+| C3 | <https://github.com/jedisct1/libsodium-doc/blob/master/secret-key_cryptography/aes-256-gcm.md> |
+| C4 | <https://github.com/ionspin/kotlin-multiplatform-libsodium> (README, CHANGELOG 0.9.5) |
+| D1 | <https://github.com/google/conscrypt/releases> (2.8.0 2026-10-20, 2.7.0 2026-08-31) |
+| D2 | <https://github.com/google/conscrypt/blob/2.8.0/common/src/main/java/org/conscrypt/OpenSSLProvider.java>; `android/build.gradle` (minSdk 21); Maven Central `conscrypt-android-2.8.0.aar` (4 985 129 B) |
+| E1 | <https://github.com/whyoleg/cryptography-kotlin> (README, releases, repo tree) |
+| E2 | <https://github.com/whyoleg/cryptography-kotlin/blob/main/cryptography-providers/cryptokit/build.gradle.kts> (Swift interop module) |
 | E3 | GitHub issue search `repo:whyoleg/cryptography-kotlin ML-KEM OR kyber OR post-quantum` (no ML-KEM issue; #160 SHAKE256 open; #159 Android EC import bug open) |
-| F1 | https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/ and https://www.ietf.org/archive/id/draft-connolly-cfrg-xwing-kem-11.txt |
+| F1 | <https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/> and <https://www.ietf.org/archive/id/draft-connolly-cfrg-xwing-kem-11.txt> |
 | G1 | Maven Central `org.bouncycastle:bcprov-jdk18on` 1.86 (2026-09-11; jar 7 224 011 B) |
-| G2 | https://github.com/bcgit/bc-java/tree/main/core/src/main/java/org/bouncycastle/pqc/crypto/xwing (draft-07) |
-| G3 | https://github.com/tink-crypto/tink-java (v1.24.0 2026-10-16; X-Wing HPKE via Conscrypt); Maven `tink-android-1.24.0.jar` 3 508 938 B |
+| G2 | <https://github.com/bcgit/bc-java/tree/main/core/src/main/java/org/bouncycastle/pqc/crypto/xwing> (draft-07) |
+| G3 | <https://github.com/tink-crypto/tink-java> (v1.24.0 2026-10-16; X-Wing HPKE via Conscrypt); Maven `tink-android-1.24.0.jar` 3 508 938 B |
 | G4 | crates.io API: aws-lc-rs 1.19.0 (2026-10-28, `ISC AND (Apache-2.0 OR ISC)`), ml-kem 0.3.3, x-wing 0.1.1, libcrux-ml-kem 0.0.11, libcrux-kem 0.0.10, x25519-dalek 3.0.0, aes-gcm 0.11.1, chacha20poly1305 0.11.0, hkdf 0.13.0, snow 0.10.0 (2025-07-19), clatter 2.3.0 |
-| G5 | https://github.com/aws/aws-lc-rs/blob/main/aws-lc-rs/src/kem.rs (ML-KEM-512/768/1024); aws/aws-lc tree (ML-KEM, no X-Wing file found) |
-| G6 | https://github.com/jmlepisto/clatter (Noise rev 34 + PQNoise; "has not received any formal audit") |
-| H1 | https://github.com/C2SP/wycheproof/tree/main/testvectors_v1 |
-| H2 | https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files |
-| I1 | https://noiseprotocol.org/noise.html (rev 34, 2018-07-11) |
-| I2 | https://github.com/noiseprotocol/noise_hfs_spec/blob/master/noise_hfs.md |
-| I3 | https://eprint.iacr.org/2022/539 (doi 10.1145/3548606.3560577) |
-| I4 | https://github.com/haskell-cryptography/cacophony/blob/master/vectors/cacophony.txt |
-| I5 | https://github.com/mcginty/snow/blob/main/tests/vectors/snow.txt |
-| J1 | Bluetooth Core 6.0, Vol 3 Part F (ATT) §3.2.9: "The maximum length of an attribute value shall be 512 octets." https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-60/out/en/host/attribute-protocol--att-.html |
+| G5 | <https://github.com/aws/aws-lc-rs/blob/main/aws-lc-rs/src/kem.rs> (ML-KEM-512/768/1024); aws/aws-lc tree (ML-KEM, no X-Wing file found) |
+| G6 | <https://github.com/jmlepisto/clatter> (Noise rev 34 + PQNoise; "has not received any formal audit") |
+| H1 | <https://github.com/C2SP/wycheproof/tree/main/testvectors_v1> |
+| H2 | <https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files> |
+| I1 | <https://noiseprotocol.org/noise.html> (rev 34, 2018-07-11) |
+| I2 | <https://github.com/noiseprotocol/noise_hfs_spec/blob/master/noise_hfs.md> |
+| I3 | <https://eprint.iacr.org/2022/539> (doi 10.1145/3548606.3560577) |
+| I4 | <https://github.com/haskell-cryptography/cacophony/blob/master/vectors/cacophony.txt> |
+| I5 | <https://github.com/mcginty/snow/blob/main/tests/vectors/snow.txt> |
+| J1 | Bluetooth Core 6.0, Vol 3 Part F (ATT) §3.2.9: "The maximum length of an attribute value shall be 512 octets." <https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-60/out/en/host/attribute-protocol--att-.html> |
 | P1–P3 | cairn ADR 0001; cairn PQC-over-BLE findings (airtime model, sizes from FIPS 203); cairn X-Wing draft-11 vectors note (2026-10-08) |
 
 ## 4. Options per profile
@@ -130,7 +130,7 @@ a 1 184 B ML-KEM-768 key, as the template's own design review says, so it is
 
 | Component | Candidates | Notes |
 |---|---|---|
-| Link handshake | Noise `XX` (no prior key), `IK` (initiator knows responder static), `KK` (both pinned) | Standard, well analysed; vectors exist (§7). XX = 3 msgs/1.5 RTT, IK/KK = 2 msgs/1 RTT. |
+| Link handshake | Noise `XX` (no prior key), `IK` (initiator knows responder static), `KK` (both pinned) | Standard, well analyzed; vectors exist (§7). XX = 3 msgs/1.5 RTT, IK/KK = 2 msgs/1 RTT. |
 | DH | X25519 | iOS CryptoKit 13+; Android platform 33+ only, so bundle a provider on 26–32. |
 | AEAD | AES-256-GCM (`AESGCM`) or ChaCha20-Poly1305 (`ChaChaPoly`) | AES-GCM is platform-native on both (Android 26 AES_256/GCM; iOS 13). ChaCha is platform-native on iOS 13 but on Android only from 28. libsodium AES-GCM needs ARM CE [C3]. |
 | Hash/KDF | SHA-256 or SHA-512 HMAC-HKDF (Noise) | Platform-native on both. Android has no HKDF class, but Noise defines its HKDF over HMAC [I1]. |
@@ -151,7 +151,7 @@ what CNSA 2.0 requires (sizes from FIPS 203 via cairn P2).
 | PQ-a. Noise `hfs` + ML-KEM-768 | Classical pattern plus `e1`/`ekem1` tokens; KEM output mixed into the chaining key | Spec unofficial/unstable [I2]; no public `hfs` vectors found [I5]; snow supports `hfs` (with an older Kyber; **unverified** whether ML-KEM) | ~2.4 KB per link handshake (§6) |
 | PQ-b. PQNoise (KEM-only or hybrid patterns) | DH replaced by KEMs, including static KEM keys | Peer-reviewed proofs [I3]; only Rust impl found is clatter (unaudited) [G6]; no standard vectors | ~6.9 KB for pqXX; 4 messages |
 | PQ-c. cairn-style pay-once | X-Wing pairing once (+SAS/OOB/TOFU), then a symmetric ratchet + X25519 resume (57+49 B), with amortized ML-KEM-768 refresh carried in data padding | Novel composition (S6: spec + expert review + formal model); cairn has Tamarin work but no MeshLink-equivalent proof | 2.3 KB once per peer pair; 106 B per resume; per-pair state |
-| PQ-d. Classical Noise + one-shot X-Wing HPKE-style payload | X-Wing ct carried in the Noise payload, ss mixed in through a PSK-like slot | Not a published construction, so S6 applies as a new composition. Listed only because Conscrypt/Tink expose X-Wing *only* as HPKE [D2][G3] | ~1.1–2.3 KB |
+| PQ-d. Classical Noise + one-shot X-Wing HPKE-style payload | X-Wing ct carried in the Noise payload, ss mixed in through a PSK-like slot | Not a published construction, so S6 applies as a new composition. Listed only because Conscrypt/Tink expose X-Wing *only* as HPKE [D2, G3] | ~1.1–2.3 KB |
 
 Authentication options in `post-quantum`:
 
@@ -173,15 +173,15 @@ iOS 15+.
 
 | Provider | Need / coverage | Maintenance | License | Security | Size | Transitives |
 |---|---|---|---|---|---|---|
-| Platform split: Android JCA + iOS CryptoKit | ~ classical only on iOS 13+/Android 33+; ✘ X25519 on Android 26–32; ✘ PQ on iOS<26 and on all Android (no ML-KEM) [A1–A3][B1–B4] | ✔ OS vendor | ✔ OS | ✔ vendor-maintained, hardware AES; CryptoKit is Swift-only, so needs a Swift bridge | ✔ 0 B | ✔ none (Swift interop shim) |
+| Platform split: Android JCA + iOS CryptoKit | ~ classical only on iOS 13+/Android 33+; ✘ X25519 on Android 26–32; ✘ PQ on iOS<26 and on all Android (no ML-KEM) [A1–A3, B1–B4] | ✔ OS vendor | ✔ OS | ✔ vendor-maintained, hardware AES; CryptoKit is Swift-only, so needs a Swift bridge | ✔ 0 B | ✔ none (Swift interop shim) |
 | cryptography-kotlin 0.6.0 (JDK + CryptoKit/Apple/OpenSSL3 providers) | ~ same Android gaps as the platform split (JDK provider); ✘ no ML-KEM/X-Wing/ML-DSA [E1–E3] | ✔ active (push 2026-10-31); 1 maintainer; pre-1.0 (0.x API) | ✔ Apache-2.0 | ~ thin wrapper, so security = underlying provider; open Android EC import bug #159 | ✔ core 302 KB + jdk provider 337 KB (JVM jars) | ✔ kotlinx only (full tree **unverified**) |
 | Conscrypt-android 2.8.0 (bundled, Android only) | ✔ classical on Android 26; ~ PQ only through HPKE, no raw KEM on API 26 [D2] | ✔ Google; release 2026-10-20 | ✔ Apache-2.0 | ✔ BoringSSL core | ✘ 4.99 MB AAR (all ABIs, before ABI split) | ✔ none (native BoringSSL inside) |
 | Tink-android 1.24.0 (Android only) | ✘ high-level primitives only; X-Wing only as HPKE through Conscrypt [G3] | ✔ Google; 2026-10-16 | ✔ Apache-2.0 | ✔ misuse-resistant API, but not a Noise primitive set | ~ 3.5 MB jar (pre-R8) | ~ protobuf (+ Conscrypt for X-Wing) (exact tree **unverified**) |
-| BouncyCastle bcprov-jdk18on 1.86 (Android only) | ✔ X25519, Ed25519, AES-GCM, ChaCha, HKDF, ML-KEM, X-Wing (draft-07), ML-DSA in the lightweight API [G1][G2] | ✔ active (push 2026-10-31) | ✔ MIT | ~ pure Java; ART/JVM give no constant-time guarantee (per-primitive claims **unverified**) | ✘ 7.2 MB jar pre-R8 | ✔ none |
+| BouncyCastle bcprov-jdk18on 1.86 (Android only) | ✔ X25519, Ed25519, AES-GCM, ChaCha, HKDF, ML-KEM, X-Wing (draft-07), ML-DSA in the lightweight API [G1, G2] | ✔ active (push 2026-10-31) | ✔ MIT | ~ pure Java; ART/JVM give no constant-time guarantee (per-primitive claims **unverified**) | ✘ 7.2 MB jar pre-R8 | ✔ none |
 | libsodium 1.0.22 (C, own JNI + cinterop) | ✔ classical + PQ on both platforms (X25519, Ed25519, ChaCha20-Poly1305, HMAC-SHA-256/512, ML-KEM-768, X-Wing); ~ AES-GCM only with ARM CE [C1–C3] | ✔ active (push 2026-10-31); single lead maintainer; KEM API new (2026-04) | ✔ ISC | ✔ long-audited core; ~ ML-KEM/X-Wing code is young (audit status **unverified**) | ~ ionspin AAR 0.77 MB (older version, all ABIs, without JNA); own build **unmeasured** | ~ none if bound directly; the ionspin wrapper adds JNA and lacks KEM [C4] |
 | Rust core: aws-lc-rs 1.19.0 + UniFFI (Ubique) | ✔ X25519, AES-GCM, ChaCha, HKDF, ML-KEM-768 [G5]; ✘ no X-Wing, so the combiner is hand-built (new code under S6) | ✔ AWS; 2026-10-28 | ✔ ISC AND (Apache-2.0 OR ISC) | ✔ FIPS lineage (no mobile OE certificate, cairn P2); ~ AWS-LC jitter entropy aborted the app on a Kirin phone, so it needs `AWS_LC_SYS_NO_JITTER_ENTROPY=1` (cairn lessons, issue 51) | ~ per-ABI native size **unmeasured** | ✘ Rust toolchain + UniFFI + Ubique plugin + cmake/NASM build deps; needs the Rust-approval ticket |
 | Rust core: RustCrypto (ml-kem 0.3.3, x-wing 0.1.1, x25519-dalek 3.0.0, aes-gcm, chacha20poly1305, hkdf) or libcrux 0.0.x | ✔ full set incl. X-Wing | ~ active, but pre-1.0 versions | ✔ MIT/Apache-2.0 (dalek BSD-3) | ~ per-crate audit status **unverified**; libcrux's formally verified ML-KEM claim **unverified** here | ~ **unmeasured** | ✘ as above (Rust ticket) |
-| Apple CryptoKit PQ (MLKEM768, XWing, MLDSA65) | ✘ iOS 26+ only [A1][A2][A4] | ✔ Apple | ✔ OS | ✔ | ✔ 0 B | ✔ |
+| Apple CryptoKit PQ (MLKEM768, XWing, MLDSA65) | ✘ iOS 26+ only [A1, A2, A4] | ✔ Apple | ✔ OS | ✔ | ✔ 0 B | ✔ |
 | Noise libraries: snow 0.10.0, clatter 2.3.0 (Rust) | ~ protocol layer only; clatter has PQNoise | ~ snow's last release 2025-07-19; clatter is small (45★) | ✔ Apache/MIT; MIT | ~ clatter unaudited [G6] | n/a | Rust |
 
 `why_stdlib/existing_fails` (E3): the Kotlin stdlib has no crypto. Platform
@@ -192,8 +192,8 @@ providers lack X25519 on Android 26–32 and PQ on iOS 15–25 and all Android.
 ## 6. Handshake comparison (bytes-on-air)
 
 Assumptions: empty payloads; X25519 32 B; AEAD tag 16 B; ML-KEM-768 pk
-1 184 B / ct 1 088 B; X-Wing pk 1 216 B / ct 1 120 B [F1][C2]; tokens
-encrypted per the Noise/`hfs` rules [I1][I2]. Counts **exclude** MeshLink
+1 184 B / ct 1 088 B; X-Wing pk 1 216 B / ct 1 120 B [F1, C2]; tokens
+encrypted per the Noise/`hfs` rules [I1, I2]. Counts **exclude** MeshLink
 framing, fragment headers, CRCs and L2CAP/ATT headers. The PQNoise pqXX
 token order (`-> e; <- ekem, s; -> skem, s; <- skem`) is reconstructed from
 the paper's recipe, **not checked against its tables** (± ~16 B/msg). Chunk
@@ -257,7 +257,7 @@ design review also notes.
 ## 8. Recommendation candidates (not decisions)
 
 1. **`classical` = standard Noise: X25519 + AES-256-GCM or ChaCha20-Poly1305
-   + SHA-256, with XX for first contact and IK/KK for pinned peers.** This is
+   - SHA-256, with XX for first contact and IK/KK for pinned peers.** This is
    the strongest S6/S7 position: no new primitive, plus Wycheproof and
    cacophony/snow vectors. The AEAD choice depends on the provider:
    platform-only stacks favor AESGCM (Android 26 lacks platform ChaCha),

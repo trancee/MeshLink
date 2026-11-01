@@ -80,4 +80,3 @@ Recorded in [ADR 0007](../../../docs/adr/0007-public-api-shape.md); every recomm
   - `none` → `unsecured` in the glossary, threat model, guarantees and tracker, with terminology notes in ADRs 0001 and 0002.
   - Glossary terms "Proximity" and the broadened "Preset".
   - The UWB out-of-scope line.
-

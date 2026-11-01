@@ -1,0 +1,14 @@
+// markdownlint-cli2 config (ADR 0006, decision 10). Rule rationale:
+// MD013 off: prose keeps one paragraph or list item per line; diffs stay reviewable without hard wraps.
+// MD060 off: compact `|---|` tables are the house style and render identically.
+// MD024 siblings only: research notes reuse subsection names (Transport, Lesson) under different systems.
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD060": false,
+    "MD024": { "siblings_only": true }
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["**/build/**", "**/node_modules/**"]
+}

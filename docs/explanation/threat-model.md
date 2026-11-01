@@ -93,6 +93,8 @@ Link frames use AEAD with counter nonces, so replays are rejected. End-to-end me
 
 MeshLink does not guarantee delivery against A3 or A4. It does guarantee bounded resources: no remote input can push a node beyond its configured memory, storage, airtime or connection budgets. In the secured profiles it authenticates before relaying or caching and rate-limits each neighbor.
 
+Fake identities (Sybil, A3) are the main availability limit of an **open** mesh and of `unsecured`: creating an identity costs nothing, so an attacker can fill honest nodes' link slots. A gated mesh raises the cost to a stolen mesh key. In the routing simulation (stage A, simulated only, not measured on devices), 10% fake identities took about 40% of honest link slots. Diverse neighbor views still kept most honest nodes connected. At 30%, the honest mesh broke apart under every neighbor selection strategy tested. v1 does not defend against this beyond the gated mesh; identity cost or peer scoring is an open question. Apps that need availability against a determined attacker should use a gated mesh.
+
 ### Profile `unsecured`
 
 `unsecured` is plaintext and unauthenticated by design and promises nothing against A1–A7. It still keeps resource bounds and per-fragment corruption detection. Nodes in a secured mesh accept only frames from a completed handshake, so `unsecured` frames, even relabeled ones, never enter a secured mesh. Receipts in `unsecured` can be forged.

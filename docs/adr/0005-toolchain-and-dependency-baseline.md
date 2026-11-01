@@ -9,6 +9,7 @@ MeshLink is a Kotlin Multiplatform library for Android (minSdk 26) and iOS 15+. 
 Two throwaway smoke builds on 2026-11-01 (outside the repository) proved the tuple below.
 
 **Kotlin tuple: all of these passed.**
+
 - `build` with the configuration cache;
 - Robolectric on SDK 26 and 37, under JDK 21 and 25;
 - `iosSimulatorArm64Test`;
@@ -17,6 +18,7 @@ Two throwaway smoke builds on 2026-11-01 (outside the repository) proved the tup
 - Dokka, Spotless, detekt, KGP `abiValidation` (which failed correctly on an API change) and `publishToMavenLocal`.
 
 **libsodium:**
+
 - Source sha256 and minisign signature verified.
 - `--enable-minimal` keeps every primitive MeshLink needs.
 - Stripped shim at `-Os`: arm64 194 KB, armv7 306 KB, x86_64 289 KB; iOS arm64 280 KB.
@@ -63,10 +65,12 @@ Facts verified 2026-11-01:
 | Rust (test-only reference) | 1.99.0 | |
 
 Version rules:
+
 - **Moving to a newer minor:** for Gradle, AGP or Kotlin, only after KGP's compatibility table (or, for SKIE, its release) lists the combination.
 - **Patch releases** within a listed minor are allowed after the smoke gates pass.
 
 **Targets:**
+
 - **Android ABIs:** `arm64-v8a`, `armeabi-v7a` (the lab has v7a-only API 28 phones) and `x86_64` (emulators). No `x86`.
 - **iOS:** `iosArm64` and `iosSimulatorArm64`; no `iosX64` (Tier 3, Intel Macs only).
   - The simulator slice ships so that host apps can build and run their UI in the simulator, where MeshLink reports "Bluetooth unsupported" through its normal state API.
@@ -74,6 +78,7 @@ Version rules:
   - Every radio test runs on hardware only (T9).
 
 **Tools:**
+
 - **E2 holds:**
 
   | Tool | Blocker | Removed when | Wiring |
@@ -87,15 +92,18 @@ Version rules:
 - **Native bundle ID:** set explicitly through `binaryOption("bundleId", …)`.
 
 **libsodium build:**
+
 - Unmodified upstream `dist-build` scripts, `-Os`, `--enable-minimal`, with the tarball's sha256 and minisign signature verified in CI.
 - The iOS XCFramework build runs in full, with its output cached in CI and keyed by the tarball's sha256.
 - Keep the upstream `-march=armv8-a+crypto`. **Invariant:** the shim never exposes AES-GCM, AEGIS, ipcrypt or any other API whose hardware path is selected by libsodium's compile-time CPU detection. A CI check fails if the shim's exported or imported symbol set includes an `aes`, `aegis` or `ipcrypt` function.
 
 **Coverage:**
+
 - T3 as amended by Constitution 4.0.0: Kover measures `commonMain` and `androidMain` at 100% line and branch coverage.
 - `iosMain` holds only thin platform adapters. Each one is listed in a CI-named file and exercised by on-target tests.
 
 **Test-only Rust reference** (`tools/reference/`; never published, never linked into an artifact):
+
 - `rust-toolchain.toml` pins Rust 1.99.0, and `Cargo.lock` is committed.
 - Crates:
   - rust-hpke 0.15.1, RustCrypto `ml-kem` 0.3.4;
@@ -104,20 +112,24 @@ Version rules:
   - snow pinned to snow#210 head `dc18c06c28fbdeaa6ffae7347e650c805e9b932e`, for an independent `XXhfs` cross-check. Move to a crates.io release once #210 merges.
 
 **Dependency register:**
+
 - `gradle/libs.versions.toml` is the only version source.
 - `docs/reference/dependencies.md` holds one E3 row per catalog entry, plus the native and Rust entries.
 - A CI check fails if any catalog entry has no register row.
 
 **CI:**
+
 - GitHub, with GitHub Actions; every action is pinned to a commit SHA with a version comment.
 - macOS jobs run on `macos-15` arm64 with Xcode 16.4 selected explicitly.
 - The repository has no remote yet. Creating it is an external change and needs explicit approval.
 
 **Publishing:**
+
 - vanniktech 0.37.0 is configured, with `publishToMavenLocal` as the local proof.
 - Maven Central credentials, the GPG key and XCFramework/SwiftPM hosting belong to the release process.
 
 **Device-lab signing:**
+
 - One shared lab bundle ID per free team: `ch.trancee.lab.host` plus its UI-test runner. MeshLink, cairn and sqisign all use it, so every install replaces the previous app and uses at most 2 of a device's 3 free slots.
 - A local script re-signs within the 7-day expiry before lab runs.
 - If the free tier keeps blocking device tests, revisit a paid team.

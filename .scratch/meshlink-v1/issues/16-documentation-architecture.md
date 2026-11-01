@@ -37,4 +37,3 @@ Recorded in [ADR 0006](../../../docs/adr/0006-documentation-architecture.md); ev
 - **Docs CI:** lychee, markdownlint-cli2, typos (US English); Vale deferred. Plus `checkDependencyRegister`.
 - **ADRs:** flat and numbered; superseded ADRs are kept; generated index.
 - **Applied now:** `docs/README.md`, a "CI tools" register section, and US spelling across docs and tracker. `CONSTITUTION.md` keeps "labelled" in T9 until its next amendment.
-

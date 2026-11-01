@@ -1,0 +1,14 @@
+# lychee config (ADR 0006, decision 10). Pull requests check repository
+# links offline; a weekly job also checks external links.
+include_fragments = "full"
+hidden = true
+exclude_path = ["(^|/)build/", "(^|/)node_modules/"]
+# 429 means rate limited: the page exists, but the host throttles bots.
+accept = ["200..=299", "429"]
+# These hosts answer automated clients with 403 (bot protection). On 2026-11-01
+# eprint.iacr.org returned 200 to a browser user agent; silabs.com (Akamai)
+# blocked every client tried, so it cannot be checked automatically.
+exclude = [
+  '^https://eprint\.iacr\.org/',
+  '^https://www\.silabs\.com/',
+]

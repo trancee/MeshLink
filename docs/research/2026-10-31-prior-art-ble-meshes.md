@@ -27,65 +27,74 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 ## Sources
 
 ### bitchat
-- [B1] bitchat whitepaper v2.0 (dated 2026-07-06): https://raw.githubusercontent.com/permissionlesstech/bitchat/main/WHITEPAPER.md
-- [B2] bitchat README: https://github.com/permissionlesstech/bitchat
-- [B3] BARGHEST, "bitchat cache poisoning", CVE-2026-51376: https://barghest.asia/blog/bitchat-cache-poisoning
-- [B4] Trail of Bits, "Building secure messaging is hard: a nuanced take on the bitchat security debate", 2025-07-18: https://blog.trailofbits.com/2025/07/18/building-secure-messaging-is-hard-a-nuanced-take-on-the-bitchat-security-debate
-- [B5] TechCrunch, 2025-07-09, reporting Alex Radocea's impersonation finding: https://techcrunch.com/2025/07/09/jack-dorsey-says-his-secure-new-bitchat-app-has-not-been-tested-for-security
+
+- [B1] bitchat whitepaper v2.0 (dated 2026-07-06): <https://raw.githubusercontent.com/permissionlesstech/bitchat/main/WHITEPAPER.md>
+- [B2] bitchat README: <https://github.com/permissionlesstech/bitchat>
+- [B3] BARGHEST, "bitchat cache poisoning", CVE-2026-51376: <https://barghest.asia/blog/bitchat-cache-poisoning>
+- [B4] Trail of Bits, "Building secure messaging is hard: a nuanced take on the bitchat security debate", 2025-07-18: <https://blog.trailofbits.com/2025/07/18/building-secure-messaging-is-hard-a-nuanced-take-on-the-bitchat-security-debate>
+- [B5] TechCrunch, 2025-07-09, reporting Alex Radocea's impersonation finding: <https://techcrunch.com/2025/07/09/jack-dorsey-says-his-secure-new-bitchat-app-has-not-been-tested-for-security>
 - [B6] bitchat GitHub issues:
-  - #1618 https://github.com/permissionlesstech/bitchat/issues/1618
-  - #202 https://github.com/permissionlesstech/bitchat/issues/202
-  - #116 https://github.com/permissionlesstech/bitchat/issues/116
-  - #1064 https://github.com/permissionlesstech/bitchat/issues/1064
+  - #1618 <https://github.com/permissionlesstech/bitchat/issues/1618>
+  - #202 <https://github.com/permissionlesstech/bitchat/issues/202>
+  - #116 <https://github.com/permissionlesstech/bitchat/issues/116>
+  - #1064 <https://github.com/permissionlesstech/bitchat/issues/1064>
 
 ### Bridgefy
-- [BF1] Albrecht, Blasco, Jensen, Mareková, "Mesh Messaging in Large-scale Protests: Breaking Bridgefy", CT-RSA 2021: https://eprint.iacr.org/2021/214
-- [BF2] Albrecht, Eikenberg, Paterson, "Breaking Bridgefy, again: Adopting libsignal is not enough", USENIX Security 2022: https://www.usenix.org/conference/usenixsecurity22/presentation/albrecht (PDF https://www.usenix.org/system/files/sec22-albrecht.pdf)
+
+- [BF1] Albrecht, Blasco, Jensen, Mareková, "Mesh Messaging in Large-scale Protests: Breaking Bridgefy", CT-RSA 2021: <https://eprint.iacr.org/2021/214>
+- [BF2] Albrecht, Eikenberg, Paterson, "Breaking Bridgefy, again: Adopting libsignal is not enough", USENIX Security 2022: <https://www.usenix.org/conference/usenixsecurity22/presentation/albrecht> (PDF <https://www.usenix.org/system/files/sec22-albrecht.pdf>)
 
 ### Briar
-- [BR1] Briar Transport Protocol v4: https://code.briarproject.org/briar/briar-spec/raw/master/protocols/BTP.md
-- [BR2] Briar Android Bluetooth plugin: https://code.briarproject.org/briar/briar/-/raw/master/bramble-android/src/main/java/org/briarproject/bramble/plugin/bluetooth/AndroidBluetoothPlugin.java
-- [BR3] How it works: https://briarproject.org/how-it-works/
-- [BR4] Download page: https://briarproject.org/download-briar/
+
+- [BR1] Briar Transport Protocol v4: <https://code.briarproject.org/briar/briar-spec/raw/master/protocols/BTP.md>
+- [BR2] Briar Android Bluetooth plugin: <https://code.briarproject.org/briar/briar/-/raw/master/bramble-android/src/main/java/org/briarproject/bramble/plugin/bluetooth/AndroidBluetoothPlugin.java>
+- [BR3] How it works: <https://briarproject.org/how-it-works/>
+- [BR4] Download page: <https://briarproject.org/download-briar/>
 
 ### Meshtastic
-- [M1] Mesh broadcast algorithm: https://meshtastic.org/docs/overview/mesh-algo/
-- [M2] Encryption limitations: https://meshtastic.org/docs/about/overview/encryption/limitations/
-- [M3] Introduction: https://meshtastic.org/docs/introduction/
+
+- [M1] Mesh broadcast algorithm: <https://meshtastic.org/docs/overview/mesh-algo/>
+- [M2] Encryption limitations: <https://meshtastic.org/docs/about/overview/encryption/limitations/>
+- [M3] Introduction: <https://meshtastic.org/docs/introduction/>
 
 ### Berty/Wesh
-- [W1] Wesh protocol docs: https://berty.tech/docs/protocol
-- [W2] Berty blog, "Bluetooth Low Energy": https://berty.tech/blog/bluetooth-low-energy
+
+- [W1] Wesh protocol docs: <https://berty.tech/docs/protocol>
+- [W2] Berty blog, "Bluetooth Low Energy": <https://berty.tech/blog/bluetooth-low-energy>
 - [W3] Repos:
-  - https://github.com/berty/weshnet (`pkg/proximitytransport`, `pkg/ble-driver`)
-  - https://github.com/berty/berty (Android `GattServer.java`)
+  - <https://github.com/berty/weshnet> (`pkg/proximitytransport`, `pkg/ble-driver`)
+  - <https://github.com/berty/berty> (Android `GattServer.java`)
 
 ### Apple Multipeer Connectivity
-- [A1] Apple Multipeer Connectivity docs: https://developer.apple.com/documentation/multipeerconnectivity, plus the `MCSession`, `kMCSessionMaximumNumberOfPeers` and `MCEncryptionPreference` pages
-- [A2] Stute et al., "A Billion Open Interfaces for Eve and Mallory" (AWDL/AirDrop BLE attacks), USENIX Security 2019: https://www.usenix.org/conference/usenixsecurity19/presentation/stute
+
+- [A1] Apple Multipeer Connectivity docs: <https://developer.apple.com/documentation/multipeerconnectivity>, plus the `MCSession`, `kMCSessionMaximumNumberOfPeers` and `MCEncryptionPreference` pages
+- [A2] Stute et al., "A Billion Open Interfaces for Eve and Mallory" (AWDL/AirDrop BLE attacks), USENIX Security 2019: <https://www.usenix.org/conference/usenixsecurity19/presentation/stute>
 
 ### Bluetooth SIG Mesh
-- [S1] Bluetooth Mesh Protocol 1.1 (revision date 2023-09-12): https://www.bluetooth.com/specifications/specs/html/?src=MshPRT_v1.1/out/en/index-en.html
-- [S2] Apple Core Bluetooth, `CBPeripheralManager.startAdvertising(_:)`: https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:)
-- [S3] Android `AdvertiseData.Builder`: https://developer.android.com/reference/android/bluetooth/le/AdvertiseData.Builder
-- [S4] Nordic nRF Mesh library for iOS, README: https://github.com/NordicSemiconductor/IOS-nRF-Mesh-Library
-- [S5] Silicon Labs AN1299, "Understanding the Bluetooth Mesh Lighting Demo": https://www.silabs.com/documents/public/application-notes/an1299-understanding-bluetooth-mesh-lighting-demo-sdk-2x.pdf (quote taken from the search-engine excerpt; full PDF not read)
-- [S6] Baert et al., "The Bluetooth Mesh Standard: An Overview and Experimental Evaluation", Sensors 18(8):2409, 2018: https://pmc.ncbi.nlm.nih.gov/articles/PMC6111614/
-- [S7] Rondón, Mahmood, Grimaldi, Gidlund, "Understanding the Performance of Bluetooth Mesh: Reliability, Delay and Scalability Analysis", arXiv:1910.03345: https://arxiv.org/abs/1910.03345
-- [S8] Aijaz et al., "Demystifying the Performance of Bluetooth Mesh: Experimental Evaluation and Optimization", IEEE Wireless Days 2021, arXiv:2106.04230: https://arxiv.org/abs/2106.04230
-- [S9] Hernández-Solana et al., "Bluetooth Mesh Analysis, Issues, and Challenges", IEEE Access 8, 2020, doi:10.1109/ACCESS.2020.2980795. Abstract via https://api.semanticscholar.org/graph/v1/paper/b880a497d6905d9fbd3a8c5199c3817fccbb1c00
+
+- [S1] Bluetooth Mesh Protocol 1.1 (revision date 2023-09-12): <https://www.bluetooth.com/specifications/specs/html/?src=MshPRT_v1.1/out/en/index-en.html>
+- [S2] Apple Core Bluetooth, `CBPeripheralManager.startAdvertising(_:)`: <https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:)>
+- [S3] Android `AdvertiseData.Builder`: <https://developer.android.com/reference/android/bluetooth/le/AdvertiseData.Builder>
+- [S4] Nordic nRF Mesh library for iOS, README: <https://github.com/NordicSemiconductor/IOS-nRF-Mesh-Library>
+- [S5] Silicon Labs AN1299, "Understanding the Bluetooth Mesh Lighting Demo": <https://www.silabs.com/documents/public/application-notes/an1299-understanding-bluetooth-mesh-lighting-demo-sdk-2x.pdf> (quote taken from the search-engine excerpt; full PDF not read)
+- [S6] Baert et al., "The Bluetooth Mesh Standard: An Overview and Experimental Evaluation", Sensors 18(8):2409, 2018: <https://pmc.ncbi.nlm.nih.gov/articles/PMC6111614/>
+- [S7] Rondón, Mahmood, Grimaldi, Gidlund, "Understanding the Performance of Bluetooth Mesh: Reliability, Delay and Scalability Analysis", arXiv:1910.03345: <https://arxiv.org/abs/1910.03345>
+- [S8] Aijaz et al., "Demystifying the Performance of Bluetooth Mesh: Experimental Evaluation and Optimization", IEEE Wireless Days 2021, arXiv:2106.04230: <https://arxiv.org/abs/2106.04230>
+- [S9] Hernández-Solana et al., "Bluetooth Mesh Analysis, Issues, and Challenges", IEEE Access 8, 2020, doi:10.1109/ACCESS.2020.2980795. Abstract via <https://api.semanticscholar.org/graph/v1/paper/b880a497d6905d9fbd3a8c5199c3817fccbb1c00>
 
 ## Findings
 
 ### bitchat (permissionlesstech) — iOS + Android, BLE
 
-**Transport and discovery** [B1]
+#### Transport and discovery [B1]
+
 - Every device is simultaneously a GATT central and a GATT peripheral. There is no pairing and no accounts.
 - Peers send announcements every 4 s while isolated, backing off to 15–30 s once connected.
 - A peer stays reachable for 60 s after its last announcement.
 - Connections are RSSI-gated and scanning is duty-cycled.
 
-**Routing** [B1]
+#### Routing [B1]
+
 - Mesh broadcast is a controlled flood:
   - TTL 7, clamped to 5 when the node has ≥6 links; full depth when it has ≤2 links.
   - A seen-set (LRU, 1,000 entries, 5-minute expiry) drops duplicates.
@@ -100,7 +109,8 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
   - 1 MiB message cap
 - The README advertises LZ4 compression and a maximum of 7 hops [B2].
 
-**Store-and-forward** [B1]
+#### Store-and-forward [B1]
+
 - Outbox: 100 messages per peer, kept 24 h, 8 attempts.
 - Courier ("mail") mode:
   - up to 3 couriers per message
@@ -111,7 +121,8 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Gossip sync uses a GCS (Golomb-coded set) filter every ~15 s, with 6 h retention.
 - Nostr is the internet fallback.
 
-**Security** [B1]
+#### Security [B1]
+
 - Live sessions use Noise XX (25519/ChaChaPoly/SHA256).
 - Courier mail uses Noise X, which gives no forward secrecy for that message.
 - Padding to 256/512/1024/2048-byte buckets applies to Noise frames only.
@@ -119,7 +130,8 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Announcements carry the nickname, static keys and up to 10 neighbor IDs in cleartext.
 - The whitepaper itself states "Metadata is the weakest part" and lists unlinkable presence as future work.
 
-**Failures and analyses**
+#### Failures and analyses
+
 - **Identity verification (2025-07):** Alex Radocea showed impersonation/MITM through broken identity verification ("Favorites"). Reported by [B5] and discussed by [B4]. Trail of Bits also notes a buffer overflow patched within about 4 hours and the move to the Noise framework.
   - **UNVERIFIED:** Radocea's primary post was not retrieved.
 - **CVE-2026-51376 [B3]:** iOS 1.15.0 trusted the sender ID embedded in the packet and admitted *unsigned* packets into the gossip-sync cache. The poison then self-propagated through sync. Patched 2026-01-28.
@@ -129,12 +141,14 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
   - #116: private key stored in UserDefaults.
   - #1064: the default view is the unencrypted #mesh channel.
 
-**Density and scale evaluations**
+#### Density and scale evaluations
+
 - None found in peer-reviewed literature. The density adaptations (TTL clamp, log2 fanout, jitter) are design choices without published measurements.
 
 ### Bridgefy — iOS + Android SDK/app, BLE (also Classic Bluetooth)
 
-**Protocol, as described in [BF2]**
+#### Protocol, as described in [BF2]
+
 - BLE is the default bearer; Classic Bluetooth is also supported.
 - Payloads are MessagePack plus gzip.
 - The forwarded-packet header has:
@@ -144,13 +158,15 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Private messages go direct when the peer is in range.
 - Over 6.5M downloads.
 
-**CT-RSA 2021 findings [BF1]**
+#### CT-RSA 2021 findings [BF1]
+
 - Users can be tracked.
 - No authenticity and no effective confidentiality.
 - Attackers can build social graphs and impersonate anyone.
 - A single crafted message — a gzip decompression bomb — shut down the network.
 
 **USENIX Security 2022 findings [BF2]** (app 3.1.3 / SDK 2.0.2, after the switch to libsignal)
+
 - MITM, broadcast impersonation and limited DoS persist.
 - A new time-of-check/time-of-use attack.
 - Broadcast messages can be recovered via a compression side channel without knowing the shared key.
@@ -158,12 +174,14 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 
 **Lesson:** dropping a good primitive (libsignal) into a protocol with unauthenticated relay metadata, compression and a shared broadcast key does not give a secure system.
 
-**Density and scale evaluations**
+#### Density and scale evaluations
+
 - No published density evaluation found.
 
 ### Briar — Android (desktop beta), Bluetooth Classic + Wi-Fi + Tor
 
-**Transport**
+#### Transport
+
 - The Android Bluetooth plugin uses Classic RFCOMM (`listenUsingInsecureRfcommWithServiceRecord`, [BR2] lines ~153–181). It is **not** BLE.
 - BTP v4 [BR1]:
   - no plaintext headers
@@ -171,30 +189,35 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
   - explicitly provides no anonymity or unlinkability at the transport layer
   - transport-agnostic, so it also works over removable disks
 
-**Routing**
+#### Routing
+
 - None in the mesh sense. Data syncs only between contacts (contact-only delay-tolerant sync) [BR3].
 - The adversary model assumes the adversary may control an unlimited number of devices [BR3].
 
-**Platforms**
+#### Platforms
+
 - The download page offers Android via Google Play and F-Droid [BR4].
 - No iOS app is listed. **UNVERIFIED** whether one exists or is planned; the FAQ link returned 404.
 
-**Lesson**
+#### Lesson
+
 - Contact-gated sync avoids Sybil/flooding attacks by design, but it cannot carry traffic for strangers. That conflicts with MeshLink's any-node relaying.
 
 ### Meshtastic — LoRa radios; phones are BLE clients
 
-**Transport**
+#### Transport
+
 - The mesh runs over LoRa, not BLE.
 - Phones pair with a single radio [M3] and act as its UI/client over BLE (Bluetooth, Wi-Fi or serial). That phones are clients only, not mesh nodes, is **inferred** from [M3]/[M1].
 
-**Routing [M1]**
+#### Routing [M1]
+
 - 16-byte header:
   - dest, sender, packet ID
   - flags: 3-bit HopLimit, WantAck, ViaMQTT, HopStart
   - channel hash, next-hop, relay node
 - Max payload 239 B.
-- Channel access is CSMA/CA with a contention window sized by channel utilisation.
+- Channel access is CSMA/CA with a contention window sized by channel utilization.
 - "Managed flooding":
   - Nodes listen before rebroadcasting and cancel if they hear the packet relayed.
   - The contention window is SNR-scaled so *farther* nodes rebroadcast first.
@@ -205,19 +228,22 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Broadcast intervals scale up once a mesh exceeds 40 nodes.
 - The node number is the CRC-32 of the public key.
 
-**Security limitations, self-documented [M2]**
+#### Security limitations, self-documented [M2]
+
 - TOFU is called "essentially a hard requirement of a decentralized mesh".
 - The NodeDB holds 120 nodes. Fake nodes can evict real ones and enable spoofing; a warm store retains evicted keys.
 - Channel encryption is a PSK with AES-CTR, which is **unauthenticated**. IV = node number + packet ID, so known plaintext enables spoofing.
 - DMs use X25519 + AES-CCM (since 2.5).
 
-**Lesson**
+#### Lesson
+
 - Managed flooding (listen, cancel, jitter, implicit ACK) plus learned next-hop for unicast is the best-documented density-aware design found in this survey.
 - The peer table is a Sybil target.
 
 ### Berty / Wesh — iOS + Android, libp2p proximity transports
 
-**Transport [W1]**
+#### Transport [W1]
+
 - Direct transports plug into libp2p:
   - Android Nearby on Android
   - Multipeer Connectivity on iOS
@@ -227,13 +253,15 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - Direct transport is "synchronous": both devices must be connected. The repo has `pkg/proximitytransport` and `pkg/ble-driver` [W3].
 - **Inferred, not explicitly stated:** no multi-hop BLE relaying is documented.
 
-**Experience report [W2]**
+#### Experience report [W2]
+
 - The iOS BLE driver was comparatively easy.
 - Android BLE was much harder: concurrency and rotating MAC addresses.
 - Android↔iOS needed extensive tuning.
 - Connections were "very unstable": loops, and drops after seconds with unexplained causes.
 
-**Lesson**
+#### Lesson
+
 - Expect Android BLE stack instability and budget for a device lab.
 - Exchanging membership lists on contact is a linkability leak.
 
@@ -241,14 +269,16 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 
 Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/libp2p/libp2p), [libp2p/specs](https://github.com/libp2p/specs), read 2026-11-01.
 
-**Security handshake [L1]**
+#### Security handshake [L1]
+
 - [noise-libp2p](https://github.com/libp2p/specs/blob/master/noise/README.md) uses one fixed suite, `Noise_XX_25519_ChaChaPoly_SHA256`, with no negotiation inside it.
 - **Why XX:** an earlier Noise Pipes design (IK + XXfallback) was dropped as "too much complexity to be worth the benefit".
 - **Why ChaChaPoly:** it is safe to implement in software on every platform, unlike AES.
 - **Distinct keys:** a separate identity key signs the Noise static key (`identity_sig` in a protobuf `NoiseHandshakePayload`). The static key may be regenerated per session and must not be persisted.
 - **Early data:** extensions ride in the handshake payload, restricted to internal libp2p use.
 
-**Post-quantum (open, not merged) [L2]**
+#### Post-quantum (open, not merged) [L2]
+
 - [specs#723](https://github.com/libp2p/specs/issues/723) and draft [specs#727](https://github.com/libp2p/specs/pull/727) propose `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256` as a separately negotiated protocol. Authentication stays classical (the identity signature); only confidentiality is hybrid. Token placement and KDF order are deferred to the Noise HFS spec. Still open: the protocol id, test vectors, and whether to cover the whole ML-KEM family.
 - **Reference implementations:**
   - [rust-libp2p#6481](https://github.com/libp2p/rust-libp2p/pull/6481) (draft);
@@ -256,18 +286,21 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 
   The PR author claims that four implementations in four languages interoperate. That claim is unverified.
 
-**Dissemination [L3]**
+#### Dissemination [L3]
+
 - [gossipsub](https://github.com/libp2p/specs/tree/master/pubsub/gossipsub):
   - v1.0: a mesh of degree `D` with GRAFT/PRUNE, plus lazy IHAVE/IWANT gossip.
   - v1.1: peer scoring, flood publishing, adaptive gossip.
   - v1.2: IDONTWANT, which suppresses duplicate full messages.
 - Other specs: Kademlia DHT, mDNS discovery, rendezvous, circuit relay with DCUtR.
 
-**Transport**
+#### Transport
+
 - The specs index has no Bluetooth/BLE transport spec, and a search of the specs issues for "bluetooth" returned nothing. BLE use exists only out of tree, e.g. Berty/Wesh above.
 - The full stack (multistream-select negotiation, yamux multiplexing, protobuf framing, multihash peer IDs) is not designed for 20–512 B BLE frames. Its per-link overhead is unquantified here.
 
-**Lessons**
+#### Lessons
+
 - libp2p independently converged on MeshLink's link handshake (ADR 0002): XX only, ChaChaPoly + SHA-256, one fixed suite.
 - It also converged on our identity model (ADR 0003): an identity key that certifies a rotatable Noise static key.
 - Its post-quantum proposal is our `post-quantum` link suite. Aligning byte-for-byte lets both projects share `XXhfs` vectors.
@@ -289,7 +322,8 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 
 ### Bluetooth SIG Mesh 1.1
 
-**Bearers [S1]**
+#### Bearers [S1]
+
 - Advertising bearer:
   - `ADV_NONCONN_IND` with the Mesh Message AD type
   - nodes are expected to scan with a near-100% duty cycle
@@ -298,14 +332,16 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
   - exists "to enable devices that are not capable of supporting the advertising bearer"
   - PB-GATT lets "legacy phones" act as Provisioners
 
-**Forwarding rules (§3.4.6, Table 3.13)** [S1]
+#### Forwarding rules (§3.4.6, Table 3.13) [S1]
+
 - The Relay feature forwards ADV→ADV only.
 - The Proxy feature forwards between GATT and ADV.
 - "If the Proxy feature is supported, then both GATT and advertising bearers shall be supported."
 - So a GATT-only node can be neither a Relay nor a Proxy. A mesh made only of phones (GATT-only) has **no standard forwarding path**.
 - Directed forwarding (1.1) also relies on nodes supporting these bearers.
 
-**Security model [S1]**
+#### Security model [S1]
+
 - NetKeys secure the network layer and AppKeys the upper transport. "The keys are shared between nodes."
 - Nodes are admitted by a Provisioner. Every relay holds the NetKey, so any compromised relay can inject network traffic.
 - Other limits:
@@ -314,7 +350,8 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
   - access message ≤380 B (upper transport ≤384 B via SAR, 32 segments)
 - Also defined: subnet bridge, Friend/LPN, Mesh Private beacons.
 
-**Phone APIs**
+#### Phone APIs
+
 - iOS `startAdvertising` accepts only `CBAdvertisementDataLocalNameKey` and `CBAdvertisementDataServiceUUIDsKey` [S2].
 - Android `AdvertiseData.Builder` exposes only:
   - manufacturer data
@@ -329,7 +366,8 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 - Nordic's iOS mesh library states "Implementing ADV bearer on iOS is not possible due to API limitations" and requires a GATT Proxy node [S4].
 - Silicon Labs notes that mesh nodes "also use Bluetooth connections and GATT services to communicate with devices that do not natively support Bluetooth mesh" [S5].
 
-**Evaluations**
+#### Evaluations
+
 - [S6] Sensors 2018: the random back-off dominates round-trip time. More neighbors lower RTT until density causes collisions. The standard is "not suited to a network solely of power limited nodes".
 - [S7] arXiv 2019 simulations:
   - timing parameters are highly interdependent
@@ -343,6 +381,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 - [S9] Real-device assessment of repetition and randomization schemes. Managed flooding suits small or highly dynamic networks; proposes tuning criteria and standard improvements (abstract only read).
 
 **Verdict: SIG Mesh does not fit phone-to-phone meshes.**
+
 - Neither iOS nor Android apps can emit the advertising bearer.
 - The GATT bearer is defined only as an edge attachment to a Proxy node that must also support ADV.
 - The shared NetKey/Provisioner admission model also conflicts with MeshLink's open, per-installation-identity model.
@@ -415,7 +454,7 @@ Sources: [libp2p.io](https://libp2p.io/), [libp2p/libp2p](https://github.com/lib
 
 ## Limitations
 
-- Radocea's bitchat findings are known only through secondary sources [B4][B5]; the primary write-up was not retrieved.
+- Radocea's bitchat findings are known only through secondary sources [B4, B5]; the primary write-up was not retrieved.
 - Only the abstracts of [S8] and [S9] were read. [S6] and [BF2] were read in full text; [BF1] and [S7] only via abstract/summary.
 - Unverified items:
   - whether Briar has an iOS app
