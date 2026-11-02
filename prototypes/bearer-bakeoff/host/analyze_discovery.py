@@ -4,6 +4,7 @@
   python3 host/analyze_discovery.py d1 RUN_DIR [RUN_DIR...]   # rotation + restart control -> summary-d1.md, CSVs
   python3 host/analyze_discovery.py d2 RUN_DIR [RUN_DIR...]   # background matrix (T2/T8/T10) + T11 -> summary-d2.md, CSVs
   python3 host/analyze_discovery.py t3 RUN_DIR [RUN_DIR...]   # overflow discovery trials -> summary-t3.md, CSV
+  python3 host/analyze_discovery.py d3 RUN_DIR [RUN_DIR...]   # legacy vs extended reception matrix -> summary-d3.md, CSV
   python3 host/analyze_discovery.py d4 RUN_DIR [RUN_DIR...]   # bakeoff phub runs: hub-side inbound closes -> summary-d4.md, CSV
 
 Attribution: advertisers log every 8 B advertisement ID in `adv_start` (layout E: first 8 B of the rotating
@@ -450,6 +451,52 @@ def t3(runs, out_dir):
     print("\n".join(lines))
 
 
+def d3(runs, out_dir):
+    """Received = >= 1 sighting of an advertisement ID the advertiser logged for that step kind."""
+    rows = []
+    for run in runs:
+        kinds, outcomes = {}, defaultdict(list)
+        for device in run.advertisers:
+            for r in run.files[device]:
+                if r.get("test") == "adv_start" and r.get("ad_id"):
+                    kinds[r["ad_id"]] = r.get("kind") or "ios-legacy"
+                if r.get("test") == "adv_step":
+                    outcomes[r.get("kind")].append(r.get("outcome"))
+        order = list(dict.fromkeys(kinds.values()))
+        for scanner in run.scanners:
+            seen = defaultdict(set)
+            phys = defaultdict(set)
+            for _, _, _, ident, r in run.sightings([scanner]):
+                if ident and ident.startswith("a:") and ident[2:] in kinds:
+                    seen[kinds[ident[2:]]].add(ident)
+                    if r.get("test") == "adv" and "pphy" in r:
+                        phys[kinds[ident[2:]]].add(f"{r.get('pphy')}/{r.get('sphy')}{'' if r.get('legacy', True) else ' ext'}")
+            model, os_name = run.model(scanner)
+            caps = (run.start[scanner] or {}).get("caps") or {}
+            row = {"run": run.name, "scanner": scanner, "model": model, "os": os_name,
+                   "ext_adv": caps.get("le_extended_adv"), "coded": caps.get("le_coded"), "max_adv_len": caps.get("le_max_adv_data_len"),
+                   "ios_ext_scan": caps.get("extended_scan_and_connect")}
+            for kind in order:
+                row[kind] = len(seen[kind])
+                row[f"{kind}_phy"] = " ".join(sorted(phys[kind]))
+            rows.append(row)
+        lines = [f"# D3 legacy vs extended ({run.name})", "",
+                 "Advertiser step outcomes: " + ", ".join(f"{k}={'/'.join(v)}" for k, v in outcomes.items()), "",
+                 "Cell = advertisement IDs of that step received (of those started); PHY = primary/secondary as reported.", "",
+                 "| scanner | OS | ext / coded / max len | " + " | ".join(order) + " |", "|---|---|---|" + "---|" * len(order)]
+        started = {k: sum(1 for v in kinds.values() if v == k) for k in order}
+        for row in rows:
+            if row["run"] != run.name:
+                continue
+            cap = f"{row['ext_adv']} / {row['coded']} / {row['max_adv_len']}" if row["ext_adv"] is not None else f"iOS ext scan {row['ios_ext_scan']}"
+            cells = [f"{row[k]}/{started[k]}" + (f" ({row[k + '_phy']})" if row[k + "_phy"] else "") for k in order]
+            lines.append(f"| {row['scanner']} | {row['os']} | {cap} | " + " | ".join(cells) + " |")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "summary-d3.md").write_text("\n".join(lines) + "\n")
+        print("\n".join(lines))
+    write_csv(out_dir / "d3-matrix.csv", rows)
+
+
 def d4(runs, out_dir):
     """A hub close is "early" when the central's hold ended with a failure (the link dropped before `duration`)."""
     rows, lines = [], ["# D4 iPhone 15 inbound links (phub)", "",
@@ -504,7 +551,7 @@ def main():
         sys.exit(__doc__)
     runs = [Run(d) for d in sys.argv[2:]]
     out = Path(__file__).resolve().parent / "results" / "summary"
-    {"d1": d1, "d2": d2, "t3": t3, "d4": d4}[sys.argv[1]](runs, out)
+    {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4}[sys.argv[1]](runs, out)
 
 
 if __name__ == "__main__":

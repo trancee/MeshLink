@@ -137,8 +137,7 @@ This file is committed **before** each run. A criterion added after its run is m
 - Concrete runs (`host/d2.py`, added before the runs; analysis `analyze_discovery.py d2|t3`):
   - `d2-ios-*`: advertisers iPhone 15 then SE 2016, each fg / bg (`bg=1`, screen on) / lock (`bg=1 lock=1`, private
     GSEventLockDevice; if the lock does not happen, the cell counts as a second bg cell and "locked" stays unverified),
-    300 s per cell. Scanners for the whole phase: Nothing 2 fg unfiltered active; Pixel 6 fg unfiltered passive (ADV-only
-    bytes, T2/T1); edge 30 screen-off FGS service filter BALANCED; XCover 4 screen-off FGS Apple 0x004C filter BALANCED.
+    300 s per cell. Scanners for the whole phase: Nothing 2 fg unfiltered active; (Pixel 6 passive dropped: Pixel 6 runs T9; ADV-only bytes come from T1); edge 30 screen-off FGS service filter BALANCED; XCover 4 screen-off FGS Apple 0x004C filter BALANCED.
     Per cell (relaunched): iPhone X fg service scan with duplicates; SE 2020 and 12 mini bg service scan.
   - `d2-and-*`: advertisers Pixel 6 (`AdvertisingSet`) then S10e (`startAdvertising`), each fg / screen-off FGS
     (`delay_s=8`, screen off and battery unplugged before the start), 300 s per cell. Scanners: Nothing 2 fg unfiltered;
@@ -160,10 +159,13 @@ This file is committed **before** each run. A criterion added after its run is m
 
 ## D3 legacy vs extended (run `d3-*`)
 
-- Pixel 6 cycles `legacy`, `ext1m`, `ext2m`, `coded`, 90 s each, 2 reps; extended steps carry 13 B hint + 60 B pad.
-- Scanners: every installed Android (extended-capable ones scan with `setLegacy(false)`, all PHYs) and all five iPhones
-  foreground, unfiltered.
-- **Criteria:** per scanner and step, received = ≥ 1 sighting with the step's hint. Report the matrix.
+- Deviation (before the run): the advertiser is Nothing Phone (1) (ext + coded, 1650 B), not Pixel 6, which runs T9.
+- `host/d3.py`: Nothing 1 cycles `legacy`, `ext1m` (1M/1M), `ext2m` (1M primary, 2M secondary), `coded` (Coded/Coded),
+  90 s each, 2 reps; layout E in every step; extended steps add 60 B service data under MESH (93 B ADV, > 31 B).
+- Scanners: every other installed Android, foreground LOW_LATENCY unfiltered (extended-capable ones with
+  `setLegacy(false)`, `PHY_LE_ALL_SUPPORTED`), and all five iPhones foreground unfiltered with duplicates.
+- **Criteria:** per scanner and step, received = ≥ 1 sighting of a step's advertisement ID; n = 2 IDs per step.
+  Report the matrix next to each scanner's caps. Analysis: `analyze_discovery.py d3`.
 
 ## D4 iPhone 15 incoming-link closes (runs `d4-*`)
 
