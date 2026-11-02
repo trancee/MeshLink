@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 1.
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 2.
 
 ## Context
 
@@ -94,3 +94,9 @@ Measured:
 - The density estimator (ADR 0008) counts identifier-less sightings by address.
 - The modules ticket maps discovery, background modes, the Live Activity hook and the extended-advertising toggle to config and presets.
 - Diagnostics report background-degraded discovery, stale-address marks and scan restarts (ADR 0006 codes).
+
+## Amendments
+
+2026-11-02, wire format (ADR 0012):
+
+- **Payload layout (decision 2):** the placeholder is replaced. Byte 0 holds a 3-bit layout version and 5 flag bits; bytes 1–4 the 32-bit mesh tag; bytes 5–12 the 64-bit resolvable tag (random in open and `unsecured` meshes); bytes 13–15 random. Only byte 0 is bit-packed. The new layout is still untested on air; the payload size and position are unchanged.

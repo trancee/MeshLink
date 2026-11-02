@@ -65,11 +65,11 @@ Every mesh broadcast in a secured profile carries an Ed25519 origin signature th
 
 ### Fragmentation is per hop
 
-A relay reassembles a whole message, verifies it (link AEAD; for broadcasts also the origin signature), and only then re-fragments it for each next link. Fragments carry a message ID, index, count and per-fragment CRC. Reassembly buffers are bounded per neighbor in size and time, and incomplete messages are dropped with a typed diagnostic. A forged or corrupt fragment therefore never travels further than one hop, and the destination only ever receives whole, verified messages. The cost is per-hop latency for multi-fragment messages, which bounded message sizes keep acceptable; the routing simulation measures it.
+A relay reassembles a whole message, verifies it (link AEAD; for broadcasts also the origin signature), and only then re-fragments it for each next link. Fragments are link-local: they carry a 1 B stream ID and a 2 B index whose top bit marks the last one, and no CRC, because Noise AEAD (secured profiles) or BLE's link-layer CRC24 (`unsecured`) already covers them (ADR 0012). Reassembly buffers are bounded per neighbor in size and time, and incomplete messages are dropped with a typed diagnostic. A forged or corrupt fragment therefore never travels further than one hop, and the destination only ever receives whole, verified messages. The cost is per-hop latency for multi-fragment messages, which bounded message sizes keep acceptable; the routing simulation measures it.
 
 ### Metadata visible to relays
 
-Relays must read routing headers. In the secured profiles, source and destination appear as epoch-rotating pseudonymous tags derived from the identity key, so a relay that does not already know a node's public key cannot link its traffic across epochs. Contacts who know the key can. This requirement stands unless the routing simulation shows the epoch rollover cost to be unacceptable, in which case it returns to the project owner rather than silently weakening.
+Relays must read routing headers. In the secured profiles, source and destination appear as epoch-rotating pseudonymous tags derived from the identity key, so a relay that does not already know a node's public key cannot link its traffic across epochs. Contacts who know the key can. In `unsecured`, routed messages also carry the sender's NodeId in clear. In the secured profiles, end-to-end plaintext is padded to a multiple of 32 B, so relays see message sizes only in 32 B steps (ADR 0012). This requirement stands unless the routing simulation shows the epoch rollover cost to be unacceptable, in which case it returns to the project owner rather than silently weakening.
 
 ### Tracking resistance
 

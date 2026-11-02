@@ -1,6 +1,6 @@
 # 0001: Threat model and security-profile guarantees
 
-Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 2 (amended 2026-11-02, ADR 0010).
+Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 3 (amended 2026-11-02, ADRs 0010 and 0012).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -59,3 +59,10 @@ None: greenfield, nothing released. Any change to a guarantee in the reference t
   - **Gated meshes:** peers you have linked with can recognize you across rotations until your resolving key rotates, at most a day after your last link with them. A leaked mesh key alone does not let anyone recognize individual members.
   - **New limitation:** a stopped iOS app stays visible as a MeshLink node, and linkable, for at least 26 min.
 - **Status:** the threat model and the security-profile guarantees table are updated to match.
+
+2026-11-02, wire format (ADR 0012):
+
+- **Fragmentation:** fragments are link-local, with a 1 B stream ID and a 2 B index instead of the message ID, and carry no CRC; Noise AEAD (secured) or BLE's link-layer CRC24 (`unsecured`) covers them. Per-hop reassembly is unchanged.
+- **Message sizes:** the secured profiles pad end-to-end plaintext to a multiple of 32 B, so relays see sizes only in 32 B steps.
+- **Lifetime:** the expiry is absolute and set by the origin, so it can be authenticated end to end and relays cannot extend the replay window.
+- **`unsecured` sender:** routed messages carry the sender's NodeId in clear.

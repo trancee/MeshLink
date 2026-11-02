@@ -33,6 +33,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 9. [BLE bearers, PHY policy and link rules](adr/0009-ble-bearers-and-phy-policy.md)
 10. [Discovery, advertising and identifier rotation](adr/0010-discovery-and-advertising.md)
 11. [Modules, feature toggles and presets](adr/0011-modules-toggles-and-presets.md)
+12. [Wire format principles and codec](adr/0012-wire-format-and-codec.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

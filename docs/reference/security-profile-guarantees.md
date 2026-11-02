@@ -18,6 +18,7 @@ Per-profile guarantees against the adversaries A1–A7 defined in the [threat mo
 | Replay rejection within message lifetime | No | Yes | Yes |
 | Receipt authenticity | No (forgeable) | Yes (end-to-end) | Yes (end-to-end) |
 | Relay unlinkability of source/destination across epochs (A3 without the node's public key) | No | Yes, pending routing-simulation cost check | Yes, pending routing-simulation cost check |
+| Exact message size hidden from relays (A3) | No | Yes, to 32 B steps | Yes, to 32 B steps |
 | On-air identifier unlinkability across rotations (A5) | No claim | Android: yes. iOS: no against a continuous observer. Gated mesh: linked peers recognize you until your daily resolving key rotates | Android: yes. iOS: no against a continuous observer. Gated mesh: linked peers recognize you until your daily resolving key rotates |
 | Hiding that a MeshLink node is present | No | No | No |
 | Anonymity against a global observer | No | No | No |

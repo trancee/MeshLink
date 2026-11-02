@@ -24,9 +24,17 @@ _Avoid_: Connection (for the platform object), channel, session
 The Bluetooth transport a link uses to carry frames: GATT, or an L2CAP connection-oriented channel that a link upgrades to and falls back from.
 _Avoid_: Transport (too broad), PHY (that is the radio mode), protocol
 
+**Link record**:
+One length-prefixed unit in a link's ordered byte stream, encrypted as one Noise message in the secured profiles; frames larger than a record are split into link-local fragments.
+_Avoid_: Packet (that is the radio unit), frame (that is the protocol unit it carries)
+
 **Installation identity**:
 The long-lived identity of one app installation; applications map installation identities to their own users.
 _Avoid_: User ID, account, device ID
+
+**NodeId**:
+The 32-byte hash of a node's installation identity key, used by applications to address and recognize nodes; it rarely appears on air, where rotating routing tags stand in for it.
+_Avoid_: Address (that is the BLE address), device ID, fingerprint (in API text)
 
 **Preset**:
 A named set of default values for feature toggles and settings, either built in for a reference scenario or defined by the application on top of a built-in one; the application's configuration overrides it. Local to a node, so nodes with different presets can share a mesh.

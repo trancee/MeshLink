@@ -1,6 +1,6 @@
 # 0003: Installation identity key model
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 1.
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 2.
 
 ## Context
 
@@ -30,3 +30,10 @@ An installation identity must authenticate link handshakes (Noise, X25519 static
 ## Migration
 
 None: greenfield.
+
+## Amendments
+
+2026-11-02, wire format (ADR 0012):
+
+- **NodeId:** the full 32 B BLAKE2b-256 hash of the Ed25519 public key, with a domain-separation string fixed in the spec. Every profile has an installation identity key; in `unsecured` the NodeId is claimed, not proven.
+- **Certificate encoding:** a fixed-layout binary record (version, profile, Ed25519 key, X25519 key, X-Wing key in post-quantum only, not-before and not-after as 4 B Unix seconds, then a 64 B Ed25519 signature over every preceding byte with a domain-separation prefix). No CBOR, ASN.1 or X.509.
