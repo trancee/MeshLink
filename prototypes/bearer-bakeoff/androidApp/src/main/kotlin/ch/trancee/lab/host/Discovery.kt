@@ -126,6 +126,7 @@ fun placeholderPayload(tag: String, step: Int, cycle: Int, nonce: ByteArray): By
 }
 
 const val TEST_COMPANY_ID = 0xFFFF
+val MESH_TAG = byteArrayOf(0x4d, 0x4c, 0x30, 0x31) // placeholder 4 B mesh tag "ML01"
 const val APPLE_COMPANY_ID = 0x004C
 
 @SuppressLint("MissingPermission")
@@ -272,7 +273,25 @@ class Discovery(private val context: Context, argText: String) {
             }
         }
 
+        private var adId = ByteArray(8)
+
+        /**
+         * Layout A (desk research 2026-11-02 §4): ADV = flags + mesh UUID; scan response = 13 B service data under the
+         * mesh UUID (8 B random advertisement ID, 4 B mesh tag, 1 B flags). Extended steps carry the same service data
+         * (plus `pad` bytes) in the ADV. `layout=P` keeps the older 16 B manufacturer-data placeholder.
+         */
         private fun data(step: String, index: Int, cycle: Int): Pair<AdvertiseData, AdvertiseData?> {
+            adId = Random.nextBytes(8)
+            if (raw["layout"] != "P") {
+                val hint = adId + MESH_TAG + byteArrayOf(((index and 0x0f) shl 4 or (cycle and 0x0f)).toByte())
+                return if (step == "legacy" || step == "set") {
+                    AdvertiseData.Builder().addServiceUuid(serviceUuid).setIncludeDeviceName(false).build() to
+                        AdvertiseData.Builder().addServiceData(serviceUuid, hint).setIncludeDeviceName(false).build()
+                } else {
+                    AdvertiseData.Builder().addServiceUuid(serviceUuid).addServiceData(serviceUuid, hint + ByteArray(pad) { it.toByte() })
+                        .setIncludeDeviceName(false).build() to null
+                }
+            }
             val payload = placeholderPayload(tag, index, cycle, nonce)
             return if (step == "legacy" || step == "set") {
                 AdvertiseData.Builder().addServiceUuid(serviceUuid).setIncludeDeviceName(false).build() to
@@ -289,7 +308,7 @@ class Discovery(private val context: Context, argText: String) {
             val result = if (step == "legacy") startLegacy(advData, scanResponse) else startSet(step, advData, scanResponse)
             record(
                 "adv_start",
-                mapOf("rep" to rep, "step" to index, "kind" to step, "cycle" to cycle, "t_call" to t0, "status" to result.first, "detail" to result.second),
+                mapOf("rep" to rep, "step" to index, "kind" to step, "cycle" to cycle, "ad_id" to adId.hex(), "t_call" to t0, "status" to result.first, "detail" to result.second),
             )
             out.flush()
             if (ownAddress && set != null) readOwnAddress()
@@ -392,6 +411,15 @@ class Discovery(private val context: Context, argText: String) {
 
         private suspend fun restart(rep: Int, index: Int, step: String, cycle: Int) {
             when {
+                restartKind == "data" && step != "legacy" && set != null -> {
+                    // T5(iii): new data on the live set, no disable; the address should not change.
+                    val current = set!!
+                    val (advData, scanResponse) = data(step, index, cycle)
+                    current.setAdvertisingData(advData)
+                    scanResponse?.let { current.setScanResponseData(it) }
+                    record("adv_start", mapOf("rep" to rep, "step" to index, "kind" to step, "cycle" to cycle, "ad_id" to adId.hex(), "how" to "set_data", "status" to 0))
+                    out.flush()
+                }
                 restartKind == "enable" && step != "legacy" && set != null -> {
                     val current = set!!
                     current.enableAdvertising(false, 0, 0)
@@ -403,7 +431,7 @@ class Discovery(private val context: Context, argText: String) {
                     current.setAdvertisingData(advData)
                     scanResponse?.let { current.setScanResponseData(it) }
                     current.enableAdvertising(true, 0, 0)
-                    record("adv_start", mapOf("rep" to rep, "step" to index, "kind" to step, "cycle" to cycle, "how" to "enable_true", "status" to 0))
+                    record("adv_start", mapOf("rep" to rep, "step" to index, "kind" to step, "cycle" to cycle, "ad_id" to adId.hex(), "how" to "enable_true", "status" to 0))
                     out.flush()
                     if (ownAddress) readOwnAddress()
                 }
@@ -466,6 +494,10 @@ class Discovery(private val context: Context, argText: String) {
                 else -> ScanSettings.SCAN_MODE_LOW_LATENCY
             }
             val builder = ScanSettings.Builder().setScanMode(mode)
+            if (raw["scan_type"] == "passive") {
+                if (Build.VERSION.SDK_INT < 36) throw IllegalStateException("passive scan needs API 36")
+                builder.setScanType(ScanSettings.SCAN_TYPE_PASSIVE)
+            }
             if (adapter.isLeExtendedAdvertisingSupported && raw["legacy_only"] != "1") {
                 builder.setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
             }
@@ -474,6 +506,11 @@ class Discovery(private val context: Context, argText: String) {
 
         private fun classify(result: ScanResult): Pair<String?, Map<String, Any?>> {
             val record = result.scanRecord ?: return null to emptyMap()
+            record.getServiceData(serviceUuid)?.let { data ->
+                if (data.size >= 13) {
+                    return "a:${data.copyOfRange(0, 8).hex()}" to mapOf("mesh_tag" to data.copyOfRange(8, 12).hex(), "flags" to (data[12].toInt() and 0xff), "sd_len" to data.size)
+                }
+            }
             record.getManufacturerSpecificData(TEST_COMPANY_ID)?.let { data ->
                 if (data.size >= 16 && data[0] == 'M'.code.toByte() && data[1] == 'L'.code.toByte()) {
                     val deviceTag = data.copyOfRange(4, 10).decodeToString().trimEnd('\u0000')

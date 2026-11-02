@@ -154,11 +154,20 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
     private var peripheralManager: CBPeripheralManager? = null
 
     private fun advertisement(cycle: Int): Map<Any?, Any?> {
+        // Layout A: UUID only (name=none, the default). name=tag gives "ML-<tag>" for attribution; any other value is literal.
         val kind = raw["restart_kind"] ?: "stop"
-        val name = if (kind == "name") "ML-$tag${cycle % 10}" else "ML-$tag"
+        val nameArg = raw["name"] ?: "none"
+        val base = if (nameArg == "tag") "ML-$tag" else nameArg
+        val name = when {
+            kind == "name" -> "ML-$tag${cycle % 10}"
+            nameArg == "none" -> null
+            else -> base
+        }
         val uuids = mutableListOf(cbuuid(BakeoffUuids.SERVICE))
-        if (kind == "uuids" && cycle % 2 == 1) uuids += cbuuid("6e4b00ff-8f3c-4d2a-9b61-2c7a5d3e9f10")
-        return mapOf(CBAdvertisementDataServiceUUIDsKey to uuids, CBAdvertisementDataLocalNameKey to name)
+        if (raw["uuids"] == "2" || (kind == "uuids" && cycle % 2 == 1)) uuids += cbuuid("6e4b00ff-8f3c-4d2a-9b61-2c7a5d3e9f10")
+        val data = mutableMapOf<Any?, Any?>(CBAdvertisementDataServiceUUIDsKey to uuids)
+        if (name != null) data[CBAdvertisementDataLocalNameKey] = name
+        return data
     }
 
     private suspend fun startAdvertising(cycle: Int) {
@@ -243,7 +252,9 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
                 (it.key as? CBUUID)?.UUIDString.toString() to ((it.value as? NSData)?.toByteArray()?.hex() ?: "")
             }
             val ours = (services.orEmpty() + overflow.orEmpty()).any { it.equals(BakeoffUuids.SERVICE, ignoreCase = true) }
+            val hint = serviceData?.entries?.firstOrNull { it.key.equals(BakeoffUuids.SERVICE, ignoreCase = true) }?.value
             val id = when {
+                hint != null && hint.length >= 26 -> "a:${hint.substring(0, 16)}"
                 manufacturer != null && manufacturer.size >= 18 && manufacturer[0] == 0xff.toByte() && manufacturer[1] == 0xff.toByte() &&
                     manufacturer[2] == 'M'.code.toByte() && manufacturer[3] == 'L'.code.toByte() ->
                     "ml:" + manufacturer.copyOfRange(6, 12).decodeToString().trimEnd('\u0000')
@@ -285,7 +296,18 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
 
         override fun centralManager(central: CBCentralManager, didDiscoverPeripheral: CBPeripheral, advertisementData: Map<Any?, *>, RSSI: NSNumber) {
             scanner?.handle(didDiscoverPeripheral, advertisementData, RSSI)
+            maybeRestart(raw["rescan_s"]?.toLong()?.times(1000))
         }
+    }
+
+    private var restartScan: (() -> Unit)? = null
+    private var lastRestart = 0L
+
+    /** T11: restarts the scan every rescan_s (timer in the foreground; from discovery callbacks once suspended). */
+    private fun maybeRestart(rescanMs: Long?) {
+        if (rescanMs == null || now() - lastRestart < rescanMs) return
+        lastRestart = now()
+        restartScan?.invoke()
     }
 
     private suspend fun scan() {
@@ -295,11 +317,19 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         scanner = current
         val filtered = (raw["filter"] ?: "service") == "service"
         val duplicates = raw["dups"] != "0"
-        manager.scanForPeripheralsWithServices(
-            if (filtered) listOf(cbuuid(BakeoffUuids.SERVICE)) else null,
-            options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to duplicates),
-        )
-        record("scan_start", mapOf("filtered" to filtered, "dups" to duplicates, "app" to appState()))
+        val rescanMs = raw["rescan_s"]?.toLong()?.times(1000)
+        var restarts = 0
+        restartScan = {
+            manager.stopScan()
+            manager.scanForPeripheralsWithServices(
+                if (filtered) listOf(cbuuid(BakeoffUuids.SERVICE)) else null,
+                options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to duplicates),
+            )
+            record(if (restarts == 0) "scan_start" else "scan_restart", mapOf("n" to restarts, "filtered" to filtered, "dups" to duplicates, "app" to appState()))
+            restarts++
+        }
+        lastRestart = now()
+        restartScan!!.invoke()
         onStatus("scanning ${raw["run"]} filtered=$filtered dups=$duplicates")
         if (raw["bg"] == "1") {
             beginBackgroundTask()
@@ -313,6 +343,7 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             while (now() - started < duration) {
                 delay(1000)
                 current.flushOld()
+                maybeRestart(rescanMs)
                 if (now() - lastStats >= 60_000) {
                     lastStats = now()
                     record("scan_stats", mapOf("results" to current.results, "app" to appState()))
