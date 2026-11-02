@@ -120,6 +120,46 @@ class AndroidCentral(
             runCatching { scanner.stopScan(callback) }
         }
     }
+
+    /**
+     * Diagnostic scan (no connect): reports every advertiser carrying the bake-off service seen in [seconds],
+     * with or without a service filter, plus the total number of distinct advertisers.
+     */
+    suspend fun survey(seconds: Int, filtered: Boolean, emit: (Map<String, Any?>) -> Unit): Int {
+        val scanner = adapter.bluetoothLeScanner ?: throw IllegalStateException("no LE scanner")
+        val service = ParcelUuid(UUID.fromString(BakeoffUuids.SERVICE))
+        val start = SystemClock.elapsedRealtime()
+        val seen = linkedMapOf<String, MutableMap<String, Any?>>()
+        val failed = CompletableDeferred<Int>()
+        val callback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                synchronized(seen) {
+                    val entry = seen.getOrPut(result.device.address) {
+                        mutableMapOf("identifier" to result.device.address, "first_ms" to SystemClock.elapsedRealtime() - start, "count" to 0)
+                    }
+                    entry["count"] = (entry["count"] as Int) + 1
+                    entry["rssi"] = result.rssi
+                    entry["connectable"] = result.isConnectable
+                    entry["has_bakeoff_service"] = result.scanRecord?.serviceUuids?.contains(service) == true
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                failed.complete(errorCode)
+            }
+        }
+        val filters = if (filtered) listOf(ScanFilter.Builder().setServiceUuid(service).build()) else emptyList()
+        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        try {
+            scanner.startScan(filters, settings, callback)
+            withTimeoutOrNull(seconds * 1000L) { failed.await() }?.let { throw IllegalStateException("scan failed $it") }
+        } finally {
+            runCatching { scanner.stopScan(callback) }
+        }
+        val entries = synchronized(seen) { seen.values.map { it.toMap() } }
+        entries.filter { it["has_bakeoff_service"] == true }.forEach(emit)
+        return entries.size
+    }
 }
 
 @SuppressLint("MissingPermission")

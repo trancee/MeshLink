@@ -12,12 +12,14 @@ import android.widget.TextView
 import bakeoff.BakeoffConfig
 import bakeoff.BakeoffRunner
 import bakeoff.DeviceInfo
+import bakeoff.Recorder
 import bakeoff.ResultSink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : Activity() {
@@ -60,9 +62,29 @@ class MainActivity : Activity() {
             setStatus("bluetooth off")
             return
         }
+        val central = AndroidCentral(this, adapter, sink, CentralTuning.from(config.raw))
+        config.raw["survey"]?.toIntOrNull()?.let { seconds ->
+            val recorder = Recorder(config, info, sink)
+            val filtered = config.raw["survey_filter"] != "0"
+            setStatus("survey ${config.runId} ${seconds}s filtered=$filtered")
+            job = scope.launch {
+                val outcome = runCatching {
+                    central.survey(seconds, filtered) { entry ->
+                        recorder.record("scan_survey_advertiser", "ok", null, null, extra = entry + ("filtered" to filtered))
+                    }
+                }
+                recorder.record(
+                    "done", if (outcome.isSuccess) "ok" else "fail", null, null,
+                    error = outcome.exceptionOrNull()?.toString(),
+                    extra = mapOf("advertisers_seen" to outcome.getOrNull(), "filtered" to filtered),
+                )
+                runOnUiThread { setStatus("survey done") }
+            }
+            return
+        }
         val runner = BakeoffRunner(
             config, info, sink,
-            AndroidCentral(this, adapter, sink, CentralTuning.from(config.raw)),
+            central,
             AndroidPeripheral(this, manager, adapter, sink),
         ) { text -> runOnUiThread { setStatus(text) } }
         setStatus("run ${config.runId} role=${config.role}")

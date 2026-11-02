@@ -143,11 +143,20 @@ class BakeoffRunner(
         val end = clock.elapsedMs() + config.durationSeconds * 1000.0
         while (clock.elapsedMs() < end && failure == null) {
             try {
+                val sent = clock.elapsedMs()
                 withTimeout(10_000) {
                     pipe.send(MessageType.ECHO, ByteArray(8))
                     pipe.expect(MessageType.ECHO)
                 }
                 echoes++
+                // Periodic health record so a host can tell, mid-hold, that this link still echoes.
+                if (echoes % HOLD_ALIVE_EVERY == 0) {
+                    recorder.record(
+                        "hold_alive", "ok", local, peerInfo, bearer = "gatt",
+                        timings = mapOf("held_ms" to round3(clock.elapsedMs()), "last_rtt_ms" to round3(clock.elapsedMs() - sent)),
+                        extra = mapOf("echoes" to echoes),
+                    )
+                }
             } catch (cancelled: CancellationException) {
                 if (cancelled is kotlinx.coroutines.TimeoutCancellationException) failure = "echo timeout" else throw cancelled
             } catch (error: Throwable) {
@@ -171,3 +180,4 @@ class BakeoffRunner(
 fun Throwable.describe(): String = "${this::class.simpleName}: ${message ?: ""}".take(400)
 
 private const val HOLD_CONNECT_ATTEMPTS = 5
+private const val HOLD_ALIVE_EVERY = 3

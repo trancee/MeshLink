@@ -303,6 +303,124 @@ def dual_run(a, b, run_id, args, timeout_s):
     return group_run(run_id, [], [], [(a, "dual", "dual"), (b, "dual", "dual")], args, timeout_s, 0)
 
 
+def _survey(name, run_id, seconds, filtered, destination):
+    """One scan probe on `name` appended to its `run_id` file; returns once a new `done` record appears."""
+    before = sum(1 for r in records(destination) if r.get("test") == "done")
+    stop(name)
+    launch(name, ["role=central", f"run={run_id}", f"commit={git_commit()}", f"survey={seconds}", f"survey_filter={1 if filtered else 0}"])
+    deadline = time.time() + seconds + 90
+    while time.time() < deadline:
+        time.sleep(5)
+        if fetch(name, run_id, destination) and sum(1 for r in records(destination) if r.get("test") == "done") > before:
+            return True
+    return False
+
+
+def _hold_health(name, run_id, out_dir):
+    path = out_dir / f"{name}-hold.jsonl"
+    fetch(name, run_id, path)
+    rs = records(path)
+    connect = [r for r in rs if r.get("test") == "hold_connect"]
+    alive = [r for r in rs if r.get("test") == "hold_alive"]
+    end = next((r for r in rs if r.get("test") in ("hold_end", "done") and r.get("outcome") != "ok"), None)
+    return {
+        "connected": any(r.get("outcome") == "ok" for r in connect),
+        "connect_failures": [r.get("error") for r in connect if r.get("outcome") != "ok"],
+        "echoes": alive[-1].get("echoes") if alive else 0,
+        "last_rtt_ms": (alive[-1].get("timings") or {}).get("last_rtt_ms") if alive else None,
+        "ended": bool(end), "end_error": end.get("error") if end else None,
+    }
+
+
+def _sightings(path):
+    """Hub sightings per filter mode from a scanner's survey file: only the hub advertises the bake-off service."""
+    out = {}
+    for filtered in (True, False):
+        hits = [r for r in records(path) if r.get("test") == "scan_survey_advertiser" and r.get("filtered") == filtered
+                and r.get("has_bakeoff_service")]
+        done = [r for r in records(path) if r.get("test") == "done"]
+        out["filtered" if filtered else "unfiltered"] = {
+            "seen": bool(hits),
+            "first_ms": min((r.get("first_ms") for r in hits), default=None),
+            "rssi": hits[0].get("rssi") if hits else None,
+            "count": sum(r.get("count") or 0 for r in hits),
+            "scan_errors": [r.get("error") for r in done if r.get("outcome") != "ok"],
+        }
+    return out
+
+
+def inbound_sweep(hub, centrals, ios_scanner, android_scanner, probe_s=30, unfiltered_s=20, connect_wait_s=100):
+    """iPhone inbound-link sweep: `hub` advertises; holding centrals join one at a time; after each join the
+    held links must keep echoing (every 2 s) while separate scanners probe the hub's visibility."""
+    from concurrent.futures import ThreadPoolExecutor
+    commit = git_commit()
+    base = f"m6-inbound-{hub}"
+    out_dir = RESULTS / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    roles = {"hub": hub, "ios_scanner": ios_scanner, **{f"central{k}": c for k, c in enumerate(centrals, 1)}}
+    if android_scanner:
+        roles["android_scanner"] = android_scanner
+    write_run_meta(out_dir, base, commit, roles, ["role=hold", "duration=1500"], ["role=peripheral", "duration=1800"])
+    for name in {hub, ios_scanner, android_scanner, *centrals} - {None}:
+        stop(name)
+    launch(hub, ["role=peripheral", f"run={base}", f"commit={commit}", "duration=1800"])
+    time.sleep(10)
+    held, steps = [], []
+    for k, central in enumerate(centrals, 1):
+        step_id = f"{base}-k{k}"
+        step_dir = RESULTS / step_id
+        step_dir.mkdir(parents=True, exist_ok=True)
+        scanners = [s for s in (ios_scanner, android_scanner) if s and s not in held and s != central]
+        joined_at = time.time()
+        launch(central, ["role=hold", f"run={base}", f"commit={commit}", "duration=1500", "scan_timeout=20"])
+        held.append(central)
+        connected = False
+        while time.time() - joined_at < connect_wait_s:
+            time.sleep(5)
+            if _hold_health(central, base, out_dir)["connected"]:
+                connected = True
+                break
+        connect_s = round(time.time() - joined_at, 1)
+        before = {c: _hold_health(c, base, out_dir) for c in held}
+        probe = {}
+        for filtered, seconds in ((True, probe_s), (False, unfiltered_s)):
+            with ThreadPoolExecutor(len(scanners) or 1) as pool:
+                list(pool.map(lambda s: _survey(s, step_id, seconds, filtered, step_dir / f"{s}-scanner.jsonl"), scanners))
+        for s in scanners:
+            probe[s] = _sightings(step_dir / f"{s}-scanner.jsonl")
+        after = {c: _hold_health(c, base, out_dir) for c in held}
+        hub_path = out_dir / f"{hub}-peripheral.jsonl"
+        fetch(hub, base, hub_path)
+        hub_records = records(hub_path)
+        closes = [{"date": r.get("date"), "peer": (r.get("central") or {}).get("model"), "error": r.get("error")}
+                  for r in hub_records if r.get("test") == "peripheral_link_end"]
+        opens = [r.get("active_links") for r in hub_records if r.get("test") == "peripheral_link_open" and r.get("bearer") == "gatt"]
+        healthy = [c for c in held if after[c]["connected"] and not after[c]["ended"] and after[c]["echoes"] > before[c]["echoes"]]
+        step = {
+            "run_id": step_id, "k": k, "new_central": central, "connected": connected, "connect_wait_s": connect_s,
+            "held": list(held), "healthy": healthy, "links_healthy": f"{len(healthy)}/{len(held)}",
+            "health_before_probe": before, "health_after_probe": after,
+            "hub_link_opens_active_links": opens, "hub_link_closes": closes, "probe": probe,
+            "probe_seconds": {"filtered": probe_s, "unfiltered": unfiltered_s}, "date": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
+        (step_dir / "step.json").write_text(json.dumps(step, indent=2) + "\n")
+        steps.append(step)
+        vis = {s: (p["filtered"]["seen"], p["unfiltered"]["seen"], p["filtered"]["first_ms"], p["filtered"]["rssi"]) for s, p in probe.items()}
+        log(f"{step_id}: connected={connected} ({connect_s}s) healthy={step['links_healthy']} visible(f,u,first_ms,rssi)={vis} closes={len(closes)}")
+        if not connected:
+            break
+    for name in [*held, hub]:
+        suffix = "peripheral" if name == hub else "hold"
+        fetch(name, base, out_dir / f"{name}-{suffix}.jsonl")
+    for name in {hub, *held}:
+        try:
+            stop(name)
+        except Exception as error:  # noqa: BLE001 - best effort
+            log(f"stop {name}: {error}")
+    (out_dir / "sweep.json").write_text(json.dumps(steps, indent=2) + "\n")
+    return steps
+
+
 def grant_ios(name):
     """Runs the XCUITest runner that accepts the Bluetooth alert by exact label; logs every label it saw."""
     device = DEVICES[name]
@@ -393,6 +511,11 @@ def main():
     st.add_argument("devices", nargs="*", choices=sorted(DEVICES))
     g = sub.add_parser("grant-ios", help="accept the iOS Bluetooth permission alert via the XCUITest runner")
     g.add_argument("devices", nargs="+", choices=[n for n, d in DEVICES.items() if d["platform"] == "ios"])
+    ib = sub.add_parser("inbound", help="iPhone inbound-link sweep: centrals join --hub one at a time; scanners probe visibility")
+    ib.add_argument("--hub", required=True, choices=sorted(DEVICES))
+    ib.add_argument("--centrals", nargs="+", required=True, choices=sorted(DEVICES))
+    ib.add_argument("--ios-scanner", required=True, choices=sorted(DEVICES))
+    ib.add_argument("--android-scanner", choices=sorted(DEVICES))
     f = sub.add_parser("fetch")
     f.add_argument("device", choices=sorted(DEVICES))
     f.add_argument("--run", required=True)
@@ -423,6 +546,8 @@ def main():
         elif args.command == "grant-ios":
             results = {name: grant_ios(name) for name in args.devices}
             sys.exit(0 if all(results.values()) else 2)
+        elif args.command == "inbound":
+            inbound_sweep(args.hub, args.centrals, args.ios_scanner, args.android_scanner)
         elif args.command == "fetch":
             destination = RESULTS / args.run / f"{args.device}.jsonl"
             ok = fetch(args.device, args.run, destination)
