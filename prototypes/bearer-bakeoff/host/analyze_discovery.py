@@ -112,11 +112,17 @@ def d1(runs, out_dir):
                 change_rows.append({"run": run.name, "device": device, "model": model, "os": os_name, "kind": kind, "adv": adv,
                                     "address": address, "first_ms": first, "last_ms": last, "sightings": n})
             if kind == "idle":
-                changes = [span[0] for _, span in addresses]
-                for i in range(1, len(changes)):
+                # A change time is exact when the previous address was seen ≤ 10 s before the new one first appeared;
+                # otherwise it fell into a scanner gap. An interval counts only between two exact changes.
+                exact = [False] + [addresses[i][1][0] - addresses[i - 1][1][1] <= 10000 for i in range(1, len(addresses))]
+                for i in range(1, len(addresses)):
+                    previous = addresses[i - 1][1]
                     interval_rows.append({"run": run.name, "device": device, "model": model, "os": os_name, "adv": adv,
-                                          "index": i, "censored": i == 1, "change_ms": changes[i],
-                                          "interval_s": round((changes[i] - changes[i - 1]) / 1000, 1)})
+                                          "index": i, "exact_change": exact[i], "censored": not (exact[i] and exact[i - 1]),
+                                          "change_ms": addresses[i][1][0],
+                                          "gap_s": round((addresses[i][1][0] - previous[1]) / 1000, 1),
+                                          "interval_s": round((addresses[i][1][0] - previous[0]) / 1000, 1),
+                                          "prev_lifetime_min_s": round((previous[1] - previous[0]) / 1000, 1)})
                 continue
             # Control: compare address before and after each restart. Android: by advertisement ID; iOS: by time.
             cycles = defaultdict(set)
@@ -157,8 +163,11 @@ def d1(runs, out_dir):
     write_csv(out_dir / "d1-intervals.csv", interval_rows)
     write_csv(out_dir / "d1-control.csv", control_rows)
     lines = ["# D1 summary: BLE address rotation and control", "", f"Runs: {', '.join(r.name for r in runs)}", "",
-             "## Idle rotation intervals (scanner clock; first interval is censored by the run start)", "",
-             "| Device | Model | OS | API | Addresses | Uncensored intervals (min) | Median (min) |", "|---|---|---|---|---|---|---|"]
+             "## Idle rotation intervals (scanner clock)", "",
+             "Exact interval = between two changes that each happened while a scanner was receiving (old address seen",
+             "≤ 10 s before the new one). Longest lifetime = longest observed first-to-last span of one address (lower bound).", "",
+             "| Device | Model | OS | API | Addresses | Exact intervals (min) | Median (min) | Longest lifetime (min) |",
+             "|---|---|---|---|---|---|---|---|"]
     by_device = defaultdict(list)
     for row in interval_rows:
         by_device[(row["run"], row["device"])].append(row)
@@ -168,9 +177,10 @@ def d1(runs, out_dir):
         values = [r["interval_s"] / 60 for r in rows if not r["censored"]]
         count = sum(1 for r in change_rows if r["run"] == run.name and r["device"] == device)
         model, os_name = run.model(device)
+        lifetimes = [(int(r["last_ms"]) - int(r["first_ms"])) / 60000 for r in change_rows if r["run"] == run.name and r["device"] == device]
+        longest = f"{max(lifetimes):.1f}" if lifetimes else "—"
         lines.append(f"| {device} | {model} | {os_name} | {run.start[device].get('args', {}).get('adv', 'ios')} | {count} | "
-                     f"{', '.join(f'{v:.1f}' for v in values) or '—'} | {statistics.median(values):.1f} |" if values else
-                     f"| {device} | {model} | {os_name} | {run.start[device].get('args', {}).get('adv', 'ios')} | {count} | — | — |")
+                     f"{', '.join(f'{v:.1f}' for v in values) or '—'} | {f'{statistics.median(values):.1f}' if values else '—'} | {longest} |")
     lines += ["", "## Restart control (address after restart vs before)", "",
               "| Device | Model | OS | API / kind | Cycles | New | Same | Unobserved | Cycles with >1 address |", "|---|---|---|---|---|---|---|---|---|"]
     by_ctl = defaultdict(list)

@@ -64,6 +64,14 @@ This file is committed **before** each run. A criterion added after its run is m
   - T5 iii: expect **0** address changes at data updates beyond the idle rotation schedule.
   - T6: Layout B is allowed only if the address is new after **100 %** of ≥ 10 restarts on every tested iOS version.
 
+- **Deviation during the run (logged, 13:01):** Android moved each unfiltered LOW_LATENCY scan to opportunistic after
+  5 min (`BtGatt.ScanManager: regularScanTimeout - client scan time was too long` / `Moving unfiltered scan client to
+  opportunistic scan`, edge 30 logcat), so the scanners saw almost nothing 12:29–12:49 and 12:54–13:01. Scanners were
+  relaunched at 13:01 with `rescan_s=240` (earlier files kept as `*-part1.jsonl`). Rotation intervals count only
+  between two changes observed while a scanner was receiving. Mi 8 was excluded: its legacy advertiser reported
+  status 0 twice but no scanner ever saw it; Bluetooth could not be toggled over adb (`BLUETOOTH_ADMIN`).
+- Every later unfiltered Android scan restarts every 240 s (`rescan_s=240`). Filtered scans are not affected.
+
 ## D1-ctl-ios (run `d1-ios-*`, 32 min)
 
 - Every iPhone restarts every 120 s (≥ 15 cycles), named `ML-<tag>`:

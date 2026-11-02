@@ -79,8 +79,8 @@ def ios_cells(a):
     advertisers = a.adv.split(",")
     states = a.states.split(",")
     android = [
-        ("nothing2", ["filter=none", "scan_mode=low_latency"], False),
-        ("zflip4", ["filter=none", "scan_mode=low_latency", "scan_type=passive"], False),
+        ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
+        ("zflip4", ["filter=none", "scan_mode=low_latency", "scan_type=passive", "rescan_s=240"], False),
         ("moto30", ["filter=service", "scan_mode=balanced"], True),
         ("xcover4", [f"filter={a.ovf_filter}", "scan_mode=balanced"], True),
     ]
@@ -103,7 +103,7 @@ def android_cells(a):
     advertisers = [spec.split(":") for spec in a.adv.split(",")]
     states = a.states.split(",")
     android = [
-        ("nothing2", ["filter=none", "scan_mode=low_latency"], False),
+        ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
         ("moto30", ["filter=service", "scan_mode=balanced"], True),
         ("xcover4", ["filter=service", "scan_mode=balanced"], True),
     ]
@@ -141,7 +141,7 @@ def android_cells(a):
 
 def t11(a):
     """Background iOS scanners restart their scan every 10 s (driven by a 'ticker' advertiser that changes address)."""
-    android = [("nothing2", ["filter=none", "scan_mode=low_latency"], False)]
+    android = [("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False)]
     ios = [("se2016", ["filter=service", "bg=1", "rescan_s=10"]), ("ipx", ["filter=service", "bg=1", "rescan_s=10"]),
            ("ip12mini", ["filter=service", "bg=1", "rescan_s=10"]), ("se2020", ["filter=service", "bg=1"]),
            ("ip15", ["filter=service", "bg=1", "rescan_s=10", "dups=0"])]
@@ -163,7 +163,7 @@ def t3(a):
     scanners = a.scanners.split(",")
     cases = {"fg-uuid": ["filter=service"], "fg-nil": ["filter=none"], "bg-uuid": ["filter=service", "bg=1"]}
     clocks(a.run, scanners + [a.adv, "nothing2"])
-    android = [("nothing2", ["filter=none", "scan_mode=low_latency"], False)]
+    android = [("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False)]
     android_scanners(a.run, android)
     for name in scanners:
         stop(name)
