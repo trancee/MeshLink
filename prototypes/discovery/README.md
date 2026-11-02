@@ -150,12 +150,18 @@ This file is committed **before** each run. A criterion added after its run is m
     processes, 40 s each, rotating cases fg-uuid / fg-nil / bg-uuid; 7 trials per case per scanner (21 per case).
     Latency = first discovery − scan start, same clock. Not found within 40 s = censored.
 
-## T1 iOS layout (run `t1-*`)
+## T1 iOS layout (run `t1-*`, after T9 frees Pixel 6)
 
-- iPhones: SE 2016 (iOS 15), iPhone X (16), 12 mini (27); more if cheap. One at a time, foreground, 30 s per case:
-  (a) UUID only, (b) UUID + 8-char name, (c) UUID + 10-char name, (d) two 128-bit UUIDs, (e) no name key (= a).
-- Captured by Pixel 6 passive scan (ADV only) and Nothing 2 active scan (ADV + scan response).
-- **Pass:** raw bytes per case per iOS version; (a)/(e) contain no device name.
+- `host/t1.py`: all five iPhones, one at a time, fresh launch per case, 30 s each, layout E:
+  `e` (no name), `e-name8` (+ 8-char local name, 34 B > 28 B), `e-name10` (+ 10 chars), `e-uuid3` (+ a second
+  128-bit UUID, 40 B), `e-bg` (backgrounded, no name), `e-again` (foreground, no name).
+- Captured by Pixel 6 passive scan (ADV PDUs only) and Nothing 2 active scan (ADV + scan response), both unfiltered
+  `log=all`.
+- Added after `smoke-bg2` (14:46): there the locked, backgrounded SE 2016 sent a scan response with local name
+  `ML-se2016`, a name only set by an earlier run (layout A, `name=tag`); its device name is "iPhone SE (2016)". `e-bg` after
+  the name cases checks whether iOS reuses an earlier app-set name.
+- **Pass:** raw bytes per case per iOS version. Report: which UUIDs/name go to ADV vs scan response vs overflow when
+  over budget; whether `e`/`e-bg`/`e-again` carry any name.
 
 ## D3 legacy vs extended (run `d3-*`)
 
