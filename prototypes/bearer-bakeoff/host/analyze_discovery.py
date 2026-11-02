@@ -36,9 +36,12 @@ class Run:
         self.name = self.dir.name
         self.files = {p.stem: load(p) for p in self.dir.glob("*.jsonl") if p.stem != "host"}
         self.host = load(self.dir / "host.jsonl") if (self.dir / "host.jsonl").exists() else []
-        self.start = {d: next((r for r in recs if r.get("test") == "disc_start"), None) for d, recs in self.files.items()}
-        self.scanners = [d for d, s in self.start.items() if s and s.get("mode") == "scan"]
-        self.advertisers = [d for d, s in self.start.items() if s and s.get("mode") == "adv"]
+        # A device may scrub (advertise layout A) before it scans; its role is its first non-scrub start.
+        starts = {d: [r for r in recs if r.get("test") == "disc_start"] for d, recs in self.files.items()}
+        self.start = {d: next((r for r in ss if r.get("args", {}).get("layout") != "A" or r.get("mode") == "scan"), ss[0] if ss else None)
+                      for d, ss in starts.items()}
+        self.scanners = [d for d, ss in starts.items() if any(r.get("mode") == "scan" for r in ss)]
+        self.advertisers = [d for d, ss in starts.items() if any(r.get("mode") == "adv" for r in ss)]
         self.tags = {s["tag"]: d for d, s in self.start.items() if s}
         self.ad_ids = {}
         for device in self.advertisers:
@@ -394,11 +397,10 @@ def d2(runs, out_dir):
                         mine = ident[2:] in ad_ids
                     elif long_lived is not None:
                         mine = r["a"] in long_lived
-                    elif ident == "apple-ovf":
-                        bm = bitmaps.get(i, (None, None))[1]
-                        mine = platform == "ios" and bm is not None and int(bm[-2:], 16) & MESH_OVF_BIT != 0 and bm not in foreign
                     elif platform == "ios":
-                        mine = ident in ("svc", "mesh")  # names are stale (see scrub) and never set by layout E
+                        # Names are stale (see scrub) and never set by layout E; overflow counts by its MESH bit.
+                        bm = bitmaps.get(i, (None, None))[1]
+                        mine = ident in ("svc", "mesh") or (bm is not None and int(bm[-2:], 16) & MESH_OVF_BIT != 0 and bm not in foreign)
                     else:
                         mine = ident in ("svc", "mesh")
                     if not mine:
@@ -593,6 +595,90 @@ def d4(runs, out_dir):
     print("\n".join(lines))
 
 
+def t1(runs, out_dir):
+    """Distinct raw payloads per iPhone and case, as received by the Android scanners (passive = ADV only)."""
+    rows, lines = [], ["# T1 summary: iOS advertisement bytes as received by Android", "",
+                       "Runs: " + ", ".join(r.name for r in runs), "",
+                       "Raw = ADV (passive scanner) or ADV + scan response (active scanner), trailing zero bytes trimmed.", ""]
+    for run in runs:
+        off = offsets(run)
+        cases = [r for r in run.host if r.get("event") == "t1_case"]
+        bounds = [(c, cases[i + 1]["t"] if i + 1 < len(cases) else 1e18) for i, c in enumerate(cases)]
+        for scanner in run.scanners:
+            if run_platform(run, scanner) != "android":
+                continue
+            so = off.get(scanner, 0)
+            recs = [r for r in run.files[scanner] if r.get("test") == "adv"]
+            first_seen = {}
+            for r in recs:
+                first_seen.setdefault(r["a"], r["t"] - so)
+            for c, end in bounds:
+                phone = c["device"]
+                ids = {i for i, (d, *_rest) in run.ad_ids.items() if d == phone}
+                phone_start = min(x["t"] for x in cases if x["device"] == phone)
+                window = [r for r in recs if c["t"] <= r["t"] - so < end]
+                mine = {r["a"] for r in recs if (r.get("id") or "")[2:] in ids and (r.get("id") or "").startswith("a:")}
+                for r in window:
+                    raw = r.get("raw") or ""
+                    named = "094142434445464748" in raw or "094d4c2d" in raw
+                    ovf = r.get("ovf_bitmap")
+                    if first_seen[r["a"]] >= phone_start - 1000 and (named or (ovf and int(ovf[-2:], 16) & MESH_OVF_BIT)):
+                        mine.add(r["a"])
+                seen = set()
+                for r in window:
+                    if r["a"] not in mine or (r["a"], r.get("raw")) in seen:
+                        continue
+                    seen.add((r["a"], r.get("raw")))
+                    rows.append({"run": run.name, "phone": phone, "case": c["case"], "scanner": scanner,
+                                 "scanner_state": scanner_state(run, scanner), "t_case_s": round((r["t"] - so - c["t"]) / 1000, 1),
+                                 "address": r["a"], "id": r.get("id"), "legacy": r.get("legacy"), "conn": r.get("conn"),
+                                 "ovf_bitmap": r.get("ovf_bitmap"), "raw": r.get("raw")})
+    for phone in dict.fromkeys(r["phone"] for r in rows):
+        lines += [f"## {phone}", ""]
+        for r in rows:
+            if r["phone"] == phone:
+                lines.append(f"- {r['case']} → {r['scanner']} ({r['scanner_state']}) +{r['t_case_s']} s {r['address']} "
+                             f"id {r['id']} legacy={r['legacy']} conn={r['conn']}: `{r['raw']}`")
+        lines.append("")
+    write_csv(out_dir / "t1-raw.csv", rows)
+    (out_dir / "summary-t1.md").write_text("\n".join(lines) + "\n")
+
+
+def t9(runs, out_dir):
+    """Per minute: dumpsys result deltas and app-side sightings of the beacon; per phase: rates, recall, mode changes."""
+    rows, lines = [], ["# T9 summary: Android 17 scan allowance (Pixel 6)", "", "Runs: " + ", ".join(r.name for r in runs), ""]
+    for run in runs:
+        snaps = load(run.dir / "t9-dumpsys.jsonl")
+        scanner = next(d for d in run.scanners)
+        so = offsets(run).get(scanner, 0)
+        # Only the beacon counts (other layout-E advertisers in the lab come and go with other runs).
+        beacon = {"a:" + i for i, (d, *_rest) in run.ad_ids.items() if d in run.advertisers}
+        mine = [r for r in run.files[scanner] if r.get("test") == "s" and r.get("id") in beacon]
+        sightings = [r["t"] - so for r in mine]
+        counts = {r["t"] - so: r.get("n", 1) for r in mine}
+        for prev, cur in zip(snaps, snaps[1:]):
+            n = sum(v for t, v in counts.items() if prev["t"] <= t < cur["t"])
+            rows.append({"run": run.name, "t_s": cur["elapsed_s"], "phase": cur["phase"], "modes": "+".join(cur.get("ongoing_modes") or []),
+                         "dumpsys_results": (cur.get("results_total") or 0) - (prev.get("results_total") or 0),
+                         "beacon_sightings": n, "started": cur.get("started"), "suspend_ms": cur.get("suspend_ms"),
+                         "registered": cur.get("registered")})
+        lines += ["| Phase | Minutes | Modes seen | dumpsys results/min (all MESH) | beacon sightings/min | Recall 10 s | 60 s | Scan restarts | Suspend ms |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        for phase in dict.fromkeys(r["phase"] for r in rows if r["run"] == run.name):
+            pr = [r for r in rows if r["run"] == run.name and r["phase"] == phase]
+            ps = [s for s in snaps if s["phase"] == phase]
+            t0, t1 = ps[0]["t"], ps[-1]["t"]
+            minutes = (t1 - t0) / 60000
+            times = [t for t in sightings if t0 <= t < t1]
+            lines.append(f"| {phase} | {minutes:.0f} | {', '.join(sorted({m for r in pr for m in r['modes'].split('+') if m}))} | "
+                         f"{sum(r['dumpsys_results'] for r in pr) / minutes:.1f} | {sum(r['beacon_sightings'] for r in pr) / minutes:.1f} | "
+                         f"{window_recall(times, t0, t1, 10000):.3f} | {window_recall(times, t0, t1, 60000):.3f} | "
+                         f"{(ps[-1].get('started') or 0) - (ps[0].get('started') or 0)} | {(ps[-1].get('suspend_ms') or 0) - (ps[0].get('suspend_ms') or 0)} |")
+        lines.append("")
+    write_csv(out_dir / "t9-minutes.csv", rows)
+    (out_dir / "summary-t9.md").write_text("\n".join(lines) + "\n")
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -612,12 +698,13 @@ def main():
     if tag:
         # Write to a scratch dir, then rename every file with the tag (summary-d1.md -> summary-d1-<tag>.md).
         scratch = out / f".{tag}"
-        {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4}[sys.argv[1]](runs, scratch)
+        scratch.mkdir(parents=True, exist_ok=True)
+        {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9}[sys.argv[1]](runs, scratch)
         for path in scratch.iterdir():
             path.replace(out / f"{path.stem}-{tag}{path.suffix}")
         scratch.rmdir()
         return
-    {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4}[sys.argv[1]](runs, out)
+    {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9}[sys.argv[1]](runs, out)
 
 
 if __name__ == "__main__":
