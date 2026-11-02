@@ -1,0 +1,36 @@
+name: CodecBench
+options:
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    LAB_BUNDLE_ID: ch.trancee.lab.codecbench
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    TARGETED_DEVICE_FAMILY: "1"
+    OTHER_LDFLAGS: ["-framework", "CodecBench"]
+    ARCHS: arm64
+  configs:
+    Debug:
+      FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../build/bin/iosSimulatorArm64/releaseFramework
+    Release:
+      FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../build/bin/iosArm64/releaseFramework
+targets:
+  CodecBenchApp:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: CodecBench
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true

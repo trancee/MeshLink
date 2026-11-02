@@ -1,0 +1,11 @@
+frame,A_loc,B_loc,C_loc
+Advert,21,19,25
+Broadcast,53,54,49
+Digest,31,32,29
+Fragment,23,21,23
+Graft,12,11,11
+Handshake,24,22,22
+IHave,26,26,26
+Receipt,15,15,19
+Unicast,44,44,43
+file_total,289,284,310
