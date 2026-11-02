@@ -59,6 +59,95 @@ A failed bar is a finding: it is reported with its numbers and, where possible, 
 | `host/run-se2016.sh` | Build, install, launch and pull results on the SE 2016 |
 | `results/` | Raw device outputs |
 
+
+## How to run
+
+Prerequisites: JDK 21, Xcode 16.4, xcodegen, minisign, libimobiledevice (`ideviceinstaller`, `idevicedebug`, `afcclient`), a signing identity for the lab bundle.
+
+```sh
+cd prototypes/se2016-bench
+libsodium/build.sh                                   # verify tarball (sha256 + minisign), build iosArm64 + macosArm64
+python3 vectors/extract.py                           # regenerate Vectors.kt from the IETF drafts
+JAVA_HOME=<jdk21> ./gradlew macosArm64Test           # host check: vectors, XXhfs/IKhfs round trips
+JAVA_HOME=<jdk21> host/run-se2016.sh all se2016-main sections=i1,i3
+SKIP_BUILD=1 host/run-se2016.sh interop se2016-i2 sections=i2
+SKIP_BUILD=1 host/run-se2016.sh interop se2016-i2-window sections=i2w   # diagnostic, no bar
+```
+
+The script builds the release XCFramework and the Release app, installs it, launches it detached, polls the app container through `afcclient` and writes `results/<run-id>.txt`. The iPhone 15 comparison used `devicectl` instead (see `results/iphone15-main.txt` header and Deviations).
+
+## Results (measured)
+
+All numbers from `results/`, release builds, n = 300 after 30 warm-up iterations (I3: n = 100). Primary runs: `se2016-main.txt` (2026-11-02 20:17 UTC) and `se2016-i2.txt` (20:17–20:19 UTC); repeats: `se2016-main-repeat.txt`, `se2016-i2-repeat.txt`. iPhone 15 (iOS 17.6.1): `iphone15-main.txt`, comparison only.
+
+### Verdicts (SE 2016)
+
+| Bar | Result (median / p95) | Verdict |
+|---|---|---|
+| C1 XXhfs, 5,188 B | initiator 790 / 900 µs; responder 729 / 811 µs (repeat 791 / 881, 728 / 797) | **PASS** (≤ 50 ms) |
+| C2 IKhfs + HPKE 1 KB, msg 1 4,810 B | sender 768 / 813 µs; recipient 713 / 754 µs (repeat 767 / 821, 714 / 754) | **PASS** (≤ 50 ms) |
+| C3 ChaChaPoly encrypt | 244 B 1.83 µs; 2 KB 8.13 µs median | **PASS** (≤ 0.5 ms) |
+| V vectors | X-Wing C#0–2 all MATCH; A.5 KEM, key schedule, 10/10 encryptions, 5/5 exports MATCH | **PASS** |
+| I1 bulk round trip | 64 B 100 / 124 µs; 1 KB 95 / 128 µs; 16 KB 105 / 149 µs | **PASS** (≤ 1 ms / ≤ 5 ms) |
+| I2 throughput + memory | 380 msg/s (repeat 387); footprint 257 → 1,266 MB between 25% and 100% (+1,009 MB; repeat +928 MB) | **FAIL** (both criteria) |
+| I3 cancellation | collector 100/100, 271 / 463 µs; suspend call 100/100, 462 / 488 µs; 0 leaked probes, new collector works | **PASS** |
+
+### I1 detail (SE 2016, median / p95 µs)
+
+| Size | Data→KotlinByteArray bulk (median) | KotlinByteArray→Data bulk (median) | RTT pre-converted | RTT per-byte overlay |
+|---|---|---|---|---|
+| 64 B | 2.88 | 3.54 | 88 / 109 | 108 |
+| 1 KB | 3.08 | 3.88 | 88 / 109 | 226 |
+| 16 KB | 7.62 | 28.71 | 76 / 112 | 2,626 / 2,708 |
+
+The prior-art per-byte overlay costs 1.4 ms (to Kotlin) and 1.1 ms (to Data) at 16 KB, about 25× the bulk round trip; still inside the I1 bar but wasteful.
+
+### I2 analysis
+
+The pre-registered sender calls `send`, and on `Rejected(QueueFull)` does `Task.yield()` and retries. On the SE 2016 this made ~7.3 million retries (~70k/s). Each retry converts the 1 KB `Data` and the fake's `send` copies the payload and allocates a `MutableStateFlow` before the capacity check, so the sender produces roughly 150 MB/s of garbage and competes with the echo and collector coroutines for the two A9 cores. Diagnostics (added after the failure, see Deviations):
+
+- Kotlin heap after the last automatic GC was 554 MB at the end of the repeat run; a forced GC dropped the footprint 1,114 → 823 MB, and after the following run it was 87 MB. The growth is reclaimable garbage outpacing the GC, not a retained leak (interpretation).
+- A windowed sender (at most 32 messages in flight, so never `QueueFull`) reaches 9,552 / 9,232 msg/s on the SE 2016 with flat footprint (+0.16 / +0.02 MB, peak 23.7 MB). The flow path itself is fast enough; the failure is the busy-retry pattern that ADR 0007's non-suspending `send` with no capacity signal invites.
+- iPhone 15: the same pre-registered sender reaches 17,421 msg/s with 1.17 million retries and flat footprint (−0.36 MB), so the pathology is specific to slow devices.
+
+### Crypto microbenchmarks (median µs)
+
+| Operation | SE 2016 | iPhone 15 | Pixel 6 (Android smoke) |
+|---|---|---|---|
+| X25519 base | 42.92 | 15.63 | 35.81 |
+| X25519 scalarmult | 114.04 | 37.13 | 75.6 |
+| Ed25519 sign | 45.63 | 14.38 | 24.74 |
+| Ed25519 verify | 139.69 | 34.04 | 63.56 |
+| ChaChaPoly 244 B | 1.83 | 0.63 | 0.94 |
+| ChaChaPoly 2 KB | 8.13 | 3.63 | 5.09 |
+| SHA-256 2 KB | 12.50 | 5.54 | 7.12 |
+| HKDF | 6.17 | 2.42 | 3.09 |
+| HMAC 2 KB | 13.79 | 6.08 | 7.45 |
+| ML-KEM-768 keypair | 45.23 | 16.25 | 34.51 |
+| ML-KEM-768 enc | 44.06 | 14.92 | 37.23 |
+| ML-KEM-768 dec | 50.42 | 17.58 | 45.82 |
+| X-Wing keypair | 86.79 | 27.58 | 52.78 |
+| X-Wing enc | 210.69 | 54.83 | 106.24 |
+| X-Wing dec | 250.08 | 70.13 | 144.21 |
+
+### Other findings
+
+- The release `MeshLinkKit` framework exports 228 libsodium symbols (`nm -gU`), contrary to ADR 0004 "symbols hidden"; cinterop static linking does not hide them by itself. Not fixed here.
+- SKIE: `messages` stays `id<Flow>` in the ObjC header but is usable with `for await`; breaking out or dropping the iterator cancels the Kotlin collection; suspend functions become `async throws`; Kotlin default arguments are not visible to Swift; sealed classes get `onEnum(of:)`.
+- SKIE-internal coroutines are not observable by the probes, so "no leaked jobs" covers only the fake's own jobs.
+
 ## Deviations
 
-None yet.
+Times are CET on 2026-11-02.
+
+1. **Signing (before the first device run, ~21:00):** the SE 2016 is provisioned for team `apple-team-2` with bundle `ch.trancee.lab.host.b`, not `apple-team-1` / `ch.trancee.lab.host`; the script defaults to the former. The iPhone 15 used `apple-team-1` / `ch.trancee.lab.host`.
+2. **Pre-registration timestamp:** the text says "~21:00"; the commit is 20:53. No device run happened before it.
+3. **Host checks** ran on `macosArm64` (not listed in the pre-registration as a target; it decides no bar).
+4. **libsodium build:** upstream `apple-xcframework.sh` compiler and configure flags replicated for one target instead of running the whole script.
+5. **HPKE A.5:** recipient keys come from `DeriveKeyPair` (SHAKE256 `LabeledDerive`), which goes beyond the Android smoke's KEM-only check.
+6. **Split runs (~21:10):** crypto + I1 + I3, I2 and the windowed diagnostic ran as separate launches (`sections=` argument) because the pre-registered I2 took ~105 s and grew to >1 GB.
+7. **Added after observing the I2 slowdown (~21:05–21:20):** I2 progress watchdog lines, the windowed I2 sender (`i2w`, diagnostic, no bar) and the post-run GC diagnostic (`BenchRuntime`). The first I2 run predates the GC diagnostic.
+8. **Per-byte I2** uses 4,000 messages (coded before the first device run; the pre-registration names per-byte only as a finding). Its result depends on the heap state left by the bulk run.
+9. **C2 reply metrics** (`C2 info`) are reported without a bar, as pre-registered.
+10. **Fake `send`** copies the payload and creates its status flow before the capacity check; this inflates the per-retry cost in I2 and is part of the cause above. A real implementation could reject earlier.
+11. **iPhone 15 run (~21:24):** all sections in one launch via `devicectl`, comparison only.

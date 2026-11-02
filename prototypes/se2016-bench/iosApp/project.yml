@@ -1,0 +1,34 @@
+name: SE2016Bench
+options:
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    LAB_BUNDLE_ID: ch.trancee.lab.host.b
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    TARGETED_DEVICE_FAMILY: "1"
+    ARCHS: arm64
+    SWIFT_OPTIMIZATION_LEVEL: -O
+targets:
+  SE2016BenchApp:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - framework: ../build/XCFrameworks/release/MeshLinkKit.xcframework
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: SE2016Bench
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true

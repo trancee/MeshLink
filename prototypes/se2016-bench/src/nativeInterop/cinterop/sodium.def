@@ -1,0 +1,3 @@
+headers = sodium.h
+staticLibraries = libsodium.a
+noStringConversion = sodium_bin2hex

@@ -1,0 +1,8 @@
+# device=iPhone8,4 iOS 15.8.8 mode=interop warmup=30 iterations=300 started=2026-11-02 20:16:41 +0000
+footprint at start: 5.8 MB
+I2 progress bulk window=32: sent=21613 received=21581 retries=0 collectors=1 footprint=16.0 MB
+I2 bulk window=32 40000 x 1024B: 4.188 s, 9552 msg/s, QueueFull retries=0
+I2 bulk window=32 footprint: before=5.8 MB at25%=16.1 MB at100%=16.3 MB peak=23.6 MB growth25to100=0.16 MB
+I2 bulk window=32 footprint samples (MB, every 2000): 23.6 18.7 16.9 15.8 16.1 15.9 16.3 16.3 16.4 16.0 16.1 16.3 16.0 16.5 16.0 16.6 16.7 15.9 16.3 16.3
+# finished=2026-11-02 20:16:45 +0000
+DONE
