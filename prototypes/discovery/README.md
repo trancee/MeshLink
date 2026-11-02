@@ -149,12 +149,24 @@ This file is committed **before** each run. A criterion added after its run is m
   - `t3-*`: iPhone 15 advertises in the background for the whole run. iPhone X, SE 2020, 12 mini run fresh scanner
     processes, 40 s each, rotating cases fg-uuid / fg-nil / bg-uuid; 7 trials per case per scanner (21 per case).
     Latency = first discovery − scan start, same clock. Not found within 40 s = censored.
+- **Deviation after `d2-ios-20261102` (15:30, before the rerun):** Android raw bytes showed that iPhones keep
+  advertising the app's last background overflow bitmap (scan response of the system Nearby Info advertisement)
+  after the app stopped or was killed: iPhone 15 still sent bitmap `00000000040000000000000000000008` 26 min after
+  its last cell; its address matched its next foreground advertisement (`probe-ovf2`). SE 2016 and SE 2020 also sent
+  stale local names `ML-<tag>` from earlier layout-A runs. So every iPhone that once advertised MESH in the
+  background stays visible to a MESH-filtered iOS scan, and `d2-ios-20261102` mixes advertisers in iOS-scanner rows.
+  - Fix (`d2.py scrub`): before each phase and after each bg/lock cell, every involved iPhone advertises layout A
+    (bake-off UUID, no MESH bit) in the background for 15 s; `probe-scrub` showed this replaces the stale bitmap.
+  - Android attribution of overflow sightings: the record's address must carry a bitmap with the MESH bit (last byte
+    0x08: set in every layout-E background bitmap of both iPhones, while the rotating UUID's bit moves), and that
+    bitmap must not have been on air in the 10 min before the advertiser's start. `name:` ids no longer count.
+  - Rerun: `d2-ios2-20261102`, same cells and criteria. `d2-ios-20261102` stays as the record of the stale effect.
 
 ## T1 iOS layout (run `t1-*`, after T9 frees Pixel 6)
 
 - `host/t1.py`: all five iPhones, one at a time, fresh launch per case, 30 s each, layout E:
   `e` (no name), `e-name8` (+ 8-char local name, 34 B > 28 B), `e-name10` (+ 10 chars), `e-uuid3` (+ a second
-  128-bit UUID, 40 B), `e-bg` (backgrounded, no name), `e-again` (foreground, no name).
+  128-bit UUID, 40 B), `e-bg` (backgrounded, no name), `e-again` (foreground, no name), then `post-stop` (app killed, 25 s).
 - Captured by Pixel 6 passive scan (ADV PDUs only) and Nothing 2 active scan (ADV + scan response), both unfiltered
   `log=all`.
 - Added after `smoke-bg2` (14:46): there the locked, backgrounded SE 2016 sent a scan response with local name

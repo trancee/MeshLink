@@ -33,7 +33,7 @@ def main():
     a = p.parse_args()
     phones = a.phones.split(",")
     scanners = [a.passive, a.active]
-    total = len(phones) * len(CASES) * (a.case_s + 12) + 120
+    total = len(phones) * (len(CASES) * (a.case_s + 12) + 30) + 120
     for name in scanners + phones:
         stop(name)
         host_event(a.run, "clock", **discovery.clock_offset(name))
@@ -51,6 +51,9 @@ def main():
                 time.sleep(a.case_s + 6)
                 stop(phone)
                 time.sleep(2)
+            # App stopped: what does the phone still send (stale name / bitmap in the Nearby Info scan response)?
+            host_event(a.run, "t1_case", device=phone, case="post-stop")
+            time.sleep(25)
     finally:
         for name in scanners + phones:
             stop(name, a.run)
