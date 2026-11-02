@@ -245,6 +245,10 @@ This file is committed **before** each run. A criterion added after its run is m
   - (ii) Advertising privilege = in `a-bg-live` the Android scanners see MESH and the rotating UUID in the main packet
     (as in the foreground) in both reps; else the advert is the overflow bitmap as in `a-bg`.
   - (iii) 8 h end and the ended-activity period: not run (needs > 8 h). Unverified.
+- **Ran** `t1-ip12mini-20261102` (19:01–19:06, launches worked from 19:01:24) and `t4-20261102` (19:07–19:34) after a
+  smoke launch `smoke-t4`. Analysis: `analyze_discovery.py t1|t4`. The advertiser-table metric was changed after the run
+  (from "new overflow addresses" to UUID buckets and their span after `background`), because the 12 mini kept one
+  address for the whole run.
 
 ## T9 Android 17 scan allowance (run `t9-*`, 2 h, Pixel 6 only)
 

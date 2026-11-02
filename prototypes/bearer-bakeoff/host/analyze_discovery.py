@@ -6,6 +6,7 @@
   python3 host/analyze_discovery.py t3 RUN_DIR [RUN_DIR...]   # overflow discovery trials -> summary-t3.md, CSV
   python3 host/analyze_discovery.py d3 RUN_DIR [RUN_DIR...]   # legacy vs extended reception matrix -> summary-d3.md, CSV
   python3 host/analyze_discovery.py d4 RUN_DIR [RUN_DIR...]   # bakeoff phub runs: hub-side inbound closes -> summary-d4.md, CSV
+  python3 host/analyze_discovery.py t4 RUN_DIR [RUN_DIR...]   # Live Activity cells -> summary-t4.md, CSV
 
 Attribution: advertisers log every 8 B advertisement ID in `adv_start` (layout E: first 8 B of the rotating
 128-bit UUID; layout A: service data); scanners see it as `a:<hex>`. iPhones in multi-advertiser runs use local name `ML-<tag>` (`name:` ids).
@@ -16,6 +17,7 @@ import os
 import statistics
 import sys
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 
@@ -687,6 +689,89 @@ def t9(runs, out_dir):
     (out_dir / "summary-t9.md").write_text("\n".join(lines) + "\n")
 
 
+def t4(runs, out_dir):
+    """Live Activity cells: iPhone scanner callbacks and peers per cell; Android view of the iPhone advertiser per cell."""
+    rows, lines = [], ["# T4 summary: Live Activity and Core Bluetooth background privileges", "",
+                       "Runs: " + ", ".join(r.name for r in runs), ""]
+    for run in runs:
+        off = offsets(run)
+        cases = [r for r in run.host if r.get("event") == "t4_case"]
+        phone = cases[0]["device"]
+        own = {i for i, (d, *_rest) in run.ad_ids.items() if d == phone}
+        beacon = {i for i, (d, *_rest) in run.ad_ids.items() if d != phone}
+        # The iPhone's file holds every launch; a cell is the span after its disc_start.
+        segments, current = {}, None
+        for r in run.files[phone]:
+            if r.get("test") == "disc_start":
+                current = (r.get("args") or {}).get("case")
+                segments.setdefault(current, []).append([r])
+            elif current:
+                segments[current][-1].append(r)
+        lines += ["## Scanner cells (iPhone scans; Pixel 6 advertises layout E)", "",
+                  "| Cell | Live Activity | App state at scan start | Callbacks/min (all) | Peers (MESH / other) | Pixel 6 sightings/min | Pixel 6 recall 10 s |",
+                  "|---|---|---|---|---|---|---|"]
+        for case, segs in segments.items():
+            if not case or not case.startswith("s-"):
+                continue
+            for seg in segs:
+                t0 = seg[0]["t"]
+                dur = int((seg[0].get("args") or {}).get("duration", 210)) - 30
+                t1 = t0 + dur * 1000
+                buckets = [r for r in seg if r.get("test") == "s" and t0 <= r["t"] < t1]
+                calls = sum(r.get("n", 1) for r in buckets)
+                peers = {r["a"] for r in buckets}
+                mesh = {r["a"] for r in buckets if r.get("id")}
+                px = [r for r in buckets if (r.get("id") or "")[2:] in beacon]
+                live = next((r.get("outcome") for r in seg if r.get("test") == "live_activity"), "—")
+                state = next((r.get("app") for r in seg if r.get("test") == "scan_start"), "—")
+                minutes = dur / 60
+                recall = window_recall([r["t"] for r in px], t0, t1, 10000)
+                row = {"run": run.name, "phase": "scan", "case": case, "live_activity": live, "app_at_scan_start": state,
+                       "callbacks_per_min": round(calls / minutes, 1), "peers_mesh": len(mesh), "peers_other": len(peers - mesh),
+                       "beacon_per_min": round(sum(r.get("n", 1) for r in px) / minutes, 1),
+                       "beacon_recall_10s": None if recall is None else round(recall, 3)}
+                rows.append(row)
+                lines.append(f"| {case} | {live} | {state} | {row['callbacks_per_min']} | {row['peers_mesh']} / {row['peers_other']} | "
+                             f"{row['beacon_per_min']} | {row['beacon_recall_10s']} |")
+        lines += ["", "## Advertiser cells (iPhone advertises layout E; Android scanners, unfiltered)", "",
+                  "Times are seconds after the iPhone logged `background` (app state background). The iPhone's background task",
+                  "expires about 28–29 s after that; the app is suspended soon after.", "",
+                  "| Cell | Live Activity | Scanner | 1 s buckets with the rotating UUID | UUID seen from … to … s | Other buckets from that address | Sample raw (first UUID sighting) |",
+                  "|---|---|---|---|---|---|---|"]
+        po = off.get(phone, 0)
+        for case, segs in segments.items():
+            if not case or not case.startswith("a-"):
+                continue
+            for seg in segs:
+                live = next((r.get("outcome") for r in seg if r.get("test") == "live_activity"), "—")
+                ids = {r.get("ad_id") for r in seg if r.get("test") == "adv_start"}
+                bg = next(r["t"] for r in seg if r.get("test") == "background") - po
+                t0 = seg[0]["t"] - po
+                t1 = t0 + (int((seg[0].get("args") or {}).get("duration", 150)) - 30) * 1000
+                for scanner in run.scanners:
+                    if run_platform(run, scanner) != "android":
+                        continue
+                    so = off.get(scanner, 0)
+                    recs = [r for r in run.files[scanner] if r.get("test") in ("s", "adv") and t0 <= r["t"] - so < t1]
+                    mine = [r for r in recs if (r.get("id") or "")[2:] in ids]
+                    address = {r["a"] for r in mine}
+                    uuid_b = [r for r in mine if r.get("test") == "s"]
+                    other_b = [r for r in recs if r.get("test") == "s" and r["a"] in address and r not in uuid_b]
+                    ts = [(r["t"] - so - bg) / 1000 for r in uuid_b]
+                    sample = next((r.get("raw") for r in mine if r.get("test") == "adv"), None)
+                    row = {"run": run.name, "phase": "adv", "case": case, "live_activity": live, "scanner": scanner,
+                           "scanner_state": scanner_state(run, scanner), "uuid_buckets": len(uuid_b),
+                           "uuid_first_s": round(min(ts), 1) if ts else None, "uuid_last_s": round(max(ts), 1) if ts else None,
+                           "other_buckets_same_address": len(other_b), "sample_raw": sample}
+                    rows.append(row)
+                    span = f"{row['uuid_first_s']} … {row['uuid_last_s']}" if ts else "—"
+                    lines.append(f"| {case} | {live} | {scanner} ({row['scanner_state']}) | {len(uuid_b)} | {span} | {len(other_b)} | `{sample}` |")
+        lines.append("")
+    write_csv(out_dir / "t4-scan.csv", [r for r in rows if r["phase"] == "scan"])
+    write_csv(out_dir / "t4-adv.csv", [r for r in rows if r["phase"] == "adv"])
+    (out_dir / "summary-t4.md").write_text("\n".join(lines) + "\n")
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -707,12 +792,12 @@ def main():
         # Write to a scratch dir, then rename every file with the tag (summary-d1.md -> summary-d1-<tag>.md).
         scratch = out / f".{tag}"
         scratch.mkdir(parents=True, exist_ok=True)
-        {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9}[sys.argv[1]](runs, scratch)
+        {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9, "t4": t4}[sys.argv[1]](runs, scratch)
         for path in scratch.iterdir():
             path.replace(out / f"{path.stem}-{tag}{path.suffix}")
         scratch.rmdir()
         return
-    {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9}[sys.argv[1]](runs, out)
+    {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4, "t1": t1, "t9": t9, "t4": t4}[sys.argv[1]](runs, out)
 
 
 if __name__ == "__main__":
