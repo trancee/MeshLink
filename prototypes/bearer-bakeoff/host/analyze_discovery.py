@@ -210,10 +210,12 @@ def d1(runs, out_dir):
               "(or the restart call when the payload carries no per-cycle ID). If the address changed too, gap = first sighting",
               "of the new address − payload change, and mixed = sightings pairing an old address with the new payload or the",
               "reverse. If the address stayed, the linked window = payload change → first sighting of any later address",
-              "(the time a tracker can join the two payloads by address; lower bound if the run ended first).", "",
-              "| Device | OS | API / kind | Restarts | Address changed | Gap median / max (s) | Mixed sightings (changed only) | "
+              "(the time a tracker can join the two payloads by address; lower bound if the run ended first).",
+              "Same packet = the first sighting of the new payload (ms clock) already carries the new address. Dark = that",
+              "sighting − the last sighting of the old address (the off time a tracker must bridge).", "",
+              "| Device | OS | API / kind | Restarts | Address changed | Gap median / max (s) | Same packet | Dark median / max (s) | Mixed sightings (changed only) | "
               "Address kept | Linked window median / max (s) | Restart → new payload, Android / iOS median (s) | iOS stale |",
-              "|---|---|---|---|---|---|---|---|---|---|---|"]
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     by_gap = defaultdict(list)
     for row in gap_rows:
         by_gap[(row["run"], row["device"])].append(row)
@@ -224,6 +226,8 @@ def d1(runs, out_dir):
         windows = [r["linked_window_s"] for r in kept if r["linked_window_s"] is not None]
         fmt = lambda v: f"{statistics.median(v):.1f} / {max(v):.1f}" if v else "—"
         lines.append(f"| {device} | {rows[0]['os']} | {rows[0]['adv']} / {rows[0]['kind']} | {len(rows)} | {len(changed)} | {fmt(gaps)} | "
+                     f"{sum(bool(r.get('same_packet')) for r in changed)}/{len(changed)} | "
+                     f"{fmt([r['dark_s'] for r in changed if r.get('dark_s') is not None])} | "
                      f"{sum(r['mixed'] for r in changed)} | {len(kept)} | {fmt(windows)} | "
                      f"{med([r.get('new_payload_latency_android_s') for r in rows])} / {med([r.get('new_payload_latency_ios_s') for r in rows])} | "
                      f"{sum(r.get('ios_stale_after_new') or 0 for r in rows)} |")
@@ -266,10 +270,14 @@ def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind, android)
         mixed = sum(1 for t, a, i in seen if (a == old_addr and mine_now(i)) or (a != old_addr and mine_prev(i) and t >= t_restart))
         row = {"run": run.name, "device": device, "model": model, "os": os_name, "adv": adv, "kind": kind, "cycle": cycle,
                "restart_ms": int(t_restart), "payload_ms": int(t_payload) if t_payload else None, "old_address": old_addr,
-               "new_address": new_addr, "address_changed": new_addr != old_addr, "mixed": mixed, "gap_s": None, "linked_window_s": None, "censored": False}
+               "new_address": new_addr, "address_changed": new_addr != old_addr, "mixed": mixed, "gap_s": None, "same_packet": None, "dark_s": None, "linked_window_s": None, "censored": False}
         if new_addr != old_addr:
             first_new_addr = next(t for t, a, _ in seen if a == new_addr)
             row["gap_s"] = round((first_new_addr - t_payload) / 1000, 1) if t_payload else None
+            # Same-packet test at ms resolution: the first sighting of the new payload already carries the new address.
+            row["same_packet"] = after[0][1] == new_addr and first_new_addr == after[0][0]
+            last_old = max((t for t, a, _ in seen if a == old_addr and t < after[0][0]), default=None)
+            row["dark_s"] = round((after[0][0] - last_old) / 1000, 2) if last_old else None
         else:
             later = next((t for t, a, _ in seen if t > t_payload and a != old_addr), None)
             row["linked_window_s"] = round(((later if later else seen[-1][0]) - t_payload) / 1000, 1)
