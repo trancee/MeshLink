@@ -93,6 +93,13 @@ def phases():
             step5b += both(other, legacy, "m5b-suite", ["n=5", "bearers=gatt", "plan=suite", "phy=2m", "connect_retries=3"], 600)
             step5b += both(other, legacy, "m5b-conn", ["n=20", "bearers=gatt", "plan=connect", "phy=2m", "connect_retries=3"], 900)
     plan["step5b-legacy"] = step5b
+    # Legacy centrals again after the PHY-command gate (0748cd2): readPhy() crashed the P10 lite Bluetooth process.
+    step5c = []
+    for legacy in ("p10lite", "xcover4"):
+        for other in ("pixel6", "ip15"):
+            step5c.append(pair(legacy, other, f"m5c-suite-{legacy}-{other}", ["n=5", "bearers=gatt", "plan=suite", "phy=2m", "connect_retries=3"], 600))
+            step5c.append(pair(legacy, other, f"m5c-conn-{legacy}-{other}", ["n=20", "bearers=gatt", "plan=connect", "phy=2m", "connect_retries=3"], 900))
+    plan["step5c-legacy-central"] = step5c
     return plan
 
 

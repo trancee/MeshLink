@@ -203,3 +203,42 @@ Free teams cannot register the same App ID, so team B uses the `.b` suffix.
   - P10 lite as peripheral: iPhone 15 central 25/25, Pixel 6 central 12/25 (`status=147`).
   - XCover 4 (API 28): central 2/25 to Pixel 6 and 0/25 to iPhone 15, mostly `scan failed 2`. As peripheral: Pixel 6 central 0/25 (`scan timeout`, `status=147`), iPhone 15 central 2/25.
 - **iPhone central suites:** in attempts 2 and later, `handshake_xx_classical` over GATT often failed with `LinkClosedException: gatt-central:<uuid> closed` about 22 s after notify throughput finished. The worst case was the SE 2016 against Android peripherals, at 1/5 to 2/5 OK. Attempt 1 always passed. The cause is unverified.
+
+## Follow-ups (2026-11-02, 00:05–01:37 CET; commits `31ac3f7`, `9f60ad3`, `0748cd2`, `78ebef1`)
+
+### A. Legacy rerun (`step5b-legacy`, `step5c-legacy-central`, `connect_retries=3`)
+
+- **P10 lite as central, root cause:** our `readPhy()` crashed `com.android.bluetooth`. Logcat shows `F/bt_stack [FATAL:gatt_api.cc(699)] Assert failed: len == 5. Received bad response length: 1` in `read_phy_cb`, then SIGABRT. The app then got `DeadObjectException`, which surfaced as "cccd not started" and as 133s.
+  - The fix (`0748cd2`) skips `setPreferredPhy`/`readPhy` when `!isLe2MPhySupported`. That applies to both the P10 lite and the XCover 4.
+  - Crash counts per 10-minute logcat bucket: 19 and 16 before the fix, 0 after.
+- **Busy retry (`31ac3f7`)** now covers every central operation (CCCD write, read, MTU and PHY), not only writes.
+- **XCover 4:**
+  - As central, the scanner registration fails exactly 2.0 s after the scan starts (`scan failed 2`, app registration failed). The registration completes late, about 7 s later (`Context not found for ID 31`).
+  - `dumpsys bluetooth_manager` shows 22 leaked `ch.trancee.lab.host` scanner entries (appIf 9 and 11–31).
+  - The GMS scan-client count stayed constant (3 ongoing, 4 clients), so there is no correlation with GMS.
+  - As peripheral, `openGattServer` returns null in every run (cause unverified), so it never advertises.
+  - Clearing the leaked registrations needs a Bluetooth toggle or reboot, which is a human step.
+- Tables: `host/results/summary-m5b.md` and `summary-m5c.md` (gitignored).
+- `m5b-suite-p10lite-pixel6` attempts 1–3 overlapped a diagnostic advertiser (cross-talk). Only run one BLE pair at a time.
+
+### B1. iPhone-central GATT link closes (`LinkClosedException … disconnected null`)
+
+Reproduced on ip15 → p10lite (`diag-b1-ip15-p10lite` 2/4, `diag-b1c-ip15-p10lite` 3/4) and se2016 → pixel6 (`diag-b1d-se2016-pixel6` 3/4). In every failing attempt the same sequence happens:
+
+1. On a reconnect, iOS bluetoothd reads the peer's GAP Device Name about 12–13 s after connect (`Reading GAP name characteristic value`). On the first connect it reads it right away, which is why failures start at attempt 2. This read lands in the middle of the notify-throughput burst.
+2. The Android peripheral's stack drops the ATT response, because the L2CAP fixed channel is congested:
+   - Android 8: `L2CAP - CID: 0x0004 cannot send, already congested` / `failed to write data to L2CAP`.
+   - Pixel 6: `attp_send_msg_to_l2cap: failed to write data to L2CAP`, `xmit_hold_q` 180/200.
+3. Exactly 30 s after the read: `bluetoothd: Timeout waiting for ATT response, forcing a disconnect` (iOS reason 722). Android sees HCI reason 0x13. The app's `didDisconnectPeripheral` gets `error == nil` (or CBError 0).
+
+This rules out a supervision timeout, an idle disconnect and a stale link. The ip15 → pixel6 control run with faster throughput passed 4/4. Pacing on `onNotificationSent` does not prevent congestion, because the callback fires when a notification is queued, not when it is transmitted.
+
+### B2. iPhone X peripheral "not discoverable by iPhone centrals"
+
+The failure isn't specific to iPhone centrals. In `m4-phub-ipx` the iPhone centrals came last in the stagger order. Every central that started after the 4th inbound link timed out on scan, including the p10lite and xcover4.
+
+- With 0 links, ip15 and se2020 discover the ipx with and without a scan filter. The 128-bit UUID is in the primary service UUIDs, not the overflow area.
+- With 4 Android links held (`diag-b2-phub-ipx`), bluetoothd on the ipx still reports `Advertising(2)` with the connectable instance at 30 ms and our UUID. But an unfiltered ip15 survey (38 advertisers) does not see it.
+- It reappears once the links close.
+- With 3 links held, a 4th central still connected (m4).
+- Most likely the iPhone X controller can't schedule advertising next to 4 peripheral-role connections. That explanation is unverified.
