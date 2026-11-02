@@ -242,3 +242,9 @@ The failure isn't specific to iPhone centrals. In `m4-phub-ipx` the iPhone centr
 - It reappears once the links close.
 - With 3 links held, a 4th central still connected (m4).
 - Most likely the iPhone X controller can't schedule advertising next to 4 peripheral-role connections. That explanation is unverified.
+
+### XCover 4 after reboot + stopScan pairing (`9d97545`, `step5d-xcover4`, 2026-11-02 09:23–09:38 CET)
+
+- The scanner registrations were stable: Scanner Map `Registered AppSize` was 4 before and 4 after, with 0 `ch.trancee.lab.host` entries. Sampled every 30 s, it showed `4/0` 35 times and `5/1` once, during an active scan. No leak.
+- `openGattServer` succeeded on the first try in every run. The earlier null was most likely caused by the leaked registrations (unverified).
+- Connects: pixel6 → xcover4 24/25, ip15 → xcover4 25/25, xcover4 → pixel6 25/25, xcover4 → ip15 16/25 (6×133, 1 status=62, 1 service missing). All suites that connected completed.

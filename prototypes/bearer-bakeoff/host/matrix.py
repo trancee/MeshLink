@@ -100,6 +100,12 @@ def phases():
             step5c.append(pair(legacy, other, f"m5c-suite-{legacy}-{other}", ["n=5", "bearers=gatt", "plan=suite", "phy=2m", "connect_retries=3"], 600))
             step5c.append(pair(legacy, other, f"m5c-conn-{legacy}-{other}", ["n=20", "bearers=gatt", "plan=connect", "phy=2m", "connect_retries=3"], 900))
     plan["step5c-legacy-central"] = step5c
+    # XCover 4 after a reboot (leaked scanner registrations cleared) and the stopScan pairing fix (9d97545).
+    step5d = []
+    for other in ("pixel6", "ip15"):
+        step5d += both(other, "xcover4", "m5d-suite", ["n=5", "bearers=gatt", "plan=suite", "phy=2m", "connect_retries=3"], 600)
+        step5d += both(other, "xcover4", "m5d-conn", ["n=20", "bearers=gatt", "plan=connect", "phy=2m", "connect_retries=3"], 900)
+    plan["step5d-xcover4"] = step5d
     return plan
 
 
