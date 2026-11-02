@@ -2,6 +2,8 @@
 """Analysis for the ticket-13 discovery PROTOTYPE runs (stdlib only).
 
   python3 host/analyze_discovery.py d1 RUN_DIR [RUN_DIR...]   # rotation + restart control -> summary-d1.md, CSVs
+  python3 host/analyze_discovery.py d2 RUN_DIR [RUN_DIR...]   # background matrix (T2/T8/T10) + T11 -> summary-d2.md, CSVs
+  python3 host/analyze_discovery.py t3 RUN_DIR [RUN_DIR...]   # overflow discovery trials -> summary-t3.md, CSV
 
 Attribution: Android advertisers log every 8 B advertisement ID (layout A) in `adv_start`; scanners see it as
 `a:<hex>`. iPhones in multi-advertiser runs use local name `ML-<tag>` (`name:` ids).
@@ -183,6 +185,195 @@ def d1(runs, out_dir):
     print("\n".join(lines))
 
 
+def offsets(run):
+    """Latest clock offset per device (device minus host, ms); iOS via the idevicedate second tick (±~50 ms)."""
+    out = {}
+    for r in run.host:
+        if r.get("event") == "clock" and "offset_ms" in r:
+            out[r["device"]] = r["offset_ms"]
+    return out
+
+
+def scanner_state(run, device):
+    s = run.start[device] or {}
+    args = s.get("args", {})
+    platform = (s.get("reporter") or {}).get("platform", "")
+    if platform == "ios":
+        return f"iOS {'bg' if args.get('bg') == '1' else 'fg'} {args.get('filter', 'service')}" + (" rescan" if args.get("rescan_s") else "")
+    off = "screen-off FGS" if args.get("delay_s") else "fg"
+    extra = " passive" if args.get("scan_type") == "passive" else ""
+    return f"Android {off} {args.get('filter', 'none')} {args.get('scan_mode', 'low_latency')}{extra}"
+
+
+def window_recall(times, start, end, width):
+    if not times or end - start < width:
+        return None
+    windows = int((end - start) // width)
+    hit = {int((t - start) // width) for t in times if start <= t < start + windows * width}
+    return len(hit) / windows
+
+
+def cells(run):
+    out, open_cells = [], {}
+    for r in run.host:
+        if r.get("event") == "cell_start":
+            open_cells[r["cell"]] = r
+        elif r.get("event") == "cell_end" and r["cell"] in open_cells:
+            start = open_cells.pop(r["cell"])
+            out.append({"cell": r["cell"], "advertiser": r["advertiser"], "t0": start["t"], "t1": r["t"]})
+    return out
+
+
+def d2(runs, out_dir):
+    rows, raw_rows, t11_rows = [], [], []
+    for run in runs:
+        off = offsets(run)
+        for c in cells(run):
+            adv = c["advertiser"]
+            recs = run.files.get(adv, [])
+            platform = ((run.start.get(adv) or {}).get("reporter") or {}).get("platform")
+            # adv_start of this cell (device clock -> host clock)
+            starts = [r for r in recs if r.get("test") == "adv_start" and c["t0"] - 5000 <= r["t"] - off.get(adv, 0) <= c["t1"]]
+            if not starts:
+                continue
+            t_adv = starts[0]["t"] - off.get(adv, 0)
+            ad_ids = {r.get("ad_id") for r in recs if r.get("test") == "adv_start" and r.get("ad_id")}
+            state_args = (run.start.get(adv) or {}).get("args", {})
+            for scanner in run.scanners:
+                if scanner == adv:
+                    continue
+                so = off.get(scanner, 0)
+                times, n_total, n_hint, first, first_id, addresses, apps = [], 0, 0, None, None, set(), set()
+                long_lived = None
+                if c["cell"] == "t11":
+                    # pixel6's identifier persists; the ticker's change every ~10 s
+                    spans = defaultdict(lambda: [1e18, 0])
+                    for r in run.files[scanner]:
+                        if r.get("test") == "s" and r.get("id") and c["t0"] <= r["t"] - so <= c["t1"]:
+                            spans[r["a"]][0] = min(spans[r["a"]][0], r["t"]); spans[r["a"]][1] = max(spans[r["a"]][1], r["t"])
+                    long_lived = {a for a, (lo, hi) in spans.items() if hi - lo > 60000}
+                for r in run.files[scanner]:
+                    if r.get("test") not in ("s", "adv"):
+                        continue
+                    t = r["t"] - so
+                    if not (t_adv - 1000 <= t <= c["t1"]):
+                        continue
+                    ident = r.get("id") or ""
+                    if ident.startswith("a:"):
+                        mine = ident[2:] in ad_ids
+                    elif long_lived is not None:
+                        mine = r["a"] in long_lived
+                    elif platform == "ios":
+                        mine = ident in ("svc", "apple-ovf") or ident.startswith("name:")
+                    else:
+                        mine = ident == "svc"
+                    if not mine:
+                        continue
+                    if r.get("test") == "adv":
+                        if platform == "ios" and run.start[scanner].get("reporter", {}).get("platform") == "android":
+                            raw_rows.append({"run": run.name, "cell": c["cell"], "scanner": scanner, "state": scanner_state(run, scanner),
+                                             "address": r["a"], "id": ident, "raw": r.get("raw"), "legacy": r.get("legacy"),
+                                             "conn": r.get("conn")})
+                        continue
+                    times.append(t)
+                    n_total += r.get("n", 1)
+                    n_hint += r.get("n", 1) if ident.startswith("a:") else 0
+                    addresses.add(r["a"])
+                    if first is None or t < first:
+                        first, first_id = t, ident
+                row = {"run": run.name, "cell": c["cell"], "advertiser": adv, "adv_state": c["cell"].split("-")[-1],
+                       "adv_bg": state_args.get("bg", ""), "scanner": scanner, "scanner_state": scanner_state(run, scanner),
+                       "latency_s": round((first - t_adv) / 1000, 2) if first is not None else None,
+                       "sighting_buckets": len(times), "sightings": n_total,
+                       "per_min": round(n_total / ((c["t1"] - t_adv) / 60000), 1),
+                       "hint_frac": round(n_hint / n_total, 3) if n_total else None, "first_id": first_id,
+                       "addresses": len(addresses)}
+                for width in (10, 30, 60):
+                    value = window_recall(times, first, c["t1"], width * 1000) if first is not None else None
+                    row[f"recall_{width}s"] = round(value, 3) if value is not None else None
+                rows.append(row)
+                if c["cell"] == "t11" and run.start[scanner].get("reporter", {}).get("platform") == "ios":
+                    restarts = [r["t"] - so for r in run.files[scanner] if r.get("test") == "scan_restart"]
+                    rere = sum(1 for i, t0 in enumerate(restarts)
+                               if any(t0 < t <= (restarts[i + 1] if i + 1 < len(restarts) else t0 + 10000) for t in times))
+                    t11_rows.append({"run": run.name, "scanner": scanner, "state": scanner_state(run, scanner),
+                                     "restarts": len(restarts), "restarts_followed_by_report": rere,
+                                     "report_buckets": len(times), "first_s": row["latency_s"]})
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(out_dir / "d2-cells.csv", rows)
+    write_csv(out_dir / "d2-raw-adv.csv", raw_rows)
+    write_csv(out_dir / "t11.csv", t11_rows)
+    lines = ["# D2 summary: background visibility matrix", "", f"Runs: {', '.join(r.name for r in runs)}", "",
+             "Latency = first sighting − advertiser start (host clock). Recall = share of complete windows with ≥ 1 sighting,",
+             "from the first sighting to the cell end. Hint = share of sightings carrying the layout-A service data.", "",
+             "| Cell | Scanner | Scanner state | Latency (s) | Per min | Recall 10 s | 30 s | 60 s | Hint | First id |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in rows:
+        lines.append(f"| {r['cell']} | {r['scanner']} | {r['scanner_state']} | {r['latency_s'] if r['latency_s'] is not None else 'not seen'} | "
+                     f"{r['per_min']} | {r['recall_10s']} | {r['recall_30s']} | {r['recall_60s']} | {r['hint_frac']} | {r['first_id']} |")
+    if raw_rows:
+        lines += ["", "## T2: raw bytes from iPhones as received by Android scanners (distinct per cell, scanner, address)", ""]
+        seen = set()
+        for r in raw_rows:
+            key = (r["cell"], r["scanner"], r["raw"])
+            if key in seen:
+                continue
+            seen.add(key)
+            lines.append(f"- {r['cell']} → {r['scanner']} ({r['state']}), {r['address']}, id {r['id']}: `{r['raw']}`")
+    if t11_rows:
+        lines += ["", "## T11: background iOS re-report after scan restarts", "",
+                  "| Scanner | State | Restarts | Restarts followed by a report of the stable peer | Report buckets |", "|---|---|---|---|---|"]
+        for r in t11_rows:
+            lines.append(f"| {r['scanner']} | {r['state']} | {r['restarts']} | {r['restarts_followed_by_report']} | {r['report_buckets']} |")
+    (out_dir / "summary-d2.md").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
+def t3(runs, out_dir):
+    rows = []
+    for run in runs:
+        for scanner in run.scanners:
+            trial = None
+            for r in run.files[scanner]:
+                if r.get("test") == "disc_start":
+                    args = r.get("args", {})
+                    trial = {"run": run.name, "scanner": scanner, "os": (r.get("reporter") or {}).get("os"), "case": args.get("case"),
+                             "trial": args.get("trial"), "scan_start": None, "first_s": None, "first_app": None,
+                             "duration_s": int(args.get("duration", 0))}
+                    rows.append(trial)
+                elif trial is None:
+                    continue
+                elif r.get("test") == "scan_start" and trial["scan_start"] is None:
+                    trial["scan_start"] = r["t"]
+                elif r.get("test") == "adv" and r.get("id") in ("svc", "apple-ovf") and trial["first_s"] is None and trial["scan_start"]:
+                    trial["first_s"] = round((r["t"] - trial["scan_start"]) / 1000, 2)
+                    trial["first_app"] = r.get("app")
+                    trial["ovf"] = r.get("ovf")
+    rows = [r for r in rows if r["case"]]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(out_dir / "t3-trials.csv", rows)
+    lines = ["# T3 summary: iOS overflow-area discovery (advertiser in background)", "",
+             f"Runs: {', '.join(r.name for r in runs)}", "", "Latency = first discovery − scan start on the scanner clock.", "",
+             "| Case | Scanner | OS | Trials | Found | Median (s) | Max (s) |", "|---|---|---|---|---|---|---|"]
+    groups = defaultdict(list)
+    for r in rows:
+        groups[(r["case"], r["scanner"], r["os"])].append(r)
+    for (case, scanner, os_name), group in sorted(groups.items()):
+        found = [r["first_s"] for r in group if r["first_s"] is not None]
+        lines.append(f"| {case} | {scanner} | {os_name} | {len(group)} | {len(found)} | "
+                     f"{statistics.median(found) if found else '—'} | {max(found) if found else '—'} |")
+    by_case = defaultdict(list)
+    for r in rows:
+        by_case[r["case"]].append(r)
+    lines += ["", "| Case (pooled) | Trials | Found | Median (s) | p90 (s) |", "|---|---|---|---|---|"]
+    for case, group in sorted(by_case.items()):
+        found = sorted(r["first_s"] for r in group if r["first_s"] is not None)
+        p90 = found[min(len(found) - 1, int(0.9 * len(found)))] if found else "—"
+        lines.append(f"| {case} | {len(group)} | {len(found)} | {statistics.median(found) if found else '—'} | {p90} |")
+    (out_dir / "summary-t3.md").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -198,7 +389,7 @@ def main():
         sys.exit(__doc__)
     runs = [Run(d) for d in sys.argv[2:]]
     out = Path(__file__).resolve().parent / "results" / "summary"
-    {"d1": d1}[sys.argv[1]](runs, out)
+    {"d1": d1, "d2": d2, "t3": t3}[sys.argv[1]](runs, out)
 
 
 if __name__ == "__main__":

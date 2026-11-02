@@ -85,6 +85,22 @@ This file is committed **before** each run. A criterion added after its run is m
   documented), and whether it changes with the advertised UUID. T3: 20 trials per case (fg UUID scan, fg `nil`
   scan, bg UUID scan) with a latency distribution. T11: re-report rate after rescans every 10 s.
 - Android screen-off cells: `dumpsys battery unplug` during the cell (reset after). Limitation: no Doze.
+- Concrete runs (`host/d2.py`, added before the runs; analysis `analyze_discovery.py d2|t3`):
+  - `d2-ios-*`: advertisers iPhone 15 then SE 2016, each fg / bg (`bg=1`, screen on) / lock (`bg=1 lock=1`, private
+    GSEventLockDevice; if the lock does not happen, the cell counts as a second bg cell and "locked" stays unverified),
+    300 s per cell. Scanners for the whole phase: Nothing 2 fg unfiltered active; Z Flip4 fg unfiltered passive (ADV-only
+    bytes, T2/T1); edge 30 screen-off FGS service filter BALANCED; XCover 4 screen-off FGS Apple 0x004C filter BALANCED.
+    Per cell (relaunched): iPhone X fg service scan with duplicates; SE 2020 and 12 mini bg service scan.
+  - `d2-and-*`: advertisers Pixel 6 (`AdvertisingSet`) then S10e (`startAdvertising`), each fg / screen-off FGS
+    (`delay_s=8`, screen off and battery unplugged before the start), 300 s per cell. Scanners: Nothing 2 fg unfiltered;
+    edge 30 and XCover 4 screen-off FGS service filter; per cell iPhone 15 and 12 mini fg, SE 2016 and iPhone X bg.
+  - `t11-*`: Pixel 6 fg idle (the stable peer) + Z Flip4 "ticker" (new `AdvertisingSet` every 10 s, so background
+    scanners get callbacks); SE 2016, iPhone X, 12 mini, iPhone 15 (no duplicates) bg with `rescan_s=10`; SE 2020 bg
+    without rescans as the baseline; 300 s. Metric: share of scan restarts followed by a report of the stable peer
+    (identified as the identifier seen for > 60 s) before the next restart.
+  - `t3-*`: iPhone 15 advertises in the background for the whole run. iPhone X, SE 2020, 12 mini run fresh scanner
+    processes, 40 s each, rotating cases fg-uuid / fg-nil / bg-uuid; 7 trials per case per scanner (21 per case).
+    Latency = first discovery − scan start, same clock. Not found within 40 s = censored.
 
 ## T1 iOS layout (run `t1-*`)
 

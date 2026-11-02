@@ -2,6 +2,11 @@ package bakeoff.ios
 
 import bakeoff.BakeoffUuids
 import bakeoff.Json
+import kotlinx.cinterop.CFunction
+import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.invoke
+import kotlinx.cinterop.reinterpret
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -40,11 +45,14 @@ import platform.UIKit.UIBackgroundTaskInvalid
 import platform.UIKit.UIControl
 import platform.UIKit.UIDevice
 import platform.darwin.NSObject
+import platform.posix.RTLD_NOW
+import platform.posix.dlopen
+import platform.posix.dlsym
 
 /**
  * PROTOTYPE discovery measurements (ticket 13) on iOS. Arguments: `disc=adv|scan|caps run=... tag=... duration=...`;
- * `bg=1` sends the app to the background (private suspend selector, lab only) before advertising or right after
- * starting the scan.
+ * `bg=1` sends the app to the background (private suspend selector, lab only) before advertising or scanning starts;
+ * `lock=1` then tries to lock the device (private GSEventLockDevice).
  */
 class IosDiscovery(private val raw: Map<String, String>, private val sink: FileLogSink, private val onStatus: (String) -> Unit) {
     private val tag = raw["tag"] ?: "ios"
@@ -99,6 +107,25 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
     private fun suspendApp() {
         record("suspend_request", mapOf("app" to appState()))
         UIControl().sendAction(NSSelectorFromString("suspend"), to = UIApplication.sharedApplication, forEvent = null)
+    }
+
+    /** Lab-only experiment (`lock=1`): GraphicsServices GSEventLockDevice. Records whether the symbol resolved. */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun lockDevice() {
+        val handle = dlopen("/System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices", RTLD_NOW)
+        val symbol = handle?.let { dlsym(it, "GSEventLockDevice") }
+        record("lock_request", mapOf("framework" to (handle != null), "symbol" to (symbol != null), "app" to appState()))
+        symbol?.reinterpret<CFunction<() -> Unit>>()?.invoke()
+    }
+
+    private suspend fun enterBackground() {
+        beginBackgroundTask()
+        suspendApp()
+        record("background", mapOf("reached" to waitBackground(), "app" to appState()))
+        if (raw["lock"] == "1") {
+            delay(500)
+            lockDevice()
+        }
     }
 
     private suspend fun waitBackground(): Boolean {
@@ -187,11 +214,7 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         val manager = CBPeripheralManager(delegate = peripheralDelegate, queue = null)
         peripheralManager = manager
         withTimeoutOrNull(30_000) { peripheralOn.await() } ?: throw IllegalStateException("peripheral not powered on")
-        if (raw["bg"] == "1") {
-            beginBackgroundTask()
-            suspendApp()
-            record("background", mapOf("reached" to waitBackground(), "app" to appState()))
-        }
+        if (raw["bg"] == "1") enterBackground()
         val restartEvery = raw["restart_every"]?.toLong()?.times(1000)
         val restartOff = ((raw["restart_off"]?.toDouble() ?: 2.0) * 1000).toLong()
         val kind = raw["restart_kind"] ?: "stop"
@@ -328,15 +351,11 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             record(if (restarts == 0) "scan_start" else "scan_restart", mapOf("n" to restarts, "filtered" to filtered, "dups" to duplicates, "app" to appState()))
             restarts++
         }
+        // bg=1: the scan starts after the app is suspended, so first sightings are background discoveries.
+        if (raw["bg"] == "1") enterBackground()
         lastRestart = now()
         restartScan!!.invoke()
         onStatus("scanning ${raw["run"]} filtered=$filtered dups=$duplicates")
-        if (raw["bg"] == "1") {
-            beginBackgroundTask()
-            delay(500)
-            suspendApp()
-            record("background", mapOf("reached" to waitBackground(), "app" to appState()))
-        }
         val started = now()
         var lastStats = started
         try {

@@ -185,6 +185,11 @@ class Discovery(private val context: Context, argText: String) {
         )
         out.flush()
         val outcome = runCatching {
+            // delay_s: lets the host switch the screen off before the mode starts (D2 screen-off cells).
+            raw["delay_s"]?.toLong()?.let {
+                delay(it * 1000)
+                record("delay_done", mapOf("screen_interactive" to power.isInteractive))
+            }
             when (raw["disc"]) {
                 "adv" -> Advertiser().run()
                 "scan" -> Scanner().run()
