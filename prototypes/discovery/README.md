@@ -191,7 +191,7 @@ This file is committed **before** each run. A criterion added after its run is m
   `setLegacy(false)`, `PHY_LE_ALL_SUPPORTED`), and all five iPhones foreground unfiltered with duplicates.
 - **Criteria:** per scanner and step, received = ≥ 1 sighting of a step's advertisement ID; n = 2 IDs per step.
   Report the matrix next to each scanner's caps. Analysis: `analyze_discovery.py d3`.
-- **Deviation (18:00, after `d3-20261102`):** Redmi 12 still ran a pre-layout-E build (installed 12:21), so it could
+- **Deviation (17:57, after `d3-20261102`):** Redmi 12 still ran a pre-layout-E build (installed 12:21), so it could
   not attribute layout E; its cells are invalid. Mi 8 got 0 scan results and `scan_failed 2`; Blackview got 0 results;
   OnePlus 6 hit `scan_failed 2` at its 240 s rescan. Five scanners that report Coded support (GX6, RMX3263, CPH2251,
   Nord 2, Pixel 4a) received no Coded advertisement. Rerun `d3b-20261102`, same advertiser and steps: Redmi 12 (new
