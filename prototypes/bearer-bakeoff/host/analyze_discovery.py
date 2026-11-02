@@ -335,6 +335,22 @@ def cells(run):
     return out
 
 
+# Bit of the MESH UUID in Apple's 16-byte overflow bitmap (last byte, 0x08): set in every bitmap of every iPhone
+# advertising layout E in the background in d2-ios-20261102 / smoke-bg2; the rotating UUID's bit moves.
+MESH_OVF_BIT = 0x08
+
+
+def overflow_bitmaps(records):
+    """Index -> (time of the adv record that set it, current overflow bitmap of that record's address)."""
+    current, out = {}, {}
+    for i, r in enumerate(records):
+        if r.get("test") == "adv" and r.get("ovf_bitmap"):
+            current[r["a"]] = (r["t"], r["ovf_bitmap"])
+        if r.get("a") in current:
+            out[i] = current[r["a"]]
+    return out
+
+
 def d2(runs, out_dir):
     rows, raw_rows, t11_rows = [], [], []
     for run in runs:
@@ -363,7 +379,11 @@ def d2(runs, out_dir):
                         if r.get("test") == "s" and r.get("id") and c["t0"] <= r["t"] - so <= c["t1"]:
                             spans[r["a"]][0] = min(spans[r["a"]][0], r["t"]); spans[r["a"]][1] = max(spans[r["a"]][1], r["t"])
                     long_lived = {a for a, (lo, hi) in spans.items() if hi - lo > 60000}
-                for r in run.files[scanner]:
+                bitmaps = overflow_bitmaps(run.files[scanner])
+                # Overflow bitmaps already on air before this launch belong to another iPhone (or a terminated app:
+                # iOS 17 keeps advertising the last app's bitmap after termination).
+                foreign = {bm for t, bm in bitmaps.values() if t is not None and t - so < t_adv - 1000 and t - so > t_adv - 600_000}
+                for i, r in enumerate(run.files[scanner]):
                     if r.get("test") not in ("s", "adv"):
                         continue
                     t = r["t"] - so
@@ -374,8 +394,11 @@ def d2(runs, out_dir):
                         mine = ident[2:] in ad_ids
                     elif long_lived is not None:
                         mine = r["a"] in long_lived
+                    elif ident == "apple-ovf":
+                        bm = bitmaps.get(i, (None, None))[1]
+                        mine = platform == "ios" and bm is not None and int(bm[-2:], 16) & MESH_OVF_BIT != 0 and bm not in foreign
                     elif platform == "ios":
-                        mine = ident in ("svc", "mesh", "apple-ovf") or ident.startswith("name:")
+                        mine = ident in ("svc", "mesh")  # names are stale (see scrub) and never set by layout E
                     else:
                         mine = ident in ("svc", "mesh")
                     if not mine:

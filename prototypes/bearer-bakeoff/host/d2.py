@@ -48,6 +48,19 @@ def ios_scanners(run_id, specs):
         launch(run_id, name, ["disc=scan", LONG, *args])
 
 
+def scrub(run_id, names):
+    """iOS keeps an app's last background overflow bitmap (and local name) in its system Nearby Info advertisement
+    after the app stops or is killed. Overwrite it with layout A (bake-off UUID, no MESH bit) before a cell."""
+    names = [n for n in names if DEVICES[n]["platform"] == "ios"]
+    for name in names:
+        stop(name)
+        host_event(run_id, "scrub", device=name)
+        launch(run_id, name, ["disc=adv", "layout=A", "bg=1", "duration=15"])
+    time.sleep(20)
+    for name in names:
+        stop(name)
+
+
 def clocks(run_id, names):
     for name in names:
         result = discovery.clock_offset(name)
@@ -85,12 +98,14 @@ def ios_cells(a):
     ]
     ios = [("ipx", ["filter=mesh"]), ("se2020", ["filter=mesh", "bg=1"]), ("ip12mini", ["filter=mesh", "bg=1"])]
     clocks(a.run, [n for n, _, _ in android] + [n for n, _ in ios] + advertisers)
+    scrub(a.run, [n for n, _ in ios] + advertisers)
     android_scanners(a.run, android)
     try:
         for advertiser in advertisers:
             for state in states:
                 extra = {"fg": [], "bg": ["bg=1"], "lock": ["bg=1", "lock=1"]}[state]
-                cell(a.run, f"{advertiser}-{state}", advertiser, extra, a.cell, ios)
+                cell(a.run, f"{advertiser}-{state}", advertiser, extra, a.cell, ios,
+                     after=(lambda adv=advertiser: (stop(adv), scrub(a.run, [adv]))) if state != "fg" else None)
     finally:
         restore_android(a.run, android)
         for name in [n for n, _ in ios] + [n for n, _, _ in android] + advertisers:
@@ -110,6 +125,7 @@ def android_cells(a):
            ("ipx", ["filter=mesh", "bg=1"])]
     names = [n for n, _ in advertisers]
     clocks(a.run, [n for n, _, _ in android] + [n for n, _ in ios] + names)
+    scrub(a.run, [n for n, _ in ios])
     android_scanners(a.run, android)
     try:
         for name, api in advertisers:
@@ -145,6 +161,7 @@ def t11(a):
            ("ip12mini", ["filter=mesh", "bg=1", "rescan_s=10"]), ("se2020", ["filter=mesh", "bg=1"]),
            ("ip15", ["filter=mesh", "bg=1", "rescan_s=10", "dups=0"])]
     clocks(a.run, ["nothing2", "nokiax20", "zflip4"] + [n for n, _ in ios])
+    scrub(a.run, [n for n, _ in ios])
     android_scanners(a.run, android)
     try:
         stop("zflip4")
@@ -162,6 +179,7 @@ def t3(a):
     scanners = a.scanners.split(",")
     cases = {"fg-uuid": ["filter=mesh"], "fg-nil": ["filter=none"], "bg-uuid": ["filter=mesh", "bg=1"]}
     clocks(a.run, scanners + [a.adv, "nothing2"])
+    scrub(a.run, scanners + [a.adv])
     android = [("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False)]
     android_scanners(a.run, android)
     for name in scanners:
