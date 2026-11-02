@@ -333,28 +333,36 @@ def _hold_health(name, run_id, out_dir):
 
 
 def _sightings(path):
-    """Hub sightings per filter mode from a scanner's survey file: only the hub advertises the bake-off service."""
+    """Hub sightings per filter mode from a scanner's survey file: only the hub advertises the bake-off service.
+
+    Probes run filtered first, then unfiltered, so the n-th `done` record closes the n-th probe; a probe without
+    its `done` record is reported as not completed rather than as "not seen".
+    """
     out = {}
-    for filtered in (True, False):
+    dones = [r for r in records(path) if r.get("test") == "done"]
+    for index, filtered in enumerate((True, False)):
+        if len(dones) <= index:
+            out["filtered" if filtered else "unfiltered"] = {"completed": False, "seen": None}
+            continue
         hits = [r for r in records(path) if r.get("test") == "scan_survey_advertiser" and r.get("filtered") == filtered
                 and r.get("has_bakeoff_service")]
-        done = [r for r in records(path) if r.get("test") == "done"]
         out["filtered" if filtered else "unfiltered"] = {
+            "completed": dones[index].get("outcome") == "ok",
             "seen": bool(hits),
             "first_ms": min((r.get("first_ms") for r in hits), default=None),
             "rssi": hits[0].get("rssi") if hits else None,
             "count": sum(r.get("count") or 0 for r in hits),
-            "scan_errors": [r.get("error") for r in done if r.get("outcome") != "ok"],
+            "scan_errors": [dones[index].get("error")] if dones[index].get("outcome") != "ok" else [],
         }
     return out
 
 
-def inbound_sweep(hub, centrals, ios_scanner, android_scanner, probe_s=30, unfiltered_s=20, connect_wait_s=100):
+def inbound_sweep(hub, centrals, ios_scanner, android_scanner, tag=None, probe_s=30, unfiltered_s=20, connect_wait_s=100):
     """iPhone inbound-link sweep: `hub` advertises; holding centrals join one at a time; after each join the
     held links must keep echoing (every 2 s) while separate scanners probe the hub's visibility."""
     from concurrent.futures import ThreadPoolExecutor
     commit = git_commit()
-    base = f"m6-inbound-{hub}"
+    base = f"m6-inbound-{hub}" + (f"-{tag}" if tag else "")
     out_dir = RESULTS / base
     out_dir.mkdir(parents=True, exist_ok=True)
     roles = {"hub": hub, "ios_scanner": ios_scanner, **{f"central{k}": c for k, c in enumerate(centrals, 1)}}
@@ -365,22 +373,36 @@ def inbound_sweep(hub, centrals, ios_scanner, android_scanner, probe_s=30, unfil
         stop(name)
     launch(hub, ["role=peripheral", f"run={base}", f"commit={commit}", "duration=1800"])
     time.sleep(10)
-    held, steps = [], []
-    for k, central in enumerate(centrals, 1):
+    held, steps, queue = [], [], list(centrals)
+    k = 0
+    while queue:
+        k += 1
         step_id = f"{base}-k{k}"
         step_dir = RESULTS / step_id
         step_dir.mkdir(parents=True, exist_ok=True)
-        scanners = [s for s in (ios_scanner, android_scanner) if s and s not in held and s != central]
-        joined_at = time.time()
-        launch(central, ["role=hold", f"run={base}", f"commit={commit}", "duration=1500", "scan_timeout=20"])
-        held.append(central)
+        failed_candidates = []
         connected = False
-        while time.time() - joined_at < connect_wait_s:
-            time.sleep(5)
-            if _hold_health(central, base, out_dir)["connected"]:
-                connected = True
-                break
-        connect_s = round(time.time() - joined_at, 1)
+        # A central that cannot join is replaced by the next candidate for the same k (pair-specific 133s are
+        # common); the sweep ends after two candidates fail at the same k.
+        while queue and not connected and len(failed_candidates) < 2:
+            central = queue.pop(0)
+            joined_at = time.time()
+            launch(central, ["role=hold", f"run={base}", f"commit={commit}", "duration=1500", "scan_timeout=20", "connect_retries=3"])
+            while time.time() - joined_at < connect_wait_s:
+                time.sleep(5)
+                health = _hold_health(central, base, out_dir)
+                if health["connected"]:
+                    connected = True
+                    break
+                if health["ended"]:
+                    break
+            connect_s = round(time.time() - joined_at, 1)
+            if connected:
+                held.append(central)
+            else:
+                failed_candidates.append({"central": central, "wait_s": connect_s, **_hold_health(central, base, out_dir)})
+                stop(central)
+        scanners = [s for s in (ios_scanner, android_scanner) if s and s not in held]
         before = {c: _hold_health(c, base, out_dir) for c in held}
         probe = {}
         for filtered, seconds in ((True, probe_s), (False, unfiltered_s)):
@@ -398,6 +420,7 @@ def inbound_sweep(hub, centrals, ios_scanner, android_scanner, probe_s=30, unfil
         healthy = [c for c in held if after[c]["connected"] and not after[c]["ended"] and after[c]["echoes"] > before[c]["echoes"]]
         step = {
             "run_id": step_id, "k": k, "new_central": central, "connected": connected, "connect_wait_s": connect_s,
+            "failed_candidates": failed_candidates,
             "held": list(held), "healthy": healthy, "links_healthy": f"{len(healthy)}/{len(held)}",
             "health_before_probe": before, "health_after_probe": after,
             "hub_link_opens_active_links": opens, "hub_link_closes": closes, "probe": probe,
@@ -409,10 +432,10 @@ def inbound_sweep(hub, centrals, ios_scanner, android_scanner, probe_s=30, unfil
         log(f"{step_id}: connected={connected} ({connect_s}s) healthy={step['links_healthy']} visible(f,u,first_ms,rssi)={vis} closes={len(closes)}")
         if not connected:
             break
-    for name in [*held, hub]:
+    for name in [*held, *[c for s in steps for c in (f["central"] for f in s["failed_candidates"])], hub]:
         suffix = "peripheral" if name == hub else "hold"
         fetch(name, base, out_dir / f"{name}-{suffix}.jsonl")
-    for name in {hub, *held}:
+    for name in {hub, *held, *centrals}:
         try:
             stop(name)
         except Exception as error:  # noqa: BLE001 - best effort
@@ -516,6 +539,7 @@ def main():
     ib.add_argument("--centrals", nargs="+", required=True, choices=sorted(DEVICES))
     ib.add_argument("--ios-scanner", required=True, choices=sorted(DEVICES))
     ib.add_argument("--android-scanner", choices=sorted(DEVICES))
+    ib.add_argument("--tag", help="suffix for a fresh run id (device result files are append-only per run id)")
     f = sub.add_parser("fetch")
     f.add_argument("device", choices=sorted(DEVICES))
     f.add_argument("--run", required=True)
@@ -547,7 +571,7 @@ def main():
             results = {name: grant_ios(name) for name in args.devices}
             sys.exit(0 if all(results.values()) else 2)
         elif args.command == "inbound":
-            inbound_sweep(args.hub, args.centrals, args.ios_scanner, args.android_scanner)
+            inbound_sweep(args.hub, args.centrals, args.ios_scanner, args.android_scanner, args.tag)
         elif args.command == "fetch":
             destination = RESULTS / args.run / f"{args.device}.jsonl"
             ok = fetch(args.device, args.run, destination)
