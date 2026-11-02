@@ -1,0 +1,8 @@
+build/
+.gradle/
+.kotlin/
+libsodium/work/
+libsodium/out/
+vectors/*.txt
+iosApp/build/
+iosApp/*.xcodeproj/
