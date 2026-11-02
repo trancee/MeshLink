@@ -23,7 +23,7 @@ This file is committed **before** each run. A criterion added after its run is m
 - Layout A stays selectable (`layout=A`) at no cost; it is no longer run unless stated.
 - Owner questions E1–E5 → runs:
   - **E1** raw ADV bytes, AD types 0x05/0x04 and 0x07/0x06, iOS extras (TX power, name in scan response): T1 run (iPhones
-    foreground, Nothing 2 active + Z Flip4 passive) and D2 `d2-and-*` (Android). Pass = bytes recorded per platform/iOS version.
+    foreground, Nothing 2 active + Pixel 6 passive; Z Flip4 has no passive scan on API 36) and D2 `d2-and-*` (Android). Pass = bytes recorded per platform/iOS version.
   - **E2** Android MESH filter matches both platforms fg and screen-off; rotating UUID readable from ScanRecord: D2 cells
     (edge 30 / XCover 4 screen-off with `filter=mesh`). Pass = match in ≥ 1 cell per advertiser platform/state, and
     `a:` id present in ≥ 95 % of first sightings of foreground advertisers.
