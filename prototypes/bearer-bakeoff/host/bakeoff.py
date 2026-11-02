@@ -523,6 +523,7 @@ def main():
     ph.add_argument("--peers", nargs="+", required=True, choices=sorted(DEVICES))
     ph.add_argument("--run", required=True)
     ph.add_argument("--timeout", type=int, default=600)
+    ph.add_argument("--stagger", type=int, default=10)
     ph.add_argument("args", nargs="*")
     du = sub.add_parser("dual", help="crossed-connection rounds between two devices")
     du.add_argument("a", choices=sorted(DEVICES))
@@ -558,7 +559,7 @@ def main():
         elif args.command == "hub":
             sys.exit(0 if hub_run(args.hub, args.peers, args.run, args.args, args.timeout) else 2)
         elif args.command == "phub":
-            sys.exit(0 if phub_run(args.hub, args.peers, args.run, args.args, args.timeout) else 2)
+            sys.exit(0 if phub_run(args.hub, args.peers, args.run, args.args, args.timeout, args.stagger) else 2)
         elif args.command == "dual":
             sys.exit(0 if dual_run(args.a, args.b, args.run, args.args, args.timeout) else 2)
         elif args.command == "stop":

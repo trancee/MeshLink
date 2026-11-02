@@ -129,3 +129,10 @@ This file is committed **before** each run. A criterion added after its run is m
 - `bakeoff.py phub` (current build): hub iPhone 15, ≤ 4 centrals with ≥ 1–2 iPhones, arrivals 10 s apart, 3 reps.
 - Then one factor at a time: Android-only centrals; iPhone-only centrals; 30 s stagger.
 - **Criteria:** reproduced = a hub-side close of an established inbound link at ≤ 4 links in ≥ 2 of 3 reps.
+- Concrete runs (args as step 4: `phy=2m connect_retries=3`, `--timeout 600`, so each central holds 500 s):
+  - `d4-mix-r{1,2,3}`: centrals Pixel 6, Nothing 2, iPhone X, SE 2016 (step 4 order: Androids first), 10 s apart.
+  - If reproduced: `d4-and-r*` (Pixel 6, Nothing 2, S10e, XCover 4), `d4-ios-r*` (iPhone X, SE 2016, SE 2020,
+    12 mini), `d4-mix30-r*` (mixed set, `--stagger 30`); 3 reps each, stop early once a factor is clear.
+  - If not reproduced in 3 reps: report "not reproduced with build `<sha>`"; the old build stays a candidate cause.
+  - Close = hub record of an inbound link ending (`unsubscribed`/`closed`) before the central's `hold_end`.
+  - Logs: hub `idevicesyslog`/`log collect` is attempted for `bluetoothd` lines around each close; listed, not shipped.
