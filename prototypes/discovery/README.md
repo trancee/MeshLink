@@ -145,6 +145,10 @@ This file is committed **before** each run. A criterion added after its run is m
     **Deviation (17:15, before the run):** the 12 mini locked itself after T3 and `devicectl` refuses launches until
     someone unlocks it by hand ("device has not been unlocked recently"). SE 2020 (iOS 18) replaces it as the second
     fg iOS scanner (`--ios-fg ip15,se2020`). The T1 run lost the 12 mini for the same reason (T1 covers 4 iPhones).
+    **Deviation (17:40, after `d2-and-20261102`):** the Android app truncated its JSONL at each relaunch, so the
+    advertiser files of Pixel 6 and S10e kept only the screen-off cell; the fg cells cannot be attributed. Fix: append
+    mode. The two fg cells rerun as `d2-and-fg-20261102` (`--states fg`, same scanners), after D3. The screen-off cells
+    of `d2-and-20261102` stand (their scanner files and advertiser IDs are complete).
   - `t11-*`: Nokia X20 fg idle (the stable peer; Pixel 6 is busy with T9) + Z Flip4 "ticker" (new `AdvertisingSet` every 10 s, so background
     scanners get callbacks); SE 2016, iPhone X, 12 mini, iPhone 15 (no duplicates) bg with `rescan_s=10`; SE 2020 bg
     without rescans as the baseline; 300 s. Metric: share of scan restarts followed by a report of the stable peer
