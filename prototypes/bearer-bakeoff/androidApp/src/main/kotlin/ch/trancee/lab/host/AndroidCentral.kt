@@ -29,13 +29,11 @@ import bakeoff.Phy
 import bakeoff.ResultSink
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
-import kotlin.coroutines.resume
 
 /** AOSP default scan quota is 5 starts per 30 s; pace starts so long attempt loops never hit it. */
 private const val MIN_SCAN_START_INTERVAL_MS = 6_500L
@@ -99,23 +97,28 @@ class AndroidCentral(
         }
     }
 
-    private suspend fun scan(excluded: Set<String>): BluetoothDevice = suspendCancellableCoroutine { continuation ->
+    private suspend fun scan(excluded: Set<String>): BluetoothDevice {
         val scanner = adapter.bluetoothLeScanner ?: throw IllegalStateException("no LE scanner")
+        val found = CompletableDeferred<BluetoothDevice>()
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                if (result.device.address in excluded || !continuation.isActive) return
-                runCatching { scanner.stopScan(this) }
-                continuation.resume(result.device)
+                if (result.device.address !in excluded) found.complete(result.device)
             }
 
             override fun onScanFailed(errorCode: Int) {
-                if (continuation.isActive) continuation.resumeWith(Result.failure(IllegalStateException("scan failed $errorCode")))
+                found.completeExceptionally(IllegalStateException("scan failed $errorCode"))
             }
         }
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(UUID.fromString(BakeoffUuids.SERVICE))).build()
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
-        scanner.startScan(listOf(filter), settings, callback)
-        continuation.invokeOnCancellation { runCatching { scanner.stopScan(callback) } }
+        // Every startScan is paired with stopScan (result, failure, timeout, cancellation); a failed or late
+        // registration otherwise leaks a scanner slot in the stack (observed on the XCover 4, Android 9).
+        try {
+            scanner.startScan(listOf(filter), settings, callback)
+            return found.await()
+        } finally {
+            runCatching { scanner.stopScan(callback) }
+        }
     }
 }
 
