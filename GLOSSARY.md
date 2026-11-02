@@ -59,11 +59,11 @@ A bounded unit of application data addressed to one destination and carried whol
 _Avoid_: Packet, payload, file, stream
 
 **Delivery receipt**:
-An optional confirmation that the destination node received and authenticated a specific message.
-_Avoid_: Ack, read receipt
+The confirmation a destination always returns for a unicast message once its application has taken the message; it also tells the mesh the way back works. Mesh broadcasts never get one.
+_Avoid_: Ack, routing ack, read receipt
 
 **Read receipt**:
-An optional confirmation, triggered by the receiving application, that a delivered message was read; the library only carries it.
+An optional confirmation, triggered by the receiving application, that a delivered message was read. It is sent only when the sender asked for it and the recipient allows it; the sender cannot tell a refusal from a message not yet read.
 _Avoid_: Delivery receipt, seen
 
 **Mesh broadcast**:

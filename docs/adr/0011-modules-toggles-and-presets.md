@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 1.
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 2 (amended 2026-11-02, ADR 0013).
 
 ## Context
 
@@ -110,3 +110,10 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 - The Swift overlay of ADR 0007 decision 14 gains a Swift protocol that `MeshLink` conforms to, so `MeshLinkTesting` can fake it. The overlay stays idioms only (T3).
 - The receipts, store-and-forward, message size and power tickets fill the preset table; the generated reference replaces the draft.
 - The release ticket designs the two-repository release and the `meshlink-swift` smoke test.
+
+## Amendments
+
+2026-11-02, message lifecycle ([ADR 0013](0013-message-lifecycle-and-receipts.md)):
+
+- **Toggles (decision 10):** "Receipts requested" becomes two values, `readReceipts.requestByDefault` and `readReceipts.send`. Delivery receipts are always on.
+- **Presets (decision 12):** the Receipts column means read receipts, with both values on for `OfflineChat` and `FieldTeams` and off for the rest.

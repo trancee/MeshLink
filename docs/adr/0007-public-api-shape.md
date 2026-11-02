@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 3 (amended 2026-11-03, ADR 0011 and ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?").
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 4 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0013).
 
 ## Context
 
@@ -142,3 +142,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
   - Rejected: making `send` itself suspend. Every send from UI code would then need `await` or a coroutine, only to cover the rare full-queue case.
 - **Swift overlay data conversion (amends decision 14 of ADR 0011):** the overlay converts between `Data` and `KotlinByteArray` with one bulk copy (`memcpy` over pinned memory), never element by element. Element-by-element copying cost about 2.6 ms at 16 KB, about 25 times a bulk copy. A benchmark in the overlay's tests guards this.
 - **Measured costs:** a Swift-to-Kotlin-and-back round trip through SKIE took 95–111 µs median for 64 B to 16 KB on the SE 2016. Cancelling a Swift `Task` reached the Kotlin coroutine in 100 of 100 trials, p95 under 0.5 ms. These were the "untested costs" of this ADR.
+
+2026-11-02, message lifecycle ([ADR 0013](0013-message-lifecycle-and-receipts.md)):
+
+- **Delivery status (decision 8):** the exact meaning, order and terminal states of each status are in ADR 0013. `Delivered` is always reported; only read receipts are opt-in. `Failed` covers local causes only, and a message no receipt confirmed becomes `Expired` at its expiry plus 30 s.
+- **Receiving (decision 9):** `ReceivedMessage` gains `readReceiptRequested`.

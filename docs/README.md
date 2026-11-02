@@ -34,6 +34,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 10. [Discovery, advertising and identifier rotation](adr/0010-discovery-and-advertising.md)
 11. [Modules, feature toggles and presets](adr/0011-modules-toggles-and-presets.md)
 12. [Wire format principles and codec](adr/0012-wire-format-and-codec.md)
+13. [Message lifecycle and receipts](adr/0013-message-lifecycle-and-receipts.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 
