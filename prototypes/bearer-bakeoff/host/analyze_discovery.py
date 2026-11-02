@@ -533,7 +533,7 @@ def d3(runs, out_dir):
             model, os_name = run.model(scanner)
             caps = (run.start[scanner] or {}).get("caps") or {}
             row = {"run": run.name, "scanner": scanner, "model": model, "os": os_name,
-                   "ext_adv": caps.get("le_extended_adv"), "coded": caps.get("le_coded"), "max_adv_len": caps.get("le_max_adv_data_len"),
+                   "ext_adv": caps.get("le_extended_adv"), "cap_coded": caps.get("le_coded"), "max_adv_len": caps.get("le_max_adv_data_len"),
                    "ios_ext_scan": caps.get("extended_scan_and_connect")}
             for kind in order:
                 row[kind] = len(seen[kind])
@@ -547,7 +547,7 @@ def d3(runs, out_dir):
         for row in rows:
             if row["run"] != run.name:
                 continue
-            cap = f"{row['ext_adv']} / {row['coded']} / {row['max_adv_len']}" if row["ext_adv"] is not None else f"iOS ext scan {row['ios_ext_scan']}"
+            cap = f"{row['ext_adv']} / {row["cap_coded"]} / {row["max_adv_len"]}" if row["ext_adv"] is not None else f"iOS ext scan {row['ios_ext_scan']}"
             cells = [f"{row[k]}/{started[k]}" + (f" ({row[k + '_phy']})" if row[k + "_phy"] else "") for k in order]
             lines.append(f"| {row['scanner']} | {row['os']} | {cap} | " + " | ".join(cells) + " |")
         out_dir.mkdir(parents=True, exist_ok=True)
