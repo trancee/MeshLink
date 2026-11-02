@@ -8,6 +8,36 @@ This file is committed **before** each run. A criterion added after its run is m
 
 ## Advertisement under test
 
+**Change 2026-11-02 13:45 (project owner): layout E is primary on both platforms from run `d1-ios-*` on.**
+`d1-rot-20261102` (12:24–13:59) used layout A; its address findings do not depend on the payload.
+
+- **Layout E (both platforms, default `layout=E`):** legacy ADV, no local name, no scan response data:
+  - fixed 32-bit service UUID `0x4D455348` ("MESH", base form `4D455348-0000-1000-8000-00805F9B34FB`);
+  - one rotating 128-bit service UUID whose 16 bytes are placeholder metadata: 8 B random advertisement ID,
+    4 B mesh tag (`ML01`), 1 B flags (Android: step << 4 | cycle; iOS: cycle), 3 B random. New at every start
+    (iOS `restart_kind=same` keeps it, to test address vs data).
+  - Budget: Android 3 + (2+4) + (2+16) = 27 B ≤ 31 B; iOS (2+4) + (2+16) = 24 B ≤ 28 B.
+  - Extended steps (D3): the same two UUIDs plus `pad` B service data under MESH, so the ADV exceeds 31 B.
+  - Scanners attribute by the first 8 B of the rotating UUID (`a:<hex>`); Android filters with `filter=mesh`
+    (ScanFilter on the base-form UUID), iOS scans `withServices: [MESH]` (`filter=mesh`, default).
+- Layout A stays selectable (`layout=A`) at no cost; it is no longer run unless stated.
+- Owner questions E1–E5 → runs:
+  - **E1** raw ADV bytes, AD types 0x05/0x04 and 0x07/0x06, iOS extras (TX power, name in scan response): T1 run (iPhones
+    foreground, Nothing 2 active + Z Flip4 passive) and D2 `d2-and-*` (Android). Pass = bytes recorded per platform/iOS version.
+  - **E2** Android MESH filter matches both platforms fg and screen-off; rotating UUID readable from ScanRecord: D2 cells
+    (edge 30 / XCover 4 screen-off with `filter=mesh`). Pass = match in ≥ 1 cell per advertiser platform/state, and
+    `a:` id present in ≥ 95 % of first sightings of foreground advertisers.
+  - **E3** iOS `withServices:[MESH]` fg/bg finds the advertiser and returns the rotating UUID in
+    `CBAdvertisementDataServiceUUIDsKey` or the overflow key; backgrounded iOS advertiser found by MESH alone, rotating UUID
+    recoverable or not: D2 `d2-ios-*` (iOS scanners), `d2-and-*`, T3. Recorded per cell: share of sightings with `a:` id.
+  - **E4** rotation by restart with a new UUID: D1-ctl (`d1-ios-*` iOS kinds `stop` = new UUID 2 s off, `swap` = stop and
+    start at once with a new UUID, `same` = same UUID; Android controls rerun on layout E with new data per start).
+    Also measured: restart → first scanner sighting of the new UUID; whether iOS scanners report the old UUID after
+    the restart for the same identifier (stale cache). Pass/fail as T5/T6 below.
+  - **E5** OS rejection/oddity for the unassigned 32-bit UUID: `adv_start` status/error on every start; any start error = finding.
+
+### Layout A (used by `d1-rot-20261102` only)
+
 - **Android, layout A** (desk research `docs/research/2026-11-02-discovery-advertising.md` §4):
   - ADV: flags + one 128-bit mesh UUID `6e4b0001-8f3c-4d2a-9b61-2c7a5d3e9f10`. Legacy, connectable, scannable.
   - Scan response: service data under the mesh UUID, 13 B = 8 B random advertisement ID (new at every start) +

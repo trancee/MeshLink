@@ -81,10 +81,10 @@ def ios_cells(a):
     android = [
         ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
         ("zflip4", ["filter=none", "scan_mode=low_latency", "scan_type=passive", "rescan_s=240"], False),
-        ("moto30", ["filter=service", "scan_mode=balanced"], True),
+        ("moto30", ["filter=mesh", "scan_mode=balanced"], True),
         ("xcover4", [f"filter={a.ovf_filter}", "scan_mode=balanced"], True),
     ]
-    ios = [("ipx", ["filter=service"]), ("se2020", ["filter=service", "bg=1"]), ("ip12mini", ["filter=service", "bg=1"])]
+    ios = [("ipx", ["filter=mesh"]), ("se2020", ["filter=mesh", "bg=1"]), ("ip12mini", ["filter=mesh", "bg=1"])]
     clocks(a.run, [n for n, _, _ in android] + [n for n, _ in ios] + advertisers)
     android_scanners(a.run, android)
     try:
@@ -104,11 +104,11 @@ def android_cells(a):
     states = a.states.split(",")
     android = [
         ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
-        ("moto30", ["filter=service", "scan_mode=balanced"], True),
-        ("xcover4", ["filter=service", "scan_mode=balanced"], True),
+        ("moto30", ["filter=mesh", "scan_mode=balanced"], True),
+        ("xcover4", ["filter=mesh", "scan_mode=balanced"], True),
     ]
-    ios = [("ip15", ["filter=service"]), ("ip12mini", ["filter=service"]), ("se2016", ["filter=service", "bg=1"]),
-           ("ipx", ["filter=service", "bg=1"])]
+    ios = [("ip15", ["filter=mesh"]), ("ip12mini", ["filter=mesh"]), ("se2016", ["filter=mesh", "bg=1"]),
+           ("ipx", ["filter=mesh", "bg=1"])]
     names = [n for n, _ in advertisers]
     clocks(a.run, [n for n, _, _ in android] + [n for n, _ in ios] + names)
     android_scanners(a.run, android)
@@ -142,9 +142,9 @@ def android_cells(a):
 def t11(a):
     """Background iOS scanners restart their scan every 10 s (driven by a 'ticker' advertiser that changes address)."""
     android = [("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False)]
-    ios = [("se2016", ["filter=service", "bg=1", "rescan_s=10"]), ("ipx", ["filter=service", "bg=1", "rescan_s=10"]),
-           ("ip12mini", ["filter=service", "bg=1", "rescan_s=10"]), ("se2020", ["filter=service", "bg=1"]),
-           ("ip15", ["filter=service", "bg=1", "rescan_s=10", "dups=0"])]
+    ios = [("se2016", ["filter=mesh", "bg=1", "rescan_s=10"]), ("ipx", ["filter=mesh", "bg=1", "rescan_s=10"]),
+           ("ip12mini", ["filter=mesh", "bg=1", "rescan_s=10"]), ("se2020", ["filter=mesh", "bg=1"]),
+           ("ip15", ["filter=mesh", "bg=1", "rescan_s=10", "dups=0"])]
     clocks(a.run, ["nothing2", "pixel6", "zflip4"] + [n for n, _ in ios])
     android_scanners(a.run, android)
     try:
@@ -161,7 +161,7 @@ def t11(a):
 def t3(a):
     """Overflow discovery: advertiser in the background; each trial is a fresh scanner process."""
     scanners = a.scanners.split(",")
-    cases = {"fg-uuid": ["filter=service"], "fg-nil": ["filter=none"], "bg-uuid": ["filter=service", "bg=1"]}
+    cases = {"fg-uuid": ["filter=mesh"], "fg-nil": ["filter=none"], "bg-uuid": ["filter=mesh", "bg=1"]}
     clocks(a.run, scanners + [a.adv, "nothing2"])
     android = [("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False)]
     android_scanners(a.run, android)

@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.random.Random
 import platform.CoreBluetooth.CBAdvertisementDataIsConnectable
 import platform.CoreBluetooth.CBAdvertisementDataLocalNameKey
 import platform.CoreBluetooth.CBAdvertisementDataManufacturerDataKey
@@ -180,8 +181,15 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
 
     private var peripheralManager: CBPeripheralManager? = null
 
+    private val layout = raw["layout"] ?: "E"
+    private var meta = ByteArray(16)
+
+    /**
+     * Layout E (default): service UUIDs [32-bit MESH, rotating 128-bit UUID = 16 B metadata: 8 B ad ID, 4 B mesh tag,
+     * 1 B flags, 3 B random], regenerated on every start except restart_kind=same. Layout A: the bake-off UUID only.
+     */
     private fun advertisement(cycle: Int): Map<Any?, Any?> {
-        // Layout A: UUID only (name=none, the default). name=tag gives "ML-<tag>" for attribution; any other value is literal.
+        // name=none is the default. name=tag gives "ML-<tag>" for attribution; any other value is literal.
         val kind = raw["restart_kind"] ?: "stop"
         val nameArg = raw["name"] ?: "none"
         val base = if (nameArg == "tag") "ML-$tag" else nameArg
@@ -190,7 +198,8 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             nameArg == "none" -> null
             else -> base
         }
-        val uuids = mutableListOf(cbuuid(BakeoffUuids.SERVICE))
+        if (cycle == 0 || kind != "same") meta = Random.nextBytes(8) + MESH_TAG + byteArrayOf((cycle and 0x0f).toByte()) + Random.nextBytes(3)
+        val uuids = if (layout == "E") mutableListOf(cbuuid(MESH32), CBUUID.UUIDWithData(meta.toNSData())) else mutableListOf(cbuuid(BakeoffUuids.SERVICE))
         if (raw["uuids"] == "2" || (kind == "uuids" && cycle % 2 == 1)) uuids += cbuuid("6e4b00ff-8f3c-4d2a-9b61-2c7a5d3e9f10")
         val data = mutableMapOf<Any?, Any?>(CBAdvertisementDataServiceUUIDsKey to uuids)
         if (name != null) data[CBAdvertisementDataLocalNameKey] = name
@@ -206,7 +215,8 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         val error = withTimeoutOrNull(10_000) { advStarted.await() }
         record(
             "adv_start",
-            mapOf("cycle" to cycle, "t_call" to tCall, "error" to error, "name" to data[CBAdvertisementDataLocalNameKey], "uuids" to (data[CBAdvertisementDataServiceUUIDsKey] as List<*>).size, "app" to appState()),
+            mapOf("cycle" to cycle, "t_call" to tCall, "error" to error, "ad_id" to meta.copyOfRange(0, 8).hex().takeIf { layout == "E" },
+                "uuid_list" to (data[CBAdvertisementDataServiceUUIDsKey] as List<*>).map { (it as CBUUID).UUIDString }, "name" to data[CBAdvertisementDataLocalNameKey], "uuids" to (data[CBAdvertisementDataServiceUUIDsKey] as List<*>).size, "app" to appState()),
         )
     }
 
@@ -230,7 +240,7 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
                     cycle++
                     manager.stopAdvertising()
                     record("adv_stop", mapOf("cycle" to cycle - 1, "kind" to kind))
-                    if (kind == "stop") delay(restartOff)
+                    if (kind == "stop" || kind == "same") delay(restartOff)
                     startAdvertising(cycle)
                 } else {
                     delay(1000)
@@ -274,9 +284,13 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             val serviceData = (data[CBAdvertisementDataServiceDataKey] as? Map<*, *>)?.entries?.associate {
                 (it.key as? CBUUID)?.UUIDString.toString() to ((it.value as? NSData)?.toByteArray()?.hex() ?: "")
             }
-            val ours = (services.orEmpty() + overflow.orEmpty()).any { it.equals(BakeoffUuids.SERVICE, ignoreCase = true) }
+            val all = services.orEmpty() + overflow.orEmpty()
+            val ours = all.any { it.equals(BakeoffUuids.SERVICE, ignoreCase = true) || it.equals(MESH32, ignoreCase = true) }
+            val rotating = all.firstOrNull { it.length == 36 && !it.equals(BakeoffUuids.SERVICE, ignoreCase = true) }
+                ?.takeIf { all.any { u -> u.equals(MESH32, ignoreCase = true) } }
             val hint = serviceData?.entries?.firstOrNull { it.key.equals(BakeoffUuids.SERVICE, ignoreCase = true) }?.value
             val id = when {
+                rotating != null -> "a:" + rotating.replace("-", "").substring(0, 16).lowercase()
                 hint != null && hint.length >= 26 -> "a:${hint.substring(0, 16)}"
                 manufacturer != null && manufacturer.size >= 18 && manufacturer[0] == 0xff.toByte() && manufacturer[1] == 0xff.toByte() &&
                     manufacturer[2] == 'M'.code.toByte() && manufacturer[3] == 'L'.code.toByte() ->
@@ -338,17 +352,19 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         withTimeoutOrNull(30_000) { centralOn.await() } ?: throw IllegalStateException("central not powered on")
         val current = Scanner()
         scanner = current
-        val filtered = (raw["filter"] ?: "service") == "service"
+        val filter = raw["filter"] ?: "mesh"
+        val filtered = filter != "none"
+        val filterUuid = if (filter == "service") BakeoffUuids.SERVICE else MESH32
         val duplicates = raw["dups"] != "0"
         val rescanMs = raw["rescan_s"]?.toLong()?.times(1000)
         var restarts = 0
         restartScan = {
             manager.stopScan()
             manager.scanForPeripheralsWithServices(
-                if (filtered) listOf(cbuuid(BakeoffUuids.SERVICE)) else null,
+                if (filtered) listOf(cbuuid(filterUuid)) else null,
                 options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to duplicates),
             )
-            record(if (restarts == 0) "scan_start" else "scan_restart", mapOf("n" to restarts, "filtered" to filtered, "dups" to duplicates, "app" to appState()))
+            record(if (restarts == 0) "scan_start" else "scan_restart", mapOf("n" to restarts, "filtered" to filtered, "filter" to filter, "dups" to duplicates, "app" to appState()))
             restarts++
         }
         // bg=1: the scan starts after the app is suspended, so first sightings are background discoveries.
@@ -376,5 +392,8 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         }
     }
 }
+
+const val MESH32 = "4D455348"
+val MESH_TAG = byteArrayOf(0x4d, 0x4c, 0x30, 0x31) // placeholder 4 B mesh tag "ML01"
 
 fun ByteArray.hex(): String = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }

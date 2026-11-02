@@ -6,8 +6,8 @@
   python3 host/analyze_discovery.py t3 RUN_DIR [RUN_DIR...]   # overflow discovery trials -> summary-t3.md, CSV
   python3 host/analyze_discovery.py d4 RUN_DIR [RUN_DIR...]   # bakeoff phub runs: hub-side inbound closes -> summary-d4.md, CSV
 
-Attribution: Android advertisers log every 8 B advertisement ID (layout A) in `adv_start`; scanners see it as
-`a:<hex>`. iPhones in multi-advertiser runs use local name `ML-<tag>` (`name:` ids).
+Attribution: advertisers log every 8 B advertisement ID in `adv_start` (layout E: first 8 B of the rotating
+128-bit UUID; layout A: service data); scanners see it as `a:<hex>`. iPhones in multi-advertiser runs use local name `ML-<tag>` (`name:` ids).
 """
 import csv
 import json
@@ -275,15 +275,15 @@ def d2(runs, out_dir):
                     elif long_lived is not None:
                         mine = r["a"] in long_lived
                     elif platform == "ios":
-                        mine = ident in ("svc", "apple-ovf") or ident.startswith("name:")
+                        mine = ident in ("svc", "mesh", "apple-ovf") or ident.startswith("name:")
                     else:
-                        mine = ident == "svc"
+                        mine = ident in ("svc", "mesh")
                     if not mine:
                         continue
                     if r.get("test") == "adv":
-                        if platform == "ios" and run.start[scanner].get("reporter", {}).get("platform") == "android":
+                        if run.start[scanner].get("reporter", {}).get("platform") == "android":
                             raw_rows.append({"run": run.name, "cell": c["cell"], "scanner": scanner, "state": scanner_state(run, scanner),
-                                             "address": r["a"], "id": ident, "raw": r.get("raw"), "legacy": r.get("legacy"),
+                                             "advertiser": adv, "address": r["a"], "id": ident, "raw": r.get("raw"), "legacy": r.get("legacy"),
                                              "conn": r.get("conn")})
                         continue
                     times.append(t)
@@ -316,14 +316,14 @@ def d2(runs, out_dir):
     write_csv(out_dir / "t11.csv", t11_rows)
     lines = ["# D2 summary: background visibility matrix", "", f"Runs: {', '.join(r.name for r in runs)}", "",
              "Latency = first sighting − advertiser start (host clock). Recall = share of complete windows with ≥ 1 sighting,",
-             "from the first sighting to the cell end. Hint = share of sightings carrying the layout-A service data.", "",
+             "from the first sighting to the cell end. Hint = share of sightings carrying the advertiser's metadata (layout E rotating UUID).", "",
              "| Cell | Scanner | Scanner state | Latency (s) | Per min | Recall 10 s | 30 s | 60 s | Hint | First id |",
              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r['cell']} | {r['scanner']} | {r['scanner_state']} | {r['latency_s'] if r['latency_s'] is not None else 'not seen'} | "
                      f"{r['per_min']} | {r['recall_10s']} | {r['recall_30s']} | {r['recall_60s']} | {r['hint_frac']} | {r['first_id']} |")
     if raw_rows:
-        lines += ["", "## T2: raw bytes from iPhones as received by Android scanners (distinct per cell, scanner, address)", ""]
+        lines += ["", "## T1/T2: raw bytes as received by Android scanners (distinct per cell, scanner, payload)", ""]
         seen = set()
         for r in raw_rows:
             key = (r["cell"], r["scanner"], r["raw"])
@@ -356,7 +356,7 @@ def t3(runs, out_dir):
                     continue
                 elif r.get("test") == "scan_start" and trial["scan_start"] is None:
                     trial["scan_start"] = r["t"]
-                elif r.get("test") == "adv" and r.get("id") in ("svc", "apple-ovf") and trial["first_s"] is None and trial["scan_start"]:
+                elif r.get("test") == "adv" and (r.get("id") in ("svc", "mesh", "apple-ovf") or (r.get("id") or "").startswith("a:")) and trial["first_s"] is None and trial["scan_start"]:
                     trial["first_s"] = round((r["t"] - trial["scan_start"]) / 1000, 2)
                     trial["first_app"] = r.get("app")
                     trial["ovf"] = r.get("ovf")

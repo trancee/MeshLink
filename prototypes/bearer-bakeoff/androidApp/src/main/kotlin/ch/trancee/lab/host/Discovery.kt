@@ -129,6 +129,18 @@ const val TEST_COMPANY_ID = 0xFFFF
 val MESH_TAG = byteArrayOf(0x4d, 0x4c, 0x30, 0x31) // placeholder 4 B mesh tag "ML01"
 const val APPLE_COMPANY_ID = 0x004C
 
+/** Layout E: fixed 32-bit "MESH" service UUID (unassigned; owner's choice) in its 128-bit base form. */
+val MESH32_UUID: ParcelUuid = ParcelUuid.fromString("4D455348-0000-1000-8000-00805F9B34FB")
+
+/** Layout E rotating UUID: its 16 big-endian bytes are the metadata (8 B ad ID, 4 B mesh tag, 1 B flags, 3 B random). */
+fun metaUuid(meta: ByteArray): ParcelUuid {
+    val buffer = java.nio.ByteBuffer.wrap(meta)
+    return ParcelUuid(UUID(buffer.long, buffer.long))
+}
+
+fun ParcelUuid.bytes(): ByteArray =
+    java.nio.ByteBuffer.allocate(16).putLong(uuid.mostSignificantBits).putLong(uuid.leastSignificantBits).array()
+
 @SuppressLint("MissingPermission")
 class Discovery(private val context: Context, argText: String) {
     private val raw: Map<String, String> = argText.split(',')
@@ -279,15 +291,24 @@ class Discovery(private val context: Context, argText: String) {
         }
 
         private var adId = ByteArray(8)
+        private val layout = raw["layout"] ?: "E"
 
         /**
          * Layout A (desk research 2026-11-02 §4): ADV = flags + mesh UUID; scan response = 13 B service data under the
          * mesh UUID (8 B random advertisement ID, 4 B mesh tag, 1 B flags). Extended steps carry the same service data
          * (plus `pad` bytes) in the ADV. `layout=P` keeps the older 16 B manufacturer-data placeholder.
+         * Layout E (default, owner 2026-11-02): ADV = flags + 32-bit MESH UUID + one rotating 128-bit UUID whose bytes
+         * are the 16 B metadata, regenerated on every start; no scan response. Extended steps add `pad` B service data.
          */
         private fun data(step: String, index: Int, cycle: Int): Pair<AdvertiseData, AdvertiseData?> {
             adId = Random.nextBytes(8)
-            if (raw["layout"] != "P") {
+            if (layout == "E") {
+                val meta = adId + MESH_TAG + byteArrayOf(((index and 0x0f) shl 4 or (cycle and 0x0f)).toByte()) + Random.nextBytes(3)
+                val builder = AdvertiseData.Builder().addServiceUuid(MESH32_UUID).addServiceUuid(metaUuid(meta)).setIncludeDeviceName(false)
+                if (step != "legacy" && step != "set" && pad > 0) builder.addServiceData(MESH32_UUID, ByteArray(pad) { it.toByte() })
+                return builder.build() to null
+            }
+            if (layout == "A") {
                 val hint = adId + MESH_TAG + byteArrayOf(((index and 0x0f) shl 4 or (cycle and 0x0f)).toByte())
                 return if (step == "legacy" || step == "set") {
                     AdvertiseData.Builder().addServiceUuid(serviceUuid).setIncludeDeviceName(false).build() to
@@ -479,6 +500,7 @@ class Discovery(private val context: Context, argText: String) {
             when (kind) {
                 "none" -> emptyList()
                 "service" -> listOf(ScanFilter.Builder().setServiceUuid(serviceUuid).build())
+                "mesh" -> listOf(ScanFilter.Builder().setServiceUuid(MESH32_UUID).build())
                 "ml" -> listOf(ScanFilter.Builder().setManufacturerData(TEST_COMPANY_ID, byteArrayOf('M'.code.toByte(), 'L'.code.toByte()), byteArrayOf(-1, -1)).build())
                 "apple" -> listOf(ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(1), byteArrayOf(-1)).build())
                 else -> {
@@ -511,6 +533,12 @@ class Discovery(private val context: Context, argText: String) {
 
         private fun classify(result: ScanResult): Pair<String?, Map<String, Any?>> {
             val record = result.scanRecord ?: return null to emptyMap()
+            val uuids = record.serviceUuids.orEmpty()
+            if (MESH32_UUID in uuids) {
+                val rotating = uuids.firstOrNull { it != MESH32_UUID }?.bytes()
+                    ?: return "mesh" to mapOf("uuids" to uuids.size)
+                return "a:${rotating.copyOfRange(0, 8).hex()}" to mapOf("layout" to "E", "mesh_tag" to rotating.copyOfRange(8, 12).hex(), "flags" to (rotating[12].toInt() and 0xff), "uuids" to uuids.size)
+            }
             record.getServiceData(serviceUuid)?.let { data ->
                 if (data.size >= 13) {
                     return "a:${data.copyOfRange(0, 8).hex()}" to mapOf("mesh_tag" to data.copyOfRange(8, 12).hex(), "flags" to (data[12].toInt() and 0xff), "sd_len" to data.size)
