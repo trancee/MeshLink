@@ -20,25 +20,29 @@ from discovery import RESULTS, battery, host_event, launch, pull, screen, stop
 
 def snapshot(name):
     text = adb(DEVICES[name], "shell", "dumpsys", "bluetooth_manager", quiet=True, check=False).stdout
-    match = re.search(rf"\[\d+/\d+\] {re.escape(ANDROID_PACKAGE)}:\n(.*?)(?=\n  \[\d+/\d+\] |\n\S)", text, re.S)
-    return match.group(1) if match else ""
+    match = re.search(rf"\[\d+/\d+\] {re.escape(ANDROID_PACKAGE)}( \(Registered\))?:\n(.*?)(?=\n  \[\d+/\d+\] |\n\n)", text, re.S)
+    return match.group(0) if match else ""
 
 
 def parse(section):
-    out = {"found": bool(section)}
+    out = {"found": bool(section), "registered": "(Registered)" in section}
     ongoing = section.split("Ongoing", 1)[1] if "Ongoing" in section else ""
-    modes = re.findall(r"^\s+(OPPORTUNISTIC|LOW_POWER|BALANCED|LOW_LATENCY|AMBIENT_DISCOVERY|SCREEN_OFF\S*)\s+\S+\s+\S+", ongoing, re.M)
-    out["ongoing_modes"] = modes
-    out["ongoing_header"] = [line.strip() for line in ongoing.splitlines() if "Info:" in line or "Importance" in line or "Elapsed" in line]
+    out["ongoing_modes"] = re.findall(r"^\s+(OPPORTUNISTIC|LOW_POWER|BALANCED|LOW_LATENCY|AMBIENT_DISCOVERY|SCREEN_OFF\S*)\s+ALL_MATCHES", ongoing, re.M)
+    out["ongoing_results"] = [list(map(int, m)) for m in re.findall(r"Results: \((\d+) / (\d+) / (\d+)\)", ongoing)]
+    out["ongoing_importance"] = re.findall(r"App Importance: (.*)", ongoing)
+    out["ongoing_elapsed_ms"] = [int(v) for v in re.findall(r"Elapsed: .*?\((\d+)ms\)", ongoing)]
     results = re.search(r"ALL_MATCHES\s+(\d+)\s+(\d+)\s+(\d+)", section)
     if results:
         out["results_screen_off"], out["results_screen_on"], out["results_total"] = map(int, results.groups())
     durations = re.search(r"DURATION\s+(.*)", section)
     if durations:
-        out["mode_durations_ms"] = [int(v) for v in re.findall(r"\((\d+)ms\)", durations.group(1))]
+        out["mode_durations_ms"] = dict(zip(["opportunistic", "low_power", "balanced", "low_latency", "ambient"],
+                                            [int(v) for v in re.findall(r"\((\d+)ms\)", durations.group(1))]))
     suspend = re.search(r"-{5,}.*\n\s+(\d+)\s+(\d+)\s+.*?\((\d+)ms\)\s+.*?\((\d+)ms\)", section)
     if suspend:
         out["started"], out["stopped"], out["active_ms"], out["suspend_ms"] = map(int, suspend.groups())
+    severity = re.findall(r"^\s+(1|4|8)\s+(\w+)\s+(\d+)\s+(\d+)", section, re.M)
+    out["severity"] = {w: sev for w, sev, _, _ in severity}
     return out
 
 
