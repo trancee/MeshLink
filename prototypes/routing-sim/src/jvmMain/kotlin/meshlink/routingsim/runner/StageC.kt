@@ -69,6 +69,14 @@ enum class CSet(
 
     /** Stage D addendum 2: iOS inbound cap of 3, undiscoverable at the cap. */
     D_IOS3("d-ios3"),
+
+    /** Stage E sets (see StageE.kt): baseline families, rotation periods, classical handshake. */
+    E_BASE("e-base"),
+    E_ROT("e-rot"),
+    E_HS("e-hs"),
+    ;
+
+    val stageE get() = this == E_BASE || this == E_ROT || this == E_HS
 }
 
 fun stageCInstances(set: CSet): List<InstanceConfig> =
@@ -111,10 +119,12 @@ data class CSpec(
     val drive: String? = null,
     /** Named calibration ([Calibration.named]); null = the default. Recorded in the "drive" column. */
     val calib: String? = null,
+    /** Stage E identifier rotation: period in seconds, "none", or "<s>a" for aligned. */
+    val rot: String? = null,
 ) {
     val id get() =
         "${scenario.key}|dur${scenario.durationMs / 1000}|${topo.label}|gap${gapLabel(bridgeGapMs)}|$seed|${set.label}" +
-            (drive?.let { "|drive=$it" } ?: "") + (calib?.let { "|cal=$it" } ?: "")
+            (drive?.let { "|drive=$it" } ?: "") + (calib?.let { "|cal=$it" } ?: "") + (rot?.let { "|rot=$it" } ?: "")
 }
 
 fun gapLabel(ms: Long) = if (ms < 0) "off" else (ms / 1000).toString()
@@ -131,7 +141,16 @@ class StageCRunner(
     private fun densitySetup(
         settings: ClassSettings?,
         drive: String?,
+        rot: StageERotation?,
     ): DensitySetup {
+        if (rot != null) {
+            return DensitySetup(
+                settings = settings,
+                advertRotationMs = rot.periodMs ?: StageERotation.NEVER_MS,
+                advertAligned = rot.aligned,
+                shadowRotations = StageERotation.shadows,
+            )
+        }
         if (drive == null) return DensitySetup(settings = settings)
         val (est, cls) = DensitySetup.parseDrive(drive)
         val classifiers = DensitySetup.defaultClassifiers()
@@ -169,13 +188,15 @@ class StageCRunner(
         val bridgeOn = spec.topo.adaptive || spec.bridgeGapMs >= 0
         val strategy = if (bridgeOn) StrategyKind.N1N2_BRIDGE else StrategyKind.N1N2
         val params = SelectionParams(bridgeMinGapMs = if (spec.bridgeGapMs >= 0) spec.bridgeGapMs else 10_000)
-        val list = stageCInstances(spec.set)
-        val setup = if (list.isEmpty()) null else RoutingSetup(list, stageDTraffic(spec.set))
+        val rot = if (spec.set.stageE) StageERotation.parse(spec.rot ?: StageEPlan.V1_ROTATION) else null
+        val list = if (spec.set.stageE) StageEPlan.instances(spec.set, rot!!) else stageCInstances(spec.set)
+        val traffic = stageDTraffic(spec.set).let { t -> rot?.let { t.copy(rotationPhased = true, epochMs = it.periodMs ?: StageERotation.NEVER_MS) } ?: t }
+        val setup = if (list.isEmpty()) null else RoutingSetup(list, traffic)
         val r =
             Simulation(
                 s, strategy, spec.seed, spec.calib?.let { Calibration.named(it) } ?: cal, params, extent,
                 routingSetup = setup,
-                densitySetup = densitySetup(settingsFor(spec.topo), spec.drive),
+                densitySetup = densitySetup(settingsFor(spec.topo), spec.drive, rot),
             ).run()
         return r to (System.nanoTime() - t0) / 1_000_000
     }
@@ -247,7 +268,7 @@ object CRaw {
     val keyColumns =
         listOf(
             "runId", "set", "scenario", "density", "nodes", "platform", "degree", "topo", "bridgeGapS", "durationS", "seed",
-            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref", "variant",
+            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref", "variant", "rot",
         )
     private val headers = HashMap<String, List<String>>()
 
@@ -300,6 +321,7 @@ object CRaw {
             values["durationS"] = (s.durationMs / 1000).toString()
             values["seed"] = spec.seed.toString()
             values["drive"] = spec.drive ?: spec.calib ?: "default"
+            values["rot"] = spec.rot ?: (if (spec.set.stageE) StageEPlan.V1_ROTATION else "")
             values["wallMs"] = wallMs.toString()
             for ((k, v) in r.metrics) values["t_$k"] = RawCsv.fmt(v)
             if (inst == null) {

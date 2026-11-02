@@ -63,6 +63,12 @@ data class Calibration(
     val iosInboundCap: Int = Int.MAX_VALUE,
     /** Fix candidate: an iOS node stops advertising while its inbound links are at [iosInboundCap]. */
     val iosHideAtInboundCap: Boolean = false,
+    /**
+     * Stage E: bytes a link handshake puts on the air (classical Noise XX about 200 B, post-quantum XXhfs about
+     * 2.5 KB). 0 = not modeled (stages A–D). The measured handshake time already contains the airtime on an idle
+     * channel; the contention factor adds bytes ÷ link throughput × peers in range ÷ [contentionThroughputPeers].
+     */
+    val handshakeBytes: Int = 0,
 ) {
     companion object {
         /**
@@ -85,6 +91,10 @@ data class Calibration(
                         "cap4" -> c.copy(iosInboundCap = 4)
                         "cap3" -> c.copy(iosInboundCap = 3)
                         "hide" -> c.copy(iosHideAtInboundCap = true)
+                        // Stage E: post-quantum XXhfs link handshake bytes (times stay at the calibration's values).
+                        "pq" -> c.copy(handshakeBytes = 2_500)
+                        // Stage E: classical Noise XX link handshake (smoke-test times 55–90 ms, about 200 B).
+                        "xx" -> c.copy(handshakeMinMs = 55, handshakeMaxMs = 90, handshakeBytes = 200)
                         else -> error("unknown calibration part $part")
                     }
             }

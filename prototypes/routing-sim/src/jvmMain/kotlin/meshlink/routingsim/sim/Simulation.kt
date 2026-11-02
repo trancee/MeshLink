@@ -50,6 +50,7 @@ internal class Link(
 private class Dial(
     val from: Int,
     val to: Int,
+    val startAt: Long,
 ) {
     var cancelled = false
     var targetReserved = false
@@ -106,6 +107,8 @@ class Simulation(
     private var dialFails = 0L
     private var capRefusals = 0L
     private var linkUps = 0L
+    private var handshakeBytes = 0L
+    private val dialToUsable = ArrayList<Double>()
     private var controlBytes = 0L
     private var controlBytesHonestLinks = 0L
     private var capacityByteSeconds = 0.0
@@ -187,6 +190,8 @@ class Simulation(
 
             override val transitionWindowMs get() = scenario.transitionWindowMs
 
+            override fun rotationPhaseUnit(i: Int) = phaseUnit[i]
+
             override fun peersInRange(i: Int): Int {
                 var c = 0
                 for (k in 0 until radio.nbrCount[i]) {
@@ -197,11 +202,14 @@ class Simulation(
             }
         }
 
-    private val density: DensityTracker? =
-        densitySetup?.let { ds ->
-            val rng = Random(seedOf("advert", scenario.key, seed))
-            DensityTracker(ds, n, LongArray(n) { (rng.nextDouble() * ds.advertRotationMs).toLong() })
+    /** Per-phone rotation phase in [0, 1) of the period (0 for every phone when rotation is aligned). */
+    private val phaseUnit: DoubleArray =
+        Random(seedOf("advert", scenario.key, seed)).let { rng ->
+            DoubleArray(n) { if (densitySetup?.advertAligned == true) 0.0 else rng.nextDouble() }
         }
+
+    private val density: DensityTracker? =
+        densitySetup?.let { ds -> DensityTracker(ds, n, LongArray(n) { (phaseUnit[it] * ds.advertRotationMs).toLong() }, phaseUnit) }
     private val classSettings = densitySetup?.settings
     private val slowHear = densitySetup?.slowAdvertisingHear ?: cal.scanHearProbability
     private val tickCount = IntArray(n)
@@ -287,6 +295,14 @@ class Simulation(
 
     private fun inboundFull(i: Int) = ios[i] && inbound(i) >= cal.iosInboundCap
 
+    /** Mid-range link throughput when [central] dials (no contention). */
+    private fun nominalBps(central: Int): Double =
+        when {
+            !cal.perPlatformLinks -> (cal.throughputMinBps + cal.throughputMaxBps) / 2
+            ios[central] -> (cal.iosCentralBpsMin + cal.iosCentralBpsMax) / 2
+            else -> (cal.androidCentralBpsMin + cal.androidCentralBpsMax) / 2
+        }
+
     private fun centralRtt(central: Int): Long =
         when {
             !cal.perPlatformLinks -> uniform(cal.rttMinMs, cal.rttMaxMs)
@@ -331,7 +347,7 @@ class Simulation(
         if (!active(from) || from == to || to !in 0 until n) return false
         if (used(from) >= budget[from]) return false
         if (linkBetween(from, to) != null || outDials[from].any { it.to == to }) return false
-        val d = Dial(from, to)
+        val d = Dial(from, to, now)
         outDials[from].add(d)
         if (measuring() && !sybil[from]) dials++
         at(now + uniform(cal.connectMinMs, cal.connectMaxMs)) { connectDone(d) }
@@ -369,7 +385,13 @@ class Simulation(
         }
         d.targetReserved = true
         inDials[to].add(d)
-        at(now + uniform(cal.handshakeMinMs, cal.handshakeMaxMs) + centralRtt(d.from)) {
+        var hsExtra = 0L
+        if (cal.handshakeBytes > 0) {
+            if (measuring() && !sybil[d.from] && !sybil[to]) handshakeBytes += cal.handshakeBytes
+            val peers = (radio.nbrCount[d.from] + radio.nbrCount[to]) / 2.0
+            hsExtra = (cal.handshakeBytes * 1000.0 / nominalBps(d.from) * peers / cal.contentionThroughputPeers).toLong()
+        }
+        at(now + uniform(cal.handshakeMinMs, cal.handshakeMaxMs) + centralRtt(d.from) + hsExtra) {
             handshakeDone(d)
         }
     }
@@ -394,6 +416,7 @@ class Simulation(
         }
         releaseDial(d)
         lastFailure.remove(pairKey(d.from, d.to))
+        if (measuring() && !sybil[d.from] && !sybil[d.to]) dialToUsable.add((now - d.startAt).toDouble())
         createLink(d.from, d.to)
     }
 
@@ -920,6 +943,12 @@ class Simulation(
         } else {
             out["mergeFirstLinkS"] = Double.NaN
             out["mergeLccRecoverS"] = Double.NaN
+        }
+        if (cal.handshakeBytes > 0) {
+            out["handshakeBytesPerNodeS"] = handshakeBytes / (honestCount * minutes * 60)
+            out["handshakeShareOfCapacity"] = if (capacityByteSeconds == 0.0) 0.0 else handshakeBytes / capacityByteSeconds
+            out["dialToUsableP50S"] = percentile(dialToUsable, 0.5) / 1000
+            out["dialToUsableP95S"] = percentile(dialToUsable, 0.95) / 1000
         }
         density?.results(out, cal.tickMs)
         out["events"] = queue.processed.toDouble()

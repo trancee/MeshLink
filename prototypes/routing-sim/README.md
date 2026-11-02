@@ -354,6 +354,47 @@ first-attempt failure 0.3, contention model, iOS background windows. The iPhone 
 so a link's throughput follows the dialing phone. A full iPhone refuses at connect time; the real phone accepts and then
 closes the link, which costs the dialer slightly more.
 
+## Stage E: security costs
+
+Measures the pre-registered security costs on the final v1 (stage D v1 + iOS inbound cap 3, iPhone at the cap not
+discoverable) with the bake-off calibration (`meas+cap3+hide+pq`). Cells: low, medium and high static, medium walking
+(random waypoint) and arrival, N = 200, Android-only and half iOS, 5 seeds. Output `files/routing-sim/stage-e/`.
+
+```sh
+java -Xmx3g -cp "$CP" $M e-pilot --out DIR --set=base,rot,hs --seeds=1   # pilot, prints wall per run
+java -Xmx3g -cp "$CP" $M e-run --out DIR --seeds=5                       # resumable; reuses pilot seed 1 if copied in
+java -cp "$CP" $M e-aggregate --out DIR && java -cp "$CP" $M e-report --out DIR   # DIR/stage-e-report.html
+```
+
+| Set | Content | Runs | Wall |
+|---|---|---|---|
+| e-base | 10 cells × 37 instances: U1, UA F+K2 (± tags fixed), B1, BA CU; tag 4/8/16 B × ID 8/12/16 B (UA) and ID sizes (BA); fragments 1/4/16 × 182/514 B, per-hop reassembly and cut-through (+CT), UA and BA | 50 | |
+| e-rot | rotation none, 1, 5, 60 min and 5 min aligned (15 min comes from e-base); UA, UA tags fixed, BA | 250 | |
+| e-hs | the same cells with classical XX link handshakes (`meas+cap3+hide+xx`); U1, UA, B1, BA | 50 | |
+| total | pilot (seed 1, 70 runs) about 7 min + 280 runs in 2,048 s on a loaded machine | 350 | ≈ 41 min |
+
+Nothing was cut. Instances share one run where they share a topology (several protocol instances on the same links).
+
+Model additions (all opt-in; earlier stages reproduce byte-for-byte, checked on a stage D cap-3 run):
+
+- **Rotation phase.** Each phone rotates its advert ID and routing tag every period at a uniform random phase on its own
+  clock (±30 s skew); "aligned" rotates every phone at the same true time. Tags are accepted for ±1 epoch. The density
+  estimator counts rotated IDs as new peers within its 10 s window; shadow estimators per period measure the over-count
+  against the true peer count in the same run.
+- **Tags fixed (rot0).** A protocol instance in the same run whose tags never change: the paired control for route-search
+  bytes and post-rotation latency.
+- **Wire sizes.** Tag and message-ID bytes are added to every routing header and catch-up exchange of the instance.
+- **Fragments.** A message of k fragments of MTU − 3 bytes. Per-hop reassembly forwards after the last fragment;
+  cut-through (`CT`) forwards each fragment as it arrives.
+- **Handshake bytes.** Link set-up sends XX (≈ 0.2 KB) or XXhfs (≈ 2.5 KB) over the new link at link throughput with the
+  contention factor; usable time is dial + set-up + handshake airtime. The first message to a new destination adds IK
+  bytes: classical +96 B or PQ +2,396 B (half of the pairs each).
+- **Collisions** for tags and message IDs are analytic (birthday bound) from the populations measured in the grid and
+  N = 1000 message rates; they are not simulated.
+
+Recommendations (simulated): rotation 5 min; tag 8 B; message ID 12 B; keep per-hop reassembly; XXhfs within budget.
+See `findings.html` embedded at the top of the report.
+
 ## Deviations and caveats
 
 - **JDK 21 instead of JDK 25** (ADR 0005 baseline): the task assumed JDK 25 was not installed and prescribed JDK 21.
@@ -393,3 +434,11 @@ closes the link, which costs the dialer slightly more.
   per run, 5 seeds), so a pass/fail there flips on a single message. Fixed cells ran 5 seeds and conversation cells 3.
 - Stage D: the main grid uses the model calibration. Only the iOS-cap recheck uses the bake-off calibration, under which
   unicast p95 at medium/high is about 0.1–0.7 s higher (simulated).
+- Stage E: rotation reaches the topology only through the density estimator (peers are still chosen by true identity).
+  Paired rotation runs diverge chaotically; the 60 min row (about a quarter of phones rotate once in 15 min) shows the
+  noise floor of about ±3.5% bytes.
+- Stage E cut-through is pessimistic: a broken partial copy stays in the seen set, so a later full copy is dropped; the
+  delivery ack leaves at head time; the link stays busy while waiting for upstream fragments. The measured throughput
+  (MTU 517) is assumed at MTU 185 too. Handshake airtime gets only the contention factor.
+- Stage E p95 tables by hop count and density class use the median over seeds: a subgroup of one run can hold only a few
+  messages, and one message caught by a 60 s iPhone background gap then sets that run's p95.

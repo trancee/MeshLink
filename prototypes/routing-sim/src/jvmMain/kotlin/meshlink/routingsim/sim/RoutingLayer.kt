@@ -112,6 +112,13 @@ data class TrafficConfig(
     val epochMs: Long = 900_000,
     /** Tag epoch boundary falls at this simulated time (inside the measurement window). */
     val epochBoundaryMs: Long = 500_000,
+    /**
+     * Stage E: each phone rotates at its own phase of the period [epochMs] (the advertisement phase, or 0 for every
+     * phone when aligned) instead of at the shared [epochBoundaryMs].
+     */
+    val rotationPhased: Boolean = false,
+    /** Stage E: a unicast message counts as "after a rotation" if its sender or destination rotated this recently. */
+    val postRotationWindowMs: Long = 30_000,
 )
 
 class RoutingSetup(
@@ -170,6 +177,9 @@ internal interface SimAccess {
     fun densityEstimate(i: Int): Double
 
     val transitionWindowMs: LongRange?
+
+    /** Stage E: the phone's rotation phase as a fraction of the period. */
+    fun rotationPhaseUnit(i: Int): Double
 }
 
 private class InFlight(
@@ -182,6 +192,10 @@ private class InFlight(
     val counted: Boolean,
 ) {
     var cancelled = false
+
+    /** Stage E cut-through: the first fragment arrived; the stream ends at [tailAt]. */
+    var headArrived = false
+    var tailAt = 0L
 }
 
 private class Msg(
@@ -200,6 +214,8 @@ private class Msg(
     val srcPeers: Int = -1,
     val inTransition: Boolean = false,
     val classes: ByteArray? = null,
+    /** Stage E: the sender or destination rotated its identifiers within the post-rotation window. */
+    val postRot: Boolean = false,
 ) {
     val srcTrueClass get() = DensityClass.of(srcPeers.toDouble())
     val crossMode get() = dst >= 0 && classes != null && classes[src] != classes[dst]
@@ -232,6 +248,15 @@ private class Stats(
     var heldSum = 0.0
     var seenMax = 0.0
     val packetCounts = HashMap<String, Long>()
+    var rreqBytes = 0L
+    var rrepBytes = 0L
+
+    /** Stage E: latency by hops actually travelled (index 1..5). */
+    val latByHops = Array(6) { ArrayList<Double>() }
+
+    /** Stage E: first-message latency by [pq] (0 classical, 1 post-quantum) × shortest-path hops 1..3, and × sender class. */
+    val firstByHop = Array(2) { Array(4) { ArrayList<Double>() } }
+    val firstByClass = Array(2) { Array(3) { ArrayList<Double>() } }
 }
 
 internal class RoutingLayer(
@@ -244,7 +269,18 @@ internal class RoutingLayer(
     private val inst = setup.instances
     private val k = inst.size
     private val tc = setup.traffic
-    private val sizes = RoutingSizes()
+    private val sizesOf = inst.map { StageEVariant.sizes(it.variant) }
+    private val frag = inst.map { StageEVariant.fragments(it.variant) }
+    private val cutThrough = inst.map { StageEVariant.cutThrough(it.variant) }
+
+    /** Cut-through: per instance, (node, message) → when the last fragment of the copy the node took arrives. */
+    private val tails = Array(k) { HashMap<Long, Long>() }
+
+    /** Cut-through: per instance, (node, message) whose copy was cut off mid-stream (incomplete). */
+    private val broken = Array(k) { HashSet<Long>() }
+
+    /** Cut-through: per instance, (node, message) → onward streams still fed by that node's incoming stream. */
+    private val feeds = Array(k) { HashMap<Long, ArrayList<InFlight>>() }
     private val routing = Array(k) { arrayOfNulls<Routing>(n) }
     private val stats = Array(k) { Stats(n) }
     private val procRng = Array(k) { Random(seed xor mix64(1_000L + it)) }
@@ -278,9 +314,15 @@ internal class RoutingLayer(
     ) = sim.now + skew(i, x)
 
     private fun epochAt(
+        node: Int,
         localMs: Long,
         x: Int,
-    ): Long = if (!inst[x].rotation) 0 else Math.floorDiv(localMs - tc.epochBoundaryMs, tc.epochMs) + 1
+    ): Long =
+        when {
+            !inst[x].rotation -> 0
+            tc.rotationPhased -> Math.floorDiv(localMs + (sim.rotationPhaseUnit(node) * tc.epochMs).toLong(), tc.epochMs)
+            else -> Math.floorDiv(localMs - tc.epochBoundaryMs, tc.epochMs) + 1
+        }
 
     private fun tagOf(
         node: Int,
@@ -290,7 +332,7 @@ internal class RoutingLayer(
     private fun ownTag(
         i: Int,
         x: Int,
-    ) = tagOf(i, epochAt(localNow(i, x), x))
+    ) = tagOf(i, epochAt(i, localNow(i, x), x))
 
     private val acceptEpoch = Array(k) { LongArray(n) { Long.MIN_VALUE } }
     private val acceptTags = Array(k) { LongArray(3 * n) }
@@ -300,7 +342,7 @@ internal class RoutingLayer(
         x: Int,
         tag: Long,
     ): Boolean {
-        val e = epochAt(localNow(i, x), x)
+        val e = epochAt(i, localNow(i, x), x)
         val cache = acceptTags[x]
         if (acceptEpoch[x][i] != e) {
             acceptEpoch[x][i] = e
@@ -411,7 +453,13 @@ internal class RoutingLayer(
                 for (x in 0 until k) {
                     if (!inst[x].rotation) continue
                     // The node's local clock reaches the epoch boundary at true time boundary − skew.
-                    var b = tc.epochBoundaryMs
+                    var b =
+                        if (tc.rotationPhased) {
+                            val ph = (sim.rotationPhaseUnit(i) * tc.epochMs).toLong()
+                            tc.epochMs - ph
+                        } else {
+                            tc.epochBoundaryMs
+                        }
                     while (b - skew(i, x) <= sim.durationMs) {
                         sim.at(b - skew(i, x)) { routing[x][i]?.onTagRotated() }
                         b += tc.epochMs
@@ -452,6 +500,15 @@ internal class RoutingLayer(
         // used airtime and are counted as lost in flight. Either way the protocol may re-send.
         for (any in flights) {
             val f = any as InFlight
+            if (f.headArrived) {
+                // Cut-through stream cut mid-way: the receiver's copy is incomplete (it already relayed the head).
+                f.cancelled = true
+                val id = (f.packet as DataPacket).id
+                if (f.tailAt > t && tails[f.inst][nodeMsg(f.to, id)] == f.tailAt) breakCopy(f.inst, f.to, id)
+                if (f.counted) stats[f.inst].lostInFlight++
+                routing[f.inst][f.from]?.onSendFailed(f.to, f.packet)
+                continue
+            }
             f.cancelled = true
             if (f.start >= t) {
                 if (f.counted) refund(f)
@@ -485,16 +542,31 @@ internal class RoutingLayer(
         val l = sim.link(from, to) ?: return false
         if (!l.alive) return false
         val rq = l.rq ?: return false
-        val bytes = packet.sizeBytes(sizes)
+        val bytes = packet.sizeBytes(sizesOf[x])
         val slot = 2 * x + if (from == l.a) 0 else 1
         val now = sim.now
         val start = maxOf(now, rq[slot])
-        val done = start + ceil(bytes * 1000.0 / l.capacityBps).toLong()
-        rq[slot] = done
+        var done = start + ceil(bytes * 1000.0 / l.capacityBps).toLong()
         val r = procRng[x]
-        val arrive = done + l.oneWayMs + tc.procMinMs + (r.nextDouble() * (tc.procMaxMs - tc.procMinMs)).toLong()
+        val proc = l.oneWayMs + tc.procMinMs + (r.nextDouble() * (tc.procMaxMs - tc.procMinMs)).toLong()
         val counted = measuring()
         val f = InFlight(x, from, to, packet, start, bytes, counted)
+        // Cut-through: forward each fragment as it arrives. The first fragment is processed (and relayed) on arrival;
+        // the last one cannot leave before it has arrived from upstream.
+        val stream = cutThrough[x] && packet is DataPacket && frag[x] != null && frag[x]!!.first > 1
+        var arrive = done + proc
+        if (stream) {
+            val fragMs = ceil(frag[x]!!.second * 1000.0 / l.capacityBps).toLong()
+            val key = nodeMsg(from, (packet as DataPacket).id)
+            val upstreamTail = tails[x][key] ?: Long.MIN_VALUE
+            if (upstreamTail > start) {
+                done = maxOf(done, upstreamTail + fragMs)
+                feeds[x].getOrPut(key) { ArrayList(4) }.add(f)
+            }
+            arrive = start + fragMs + proc
+            f.tailAt = done + proc
+        }
+        rq[slot] = done
         val list = l.inflight ?: ArrayList<Any>(4).also { l.inflight = it }
         list.add(f)
         if (DEBUG) {
@@ -503,6 +575,8 @@ internal class RoutingLayer(
         }
         if (counted) {
             val s = stats[x]
+            if (packet is meshlink.routingsim.routing.RouteRequest) s.rreqBytes += bytes
+            if (packet is meshlink.routingsim.routing.RouteReply) s.rrepBytes += bytes
             s.bytesSent[from] += bytes
             if (packet.isControl) {
                 s.ctrlBytes += bytes
@@ -514,12 +588,42 @@ internal class RoutingLayer(
         }
         sim.at(arrive) {
             if (!f.cancelled) {
-                l.inflight?.remove(f)
+                if (stream) {
+                    f.headArrived = true
+                    val key = nodeMsg(to, (packet as DataPacket).id)
+                    if (key !in tails[x]) tails[x][key] = f.tailAt
+                    sim.at(f.tailAt) { l.inflight?.remove(f) }
+                } else {
+                    l.inflight?.remove(f)
+                }
                 if (packet is DataPacket && measuring()) stats[x].dataRx++
                 routing[x][to]?.onPacket(from, packet)
             }
         }
         return true
+    }
+
+    private fun nodeMsg(
+        node: Int,
+        id: Int,
+    ) = (node.toLong() shl 32) or id.toLong()
+
+    /** Cut-through: [node]'s copy of message [id] ended incomplete; so does every onward stream it was feeding. */
+    private fun breakCopy(
+        x: Int,
+        node: Int,
+        id: Int,
+    ) {
+        val key = nodeMsg(node, id)
+        if (!broken[x].add(key)) return
+        val onward = feeds[x].remove(key) ?: return
+        val t = sim.now
+        for (g in onward) {
+            if (g.cancelled || g.tailAt <= t) continue
+            g.cancelled = true
+            sim.link(g.from, g.to)?.inflight?.remove(g)
+            if (g.headArrived && tails[x][nodeMsg(g.to, id)] == g.tailAt) breakCopy(x, g.to, id)
+        }
     }
 
     // ---- traffic ----
@@ -603,7 +707,9 @@ internal class RoutingLayer(
         val dist = if (eligible) sim.distancesFrom(src)[dst] else -1
         val first = pairSeen.add((src.toLong() shl 32) or dst.toLong())
         val pq = (mix64(seed xor ((src.toLong() shl 32) or dst.toLong())) and 1L) == 1L
-        msgs.add(Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow()))
+        msgs.add(
+            Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow(), postRotation(src, dst)),
+        )
         maybeReply(src, dst)
         val payload =
             tc.payloadBytes +
@@ -615,8 +721,9 @@ internal class RoutingLayer(
         for (x in unicast) {
             val r = routing[x][src] ?: continue
             val local = localNow(src, x)
-            val dstTag = tagOf(dst, epochAt(local, x))
-            r.originate(DataPacket(id, ownTag(src, x), dstTag, local + inst[x].lifetimeMs, payload, 0, tc.hopLimit))
+            val dstTag = tagOf(dst, epochAt(dst, local, x))
+            val pl = fragmentPayload(x, false) ?: payload
+            r.originate(DataPacket(id, ownTag(src, x), dstTag, local + inst[x].lifetimeMs, pl, 0, tc.hopLimit))
         }
     }
 
@@ -633,8 +740,35 @@ internal class RoutingLayer(
             val local = localNow(src, x)
             bcastReached[x][id] = BooleanArray(n)
             bcastCount[x][id] = 0
-            r.originate(DataPacket(id, ownTag(src, x), BROADCAST, local + inst[x].lifetimeMs, tc.payloadBytes + tc.laterMessageOverhead, 0, tc.hopLimit))
+            val pl = fragmentPayload(x, true) ?: (tc.payloadBytes + tc.laterMessageOverhead)
+            r.originate(DataPacket(id, ownTag(src, x), BROADCAST, local + inst[x].lifetimeMs, pl, 0, tc.hopLimit))
         }
+    }
+
+    /** Stage E: payload that makes the whole message exactly k fragments of f bytes (null = normal traffic sizes). */
+    private fun fragmentPayload(
+        x: Int,
+        bcast: Boolean,
+    ): Int? {
+        val (kf, f) = frag[x] ?: return null
+        val header = DataPacket(0, 1, if (bcast) BROADCAST else 1, 0, 0, 0, 0).sizeBytes(sizesOf[x])
+        return kf * f - header
+    }
+
+    /** Stage E: the sender or destination rotated (true time, phased rotation) within the post-rotation window. */
+    private fun postRotation(
+        src: Int,
+        dst: Int,
+    ): Boolean {
+        val x0 = inst.indexOfFirst { it.rotation }
+        if (!tc.rotationPhased || x0 < 0) return false
+        fun recent(i: Int): Boolean {
+            val ph = (sim.rotationPhaseUnit(i) * tc.epochMs).toLong()
+            val local = localNow(i, x0)
+            val ago = Math.floorMod(local + ph, tc.epochMs)
+            return ago < tc.postRotationWindowMs && local - ago > 0
+        }
+        return recent(src) || recent(dst)
     }
 
     private val transition = sim.transitionWindowMs
@@ -651,6 +785,24 @@ internal class RoutingLayer(
         i: Int,
         p: DataPacket,
     ) {
+        if (cutThrough[x]) {
+            // The message is complete only when its last fragment arrives (and only if the stream was not cut).
+            val key = nodeMsg(i, p.id)
+            val tail = tails[x][key]
+            if (tail != null && tail > sim.now) {
+                sim.at(tail) { if (key !in broken[x]) deliverNow(x, i, p) }
+                return
+            }
+            if (key in broken[x]) return
+        }
+        deliverNow(x, i, p)
+    }
+
+    private fun deliverNow(
+        x: Int,
+        i: Int,
+        p: DataPacket,
+    ) {
         val m = msgs[p.id]
         if (m.dst >= 0) {
             if (m.dst != i || delivered[x][p.id] >= 0) return
@@ -660,7 +812,13 @@ internal class RoutingLayer(
             val lat = (sim.now - m.sentAt).toDouble()
             s.latencies.add(lat)
             s.hops[minOf(p.hops, 256)]++
-            if (m.first && m.hopDistance in 1..3) (if (m.pq) s.firstPq else s.firstClassical).add(lat)
+            if (p.hops in 1..5) s.latByHops[p.hops].add(lat)
+            if (m.first && m.hopDistance in 1..3) {
+                (if (m.pq) s.firstPq else s.firstClassical).add(lat)
+                val q = if (m.pq) 1 else 0
+                s.firstByHop[q][m.hopDistance].add(lat)
+                if (m.srcPeers >= 0) s.firstByClass[q][m.srcTrueClass].add(lat)
+            }
         } else {
             val reached = bcastReached[x][p.id] ?: return
             if (i == m.src || reached[i]) return
@@ -676,6 +834,7 @@ internal class RoutingLayer(
                 if (m.inTransition) g[3].add(lat)
                 if (m.classes != null && m.classes[i] != m.classes[m.src]) g[4].add(lat)
                 stats[x].hops[minOf(p.hops, 256)]++
+                if (p.hops in 1..5) stats[x].latByHops[p.hops].add(lat)
             }
         }
     }
@@ -733,6 +892,10 @@ internal class RoutingLayer(
             group("near") { it.hopDistance in 1..3 }
             group("far") { it.hopDistance > 3 }
             group("repeat") { !it.first }
+            if (tc.rotationPhased) {
+                group("postrot") { it.postRot }
+                group("steady") { !it.postRot }
+            }
             for (c in 1..2) group("${DensityClass.labels[c]}Repeat") { it.srcTrueClass == c && !it.first }
         } else {
             val g = bcastLatGroups[x]
@@ -826,6 +989,32 @@ internal class RoutingLayer(
             }
             val hopList = ArrayList<Double>()
             for (h in s.hops.indices) repeat(s.hops[h]) { hopList.add(h.toDouble()) }
+            out["rreqBytesPerNodeS"] = s.rreqBytes / (honestCount * seconds)
+            out["rrepBytesPerNodeS"] = s.rrepBytes / (honestCount * seconds)
+            for (h in 1..5) {
+                out["latH${h}P50Ms"] = percentile(s.latByHops[h], 0.5)
+                out["latH${h}P95Ms"] = percentile(s.latByHops[h], 0.95)
+                out["latH${h}N"] = s.latByHops[h].size.toDouble()
+            }
+            if (!bcast) {
+                for (q in 0..1) {
+                    val name = if (q == 0) "C" else "P"
+                    val budget = if (q == 0) 1_000.0 else 1_500.0
+                    for (h in 1..3) {
+                        val l = s.firstByHop[q][h]
+                        out["first${name}H${h}P95Ms"] = percentile(l, 0.95)
+                        out["first${name}H${h}N"] = l.size.toDouble()
+                        out["first${name}H${h}Ok"] = l.count { it <= budget }.toDouble()
+                    }
+                    for (c in 0 until 3) {
+                        val l = s.firstByClass[q][c]
+                        val cl = DensityClass.labels[c]
+                        out["first${name}_${cl}P95Ms"] = percentile(l, 0.95)
+                        out["first${name}_${cl}N"] = l.size.toDouble()
+                        out["first${name}_${cl}Ok"] = l.count { it <= budget }.toDouble()
+                    }
+                }
+            }
             out["hopsP50"] = percentile(hopList, 0.5)
             out["hopsP95"] = percentile(hopList, 0.95)
             out["hopsMax"] = hopList.maxOrNull() ?: Double.NaN

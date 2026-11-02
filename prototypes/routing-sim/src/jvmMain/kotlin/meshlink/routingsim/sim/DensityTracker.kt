@@ -22,6 +22,13 @@ class DensitySetup(
     val advertRotationMs: Long = 900_000,
     /** Hear probability per scan for a slow advertiser (fast advertisers use the calibrated 0.8). */
     val slowAdvertisingHear: Double = 0.5,
+    /** Stage E: every phone rotates at the same instant (worst case); otherwise each phone has a random phase. */
+    val advertAligned: Boolean = false,
+    /**
+     * Stage E: shadow copies of the driving estimator that see identifiers rotating with another period
+     * (label to period in ms, null = never; a label ending in "a" = aligned). They only measure the over-count.
+     */
+    val shadowRotations: List<Pair<String, Long?>> = emptyList(),
 ) {
     companion object {
         val DEFAULT_ESTIMATORS =
@@ -65,7 +72,24 @@ internal class DensityTracker(
     private val setup: DensitySetup,
     private val n: Int,
     private val phase: LongArray,
+    private val phaseUnit: DoubleArray,
 ) {
+    private val shadows = setup.shadowRotations
+    private val shadowEst = Array(n) { Array(shadows.size) { DensityEstimator(setup.estimators[setup.driveEstimator]) } }
+    private val shadowRatio = DoubleArray(shadows.size)
+    private val shadowErr = DoubleArray(shadows.size)
+
+    private fun shadowId(
+        s: Int,
+        peer: Int,
+        nowMs: Long,
+    ): Long {
+        val (label, period) = shadows[s]
+        if (period == null) return peer.toLong() shl 24
+        val ph = if (label.endsWith("a")) 0L else (phaseUnit[peer] * period).toLong()
+        return (peer.toLong() shl 24) or Math.floorDiv(nowMs + ph, period)
+    }
+
     private val ne = setup.estimators.size
     private val nc = setup.classifiers.size
     private val est = Array(n) { Array(ne) { DensityEstimator(setup.estimators[it]) } }
@@ -110,6 +134,7 @@ internal class DensityTracker(
 
     fun reset(i: Int) {
         for (e in est[i]) e.reset()
+        for (e in shadowEst[i]) e.reset()
         aligned[i].reset()
         alignedCls[i].reset()
         for (c in cls[i]) c.reset()
@@ -137,7 +162,9 @@ internal class DensityTracker(
             val id = advertId(r.peer, nowMs)
             for (e in est[i]) e.heard(nowMs, id)
             aligned[i].heard(nowMs, alignedId(r.peer, nowMs))
+            for (s in shadows.indices) shadowEst[i][s].heard(nowMs, shadowId(s, r.peer, nowMs))
         }
+        for (s in shadows.indices) shadowEst[i][s].update(nowMs, LongArray(linked.size) { shadowId(s, linked[it], nowMs) })
         val ids = LongArray(linked.size) { advertId(linked[it], nowMs) }
         val alignedIds = LongArray(linked.size) { alignedId(linked[it], nowMs) }
         var changed = false
@@ -210,6 +237,11 @@ internal class DensityTracker(
             }
             ratioSum[ne] += aligned[i].value / truth
             absErrSum[ne] += abs(aligned[i].value - truth) / truth
+            for (sh in shadows.indices) {
+                val v = shadowEst[i][sh].value
+                shadowRatio[sh] += v / truth
+                shadowErr[sh] += abs(v - truth) / truth
+            }
         }
     }
 
@@ -237,6 +269,10 @@ internal class DensityTracker(
             out["cls_${name}_lagP90S"] = percentile(lags[k], 0.9) / 1000
             out["cls_${name}_lagN"] = lags[k].size.toDouble()
             out["cls_${name}_missed"] = misses[k].toDouble()
+        }
+        for (sh in shadows.indices) {
+            out["estRot_${shadows[sh].first}_ratio"] = if (ratioN == 0L) Double.NaN else shadowRatio[sh] / ratioN
+            out["estRot_${shadows[sh].first}_mape"] = if (ratioN == 0L) Double.NaN else shadowErr[sh] / ratioN
         }
         out["alignedDriveSwitchesPerHour"] = if (nodeHours <= 0) Double.NaN else alignedSwitches / nodeHours
         out["truthSwitchesPerHour"] = if (nodeHours <= 0) Double.NaN else truthSwitches / nodeHours
