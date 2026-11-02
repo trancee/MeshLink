@@ -1,3 +1,7 @@
 # typos config (ADR 0006, decision 10): docs use US English.
 [default]
 locale = "en-us"
+
+[files]
+# Generated evidence data (simulator CSV columns, rendered HTML reports) is not prose.
+extend-exclude = ["docs/evidence/**/*.csv", "docs/evidence/**/*.html"]

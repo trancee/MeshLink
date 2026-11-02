@@ -2,10 +2,10 @@
 
 Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`](KOTLIN.md)). It records only current, checked state; each decided fact lives in its ADR and is linked, not copied.
 
-## State (2026-11-01)
+## State (2026-11-02)
 
 - **Phase:** design. `main` holds no product code yet, only decisions, research and docs.
-- **Decided:** [ADRs 0001–0007](docs/README.md) (threat model, Noise suites, identity keys, crypto provider, toolchain, docs architecture, public API).
+- **Decided:** [ADRs 0001–0008](docs/README.md) (threat model, Noise suites, identity keys, crypto provider, toolchain, docs architecture, public API, routing).
 - **Open:** the [wayfinder map](.scratch/meshlink-v1/map.md) and its tickets.
 - **Prototypes:** throwaway local branches, never merged:
   - `prototype/bearer-bakeoff`: GATT vs L2CAP CoC and PHY comparison on devices.
@@ -50,4 +50,4 @@ Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues
 ## Limitations
 
 - The docs checks are the only gates that exist; build, test, coverage and API gates arrive with the first module.
-- Android and iOS radio behavior is proved on hardware only (Constitution T9). The simulator results in the routing ticket are not device evidence.
+- Android and iOS radio behavior is proved on hardware only (Constitution T9). The routing simulator results (ADR 0008) are not device evidence.

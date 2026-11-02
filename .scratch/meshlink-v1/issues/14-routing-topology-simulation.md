@@ -1,7 +1,7 @@
 # Which routing and topology strategy should MeshLink use?
 
 Type: prototype
-Status: claimed
+Status: resolved
 Blocked by: 01, 04
 
 ## Question
@@ -145,3 +145,57 @@ All numbers are simulated. The stage C report is in the session files (`routing-
 - **Q4:** v1 offers a low-latency preset that pins the low class (flood everywhere).
 - **Q5:** radio power and real iOS background behavior are open questions to measure on devices.
 - **Q6:** the routing ADR is written after stage D, then this ticket is resolved.
+
+## Stage D and E verdicts (accepted 2026-11-02)
+
+All numbers are simulated. The evidence is in `docs/evidence/2026-11-routing-simulation/`, and the prototype is on `prototype/routing-sim` (`d15d0f3`, `3a6bf7a`, `ca9a393`).
+
+- **Stage D:** accepted as v1.
+  - **Unicast at medium and high density:** U6 plus a mesh-wide route request at once (F), and a delivery ack that refreshes the route, with one resend (K2).
+  - **Broadcast catch-up on every new link:** the large half-iOS mesh reaches 99.99%.
+  - **Dropped:** the sparse-sender flood and keeping routes alive during a conversation.
+  - **Reported goal, not a gate:** unicast p95 ≤1 s, met in 30 of 56 cells. The latency at N=1000 is a documented limitation.
+  - **Pinned low class:** offered as the low-latency preset.
+  - **Accepted as limitations:** the 3 failing cells.
+- **iOS incoming-link cap 3:** passes 8 of 8 combinations; d = 6/5/5 holds. Per-version device sweep pending (ADR 0009).
+- **Stage E:**
+  - **Rotation:** 15 min, in step with the BLE address (ADR 0001), within budget. The shortest in-budget period was 5 min.
+  - **Sizes:** routing tag 8 B, message ID 12 B.
+  - **Long messages:** reassembled at every hop.
+  - **XXhfs handshake:** within budget (0.12–0.41% of capacity, first-message p95 ≤0.83 s post-quantum).
+
+## Answer
+
+Recorded in [ADR 0008](../../../docs/adr/0008-routing-topology-and-density-adaptation.md), with every parameter in [v1 parameters](../../../docs/evidence/2026-11-routing-simulation/v1-parameters.md). All values are simulated and provisional until device measurements confirm them.
+
+- **Topology:** HyParView-style views with a diversity preference.
+  - d = 6 / 5 / 5, with a newcomer slot.
+  - The bridge rule, at most once per 60 s.
+  - iOS incoming links capped at 3.
+- **Local density:** each node estimates it alone.
+  - It counts identifiers heard in the last 10 s plus linked peers, smoothed with weight 0.3.
+  - Classes switch up at 12.5 / 62.5 and down below 8 / 40, with a 60 s dwell.
+  - Adapting is local; the wire format never changes.
+- **Low class:**
+  - flood unicast and broadcast;
+  - scan every 2 s;
+  - eager store-and-forward.
+- **Medium and high class:**
+  - U6 unicast with a mesh-wide route request at once and ack-refreshed routes;
+  - Plumtree broadcast;
+  - scan every 4 s (medium) and 6 s (high);
+  - catch-up on every new link.
+- **Lifetime and holding:**
+  - minimum lifetime 120 s, with ±30 s clock skew tolerated;
+  - hold up to 100 messages, each with at least 10 s left;
+  - hop limit 1 byte.
+- **Wire:**
+  - 8 B routing tag and 12 B message ID;
+  - tags rotate every 15 min;
+  - reassembly at every hop.
+- **Presets:** automatic by default; an app may pin a class, and the pinned low class is the low-latency preset.
+- **Limitations:**
+  - unicast p95 at N=1000;
+  - Sybil at 30%;
+  - power and iOS background behavior are unverified;
+  - staying in step with the OS-controlled BLE address (ticket 13).
