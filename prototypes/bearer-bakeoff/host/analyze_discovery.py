@@ -84,7 +84,7 @@ def fmt_min(ms):
 
 
 def d1(runs, out_dir):
-    interval_rows, control_rows, change_rows = [], [], []
+    interval_rows, control_rows, change_rows, gap_rows = [], [], [], []
     notes = []
     for run in runs:
         owner = run.address_owner()
@@ -145,6 +145,7 @@ def d1(runs, out_dir):
                         t1 = bounds[idx + 1][1] - 2500 if idx + 1 < len(bounds) else 1e18
                         if t0 + 1000 <= t <= t1:
                             cycles[cycle].add(address)
+            gap_rows.extend(linkage_gaps(run, device, owner, starts, model, os_name, adv, kind))
             ordered = sorted(cycles.items(), key=lambda kv: kv[0])
             for (c_prev, a_prev), (c, a_now) in zip(ordered, ordered[1:]):
                 if not a_prev or not a_now:
@@ -163,6 +164,7 @@ def d1(runs, out_dir):
     write_csv(out_dir / "d1-addresses.csv", change_rows)
     write_csv(out_dir / "d1-intervals.csv", interval_rows)
     write_csv(out_dir / "d1-control.csv", control_rows)
+    write_csv(out_dir / "d1-linkage.csv", gap_rows)
     lines = ["# D1 summary: BLE address rotation and control", "", f"Runs: {', '.join(r.name for r in runs)}", "",
              "## Idle rotation intervals (scanner clock)", "",
              "Exact interval = between two changes that each happened while a scanner was receiving (old address seen",
@@ -191,9 +193,72 @@ def d1(runs, out_dir):
         lines.append(f"| {device} | {rows[0]['model']} | {rows[0]['os']} | {rows[0]['adv']} / {rows[0]['kind']} | {len(rows)} | "
                      f"{sum(r['status'] == 'new' for r in rows)} | {sum(r['status'] == 'same' for r in rows)} | "
                      f"{sum(r['status'] == 'unobserved' for r in rows)} | {sum(r['addresses_in_cycle'] > 1 for r in rows)} |")
+    lines += ["", "## Restart linkage gap (address change vs payload change)", "",
+              "Host clock, 1 s resolution (scanner buckets). Per restart: payload change = first sighting of the new payload",
+              "(or the restart call when the payload carries no per-cycle ID). If the address changed too, gap = first sighting",
+              "of the new address − payload change, and mixed = sightings pairing an old address with the new payload or the",
+              "reverse. If the address stayed, the linked window = payload change → first sighting of any later address",
+              "(the time a tracker can join the two payloads by address; lower bound if the run ended first).", "",
+              "| Device | OS | API / kind | Restarts | Address changed | Gap median / max (s) | Mixed sightings | "
+              "Address kept | Linked window median / max (s) |", "|---|---|---|---|---|---|---|---|---|"]
+    by_gap = defaultdict(list)
+    for row in gap_rows:
+        by_gap[(row["run"], row["device"])].append(row)
+    for (_, device), rows in by_gap.items():
+        changed = [r for r in rows if r["address_changed"]]
+        kept = [r for r in rows if not r["address_changed"]]
+        gaps = [abs(r["gap_s"]) for r in changed if r["gap_s"] is not None]
+        windows = [r["linked_window_s"] for r in kept if r["linked_window_s"] is not None]
+        fmt = lambda v: f"{statistics.median(v):.1f} / {max(v):.1f}" if v else "—"
+        lines.append(f"| {device} | {rows[0]['os']} | {rows[0]['adv']} / {rows[0]['kind']} | {len(rows)} | {len(changed)} | {fmt(gaps)} | "
+                     f"{sum(r['mixed'] for r in rows)} | {len(kept)} | {fmt(windows)} |")
     lines += ["", "## Own-address probes", ""] + [f"- {n}" for n in notes]
     (out_dir / "summary-d1.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
+
+
+def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
+    """Per restart: does the address change together with the payload, and if not, for how long are they linkable."""
+    host = lambda scanner, t: t - run.offsets.get(scanner.split("-part")[0].split("-attempt")[0], 0)
+    seen = sorted((host(sc, t), address, ident) for sc, t, address, ident, _ in run.sightings() if owner.get(address) == device)
+    if not seen:
+        return []
+    by_cycle = {s["ad_id"]: s.get("cycle") for s in starts if s.get("ad_id")}
+    off = run.offsets.get(device, 0)
+    calls = {s.get("cycle"): s.get("t_call", s["t"]) - off for s in starts}
+    rows = []
+    cycles = sorted(c for c in calls if c is not None)
+    for prev, cycle in zip(cycles, cycles[1:]):
+        t_restart = calls[cycle]
+        t_next = calls.get(cycle + 1, 1e18)
+        ids_now = {i for i, c in by_cycle.items() if c == cycle}
+        ids_prev = {i for i, c in by_cycle.items() if c == prev}
+        mine_now = lambda ident: bool(ident) and ident.startswith("a:") and ident[2:] in ids_now
+        mine_prev = lambda ident: bool(ident) and ident.startswith("a:") and ident[2:] in ids_prev
+        before = [x for x in seen if mine_prev(x[2])] if ids_prev else [x for x in seen if calls[prev] <= x[0] < t_restart]
+        if ids_now:
+            after = [x for x in seen if mine_now(x[2])]
+            t_payload = after[0][0] if after else None
+        else:
+            after = [x for x in seen if t_restart + 500 <= x[0] < t_next]
+            t_payload = t_restart
+        if not before or not after:
+            continue
+        old_addr = before[-1][1]
+        new_addr = after[0][1]
+        mixed = sum(1 for t, a, i in seen if (a == old_addr and mine_now(i)) or (a != old_addr and mine_prev(i) and t >= t_restart))
+        row = {"run": run.name, "device": device, "model": model, "os": os_name, "adv": adv, "kind": kind, "cycle": cycle,
+               "restart_ms": int(t_restart), "payload_ms": int(t_payload) if t_payload else None, "old_address": old_addr,
+               "new_address": new_addr, "address_changed": new_addr != old_addr, "mixed": mixed, "gap_s": None, "linked_window_s": None, "censored": False}
+        if new_addr != old_addr:
+            first_new_addr = next(t for t, a, _ in seen if a == new_addr and t >= calls[prev])
+            row["gap_s"] = round((first_new_addr - t_payload) / 1000, 1) if t_payload else None
+        else:
+            later = next((t for t, a, _ in seen if t > t_payload and a != old_addr), None)
+            row["linked_window_s"] = round(((later if later else seen[-1][0]) - t_payload) / 1000, 1)
+            row["censored"] = later is None
+        rows.append(row)
+    return rows
 
 
 def offsets(run):
