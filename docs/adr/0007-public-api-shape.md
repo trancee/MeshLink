@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 2.
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 3 (amended 2026-11-03, ADR 0011 and ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?").
 
 ## Context
 
@@ -134,3 +134,11 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Testing (decision 15):** `meshlink-testing` serves Kotlin and Android tests only. Swift apps use `MeshLinkTesting`, a pure Swift target with a protocol-based fake in the `meshlink-swift` package, never linked into an app target. A second Kotlin framework beside `MeshLinkKit` is the setup the Kotlin docs call limited.
 - **Swift overlay (decision 14):** lives in the separate `meshlink-swift` repository with `Package.swift`. It gains a Swift protocol that `MeshLink` conforms to, so the fake can stand in for it; it stays idioms only.
 - **Presets (decision 6):** contents and mechanism are in ADR 0011.
+
+2026-11-03, iPhone SE (2016) benchmark ([evidence](../evidence/2026-11-se2016-bench/README.md)):
+
+- **Send capacity (amends decision 7):** `send` and `broadcast` stay non-suspending. MeshLink adds `suspend fun awaitSendCapacity()` (Swift: `try await`), which returns once the outbound queue has room again, or immediately if it already has. A caller that gets `Rejected(QueueFull)` awaits it and then sends again; it never retries `QueueFull` in a loop. The KDoc, the how-to guides and every reference scenario follow this pattern.
+  - Why: a sender that retried `QueueFull` in a loop reached 380 msg/s on the SE 2016 and grew memory by about 1 GB, because its allocations outran the Kotlin garbage collector. A forced collection reclaimed most of it, so it was not a leak. A sender that kept at most 32 messages in flight reached 9,200–9,500 msg/s with flat memory.
+  - Rejected: making `send` itself suspend. Every send from UI code would then need `await` or a coroutine, only to cover the rare full-queue case.
+- **Swift overlay data conversion (amends decision 14 of ADR 0011):** the overlay converts between `Data` and `KotlinByteArray` with one bulk copy (`memcpy` over pinned memory), never element by element. Element-by-element copying cost about 2.6 ms at 16 KB, about 25 times a bulk copy. A benchmark in the overlay's tests guards this.
+- **Measured costs:** a Swift-to-Kotlin-and-back round trip through SKIE took 95–111 µs median for 64 B to 16 KB on the SE 2016. Cancelling a Swift `Task` reached the Kotlin coroutine in 100 of 100 trials, p95 under 0.5 ms. These were the "untested costs" of this ADR.

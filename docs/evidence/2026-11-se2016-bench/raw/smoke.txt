@@ -1,0 +1,57 @@
+# device=iPhone8,4 iOS 15.8.8 mode=all warmup=2 iterations=10 started=2026-11-02 20:03:54 +0000
+libsodium 1.0.22 warmup=2 iterations=10
+VECTOR xwing-draft11 C#0 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR xwing-draft11 C#1 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR xwing-draft11 C#2 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR hpke-pq-05 A.5 skRm=MATCH pkRm=MATCH enc=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR hpke-pq-05 A.5 key=MATCH base_nonce=MATCH exporter_secret=MATCH recipient_key=MATCH
+VECTOR hpke-pq-05 A.5 encryptions nonce=10/10 seal=10/10 open=10/10 MATCH
+VECTOR hpke-pq-05 A.5 exports=5/5 MATCH
+VECTORS ALL MATCH
+x25519 base                                n=10 median=     43.60 us  p95=    138.46 us  min=     43.25 us  max=    138.46 us
+x25519 scalarmult                          n=10 median=    114.23 us  p95=    184.21 us  min=    113.33 us  max=    184.21 us
+ed25519 sign 64B                           n=10 median=     45.88 us  p95=     46.29 us  min=     45.46 us  max=     46.29 us
+ed25519 verify 64B                         n=10 median=    138.96 us  p95=    179.63 us  min=    138.58 us  max=    179.63 us
+C3 chacha20poly1305 encrypt 244B           n=10 median=      1.90 us  p95=      2.33 us  min=      1.88 us  max=      2.33 us
+C3 chacha20poly1305 encrypt 2KB            n=10 median=      8.42 us  p95=     14.42 us  min=      8.29 us  max=     14.42 us
+chacha20poly1305 decrypt 244B              n=10 median=      1.94 us  p95=      2.29 us  min=      1.92 us  max=      2.29 us
+chacha20poly1305 decrypt 2KB               n=10 median=      8.42 us  p95=     17.13 us  min=      8.38 us  max=     17.13 us
+sha256 2KB                                 n=10 median=     12.83 us  p95=     12.96 us  min=     12.79 us  max=     12.96 us
+hkdf-sha256 extract+expand 64B             n=10 median=      6.35 us  p95=      6.58 us  min=      6.29 us  max=      6.58 us
+hmac-sha256 2KB                            n=10 median=     14.15 us  p95=     14.33 us  min=     14.08 us  max=     14.33 us
+mlkem768 keypair                           n=10 median=     51.79 us  p95=     99.21 us  min=     45.17 us  max=     99.21 us
+mlkem768 enc                               n=10 median=     48.98 us  p95=   1003.00 us  min=     46.17 us  max=   1003.00 us
+mlkem768 dec                               n=10 median=     50.08 us  p95=     50.92 us  min=     49.88 us  max=     50.92 us
+xwing keypair                              n=10 median=     88.56 us  p95=    108.75 us  min=     87.96 us  max=    108.75 us
+xwing enc                                  n=10 median=    238.69 us  p95=    294.75 us  min=    224.67 us  max=    294.75 us
+xwing dec                                  n=10 median=    277.56 us  p95=    363.46 us  min=    246.79 us  max=    363.46 us
+C1 XXhfs messages: 5188 B in total
+C1 XXhfs initiator side                    n=10 median=    969.52 us  p95=   1122.54 us  min=    820.29 us  max=   1122.54 us
+C1 XXhfs responder side                    n=10 median=    788.21 us  p95=   1276.29 us  min=    733.79 us  max=   1276.29 us
+C2 IKhfs message 1: 4810 B (certificate + HPKE-sealed 1 KB)
+C2 IKhfs+HPKE sender side                  n=10 median=    877.15 us  p95=   1644.83 us  min=    787.79 us  max=   1644.83 us
+C2 IKhfs+HPKE recipient side               n=10 median=    784.02 us  p95=   1457.96 us  min=    724.75 us  max=   1457.96 us
+C2 info: IKhfs reply write (recipient)     n=10 median=    389.52 us  p95=    452.79 us  min=    366.17 us  max=    452.79 us
+C2 info: IKhfs reply read (sender)         n=10 median=    365.52 us  p95=    495.38 us  min=    333.04 us  max=    495.38 us
+footprint at start: 9.4 MB
+I1 conv bulk Data->KotlinByteArray 64B               n=10 median=      1.56 us  p95=      2.08 us  min=      1.50 us  max=      2.08 us
+I1 conv bulk KotlinByteArray->Data 64B               n=10 median=      1.90 us  p95=      2.50 us  min=      1.83 us  max=      2.50 us
+I1 conv bulk Data->KotlinByteArray 1024B             n=10 median=      1.65 us  p95=      1.96 us  min=      1.50 us  max=      1.96 us
+I1 conv bulk KotlinByteArray->Data 1024B             n=10 median=      2.10 us  p95=     12.29 us  min=      1.96 us  max=     12.29 us
+I1 conv bulk Data->KotlinByteArray 16384B            n=10 median=      6.92 us  p95=     71.08 us  min=      3.17 us  max=     71.08 us
+I1 conv bulk KotlinByteArray->Data 16384B            n=10 median=     12.79 us  p95=     76.96 us  min=     11.83 us  max=     76.96 us
+I1 conv per-byte Data->KotlinByteArray 64B           n=10 median=      6.10 us  p95=     14.29 us  min=      5.71 us  max=     14.29 us
+I1 conv per-byte KotlinByteArray->Data 64B           n=10 median=      4.69 us  p95=      5.00 us  min=      4.62 us  max=      5.00 us
+I1 conv per-byte Data->KotlinByteArray 1024B         n=10 median=     83.75 us  p95=     86.38 us  min=     83.21 us  max=     86.38 us
+I1 conv per-byte KotlinByteArray->Data 1024B         n=10 median=     68.79 us  p95=     68.83 us  min=     68.75 us  max=     68.83 us
+I1 conv per-byte Data->KotlinByteArray 16384B        n=10 median=   1509.08 us  p95=   2443.96 us  min=   1352.96 us  max=   2443.96 us
+I1 conv per-byte KotlinByteArray->Data 16384B        n=10 median=   1243.98 us  p95=   1822.00 us  min=   1154.92 us  max=   1822.00 us
+I1 rtt bulk 64B                                      n=10 median=     74.44 us  p95=    133.42 us  min=     64.79 us  max=    133.42 us
+I1 rtt bulk 1024B                                    n=10 median=     82.71 us  p95=    116.83 us  min=     79.29 us  max=    116.83 us
+I1 rtt bulk 16384B                                   n=10 median=    111.25 us  p95=    158.96 us  min=     97.88 us  max=    158.96 us
+I1 rtt per-byte 64B                                  n=10 median=    101.17 us  p95=    156.00 us  min=     84.71 us  max=    156.00 us
+I1 rtt per-byte 1024B                                n=10 median=    238.56 us  p95=    260.38 us  min=    225.25 us  max=    260.38 us
+I1 rtt per-byte 16384B                               n=10 median=   2672.27 us  p95=   2839.71 us  min=   2580.08 us  max=   2839.71 us
+I1 rtt pre-converted (no Data conversion) 64B        n=10 median=     77.73 us  p95=     97.88 us  min=     56.62 us  max=     97.88 us
+I1 rtt pre-converted (no Data conversion) 1024B      n=10 median=     94.25 us  p95=    119.96 us  min=     65.21 us  max=    119.96 us
+I1 rtt pre-converted (no Data conversion) 16384B     n=10 median=     93.00 us  p95=    131.38 us  min=     69.79 us  max=    131.38 us

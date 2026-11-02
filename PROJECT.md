@@ -13,6 +13,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   - `prototype/public-api`: the Kotlin and Swift API shape.
   - `prototype/codec`: Kompact vs hand-written codec.
   - `prototype/discovery`: advertising and rotation on devices.
+  - `prototype/se2016-bench`: Swift interop and libsodium speed on the iPhone SE (2016).
 
 ## Stack and layout
 

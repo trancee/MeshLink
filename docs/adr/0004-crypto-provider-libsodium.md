@@ -1,6 +1,6 @@
 # 0004: libsodium as the crypto provider; Rust only as a test-only reference
 
-Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 1.
+Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 2 (amended 2026-11-03, iPhone SE (2016) benchmark).
 
 ## Context
 
@@ -84,3 +84,10 @@ Facts verified 2026-11-01:
 - We own the JNI and cinterop glue, the HPKE code and the Noise state machine. They need their own tests, fuzzing and S6 review.
 - The libsodium build joins the toolchain baseline: NDK/CMake, cinterop definitions and XCFramework packaging.
 - Results from the X-Wing vector gate can reopen this decision.
+
+## Amendments
+
+2026-11-03, iPhone SE (2016) benchmark ([evidence](../evidence/2026-11-se2016-bench/README.md)):
+
+- **Hidden symbols need an explicit export list.** A plain static link does not hide them: the benchmark's `MeshLinkKit` framework exported 228 libsodium symbols. The XCFramework and the Android shared library therefore build with an export allow-list (`-exported_symbols_list` on Apple, a version script on Android) that exports only MeshLink's own API. A CI gate inspects the built binaries with `nm` and fails if any `sodium_` or `crypto_` symbol is exported.
+- **Speed on the slowest supported iPhone (T9):** on the SE 2016 with iOS 15.8, all crypto of one post-quantum link handshake (`XXhfs`) took under 0.8 ms median per side, and a post-quantum first message (`IKhfs` plus HPKE X-Wing, 1 KB) under 0.8 ms per side. ChaCha20-Poly1305 took 1.8 µs for 244 B. The X-Wing and hpke-pq vectors matched on the device. Crypto cost is negligible against the radio budgets of ADR 0008.

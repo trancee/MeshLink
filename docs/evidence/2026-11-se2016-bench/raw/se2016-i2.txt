@@ -1,0 +1,57 @@
+# device=iPhone8,4 iOS 15.8.8 mode=interop warmup=30 iterations=300 started=2026-11-02 20:17:32 +0000
+footprint at start: 5.5 MB
+I2 progress bulk: sent=449 received=320 retries=153844 collectors=1 footprint=27.2 MB
+I2 progress bulk: sent=1235 received=1105 retries=298325 collectors=1 footprint=55.6 MB
+I2 progress bulk: sent=2171 received=2042 retries=463326 collectors=1 footprint=73.6 MB
+I2 progress bulk: sent=3148 received=3019 retries=629411 collectors=1 footprint=104.8 MB
+I2 progress bulk: sent=3981 received=3852 retries=792920 collectors=1 footprint=114.8 MB
+I2 progress bulk: sent=5132 received=5002 retries=966352 collectors=1 footprint=136.1 MB
+I2 progress bulk: sent=5499 received=5369 retries=1133888 collectors=1 footprint=127.1 MB
+I2 progress bulk: sent=6257 received=6132 retries=1302059 collectors=1 footprint=131.3 MB
+I2 progress bulk: sent=7327 received=7197 retries=1463553 collectors=1 footprint=153.4 MB
+I2 progress bulk: sent=8033 received=7903 retries=1624910 collectors=1 footprint=181.5 MB
+I2 progress bulk: sent=8204 received=8075 retries=1804493 collectors=1 footprint=196.8 MB
+I2 progress bulk: sent=8832 received=8703 retries=1971158 collectors=1 footprint=231.7 MB
+I2 progress bulk: sent=9153 received=9024 retries=2138647 collectors=1 footprint=240.0 MB
+I2 progress bulk: sent=9875 received=9745 retries=2287345 collectors=1 footprint=246.9 MB
+I2 progress bulk: sent=10112 received=9982 retries=2452692 collectors=1 footprint=251.7 MB
+I2 progress bulk: sent=10845 received=10715 retries=2610148 collectors=1 footprint=277.1 MB
+I2 progress bulk: sent=11755 received=11625 retries=2763296 collectors=1 footprint=300.0 MB
+I2 progress bulk: sent=12163 received=12033 retries=2907952 collectors=1 footprint=303.6 MB
+I2 progress bulk: sent=13227 received=13105 retries=3058906 collectors=1 footprint=315.1 MB
+I2 progress bulk: sent=13926 received=13797 retries=3203308 collectors=1 footprint=297.8 MB
+I2 progress bulk: sent=15293 received=15166 retries=3345141 collectors=1 footprint=358.4 MB
+I2 progress bulk: sent=16444 received=16315 retries=3504831 collectors=1 footprint=389.7 MB
+I2 progress bulk: sent=17327 received=17198 retries=3669820 collectors=1 footprint=428.9 MB
+I2 progress bulk: sent=18025 received=17895 retries=3809928 collectors=1 footprint=447.9 MB
+I2 progress bulk: sent=18707 received=18577 retries=3952534 collectors=1 footprint=479.6 MB
+I2 progress bulk: sent=19192 received=19062 retries=4099833 collectors=1 footprint=499.9 MB
+I2 progress bulk: sent=19449 received=19319 retries=4242204 collectors=1 footprint=510.3 MB
+I2 progress bulk: sent=20138 received=20009 retries=4397270 collectors=1 footprint=535.7 MB
+I2 progress bulk: sent=21038 received=20909 retries=4558862 collectors=1 footprint=551.2 MB
+I2 progress bulk: sent=22370 received=22241 retries=4721999 collectors=1 footprint=578.5 MB
+I2 progress bulk: sent=23030 received=22900 retries=4897904 collectors=1 footprint=607.9 MB
+I2 progress bulk: sent=24056 received=23927 retries=5037628 collectors=1 footprint=620.2 MB
+I2 progress bulk: sent=25251 received=25122 retries=5192435 collectors=1 footprint=657.3 MB
+I2 progress bulk: sent=26256 received=26127 retries=5331535 collectors=1 footprint=681.5 MB
+I2 progress bulk: sent=27342 received=27212 retries=5470269 collectors=1 footprint=705.3 MB
+I2 progress bulk: sent=28005 received=27876 retries=5618572 collectors=1 footprint=733.8 MB
+I2 progress bulk: sent=29279 received=29149 retries=5768644 collectors=1 footprint=764.6 MB
+I2 progress bulk: sent=29634 received=29504 retries=5892726 collectors=1 footprint=785.8 MB
+I2 progress bulk: sent=30505 received=30376 retries=6031956 collectors=1 footprint=814.4 MB
+I2 progress bulk: sent=31878 received=31749 retries=6185010 collectors=1 footprint=888.3 MB
+I2 progress bulk: sent=33019 received=32889 retries=6346031 collectors=1 footprint=999.4 MB
+I2 progress bulk: sent=34544 received=34416 retries=6511277 collectors=1 footprint=1116.5 MB
+I2 progress bulk: sent=35428 received=35299 retries=6685832 collectors=1 footprint=1163.3 MB
+I2 progress bulk: sent=36661 received=36531 retries=6855512 collectors=1 footprint=1188.8 MB
+I2 progress bulk: sent=37456 received=37331 retries=6957339 collectors=1 footprint=1215.1 MB
+I2 progress bulk: sent=38380 received=38250 retries=7105105 collectors=1 footprint=1258.0 MB
+I2 progress bulk: sent=39376 received=39247 retries=7235079 collectors=1 footprint=1263.5 MB
+I2 bulk 40000 x 1024B: 105.214 s, 380 msg/s, QueueFull retries=7279322
+I2 bulk footprint: before=5.7 MB at25%=257.2 MB at100%=1266.4 MB peak=1266.4 MB growth25to100=1009.22 MB
+I2 bulk footprint samples (MB, every 2000): 67.1 128.2 130.2 183.6 257.2 274.2 310.2 387.3 451.6 529.8 567.7 620.2 669.9 734.0 801.8 890.4 1082.9 1176.9 1221.5 1266.4
+I2 per-byte 4000 x 1024B: 0.881 s, 4539 msg/s, QueueFull retries=5140
+I2 per-byte footprint: before=1266.5 MB at25%=1269.9 MB at100%=1274.0 MB peak=1274.0 MB growth25to100=4.03 MB
+I2 per-byte footprint samples (MB, every 2000): 1269.9 1274.0
+# finished=2026-11-02 20:19:18 +0000
+DONE

@@ -40,6 +40,19 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Paced writes, smaller chunks or periodic write-with-response for the XCover 4 write stall. They didn't help; the real cause was the leaked registrations.
 - Assuming a failure is the phone's fault before ruling out the prototype. Both legacy phones were blamed first, and both were prototype bugs.
 
+## Interop and crypto benchmark (iPhone SE 2016)
+
+**Concept:** the slowest supported iPhone sets the bar for Swift interop and crypto cost. Evidence: [`docs/evidence/2026-11-se2016-bench/`](../evidence/2026-11-se2016-bench/README.md); code on throwaway branch `prototype/se2016-bench`.
+
+**Signing:** the SE 2016 is not provisioned for `ch.trancee.lab.host` (team `apple-team-1`). Sign it with team `apple-team-2` and bundle `ch.trancee.lab.host.b`.
+
+**Root causes found:**
+
+- **A sender that retries `QueueFull` in a loop looks like a memory leak.** 7.3 million retries allocated faster than the Kotlin/Native garbage collector freed, so memory grew about 1 GB; a forced collection reclaimed most of it. Bound the messages in flight instead.
+- **Converting `Data` element by element is about 25 times slower** than one bulk copy (about 2.6 ms at 16 KB).
+- **A static libsodium link still exports its symbols** from the framework (228 found with `nm`); hiding them needs an export list.
+- **SKIE exports `messages` as an untyped async sequence** that still works with `for await`; leaving the loop cancels the Kotlin collector. Kotlin default arguments are not visible from Swift.
+
 ## Discovery measurements
 
 **Code map:** discovery modes in the bake-off app on throwaway branch `prototype/discovery` (`prototypes/bearer-bakeoff/host/{d2,t1,t3,t4,t9,t11}.py`, `d4.sh`, `analyze_discovery.py`); pre-registration in `prototypes/discovery/README.md`. Evidence: `docs/evidence/2026-11-discovery/`. Decision: ADR 0010.

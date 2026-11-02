@@ -1,0 +1,78 @@
+# device=iPhone15,4 iOS 17.6.1 mode=all warmup=30 iterations=300 started=2026-11-02 20:24:02 +0000
+libsodium 1.0.22 warmup=30 iterations=300
+VECTOR xwing-draft11 C#0 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR xwing-draft11 C#1 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR xwing-draft11 C#2 pk=MATCH ct=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR hpke-pq-05 A.5 skRm=MATCH pkRm=MATCH enc=MATCH ss_enc=MATCH ss_dec=MATCH
+VECTOR hpke-pq-05 A.5 key=MATCH base_nonce=MATCH exporter_secret=MATCH recipient_key=MATCH
+VECTOR hpke-pq-05 A.5 encryptions nonce=10/10 seal=10/10 open=10/10 MATCH
+VECTOR hpke-pq-05 A.5 exports=5/5 MATCH
+VECTORS ALL MATCH
+x25519 base                                n=300 median=     15.63 us  p95=     15.79 us  min=     15.42 us  max=     20.04 us
+x25519 scalarmult                          n=300 median=     37.13 us  p95=     37.63 us  min=     34.58 us  max=    115.17 us
+ed25519 sign 64B                           n=300 median=     14.38 us  p95=     15.00 us  min=     13.75 us  max=     33.50 us
+ed25519 verify 64B                         n=300 median=     34.04 us  p95=     36.79 us  min=     32.58 us  max=     42.46 us
+C3 chacha20poly1305 encrypt 244B           n=300 median=      0.63 us  p95=      0.71 us  min=      0.58 us  max=      3.21 us
+C3 chacha20poly1305 encrypt 2KB            n=300 median=      3.63 us  p95=      5.13 us  min=      3.54 us  max=      8.75 us
+chacha20poly1305 decrypt 244B              n=300 median=      0.67 us  p95=      0.67 us  min=      0.63 us  max=     18.42 us
+chacha20poly1305 decrypt 2KB               n=300 median=      3.58 us  p95=      4.71 us  min=      3.50 us  max=     27.67 us
+sha256 2KB                                 n=300 median=      5.54 us  p95=      5.75 us  min=      5.46 us  max=      9.58 us
+hkdf-sha256 extract+expand 64B             n=300 median=      2.42 us  p95=      2.50 us  min=      2.33 us  max=      4.38 us
+hmac-sha256 2KB                            n=300 median=      6.08 us  p95=      6.17 us  min=      6.00 us  max=      7.58 us
+mlkem768 keypair                           n=300 median=     16.25 us  p95=     18.25 us  min=     15.71 us  max=     23.21 us
+mlkem768 enc                               n=300 median=     14.92 us  p95=     16.04 us  min=     14.79 us  max=     20.29 us
+mlkem768 dec                               n=300 median=     17.58 us  p95=     18.08 us  min=     17.50 us  max=     25.29 us
+xwing keypair                              n=300 median=     27.58 us  p95=     29.08 us  min=     27.08 us  max=     36.21 us
+xwing enc                                  n=300 median=     54.83 us  p95=     56.96 us  min=     54.38 us  max=     84.63 us
+xwing dec                                  n=300 median=     70.13 us  p95=     70.88 us  min=     69.83 us  max=     73.67 us
+C1 XXhfs messages: 5188 B in total
+C1 XXhfs initiator side                    n=300 median=    222.71 us  p95=    243.42 us  min=    217.63 us  max=    345.96 us
+C1 XXhfs responder side                    n=300 median=    204.81 us  p95=    222.38 us  min=    200.37 us  max=    285.83 us
+C2 IKhfs message 1: 4810 B (certificate + HPKE-sealed 1 KB)
+C2 IKhfs+HPKE sender side                  n=300 median=    215.69 us  p95=    251.04 us  min=    209.33 us  max=    278.75 us
+C2 IKhfs+HPKE recipient side               n=300 median=    201.33 us  p95=    229.96 us  min=    197.92 us  max=    295.67 us
+C2 info: IKhfs reply write (recipient)     n=300 median=    102.13 us  p95=    116.21 us  min=    101.13 us  max=    176.04 us
+C2 info: IKhfs reply read (sender)         n=300 median=     90.63 us  p95=    104.63 us  min=     89.96 us  max=    128.63 us
+footprint at start: 13.6 MB
+I1 conv bulk Data->KotlinByteArray 64B               n=300 median=      0.21 us  p95=      0.25 us  min=      0.17 us  max=      1.42 us
+I1 conv bulk KotlinByteArray->Data 64B               n=300 median=      0.33 us  p95=      0.38 us  min=      0.29 us  max=      1.54 us
+I1 conv bulk Data->KotlinByteArray 1024B             n=300 median=      0.25 us  p95=      0.42 us  min=      0.21 us  max=      2.79 us
+I1 conv bulk KotlinByteArray->Data 1024B             n=300 median=      0.38 us  p95=      1.38 us  min=      0.29 us  max=      1.71 us
+I1 conv bulk Data->KotlinByteArray 16384B            n=300 median=      0.58 us  p95=      1.79 us  min=      0.42 us  max=     93.17 us
+I1 conv bulk KotlinByteArray->Data 16384B            n=300 median=      2.92 us  p95=      4.38 us  min=      2.54 us  max=     17.38 us
+I1 conv per-byte Data->KotlinByteArray 64B           n=300 median=      0.83 us  p95=      0.88 us  min=      0.83 us  max=      9.08 us
+I1 conv per-byte KotlinByteArray->Data 64B           n=300 median=      0.67 us  p95=      0.67 us  min=      0.58 us  max=      0.71 us
+I1 conv per-byte Data->KotlinByteArray 1024B         n=300 median=     11.83 us  p95=     11.92 us  min=     11.75 us  max=     18.83 us
+I1 conv per-byte KotlinByteArray->Data 1024B         n=300 median=      9.25 us  p95=      9.33 us  min=      9.12 us  max=     14.21 us
+I1 conv per-byte Data->KotlinByteArray 16384B        n=300 median=    190.00 us  p95=    202.92 us  min=    187.46 us  max=    252.79 us
+I1 conv per-byte KotlinByteArray->Data 16384B        n=300 median=    142.25 us  p95=    153.46 us  min=    142.00 us  max=    178.71 us
+I1 rtt bulk 64B                                      n=300 median=     15.17 us  p95=     19.00 us  min=     11.88 us  max=     32.04 us
+I1 rtt bulk 1024B                                    n=300 median=     15.21 us  p95=     18.33 us  min=     12.46 us  max=     29.67 us
+I1 rtt bulk 16384B                                   n=300 median=     19.39 us  p95=     29.88 us  min=     15.75 us  max=    202.92 us
+I1 rtt per-byte 64B                                  n=300 median=     15.46 us  p95=     16.83 us  min=     14.33 us  max=     20.25 us
+I1 rtt per-byte 1024B                                n=300 median=     35.38 us  p95=     39.75 us  min=     32.88 us  max=     42.58 us
+I1 rtt per-byte 16384B                               n=300 median=    352.33 us  p95=    367.54 us  min=    345.08 us  max=    436.88 us
+I1 rtt pre-converted (no Data conversion) 64B        n=300 median=     12.71 us  p95=     16.29 us  min=     10.67 us  max=     23.54 us
+I1 rtt pre-converted (no Data conversion) 1024B      n=300 median=     14.14 us  p95=     22.29 us  min=     11.17 us  max=     41.62 us
+I1 rtt pre-converted (no Data conversion) 16384B     n=300 median=     14.48 us  p95=     19.71 us  min=     13.12 us  max=    315.75 us
+I2 progress bulk: sent=37095 received=36966 retries=1086032 collectors=1 footprint=18.4 MB
+I2 bulk 40000 x 1024B: 2.296 s, 17421 msg/s, QueueFull retries=1171157
+I2 bulk footprint: before=17.0 MB at25%=18.7 MB at100%=18.3 MB peak=18.9 MB growth25to100=-0.36 MB
+I2 bulk footprint samples (MB, every 2000): 18.5 18.4 18.6 18.2 18.7 18.2 18.6 18.4 18.3 18.3 18.6 18.5 18.6 18.5 18.3 18.4 18.3 18.3 18.9 18.3
+I2 bulk after run: Kotlin heap after last automatic GC=15.0 MB footprint before forced GC=18.3 MB after forced GC=18.3 MB Kotlin heap after forced GC=15.2 MB
+I2 per-byte 4000 x 1024B: 0.146 s, 27338 msg/s, QueueFull retries=5266
+I2 per-byte footprint: before=18.3 MB at25%=17.8 MB at100%=18.4 MB peak=18.4 MB growth25to100=0.52 MB
+I2 per-byte footprint samples (MB, every 2000): 17.8 18.4
+I2 per-byte after run: Kotlin heap after last automatic GC=12.6 MB footprint before forced GC=18.4 MB after forced GC=17.8 MB Kotlin heap after forced GC=12.9 MB
+I2 bulk window=32 40000 x 1024B: 0.766 s, 52225 msg/s, QueueFull retries=0
+I2 bulk window=32 footprint: before=17.8 MB at25%=19.3 MB at100%=19.0 MB peak=19.6 MB growth25to100=-0.34 MB
+I2 bulk window=32 footprint samples (MB, every 2000): 19.5 19.2 19.3 19.0 19.3 19.5 18.9 19.4 19.2 19.2 19.3 19.0 18.9 19.6 19.3 19.4 19.2 18.6 19.2 19.0
+I2 bulk window=32 after run: Kotlin heap after last automatic GC=13.1 MB footprint before forced GC=19.0 MB after forced GC=18.8 MB Kotlin heap after forced GC=13.1 MB
+I3a collector Task cancelled on Kotlin side: 100/100
+I3a cancel -> Kotlin flow cancellation               n=100 median=    134.94 us  p95=    254.88 us  min=     67.54 us  max=    309.29 us
+I3b suspend-call Task cancelled on Kotlin side: 100/100
+I3b cancel -> Kotlin coroutine cancellation          n=100 median=    229.73 us  p95=    240.46 us  min=    112.12 us  max=    306.58 us
+I3 leaks after trials: activeCollectors=0 activeSuspendCalls=0 liveNodeJobs=1 (1 = echo loop) rejectedCollectors=0
+I3 new collector after trials receives: true
+# finished=2026-11-02 20:24:07 +0000
+DONE

@@ -133,7 +133,7 @@ Version rules:
 - One shared lab bundle ID per free team: `ch.trancee.lab.host` plus its UI-test runner. MeshLink, cairn and sqisign all use it, so every install replaces the previous app and uses at most 2 of a device's 3 free slots.
 - A local script re-signs within the 7-day expiry before lab runs.
 - If the free tier keeps blocking device tests, revisit a paid team.
-- The libsodium iPhone benchmark runs on the iPhone SE (2016, iOS 15.8) as low-end T9 evidence.
+- The libsodium iPhone benchmark runs on the iPhone SE (2016, iOS 15.8) as low-end T9 evidence. Done 2026-11-02 ([evidence](../evidence/2026-11-se2016-bench/README.md)).
 
 ## Alternatives
 

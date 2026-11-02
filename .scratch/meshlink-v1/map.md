@@ -39,31 +39,13 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - [Which routing and topology strategy should MeshLink use?](issues/14-routing-topology-simulation.md): HyParView-style views with a diversity preference (d = 6/5/5, bridge rule, iOS incoming links ≤ 3). Each node estimates its own local density and adapts locally: flooding at low density; U6 unicast with ack-refreshed routes and Plumtree broadcast with catch-up at medium and high. The wire format is the same everywhere. Minimum lifetime is 120 s, the routing tag 8 B, the message ID 12 B, with 5 min rotation (amended from 15 by ADR 0010). All simulated. Recorded in ADR 0008.
 - [Which crypto options fit each security profile?](issues/03-crypto-options.md): no secured profile can rely on platform crypto alone at Android 26 / iOS 15. Classical fits standard Noise (XX, then IK/KK; every message <100 B). Post-quantum means hybrid X25519 + ML-KEM-768 with classical authentication, via Noise hfs (~2.4 KB) or a cairn-style pairing plus a 106 B resume, and always needs fragmentation. Candidate providers: libsodium, Rust aws-lc-rs, or a platform split.
 - [Which routing and topology strategies suit phone BLE meshes?](issues/04-routing-topology-strategies.md): with only 3–6 links per phone, neighbor selection matters as much as routing, and mesh-wide flooding won't scale to ~1,000 nodes without a hop limit. The simulation shortlist covers neighbor selection, unicast, broadcast and store-and-forward strategies.
+- [Are Swift interop and libsodium fast enough on the iPhone SE (2016)?](issues/24-se2016-interop-crypto-bench.md): yes; post-quantum handshake crypto under 0.8 ms per side and a Swift round trip about 0.1 ms on the slowest iPhone. A sender retrying `QueueFull` in a loop overwhelmed the garbage collector, so `send` gains `awaitSendCapacity()` (ADR 0007 v3); the overlay bulk-copies `Data`; libsodium symbols get an export allow-list and a CI gate (ADR 0004 v2).
 
 ## Not yet specified
 
-- Exact byte layouts of every frame, record and TLV, with conformance vectors: the protocol spec, following ADR 0012's principles.
-- Delivery/read receipt semantics and message lifecycle states.
-- Store-and-forward design (quota, TTL, custody, privacy of held messages; candidate bounded-lifetime store-and-forward keys for forward secrecy). Routing-level holding is decided (ADR 0008): 100 messages, 10 s minimum hold, 120 s minimum lifetime, ±30 s clock skew.
-- Message size cap.
-- Resisting fake identities (Sybil) in open and unsecured meshes: in simulation, 30% fake identities break the mesh apart under any neighbor selection strategy. Possible defenses: identity cost or peer scoring (routing simulation stage A).
-- Swift interop cost before v1: per-message `Data` conversion and Flow overhead, and Swift-task cancellation reaching Kotlin, benchmarked on the iPhone SE (2016) (ADR 0007).
-- Routing power on real devices: the simulation's power index is an assumption; measure before final v1 defaults (routing simulation stage C). iOS background discovery is measured (ADR 0010); long background periods, Doze and overnight behavior are not.
-- Power policy across presets and density.
-- Diagnostics and troubleshooting surface: the code catalog (which codes, which fields) and field tooling. How codes are documented is decided (ADR 0006).
-- Testing architecture (virtual multi-node transport, Robolectric, device-lab automation, fuzzing).
-- Conformance vector coverage and the vector-runner design; the spec format is decided (ADR 0006).
-- Release, versioning and API-compatibility process.
-- CI integration with the device lab.
-- GitHub repository creation and first workflows (ADR 0005), plus the `meshlink-swift` package repository (ADR 0011); creating either remote needs explicit approval.
-- libsodium iPhone benchmark on the iPhone SE (2016) as T9 evidence (ADR 0005), once the shared lab bundle ID is set up.
-- Neighbor-list privacy: link encryption hides route messages from passive outsiders in the secured profiles (threat model); still open is what neighbor and route information members learn.
+- Power policy across presets and density: specifiable once [What does MeshLink cost in energy on real phones?](issues/23-energy-on-devices.md) resolves.
 - libp2p post-quantum Noise watch (ADR 0002 amendment): track specs#727 and snow#210; adopt published `XXhfs` vectors when they appear, and return any divergence from Noise HFS to the user.
 - libsodium HPKE upstream offer (ADR 0004): draft an "Ideas" thread once MeshLink's HPKE passes the hpke-pq vectors; posting needs explicit approval.
-- Compression: none vs bounded (Bridgefy gzip-bomb and side-channel lessons).
-- Energy measurements (cost per KB and per connection-hour on lab phones) to back battery claims.
-- Shared cross-platform limits table, enforced by conformance tests.
-- Optional non-BLE bearers (Wi-Fi Aware, Multipeer Connectivity, Nearby Connections) for throughput, with BLE as baseline; may belong in Out of scope.
 
 ## Out of scope
 
@@ -73,4 +55,5 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Targets other than Android and iOS.
 - Wire compatibility with Bluetooth SIG Mesh, bitchat, Briar or other meshes.
 - Multi-device users and account sync.
+- Non-BLE bearers (Wi-Fi Aware, Multipeer Connectivity, Nearby Connections): v1 is BLE-only; the bearer abstraction of ADR 0009 keeps a later addition possible (user decision 2026-11-02).
 - Precise distance via UWB (Nearby Interaction, Android UWB): possible later optional module; v1 offers only coarse proximity for direct peers.
