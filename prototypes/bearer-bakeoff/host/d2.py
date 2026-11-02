@@ -80,7 +80,7 @@ def ios_cells(a):
     states = a.states.split(",")
     android = [
         ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
-        ("zflip4", ["filter=none", "scan_mode=low_latency", "scan_type=passive", "rescan_s=240"], False),
+        ("pixel6", ["filter=none", "scan_mode=low_latency", "scan_type=passive", "rescan_s=240"], False),
         ("moto30", ["filter=mesh", "scan_mode=balanced"], True),
         ("xcover4", [f"filter={a.ovf_filter}", "scan_mode=balanced"], True),
     ]

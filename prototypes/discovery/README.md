@@ -102,12 +102,23 @@ This file is committed **before** each run. A criterion added after its run is m
   status 0 twice but no scanner ever saw it; Bluetooth could not be toggled over adb (`BLUETOOTH_ADMIN`).
 - Every later unfiltered Android scan restarts every 240 s (`rescan_s=240`). Filtered scans are not affected.
 
-## D1-ctl-ios (run `d1-ios-*`, 32 min)
+## D1-ctl-E (run `d1-ctl-e-*`, 32 min, layout E, replaces the planned D1-ctl-ios)
 
-- Every iPhone restarts every 120 s (≥ 15 cycles), named `ML-<tag>`:
-  iPhone 15 `name` (stop, start with a new name), SE 2016 `stop` (2 s off), iPhone X `uuids` (stop, start with a
-  second UUID added or removed), 12 mini `stop`, SE 2020 `name`.
-- Same scanners and criteria as T6 above, per kind and iOS version.
+- Every advertiser restarts every 120 s (≥ 15 cycles), layout E, no names. New rotating UUID at every start unless `same`.
+- iOS: iPhone 15 (17) `stop`, SE 2016 (15) `stop`, SE 2020 (18) `swap` (stop + immediate start, new UUID),
+  iPhone X (16) `same` (stop, 2 s, start with the same UUID). 12 mini (27) scans instead (fg, `filter=mesh`,
+  duplicates) for E4 stale-cache: after a restart, does it report the old UUID under the identifier that carries the
+  new one?
+- Android on layout E: Z Flip4, Nokia X20, RMX3710, Nord 2, CPH2135 `new_set`; Pixel 4a, Mi Note 3, Blackview
+  `stop`; OnePlus 6 `enable`; Nothing 1 `data`.
+- Scanners: Nothing 2 and edge 30, unfiltered, LOW_LATENCY, `rescan_s=240`.
+- Metrics: per restart, address new/same; **linkage gap** = first sighting of the new address − first sighting of the new
+  UUID (1 s resolution), mixed sightings (old address with new UUID or the reverse), and, if the address stays, the
+  linked window until the next address change. Restart → first sighting of the new UUID (host clock).
+- **Criteria:** as T5/T6 (≥ 95 % new and no mixed sightings ⇒ "in step"); iOS layout-E rotation by restart works iff
+  the address is new after 100 % of ≥ 15 restarts per iOS version. E5: any `adv_start` error.
+- Also logged: D1 found iPhone 15, iPhone X and SE 2016 rotating within 5 s of each other at every change (intervals
+  11.3, 19.3, 15.8, 18.0 min, identical on all three). This run records whether that repeats.
 
 ## D2 background matrix (runs `d2-*`)
 
@@ -126,7 +137,7 @@ This file is committed **before** each run. A criterion added after its run is m
 - Concrete runs (`host/d2.py`, added before the runs; analysis `analyze_discovery.py d2|t3`):
   - `d2-ios-*`: advertisers iPhone 15 then SE 2016, each fg / bg (`bg=1`, screen on) / lock (`bg=1 lock=1`, private
     GSEventLockDevice; if the lock does not happen, the cell counts as a second bg cell and "locked" stays unverified),
-    300 s per cell. Scanners for the whole phase: Nothing 2 fg unfiltered active; Z Flip4 fg unfiltered passive (ADV-only
+    300 s per cell. Scanners for the whole phase: Nothing 2 fg unfiltered active; Pixel 6 fg unfiltered passive (ADV-only
     bytes, T2/T1); edge 30 screen-off FGS service filter BALANCED; XCover 4 screen-off FGS Apple 0x004C filter BALANCED.
     Per cell (relaunched): iPhone X fg service scan with duplicates; SE 2020 and 12 mini bg service scan.
   - `d2-and-*`: advertisers Pixel 6 (`AdvertisingSet`) then S10e (`startAdvertising`), each fg / screen-off FGS
