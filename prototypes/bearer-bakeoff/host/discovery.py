@@ -94,10 +94,24 @@ def clock_offset(name):
             if best is None or (t1 - t0) < best[1]:
                 best = ((value - (t0 + t1) / 2) * 1000, t1 - t0)
         return {"device": name, "offset_ms": round(best[0]), "rtt_ms": round(best[1] * 1000), "method": "adb date +%s.%N"}
-    t0 = time.time()
-    text = subprocess.run(["idevicedate", "-u", device["udid"], "-c"], capture_output=True, text=True, timeout=30).stdout
-    t1 = time.time()
-    return {"device": name, "raw": text.strip(), "host_mid": (t0 + t1) / 2, "method": "idevicedate (1 s)"}
+    # idevicedate has 1 s resolution: poll until the device second ticks; the tick lies between the two calls.
+    samples = []
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        t0 = time.time()
+        text = subprocess.run(["idevicedate", "-u", device["udid"]], capture_output=True, text=True, timeout=30).stdout.strip()
+        t1 = time.time()
+        try:
+            parts = text.split()
+            value = time.mktime(time.strptime(" ".join(parts[:4] + parts[5:]), "%a %b %d %H:%M:%S %Y"))
+        except (ValueError, IndexError):
+            return {"device": name, "error": text}
+        if samples and value > samples[-1][2]:
+            lo, hi = samples[-1][0], t1
+            return {"device": name, "offset_ms": round((value - (lo + hi) / 2) * 1000), "rtt_ms": round((hi - lo) * 1000),
+                    "method": "idevicedate second tick"}
+        samples.append((t0, t1, value))
+    return {"device": name, "error": "no tick", "raw": text}
 
 
 def screen(name, state):
