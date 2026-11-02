@@ -531,6 +531,21 @@ class Discovery(private val context: Context, argText: String) {
             return builder.build()
         }
 
+        private fun appleOverflow(bytes: ByteArray?): String? {
+            if (bytes == null) return null
+            var i = 0
+            while (i < bytes.size) {
+                val len = bytes[i].toInt() and 0xff
+                if (len == 0 || i + 1 + len > bytes.size) break
+                if (len >= 4 && (bytes[i + 1].toInt() and 0xff) == 0xff && bytes[i + 2].toInt() == 0x4c && bytes[i + 3].toInt() == 0x00 &&
+                    bytes[i + 4].toInt() == 0x01) {
+                    return bytes.copyOfRange(i + 5, i + 1 + len).hex()
+                }
+                i += len + 1
+            }
+            return null
+        }
+
         private fun classify(result: ScanResult): Pair<String?, Map<String, Any?>> {
             val record = result.scanRecord ?: return null to emptyMap()
             val uuids = record.serviceUuids.orEmpty()
@@ -569,7 +584,12 @@ class Discovery(private val context: Context, argText: String) {
         private var failed = CompletableDeferred<Int>()
 
         private fun handle(result: ScanResult) {
-            val (id, info) = classify(result)
+            val (classified, baseInfo) = classify(result)
+            // iOS background adverts carry the 0x004C overflow area (type 0x01 + 16 B bitmap), often only in the scan
+            // response next to Nearby Info in the ADV; ScanRecord keeps one 0x004C entry, so parse the raw bytes.
+            val overflow = appleOverflow(result.scanRecord?.bytes)
+            val id = classified ?: overflow?.let { "apple-ovf" }
+            val info = if (overflow != null) baseInfo + ("ovf_bitmap" to overflow) else baseInfo
             val address = result.device.address
             val nowWall = wallMs()
             val seenWall = nowWall - (SystemClock.elapsedRealtimeNanos() - result.timestampNanos) / 1_000_000

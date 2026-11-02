@@ -93,10 +93,12 @@ def d1(runs, out_dir):
     interval_rows, control_rows, change_rows, gap_rows = [], [], [], []
     notes = []
     for run in runs:
-        owner = run.address_owner()
+        # Addresses: Android scanners only (raw MACs); iOS scanners report per-scanner identifiers.
+        android = [sc for sc in run.scanners if run_platform(run, sc) == "android"]
+        owner = run.address_owner(android)
         # Per device: per address first/last sighting (union of scanners, scanner clocks; offsets < 0.5 s for the two scanners).
         spans = defaultdict(lambda: defaultdict(lambda: [None, None, 0]))
-        for _, t, address, _, r in run.sightings():
+        for _, t, address, _, r in run.sightings(android):
             device = owner.get(address)
             if not device:
                 continue
@@ -133,9 +135,9 @@ def d1(runs, out_dir):
                 continue
             # Control: compare address before and after each restart. Android: by advertisement ID; iOS: by time.
             cycles = defaultdict(set)
-            if any(s.get("ad_id") for s in starts):
+            if per_cycle_ids(starts):
                 ad_cycle = {s["ad_id"]: s.get("cycle") for s in starts if s.get("ad_id")}
-                for _, t, address, ident, _ in run.sightings():
+                for _, t, address, ident, _ in run.sightings(android):
                     if ident and ident.startswith("a:") and ident[2:] in ad_cycle:
                         cycles[ad_cycle[ident[2:]]].add(address)
                 # bucket records carry the id of the first sighting; ADV-only ids ("svc") are attributed by address
@@ -144,14 +146,14 @@ def d1(runs, out_dir):
             else:
                 # iOS: device-clock adv_start times converted to the scanner clock (iOS offset unknown, ±1 s).
                 bounds = [(s.get("cycle"), s["t"] - off) for s in starts]
-                for _, t, address, _, _ in run.sightings():
+                for _, t, address, _, _ in run.sightings(android):
                     if owner.get(address) != device:
                         continue
                     for idx, (cycle, t0) in enumerate(bounds):
                         t1 = bounds[idx + 1][1] - 2500 if idx + 1 < len(bounds) else 1e18
                         if t0 + 1000 <= t <= t1:
                             cycles[cycle].add(address)
-            gap_rows.extend(linkage_gaps(run, device, owner, starts, model, os_name, adv, kind))
+            gap_rows.extend(linkage_gaps(run, device, owner, starts, model, os_name, adv, kind, android))
             ordered = sorted(cycles.items(), key=lambda kv: kv[0])
             for (c_prev, a_prev), (c, a_now) in zip(ordered, ordered[1:]):
                 if not a_prev or not a_now:
@@ -226,14 +228,15 @@ def d1(runs, out_dir):
     print("\n".join(lines))
 
 
-def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
+def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind, android):
     """Per restart: does the address change together with the payload, and if not, for how long are they linkable."""
     host = lambda scanner, t: t - run.offsets.get(scanner.split("-part")[0].split("-attempt")[0], 0)
-    seen = sorted((host(sc, t), address, ident) for sc, t, address, ident, _ in run.sightings() if owner.get(address) == device)
+    seen = sorted((host(sc, t), address, ident) for sc, t, address, ident, _ in run.sightings(android) if owner.get(address) == device)
     if not seen:
         return []
-    seen_by = [(sc, host(sc, t), ident) for sc, t, address, ident, _ in run.sightings() if owner.get(address) == device]
-    by_cycle = {s["ad_id"]: s.get("cycle") for s in starts if s.get("ad_id")}
+    seen_by = [(sc, host(sc, t), ident) for sc, t, address, ident, _ in run.sightings()
+               if owner.get(address) == device or run.attribute(ident) == device]
+    by_cycle = {s["ad_id"]: s.get("cycle") for s in starts if s.get("ad_id")} if per_cycle_ids(starts) else {}
     off = run.offsets.get(device, 0)
     calls = {s.get("cycle"): s.get("t_call", s["t"]) - off for s in starts}
     rows = []
@@ -261,7 +264,7 @@ def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
                "restart_ms": int(t_restart), "payload_ms": int(t_payload) if t_payload else None, "old_address": old_addr,
                "new_address": new_addr, "address_changed": new_addr != old_addr, "mixed": mixed, "gap_s": None, "linked_window_s": None, "censored": False}
         if new_addr != old_addr:
-            first_new_addr = next(t for t, a, _ in seen if a == new_addr and t >= calls[prev])
+            first_new_addr = next(t for t, a, _ in seen if a == new_addr)
             row["gap_s"] = round((first_new_addr - t_payload) / 1000, 1) if t_payload else None
         else:
             later = next((t for t, a, _ in seen if t > t_payload and a != old_addr), None)
@@ -280,6 +283,12 @@ def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
             row["ios_stale_after_new"] = sum(1 for sc, t, i in seen_by if sc in first_ios and t > first_ios[sc] and mine_prev(i))
         rows.append(row)
     return rows
+
+
+def per_cycle_ids(starts):
+    """True when every restart got a fresh advertisement ID (restart kind `same` keeps it)."""
+    ids = [s.get("ad_id") for s in starts]
+    return all(ids) and len(set(ids)) == len(ids)
 
 
 def run_platform(run, scanner):

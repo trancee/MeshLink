@@ -15,6 +15,7 @@ Results land in host/results/<run>/<device>.jsonl with host events in host/resul
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -59,7 +60,30 @@ def install(name):
 def launch(run_id, name, args):
     full = [f"run={run_id}", f"commit={bakeoff.git_commit()}", f"tag={tag(name)}", *args]
     host_event(run_id, "launch", device=name, args=full)
-    bakeoff.launch(name, full)
+    device = DEVICES[name]
+    if device["platform"] != "ios" or device.get("tool") != "imd":
+        bakeoff.launch(name, full)
+        return
+    # idevicedebug --detach sometimes returns without starting the app (smoke-bg, iPhone X and SE 2016): the run file
+    # must grow within a few seconds, else stop and relaunch.
+    for attempt in range(3):
+        before = ios_file_size(device, run_id)
+        bakeoff.launch(name, full)
+        for _ in range(4):
+            time.sleep(2)
+            if ios_file_size(device, run_id) > before:
+                return
+        host_event(run_id, "relaunch", device=name, attempt=attempt + 1)
+        bakeoff.stop(name)
+        time.sleep(2)
+    raise RuntimeError(f"{name}: app did not start")
+
+
+def ios_file_size(device, run_id):
+    out = subprocess.run(["afcclient", "-u", device["udid"], "--container", bakeoff.bundle_id(device)],
+                         input=f"info Documents/results/{run_id}.jsonl\nquit\n", capture_output=True, text=True, timeout=60).stdout
+    size = re.search(r'"st_size": (\d+)', out)
+    return int(size.group(1)) if size else 0
 
 
 def stop(name, run_id=None):
