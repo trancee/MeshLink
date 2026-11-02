@@ -94,7 +94,7 @@ class DiscoveryService : Service() {
 
 /** Buffered JSONL writer; the scanner flushes once a second so the host can pull a consistent prefix. */
 class JsonlFile(file: File) {
-    private val writer = file.bufferedWriter(Charsets.UTF_8, 1 shl 16).also { file.parentFile?.mkdirs() }
+    private val writer = file.also { it.parentFile?.mkdirs() }.bufferedWriter(Charsets.UTF_8, 1 shl 16)
 
     @Synchronized
     fun emit(fields: Map<String, Any?>) {
