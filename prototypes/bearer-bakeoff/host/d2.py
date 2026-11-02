@@ -80,7 +80,6 @@ def ios_cells(a):
     states = a.states.split(",")
     android = [
         ("nothing2", ["filter=none", "scan_mode=low_latency", "rescan_s=240"], False),
-        ("pixel6", ["filter=none", "scan_mode=low_latency", "scan_type=passive", "rescan_s=240"], False),
         ("moto30", ["filter=mesh", "scan_mode=balanced"], True),
         ("xcover4", [f"filter={a.ovf_filter}", "scan_mode=balanced"], True),
     ]
@@ -145,17 +144,17 @@ def t11(a):
     ios = [("se2016", ["filter=mesh", "bg=1", "rescan_s=10"]), ("ipx", ["filter=mesh", "bg=1", "rescan_s=10"]),
            ("ip12mini", ["filter=mesh", "bg=1", "rescan_s=10"]), ("se2020", ["filter=mesh", "bg=1"]),
            ("ip15", ["filter=mesh", "bg=1", "rescan_s=10", "dups=0"])]
-    clocks(a.run, ["nothing2", "pixel6", "zflip4"] + [n for n, _ in ios])
+    clocks(a.run, ["nothing2", "nokiax20", "zflip4"] + [n for n, _ in ios])
     android_scanners(a.run, android)
     try:
         stop("zflip4")
         launch(a.run, "zflip4", ["disc=adv", "adv=set", f"duration={a.cell + 120}", "restart_every=10", "restart_kind=new_set",
                                  "restart_off=1"])
-        cell(a.run, "t11", "pixel6", ["adv=set"], a.cell, ios)
+        cell(a.run, "t11", "nokiax20", ["adv=set"], a.cell, ios)
     finally:
-        for name in [n for n, _ in ios] + ["nothing2", "zflip4", "pixel6"]:
+        for name in [n for n, _ in ios] + ["nothing2", "zflip4", "nokiax20"]:
             stop(name, a.run)
-        fetch_all(a.run, [n for n, _ in ios] + ["nothing2", "zflip4", "pixel6"])
+        fetch_all(a.run, [n for n, _ in ios] + ["nothing2", "zflip4", "nokiax20"])
 
 
 def t3(a):

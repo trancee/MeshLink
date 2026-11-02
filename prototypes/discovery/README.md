@@ -59,7 +59,7 @@ This file is committed **before** each run. A criterion added after its run is m
 | D3 | T7 | Legacy vs extended reception, Coded on iOS |
 | D4 | — | iPhone 15 incoming-link closes |
 | T4 | T4 | Live Activity. **Skipped:** needs an ActivityKit widget extension and Live Activity UI in the lab app; not cheap. Unverified. |
-| T9 | T9 | Android 17 scan allowance. Only Pixel 6 runs Android 17. Run only if lab time remains. |
+| T9 | T9 | Android 17 scan allowance. Only Pixel 6 runs Android 17 (no second Android 17 OEM in the lab). Run `t9-*`, see below. |
 | — | T12 | Play review. Out of scope (external submission). |
 
 ## Controller classes (measured, run `caps-20261102`)
@@ -143,7 +143,7 @@ This file is committed **before** each run. A criterion added after its run is m
   - `d2-and-*`: advertisers Pixel 6 (`AdvertisingSet`) then S10e (`startAdvertising`), each fg / screen-off FGS
     (`delay_s=8`, screen off and battery unplugged before the start), 300 s per cell. Scanners: Nothing 2 fg unfiltered;
     edge 30 and XCover 4 screen-off FGS service filter; per cell iPhone 15 and 12 mini fg, SE 2016 and iPhone X bg.
-  - `t11-*`: Pixel 6 fg idle (the stable peer) + Z Flip4 "ticker" (new `AdvertisingSet` every 10 s, so background
+  - `t11-*`: Nokia X20 fg idle (the stable peer; Pixel 6 is busy with T9) + Z Flip4 "ticker" (new `AdvertisingSet` every 10 s, so background
     scanners get callbacks); SE 2016, iPhone X, 12 mini, iPhone 15 (no duplicates) bg with `rescan_s=10`; SE 2020 bg
     without rescans as the baseline; 300 s. Metric: share of scan restarts followed by a report of the stable peer
     (identified as the identifier seen for > 60 s) before the next restart.
@@ -177,3 +177,14 @@ This file is committed **before** each run. A criterion added after its run is m
   - If not reproduced in 3 reps: report "not reproduced with build `<sha>`"; the old build stays a candidate cause.
   - Close = hub record of an inbound link ending (`unsubscribed`/`closed`) before the central's `hold_end`.
   - Logs: hub `idevicesyslog`/`log collect` is attempted for `bluetoothd` lines around each close; listed, not shipped.
+
+## T9 Android 17 scan allowance (run `t9-*`, 2 h, Pixel 6 only)
+
+- `host/t9.py`: Pixel 6 FGS scan, `filter=mesh`, BALANCED, one scan session without app restarts, 60 min screen on
+  (charging) then 60 min screen off with `dumpsys battery unplug`. nova 9 advertises layout E idle the whole time.
+- Host polls `dumpsys bluetooth_manager` (our app's LE Scanner Map entry) every 60 s: ongoing scan mode, app importance,
+  per-mode durations, suspend time, results screen on/off. Snapshots kept raw (diagnostic, not shipped).
+- Runs in parallel with D1-ctl-E, d2-ios, t11 (stable peer Nokia X20 instead of Pixel 6), t3; `d2-and` runs after T9. Passive scan → T1 only.
+- **Criteria:** pass = mode timeline recorded. Downgrade observed = ongoing mode leaves BALANCED, or results stop for
+  ≥ 5 min while the beacon runs. Report the time of each change vs the desk note's 24 min/h allowance.
+
