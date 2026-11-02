@@ -4,6 +4,7 @@
   python3 host/analyze_discovery.py d1 RUN_DIR [RUN_DIR...]   # rotation + restart control -> summary-d1.md, CSVs
   python3 host/analyze_discovery.py d2 RUN_DIR [RUN_DIR...]   # background matrix (T2/T8/T10) + T11 -> summary-d2.md, CSVs
   python3 host/analyze_discovery.py t3 RUN_DIR [RUN_DIR...]   # overflow discovery trials -> summary-t3.md, CSV
+  python3 host/analyze_discovery.py d4 RUN_DIR [RUN_DIR...]   # bakeoff phub runs: hub-side inbound closes -> summary-d4.md, CSV
 
 Attribution: Android advertisers log every 8 B advertisement ID (layout A) in `adv_start`; scanners see it as
 `a:<hex>`. iPhones in multi-advertiser runs use local name `ML-<tag>` (`name:` ids).
@@ -384,6 +385,45 @@ def t3(runs, out_dir):
     print("\n".join(lines))
 
 
+def d4(runs, out_dir):
+    """A hub close is "early" when the central's hold ended with a failure (the link dropped before `duration`)."""
+    rows, lines = [], ["# D4 iPhone 15 inbound links (phub)", "",
+                       "| run | centrals (arrival order) | max links | early closes | links at each early close |",
+                       "|---|---|---|---|---|"]
+    for run in runs:
+        hub = next((recs for d, recs in run.files.items() if d.endswith("-peripheral")), [])
+        holds = {d[: -len("-hold")]: recs for d, recs in run.files.items() if d.endswith("-hold")}
+        active, max_links, at_close = 0, 0, {}
+        for r in hub:
+            if r.get("test") == "peripheral_link_open":
+                active = r.get("active_links") or active + 1
+                max_links = max(max_links, active)
+            elif r.get("test") == "peripheral_link_end":
+                at_close.setdefault((r.get("central") or {}).get("model"), []).append((r.get("date"), active, r.get("error")))
+                active = max(0, active - 1)
+        order = sorted(holds, key=lambda d: next((r.get("date") for r in holds[d] if r.get("test") == "hold_connect"), "~"))
+        early = []
+        for device in order:
+            recs = holds[device]
+            connect = next((r for r in recs if r.get("test") == "hold_connect"), {})
+            end = next((r for r in recs if r.get("test") == "hold_end"), {})
+            model = (end.get("central") or connect.get("central") or (recs[0].get("reporter") if recs else {}) or {}).get("model")
+            hub_ends = at_close.get(model, [])
+            failed = bool(end) and end.get("outcome") != "ok"
+            rows.append({"run": run.name, "central": device, "connect": connect.get("date"), "connect_outcome": connect.get("outcome"),
+                         "hold_end": end.get("date"), "hold_outcome": end.get("outcome"), "hold_error": end.get("error"),
+                         "hub_end": hub_ends[0][0] if hub_ends else None, "links_before_hub_end": hub_ends[0][1] if hub_ends else None,
+                         "hub_error": hub_ends[0][2] if hub_ends else None})
+            if failed:
+                early.append((device, hub_ends[0][1] if hub_ends else "?"))
+        lines.append(f"| {run.name} | {', '.join(order)} | {max_links} | {len(early)} | "
+                     f"{', '.join(f'{d}@{n}' for d, n in early) or '—'} |")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(out_dir / "d4-links.csv", rows)
+    (out_dir / "summary-d4.md").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -399,7 +439,7 @@ def main():
         sys.exit(__doc__)
     runs = [Run(d) for d in sys.argv[2:]]
     out = Path(__file__).resolve().parent / "results" / "summary"
-    {"d1": d1, "d2": d2, "t3": t3}[sys.argv[1]](runs, out)
+    {"d1": d1, "d2": d2, "t3": t3, "d4": d4}[sys.argv[1]](runs, out)
 
 
 if __name__ == "__main__":
