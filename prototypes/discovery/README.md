@@ -213,6 +213,13 @@ This file is committed **before** each run. A criterion added after its run is m
   - Logs: hub `idevicesyslog`/`log collect` is attempted for `bluetoothd` lines around each close; listed, not shipped.
   - Runner: `host/d4.sh RUN STAGGER PEER...` wraps `phub` and captures the hub's `bluetoothd` syslog (scan spam
     filtered out) to `results/RUN/ip15-bluetoothd.log`. Peers keep step 4's order: Androids first.
+- **Deviations (logged as they happened):**
+  - `d4-mix-r1`: the Pixel 6 installed a system OTA and rebooted at ≈ 18:15 CET (`sys.boot.reason=reboot,ota`,
+    build CP3A.260905.009 → CP3A.261005.002.A1). Its link ended at 17:15:46 UTC. This is a central-side close, so
+    it is not counted. `phub` crashed on the adb fetch timeout; files were fetched by hand with `bakeoff.fetch`.
+  - `d4.sh` killed only the `grep`, so `idevicesyslog` lingered after r1 and r2 (killed by PID). Fixed in `fa4cb30`
+    before r3.
+- **Result:** not reproduced. 0 hub-side early closes in 3 of 3 reps; 4 links held 500 s each rep. Variants not run.
 
 ## T9 Android 17 scan allowance (run `t9-*`, 2 h, Pixel 6 only)
 
