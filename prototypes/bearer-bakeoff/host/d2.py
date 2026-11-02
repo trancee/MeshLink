@@ -121,8 +121,7 @@ def android_cells(a):
         ("moto30", ["filter=mesh", "scan_mode=balanced"], True),
         ("xcover4", ["filter=mesh", "scan_mode=balanced"], True),
     ]
-    ios = [("ip15", ["filter=mesh"]), ("ip12mini", ["filter=mesh"]), ("se2016", ["filter=mesh", "bg=1"]),
-           ("ipx", ["filter=mesh", "bg=1"])]
+    ios = [(n, ["filter=mesh"]) for n in a.ios_fg.split(",")] + [(n, ["filter=mesh", "bg=1"]) for n in a.ios_bg.split(",")]
     names = [n for n, _ in advertisers]
     clocks(a.run, [n for n, _, _ in android] + [n for n, _ in ios] + names)
     scrub(a.run, [n for n, _ in ios])
@@ -214,6 +213,7 @@ def main():
     p.add_argument("--ovf-filter", default="apple")
     p = sub.add_parser("android-cells"); p.add_argument("run"); p.add_argument("--adv", default="pixel6:set,s10e:legacy")
     p.add_argument("--states", default="fg,off"); p.add_argument("--cell", type=int, default=300)
+    p.add_argument("--ios-fg", default="ip15,ip12mini"); p.add_argument("--ios-bg", default="se2016,ipx")
     p = sub.add_parser("t11"); p.add_argument("run"); p.add_argument("--cell", type=int, default=300)
     p = sub.add_parser("t3"); p.add_argument("run"); p.add_argument("--adv", default="ip15")
     p.add_argument("--scanners", default="ipx,se2020,ip12mini"); p.add_argument("--trials", type=int, default=7)
