@@ -49,6 +49,13 @@ object BakeoffIos {
             grant(onStatus)
             return
         }
+        if (tokens.any { it.startsWith("disc=") }) {
+            val raw = tokens.associate { it.substringBefore('=') to it.substringAfter('=') }
+            val disc = IosDiscovery(raw + ("model" to "Apple ${machine()}"), FileLogSink(resultsPath(raw["run"] ?: "adhoc")), onStatus)
+            discovery = disc
+            disc.start(scope)
+            return
+        }
         if (tokens.none { it.startsWith("role=") }) {
             onStatus("idle: launch with arguments role=... run=...")
             return
@@ -76,6 +83,13 @@ object BakeoffIos {
         val runner = BakeoffRunner(config, info, sink, central, IosPeripheral(sink), onStatus)
         onStatus("run ${config.runId} role=${config.role} bt_auth=${authorizationName()}")
         job = runner.start(scope)
+    }
+
+    private var discovery: IosDiscovery? = null
+
+    /** Swift shell forwards Darwin notifications (com.apple.springboard.lockstate, hasBlankedScreen) here. */
+    fun systemEvent(name: String, state: Long) {
+        discovery?.systemEvent(name, state)
     }
 
     private var grantManagers: List<Any> = emptyList()

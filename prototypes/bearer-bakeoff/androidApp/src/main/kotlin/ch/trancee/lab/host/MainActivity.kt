@@ -44,6 +44,11 @@ class MainActivity : Activity() {
             Log.e(TAG, "missing permissions: $missing")
             return
         }
+        if (args.contains("disc=")) {
+            startForegroundService(android.content.Intent(this, DiscoveryService::class.java).putExtra("args", args))
+            setStatus("discovery: $args")
+            return
+        }
         startRun(BakeoffConfig.parse(listOf(args)))
     }
 

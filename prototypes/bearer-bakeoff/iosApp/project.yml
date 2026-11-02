@@ -34,6 +34,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSBluetoothAlwaysUsageDescription: MeshLink bearer bake-off prototype measures BLE links between test phones.
         UIFileSharingEnabled: true
+        UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
         LSSupportsOpeningDocumentsInPlace: true
   # UI-test runner that accepts the Bluetooth permission alert (exact labels only); see GrantBluetoothTests.swift.
   BakeoffGrantUITests:
