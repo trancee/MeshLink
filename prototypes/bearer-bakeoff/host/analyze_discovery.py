@@ -12,6 +12,7 @@ Attribution: advertisers log every 8 B advertisement ID in `adv_start` (layout E
 """
 import csv
 import json
+import os
 import statistics
 import sys
 from collections import defaultdict
@@ -584,6 +585,15 @@ def main():
         sys.exit(__doc__)
     runs = [Run(d) for d in sys.argv[2:]]
     out = Path(__file__).resolve().parent / "results" / "summary"
+    tag = os.environ.get("SUMMARY_TAG")
+    if tag:
+        # Write to a scratch dir, then rename every file with the tag (summary-d1.md -> summary-d1-<tag>.md).
+        scratch = out / f".{tag}"
+        {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4}[sys.argv[1]](runs, scratch)
+        for path in scratch.iterdir():
+            path.replace(out / f"{path.stem}-{tag}{path.suffix}")
+        scratch.rmdir()
+        return
     {"d1": d1, "d2": d2, "t3": t3, "d3": d3, "d4": d4}[sys.argv[1]](runs, out)
 
 
