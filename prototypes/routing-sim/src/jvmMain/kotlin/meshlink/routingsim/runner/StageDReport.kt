@@ -518,12 +518,27 @@ object StageDReport {
             "meas" to "bake-off calibration",
             "meas+cap4" to "bake-off calibration, iOS ≤ 4 inbound",
             "meas+cap4+hide" to "bake-off, iOS ≤ 4 inbound, hide when full",
+            "base+cap3+hide" to "model calibration, iOS ≤ 3 inbound, undiscoverable at 3",
+            "meas+cap3+hide" to "bake-off calibration, iOS ≤ 3 inbound, undiscoverable at 3",
         )
 
-    private fun ios4Section(ios4: List<AggregateRow>): String {
+    /** Cap 3 vs cap 4 (stage D addendum 2): [rows] holds both sets' aggregates. */
+    fun ios3Html(rows: List<AggregateRow>, notes: String): String {
+        val sb = StringBuilder(HtmlReport.head("MeshLink routing simulation — iPhone incoming-link cap 3 vs 4"))
+        sb.append(notes)
+        sb.append(ios4Section(rows, listOf("base", "base+cap4", "base+cap3+hide", "meas", "meas+cap4", "meas+cap3+hide"), intro = false))
+        sb.append(glossary()).append("</main></body></html>\n")
+        return sb.toString()
+    }
+
+    private fun ios4Section(
+        ios4: List<AggregateRow>,
+        calibs: List<String> = listOf("base", "base+cap4", "meas", "meas+cap4", "meas+cap4+hide"),
+        intro: Boolean = true,
+    ): String {
         if (ios4.isEmpty()) return ""
-        val sb = StringBuilder("<h2>Recheck: iPhones keep at most 4 incoming links</h2>")
-        sb.append(
+        val sb = StringBuilder(if (intro) "<h2>Recheck: iPhones keep at most 4 incoming links</h2>" else "<h2>Results</h2>")
+        if (intro) sb.append(
             """<p>The bearer bake-off (real devices) found that an iPhone in the peripheral role keeps at most 4 incoming links and
             closes the rest itself. Phones that start a link (central role) reached 7–9 links. Here an iOS phone refuses every incoming
             connection beyond 4 (the phone that dialed sees a failed connection). Outgoing links are unchanged. The recommended v1
@@ -553,7 +568,8 @@ object StageDReport {
         for ((_, l) in metrics) sb.append("<th>${esc(l)}</th>")
         sb.append("<th class=l>v1 criteria</th><th class=l>flooding criteria</th></tr>")
         for (cell in cells) {
-            for ((cal, name) in calibNames) {
+            for (cal in calibs) {
+                val name = calibNames[cal] ?: cal
                 val idx = Index(ios4.filter { it.k("drive") == cal })
                 val e = evaluate(idx, cell, stageD) ?: continue
                 val f = evaluate(idx, cell, flood)
@@ -611,4 +627,11 @@ fun stageDReport(out: File) {
         )
     File(out, "stage-d-report.html").writeText(html)
     println("wrote ${File(out, "stage-d-report.html")}")
+}
+
+fun stageDIos3Report(out: File, cap4Dir: File) {
+    val rows = RawCsv.read(CRaw.file(out, CSet.D_IOS3)) + RawCsv.read(CRaw.file(cap4Dir, CSet.D_IOS4))
+    val notes = File(out, "findings.html").takeIf { it.exists() }?.readText() ?: ""
+    File(out, "ios-cap3-report.html").writeText(StageDReport.ios3Html(CAggregate.aggregate(rows), notes))
+    println("wrote ${File(out, "ios-cap3-report.html")}")
 }

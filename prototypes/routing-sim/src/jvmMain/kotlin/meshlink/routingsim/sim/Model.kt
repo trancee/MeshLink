@@ -68,8 +68,8 @@ data class Calibration(
         /**
          * Named calibrations for the stage D recheck: "base" (stages A–D), "meas" (bearer bake-off measurements:
          * per-platform throughput and RTT, GATT setup 1.3–3.7 s, PQ XXhfs handshake 101–255 ms, up to 3 connect
-         * retries with 500 ms × n backoff), plus "+cap4" (iOS keeps at most 4 inbound links) and "+hide" (iOS stops
-         * advertising while at that cap).
+         * retries with 500 ms × n backoff), plus "+cap4" / "+cap3" (iOS keeps at most 4 / 3 inbound links) and "+hide"
+         * (an iOS phone at that cap is not discoverable: it is absent from scans and therefore from density estimates).
          */
         fun named(label: String): Calibration {
             var c = Calibration()
@@ -83,6 +83,7 @@ data class Calibration(
                                 connectRetries = 3, perPlatformLinks = true,
                             )
                         "cap4" -> c.copy(iosInboundCap = 4)
+                        "cap3" -> c.copy(iosInboundCap = 3)
                         "hide" -> c.copy(iosHideAtInboundCap = true)
                         else -> error("unknown calibration part $part")
                     }

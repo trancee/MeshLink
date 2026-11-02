@@ -313,7 +313,9 @@ java -Xmx3g -cp "$CP" $M d-pilot --out DIR --set=main --seeds=1           # pilo
 java -Xmx3g -cp "$CP" $M d-run --out DIR --set=big,main,conv,life,pin     # main grid (resumable)
 java -Xmx3g -cp "$CP" $M d-run --out DIR --set=big-v1,life-v1             # follow-up for the switched v1
 java -Xmx3g -cp "$CP" $M d-run --out DIR --set=ios4 --seeds=5             # iOS inbound cap + bake-off calibration recheck
+java -Xmx3g -cp "$CP" $M d-run --out DIR/ios-cap3 --set=ios3 --seeds=5   # iOS inbound cap 3, undiscoverable at the cap
 java -cp "$CP" $M d-aggregate --out DIR && java -cp "$CP" $M d-report --out DIR   # DIR/stage-d-report.html
+java -cp "$CP" $M d-ios3-report --out DIR/ios-cap3 --cap4=DIR                       # DIR/ios-cap3/ios-cap3-report.html
 ```
 
 ### Stage D grid
@@ -327,6 +329,7 @@ java -cp "$CP" $M d-aggregate --out DIR && java -cp "$CP" $M d-report --out DIR 
 | pin | dynamic cells × 10 seeds, pinned topology; UA PIN, B1, BA PIN+CU | 160 | |
 | (one `d-run` for the five sets above) | | 665 | 3,763 s |
 | life-v1, big-v1 (follow-up) | life cells with U1, UA F, UA F+K2; N = 1000 with UA, UA F+K2 | 85 | 857 s |
+| ios3 (addendum 2) | as ios4 with cap 3 and an iPhone at the cap not discoverable; calibrations base+cap3+hide, meas+cap3+hide × 5 seeds; output `stage-d/ios-cap3/` | 40 | 26 s |
 | ios4 (addendum) | half-iOS medium static N = 50/200, high static N = 200, arrival N = 200 × 5 calibrations × 5 seeds; U1, UA F+K2, B1, BA CU | 100 | 55 s |
 
 Cuts against the pre-pilot plan, to stay near the ~1 h budget after adding F: fixed cells in `main` at 5 seeds instead
@@ -343,7 +346,8 @@ and the follow-up, about 20 min over budget.
 | `base` | the stage A–D calibration above |
 | `meas` | link throughput and RTT by the dialing (central) phone: Android 47–79 KB/s, 30–45 ms; iPhone 19–31 KB/s, 60 ms. GATT set-up U(1.3, 3.7) s. Handshake PQ XXhfs U(101, 255) ms. Up to 3 retries inside one dial, 500 ms × attempt backoff, each retry failing with the retry probability 0.1 (+ contention) |
 | `cap4` | an iOS phone refuses incoming connections while it holds 4 incoming links or reserved incoming dials; outgoing links unchanged |
-| `hide` | an iOS phone stops advertising while at that cap (candidate fix) |
+| `cap3` | the same with 3 incoming links (v1 rule after the bake-off found an iPhone X invisible to scanners at 4) |
+| `hide` | an iOS phone at the cap is not discoverable: absent from scans and therefore from density estimates |
 
 Source: MeshLink bearer bake-off on real devices (2026-11). Not changed: supervision-drop hazard (still fitted to cairn),
 first-attempt failure 0.3, contention model, iOS background windows. The iPhone peripheral-side throughput is not measured,

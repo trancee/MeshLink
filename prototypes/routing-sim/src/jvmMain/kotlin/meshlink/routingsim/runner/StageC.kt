@@ -66,6 +66,9 @@ enum class CSet(
 
     /** Stage D addendum: iOS inbound cap of 4 and the bearer bake-off calibration (half-iOS cells). */
     D_IOS4("d-ios4"),
+
+    /** Stage D addendum 2: iOS inbound cap of 3, undiscoverable at the cap. */
+    D_IOS3("d-ios3"),
 }
 
 fun stageCInstances(set: CSet): List<InstanceConfig> =

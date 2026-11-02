@@ -56,7 +56,7 @@ object StageDPlan {
                     listOf(10_000L, 60_000L).map { hold -> c.copy(lifetimeMs = 120_000L, minHoldMs = hold, skewMs = 30_000L, rotation = true) }
                 }
             CSet.D_BIG_V1 -> listOf(ua(), ua(V1))
-            CSet.D_IOS4 -> listOf(u1, ua(V1), b1, ba(FINAL_BROADCAST))
+            CSet.D_IOS4, CSet.D_IOS3 -> listOf(u1, ua(V1), b1, ba(FINAL_BROADCAST))
             else -> emptyList()
         }
 
@@ -124,9 +124,19 @@ object StageDPlan {
     val ios4Calibs = listOf("base", "base+cap4", "meas", "meas+cap4", "meas+cap4+hide")
 
     /** iOS-cap recheck: medium and high static cells plus the arrival scenario, half-iOS, N = 200 (and medium N = 50). */
+    /** Cap-3 recheck: an iPhone at 3 inbound links is undiscoverable (bake-off: iPhone X invisible at 4). */
+    val ios3Calibs = listOf("base+cap3+hide", "meas+cap3+hide")
+
+    fun ios3(
+        gap: Long,
+        seeds: Int = 5,
+    ) = ios4(gap, seeds, ios3Calibs, CSet.D_IOS3)
+
     fun ios4(
         gap: Long,
         seeds: Int = 3,
+        calibs: List<String> = ios4Calibs,
+        set: CSet = CSet.D_IOS4,
     ): List<CSpec> {
         val cells =
             listOf(
@@ -135,7 +145,7 @@ object StageDPlan {
                 StageCPlan.scenario(Density.HIGH, 200, MobilityKind.STATIC, PlatformMix.HALF_IOS, 5),
                 StageCPlan.scenario(Density.DYNAMIC, 200, MobilityKind.ARRIVAL, PlatformMix.HALF_IOS, 5),
             )
-        return ios4Calibs.flatMap { c -> cells.flatMap { sc -> (1..seeds).map { CSpec(sc, Topo.ADAPT, it, CSet.D_IOS4, gap, calib = c) } } }
+        return calibs.flatMap { c -> cells.flatMap { sc -> (1..seeds).map { CSpec(sc, Topo.ADAPT, it, set, gap, calib = c) } } }
     }
 
     fun pin(
@@ -168,6 +178,7 @@ fun stageD(
         if ("life-v1" in sets) out += StageDPlan.lifeV1(gap, seeds ?: 10)
         if ("big-v1" in sets) out += StageDPlan.bigV1(gap, seeds ?: 5)
         if ("ios4" in sets) out += StageDPlan.ios4(gap, seeds ?: 3)
+        if ("ios3" in sets) out += StageDPlan.ios3(gap, seeds ?: 5)
         return out
     }
     val sets = (opt("set") ?: "main,conv,big,life,pin").split(',')
@@ -193,6 +204,7 @@ fun stageD(
             }
         }
         "d-report" -> stageDReport(outDir)
+        "d-ios3-report" -> stageDIos3Report(outDir, File(opt("cap4") ?: error("--cap4=DIR with raw-d-ios4.csv")))
         else -> error("unknown $cmd")
     }
 }
