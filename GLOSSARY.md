@@ -29,8 +29,12 @@ The long-lived identity of one app installation; applications map installation i
 _Avoid_: User ID, account, device ID
 
 **Preset**:
-A named bundle of enabled features and settings, either built in for a reference scenario or defined by the application on top of a built-in one; local to a node, so nodes with different presets can share a mesh.
+A named set of default values for feature toggles and settings, either built in for a reference scenario or defined by the application on top of a built-in one; the application's configuration overrides it. Local to a node, so nodes with different presets can share a mesh.
 _Avoid_: Profile (reserved for security profile), mode, template
+
+**Feature toggle**:
+A configuration switch that turns a feature on or off for one node's own sending, holding or radio use; it never changes what the node relays or parses.
+_Avoid_: Plugin, module (reserved for build modules), capability
 
 **Proximity**:
 A coarse, locally measured estimate of how near a directly linked peer is; never a distance in meters and never sent to other nodes.

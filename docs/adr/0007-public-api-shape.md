@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 1.
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 2.
 
 ## Context
 
@@ -126,3 +126,11 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - ADRs 0001 and 0002 carry a terminology note for `none` → `unsecured`. The glossary, threat model, profile guarantees and tracker use "unsecured".
 - The API itself arrives with the first module code (the modules ticket decides where `meshlink-testing` and the overlay live).
+
+## Amendments
+
+2026-11-03, modules decision (ADR 0011):
+
+- **Testing (decision 15):** `meshlink-testing` serves Kotlin and Android tests only. Swift apps use `MeshLinkTesting`, a pure Swift target with a protocol-based fake in the `meshlink-swift` package, never linked into an app target. A second Kotlin framework beside `MeshLinkKit` is the setup the Kotlin docs call limited.
+- **Swift overlay (decision 14):** lives in the separate `meshlink-swift` repository with `Package.swift`. It gains a Swift protocol that `MeshLink` conforms to, so the fake can stand in for it; it stays idioms only.
+- **Presets (decision 6):** contents and mechanism are in ADR 0011.

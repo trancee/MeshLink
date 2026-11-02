@@ -1,7 +1,7 @@
 # How are modules cut, and how do feature toggles and presets work?
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 09, 12, 14
 
 ## Question
@@ -19,3 +19,14 @@ Decide artifacts (core, bearers, routing, store-and-forward, security profiles),
 - From the [routing decision](14-routing-topology-simulation.md) (ADR 0008): map unicast (flood / U6), broadcast (flood / Plumtree with catch-up), store-and-forward and receipts to modules and toggles. The pinned-low class is the low-latency preset. Config validation rejects message lifetimes under 120 s.
 - From the [bearer decision](12-bearer-phy-bakeoff.md) (ADR 0009): CoC is on by default with an app toggle; decide whether the CoC upgrade is a separate module or core. Android 8/9 builds are GATT only.
 - From the [discovery decision](13-discovery-advertising.md) (ADR 0010): config for the extended-advertising toggle (off by default) and the iOS Live Activity hook (opt-in, plus a how-to guide); background modes per preset; resolving keys only in gated meshes. Follow-up: the `bluetoothd` "scalable pipes are idle" lead for iPhone central links.
+
+## Answer
+
+Decided by grilling on 2026-11-03 (13 questions, all recommendations accepted). Recorded in [ADR 0011](../../../docs/adr/0011-modules-toggles-and-presets.md), with an amendment to ADR 0007.
+
+- **Artifacts:** `meshlink` and `meshlink-testing` on Maven; one umbrella `MeshLinkKit.xcframework`; no crypto-free or per-feature artifact in v1.
+- **Internal modules:** `:meshlink-core` (platform-free logic, Noise behind `CryptoProvider`), `:meshlink-crypto-sodium`, `:meshlink` (adapters, public API, published umbrella), `:meshlink-testing`; a `build-logic/` included build.
+- **Swift:** `Package.swift`, the overlay and a pure Swift `MeshLinkTesting` fake live in a separate `meshlink-swift` repository (creation needs approval); the Kotlin `meshlink-testing` is Kotlin and Android only.
+- **Toggles:** govern only local origination, holding and local radio use, never relaying or the wire format; no relay-off mode.
+- **Presets:** named defaults, overridden by the DSL, validated after merging, printed with sources by `describe()`. A draft matrix for the five built-ins; lifetime, size cap and power values come from later tickets.
+- **Background:** owned by the host app; per-preset how-to guidance only.
