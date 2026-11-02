@@ -1,0 +1,317 @@
+[
+  {
+    "run_id": "m6-inbound-se2016-k1",
+    "k": 1,
+    "new_central": "nothing2",
+    "connected": true,
+    "connect_wait_s": 5.7,
+    "held": [
+      "nothing2"
+    ],
+    "healthy": [
+      "nothing2"
+    ],
+    "links_healthy": "1/1",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 30,
+        "last_rtt_ms": 35.688,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "ipx": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 66,
+          "rssi": -44,
+          "count": 813,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 75,
+          "rssi": -50,
+          "count": 600,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 86,
+          "rssi": -44,
+          "count": 464,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 92,
+          "rssi": -46,
+          "count": 311,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:03:27+0100"
+  },
+  {
+    "run_id": "m6-inbound-se2016-k2",
+    "k": 2,
+    "new_central": "s10e",
+    "connected": true,
+    "connect_wait_s": 17.5,
+    "held": [
+      "nothing2",
+      "s10e"
+    ],
+    "healthy": [
+      "nothing2",
+      "s10e"
+    ],
+    "links_healthy": "2/2",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 39,
+        "last_rtt_ms": 51.202,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 69,
+        "last_rtt_ms": 129.738,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 27,
+        "last_rtt_ms": 81.345,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "ipx": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 16,
+          "rssi": -48,
+          "count": 736,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 86,
+          "rssi": -47,
+          "count": 556,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 52,
+          "rssi": -43,
+          "count": 478,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 47,
+          "rssi": -44,
+          "count": 349,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:04:46+0100"
+  },
+  {
+    "run_id": "m6-inbound-se2016-k3",
+    "k": 3,
+    "new_central": "mi8",
+    "connected": false,
+    "connect_wait_s": 104.7,
+    "held": [
+      "nothing2",
+      "s10e",
+      "mi8"
+    ],
+    "healthy": [
+      "s10e"
+    ],
+    "links_healthy": "1/3",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 93,
+        "last_rtt_ms": 215.073,
+        "ended": true,
+        "end_error": "LinkClosedException: gatt-central:69:10:91:B7:C2:CF closed: disconnected status=8"
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 78,
+        "last_rtt_ms": 36.493,
+        "ended": false,
+        "end_error": null
+      },
+      "mi8": {
+        "connected": false,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": true,
+        "end_error": "IllegalStateException: hold: no link after 5 attempts"
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 93,
+        "last_rtt_ms": 215.073,
+        "ended": true,
+        "end_error": "LinkClosedException: gatt-central:69:10:91:B7:C2:CF closed: disconnected status=8"
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 108,
+        "last_rtt_ms": 52.295,
+        "ended": false,
+        "end_error": null
+      },
+      "mi8": {
+        "connected": false,
+        "connect_failures": [
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133",
+          "IllegalStateException: disconnected status=133"
+        ],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": true,
+        "end_error": "IllegalStateException: hold: no link after 5 attempts"
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2
+    ],
+    "hub_link_closes": [
+      {
+        "date": "2026-11-02T09:05:39.818972Z",
+        "peer": "Nothing A065",
+        "error": "LinkClosedException: gatt-peripheral:101AD538-4397-22A4-26C6-B8B55E20C3A8 closed: unsubscribed"
+      }
+    ],
+    "probe": {
+      "ipx": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 31,
+          "rssi": -46,
+          "count": 796,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 17,
+          "rssi": -45,
+          "count": 561,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "seen": true,
+          "first_ms": 56,
+          "rssi": -43,
+          "count": 475,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "seen": true,
+          "first_ms": 81,
+          "rssi": -47,
+          "count": 288,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:07:32+0100"
+  }
+]

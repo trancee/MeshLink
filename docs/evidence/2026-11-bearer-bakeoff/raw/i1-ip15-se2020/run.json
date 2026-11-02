@@ -1,0 +1,30 @@
+{
+  "run_id": "i1-ip15-se2020",
+  "commit": "2c777d3",
+  "date": "2026-11-01T12:12:20+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "se2020",
+      "platform": "ios",
+      "udid": "se2020",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

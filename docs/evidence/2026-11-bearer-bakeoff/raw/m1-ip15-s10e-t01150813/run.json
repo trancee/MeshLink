@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-ip15-s10e-t01150813",
+  "commit": "f4454e4",
+  "date": "2026-11-01T15:08:13+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

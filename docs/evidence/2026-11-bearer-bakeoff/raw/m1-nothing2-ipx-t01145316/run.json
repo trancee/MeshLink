@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-nothing2-ipx-t01145316",
+  "commit": "f4454e4",
+  "date": "2026-11-01T14:53:16+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    },
+    "peripheral": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

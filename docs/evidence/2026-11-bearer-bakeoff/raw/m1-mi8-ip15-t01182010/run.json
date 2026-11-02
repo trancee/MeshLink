@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-mi8-ip15-t01182010",
+  "commit": "f4454e4",
+  "date": "2026-11-01T18:20:10+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    },
+    "peripheral": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

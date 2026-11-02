@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-se2016-pixel6-t01135500",
+  "commit": "1a78570",
+  "date": "2026-11-01T13:55:00+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

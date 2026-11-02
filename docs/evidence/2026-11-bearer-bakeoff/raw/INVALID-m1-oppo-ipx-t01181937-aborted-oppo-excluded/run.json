@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-oppo-ipx-t01181937",
+  "commit": "f4454e4",
+  "date": "2026-11-01T18:19:37+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "oppo",
+      "platform": "android",
+      "serial": "oppo-wifi:5555",
+      "api": 34
+    },
+    "peripheral": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

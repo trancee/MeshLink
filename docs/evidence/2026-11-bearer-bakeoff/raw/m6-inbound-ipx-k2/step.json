@@ -1,0 +1,101 @@
+{
+  "run_id": "m6-inbound-ipx-k2",
+  "k": 2,
+  "new_central": "s10e",
+  "connected": true,
+  "connect_wait_s": 5.6,
+  "failed_candidates": [],
+  "held": [
+    "nothing2",
+    "s10e"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e"
+  ],
+  "links_healthy": "2/2",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 33,
+      "last_rtt_ms": 52.48,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 63,
+      "last_rtt_ms": 34.433,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 33.764,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "se2016": {
+      "filtered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 22,
+        "rssi": -48,
+        "count": 933,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 35,
+        "rssi": 127,
+        "count": 693,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 58,
+        "rssi": -34,
+        "count": 597,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 58,
+        "rssi": -40,
+        "count": 395,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:45:37+0100"
+}

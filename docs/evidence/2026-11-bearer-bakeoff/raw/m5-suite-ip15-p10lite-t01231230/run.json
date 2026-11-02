@@ -1,0 +1,29 @@
+{
+  "run_id": "m5-suite-ip15-p10lite-t01231230",
+  "commit": "424b149",
+  "date": "2026-11-01T23:12:30+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt",
+    "plan=suite",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "p10lite",
+      "platform": "android",
+      "serial": "p10lite",
+      "api": 26
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

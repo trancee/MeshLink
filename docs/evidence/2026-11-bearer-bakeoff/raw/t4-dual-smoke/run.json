@@ -1,0 +1,27 @@
+{
+  "run_id": "t4-dual-smoke",
+  "commit": "03afe42",
+  "date": "2026-11-01T12:59:23+0100",
+  "phy": "2m",
+  "args": [
+    "n=3",
+    "round=20",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "dual:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "dual:s10e": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

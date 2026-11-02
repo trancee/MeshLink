@@ -1,0 +1,30 @@
+{
+  "run_id": "m2-ip12mini-s10e-t01203040",
+  "commit": "424b149",
+  "date": "2026-11-01T20:30:40+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

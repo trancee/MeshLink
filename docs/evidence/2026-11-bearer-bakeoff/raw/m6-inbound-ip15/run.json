@@ -1,0 +1,73 @@
+{
+  "run_id": "m6-inbound-ip15",
+  "commit": "a965fc1",
+  "date": "2026-11-02T10:18:22+0100",
+  "phy": "default",
+  "args": [
+    "role=hold",
+    "duration=1500"
+  ],
+  "peripheral_args": [
+    "role=peripheral",
+    "duration=1800"
+  ],
+  "devices": {
+    "hub": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "ios_scanner": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "central1": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    },
+    "central2": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    },
+    "central3": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    },
+    "central4": {
+      "name": "p10lite",
+      "platform": "android",
+      "serial": "p10lite",
+      "api": 26
+    },
+    "central5": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    },
+    "central6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "android_scanner": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

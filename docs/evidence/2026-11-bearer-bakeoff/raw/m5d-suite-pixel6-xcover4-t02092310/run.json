@@ -1,0 +1,29 @@
+{
+  "run_id": "m5d-suite-pixel6-xcover4-t02092310",
+  "commit": "9d97545",
+  "date": "2026-11-02T09:23:10+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt",
+    "plan=suite",
+    "phy=2m",
+    "connect_retries=3"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

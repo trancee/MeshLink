@@ -16,6 +16,14 @@ _Avoid_: Device, phone, peer (when meaning the local instance)
 Another node, as seen from the local node.
 _Avoid_: Neighbor (unless directly linked), remote, contact
 
+**Link**:
+A direct Bluetooth connection between two nodes, kept as exactly one per pair even when both connect at once; it carries frames over one bearer at a time.
+_Avoid_: Connection (for the platform object), channel, session
+
+**Bearer**:
+The Bluetooth transport a link uses to carry frames: GATT, or an L2CAP connection-oriented channel that a link upgrades to and falls back from.
+_Avoid_: Transport (too broad), PHY (that is the radio mode), protocol
+
 **Installation identity**:
 The long-lived identity of one app installation; applications map installation identities to their own users.
 _Avoid_: User ID, account, device ID

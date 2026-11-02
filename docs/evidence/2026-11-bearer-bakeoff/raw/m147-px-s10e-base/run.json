@@ -1,0 +1,28 @@
+{
+  "run_id": "m147-px-s10e-base",
+  "commit": "82a7e15",
+  "date": "2026-11-01T12:43:44+0100",
+  "phy": "1m",
+  "args": [
+    "n=20",
+    "bearers=gatt",
+    "plan=connect",
+    "phy=1m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

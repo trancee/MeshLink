@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-oppo-ip12mini-t01170808",
+  "commit": "f4454e4",
+  "date": "2026-11-01T17:08:09+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "oppo",
+      "platform": "android",
+      "serial": "oppo-wifi:5555",
+      "api": 34
+    },
+    "peripheral": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

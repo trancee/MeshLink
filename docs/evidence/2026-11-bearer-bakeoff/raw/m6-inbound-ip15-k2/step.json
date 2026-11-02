@@ -1,0 +1,97 @@
+{
+  "run_id": "m6-inbound-ip15-k2",
+  "k": 2,
+  "new_central": "s10e",
+  "connected": true,
+  "connect_wait_s": 5.6,
+  "failed_candidates": [],
+  "held": [
+    "nothing2",
+    "s10e"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e"
+  ],
+  "links_healthy": "2/2",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 33,
+      "last_rtt_ms": 35.837,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 63,
+      "last_rtt_ms": 40.579,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 33.497,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "se2016": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 40,
+        "rssi": -55,
+        "count": 799,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 23,
+        "rssi": -51,
+        "count": 546,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 48,
+        "rssi": -46,
+        "count": 356,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 140,
+        "rssi": -51,
+        "count": 226,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:20:49+0100"
+}

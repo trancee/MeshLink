@@ -1,0 +1,30 @@
+{
+  "run_id": "m2-se2020-mi8-t01205123",
+  "commit": "424b149",
+  "date": "2026-11-01T20:51:24+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "se2020",
+      "platform": "ios",
+      "udid": "se2020",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

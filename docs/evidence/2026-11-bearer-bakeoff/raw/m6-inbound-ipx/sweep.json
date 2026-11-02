@@ -1,0 +1,615 @@
+[
+  {
+    "run_id": "m6-inbound-ipx-k1",
+    "k": 1,
+    "new_central": "nothing2",
+    "connected": true,
+    "connect_wait_s": 10.7,
+    "failed_candidates": [],
+    "held": [
+      "nothing2"
+    ],
+    "healthy": [
+      "nothing2"
+    ],
+    "links_healthy": "1/1",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 3,
+        "last_rtt_ms": 50.769,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 30,
+        "last_rtt_ms": 50.458,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "se2016": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 96,
+          "rssi": 127,
+          "count": 1032,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 52,
+          "rssi": -53,
+          "count": 710,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 50,
+          "rssi": -35,
+          "count": 692,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 49,
+          "rssi": -34,
+          "count": 442,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:44:32+0100"
+  },
+  {
+    "run_id": "m6-inbound-ipx-k2",
+    "k": 2,
+    "new_central": "s10e",
+    "connected": true,
+    "connect_wait_s": 5.6,
+    "failed_candidates": [],
+    "held": [
+      "nothing2",
+      "s10e"
+    ],
+    "healthy": [
+      "nothing2",
+      "s10e"
+    ],
+    "links_healthy": "2/2",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 33,
+        "last_rtt_ms": 52.48,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 63,
+        "last_rtt_ms": 34.433,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 30,
+        "last_rtt_ms": 33.764,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "se2016": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 22,
+          "rssi": -48,
+          "count": 933,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 35,
+          "rssi": 127,
+          "count": 693,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 58,
+          "rssi": -34,
+          "count": 597,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 58,
+          "rssi": -40,
+          "count": 395,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:45:37+0100"
+  },
+  {
+    "run_id": "m6-inbound-ipx-k3",
+    "k": 3,
+    "new_central": "xcover4",
+    "connected": true,
+    "connect_wait_s": 10.8,
+    "failed_candidates": [],
+    "held": [
+      "nothing2",
+      "s10e",
+      "xcover4"
+    ],
+    "healthy": [
+      "nothing2",
+      "s10e",
+      "xcover4"
+    ],
+    "links_healthy": "3/3",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 69,
+        "last_rtt_ms": 63.112,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 36,
+        "last_rtt_ms": 29.185,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 3,
+        "last_rtt_ms": 50.861,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 96,
+        "last_rtt_ms": 60.538,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 63,
+        "last_rtt_ms": 31.967,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 30,
+        "last_rtt_ms": 37.446,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2,
+      3
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "se2016": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 33,
+          "rssi": -45,
+          "count": 927,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 23,
+          "rssi": -44,
+          "count": 677,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 45,
+          "rssi": -36,
+          "count": 625,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": true,
+          "first_ms": 70,
+          "rssi": -39,
+          "count": 369,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:46:48+0100"
+  },
+  {
+    "run_id": "m6-inbound-ipx-k4",
+    "k": 4,
+    "new_central": "p10lite",
+    "connected": true,
+    "connect_wait_s": 5.6,
+    "failed_candidates": [],
+    "held": [
+      "nothing2",
+      "s10e",
+      "xcover4",
+      "p10lite"
+    ],
+    "healthy": [
+      "nothing2",
+      "s10e",
+      "xcover4",
+      "p10lite"
+    ],
+    "links_healthy": "4/4",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 99,
+        "last_rtt_ms": 49.019,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 66,
+        "last_rtt_ms": 33.005,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 33,
+        "last_rtt_ms": 40.437,
+        "ended": false,
+        "end_error": null
+      },
+      "p10lite": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 129,
+        "last_rtt_ms": 54.962,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 96,
+        "last_rtt_ms": 43.997,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 63,
+        "last_rtt_ms": 51.691,
+        "ended": false,
+        "end_error": null
+      },
+      "p10lite": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 30,
+        "last_rtt_ms": 42.127,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "se2016": {
+        "filtered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:47:54+0100"
+  },
+  {
+    "run_id": "m6-inbound-ipx-k5",
+    "k": 5,
+    "new_central": "pixel6",
+    "connected": false,
+    "connect_wait_s": 104.8,
+    "failed_candidates": [
+      {
+        "central": "mi8",
+        "wait_s": 52.0,
+        "connected": false,
+        "connect_failures": [
+          "IllegalStateException: scan timeout",
+          "IllegalStateException: scan failed 2",
+          "IllegalStateException: scan failed 2",
+          "IllegalStateException: scan failed 2",
+          "IllegalStateException: scan failed 2"
+        ],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": true,
+        "end_error": "IllegalStateException: hold: no link after 5 attempts"
+      },
+      {
+        "central": "pixel6",
+        "wait_s": 104.8,
+        "connected": false,
+        "connect_failures": [
+          "IllegalStateException: scan timeout",
+          "IllegalStateException: scan timeout",
+          "IllegalStateException: scan timeout",
+          "IllegalStateException: scan timeout"
+        ],
+        "echoes": 0,
+        "last_rtt_ms": null,
+        "ended": false,
+        "end_error": null
+      }
+    ],
+    "held": [
+      "nothing2",
+      "s10e",
+      "xcover4",
+      "p10lite"
+    ],
+    "healthy": [
+      "nothing2",
+      "s10e",
+      "xcover4",
+      "p10lite"
+    ],
+    "links_healthy": "4/4",
+    "health_before_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 207,
+        "last_rtt_ms": 67.987,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 174,
+        "last_rtt_ms": 36.574,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 141,
+        "last_rtt_ms": 52.782,
+        "ended": false,
+        "end_error": null
+      },
+      "p10lite": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 75,
+        "last_rtt_ms": 2241.116,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "health_after_probe": {
+      "nothing2": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 234,
+        "last_rtt_ms": 81.464,
+        "ended": false,
+        "end_error": null
+      },
+      "s10e": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 201,
+        "last_rtt_ms": 35.584,
+        "ended": false,
+        "end_error": null
+      },
+      "xcover4": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 168,
+        "last_rtt_ms": 37.894,
+        "ended": false,
+        "end_error": null
+      },
+      "p10lite": {
+        "connected": true,
+        "connect_failures": [],
+        "echoes": 93,
+        "last_rtt_ms": 1552.62,
+        "ended": false,
+        "end_error": null
+      }
+    },
+    "hub_link_opens_active_links": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "hub_link_closes": [],
+    "probe": {
+      "se2016": {
+        "filtered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        }
+      },
+      "pixel6": {
+        "filtered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        },
+        "unfiltered": {
+          "completed": true,
+          "seen": false,
+          "first_ms": null,
+          "rssi": null,
+          "count": 0,
+          "scan_errors": []
+        }
+      }
+    },
+    "probe_seconds": {
+      "filtered": 30,
+      "unfiltered": 20
+    },
+    "date": "2026-11-02T10:51:32+0100"
+  }
+]

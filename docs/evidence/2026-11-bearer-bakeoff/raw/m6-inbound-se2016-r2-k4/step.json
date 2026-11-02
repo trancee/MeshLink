@@ -1,0 +1,139 @@
+{
+  "run_id": "m6-inbound-se2016-r2-k4",
+  "k": 4,
+  "new_central": "p10lite",
+  "connected": true,
+  "connect_wait_s": 5.5,
+  "failed_candidates": [],
+  "held": [
+    "nothing2",
+    "s10e",
+    "xcover4",
+    "p10lite"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e",
+    "xcover4",
+    "p10lite"
+  ],
+  "links_healthy": "4/4",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 147,
+      "last_rtt_ms": 39.617,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 111,
+      "last_rtt_ms": 85.025,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [
+        "IllegalStateException: disconnected status=133"
+      ],
+      "echoes": 33,
+      "last_rtt_ms": 81.826,
+      "ended": false,
+      "end_error": null
+    },
+    "p10lite": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 174,
+      "last_rtt_ms": 55.887,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 138,
+      "last_rtt_ms": 100.083,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [
+        "IllegalStateException: disconnected status=133"
+      ],
+      "echoes": 63,
+      "last_rtt_ms": 156.704,
+      "ended": false,
+      "end_error": null
+    },
+    "p10lite": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 37.182,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "ipx": {
+      "filtered": {
+        "seen": false,
+        "first_ms": null,
+        "rssi": null,
+        "count": 0,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": false,
+        "first_ms": null,
+        "rssi": null,
+        "count": 0,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "seen": false,
+        "first_ms": null,
+        "rssi": null,
+        "count": 0,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": false,
+        "first_ms": null,
+        "rssi": null,
+        "count": 0,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:14:31+0100"
+}

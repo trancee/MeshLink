@@ -1,0 +1,30 @@
+{
+  "run_id": "m2-ipx-mi8-t01210932",
+  "commit": "424b149",
+  "date": "2026-11-01T21:09:32+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

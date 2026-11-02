@@ -1,0 +1,28 @@
+{
+  "run_id": "m3-1m-conn-pixel6-nothing2-t01214913",
+  "commit": "424b149",
+  "date": "2026-11-01T21:49:13+0100",
+  "phy": "1m",
+  "args": [
+    "n=20",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "phy=1m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

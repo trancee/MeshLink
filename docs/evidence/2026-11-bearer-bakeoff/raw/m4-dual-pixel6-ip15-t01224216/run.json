@@ -1,0 +1,28 @@
+{
+  "run_id": "m4-dual-pixel6-ip15-t01224216",
+  "commit": "424b149",
+  "date": "2026-11-01T22:42:17+0100",
+  "phy": "2m",
+  "args": [
+    "n=20",
+    "round=20",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "dual:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "dual:ip15": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

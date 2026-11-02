@@ -1,0 +1,102 @@
+{
+  "run_id": "m6-inbound-se2016-k2",
+  "k": 2,
+  "new_central": "s10e",
+  "connected": true,
+  "connect_wait_s": 17.5,
+  "held": [
+    "nothing2",
+    "s10e"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e"
+  ],
+  "links_healthy": "2/2",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 39,
+      "last_rtt_ms": 51.202,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [
+        "IllegalStateException: disconnected status=133",
+        "IllegalStateException: disconnected status=133"
+      ],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 69,
+      "last_rtt_ms": 129.738,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [
+        "IllegalStateException: disconnected status=133",
+        "IllegalStateException: disconnected status=133"
+      ],
+      "echoes": 27,
+      "last_rtt_ms": 81.345,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "ipx": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 16,
+        "rssi": -48,
+        "count": 736,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 86,
+        "rssi": -47,
+        "count": 556,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 52,
+        "rssi": -43,
+        "count": 478,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 47,
+        "rssi": -44,
+        "count": 349,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:04:46+0100"
+}

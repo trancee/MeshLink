@@ -1,0 +1,27 @@
+{
+  "run_id": "m4-dual-pixel6-s10e-t01224940",
+  "commit": "424b149",
+  "date": "2026-11-01T22:49:40+0100",
+  "phy": "2m",
+  "args": [
+    "n=20",
+    "round=20",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "dual:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "dual:s10e": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

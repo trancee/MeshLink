@@ -1,0 +1,29 @@
+{
+  "run_id": "m4-dual-ip15-se2020-t01225653",
+  "commit": "424b149",
+  "date": "2026-11-01T22:56:53+0100",
+  "phy": "2m",
+  "args": [
+    "n=20",
+    "round=20",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "dual:ip15": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "dual:se2020": {
+      "name": "se2020",
+      "platform": "ios",
+      "udid": "se2020",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

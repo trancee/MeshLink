@@ -1,0 +1,30 @@
+{
+  "run_id": "m2-se2016-s10e-t01203551",
+  "commit": "424b149",
+  "date": "2026-11-01T20:35:51+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

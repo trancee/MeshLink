@@ -1,0 +1,29 @@
+{
+  "run_id": "diag-b1-se2016-s10e",
+  "commit": "31ac3f7",
+  "date": "2026-11-02T00:07:40+0100",
+  "phy": "2m",
+  "args": [
+    "n=3",
+    "bearers=gatt",
+    "phy=2m",
+    "plan=suite"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

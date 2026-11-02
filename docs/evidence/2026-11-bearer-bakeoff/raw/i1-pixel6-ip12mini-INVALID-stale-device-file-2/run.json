@@ -1,0 +1,29 @@
+{
+  "run_id": "i1-pixel6-ip12mini",
+  "commit": "2c777d3",
+  "date": "2026-11-01T12:16:55+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

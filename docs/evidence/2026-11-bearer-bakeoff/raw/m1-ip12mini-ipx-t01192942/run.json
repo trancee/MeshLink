@@ -1,0 +1,31 @@
+{
+  "run_id": "m1-ip12mini-ipx-t01192942",
+  "commit": "424b149",
+  "date": "2026-11-01T19:29:42+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

@@ -1,0 +1,30 @@
+{
+  "run_id": "m5d-conn-ip15-xcover4-t02093349",
+  "commit": "9d97545",
+  "date": "2026-11-02T09:33:49+0100",
+  "phy": "2m",
+  "args": [
+    "n=20",
+    "bearers=gatt",
+    "plan=connect",
+    "phy=2m",
+    "connect_retries=3"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

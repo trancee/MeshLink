@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-se2016-nothing2-t01145029",
+  "commit": "f4454e4",
+  "date": "2026-11-01T14:50:29+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

@@ -1,0 +1,82 @@
+{
+  "run_id": "m6-inbound-ip12mini-k1",
+  "k": 1,
+  "new_central": "nothing2",
+  "connected": true,
+  "connect_wait_s": 5.6,
+  "failed_candidates": [],
+  "held": [
+    "nothing2"
+  ],
+  "healthy": [
+    "nothing2"
+  ],
+  "links_healthy": "1/1",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 53.48,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "se2016": {
+      "filtered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 53,
+        "rssi": -44,
+        "count": 904,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 84,
+        "rssi": -49,
+        "count": 618,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 110,
+        "rssi": -46,
+        "count": 379,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 60,
+        "rssi": -55,
+        "count": 266,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:37:12+0100"
+}

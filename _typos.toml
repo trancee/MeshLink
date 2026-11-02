@@ -3,5 +3,14 @@
 locale = "en-us"
 
 [files]
-# Generated evidence data (simulator CSV columns, rendered HTML reports) is not prose.
-extend-exclude = ["docs/evidence/**/*.csv", "docs/evidence/**/*.html"]
+# Generated evidence data (CSV columns, rendered HTML reports, raw runs, generated summary tables) is not prose.
+extend-exclude = [
+  "docs/evidence/**/*.csv",
+  "docs/evidence/**/*.html",
+  "docs/evidence/**/raw/**",
+  "docs/evidence/**/summary/**",
+]
+
+[default.extend-words]
+# Apple's unique device identifier.
+udid = "udid"

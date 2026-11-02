@@ -1,0 +1,29 @@
+{
+  "run_id": "m5-suite-ip15-xcover4-t01233437",
+  "commit": "424b149",
+  "date": "2026-11-01T23:34:38+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt",
+    "plan=suite",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

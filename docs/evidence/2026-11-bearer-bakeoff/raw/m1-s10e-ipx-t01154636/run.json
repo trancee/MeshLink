@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-s10e-ipx-t01154636",
+  "commit": "f4454e4",
+  "date": "2026-11-01T15:46:37+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    },
+    "peripheral": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

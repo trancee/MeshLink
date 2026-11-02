@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-ip15-pixel6-t01131714",
+  "commit": "f9638b3",
+  "date": "2026-11-01T13:17:14+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

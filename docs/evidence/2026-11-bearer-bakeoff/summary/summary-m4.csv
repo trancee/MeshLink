@@ -1,0 +1,101 @@
+central,peripheral,phy_requested,variant,test,bearer,ok,total,success_rate,first_try_ok,retried,metric,median,p90,min,max,mtu,phy,errors,runs
+?,"Apple iPhone12,8 (iOS 18.7.8)",2m,round=20,peripheral_event,-,21,21,1.0,21,0,-,,,,,,,,m4-dual-ip15-se2020-t01225653
+?,"Apple iPhone12,8 (iOS 18.7.8)",2m,round=20,peripheral_link_open,gatt,20,20,1.0,20,0,-,,,,,,,,m4-dual-ip15-se2020-t01225653
+?,"Apple iPhone12,8 (iOS 18.7.8)",2m,round=20,peripheral_started,-,1,1,1.0,1,0,-,,,,,,,,m4-dual-ip15-se2020-t01225653
+?,"Apple iPhone15,4 (iOS 17.6.1)",2m,round=20,peripheral_event,-,42,42,1.0,42,0,-,,,,,,,,"m4-dual-ip15-se2020-t01225653,m4-dual-pixel6-ip15-t01224216"
+?,"Apple iPhone15,4 (iOS 17.6.1)",2m,round=20,peripheral_link_open,gatt,40,40,1.0,40,0,-,,,,,,,,"m4-dual-ip15-se2020-t01225653,m4-dual-pixel6-ip15-t01224216"
+?,"Apple iPhone15,4 (iOS 17.6.1)",2m,round=20,peripheral_started,-,2,2,1.0,2,0,-,,,,,,,,"m4-dual-ip15-se2020-t01225653,m4-dual-pixel6-ip15-t01224216"
+?,Google Pixel 6 (Android 17 (API 37)),2m,round=20,peripheral_event,-,82,82,1.0,82,0,-,,,,,,,,"m4-dual-pixel6-ip15-t01224216,m4-dual-pixel6-s10e-t01224940"
+?,Google Pixel 6 (Android 17 (API 37)),2m,round=20,peripheral_link_open,gatt,12,12,1.0,12,0,-,,,,,,,,m4-dual-pixel6-s10e-t01224940
+?,Google Pixel 6 (Android 17 (API 37)),2m,round=20,peripheral_started,-,2,2,1.0,2,0,-,,,,,,,,"m4-dual-pixel6-ip15-t01224216,m4-dual-pixel6-s10e-t01224940"
+?,samsung SM-G970U1 (Android 12 (API 31)),2m,round=20,peripheral_event,-,58,58,1.0,58,0,-,,,,,,,,m4-dual-pixel6-s10e-t01224940
+?,samsung SM-G970U1 (Android 12 (API 31)),2m,round=20,peripheral_link_open,gatt,11,11,1.0,11,0,-,,,,,,,,m4-dual-pixel6-s10e-t01224940
+?,samsung SM-G970U1 (Android 12 (API 31)),2m,round=20,peripheral_started,-,1,1,1.0,1,0,-,,,,,,,,m4-dual-pixel6-s10e-t01224940
+"Apple iPhone10,6 (iOS 16.7.16)",?,2m,-,hub_link_added,gatt,0,3,0.0,0,0,-,,,,,,,IllegalStateException: scan timeout,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone12,8 (iOS 18.7.8)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1727.5,1727.5,1727.5,1727.5,527,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone13,1 (iOS 27.0.1)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1749.7,1749.7,1749.7,1749.7,527,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone15,4 (iOS 17.6.1)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,5791.3,5791.3,5791.3,5791.3,527,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,3124.7,3124.7,3124.7,3124.7,527,unavailable(ios),,m4-phub-ip15-t01222247
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: gatt-central:9B7FDEF1-69CE-A0F2-E50A-D67231582BFE closed,m4-phub-ip15-t01222247
+"Apple iPhone10,6 (iOS 16.7.16)","Apple iPhone8,4 (iOS 15.8.8)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1432.4,1432.4,1432.4,1432.4,185,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)",Google Pixel 6 (Android 17 (API 37)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2452.5,2452.5,2452.5,2452.5,517,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,1911.6,1911.6,1911.6,1911.6,517,unavailable(ios),,m4-phub-pixel6-t01221316
+"Apple iPhone10,6 (iOS 16.7.16)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+"Apple iPhone10,6 (iOS 16.7.16)",HUAWEI WAS-LX1A (Android 8.0.0 (API 26)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1455.7,1455.7,1455.7,1455.7,185,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)",Nothing A065 (Android 16 (API 36)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2783.3,2783.3,2783.3,2783.3,517,,,m4-hub-ipx-t01221034
+"Apple iPhone10,6 (iOS 16.7.16)",samsung SM-G970U1 (Android 12 (API 31)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2718.4,2718.4,2718.4,2718.4,517,,,m4-hub-ipx-t01221034
+"Apple iPhone12,8 (iOS 18.7.8)",?,2m,connect_retries=3,hold_connect,gatt,0,5,0.0,0,0,-,,,,,,,IllegalStateException: scan timeout,m4-phub-ipx-t01223218
+"Apple iPhone12,8 (iOS 18.7.8)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,6333.1,6333.1,6333.1,6333.1,515,unavailable(ios),,m4-phub-ip15-t01222247
+"Apple iPhone12,8 (iOS 18.7.8)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: gatt-central:F0FBAAF3-0ECC-2DA4-32DE-A77891478F0B closed,m4-phub-ip15-t01222247
+"Apple iPhone12,8 (iOS 18.7.8)","Apple iPhone15,4 (iOS 17.6.1)",2m,round=20,peripheral_link_end,gatt,0,20,0.0,0,0,-,,,,,,,LinkClosedException: gatt-peripheral:AA73ADF0-6F5B-27A3-2E5B-2521715C5164 closed,m4-dual-ip15-se2020-t01225653
+"Apple iPhone12,8 (iOS 18.7.8)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,1666.9,1666.9,1666.9,1666.9,515,unavailable(ios),,m4-phub-pixel6-t01221316
+"Apple iPhone12,8 (iOS 18.7.8)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+"Apple iPhone13,1 (iOS 27.0.1)",?,2m,connect_retries=3,hold_connect,gatt,0,5,0.0,0,0,-,,,,,,,IllegalStateException: scan timeout,m4-phub-ipx-t01223218
+"Apple iPhone13,1 (iOS 27.0.1)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2441.8,2441.8,2441.8,2441.8,515,unavailable(ios),,m4-phub-ip15-t01222247
+"Apple iPhone13,1 (iOS 27.0.1)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ip15-t01222247
+"Apple iPhone13,1 (iOS 27.0.1)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,1852.7,1852.7,1852.7,1852.7,515,unavailable(ios),,m4-phub-pixel6-t01221316
+"Apple iPhone13,1 (iOS 27.0.1)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+"Apple iPhone15,4 (iOS 17.6.1)",?,2m,-,hub_link_added,gatt,0,3,0.0,0,0,-,,,,,,,timeout,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",?,2m,connect_retries=3,hold_connect,gatt,0,5,0.0,0,0,-,,,,,,,IllegalStateException: scan timeout,m4-phub-ipx-t01223218
+"Apple iPhone15,4 (iOS 17.6.1)","Apple iPhone10,6 (iOS 16.7.16)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1819.9,1819.9,1819.9,1819.9,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)","Apple iPhone12,8 (iOS 18.7.8)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1716.9,1716.9,1716.9,1716.9,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)","Apple iPhone12,8 (iOS 18.7.8)",2m,round=20,peripheral_link_end,gatt,0,20,0.0,0,0,-,,,,,,,LinkClosedException: gatt-peripheral:6D7C6278-0049-73F4-7473-DBA4993F1F72 closed ; LinkClosedException: gatt-peripheral:C7698F87-2FAD-BE08-1CFD-AD3838AB99D9 closed,m4-dual-ip15-se2020-t01225653
+"Apple iPhone15,4 (iOS 17.6.1)","Apple iPhone13,1 (iOS 27.0.1)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1715.1,1715.1,1715.1,1715.1,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)","Apple iPhone8,4 (iOS 15.8.8)",2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,1418.3,1418.3,1418.3,1418.3,185,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",Google Pixel 6 (Android 17 (API 37)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2031.8,2031.8,2031.8,2031.8,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,1952.1,1952.1,1952.1,1952.1,515,unavailable(ios),,m4-phub-pixel6-t01221316
+"Apple iPhone15,4 (iOS 17.6.1)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+"Apple iPhone15,4 (iOS 17.6.1)",HUAWEI WAS-LX1A (Android 8.0.0 (API 26)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,5411.3,5411.3,5411.3,5411.3,185,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",Nothing A065 (Android 16 (API 36)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2542.1,2542.1,2542.1,2542.1,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",samsung SM-G390F (Android 9 (API 28)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2326.7,2326.7,2326.7,2326.7,515,,,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",samsung SM-G390F (Android 9 (API 28)),2m,-,hub_link_lost,gatt,0,1,0.0,0,0,-,,,,,,,echo timeout,m4-hub-ip15-t01220736
+"Apple iPhone15,4 (iOS 17.6.1)",samsung SM-G970U1 (Android 12 (API 31)),2m,-,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,5133.1,5133.1,5133.1,5133.1,515,,,m4-hub-ip15-t01220736
+"Apple iPhone8,4 (iOS 15.8.8)",?,2m,connect_retries=3,hold_connect,gatt,0,5,0.0,0,0,-,,,,,,,IllegalStateException: scan timeout,m4-phub-ipx-t01223218
+"Apple iPhone8,4 (iOS 15.8.8)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,3441.2,3441.2,3441.2,3441.2,185,unavailable(ios),,m4-phub-ip15-t01222247
+"Apple iPhone8,4 (iOS 15.8.8)","Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: disconnected NSError CBErrorDomain:6 The connection has tim,m4-phub-ip15-t01222247
+"Apple iPhone8,4 (iOS 15.8.8)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,5254.4,5254.4,5254.4,5254.4,185,unavailable(ios),,m4-phub-pixel6-t01221316
+"Apple iPhone8,4 (iOS 15.8.8)",Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+Google Pixel 6 (Android 17 (API 37)),?,2m,connect_retries=3,hub_link_added,gatt,0,3,0.0,0,3,-,,,,,,,timeout,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2359.0,2359.0,2359.0,2359.0,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ipx-t01223218
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ipx-t01223218
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,4090.3,4090.3,4090.3,4090.3,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone12,8 (iOS 18.7.8)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,3974.9,3974.9,3974.9,3974.9,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone13,1 (iOS 27.0.1)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2227.7,2227.7,2227.7,2227.7,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2282.3,2282.3,2282.3,2282.3,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ip15-t01222247
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: gatt-central:59:37:A9:90:59:8A closed,m4-phub-ip15-t01222247
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,5851.8,5851.8,5851.8,5851.8,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone15,4 (iOS 17.6.1)",2m,round=20,peripheral_link_end,gatt,0,20,0.0,0,0,-,,,,,,,LinkClosedException: gatt-peripheral:9CC48692-633B-5C3F-B0C1-5763B071C0BD closed,m4-dual-pixel6-ip15-t01224216
+Google Pixel 6 (Android 17 (API 37)),"Apple iPhone8,4 (iOS 15.8.8)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,3094.9,3094.9,3094.9,3094.9,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),Nothing A065 (Android 16 (API 36)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,5435.7,5435.7,5435.7,5435.7,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),Xiaomi MI 8 (Android 10 (API 29)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,7405.4,7405.4,7405.4,7405.4,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),samsung SM-G970U1 (Android 12 (API 31)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,4174.4,4174.4,4174.4,4174.4,517,,,m4-hub-pixel6-t01220051
+Google Pixel 6 (Android 17 (API 37)),samsung SM-G970U1 (Android 12 (API 31)),2m,round=20,peripheral_link_end,gatt,0,11,0.0,0,0,-,,,,,,,LinkClosedException: gatt-peripheral:63:C8:CF:BB:30:45 closed ; LinkClosedException: gatt-peripheral:64:BD:F0:FA:C8:E5 closed ; LinkClosedException: gatt-peripheral:67:C5:F0:6C:37:F2 closed ; LinkClosedException: gatt-peripheral:7F:1F:E4:39,m4-dual-pixel6-s10e-t01224940
+HUAWEI WAS-LX1A (Android 8.0.0 (API 26)),?,2m,connect_retries=3,hold_connect,gatt,0,15,0.0,0,5,-,,,,,,,IllegalStateException: cccd not started ; IllegalStateException: scan timeout ; LinkClosedException: disconnected status=19 ; timeout,"m4-phub-ip15-t01222247,m4-phub-ipx-t01223218,m4-phub-pixel6-t01221316"
+Nothing A065 (Android 16 (API 36)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2916.9,2916.9,2916.9,2916.9,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ipx-t01223218
+Nothing A065 (Android 16 (API 36)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ipx-t01223218
+Nothing A065 (Android 16 (API 36)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2433.9,2433.9,2433.9,2433.9,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ip15-t01222247
+Nothing A065 (Android 16 (API 36)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: gatt-central:59:37:A9:90:59:8A closed,m4-phub-ip15-t01222247
+Nothing A065 (Android 16 (API 36)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,0,1,setup_ms,4012.4,4012.4,4012.4,4012.4,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-pixel6-t01221316
+Nothing A065 (Android 16 (API 36)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+Xiaomi MI 8 (Android 10 (API 29)),?,2m,connect_retries=3,hold_connect,gatt,0,10,0.0,0,0,-,,,,,,,IllegalStateException: scan failed 2 ; IllegalStateException: scan timeout,"m4-phub-ip15-t01222247,m4-phub-pixel6-t01221316"
+Xiaomi MI 8 (Android 10 (API 29)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,5852.3,5852.3,5852.3,5852.3,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ipx-t01223218
+Xiaomi MI 8 (Android 10 (API 29)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ipx-t01223218
+samsung SM-G390F (Android 9 (API 28)),?,2m,connect_retries=3,hold_connect,gatt,0,10,0.0,0,0,-,,,,,,,IllegalStateException: scan failed 2 ; IllegalStateException: scan timeout ; timeout,"m4-phub-ip15-t01222247,m4-phub-ipx-t01223218"
+samsung SM-G390F (Android 9 (API 28)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,5,0.2,0,1,setup_ms,4932.6,4932.6,4932.6,4932.6,517,"tx=phy0,rx=phy0,2m_supported=false",IllegalStateException: scan failed 2,m4-phub-pixel6-t01221316
+samsung SM-G390F (Android 9 (API 28)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,0,1,0.0,0,0,-,,,,,,,echo timeout,m4-phub-pixel6-t01221316
+samsung SM-G970U1 (Android 12 (API 31)),?,2m,connect_retries=3,hub_link_added,gatt,0,4,0.0,0,2,-,,,,,,,IllegalStateException: disconnected status=133 ; timeout,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_connect,gatt,1,2,0.5,0,2,setup_ms,8565.7,8565.7,8565.7,8565.7,517,"tx=2M,rx=2M,2m_supported=true",IllegalStateException: disconnected status=133,m4-phub-ipx-t01223218
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ipx-t01223218
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone10,6 (iOS 16.7.16)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,3357.4,3357.4,3357.4,3357.4,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone12,8 (iOS 18.7.8)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,3379.7,3379.7,3379.7,3379.7,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_connect,gatt,1,1,1.0,0,1,setup_ms,6847.2,6847.2,6847.2,6847.2,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-ip15-t01222247
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-ip15-t01222247
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone15,4 (iOS 17.6.1)",2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2306.8,2306.8,2306.8,2306.8,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone8,4 (iOS 15.8.8)",2m,connect_retries=3,hub_link_added,gatt,2,2,1.0,1,1,setup_ms,3691.0,4667.9,2714.1,4667.9,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),"Apple iPhone8,4 (iOS 15.8.8)",2m,connect_retries=3,hub_link_lost,gatt,0,1,0.0,0,0,-,,,,,,,LinkClosedException: gatt-central:79:31:76:09:67:E0 closed,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_connect,gatt,1,1,1.0,1,0,setup_ms,2784.2,2784.2,2784.2,2784.2,517,"tx=2M,rx=2M,2m_supported=true",,m4-phub-pixel6-t01221316
+samsung SM-G970U1 (Android 12 (API 31)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hold_end,gatt,1,1,1.0,1,0,-,,,,,,,,m4-phub-pixel6-t01221316
+samsung SM-G970U1 (Android 12 (API 31)),Google Pixel 6 (Android 17 (API 37)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,4084.1,4084.1,4084.1,4084.1,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),Google Pixel 6 (Android 17 (API 37)),2m,round=20,peripheral_link_end,gatt,0,12,0.0,0,0,-,,,,,,,LinkClosedException: gatt-peripheral:5E:EE:45:0E:28:07 closed,m4-dual-pixel6-s10e-t01224940
+samsung SM-G970U1 (Android 12 (API 31)),HUAWEI WAS-LX1A (Android 8.0.0 (API 26)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,1,0,setup_ms,2072.4,2072.4,2072.4,2072.4,517,,,m4-hub-s10e-t01220443
+samsung SM-G970U1 (Android 12 (API 31)),Nothing A065 (Android 16 (API 36)),2m,connect_retries=3,hub_link_added,gatt,1,1,1.0,0,1,setup_ms,3731.6,3731.6,3731.6,3731.6,517,,,m4-hub-s10e-t01220443

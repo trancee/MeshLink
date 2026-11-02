@@ -1,0 +1,29 @@
+{
+  "run_id": "m3-1m-suite-pixel6-s10e-t01213159",
+  "commit": "424b149",
+  "date": "2026-11-01T21:31:59+0100",
+  "phy": "1m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=1m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

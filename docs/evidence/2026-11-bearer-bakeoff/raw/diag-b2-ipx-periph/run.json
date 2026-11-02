@@ -1,0 +1,21 @@
+{
+  "run_id": "diag-b2-ipx-periph",
+  "commit": "78ebef1",
+  "date": "2026-11-02T01:22:19+0100",
+  "phy": "default",
+  "args": [
+    "role=peripheral",
+    "duration=360"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "device": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

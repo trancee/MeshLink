@@ -1,0 +1,30 @@
+{
+  "run_id": "m2-ipx-pixel6-t01195846",
+  "commit": "424b149",
+  "date": "2026-11-01T19:58:46+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt+coc",
+    "plan=suite",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

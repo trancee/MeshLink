@@ -1,0 +1,167 @@
+{
+  "run_id": "m6-inbound-se2020-k6",
+  "k": 6,
+  "new_central": "pixel6",
+  "connected": true,
+  "connect_wait_s": 57.8,
+  "failed_candidates": [],
+  "held": [
+    "nothing2",
+    "s10e",
+    "xcover4",
+    "p10lite",
+    "mi8",
+    "pixel6"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e",
+    "xcover4",
+    "p10lite",
+    "mi8",
+    "pixel6"
+  ],
+  "links_healthy": "6/6",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 201,
+      "last_rtt_ms": 47.024,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 168,
+      "last_rtt_ms": 46.171,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 129,
+      "last_rtt_ms": 251.311,
+      "ended": false,
+      "end_error": null
+    },
+    "p10lite": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 96,
+      "last_rtt_ms": 36.469,
+      "ended": false,
+      "end_error": null
+    },
+    "mi8": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 54,
+      "last_rtt_ms": 146.239,
+      "ended": false,
+      "end_error": null
+    },
+    "pixel6": {
+      "connected": true,
+      "connect_failures": [
+        "timeout",
+        "timeout",
+        "LinkClosedException: disconnected status=257"
+      ],
+      "echoes": 3,
+      "last_rtt_ms": 161.376,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 231,
+      "last_rtt_ms": 48.495,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 198,
+      "last_rtt_ms": 44.885,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 156,
+      "last_rtt_ms": 172.781,
+      "ended": false,
+      "end_error": null
+    },
+    "p10lite": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 126,
+      "last_rtt_ms": 54.408,
+      "ended": false,
+      "end_error": null
+    },
+    "mi8": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 81,
+      "last_rtt_ms": 51.136,
+      "ended": false,
+      "end_error": null
+    },
+    "pixel6": {
+      "connected": true,
+      "connect_failures": [
+        "timeout",
+        "timeout",
+        "LinkClosedException: disconnected status=257"
+      ],
+      "echoes": 24,
+      "last_rtt_ms": 822.321,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "se2016": {
+      "filtered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 81,
+        "rssi": -27,
+        "count": 786,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "completed": true,
+        "seen": true,
+        "first_ms": 99,
+        "rssi": -27,
+        "count": 474,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:35:40+0100"
+}

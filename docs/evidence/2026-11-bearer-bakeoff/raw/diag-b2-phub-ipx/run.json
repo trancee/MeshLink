@@ -1,0 +1,48 @@
+{
+  "run_id": "diag-b2-phub-ipx",
+  "commit": "78ebef1",
+  "date": "2026-11-02T01:28:30+0100",
+  "phy": "2m",
+  "args": [
+    "phy=2m",
+    "connect_retries=3",
+    "duration=200"
+  ],
+  "peripheral_args": [
+    "duration=420"
+  ],
+  "devices": {
+    "peripheral:ipx": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "hold:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "hold:nothing2": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    },
+    "hold:s10e": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    },
+    "hold:mi8": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

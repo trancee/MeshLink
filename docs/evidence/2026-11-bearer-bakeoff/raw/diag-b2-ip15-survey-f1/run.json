@@ -1,0 +1,22 @@
+{
+  "run_id": "diag-b2-ip15-survey-f1",
+  "commit": "78ebef1",
+  "date": "2026-11-02T01:22:42+0100",
+  "phy": "default",
+  "args": [
+    "role=central",
+    "survey=25",
+    "survey_filter=1"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "device": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

@@ -30,9 +30,10 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 6. [Documentation architecture](adr/0006-documentation-architecture.md)
 7. [Public API shape and error model](adr/0007-public-api-shape.md)
 8. [Routing, topology and density adaptation](adr/0008-routing-topology-and-density-adaptation.md)
+9. [BLE bearers, PHY policy and link rules](adr/0009-ble-bearers-and-phy-policy.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 
 ## For AI agents
 
-Start at [`AGENTS.md`](../AGENTS.md). The agent layer under [`docs/agents/`](agents/) grows with the code: a generated docs index, contract reference and diagnostic index (ADR 0006).
+Start at [`AGENTS.md`](../AGENTS.md). Before radio, device-lab or proof work, read the [lessons](agents/lessons.md). The agent layer under [`docs/agents/`](agents/) grows with the code: a generated docs index, contract reference and diagnostic index (ADR 0006).

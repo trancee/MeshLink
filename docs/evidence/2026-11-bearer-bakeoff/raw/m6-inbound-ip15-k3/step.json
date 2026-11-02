@@ -1,0 +1,116 @@
+{
+  "run_id": "m6-inbound-ip15-k3",
+  "k": 3,
+  "new_central": "xcover4",
+  "connected": true,
+  "connect_wait_s": 5.6,
+  "failed_candidates": [],
+  "held": [
+    "nothing2",
+    "s10e",
+    "xcover4"
+  ],
+  "healthy": [
+    "nothing2",
+    "s10e",
+    "xcover4"
+  ],
+  "links_healthy": "3/3",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 66,
+      "last_rtt_ms": 283.944,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 33,
+      "last_rtt_ms": 32.822,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 93,
+      "last_rtt_ms": 35.311,
+      "ended": false,
+      "end_error": null
+    },
+    "s10e": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 60,
+      "last_rtt_ms": 104.477,
+      "ended": false,
+      "end_error": null
+    },
+    "xcover4": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 52.234,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1,
+    2,
+    3
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "se2016": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 47,
+        "rssi": -45,
+        "count": 771,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 59,
+        "rssi": -56,
+        "count": 525,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 67,
+        "rssi": -49,
+        "count": 373,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 88,
+        "rssi": -53,
+        "count": 242,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:21:55+0100"
+}

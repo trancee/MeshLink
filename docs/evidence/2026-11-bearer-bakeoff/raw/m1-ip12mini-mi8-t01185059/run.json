@@ -1,0 +1,30 @@
+{
+  "run_id": "m1-ip12mini-mi8-t01185059",
+  "commit": "424b149",
+  "date": "2026-11-01T18:50:59+0100",
+  "phy": "2m",
+  "args": [
+    "n=50",
+    "bearers=gatt+coc",
+    "plan=connect",
+    "connect_retries=3",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

@@ -1,0 +1,87 @@
+{
+  "run_id": "m4-hub-ip15-t01220736",
+  "commit": "424b149",
+  "date": "2026-11-01T22:07:37+0100",
+  "phy": "2m",
+  "args": [
+    "phy=2m",
+    "duration=780"
+  ],
+  "peripheral_args": [
+    "duration=1020"
+  ],
+  "devices": {
+    "peripheral:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral:nothing2": {
+      "name": "nothing2",
+      "platform": "android",
+      "serial": "nothing2",
+      "api": 36
+    },
+    "peripheral:s10e": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    },
+    "peripheral:mi8": {
+      "name": "mi8",
+      "platform": "android",
+      "serial": "mi8",
+      "api": 29
+    },
+    "peripheral:p10lite": {
+      "name": "p10lite",
+      "platform": "android",
+      "serial": "p10lite",
+      "api": 26
+    },
+    "peripheral:xcover4": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    },
+    "peripheral:se2020": {
+      "name": "se2020",
+      "platform": "ios",
+      "udid": "se2020",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral:ip12mini": {
+      "name": "ip12mini",
+      "platform": "ios",
+      "udid": "ip12mini",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "peripheral:se2016": {
+      "name": "se2016",
+      "platform": "ios",
+      "udid": "se2016",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "peripheral:ipx": {
+      "name": "ipx",
+      "platform": "ios",
+      "udid": "ipx",
+      "team": "apple-team-2",
+      "tool": "imd"
+    },
+    "hub:ip15": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

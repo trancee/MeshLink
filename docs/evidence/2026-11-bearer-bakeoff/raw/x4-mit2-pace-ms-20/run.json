@@ -1,0 +1,30 @@
+{
+  "run_id": "x4-mit2-pace-ms-20",
+  "commit": "82a7e15",
+  "date": "2026-11-01T12:33:41+0100",
+  "phy": "1m",
+  "args": [
+    "n=3",
+    "bearers=gatt",
+    "plan=suite",
+    "phy=1m",
+    "connect_retries=3",
+    "pace_ms=20"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "xcover4",
+      "platform": "android",
+      "serial": "xcover4",
+      "api": 28
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

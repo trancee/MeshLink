@@ -1,0 +1,28 @@
+{
+  "run_id": "m5-suite-pixel6-p10lite-t01230438",
+  "commit": "424b149",
+  "date": "2026-11-01T23:04:38+0100",
+  "phy": "2m",
+  "args": [
+    "n=5",
+    "bearers=gatt",
+    "plan=suite",
+    "phy=2m"
+  ],
+  "peripheral_args": [],
+  "devices": {
+    "central": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    },
+    "peripheral": {
+      "name": "p10lite",
+      "platform": "android",
+      "serial": "p10lite",
+      "api": 26
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

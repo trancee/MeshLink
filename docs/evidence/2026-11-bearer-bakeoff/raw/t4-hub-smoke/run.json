@@ -1,0 +1,36 @@
+{
+  "run_id": "t4-hub-smoke",
+  "commit": "03afe42",
+  "date": "2026-11-01T13:01:03+0100",
+  "phy": "2m",
+  "args": [
+    "phy=2m",
+    "connect_retries=3",
+    "duration=180"
+  ],
+  "peripheral_args": [
+    "duration=420"
+  ],
+  "devices": {
+    "peripheral:s10e": {
+      "name": "s10e",
+      "platform": "android",
+      "serial": "s10e",
+      "api": 31
+    },
+    "peripheral:ip15": {
+      "name": "ip15",
+      "platform": "ios",
+      "udid": "ip15",
+      "team": "apple-team-1",
+      "tool": "devicectl"
+    },
+    "hub:pixel6": {
+      "name": "pixel6",
+      "platform": "android",
+      "serial": "pixel6-wifi:5555",
+      "api": 37
+    }
+  },
+  "xcode": "Xcode 16.4"
+}

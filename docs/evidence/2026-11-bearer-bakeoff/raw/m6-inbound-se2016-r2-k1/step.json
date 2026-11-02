@@ -1,0 +1,78 @@
+{
+  "run_id": "m6-inbound-se2016-r2-k1",
+  "k": 1,
+  "new_central": "nothing2",
+  "connected": true,
+  "connect_wait_s": 5.6,
+  "failed_candidates": [],
+  "held": [
+    "nothing2"
+  ],
+  "healthy": [
+    "nothing2"
+  ],
+  "links_healthy": "1/1",
+  "health_before_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 0,
+      "last_rtt_ms": null,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "health_after_probe": {
+    "nothing2": {
+      "connected": true,
+      "connect_failures": [],
+      "echoes": 30,
+      "last_rtt_ms": 48.569,
+      "ended": false,
+      "end_error": null
+    }
+  },
+  "hub_link_opens_active_links": [
+    1
+  ],
+  "hub_link_closes": [],
+  "probe": {
+    "ipx": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 84,
+        "rssi": -50,
+        "count": 765,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 15,
+        "rssi": -43,
+        "count": 652,
+        "scan_errors": []
+      }
+    },
+    "pixel6": {
+      "filtered": {
+        "seen": true,
+        "first_ms": 48,
+        "rssi": -48,
+        "count": 443,
+        "scan_errors": []
+      },
+      "unfiltered": {
+        "seen": true,
+        "first_ms": 49,
+        "rssi": -47,
+        "count": 282,
+        "scan_errors": []
+      }
+    }
+  },
+  "probe_seconds": {
+    "filtered": 30,
+    "unfiltered": 20
+  },
+  "date": "2026-11-02T10:09:33+0100"
+}
