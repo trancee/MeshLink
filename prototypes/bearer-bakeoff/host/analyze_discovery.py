@@ -80,6 +80,11 @@ class Run:
         return owner
 
 
+def med(values):
+    values = [v for v in values if v is not None]
+    return f"{statistics.median(values):.1f}" if values else "—"
+
+
 def fmt_min(ms):
     return f"{ms / 60000:.1f}"
 
@@ -200,8 +205,9 @@ def d1(runs, out_dir):
               "of the new address − payload change, and mixed = sightings pairing an old address with the new payload or the",
               "reverse. If the address stayed, the linked window = payload change → first sighting of any later address",
               "(the time a tracker can join the two payloads by address; lower bound if the run ended first).", "",
-              "| Device | OS | API / kind | Restarts | Address changed | Gap median / max (s) | Mixed sightings | "
-              "Address kept | Linked window median / max (s) |", "|---|---|---|---|---|---|---|---|---|"]
+              "| Device | OS | API / kind | Restarts | Address changed | Gap median / max (s) | Mixed sightings (changed only) | "
+              "Address kept | Linked window median / max (s) | Restart → new payload, Android / iOS median (s) | iOS stale |",
+              "|---|---|---|---|---|---|---|---|---|---|---|"]
     by_gap = defaultdict(list)
     for row in gap_rows:
         by_gap[(row["run"], row["device"])].append(row)
@@ -212,7 +218,9 @@ def d1(runs, out_dir):
         windows = [r["linked_window_s"] for r in kept if r["linked_window_s"] is not None]
         fmt = lambda v: f"{statistics.median(v):.1f} / {max(v):.1f}" if v else "—"
         lines.append(f"| {device} | {rows[0]['os']} | {rows[0]['adv']} / {rows[0]['kind']} | {len(rows)} | {len(changed)} | {fmt(gaps)} | "
-                     f"{sum(r['mixed'] for r in rows)} | {len(kept)} | {fmt(windows)} |")
+                     f"{sum(r['mixed'] for r in changed)} | {len(kept)} | {fmt(windows)} | "
+                     f"{med([r.get('new_payload_latency_android_s') for r in rows])} / {med([r.get('new_payload_latency_ios_s') for r in rows])} | "
+                     f"{sum(r.get('ios_stale_after_new') or 0 for r in rows)} |")
     lines += ["", "## Own-address probes", ""] + [f"- {n}" for n in notes]
     (out_dir / "summary-d1.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
@@ -224,6 +232,7 @@ def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
     seen = sorted((host(sc, t), address, ident) for sc, t, address, ident, _ in run.sightings() if owner.get(address) == device)
     if not seen:
         return []
+    seen_by = [(sc, host(sc, t), ident) for sc, t, address, ident, _ in run.sightings() if owner.get(address) == device]
     by_cycle = {s["ad_id"]: s.get("cycle") for s in starts if s.get("ad_id")}
     off = run.offsets.get(device, 0)
     calls = {s.get("cycle"): s.get("t_call", s["t"]) - off for s in starts}
@@ -258,8 +267,23 @@ def linkage_gaps(run, device, owner, starts, model, os_name, adv, kind):
             later = next((t for t, a, _ in seen if t > t_payload and a != old_addr), None)
             row["linked_window_s"] = round(((later if later else seen[-1][0]) - t_payload) / 1000, 1)
             row["censored"] = later is None
+        if ids_now:
+            # Restart call -> first sighting of the new payload, per scanner platform; iOS stale = old payload still
+            # reported by an iOS scanner after it already reported the new one.
+            for platform in ("android", "ios"):
+                ts = [t for sc, t, i in seen_by if run_platform(run, sc) == platform and mine_now(i)]
+                row[f"new_payload_latency_{platform}_s"] = round((min(ts) - t_restart) / 1000, 1) if ts else None
+            first_ios = {}
+            for sc, t, i in seen_by:
+                if run_platform(run, sc) == "ios" and mine_now(i):
+                    first_ios.setdefault(sc, t)
+            row["ios_stale_after_new"] = sum(1 for sc, t, i in seen_by if sc in first_ios and t > first_ios[sc] and mine_prev(i))
         rows.append(row)
     return rows
+
+
+def run_platform(run, scanner):
+    return ((run.start.get(scanner) or {}).get("reporter") or {}).get("platform")
 
 
 def offsets(run):
