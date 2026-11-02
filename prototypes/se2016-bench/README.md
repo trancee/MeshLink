@@ -59,7 +59,6 @@ A failed bar is a finding: it is reported with its numbers and, where possible, 
 | `host/run-se2016.sh` | Build, install, launch and pull results on the SE 2016 |
 | `results/` | Raw device outputs |
 
-
 ## How to run
 
 Prerequisites: JDK 21, Xcode 16.4, xcodegen, minisign, libimobiledevice (`ideviceinstaller`, `idevicedebug`, `afcclient`), a signing identity for the lab bundle.
