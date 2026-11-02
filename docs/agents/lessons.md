@@ -40,6 +40,24 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Paced writes, smaller chunks or periodic write-with-response for the XCover 4 write stall. They didn't help; the real cause was the leaked registrations.
 - Assuming a failure is the phone's fault before ruling out the prototype. Both legacy phones were blamed first, and both were prototype bugs.
 
+## Discovery measurements
+
+**Code map:** discovery modes in the bake-off app on throwaway branch `prototype/discovery` (`prototypes/bearer-bakeoff/host/{d2,t1,t3,t4,t9,t11}.py`, `d4.sh`, `analyze_discovery.py`); pre-registration in `prototypes/discovery/README.md`. Evidence: `docs/evidence/2026-11-discovery/`. Decision: ADR 0010.
+
+**Root causes found:**
+
+- **An unfiltered Android scan goes opportunistic after 5 min** (`regularScanTimeout`), and the scanner then sees almost nothing. Restart unfiltered scans every 4 min or use filters.
+- **iPhones keep their last app scan response on air after the app stops** (≥ 26 min, across address changes). Stale MESH bits contaminated the first background run. Scrub each iPhone (15 s of background advertising without MESH) before a background measurement, and attribute overflow sightings only to bitmaps new since the advertiser started.
+- **`devicectl` refuses launches once an iPhone has locked itself** ("device has not been unlocked recently"). Disable auto-lock on lab iPhones before long runs; only a person can unlock.
+- **The Android lab app truncated its JSONL on relaunch,** which lost whole cells. Logs must append.
+- **`AdvertisingSet.getOwnAddress()` is not callable** by apps on Android 17 (`NoSuchMethodException`); measure addresses from a scanner instead.
+- **Pixel 6 system updates install during runs.** Disable automatic updates before multi-hour runs.
+
+**Rejected ideas:**
+
+- Rotating on Android by data update or enable/disable: the address stays (0/72).
+- Forcing a new iOS address by stop/start: never works (0/93).
+
 ## Routing simulation
 
 **Concept:** the throwaway discrete-event simulator models links, not radio packets. Its numbers are always labeled simulated and are recalibrated from device measurements.

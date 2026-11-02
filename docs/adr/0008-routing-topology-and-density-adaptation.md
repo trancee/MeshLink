@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 1. All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 2 (amended 2026-11-02, ADR 0010). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -112,3 +112,12 @@ Results for the v1 configuration:
 - The modules ticket maps unicast, broadcast, store-and-forward and receipts to modules and presets.
 - Diagnostics expose the local density class and switch events (ADR 0007).
 - Reproduce with `prototype/routing-sim`; the commands are in the evidence README.
+
+## Amendments
+
+2026-11-02, discovery measurements (ADR 0010):
+
+- **Rotation (decision 6):** routing tags and advertisement identifiers rotate every 5 min, not 15 min. Android's OS rotates the address every 7–9 min on the Pixel 6, so a 15 min epoch could not stay in step. The simulation found 5 min within budget. Each node keeps its own phase; tags are accepted for ±1 epoch. On iOS the address cannot be kept in step (ADR 0010 decision 7).
+- **Bridge rule (decision 1):** skips sightings that resolve to a known peer through its resolving key (gated meshes). Reading the identifier of a backgrounded iPhone counts against the same limit of one dial per 60 s.
+- **Local density (decision 2):** the estimate also counts distinct addresses of identifier-less MESH sightings (backgrounded iPhones). Background iOS scanners restart every 10 s so the 10 s window holds. A node that rotates inside the window counts twice for that window, about 3% at 5 min.
+- **Risk "Staying in step with the BLE address":** resolved by ADR 0010.

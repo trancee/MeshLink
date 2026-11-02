@@ -1,0 +1,7 @@
+run,cell,advertiser,adv_state,adv_bg,scanner,scanner_state,latency_s,sighting_buckets,sightings,per_min,hint_frac,first_id,addresses,recall_10s,recall_30s,recall_60s
+t11-20261102,t11,nokiax20,t11,,ipx,iOS bg mesh rescan,0.11,64,64,12.8,1.0,a:f29fb4e205b73e57,1,1.0,1.0,1.0
+t11-20261102,t11,nokiax20,t11,,se2016,iOS bg mesh rescan,1.06,42,42,8.4,1.0,a:f29fb4e205b73e57,1,1.0,1.0,1.0
+t11-20261102,t11,nokiax20,t11,,ip12mini,iOS bg mesh rescan,0.36,486,486,97.3,1.0,a:f29fb4e205b73e57,1,1.0,1.0,1.0
+t11-20261102,t11,nokiax20,t11,,ip15,iOS bg mesh rescan,0.12,30,30,6.0,1.0,a:f29fb4e205b73e57,1,0.966,1.0,1.0
+t11-20261102,t11,nokiax20,t11,,se2020,iOS bg mesh,0.59,44,44,8.8,1.0,a:f29fb4e205b73e57,1,1.0,1.0,1.0
+t11-20261102,t11,nokiax20,t11,,nothing2,Android fg none low_latency,-0.96,1240,2710,542.6,0.411,apple-ovf,5,1.0,1.0,1.0

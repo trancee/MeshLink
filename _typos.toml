@@ -14,3 +14,5 @@ extend-exclude = [
 [default.extend-words]
 # Apple's unique device identifier.
 udid = "udid"
+# Huawei model code (nova 9, NAM-LX9).
+NAM = "NAM"

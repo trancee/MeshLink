@@ -1,0 +1,7 @@
+run,cell,scanner,state,advertiser,address,id,raw,legacy,conn
+d2-and-fg-20261102,pixel6-fg,xcover4,Android screen-off FGS mesh balanced,pixel6,7b:b3:79:ff:0d:bd,a:70a3b75011e6433a,02010205054853454d1107e9eaa20031304c4d3a43e61150b7a370,True,True
+d2-and-fg-20261102,pixel6-fg,moto30,Android screen-off FGS mesh balanced,pixel6,7b:b3:79:ff:0d:bd,a:70a3b75011e6433a,02010205054853454d1107e9eaa20031304c4d3a43e61150b7a370,True,True
+d2-and-fg-20261102,pixel6-fg,nothing2,Android fg none low_latency,pixel6,7b:b3:79:ff:0d:bd,a:70a3b75011e6433a,02010205054853454d1107e9eaa20031304c4d3a43e61150b7a370,True,True
+d2-and-fg-20261102,s10e-fg,xcover4,Android screen-off FGS mesh balanced,s10e,4f:bb:5e:22:0b:8b,a:5baccdd8b5b99cd7,02011a05054853454d1107ad86ec0031304c4dd79cb9b5d8cdac5b,True,True
+d2-and-fg-20261102,s10e-fg,moto30,Android screen-off FGS mesh balanced,s10e,4f:bb:5e:22:0b:8b,a:5baccdd8b5b99cd7,02011a05054853454d1107ad86ec0031304c4dd79cb9b5d8cdac5b,True,True
+d2-and-fg-20261102,s10e-fg,nothing2,Android fg none low_latency,s10e,4f:bb:5e:22:0b:8b,a:5baccdd8b5b99cd7,02011a05054853454d1107ad86ec0031304c4dd79cb9b5d8cdac5b,True,True

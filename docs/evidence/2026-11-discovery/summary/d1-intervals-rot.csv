@@ -1,0 +1,60 @@
+run,device,model,os,adv,index,exact_change,censored,change_ms,gap_s,interval_s,prev_lifetime_min_s
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,1,True,True,1793618843973,0.7,186.2,185.5
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,2,False,True,1793620151979,1207.9,1308.0,100.1
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,3,False,True,1793620884421,432.6,732.4,299.9
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,4,True,True,1793621543897,0.8,659.5,658.6
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,5,True,False,1793622444612,0.9,900.7,899.8
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,6,True,False,1793623344245,1.2,899.6,898.4
+d1-rot-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),legacy,7,True,False,1793624243865,0.5,899.6,899.1
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,1,True,True,1793618909289,0.0,245.6,245.6
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,2,False,True,1793620152106,1207.9,1242.8,34.9
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,3,True,True,1793620414643,0.6,262.5,262.0
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,4,True,False,1793621092629,0.5,678.0,677.5
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,5,True,False,1793622249991,1.0,1157.4,1156.4
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,6,True,False,1793623197456,0.3,947.5,947.2
+d1-rot-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,ios,7,True,False,1793624274984,0.9,1077.5,1076.7
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,1,True,True,1793618906639,0.6,243.3,242.7
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,2,False,True,1793620151875,1207.7,1245.2,37.5
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,3,True,True,1793620411824,0.5,259.9,259.4
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,4,True,False,1793621089593,0.5,677.8,677.3
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,5,True,False,1793622246956,0.9,1157.4,1156.5
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,6,True,False,1793623194513,0.4,947.6,947.1
+d1-rot-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,ios,7,True,False,1793624272061,0.0,1077.5,1077.5
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,1,True,True,1793618902258,1.9,244.2,242.3
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,2,False,True,1793620153019,1208.4,1250.8,42.3
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,3,False,True,1793620884374,432.2,731.4,299.2
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,4,True,True,1793621358585,1.4,474.2,472.8
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,5,True,False,1793621601780,1.6,243.2,241.6
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,6,True,False,1793622258143,0.8,656.4,655.5
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,7,True,False,1793622501875,0.1,243.7,243.6
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,8,True,False,1793623158124,0.9,656.2,655.3
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,9,True,False,1793623402622,1.5,244.5,243.0
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,10,True,False,1793624058475,1.1,655.9,654.8
+d1-rot-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),legacy,11,True,False,1793624302098,-0.0,243.6,243.7
+d1-rot-20261102,ip12mini,"Apple iPhone13,1",iOS 27.0.1,ios,1,False,True,1793620151861,1207.8,1487.0,279.3
+d1-rot-20261102,ip12mini,"Apple iPhone13,1",iOS 27.0.1,ios,2,False,True,1793620884291,432.2,732.4,300.2
+d1-rot-20261102,ip12mini,"Apple iPhone13,1",iOS 27.0.1,ios,3,True,True,1793621626438,7.4,742.1,734.7
+d1-rot-20261102,ip12mini,"Apple iPhone13,1",iOS 27.0.1,ios,4,True,False,1793622660345,0.2,1033.9,1033.7
+d1-rot-20261102,ip12mini,"Apple iPhone13,1",iOS 27.0.1,ios,5,True,False,1793623761151,0.1,1100.8,1100.7
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,1,False,True,1793620152200,1208.0,1496.8,288.8
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,2,False,True,1793620884609,432.5,732.4,299.9
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,3,True,True,1793621167600,0.5,283.0,282.5
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,4,True,False,1793621604716,0.4,437.1,436.7
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,5,True,False,1793622126914,0.1,522.2,522.1
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,6,True,False,1793622646198,0.2,519.3,519.1
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,7,True,False,1793623105909,1.6,459.7,458.1
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,8,True,False,1793623531891,0.3,426.0,425.7
+d1-rot-20261102,pixel6,Google Pixel 6,Android 17 (API 37),set,9,True,False,1793624005080,0.6,473.2,472.6
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,1,True,True,1793618911188,0.2,248.3,248.2
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,2,False,True,1793620152099,1207.9,1240.9,33.0
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,3,True,True,1793620416445,0.2,264.3,264.2
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,4,True,False,1793621094376,0.4,677.9,677.6
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,5,True,False,1793622251661,0.6,1157.3,1156.7
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,6,True,False,1793623199250,0.2,947.6,947.4
+d1-rot-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,ios,7,True,False,1793624276564,0.5,1077.3,1076.9
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,1,False,True,1793620152197,1207.9,1496.0,288.1
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,2,True,True,1793620346038,1.2,193.8,192.7
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,3,True,False,1793621190692,1.6,844.7,843.0
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,4,True,False,1793622034635,0.5,843.9,843.4
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,5,True,False,1793622879121,0.5,844.5,844.0
+d1-rot-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),legacy,6,True,False,1793623723747,0.7,844.6,844.0

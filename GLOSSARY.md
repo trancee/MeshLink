@@ -87,3 +87,11 @@ _Avoid_: Public mesh, unsecured mesh (an open mesh may use a secured profile)
 **Gated mesh**:
 A mesh that only nodes holding its mesh key may join; available only with a secured security profile.
 _Avoid_: Private mesh, closed group
+
+**Advertisement identifier**:
+The rotating value a node puts in its advertisement; outsiders cannot link it across rotations, so a rotated identifier looks like a new device until a handshake or a resolving key says otherwise.
+_Avoid_: Beacon ID, MAC, device address
+
+**Resolving key**:
+A per-node secret, rotated daily, that a node in a gated mesh gives only to peers inside an authenticated link handshake, so those peers can recognize its advertisement identifiers across rotations.
+_Avoid_: IRK (the BLE bonding key), mesh key

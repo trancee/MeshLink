@@ -1,0 +1,10 @@
+run,scanner,model,os,ext_adv,cap_coded,max_adv_len,ios_ext_scan,legacy,legacy_phy,ext1m,ext1m_phy,ext2m,ext2m_phy,coded,coded_phy
+d3b-20261102,gx6,Gigaset E940-2849-00,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3b-20261102,rmx3263,realme RMX3263,Android 11 (API 30),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3b-20261102,blackview,wheatek A80,Android 10 (API 29),False,False,31,,0,,0,,0,,0,
+d3b-20261102,cph2251,OPPO CPH2251,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3b-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),True,True,1650,,0,,0,,0,,0,
+d3b-20261102,mi8,Xiaomi MI 8,Android 10 (API 29),True,True,1650,,0,,0,,0,,0,
+d3b-20261102,nord2,OnePlus DN2103,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3b-20261102,redmi12,Xiaomi 23053RN02A,Android 13 (API 33),True,True,192,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3b-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,0,

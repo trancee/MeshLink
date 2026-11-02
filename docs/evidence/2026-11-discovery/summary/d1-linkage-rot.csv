@@ -1,0 +1,220 @@
+run,device,model,os,adv,kind,cycle,restart_ms,payload_ms,old_address,new_address,address_changed,mixed,gap_s,same_packet,dark_s,linked_window_s,censored,new_payload_latency_android_s,new_payload_latency_ios_s,ios_stale_after_new
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,1,1793621377777,1793621379357,41:6e:25:44:0c:3c,7d:18:a9:a8:8e:36,True,0,0.0,True,7.16,,False,1.6,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,2,1793621559841,1793621560432,7d:18:a9:a8:8e:36,42:71:02:35:fc:c9,True,0,0.0,True,2.87,,False,0.6,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,3,1793621741970,1793621742063,42:71:02:35:fc:c9,4e:2d:17:8d:82:78,True,0,0.0,True,2.59,,False,0.1,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,4,1793621924042,1793621924105,4e:2d:17:8d:82:78,64:3e:82:98:84:6f,True,0,0.0,True,2.09,,False,0.1,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,5,1793622106197,1793622106553,64:3e:82:98:84:6f,6a:61:13:03:18:c1,True,0,0.0,True,2.58,,False,0.4,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,6,1793622288425,1793622288742,6a:61:13:03:18:c1,5d:cc:dd:48:5e:f5,True,0,0.0,True,2.34,,False,0.3,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,7,1793622470571,1793622470764,5d:cc:dd:48:5e:f5,77:01:85:41:be:db,True,0,0.0,True,2.38,,False,0.2,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,8,1793622652692,1793622652962,77:01:85:41:be:db,4b:dc:8e:68:46:40,True,0,0.0,True,2.32,,False,0.3,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,9,1793622834840,1793622834984,4b:dc:8e:68:46:40,72:8e:47:af:90:df,True,0,0.0,True,2.18,,False,0.1,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,10,1793623016965,1793623017690,72:8e:47:af:90:df,75:1e:ff:1c:1e:8a,True,0,0.0,True,2.95,,False,0.7,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,11,1793623199039,1793623199598,75:1e:ff:1c:1e:8a,64:44:e3:19:d4:c6,True,0,0.0,True,2.75,,False,0.6,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,12,1793623381114,1793623381377,64:44:e3:19:d4:c6,50:e5:8b:60:d3:1d,True,0,0.0,True,2.8,,False,0.3,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,13,1793623563307,1793623563563,50:e5:8b:60:d3:1d,47:6c:d1:06:2a:6f,True,0,0.0,True,2.92,,False,0.3,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,14,1793623745571,1793623745994,47:6c:d1:06:2a:6f,4f:bc:dd:5b:17:15,True,0,0.0,True,3.38,,False,0.4,,0
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,15,1793623927652,1793623927900,4f:bc:dd:5b:17:15,58:15:cc:4e:96:10,True,0,0.0,True,2.29,,False,0.2,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,1,1793618842791,1793618843004,69:20:fc:d7:b6:41,56:28:33:31:19:8a,True,0,0.0,True,2.88,,False,0.2,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,9,1793620300233,1793620300523,4f:fe:94:66:d0:a3,76:8d:f7:9c:09:04,True,0,0.0,True,2.8,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,13,1793621029184,1793621029756,45:ac:a7:e0:64:f1,7e:6e:57:90:c7:3f,True,0,0.0,True,2.57,,False,0.6,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,14,1793621211459,1793621211656,7e:6e:57:90:c7:3f,63:84:83:f5:b4:31,True,0,0.0,True,2.24,,False,0.2,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,15,1793621393558,1793621393836,63:84:83:f5:b4:31,50:8e:6d:7c:f5:92,True,0,0.0,True,2.28,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,16,1793621575778,1793621576676,50:8e:6d:7c:f5:92,7e:df:98:12:4a:c8,True,0,0.0,True,3.14,,False,0.9,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,17,1793621758086,1793621758445,7e:df:98:12:4a:c8,49:ad:9f:ea:9b:c7,True,0,0.0,True,2.75,,False,0.4,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,18,1793621940404,1793621940906,49:ad:9f:ea:9b:c7,43:64:90:15:fe:2b,True,0,0.0,True,3.49,,False,0.5,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,19,1793622122653,1793622122797,43:64:90:15:fe:2b,49:26:43:3d:b8:70,True,0,0.0,True,8.31,,False,0.1,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,20,1793622304942,1793622305503,49:26:43:3d:b8:70,62:4e:3d:9d:a1:31,True,0,0.0,True,2.89,,False,0.6,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,21,1793622487232,1793622487532,62:4e:3d:9d:a1:31,4b:a8:cf:85:8d:ff,True,0,0.0,True,2.66,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,22,1793622669460,1793622669576,4b:a8:cf:85:8d:ff,68:c5:c9:b9:00:6c,True,0,0.0,True,2.15,,False,0.1,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,23,1793622851709,1793622851881,68:c5:c9:b9:00:6c,4f:85:cf:dc:2c:40,True,0,0.0,True,2.43,,False,0.2,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,24,1793623034005,1793623034331,4f:85:cf:dc:2c:40,40:fb:37:7f:a9:2e,True,0,0.0,True,2.8,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,25,1793623216258,1793623216368,40:fb:37:7f:a9:2e,51:62:99:89:9b:d7,True,0,0.0,True,2.31,,False,0.1,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,26,1793623398507,1793623398923,51:62:99:89:9b:d7,4d:b9:8a:bd:f9:e7,True,0,0.0,True,2.52,,False,0.4,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,27,1793623580732,1793623580844,4d:b9:8a:bd:f9:e7,65:ae:2e:1a:e7:29,True,0,0.0,True,2.92,,False,0.1,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,28,1793623762963,1793623763275,65:ae:2e:1a:e7:29,51:d1:77:12:bc:e1,True,0,0.0,True,2.83,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,29,1793623945058,1793623945858,51:d1:77:12:bc:e1,57:97:31:eb:1f:02,True,0,0.0,True,3.32,,False,0.8,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,30,1793624127347,1793624127622,57:97:31:eb:1f:02,5e:ae:98:be:ae:1d,True,0,0.0,True,2.66,,False,0.3,,0
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,31,1793624309591,1793624309930,5e:ae:98:be:ae:1d,4b:d6:47:4d:0e:28,True,0,0.0,True,2.57,,False,0.3,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,1,1793618845122,1793618846185,56:58:96:00:bb:25,61:d4:9c:97:6e:7d,True,0,0.0,True,3.74,,False,1.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,9,1793620304206,1793620304272,58:77:88:d8:c2:6e,48:40:79:bb:4b:4e,True,0,0.0,True,2.95,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,13,1793621033692,1793621033895,5e:ef:aa:46:fa:e0,4b:d4:70:6e:91:76,True,0,0.0,True,2.28,,False,0.2,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,14,1793621216100,1793621216431,4b:d4:70:6e:91:76,64:a3:47:94:6e:1a,True,0,0.0,True,2.79,,False,0.3,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,15,1793621398539,1793621399257,64:a3:47:94:6e:1a,4a:e2:44:ec:a1:65,True,0,0.0,True,3.66,,False,0.7,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,16,1793621580751,1793621580813,4a:e2:44:ec:a1:65,61:48:c5:92:90:fb,True,0,0.0,True,3.0,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,17,1793621763141,1793621763456,61:48:c5:92:90:fb,65:14:3b:b1:68:b8,True,0,0.0,True,3.17,,False,0.3,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,18,1793621945520,1793621946070,65:14:3b:b1:68:b8,6a:fe:e4:c1:62:d1,True,0,0.0,True,2.68,,False,0.6,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,19,1793622127829,1793622127867,6a:fe:e4:c1:62:d1,73:25:7c:60:5e:4d,True,0,0.0,True,2.05,,False,0.0,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,20,1793622310170,1793622310247,73:25:7c:60:5e:4d,63:4f:41:99:04:6a,True,0,0.0,True,2.58,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,21,1793622492569,1793622492606,63:4f:41:99:04:6a,5f:b4:24:54:81:36,True,0,0.0,True,2.16,,False,0.0,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,22,1793622674859,1793622674898,5f:b4:24:54:81:36,6a:98:ff:c0:16:c8,True,0,0.0,True,3.02,,False,0.0,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,23,1793622857141,1793622857311,6a:98:ff:c0:16:c8,69:60:a7:dd:77:9c,True,0,0.0,True,2.91,,False,0.2,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,24,1793623039456,1793623039861,69:60:a7:dd:77:9c,41:25:e8:39:2d:9f,True,0,0.0,True,2.79,,False,0.4,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,25,1793623221795,1793623221855,41:25:e8:39:2d:9f,4e:08:ed:1f:e9:43,True,0,0.0,True,2.46,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,26,1793623404024,1793623404220,4e:08:ed:1f:e9:43,6e:00:76:af:c8:24,True,0,0.0,True,3.74,,False,0.2,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,27,1793623586180,1793623586654,6e:00:76:af:c8:24,62:74:97:9e:61:68,True,0,0.0,True,2.92,,False,0.5,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,28,1793623768567,1793623768647,62:74:97:9e:61:68,68:d1:f7:ee:d7:32,True,0,0.0,True,2.3,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,29,1793623950929,1793623950992,68:d1:f7:ee:d7:32,4d:e8:4c:32:44:89,True,0,0.0,True,2.17,,False,0.1,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,30,1793624133058,1793624133244,4d:e8:4c:32:44:89,76:c0:5f:2a:af:28,True,0,0.0,True,2.29,,False,0.2,,0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,31,1793624315488,1793624315571,76:c0:5f:2a:af:28,6d:14:2d:79:6c:1b,True,0,0.0,True,2.65,,False,0.1,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,1,1793618842197,1793618843852,55:18:13:90:df:bf,55:18:13:90:df:bf,False,154,,,,1309.1,False,1.7,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,9,1793620299674,1793620300311,7f:a3:47:a4:dd:26,7f:a3:47:a4:dd:26,False,191,,,,586.6,False,0.6,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,13,1793621028450,1793621028751,7d:76:11:fe:e2:86,7d:76:11:fe:e2:86,False,93,,,,51.4,False,0.3,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,14,1793621210575,1793621211710,53:5c:39:e7:f3:24,53:5c:39:e7:f3:24,False,199,,,,473.4,False,1.1,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,15,1793621392823,1793621393078,53:5c:39:e7:f3:24,53:5c:39:e7:f3:24,False,287,,,,292.1,False,0.3,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,16,1793621575054,1793621575778,53:5c:39:e7:f3:24,53:5c:39:e7:f3:24,False,164,,,,109.4,False,0.7,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,17,1793621757264,1793621757427,6d:9a:02:94:c1:6c,6d:9a:02:94:c1:6c,False,289,,,,532.9,False,0.2,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,18,1793621939426,1793621939871,6d:9a:02:94:c1:6c,6d:9a:02:94:c1:6c,False,316,,,,350.4,False,0.4,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,19,1793622121675,1793622121895,6d:9a:02:94:c1:6c,6d:9a:02:94:c1:6c,False,301,,,,168.4,False,0.2,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,20,1793622303882,1793622304501,76:45:91:50:34:fc,76:45:91:50:34:fc,False,255,,,,590.4,False,0.6,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,21,1793622486113,1793622487482,76:45:91:50:34:fc,76:45:91:50:34:fc,False,228,,,,407.5,False,1.4,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,22,1793622668329,1793622668556,76:45:91:50:34:fc,76:45:91:50:34:fc,False,324,,,,226.4,False,0.2,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,23,1793622850570,1793622850857,76:45:91:50:34:fc,76:45:91:50:34:fc,False,63,,,,44.1,False,0.3,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,24,1793623032800,1793623033860,7d:c9:71:ba:6e:cb,7d:c9:71:ba:6e:cb,False,280,,,,466.2,False,1.1,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,25,1793623215003,1793623215366,7d:c9:71:ba:6e:cb,7d:c9:71:ba:6e:cb,False,277,,,,284.7,False,0.4,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,26,1793623397211,1793623397407,7d:c9:71:ba:6e:cb,7d:c9:71:ba:6e:cb,False,118,,,,102.6,False,0.2,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,27,1793623579357,1793623581313,59:7c:6c:e4:04:5e,59:7c:6c:e4:04:5e,False,227,,,,524.1,False,2.0,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,28,1793623761583,1793623762022,59:7c:6c:e4:04:5e,59:7c:6c:e4:04:5e,False,246,,,,343.3,False,0.4,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,29,1793623943790,1793623944458,59:7c:6c:e4:04:5e,59:7c:6c:e4:04:5e,False,231,,,,160.9,False,0.7,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,30,1793624125877,1793624126778,5a:48:4e:fb:3b:67,5a:48:4e:fb:3b:67,False,268,,,,232.2,True,0.9,,0
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,31,1793624308026,1793624309217,5a:48:4e:fb:3b:67,5a:48:4e:fb:3b:67,False,57,,,,49.8,True,1.2,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,1,1793621381142,1793621381293,73:a2:16:eb:a2:0c,7c:b7:d8:a9:60:bc,True,0,0.0,True,9.8,,False,0.2,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,2,1793621563345,1793621563666,7c:b7:d8:a9:60:bc,5c:a1:df:32:9e:b6,True,0,0.0,True,2.87,,False,0.3,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,3,1793621745446,1793621745508,5c:a1:df:32:9e:b6,65:f6:b2:90:86:01,True,0,0.0,True,2.41,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,4,1793621927748,1793621927826,65:f6:b2:90:86:01,44:b3:b1:27:04:64,True,0,0.0,True,2.35,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,5,1793622110017,1793622110137,44:b3:b1:27:04:64,63:46:af:69:3c:7d,True,0,0.0,True,2.43,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,6,1793622292222,1793622292387,63:46:af:69:3c:7d,48:c8:d2:7a:dc:1e,True,0,0.0,True,2.35,,False,0.2,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,7,1793622474327,1793622474410,48:c8:d2:7a:dc:1e,73:1f:a3:a6:f2:7d,True,0,0.0,True,2.13,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,8,1793622656446,1793622656500,73:1f:a3:a6:f2:7d,78:17:7c:22:70:3a,True,0,0.0,True,3.06,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,9,1793622838572,1793622838770,78:17:7c:22:70:3a,61:44:6c:bb:4c:e2,True,0,0.0,True,2.5,,False,0.2,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,10,1793623020673,1793623020956,61:44:6c:bb:4c:e2,6a:3d:0c:f2:5b:e5,True,0,0.0,True,2.66,,False,0.3,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,11,1793623202771,1793623202824,6a:3d:0c:f2:5b:e5,48:6d:af:53:a3:c7,True,0,0.0,True,2.34,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,12,1793623384846,1793623385037,48:6d:af:53:a3:c7,77:20:65:66:8a:67,True,0,0.0,True,2.52,,False,0.2,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,13,1793623566922,1793623567070,77:20:65:66:8a:67,77:2b:7a:2d:83:bf,True,0,0.0,True,2.65,,False,0.1,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,14,1793623748973,1793623749637,77:2b:7a:2d:83:bf,55:75:9d:31:23:ba,True,0,0.0,True,3.11,,False,0.7,,0
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,15,1793623931268,1793623931475,55:75:9d:31:23:ba,57:7b:d9:2a:bf:07,True,0,0.0,True,3.1,,False,0.2,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,1,1793621378653,1793621379751,54:01:99:25:7e:95,77:bc:e7:b7:4d:49,True,0,0.0,True,8.13,,False,1.1,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,2,1793621560719,1793621561699,77:bc:e7:b7:4d:49,7b:6d:24:f3:68:77,True,0,0.0,True,3.76,,False,1.0,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,3,1793621743000,1793621743100,7b:6d:24:f3:68:77,60:85:3b:19:e1:49,True,0,0.0,True,3.64,,False,0.1,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,4,1793621925133,1793621925194,60:85:3b:19:e1:49,73:aa:c2:d2:09:ff,True,0,0.0,True,2.4,,False,0.1,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,5,1793622107251,1793622108718,73:aa:c2:d2:09:ff,61:cb:a7:84:ca:23,True,0,0.0,True,4.65,,False,1.5,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,6,1793622289559,1793622290389,61:cb:a7:84:ca:23,6d:30:95:55:f0:25,True,0,0.0,True,2.96,,False,0.8,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,7,1793622471812,1793622472590,6d:30:95:55:f0:25,5a:57:df:36:c8:b5,True,0,0.0,True,4.31,,False,0.8,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,8,1793622654025,1793622654143,5a:57:df:36:c8:b5,6d:e7:66:7c:19:4d,True,0,0.0,True,3.61,,False,0.1,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,9,1793622836237,1793622836455,6d:e7:66:7c:19:4d,63:19:51:82:7e:40,True,0,0.0,True,2.94,,False,0.2,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,10,1793623018405,1793623019547,63:19:51:82:7e:40,59:d6:86:59:bf:31,True,0,0.0,True,3.25,,False,1.1,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,11,1793623200555,1793623200731,59:d6:86:59:bf:31,58:8c:14:dc:dd:d6,True,0,0.0,True,3.99,,False,0.2,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,12,1793623382723,1793623384110,58:8c:14:dc:dd:d6,79:9a:f6:46:04:91,True,0,0.0,True,4.0,,False,1.4,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,13,1793623564924,1793623565469,79:9a:f6:46:04:91,5e:48:d7:43:89:2a,True,0,0.0,True,2.59,,False,0.5,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,14,1793623747029,1793623747615,5e:48:d7:43:89:2a,64:35:33:0b:b6:d4,True,0,0.0,True,4.66,,False,0.6,,0
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,15,1793623929168,1793623929259,64:35:33:0b:b6:d4,6b:56:cb:ac:d4:19,True,0,0.0,True,3.24,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,1,1793621380283,1793621380975,55:73:6a:84:ca:b4,51:b7:d5:23:08:bc,True,0,0.0,True,8.43,,False,0.7,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,2,1793621562579,1793621563166,51:b7:d5:23:08:bc,59:7c:82:02:b2:ab,True,0,0.0,True,2.71,,False,0.6,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,3,1793621744930,1793621745318,59:7c:82:02:b2:ab,74:8c:50:9c:97:8f,True,0,0.0,True,3.35,,False,0.4,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,4,1793621927133,1793621927759,74:8c:50:9c:97:8f,53:59:01:9a:d3:79,True,0,0.0,True,3.21,,False,0.6,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,5,1793622109414,1793622109537,53:59:01:9a:d3:79,44:b5:fd:40:52:02,True,0,0.0,True,2.36,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,6,1793622291624,1793622292003,44:b5:fd:40:52:02,65:24:94:bb:32:41,True,0,0.0,True,3.02,,False,0.4,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,7,1793622473943,1793622474275,65:24:94:bb:32:41,42:08:b9:68:66:71,True,0,0.0,True,2.66,,False,0.3,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,8,1793622656086,1793622656189,42:08:b9:68:66:71,6b:e9:94:33:eb:03,True,0,0.0,True,2.79,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,9,1793622838228,1793622838357,6b:e9:94:33:eb:03,4a:bc:88:ae:6b:7d,True,0,0.0,True,2.95,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,10,1793623020501,1793623021072,4a:bc:88:ae:6b:7d,78:aa:2e:6e:f3:f1,True,0,0.0,True,3.46,,False,0.6,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,11,1793623202795,1793623203790,78:aa:2e:6e:f3:f1,49:cb:89:92:55:ba,True,0,0.0,True,3.14,,False,1.0,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,12,1793623385042,1793623385154,49:cb:89:92:55:ba,42:9f:3c:3a:40:62,True,0,0.0,True,2.28,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,13,1793623567340,1793623568406,42:9f:3c:3a:40:62,68:47:4a:51:ea:2d,True,0,0.0,True,3.48,,False,1.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,14,1793623749656,1793623749758,68:47:4a:51:ea:2d,61:e4:98:17:7a:a9,True,0,0.0,True,2.15,,False,0.1,,0
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,15,1793623931896,1793623932893,61:e4:98:17:7a:a9,6a:8e:50:b6:ed:e2,True,0,0.0,True,6.02,,False,1.0,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,1,1793618839438,1793618839718,6c:65:d7:d4:6a:1d,6c:65:d7:d4:6a:1d,False,181,,,,1312.4,False,0.3,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,9,1793620280712,1793620280759,70:40:e9:d4:f4:22,70:40:e9:d4:f4:22,False,274,,,,604.1,False,0.0,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,13,1793621001451,1793621001665,58:50:99:06:87:09,58:50:99:06:87:09,False,295,,,,200.1,False,0.2,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,14,1793621181689,1793621181763,58:50:99:06:87:09,58:50:99:06:87:09,False,33,,,,20.0,False,0.1,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,15,1793621361701,1793621361826,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33,False,294,,,,572.9,False,0.1,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,16,1793621541920,1793621541993,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33,False,295,,,,392.8,False,0.1,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,17,1793621722147,1793621722381,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33,False,319,,,,212.4,False,0.2,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,18,1793621902380,1793621902930,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33,False,58,,,,31.8,False,0.6,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,19,1793622082547,1793622082825,5e:39:b3:48:5a:9a,5e:39:b3:48:5a:9a,False,294,,,,296.6,False,0.3,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,20,1793622262787,1793622263191,5e:39:b3:48:5a:9a,5e:39:b3:48:5a:9a,False,199,,,,116.2,False,0.4,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,21,1793622442965,1793622443062,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b,False,278,,,,547.1,False,0.1,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,22,1793622623109,1793622623263,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b,False,313,,,,366.9,False,0.2,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,23,1793622803332,1793622803621,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b,False,291,,,,186.5,False,0.3,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,24,1793622983346,1793622983981,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b,False,12,,,,6.2,False,0.6,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,25,1793623163508,1793623165250,44:14:28:36:bc:89,44:14:28:36:bc:89,False,294,,,,621.2,False,1.7,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,26,1793623343701,1793623343912,44:14:28:36:bc:89,44:14:28:36:bc:89,False,263,,,,442.5,False,0.2,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,27,1793623523719,1793623523927,44:14:28:36:bc:89,44:14:28:36:bc:89,False,285,,,,262.5,False,0.2,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,28,1793623703772,1793623704219,44:14:28:36:bc:89,44:14:28:36:bc:89,False,139,,,,82.2,False,0.4,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,29,1793623883836,1793623883866,6b:ad:ee:cc:a5:21,6b:ad:ee:cc:a5:21,False,306,,,,435.6,False,0.0,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,30,1793624063853,1793624065332,6b:ad:ee:cc:a5:21,6b:ad:ee:cc:a5:21,False,260,,,,254.1,False,1.5,,0
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,31,1793624243942,1793624244015,6b:ad:ee:cc:a5:21,6b:ad:ee:cc:a5:21,False,115,,,,75.4,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,1,1793618840261,1793618840739,77:28:b2:b5:ff:23,7b:36:86:c4:c1:ae,True,0,0.0,True,3.25,,False,0.5,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,9,1793620297362,1793620297607,5c:0a:4c:fa:aa:98,6c:99:a6:7c:07:2b,True,0,0.0,True,3.17,,False,0.2,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,13,1793621025950,1793621026318,46:0e:76:17:6c:79,48:26:86:cf:60:5e,True,0,0.0,True,2.39,,False,0.4,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,14,1793621208231,1793621209189,48:26:86:cf:60:5e,59:75:00:3e:d0:23,True,0,0.0,True,3.4,,False,1.0,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,15,1793621390528,1793621390932,59:75:00:3e:d0:23,6b:5d:71:8c:0c:a5,True,0,0.0,True,3.51,,False,0.4,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,16,1793621572763,1793621572839,6b:5d:71:8c:0c:a5,61:b3:2d:b5:5e:6e,True,0,0.0,True,2.27,,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,17,1793621754818,1793621755164,61:b3:2d:b5:5e:6e,47:52:29:6f:5b:21,True,0,0.0,True,2.71,,False,0.3,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,18,1793621937089,1793621937206,47:52:29:6f:5b:21,68:bb:a1:23:33:0c,True,0,0.0,True,2.17,,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,19,1793622119315,1793622121967,68:bb:a1:23:33:0c,64:e0:ab:fb:64:51,True,0,0.0,True,8.03,,False,2.7,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,20,1793622301576,1793622301678,64:e0:ab:fb:64:51,6f:f4:5e:d2:e6:5a,True,0,0.0,True,2.64,,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,21,1793622483838,1793622484256,6f:f4:5e:d2:e6:5a,47:8a:f4:0d:41:7b,True,0,0.0,True,2.96,,False,0.4,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,22,1793622666091,1793622666177,47:8a:f4:0d:41:7b,4e:6c:4b:b4:59:70,True,0,0.0,True,2.65,,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,23,1793622848282,1793622848626,4e:6c:4b:b4:59:70,60:0a:21:a7:96:bf,True,0,0.0,True,2.33,,False,0.3,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,24,1793623030446,1793623031066,60:0a:21:a7:96:bf,44:6d:3d:6e:e8:00,True,0,0.0,True,3.48,,False,0.6,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,25,1793623212627,1793623212688,44:6d:3d:6e:e8:00,59:d2:7e:df:3b:2f,True,0,0.0,True,2.94,,False,0.1,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,26,1793623394852,1793623395545,59:d2:7e:df:3b:2f,4a:8d:24:7f:21:94,True,0,0.0,True,2.96,,False,0.7,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,27,1793623577067,1793623577596,4a:8d:24:7f:21:94,68:d4:36:bb:8a:90,True,0,0.0,True,3.17,,False,0.5,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,28,1793623759250,1793623759920,68:d4:36:bb:8a:90,5c:cf:93:5e:ae:1b,True,0,0.0,True,3.1,,False,0.7,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,29,1793623941387,1793623942068,5c:cf:93:5e:ae:1b,64:f6:8a:a1:16:ba,True,0,0.0,True,2.92,,False,0.7,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,30,1793624123486,1793624123859,64:f6:8a:a1:16:ba,6a:40:45:70:a9:08,True,0,0.0,True,3.29,,False,0.4,,0
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,31,1793624305743,1793624306432,6a:40:45:70:a9:08,4e:cb:9e:01:ea:4f,True,0,0.0,True,2.85,,False,0.7,,0
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,1,1793618788283,1793618788283,7a:fc:08:f9:a3:fe,7a:fc:08:f9:a3:fe,False,0,,,,1364.1,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,2,1793618910292,1793618910292,7a:fc:08:f9:a3:fe,7a:fc:08:f9:a3:fe,False,0,,,,1242.1,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,13,1793620252324,1793620252324,7b:c4:b8:c2:da:d4,7b:c4:b8:c2:da:d4,False,0,,,,632.1,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,14,1793620374331,1793620374331,7b:c4:b8:c2:da:d4,7b:c4:b8:c2:da:d4,False,0,,,,510.1,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,19,1793620984380,1793620984380,52:d7:88:b7:d2:75,52:d7:88:b7:d2:75,False,0,,,,253.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,20,1793621106387,1793621106387,52:d7:88:b7:d2:75,52:d7:88:b7:d2:75,False,0,,,,131.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,21,1793621228394,1793621228394,52:d7:88:b7:d2:75,52:d7:88:b7:d2:75,False,0,,,,9.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,22,1793621350402,1793621350402,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,695.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,23,1793621472409,1793621472409,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,573.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,24,1793621594440,1793621594440,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,451.3,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,25,1793621716451,1793621716451,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,329.3,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,26,1793621838458,1793621838458,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,207.3,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,27,1793621960468,1793621960468,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97,False,0,,,,85.3,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,28,1793622082476,1793622082476,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,1084.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,29,1793622204487,1793622204487,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,962.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,30,1793622326496,1793622326496,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,840.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,31,1793622448504,1793622448504,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,718.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,32,1793622570511,1793622570511,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,596.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,33,1793622692519,1793622692519,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,474.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,34,1793622814490,1793622814490,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,352.5,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,35,1793622936497,1793622936497,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,230.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,36,1793623058504,1793623058504,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93,False,0,,,,108.4,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,37,1793623180513,1793623180513,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,836.7,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,38,1793623302520,1793623302520,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,714.7,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,39,1793623424528,1793623424528,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,592.7,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,40,1793623546538,1793623546538,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,470.7,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,41,1793623668545,1793623668545,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,348.6,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,42,1793623790552,1793623790552,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,226.6,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,43,1793623912559,1793623912559,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa,False,0,,,,104.6,False,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,44,1793624034563,1793624034563,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba,False,0,,,,372.9,True,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,45,1793624156570,1793624156570,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba,False,0,,,,250.9,True,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,46,1793624278577,1793624278577,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba,False,0,,,,128.9,True,,,
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,47,1793624400583,1793624400583,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba,False,0,,,,6.9,True,,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,1,1793618840796,1793618840915,5e:13:fb:9d:02:d5,52:5e:17:88:66:2d,True,0,0.0,True,2.26,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,9,1793620297784,1793620297915,5e:8a:25:d0:2c:f3,7c:ce:2c:da:7a:d8,True,0,0.0,True,2.29,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,13,1793621026472,1793621026607,46:f8:13:b4:c1:f6,55:09:d4:ba:e4:fc,True,0,0.0,True,2.26,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,14,1793621208680,1793621208780,55:09:d4:ba:e4:fc,50:8e:77:78:85:43,True,0,0.0,True,3.42,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,15,1793621390921,1793621391089,50:8e:77:78:85:43,6d:74:dd:b3:ea:50,True,0,0.0,True,2.41,,False,0.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,16,1793621573118,1793621573279,6d:74:dd:b3:ea:50,69:a7:0f:cb:89:3d,True,0,0.0,True,2.47,,False,0.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,17,1793621755324,1793621756109,69:a7:0f:cb:89:3d,4a:23:cf:a5:d6:ae,True,0,0.0,True,3.52,,False,0.8,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,18,1793621937551,1793621938023,4a:23:cf:a5:d6:ae,75:4d:96:17:2a:29,True,0,0.0,True,2.45,,False,0.5,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,19,1793622119746,1793622121962,75:4d:96:17:2a:29,74:3b:06:8b:ae:ae,True,0,0.0,True,8.01,,False,2.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,20,1793622301937,1793622302101,74:3b:06:8b:ae:ae,6e:d1:9e:c4:b0:57,True,0,0.0,True,2.36,,False,0.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,21,1793622484179,1793622484264,6e:d1:9e:c4:b0:57,53:e0:ed:9c:41:3d,True,0,0.0,True,2.24,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,22,1793622666322,1793622666451,53:e0:ed:9c:41:3d,74:63:10:6a:cc:95,True,0,0.0,True,2.76,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,23,1793622848428,1793622848623,74:63:10:6a:cc:95,74:5a:f7:da:d7:83,True,0,0.0,True,2.97,,False,0.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,24,1793623030583,1793623030662,74:5a:f7:da:d7:83,5b:c4:36:45:32:73,True,0,0.0,True,2.19,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,25,1793623212658,1793623213237,5b:c4:36:45:32:73,60:ca:0b:ab:19:f0,True,0,0.0,True,3.66,,False,0.6,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,26,1793623394711,1793623395003,60:ca:0b:ab:19:f0,44:ca:6b:0c:5f:86,True,0,0.0,True,3.14,,False,0.3,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,27,1793623577009,1793623577310,44:ca:6b:0c:5f:86,5a:a2:aa:8a:3d:cc,True,0,0.0,True,2.9,,False,0.3,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,28,1793623759073,1793623761284,5a:a2:aa:8a:3d:cc,49:bc:ac:6e:ba:97,True,0,0.0,True,4.27,,False,2.2,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,29,1793623941159,1793623941813,49:bc:ac:6e:ba:97,64:2c:13:b0:e8:ff,True,0,0.0,True,3.14,,False,0.7,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,30,1793624123328,1793624123446,64:2c:13:b0:e8:ff,60:79:ff:65:ee:dc,True,0,0.0,True,2.9,,False,0.1,,0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,31,1793624305634,1793624305750,60:79:ff:65:ee:dc,69:08:7a:e7:f8:a5,True,0,0.0,True,3.09,,False,0.1,,0

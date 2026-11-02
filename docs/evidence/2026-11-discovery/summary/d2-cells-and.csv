@@ -1,0 +1,15 @@
+run,cell,advertiser,adv_state,adv_bg,scanner,scanner_state,latency_s,sighting_buckets,sightings,per_min,hint_frac,first_id,addresses,recall_10s,recall_30s,recall_60s
+d2-and-20261102,pixel6-off,pixel6,off,,xcover4,Android screen-off FGS mesh balanced,0.98,142,180,36.7,1.0,a:786b7d638796cbb1,1,1.0,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,ipx,iOS bg mesh,0.43,30,30,6.1,1.0,a:786b7d638796cbb1,1,0.793,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,se2016,iOS bg mesh,0.63,16,16,3.3,1.0,a:786b7d638796cbb1,1,0.483,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,ip15,iOS fg mesh,0.17,264,929,189.4,1.0,a:786b7d638796cbb1,1,1.0,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,se2020,iOS fg mesh,0.12,212,869,177.2,1.0,a:786b7d638796cbb1,1,1.0,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,moto30,Android screen-off FGS mesh balanced,0.41,183,240,48.9,1.0,a:786b7d638796cbb1,1,1.0,1.0,1.0
+d2-and-20261102,pixel6-off,pixel6,off,,nothing2,Android fg none low_latency,-0.01,286,1045,213.1,1.0,a:786b7d638796cbb1,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,xcover4,Android screen-off FGS mesh balanced,0.61,117,145,29.6,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,ipx,iOS bg mesh,1.37,31,31,6.3,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,se2016,iOS bg mesh,0.68,15,15,3.1,1.0,a:a46d962faa07621d,1,0.483,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,ip15,iOS fg mesh,-0.01,241,741,151.2,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,se2020,iOS fg mesh,-0.05,201,614,125.3,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,moto30,Android screen-off FGS mesh balanced,1.48,170,212,43.3,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0
+d2-and-20261102,s10e-off,s10e,off,,nothing2,Android fg none low_latency,0.35,281,797,162.6,1.0,a:a46d962faa07621d,1,1.0,1.0,1.0

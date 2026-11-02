@@ -1,0 +1,282 @@
+run,device,model,os,adv,kind,cycle,status,addresses_in_cycle,prev,now
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,1,new,1,41:6e:25:44:0c:3c,7d:18:a9:a8:8e:36
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,2,new,1,7d:18:a9:a8:8e:36,42:71:02:35:fc:c9
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,3,new,1,42:71:02:35:fc:c9,4e:2d:17:8d:82:78
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,4,new,1,4e:2d:17:8d:82:78,64:3e:82:98:84:6f
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,5,new,1,64:3e:82:98:84:6f,6a:61:13:03:18:c1
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,6,new,1,6a:61:13:03:18:c1,5d:cc:dd:48:5e:f5
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,7,new,1,5d:cc:dd:48:5e:f5,77:01:85:41:be:db
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,8,new,1,77:01:85:41:be:db,4b:dc:8e:68:46:40
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,9,new,1,4b:dc:8e:68:46:40,72:8e:47:af:90:df
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,10,new,1,72:8e:47:af:90:df,75:1e:ff:1c:1e:8a
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,11,new,1,75:1e:ff:1c:1e:8a,64:44:e3:19:d4:c6
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,12,new,1,64:44:e3:19:d4:c6,50:e5:8b:60:d3:1d
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,13,new,1,50:e5:8b:60:d3:1d,47:6c:d1:06:2a:6f
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,14,new,1,47:6c:d1:06:2a:6f,4f:bc:dd:5b:17:15
+d1-rot-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),set,new_set,15,new,1,4f:bc:dd:5b:17:15,58:15:cc:4e:96:10
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,1,new,1,69:20:fc:d7:b6:41,56:28:33:31:19:8a
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,2,unobserved,0,56:28:33:31:19:8a,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,3,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,4,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,5,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,6,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,7,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,8,unobserved,1,,4f:fe:94:66:d0:a3
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,9,new,1,4f:fe:94:66:d0:a3,76:8d:f7:9c:09:04
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,10,unobserved,0,76:8d:f7:9c:09:04,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,11,unobserved,0,,
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,12,unobserved,1,,45:ac:a7:e0:64:f1
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,13,new,1,45:ac:a7:e0:64:f1,7e:6e:57:90:c7:3f
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,14,new,1,7e:6e:57:90:c7:3f,63:84:83:f5:b4:31
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,15,new,1,63:84:83:f5:b4:31,50:8e:6d:7c:f5:92
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,16,new,1,50:8e:6d:7c:f5:92,7e:df:98:12:4a:c8
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,17,new,1,7e:df:98:12:4a:c8,49:ad:9f:ea:9b:c7
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,18,new,1,49:ad:9f:ea:9b:c7,43:64:90:15:fe:2b
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,19,new,1,43:64:90:15:fe:2b,49:26:43:3d:b8:70
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,20,new,1,49:26:43:3d:b8:70,62:4e:3d:9d:a1:31
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,21,new,1,62:4e:3d:9d:a1:31,4b:a8:cf:85:8d:ff
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,22,new,1,4b:a8:cf:85:8d:ff,68:c5:c9:b9:00:6c
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,23,new,1,68:c5:c9:b9:00:6c,4f:85:cf:dc:2c:40
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,24,new,1,4f:85:cf:dc:2c:40,40:fb:37:7f:a9:2e
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,25,new,1,40:fb:37:7f:a9:2e,51:62:99:89:9b:d7
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,26,new,1,51:62:99:89:9b:d7,4d:b9:8a:bd:f9:e7
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,27,new,1,4d:b9:8a:bd:f9:e7,65:ae:2e:1a:e7:29
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,28,new,1,65:ae:2e:1a:e7:29,51:d1:77:12:bc:e1
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,29,new,1,51:d1:77:12:bc:e1,57:97:31:eb:1f:02
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,30,new,1,57:97:31:eb:1f:02,5e:ae:98:be:ae:1d
+d1-rot-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),legacy,stop,31,new,1,5e:ae:98:be:ae:1d,4b:d6:47:4d:0e:28
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,1,new,1,56:58:96:00:bb:25,61:d4:9c:97:6e:7d
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,2,unobserved,0,61:d4:9c:97:6e:7d,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,3,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,4,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,5,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,6,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,7,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,8,unobserved,1,,58:77:88:d8:c2:6e
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,9,new,1,58:77:88:d8:c2:6e,48:40:79:bb:4b:4e
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,10,unobserved,0,48:40:79:bb:4b:4e,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,11,unobserved,0,,
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,12,unobserved,1,,5e:ef:aa:46:fa:e0
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,13,new,1,5e:ef:aa:46:fa:e0,4b:d4:70:6e:91:76
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,14,new,1,4b:d4:70:6e:91:76,64:a3:47:94:6e:1a
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,15,new,1,64:a3:47:94:6e:1a,4a:e2:44:ec:a1:65
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,16,new,1,4a:e2:44:ec:a1:65,61:48:c5:92:90:fb
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,17,new,1,61:48:c5:92:90:fb,65:14:3b:b1:68:b8
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,18,new,1,65:14:3b:b1:68:b8,6a:fe:e4:c1:62:d1
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,19,new,1,6a:fe:e4:c1:62:d1,73:25:7c:60:5e:4d
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,20,new,1,73:25:7c:60:5e:4d,63:4f:41:99:04:6a
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,21,new,1,63:4f:41:99:04:6a,5f:b4:24:54:81:36
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,22,new,1,5f:b4:24:54:81:36,6a:98:ff:c0:16:c8
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,23,new,1,6a:98:ff:c0:16:c8,69:60:a7:dd:77:9c
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,24,new,1,69:60:a7:dd:77:9c,41:25:e8:39:2d:9f
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,25,new,1,41:25:e8:39:2d:9f,4e:08:ed:1f:e9:43
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,26,new,1,4e:08:ed:1f:e9:43,6e:00:76:af:c8:24
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,27,new,1,6e:00:76:af:c8:24,62:74:97:9e:61:68
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,28,new,1,62:74:97:9e:61:68,68:d1:f7:ee:d7:32
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,29,new,1,68:d1:f7:ee:d7:32,4d:e8:4c:32:44:89
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,30,new,1,4d:e8:4c:32:44:89,76:c0:5f:2a:af:28
+d1-rot-20261102,blackview,wheatek A80,Android 10 (API 29),legacy,stop,31,new,1,76:c0:5f:2a:af:28,6d:14:2d:79:6c:1b
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,1,same,1,55:18:13:90:df:bf,55:18:13:90:df:bf
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,2,unobserved,0,55:18:13:90:df:bf,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,3,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,4,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,5,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,6,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,7,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,8,unobserved,1,,7f:a3:47:a4:dd:26
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,9,same,1,7f:a3:47:a4:dd:26,7f:a3:47:a4:dd:26
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,10,unobserved,0,7f:a3:47:a4:dd:26,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,11,unobserved,0,,
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,12,unobserved,1,,7d:76:11:fe:e2:86
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,13,same,2,7d:76:11:fe:e2:86,53:5c:39:e7:f3:24+7d:76:11:fe:e2:86
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,14,same,1,53:5c:39:e7:f3:24+7d:76:11:fe:e2:86,53:5c:39:e7:f3:24
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,15,same,1,53:5c:39:e7:f3:24,53:5c:39:e7:f3:24
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,16,same,2,53:5c:39:e7:f3:24,53:5c:39:e7:f3:24+6d:9a:02:94:c1:6c
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,17,same,1,53:5c:39:e7:f3:24+6d:9a:02:94:c1:6c,6d:9a:02:94:c1:6c
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,18,same,1,6d:9a:02:94:c1:6c,6d:9a:02:94:c1:6c
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,19,same,2,6d:9a:02:94:c1:6c,76:45:91:50:34:fc+6d:9a:02:94:c1:6c
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,20,same,1,76:45:91:50:34:fc+6d:9a:02:94:c1:6c,76:45:91:50:34:fc
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,21,same,1,76:45:91:50:34:fc,76:45:91:50:34:fc
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,22,same,1,76:45:91:50:34:fc,76:45:91:50:34:fc
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,23,same,2,76:45:91:50:34:fc,76:45:91:50:34:fc+7d:c9:71:ba:6e:cb
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,24,same,1,76:45:91:50:34:fc+7d:c9:71:ba:6e:cb,7d:c9:71:ba:6e:cb
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,25,same,1,7d:c9:71:ba:6e:cb,7d:c9:71:ba:6e:cb
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,26,same,2,7d:c9:71:ba:6e:cb,59:7c:6c:e4:04:5e+7d:c9:71:ba:6e:cb
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,27,same,1,59:7c:6c:e4:04:5e+7d:c9:71:ba:6e:cb,59:7c:6c:e4:04:5e
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,28,same,1,59:7c:6c:e4:04:5e,59:7c:6c:e4:04:5e
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,29,same,2,59:7c:6c:e4:04:5e,59:7c:6c:e4:04:5e+5a:48:4e:fb:3b:67
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,30,same,1,59:7c:6c:e4:04:5e+5a:48:4e:fb:3b:67,5a:48:4e:fb:3b:67
+d1-rot-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),set,enable,31,same,1,5a:48:4e:fb:3b:67,5a:48:4e:fb:3b:67
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,1,new,1,73:a2:16:eb:a2:0c,7c:b7:d8:a9:60:bc
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,2,new,1,7c:b7:d8:a9:60:bc,5c:a1:df:32:9e:b6
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,3,new,1,5c:a1:df:32:9e:b6,65:f6:b2:90:86:01
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,4,new,1,65:f6:b2:90:86:01,44:b3:b1:27:04:64
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,5,new,1,44:b3:b1:27:04:64,63:46:af:69:3c:7d
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,6,new,1,63:46:af:69:3c:7d,48:c8:d2:7a:dc:1e
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,7,new,1,48:c8:d2:7a:dc:1e,73:1f:a3:a6:f2:7d
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,8,new,1,73:1f:a3:a6:f2:7d,78:17:7c:22:70:3a
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,9,new,1,78:17:7c:22:70:3a,61:44:6c:bb:4c:e2
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,10,new,1,61:44:6c:bb:4c:e2,6a:3d:0c:f2:5b:e5
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,11,new,1,6a:3d:0c:f2:5b:e5,48:6d:af:53:a3:c7
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,12,new,1,48:6d:af:53:a3:c7,77:20:65:66:8a:67
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,13,new,1,77:20:65:66:8a:67,77:2b:7a:2d:83:bf
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,14,new,1,77:2b:7a:2d:83:bf,55:75:9d:31:23:ba
+d1-rot-20261102,rmx3710,realme RMX3710,Android 15 (API 35),set,new_set,15,new,1,55:75:9d:31:23:ba,57:7b:d9:2a:bf:07
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,1,new,1,54:01:99:25:7e:95,77:bc:e7:b7:4d:49
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,2,new,1,77:bc:e7:b7:4d:49,7b:6d:24:f3:68:77
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,3,new,1,7b:6d:24:f3:68:77,60:85:3b:19:e1:49
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,4,new,1,60:85:3b:19:e1:49,73:aa:c2:d2:09:ff
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,5,new,1,73:aa:c2:d2:09:ff,61:cb:a7:84:ca:23
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,6,new,1,61:cb:a7:84:ca:23,6d:30:95:55:f0:25
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,7,new,1,6d:30:95:55:f0:25,5a:57:df:36:c8:b5
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,8,new,1,5a:57:df:36:c8:b5,6d:e7:66:7c:19:4d
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,9,new,1,6d:e7:66:7c:19:4d,63:19:51:82:7e:40
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,10,new,1,63:19:51:82:7e:40,59:d6:86:59:bf:31
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,11,new,1,59:d6:86:59:bf:31,58:8c:14:dc:dd:d6
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,12,new,1,58:8c:14:dc:dd:d6,79:9a:f6:46:04:91
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,13,new,1,79:9a:f6:46:04:91,5e:48:d7:43:89:2a
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,14,new,1,5e:48:d7:43:89:2a,64:35:33:0b:b6:d4
+d1-rot-20261102,nord2,OnePlus DN2103,Android 13 (API 33),set,new_set,15,new,1,64:35:33:0b:b6:d4,6b:56:cb:ac:d4:19
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,1,new,1,55:73:6a:84:ca:b4,51:b7:d5:23:08:bc
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,2,new,1,51:b7:d5:23:08:bc,59:7c:82:02:b2:ab
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,3,new,1,59:7c:82:02:b2:ab,74:8c:50:9c:97:8f
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,4,new,1,74:8c:50:9c:97:8f,53:59:01:9a:d3:79
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,5,new,1,53:59:01:9a:d3:79,44:b5:fd:40:52:02
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,6,new,1,44:b5:fd:40:52:02,65:24:94:bb:32:41
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,7,new,1,65:24:94:bb:32:41,42:08:b9:68:66:71
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,8,new,1,42:08:b9:68:66:71,6b:e9:94:33:eb:03
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,9,new,1,6b:e9:94:33:eb:03,4a:bc:88:ae:6b:7d
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,10,new,1,4a:bc:88:ae:6b:7d,78:aa:2e:6e:f3:f1
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,11,new,1,78:aa:2e:6e:f3:f1,49:cb:89:92:55:ba
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,12,new,1,49:cb:89:92:55:ba,42:9f:3c:3a:40:62
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,13,new,1,42:9f:3c:3a:40:62,68:47:4a:51:ea:2d
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,14,new,1,68:47:4a:51:ea:2d,61:e4:98:17:7a:a9
+d1-rot-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),set,new_set,15,new,1,61:e4:98:17:7a:a9,6a:8e:50:b6:ed:e2
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,1,same,1,6c:65:d7:d4:6a:1d,6c:65:d7:d4:6a:1d
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,2,unobserved,0,6c:65:d7:d4:6a:1d,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,3,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,4,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,5,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,6,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,7,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,8,unobserved,1,,70:40:e9:d4:f4:22
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,9,same,1,70:40:e9:d4:f4:22,70:40:e9:d4:f4:22
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,10,unobserved,0,70:40:e9:d4:f4:22,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,11,unobserved,0,,
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,12,unobserved,1,,58:50:99:06:87:09
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,13,same,1,58:50:99:06:87:09,58:50:99:06:87:09
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,14,same,2,58:50:99:06:87:09,58:50:99:06:87:09+78:7a:4f:ab:a3:33
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,15,same,1,58:50:99:06:87:09+78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,16,same,1,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,17,same,1,78:7a:4f:ab:a3:33,78:7a:4f:ab:a3:33
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,18,same,2,78:7a:4f:ab:a3:33,5e:39:b3:48:5a:9a+78:7a:4f:ab:a3:33
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,19,same,1,5e:39:b3:48:5a:9a+78:7a:4f:ab:a3:33,5e:39:b3:48:5a:9a
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,20,same,2,5e:39:b3:48:5a:9a,5e:39:b3:48:5a:9a+46:d5:d3:57:f4:0b
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,21,same,1,5e:39:b3:48:5a:9a+46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,22,same,1,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,23,same,1,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,24,same,2,46:d5:d3:57:f4:0b,46:d5:d3:57:f4:0b+44:14:28:36:bc:89
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,25,same,1,46:d5:d3:57:f4:0b+44:14:28:36:bc:89,44:14:28:36:bc:89
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,26,same,1,44:14:28:36:bc:89,44:14:28:36:bc:89
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,27,same,1,44:14:28:36:bc:89,44:14:28:36:bc:89
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,28,same,2,44:14:28:36:bc:89,6b:ad:ee:cc:a5:21+44:14:28:36:bc:89
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,29,same,1,6b:ad:ee:cc:a5:21+44:14:28:36:bc:89,6b:ad:ee:cc:a5:21
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,30,same,1,6b:ad:ee:cc:a5:21,6b:ad:ee:cc:a5:21
+d1-rot-20261102,nothing1,Nothing A063,Android 15 (API 35),set,data,31,same,2,6b:ad:ee:cc:a5:21,7f:ed:9f:62:1b:62+6b:ad:ee:cc:a5:21
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,1,new,1,77:28:b2:b5:ff:23,7b:36:86:c4:c1:ae
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,2,unobserved,0,7b:36:86:c4:c1:ae,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,3,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,4,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,5,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,6,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,7,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,8,unobserved,1,,5c:0a:4c:fa:aa:98
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,9,new,1,5c:0a:4c:fa:aa:98,6c:99:a6:7c:07:2b
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,10,unobserved,0,6c:99:a6:7c:07:2b,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,11,unobserved,0,,
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,12,unobserved,1,,46:0e:76:17:6c:79
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,13,new,1,46:0e:76:17:6c:79,48:26:86:cf:60:5e
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,14,new,1,48:26:86:cf:60:5e,59:75:00:3e:d0:23
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,15,new,1,59:75:00:3e:d0:23,6b:5d:71:8c:0c:a5
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,16,new,1,6b:5d:71:8c:0c:a5,61:b3:2d:b5:5e:6e
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,17,new,1,61:b3:2d:b5:5e:6e,47:52:29:6f:5b:21
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,18,new,1,47:52:29:6f:5b:21,68:bb:a1:23:33:0c
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,19,new,1,68:bb:a1:23:33:0c,64:e0:ab:fb:64:51
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,20,new,1,64:e0:ab:fb:64:51,6f:f4:5e:d2:e6:5a
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,21,new,1,6f:f4:5e:d2:e6:5a,47:8a:f4:0d:41:7b
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,22,new,1,47:8a:f4:0d:41:7b,4e:6c:4b:b4:59:70
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,23,new,1,4e:6c:4b:b4:59:70,60:0a:21:a7:96:bf
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,24,new,1,60:0a:21:a7:96:bf,44:6d:3d:6e:e8:00
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,25,new,1,44:6d:3d:6e:e8:00,59:d2:7e:df:3b:2f
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,26,new,1,59:d2:7e:df:3b:2f,4a:8d:24:7f:21:94
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,27,new,1,4a:8d:24:7f:21:94,68:d4:36:bb:8a:90
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,28,new,1,68:d4:36:bb:8a:90,5c:cf:93:5e:ae:1b
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,29,new,1,5c:cf:93:5e:ae:1b,64:f6:8a:a1:16:ba
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,30,new,1,64:f6:8a:a1:16:ba,6a:40:45:70:a9:08
+d1-rot-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),set,new_set,31,new,1,6a:40:45:70:a9:08,4e:cb:9e:01:ea:4f
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,1,same,1,7a:fc:08:f9:a3:fe,7a:fc:08:f9:a3:fe
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,2,same,1,7a:fc:08:f9:a3:fe,7a:fc:08:f9:a3:fe
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,12,new,1,7a:fc:08:f9:a3:fe,7b:c4:b8:c2:da:d4
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,13,same,1,7b:c4:b8:c2:da:d4,7b:c4:b8:c2:da:d4
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,14,same,1,7b:c4:b8:c2:da:d4,7b:c4:b8:c2:da:d4
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,18,new,1,7b:c4:b8:c2:da:d4,52:d7:88:b7:d2:75
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,19,same,1,52:d7:88:b7:d2:75,52:d7:88:b7:d2:75
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,20,same,1,52:d7:88:b7:d2:75,52:d7:88:b7:d2:75
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,21,same,2,52:d7:88:b7:d2:75,4c:cc:a6:46:45:97+52:d7:88:b7:d2:75
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,22,same,1,4c:cc:a6:46:45:97+52:d7:88:b7:d2:75,4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,23,same,1,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,24,same,1,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,25,same,1,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,26,same,1,4c:cc:a6:46:45:97,4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,27,same,2,4c:cc:a6:46:45:97,4a:a1:2a:25:2e:93+4c:cc:a6:46:45:97
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,28,same,1,4a:a1:2a:25:2e:93+4c:cc:a6:46:45:97,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,29,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,30,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,31,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,32,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,33,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,34,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,35,same,1,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,36,same,2,4a:a1:2a:25:2e:93,4a:a1:2a:25:2e:93+7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,37,same,1,4a:a1:2a:25:2e:93+7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,38,same,1,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,39,same,1,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,40,same,1,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,41,same,1,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,42,same,1,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,43,same,2,7e:9e:b8:4e:86:aa,7e:9e:b8:4e:86:aa+45:f4:c1:49:62:ba
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,44,same,1,7e:9e:b8:4e:86:aa+45:f4:c1:49:62:ba,45:f4:c1:49:62:ba
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,45,same,1,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,46,same,1,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba
+d1-rot-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,ios,stop,47,same,1,45:f4:c1:49:62:ba,45:f4:c1:49:62:ba
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,1,new,1,5e:13:fb:9d:02:d5,52:5e:17:88:66:2d
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,2,unobserved,0,52:5e:17:88:66:2d,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,3,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,4,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,5,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,6,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,7,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,8,unobserved,1,,5e:8a:25:d0:2c:f3
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,9,new,1,5e:8a:25:d0:2c:f3,7c:ce:2c:da:7a:d8
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,10,unobserved,0,7c:ce:2c:da:7a:d8,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,11,unobserved,0,,
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,12,unobserved,1,,46:f8:13:b4:c1:f6
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,13,new,1,46:f8:13:b4:c1:f6,55:09:d4:ba:e4:fc
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,14,new,1,55:09:d4:ba:e4:fc,50:8e:77:78:85:43
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,15,new,1,50:8e:77:78:85:43,6d:74:dd:b3:ea:50
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,16,new,1,6d:74:dd:b3:ea:50,69:a7:0f:cb:89:3d
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,17,new,1,69:a7:0f:cb:89:3d,4a:23:cf:a5:d6:ae
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,18,new,1,4a:23:cf:a5:d6:ae,75:4d:96:17:2a:29
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,19,new,1,75:4d:96:17:2a:29,74:3b:06:8b:ae:ae
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,20,new,1,74:3b:06:8b:ae:ae,6e:d1:9e:c4:b0:57
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,21,new,1,6e:d1:9e:c4:b0:57,53:e0:ed:9c:41:3d
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,22,new,1,53:e0:ed:9c:41:3d,74:63:10:6a:cc:95
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,23,new,1,74:63:10:6a:cc:95,74:5a:f7:da:d7:83
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,24,new,1,74:5a:f7:da:d7:83,5b:c4:36:45:32:73
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,25,new,1,5b:c4:36:45:32:73,60:ca:0b:ab:19:f0
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,26,new,1,60:ca:0b:ab:19:f0,44:ca:6b:0c:5f:86
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,27,new,1,44:ca:6b:0c:5f:86,5a:a2:aa:8a:3d:cc
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,28,new,1,5a:a2:aa:8a:3d:cc,49:bc:ac:6e:ba:97
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,29,new,1,49:bc:ac:6e:ba:97,64:2c:13:b0:e8:ff
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,30,new,1,64:2c:13:b0:e8:ff,60:79:ff:65:ee:dc
+d1-rot-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),legacy,stop,31,new,1,60:79:ff:65:ee:dc,69:08:7a:e7:f8:a5

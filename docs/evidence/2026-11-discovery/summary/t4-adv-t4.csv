@@ -1,0 +1,9 @@
+run,phase,case,live_activity,scanner,scanner_state,uuid_buckets,uuid_first_s,uuid_last_s,other_buckets_same_address,sample_raw
+t4-20261102,adv,a-bg,—,pixel6,Android fg none low_latency,1,0.1,0.1,119,02011a020a0c1107bbf4b30031304c4d4dcd9c5ea476d15f05054853454d
+t4-20261102,adv,a-bg,—,nothing2,Android fg none low_latency,0,,,110,02011a020a0c1107bbf4b30031304c4d4dcd9c5ea476d15f05054853454d14ff4c000100000010000000000000000000000008
+t4-20261102,adv,a-bg,—,pixel6,Android fg none low_latency,0,,,120,02011a020a0c1107afe0cd0031304c4d9586636af969f38a05054853454d
+t4-20261102,adv,a-bg,—,nothing2,Android fg none low_latency,1,0.0,0.0,98,02011a020a0c1107afe0cd0031304c4d9586636af969f38a05054853454d14ff4c000100000000000000000000000000080008
+t4-20261102,adv,a-bg-live,started id=8E86AD26-F1C0-400B-A634-1BF582974E1E enabled=true state=active,pixel6,Android fg none low_latency,34,0.0,32.7,79,02011a020a0c110714e6540031304c4d6ce18a50af458fe405054853454d
+t4-20261102,adv,a-bg-live,started id=8E86AD26-F1C0-400B-A634-1BF582974E1E enabled=true state=active,nothing2,Android fg none low_latency,34,0.0,33.1,71,02011a020a0c110714e6540031304c4d6ce18a50af458fe405054853454d14ff4c000100000000000000000000000000020008
+t4-20261102,adv,a-bg-live,started id=697F0608-B18F-4528-B528-A787EFE3959F enabled=true state=active,pixel6,Android fg none low_latency,27,0.8,32.7,86,02011a020a0c1107a8f5a00031304c4d12019613049b45b005054853454d
+t4-20261102,adv,a-bg-live,started id=697F0608-B18F-4528-B528-A787EFE3959F enabled=true state=active,nothing2,Android fg none low_latency,28,0.2,33.1,74,02011a020a0c1107a8f5a00031304c4d12019613049b45b005054853454d14ff4c000100000000002000000000000000000008

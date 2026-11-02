@@ -1,0 +1,11 @@
+run,central,connect,connect_outcome,hold_end,hold_outcome,hold_error,hub_end,links_before_hub_end,hub_error
+step4-copy,pixel6,2026-11-01T21:23:06.163698Z,ok,2026-11-01T21:24:11.646968Z,fail,LinkClosedException: gatt-central:59:37:A9:90:59:8A closed,2026-11-01T21:24:02.996762Z,3,LinkClosedException: gatt-peripheral:0464E308-1041-E552-30FA-8486BB889116 closed
+step4-copy,nothing2,2026-11-01T21:23:15.190120Z,ok,2026-11-01T21:24:09.936689Z,fail,LinkClosedException: gatt-central:59:37:A9:90:59:8A closed,2026-11-01T21:24:07.998606Z,2,LinkClosedException: gatt-peripheral:74F5233B-4A2B-2984-AB6E-5ABB1DD121AE closed
+step4-copy,s10e,2026-11-01T21:23:30.383Z,ok,2026-11-01T21:30:51.354Z,ok,,2026-11-01T21:30:52.149307Z,2,LinkClosedException: gatt-peripheral:8FC60DD3-3C72-1326-CA34-BDE9E305D659 closed
+step4-copy,mi8,2026-11-01T21:23:51.234Z,fail,,,,,,
+step4-copy,p10lite,2026-11-01T21:23:55.492Z,fail,,,,,,
+step4-copy,xcover4,2026-11-01T21:24:08.560Z,fail,,,,,,
+step4-copy,se2020,2026-11-01T21:24:12.485999Z,ok,2026-11-01T21:24:25.515096Z,fail,LinkClosedException: gatt-central:F0FBAAF3-0ECC-2DA4-32DE-A77891478F0B closed,2026-11-01T21:24:23.565111Z,3,LinkClosedException: gatt-peripheral:8E9D7E43-D291-C67F-2049-46782E60FA4C closed
+step4-copy,ip12mini,2026-11-01T21:24:19.657453Z,ok,2026-11-01T21:31:40.414879Z,ok,,2026-11-01T21:31:40.417638Z,1,LinkClosedException: gatt-peripheral:24FCB8CF-1DDA-E8DF-3E69-40295387EBC3 closed
+step4-copy,se2016,2026-11-01T21:24:30.902486Z,ok,2026-11-01T21:25:11.200981Z,fail,LinkClosedException: disconnected NSError CBErrorDomain:6 The connection has timed out unexpectedly.,2026-11-01T21:25:08.341043Z,3,LinkClosedException: gatt-peripheral:274BB665-5614-A7C0-5DF6-4AC615CD315C closed
+step4-copy,ipx,2026-11-01T21:24:40.916879Z,ok,2026-11-01T21:25:08.954693Z,fail,LinkClosedException: gatt-central:9B7FDEF1-69CE-A0F2-E50A-D67231582BFE closed,2026-11-01T21:25:06.989656Z,4,LinkClosedException: gatt-peripheral:6473B144-7B58-6C43-4FD6-42A75F7A0B3C closed

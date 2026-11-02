@@ -31,6 +31,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 7. [Public API shape and error model](adr/0007-public-api-shape.md)
 8. [Routing, topology and density adaptation](adr/0008-routing-topology-and-density-adaptation.md)
 9. [BLE bearers, PHY policy and link rules](adr/0009-ble-bearers-and-phy-policy.md)
+10. [Discovery, advertising and identifier rotation](adr/0010-discovery-and-advertising.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

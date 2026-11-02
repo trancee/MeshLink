@@ -73,7 +73,15 @@ Relays must read routing headers. In the secured profiles, source and destinatio
 
 ### Tracking resistance
 
-In the secured profiles, every on-air identifier rotates in step with the BLE address and cannot be linked across rotations by A5: advertisement payloads, readable GATT values and routing tags seen on air. A gated mesh's on-air identifier derives from its mesh key and rotates too. What is not hidden: that a MeshLink node is present (its service UUID) and, in an open mesh, possibly which mesh it belongs to. The discovery work decides the mechanism.
+In the secured profiles, every on-air identifier rotates every 5 min: advertisement payloads, readable GATT values and routing tags seen on air ([ADR 0010](../adr/0010-discovery-and-advertising.md)). What A5 can still do depends on the platform and the mesh:
+
+- **Android:** each rotation starts a new advertising set, so the BLE address and the identifier change in the same packet, and A5 cannot link them. On Android 8 and 9 phones whose OS rotates faster than 5 min, the address may also change inside an epoch.
+- **iOS:** the operating system controls the address; an app can neither change it nor see when it changes. A nearby observer who keeps watching links each identifier change by the unchanged address, and each address change by the identifier. iOS gives no unlinkability against a continuous observer.
+- **Gated meshes:** a node gives its resolving key, rotated daily, only to peers it links with, inside the encrypted handshake. Those peers can recognize it across rotations until that key rotates, at most a day after their last link. The mesh tag in the advertisement comes from the mesh key but is the same for every member, so a leaked mesh key reveals that members are present, not which ones.
+- **Open meshes:** no resolving keys; a node is recognized only after a handshake.
+- **After the app stops on iOS:** the phone keeps sending its last scan response, with the MeshLink marker, for at least 26 min. It shows that MeshLink ran and links the phone's addresses.
+
+What is not hidden: that a MeshLink node is present (the `MESH` service UUID) and, in an open mesh, which mesh it belongs to.
 
 ### Harvest-now-decrypt-later
 

@@ -1,0 +1,25 @@
+device,model,os,le_2m,le_coded,le_extended_adv,le_periodic_adv,le_max_adv_data_len,multiple_adv,offloaded_filtering,offloaded_batching
+blackview,wheatek A80,Android 10 (API 29),False,False,False,False,31,False,True,True
+cph2135,OPPO CPH2135,Android 12 (API 31),False,False,False,False,31,True,True,True
+cph2251,OPPO CPH2251,Android 13 (API 33),True,True,True,True,304,True,True,True
+gx6,Gigaset E940-2849-00,Android 13 (API 33),True,True,True,True,304,True,True,True
+mi8,Xiaomi MI 8,Android 10 (API 29),True,True,True,True,1650,True,True,True
+minote3,Xiaomi Mi Note 3,Android 9 (API 28),True,False,False,False,31,True,True,True
+moto30,motorola motorola edge 30 fusion,Android 14 (API 34),True,True,True,True,1650,True,True,True
+nokiax20,HMD Global Nokia X20,Android 14 (API 34),True,True,True,True,1650,True,True,True
+nord2,OnePlus DN2103,Android 13 (API 33),True,True,True,True,304,True,True,True
+nothing1,Nothing A063,Android 15 (API 35),True,True,True,True,1650,True,True,True
+nothing2,Nothing A065,Android 16 (API 36),True,True,True,True,1650,True,True,True
+nova9,HUAWEI NAM-LX9,Android 12 (API 31),True,True,True,True,1650,True,True,True
+op6,OnePlus ONEPLUS A6003,Android 11 (API 30),True,True,True,True,1650,True,True,True
+p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),False,False,False,False,31,False,True,False
+p30lite,HUAWEI MAR-LX1A,Android 10 (API 29),False,False,False,False,31,False,True,False
+pixel4a,Google Pixel 4a,Android 13 (API 33),True,True,True,True,1650,True,True,True
+pixel6,Google Pixel 6,Android 17 (API 37),True,True,True,True,1650,True,True,True
+pocof1,Xiaomi POCOPHONE F1,Android 10 (API 29),True,True,True,True,1650,True,True,True
+redmi12,Xiaomi 23053RN02A,Android 13 (API 33),True,True,True,True,192,True,True,True
+rmx3263,realme RMX3263,Android 11 (API 30),True,True,True,True,1650,True,True,True
+rmx3710,realme RMX3710,Android 15 (API 35),True,True,True,True,192,True,True,True
+s10e,samsung SM-G970U1,Android 12 (API 31),True,True,True,True,1024,True,True,True
+xcover4,samsung SM-G390F,Android 9 (API 28),False,False,False,False,31,True,True,True
+zflip4,samsung SM-F721B,Android 16 (API 36),True,True,True,True,1650,True,True,True

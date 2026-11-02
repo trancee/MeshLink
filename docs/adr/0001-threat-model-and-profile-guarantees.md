@@ -1,6 +1,6 @@
 # 0001: Threat model and security-profile guarantees
 
-Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 1.
+Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 2 (amended 2026-11-02, ADR 0010).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -16,7 +16,7 @@ MeshLink offers three security profiles (`none`, `classical`, `post-quantum`), o
 - Mesh broadcasts carry an Ed25519 origin signature, verified before relay, in both secured profiles.
 - Fragmentation is per hop: relays reassemble, verify and re-fragment; reassembly is bounded per neighbor.
 - Relays see source and destination only as epoch-rotating tags derived from the identity key, subject to a routing-simulation cost check that, if failed, returns to the project owner.
-- Every on-air identifier rotates in step with the BLE address; node presence is not hidden.
+- Every on-air identifier rotates in step with the BLE address where the platform allows it (amended 2026-11-02, see Amendments); node presence is not hidden.
 - `post-quantum` means hybrid confidentiality with classical authentication.
 - Store-and-forward and first messages to an offline recipient have no forward secrecy in v1.
 - Replay is rejected within a bounded message lifetime under a stated clock-tolerance assumption.
@@ -47,3 +47,15 @@ The full per-profile table is [Security profile guarantees](../reference/securit
 ## Migration
 
 None: greenfield, nothing released. Any change to a guarantee in the reference table needs a new version of this ADR.
+
+## Amendments
+
+2026-11-02, discovery measurements (ADR 0010; user decisions on ticket "How do nodes discover each other, and what goes in the advertisement?"):
+
+- **Context:** on 0 of 93 restarts did iOS 15–18 change the address, and no API reports an iOS address change. Android changes the address with a new advertising set (264 of 264). After the app stops, iOS keeps its last scan response on air for at least 26 min.
+- **Decision:** the A5 guarantee "every on-air identifier rotates in step with the BLE address" now reads:
+  - **Android:** holds. MeshLink rotates every 5 min through a new advertising set, so address and identifier change in the same packet. Android 8 and 9 phones whose OS rotates faster than 5 min may change the address inside an epoch.
+  - **iOS:** not guaranteed. A nearby observer who keeps watching can link each identifier change by the address and each address change by the identifier.
+  - **Gated meshes:** peers you have linked with can recognize you across rotations until your resolving key rotates, at most a day after your last link with them. A leaked mesh key alone does not let anyone recognize individual members.
+  - **New limitation:** a stopped iOS app stays visible as a MeshLink node, and linkable, for at least 26 min.
+- **Status:** the threat model and the security-profile guarantees table are updated to match.

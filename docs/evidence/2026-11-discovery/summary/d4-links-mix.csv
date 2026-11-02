@@ -1,0 +1,13 @@
+run,central,connect,connect_outcome,hold_end,hold_outcome,hold_error,hub_end,links_before_hub_end,hub_error
+d4-mix-r1,pixel6,2026-11-02T17:13:29.159055Z,ok,,,,2026-11-02T17:15:46.180226Z,4,LinkClosedException: gatt-peripheral:23A93F9E-1D04-06B0-E6B6-71421497AF47 closed: unsubscribed
+d4-mix-r1,nothing2,2026-11-02T17:13:32.537177Z,ok,2026-11-02T17:21:52.565873Z,ok,,2026-11-02T17:21:53.911369Z,3,LinkClosedException: gatt-peripheral:8F4EC77C-E207-9B64-B80E-5685E6BDF71F closed: unsubscribed
+d4-mix-r1,ipx,2026-11-02T17:13:42.845781Z,ok,2026-11-02T17:22:02.927830Z,ok,,2026-11-02T17:22:02.992139Z,2,LinkClosedException: gatt-peripheral:7DB8431F-DA18-7E3B-0895-D5EE18CCAB0F closed: unsubscribed
+d4-mix-r1,se2016,2026-11-02T17:13:52.758331Z,ok,2026-11-02T17:22:13.994741Z,ok,,2026-11-02T17:22:14.062587Z,1,LinkClosedException: gatt-peripheral:B77B9CCA-2A9C-E48D-6ED8-B18ED31F0FF5 closed: unsubscribed
+d4-mix-r2,pixel6,2026-11-02T17:26:19.607632Z,ok,2026-11-02T17:34:40.595055Z,ok,,2026-11-02T17:34:44.633707Z,4,LinkClosedException: gatt-peripheral:670A0D7E-7D45-2AAB-5A7C-AD16B433E615 closed: unsubscribed
+d4-mix-r2,nothing2,2026-11-02T17:26:29.728192Z,ok,2026-11-02T17:34:50.114354Z,ok,,2026-11-02T17:34:51.471117Z,3,LinkClosedException: gatt-peripheral:E0D59AAC-4D1E-E64A-641E-212C5D479B9E closed: unsubscribed
+d4-mix-r2,ipx,2026-11-02T17:26:39.517963Z,ok,2026-11-02T17:35:00.408425Z,ok,,2026-11-02T17:35:00.464984Z,2,LinkClosedException: gatt-peripheral:7DB8431F-DA18-7E3B-0895-D5EE18CCAB0F closed: unsubscribed
+d4-mix-r2,se2016,2026-11-02T17:26:49.834818Z,ok,2026-11-02T17:35:10.465507Z,ok,,2026-11-02T17:35:10.583907Z,1,LinkClosedException: gatt-peripheral:B77B9CCA-2A9C-E48D-6ED8-B18ED31F0FF5 closed: unsubscribed
+d4-mix-r3,pixel6,2026-11-02T17:39:14.209339Z,ok,2026-11-02T17:47:34.417259Z,ok,,2026-11-02T17:47:38.504096Z,4,LinkClosedException: gatt-peripheral:26EACEB5-0AC4-2FE0-C60D-C3114919306C closed: unsubscribed
+d4-mix-r3,nothing2,2026-11-02T17:39:24.230294Z,ok,2026-11-02T17:47:46.178023Z,ok,,2026-11-02T17:47:47.535877Z,3,LinkClosedException: gatt-peripheral:E5908AC7-F140-79A1-DD2F-CAA817E29633 closed: unsubscribed
+d4-mix-r3,ipx,2026-11-02T17:39:34.049760Z,ok,2026-11-02T17:47:56.024181Z,ok,,2026-11-02T17:47:56.132416Z,2,LinkClosedException: gatt-peripheral:E1C08F8D-0C6E-3530-2E71-6E5F3A9BB958 closed: unsubscribed
+d4-mix-r3,se2016,2026-11-02T17:39:45.295726Z,fail,2026-11-02T17:48:15.402547Z,ok,,2026-11-02T17:48:15.503910Z,1,LinkClosedException: gatt-peripheral:EAE83968-C8EF-190C-8EAE-8647A4AF7023 closed: unsubscribed

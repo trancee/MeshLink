@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 1.
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 2 (amended 2026-11-02, ADR 0010).
 
 ## Context
 
@@ -106,3 +106,11 @@ Measured, medians unless noted:
 - Two transport implementations per platform need tests. Robolectric covers Android logic; radio behavior needs the device lab.
 - The routing simulation is recalibrated with these numbers (ADR 0008).
 - The discovery and advertising ticket inherits the iPhone 3-link cap, the 1M legacy advertisement and the scanner rules.
+
+## Amendments
+
+2026-11-02, discovery measurements (ADR 0010):
+
+- **iPhone 15 incoming-link closes:** not reproduced with the current build. In 3 of 3 runs the iPhone 15 held 4 incoming links for 500 s with no close. The cap of 3 stays. Candidate causes, all unverified: the old build `be5c761`, the larger fleet in step 4, and `bluetoothd`'s "scalable pipes are idle" disconnect logic seen for iPhone centrals.
+- **Coded PHY:** stays out of v1. 6 of 15 Android phones that report Coded support received no Coded advertisement.
+- **Legacy 1M advertisement:** confirmed. No iPhone and no legacy-only Android phone received extended advertising.

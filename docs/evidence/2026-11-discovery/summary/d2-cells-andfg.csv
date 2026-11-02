@@ -1,0 +1,15 @@
+run,cell,advertiser,adv_state,adv_bg,scanner,scanner_state,latency_s,sighting_buckets,sightings,per_min,hint_frac,first_id,addresses,recall_10s,recall_30s,recall_60s
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,xcover4,Android screen-off FGS mesh balanced,6.2,45,50,10.0,1.0,a:70a3b75011e6433a,1,0.828,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,ipx,iOS bg mesh,0.74,31,31,6.2,1.0,a:70a3b75011e6433a,1,1.0,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,se2016,iOS bg mesh,0.65,15,15,3.0,1.0,a:70a3b75011e6433a,1,0.517,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,ip15,iOS fg mesh,0.6,280,896,179.6,1.0,a:70a3b75011e6433a,1,1.0,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,se2020,iOS fg mesh,-0.05,222,931,186.6,1.0,a:70a3b75011e6433a,1,1.0,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,moto30,Android screen-off FGS mesh balanced,2.6,118,137,27.5,1.0,a:70a3b75011e6433a,1,1.0,1.0,1.0
+d2-and-fg-20261102,pixel6-fg,pixel6,fg,,nothing2,Android fg none low_latency,-0.03,284,784,157.1,1.0,a:70a3b75011e6433a,1,1.0,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,xcover4,Android screen-off FGS mesh balanced,1.84,66,74,14.8,1.0,a:5baccdd8b5b99cd7,1,0.931,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,ipx,iOS bg mesh,0.65,31,31,6.2,1.0,a:5baccdd8b5b99cd7,1,0.966,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,se2016,iOS bg mesh,0.96,16,16,3.2,1.0,a:5baccdd8b5b99cd7,1,0.483,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,ip15,iOS fg mesh,0.23,257,740,148.2,1.0,a:5baccdd8b5b99cd7,1,1.0,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,se2020,iOS fg mesh,0.47,211,575,115.2,1.0,a:5baccdd8b5b99cd7,1,1.0,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,moto30,Android screen-off FGS mesh balanced,3.1,129,154,30.8,1.0,a:5baccdd8b5b99cd7,1,1.0,1.0,1.0
+d2-and-fg-20261102,s10e-fg,s10e,fg,,nothing2,Android fg none low_latency,0.37,267,681,136.4,1.0,a:5baccdd8b5b99cd7,1,1.0,1.0,1.0

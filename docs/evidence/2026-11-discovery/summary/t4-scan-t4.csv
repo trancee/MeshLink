@@ -1,0 +1,6 @@
+run,phase,case,live_activity,app_at_scan_start,callbacks_per_min,peers_mesh,peers_other,beacon_per_min,beacon_recall_10s
+t4-20261102,scan,s-nil-fg,—,inactive,3968.7,1,45,270.0,1.0
+t4-20261102,scan,s-nil-bg,—,background,16.3,1,21,2.0,0.056
+t4-20261102,scan,s-nil-bg-live,started id=E7EE47FD-227C-4B7E-BA9F-7C1270D00D05 enabled=true state=active,background,3958.7,2,47,260.7,1.0
+t4-20261102,scan,s-mesh-bg,—,background,93.3,1,0,93.3,1.0
+t4-20261102,scan,s-mesh-bg-live,started id=C9EDA329-10AD-4174-9C72-DAA93C6A19A7 enabled=true state=active,background,250.7,1,0,250.7,1.0

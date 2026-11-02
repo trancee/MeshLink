@@ -1,0 +1,28 @@
+run,scanner,model,os,ext_adv,cap_coded,max_adv_len,ios_ext_scan,legacy,legacy_phy,ext1m,ext1m_phy,ext2m,ext2m_phy,coded,coded_phy
+d3-20261102,gx6,Gigaset E940-2849-00,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3-20261102,rmx3263,realme RMX3263,Android 11 (API 30),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3-20261102,p30lite,HUAWEI MAR-LX1A,Android 10 (API 29),False,False,31,,2,1/0,0,,0,,0,
+d3-20261102,pocof1,Xiaomi POCOPHONE F1,Android 10 (API 29),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,xcover4,samsung SM-G390F,Android 9 (API 28),False,False,31,,2,1/0,0,,0,,0,
+d3-20261102,nokiax20,HMD Global Nokia X20,Android 14 (API 34),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,minote3,Xiaomi Mi Note 3,Android 9 (API 28),False,False,31,,2,1/0,0,,0,,0,
+d3-20261102,blackview,wheatek A80,Android 10 (API 29),False,False,31,,0,,0,,0,,0,
+d3-20261102,ipx,"Apple iPhone10,6",iOS 16.7.16,,,,False,2,,0,,0,,0,
+d3-20261102,se2016,"Apple iPhone8,4",iOS 15.8.8,,,,False,2,,0,,0,,0,
+d3-20261102,cph2251,OPPO CPH2251,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3-20261102,op6,OnePlus ONEPLUS A6003,Android 11 (API 30),True,True,1650,,0,,0,,0,,0,
+d3-20261102,p10lite,HUAWEI WAS-LX1A,Android 8.0.0 (API 26),False,False,31,,2,1/0,0,,0,,0,
+d3-20261102,mi8,Xiaomi MI 8,Android 10 (API 29),True,True,1650,,0,,0,,0,,0,
+d3-20261102,rmx3710,realme RMX3710,Android 15 (API 35),True,True,192,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,nord2,OnePlus DN2103,Android 13 (API 33),True,True,304,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3-20261102,cph2135,OPPO CPH2135,Android 12 (API 31),False,False,31,,2,1/0,0,,0,,0,
+d3-20261102,redmi12,Xiaomi 23053RN02A,Android 13 (API 33),True,True,192,,0,,0,,0,,0,
+d3-20261102,pixel6,Google Pixel 6,Android 17 (API 37),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,ip15,"Apple iPhone15,4",iOS 17.6.1,,,,False,2,,0,,0,,0,
+d3-20261102,s10e,samsung SM-G970U1,Android 12 (API 31),True,True,1024,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,nova9,HUAWEI NAM-LX9,Android 12 (API 31),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,zflip4,samsung SM-F721B,Android 16 (API 36),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,se2020,"Apple iPhone12,8",iOS 18.7.8,,,,False,2,,0,,0,,0,
+d3-20261102,moto30,motorola motorola edge 30 fusion,Android 14 (API 34),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
+d3-20261102,pixel4a,Google Pixel 4a,Android 13 (API 33),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,0,
+d3-20261102,nothing2,Nothing A065,Android 16 (API 36),True,True,1650,,2,1/0,2,1/1 ext,2,1/2 ext,2,3/3 ext
