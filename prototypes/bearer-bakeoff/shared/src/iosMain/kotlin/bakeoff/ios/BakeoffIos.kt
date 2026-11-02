@@ -40,6 +40,9 @@ import platform.posix.utsname
 
 /** Swift entry point: `BakeoffIos.shared.start(arguments: CommandLine.arguments) { status in ... }`. */
 object BakeoffIos {
+    /** T4 (lab only): set by the Swift app; starts a Live Activity and returns its id or an error text. */
+    var liveActivityStarter: (() -> String)? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var job: Job? = null
 

@@ -17,7 +17,9 @@ targets:
   BakeoffHost:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Shared]
+    dependencies:
+      - target: BakeoffLiveActivity
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
@@ -36,6 +38,26 @@ targets:
         UIFileSharingEnabled: true
         UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
         LSSupportsOpeningDocumentsInPlace: true
+        NSSupportsLiveActivities: true
+  # T4 (lab only): Live Activity widget extension.
+  BakeoffLiveActivity:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.1"
+    sources: [LiveActivity, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID).live
+        OTHER_LDFLAGS: []
+        FRAMEWORK_SEARCH_PATHS: []
+    info:
+      path: LiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: BakeoffLive
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   # UI-test runner that accepts the Bluetooth permission alert (exact labels only); see GrantBluetoothTests.swift.
   BakeoffGrantUITests:
     type: bundle.ui-testing

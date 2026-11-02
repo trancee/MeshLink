@@ -58,7 +58,7 @@ This file is committed **before** each run. A criterion added after its run is m
 | T1 | T1 | iOS ADV vs scan-response layout and name leak |
 | D3 | T7 | Legacy vs extended reception, Coded on iOS |
 | D4 | — | iPhone 15 incoming-link closes |
-| T4 | T4 | Live Activity. **Skipped:** needs an ActivityKit widget extension and Live Activity UI in the lab app; not cheap. Unverified. |
+| T4 | T4 | Live Activity on the 12 mini (iOS 27). First skipped (not cheap, 12 mini locked); run after owner approval (19:00), see `t4-*` below. |
 | T9 | T9 | Android 17 scan allowance. Only Pixel 6 runs Android 17 (no second Android 17 OEM in the lab). Run `t9-*`, see below. |
 | — | T12 | Play review. Out of scope (external submission). |
 
@@ -220,6 +220,31 @@ This file is committed **before** each run. A criterion added after its run is m
   - `d4.sh` killed only the `grep`, so `idevicesyslog` lingered after r1 and r2 (killed by PID). Fixed in `fa4cb30`
     before r3.
 - **Result:** not reproduced. 0 hub-side early closes in 3 of 3 reps; 4 links held 500 s each rep. Variants not run.
+
+## T1 rerun on the 12 mini (run `t1-ip12mini-*`, approved 19:00)
+
+- The owner unlocked the 12 mini by hand and disabled auto-lock. Host polls `devicectl` launches for ≤ 30 min.
+- Same as T1: `host/t1.py RUN --phones ip12mini` with the build already installed (before the T4 build).
+- **Pass:** raw bytes per case for iOS 27; same report as T1.
+
+## T4 Live Activity (run `t4-*`, 12 mini, iOS 27)
+
+- App change: a minimal ActivityKit widget extension (`ch.trancee.lab.host.live`, 12 mini team only) and `live=1`.
+  With `live=1` the discovery code starts a Live Activity after its CBManager exists, right before the app suspends
+  itself (`bg=1`), and logs `live_activity` with the outcome. Any launch without `live=1` ends leftover activities.
+  Built with Xcode 16.4 (iOS 18.5 SDK): if iOS gates the privilege on a newer SDK, a negative result is inconclusive.
+- `host/t4.py`, one fresh launch per cell, n = 1 per cell:
+  - Scanner phase (Pixel 6 advertises layout E; 12 mini scans with duplicates, `log=all`, 180 s each):
+    `s-nil-fg` (reference), `s-nil-bg`, `s-nil-bg-live`, `s-mesh-bg`, `s-mesh-bg-live`.
+  - Advertiser phase (12 mini layout E, 120 s each, then 25 s app stopped; Pixel 6 passive and Nothing 2 active,
+    unfiltered `log=all`): `a-bg`, `a-bg-live`, `a-bg`, `a-bg-live`.
+- **Criteria (pre-registered):**
+  - (i) Scan privilege = `s-nil-bg-live` gets ≥ 10× the callbacks of `s-nil-bg` and ≥ 1 non-MESH peer, and its
+    Pixel 6 sightings per minute are ≥ 50 % of `s-nil-fg`. Duplicates: Pixel 6 sightings per minute, `s-mesh-bg`
+    vs `s-mesh-bg-live`.
+  - (ii) Advertising privilege = in `a-bg-live` the Android scanners see MESH and the rotating UUID in the main packet
+    (as in the foreground) in both reps; else the advert is the overflow bitmap as in `a-bg`.
+  - (iii) 8 h end and the ended-activity period: not run (needs > 8 h). Unverified.
 
 ## T9 Android 17 scan allowance (run `t9-*`, 2 h, Pixel 6 only)
 

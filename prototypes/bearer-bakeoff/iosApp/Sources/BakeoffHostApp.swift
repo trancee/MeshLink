@@ -1,3 +1,4 @@
+import ActivityKit
 import Bakeoff
 import SwiftUI
 import UIKit
@@ -7,6 +8,7 @@ final class RunState: ObservableObject {
     @Published var status = "starting"
 
     init() {
+        LiveActivityLab.prepare(arguments: CommandLine.arguments)
         BakeoffIos.shared.start(arguments: CommandLine.arguments) { [weak self] text in
             self?.status = text
         }
@@ -23,6 +25,35 @@ final class RunState: ObservableObject {
     }
 
     private var tokens: [Int32] = []
+}
+
+/// T4 (lab only): `live=1` lets the discovery code start a Live Activity; any other launch ends leftover activities.
+enum LiveActivityLab {
+    static func prepare(arguments: [String]) {
+        guard #available(iOS 16.2, *) else { return }
+        let run = arguments.first { $0.hasPrefix("run=") }.map { String($0.dropFirst(4)) } ?? "adhoc"
+        if !arguments.contains("live=1") {
+            Task {
+                for activity in Activity<LabActivityAttributes>.activities {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+            return
+        }
+        BakeoffIos.shared.liveActivityStarter = {
+            let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+            do {
+                let activity = try Activity.request(
+                    attributes: LabActivityAttributes(run: run),
+                    content: ActivityContent(state: LabActivityAttributes.ContentState(status: "scanning"), staleDate: nil),
+                    pushType: nil
+                )
+                return "started id=\(activity.id) enabled=\(enabled) state=\(activity.activityState)"
+            } catch {
+                return "error enabled=\(enabled): \(error)"
+            }
+        }
+    }
 }
 
 @main

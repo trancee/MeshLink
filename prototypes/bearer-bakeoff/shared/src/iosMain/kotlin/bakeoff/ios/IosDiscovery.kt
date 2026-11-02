@@ -120,6 +120,13 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
     }
 
     private suspend fun enterBackground() {
+        // T4 (`live=1`): Core Bluetooth grants foreground privileges in the background on iOS 26+ when an app with a
+        // CBManager starts a Live Activity. The manager exists here, so the activity starts after it.
+        if (raw["live"] == "1") {
+            val outcome = BakeoffIos.liveActivityStarter?.invoke() ?: "error: no starter"
+            record("live_activity", mapOf("outcome" to outcome, "app" to appState()))
+            delay(1000)
+        }
         beginBackgroundTask()
         suspendApp()
         record("background", mapOf("reached" to waitBackground(), "app" to appState()))
