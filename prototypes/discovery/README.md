@@ -204,6 +204,8 @@ This file is committed **before** each run. A criterion added after its run is m
   - If not reproduced in 3 reps: report "not reproduced with build `<sha>`"; the old build stays a candidate cause.
   - Close = hub record of an inbound link ending (`unsubscribed`/`closed`) before the central's `hold_end`.
   - Logs: hub `idevicesyslog`/`log collect` is attempted for `bluetoothd` lines around each close; listed, not shipped.
+  - Runner: `host/d4.sh RUN STAGGER PEER...` wraps `phub` and captures the hub's `bluetoothd` syslog (scan spam
+    filtered out) to `results/RUN/ip15-bluetoothd.log`. Peers keep step 4's order: Androids first.
 
 ## T9 Android 17 scan allowance (run `t9-*`, 2 h, Pixel 6 only)
 
