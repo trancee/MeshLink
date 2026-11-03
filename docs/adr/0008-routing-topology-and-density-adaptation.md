@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 3 (amended 2026-11-02, ADRs 0010 and 0013). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 4 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADR 0014). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -125,3 +125,9 @@ Results for the v1 configuration:
 2026-11-02, message lifecycle ([ADR 0013](0013-message-lifecycle-and-receipts.md)):
 
 - **Unicast ack (decision 3):** the destination's ack is the end-to-end delivery receipt, sent once the app takes the message and batched by message ID. Duplicates are acknowledged again. Running out of retries does not fail a message; it expires at its expiry plus 30 s.
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Lifetime (decision 5):** at most 1 h.
+- **Holding (decision 5):** the 100-message quota is for holding for others, with at most ¼ per incoming link and a byte cap from the message-size decision. Mesh broadcasts are held too. Delivered messages are purged through tombstones.
+- **Catch-up (decision 3):** also offers held broadcasts, held unicasts as {message ID, destination tag} and tombstones. Not yet simulated; a routing-simulation rerun must confirm the cost.

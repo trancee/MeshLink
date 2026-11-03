@@ -15,6 +15,9 @@ Per-profile guarantees against the adversaries A1–A7 defined in the [threat mo
 | Mesh admission control | Open only | Open or gated (mesh key) | Open or gated (mesh key) |
 | Forward secrecy, links and interactive sessions (A7) | No | Yes | Yes |
 | Forward secrecy, store-and-forward and first message to an offline recipient (A7) | No | No | No |
+| Exposure of recorded first and held messages after key theft (A7) | All | About the last 25 h | About the last 25 h |
+| Recognizing a held message's destination when it collects the message (A5) | Yes | Yes, until the message expires (at most 1 h) | Yes, until the message expires (at most 1 h) |
+| Only the destination can purge delivered copies | No (forgeable) | Yes | Yes |
 | Replay rejection within message lifetime | No | Yes | Yes |
 | Receipt authenticity | No (forgeable) | Yes (end-to-end) | Yes (end-to-end) |
 | Relay unlinkability of source/destination across epochs (A3 without the node's public key) | No | Yes, pending routing-simulation cost check | Yes, pending routing-simulation cost check |

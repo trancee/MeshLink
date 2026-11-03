@@ -5,7 +5,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 ## State (2026-11-02)
 
 - **Phase:** design. `main` holds no product code yet, only decisions, research and docs.
-- **Decided:** [ADRs 0001–0013](docs/README.md) (threat model, Noise suites, identity keys, crypto provider, toolchain, docs architecture, public API, routing, bearers, discovery, modules, wire format, message lifecycle).
+- **Decided:** [ADRs 0001–0014](docs/README.md) (threat model, Noise suites, identity keys, crypto provider, toolchain, docs architecture, public API, routing, bearers, discovery, modules, wire format, message lifecycle, store-and-forward).
 - **Open:** the [wayfinder map](.scratch/meshlink-v1/map.md) and its tickets.
 - **Prototypes:** throwaway local branches, never merged:
   - `prototype/bearer-bakeoff`: GATT vs L2CAP CoC and PHY comparison on devices.

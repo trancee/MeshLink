@@ -1,6 +1,6 @@
 # 0001: Threat model and security-profile guarantees
 
-Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 3 (amended 2026-11-02, ADRs 0010 and 0012).
+Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 4 (amended 2026-11-02, ADRs 0010 and 0012; 2026-11-03, ADR 0014).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -66,3 +66,8 @@ None: greenfield, nothing released. Any change to a guarantee in the reference t
 - **Message sizes:** the secured profiles pad end-to-end plaintext to a multiple of 32 B, so relays see sizes only in 32 B steps.
 - **Lifetime:** the expiry is absolute and set by the origin, so it can be authenticated end to end and relays cannot extend the replay window.
 - **`unsecured` sender:** routed messages carry the sender's NodeId in clear.
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Forward secrecy of held and first messages:** still none, but bounded. Static keys rotate daily and are deleted at most 1 h and 30 s after their certificate expires, so a stolen phone exposes the recorded first and held messages of about the last 25 h.
+- **Tracking (A5):** anyone who recorded a message addressed to a node can recognize that node when it claims or acknowledges the message, until the message expires (at most 1 h).

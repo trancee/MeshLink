@@ -1,6 +1,6 @@
 # 0003: Installation identity key model
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 2.
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 3 (amended 2026-11-03, ADR 0014).
 
 ## Context
 
@@ -37,3 +37,8 @@ None: greenfield.
 
 - **NodeId:** the full 32 B BLAKE2b-256 hash of the Ed25519 public key, with a domain-separation string fixed in the spec. Every profile has an installation identity key; in `unsecured` the NodeId is claimed, not proven.
 - **Certificate encoding:** a fixed-layout binary record (version, profile, Ed25519 key, X25519 key, X-Wing key in post-quantum only, not-before and not-after as 4 B Unix seconds, then a 64 B Ed25519 signature over every preceding byte with a domain-separation prefix). No CBOR, ASN.1 or X.509.
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Rotation period:** a certificate is valid for 24 h, and a new one is issued every 12 h. Its static private keys are deleted at its not-after plus 1 h plus 30 s.
+- **Expired certificates (risk above):** a sender never seals to an expired certificate (`Rejected(PeerKeyExpired)`); nodes attach their current certificate to `IK` replies and receipts when the sender's copy is past half its validity.

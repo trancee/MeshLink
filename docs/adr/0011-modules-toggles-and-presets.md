@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 2 (amended 2026-11-02, ADR 0013).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 3 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0014).
 
 ## Context
 
@@ -117,3 +117,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 
 - **Toggles (decision 10):** "Receipts requested" becomes two values, `readReceipts.requestByDefault` and `readReceipts.send`. Delivery receipts are always on.
 - **Presets (decision 12):** the Receipts column means read receipts, with both values on for `OfflineChat` and `FieldTeams` and off for the rest.
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Default message lifetime (decision 10):** validation also rejects values over 1 h. Preset defaults: `OfflineChat` 30 min; `FieldTeams` and `EmergencyBroadcast` 1 h; `ProximityDiscovery` and `LocalMultiplayer` 120 s.

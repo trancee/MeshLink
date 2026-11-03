@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 1.
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 2 (amended 2026-11-03, ADR 0014).
 
 ## Context
 
@@ -69,3 +69,10 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 - The protocol spec defines the delivery receipt and read receipt frames, their batching limits and the `Failed` reasons.
 - `unsecured` receipts stay forgeable (guarantees table, unchanged).
 - The store-and-forward ticket is unblocked; it decides whether held messages and their status survive a restart.
+
+## Amendments
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Delivery receipt (decision 2):** also carries, in clear, one tombstone per acknowledged message so holders can drop their copies.
+- **Persistence (decision 9):** held messages also live in memory only in v1.

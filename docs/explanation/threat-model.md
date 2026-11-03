@@ -77,6 +77,7 @@ In the secured profiles, every on-air identifier rotates every 5 min: advertisem
 
 - **Android:** each rotation starts a new advertising set, so the BLE address and the identifier change in the same packet, and A5 cannot link them. On Android 8 and 9 phones whose OS rotates faster than 5 min, the address may also change inside an epoch.
 - **iOS:** the operating system controls the address; an app can neither change it nor see when it changes. A nearby observer who keeps watching links each identifier change by the unchanged address, and each address change by the identifier. iOS gives no unlinkability against a continuous observer.
+- **Held messages:** anyone who recorded a message addressed to a node can recognize that node when it claims or acknowledges the message, until the message expires (at most 1 h, [ADR 0014](../adr/0014-store-and-forward.md)).
 - **Gated meshes:** a node gives its resolving key, rotated daily, only to peers it links with, inside the encrypted handshake. Those peers can recognize it across rotations until that key rotates, at most a day after their last link. The mesh tag in the advertisement comes from the mesh key but is the same for every member, so a leaked mesh key reveals that members are present, not which ones.
 - **Open meshes:** no resolving keys; a node is recognized only after a handshake.
 - **After the app stops on iOS:** the phone keeps sending its last scan response, with the MeshLink marker, for at least 26 min. It shows that MeshLink ran and links the phone's addresses.
@@ -89,7 +90,7 @@ The `post-quantum` profile uses hybrid X25519 + ML-KEM-768 key establishment, so
 
 ### Forward secrecy and key compromise
 
-Links and interactive end-to-end sessions use ephemeral keys, so a key stolen later (A7) does not decrypt them. Store-and-forward messages and first messages to an offline recipient are encrypted to the recipient's static key and have no forward secrecy against later theft of that key. Bounded-lifetime store-and-forward keys are a candidate for the store-and-forward design.
+Links and interactive end-to-end sessions use ephemeral keys, so a key stolen later (A7) does not decrypt them. Store-and-forward messages and first messages to an offline recipient are encrypted to the recipient's static key and have no forward secrecy against later theft of that key. The exposure is bounded instead ([ADR 0014](../adr/0014-store-and-forward.md)): messages live at most 1 h, and static keys rotate daily and are deleted at most 1 h and 30 s after their certificate expires, so a stolen phone exposes the recorded first and held messages of about the last 25 h.
 
 A stolen installation key lets A7 impersonate that node and read store-and-forward messages addressed to it until the app performs an identity reset. Peers then see a key change, which MeshLink always reports as a typed event and never accepts silently. There is no revocation protocol in v1, because a stolen key could forge revocations as well. Keys at rest are protected by the platform keystore (Android Keystore; iOS Keychain, this device only).
 

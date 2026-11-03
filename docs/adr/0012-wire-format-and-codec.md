@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 1.
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 2 (amended 2026-11-03, ADR 0014).
 
 ## Context
 
@@ -78,3 +78,9 @@ Evidence: [the codec evidence](../evidence/2026-11-codec/README.md), 2026-11-02,
 ## Migration
 
 None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the profile guarantees are recorded with this ADR.
+
+## Amendments
+
+2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
+
+- **Routing header:** a unicast carries a 16 B tombstone commitment H(k) in clear. Delivery receipts carry the matching tombstone {message ID, k} in clear.
