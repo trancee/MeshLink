@@ -1,0 +1,5 @@
+Bluetooth total received: 0B, sent: 0B
+Bluetooth scan time: 0ms
+Bluetooth Idle time:   0ms (--%)
+Bluetooth Rx time:     0ms (--%)
+Bluetooth Tx time:     0ms (--%)

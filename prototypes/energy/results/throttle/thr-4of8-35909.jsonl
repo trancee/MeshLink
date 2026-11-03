@@ -1,0 +1,21 @@
+{"t":1793735942805,"boot_ns":96183803977485,"test":"energy_start","run_id":"thr-4of8-35909","mode":"scan","args":{"energy":"scan","run":"thr-4of8-35909","window_s":"60","settle_s":"2","scan_on_s":"4","scan_off_s":"4"},"model":"Google Pixel 6","os":"Android 17 (API 37)","fingerprint":"google/oriole/oriole:17/CP3A.261005.002.A1/16269273:user/release-keys","le_2m":true,"le_extended_adv":true,"offloaded_filtering":true,"screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":0}
+{"t":1793735942807,"boot_ns":96183805481107,"test":"wakelock","run_id":"thr-4of8-35909","held":true}
+{"t":1793735944815,"boot_ns":96185813982166,"test":"window_start","run_id":"thr-4of8-35909","screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":16,"links":[]}
+{"t":1793735946824,"boot_ns":96187823276844,"test":"burst","run_id":"thr-4of8-35909","n":1,"on_ms":4012,"results":42,"empty_bursts":0}
+{"t":1793735950829,"boot_ns":96191828309032,"test":"gap","run_id":"thr-4of8-35909","n":1,"off_ms":4004}
+{"t":1793735954854,"boot_ns":96195852513624,"test":"burst","run_id":"thr-4of8-35909","n":2,"on_ms":4022,"results":48,"empty_bursts":0}
+{"t":1793735958863,"boot_ns":96199861430903,"test":"gap","run_id":"thr-4of8-35909","n":2,"off_ms":4006}
+{"t":1793735962900,"boot_ns":96203898706133,"test":"burst","run_id":"thr-4of8-35909","n":3,"on_ms":4035,"results":44,"empty_bursts":0}
+{"t":1793735966907,"boot_ns":96207905872354,"test":"gap","run_id":"thr-4of8-35909","n":3,"off_ms":4006}
+{"t":1793735970931,"boot_ns":96211930153077,"test":"burst","run_id":"thr-4of8-35909","n":4,"on_ms":4023,"results":55,"empty_bursts":0}
+{"t":1793735974940,"boot_ns":96215938794355,"test":"gap","run_id":"thr-4of8-35909","n":4,"off_ms":4007}
+{"t":1793735978976,"boot_ns":96219974746342,"test":"burst","run_id":"thr-4of8-35909","n":5,"on_ms":4032,"results":47,"empty_bursts":0}
+{"t":1793735982986,"boot_ns":96223984982673,"test":"gap","run_id":"thr-4of8-35909","n":5,"off_ms":4007}
+{"t":1793735987026,"boot_ns":96228025079151,"test":"burst","run_id":"thr-4of8-35909","n":6,"on_ms":4036,"results":48,"empty_bursts":0}
+{"t":1793735991036,"boot_ns":96232034636648,"test":"gap","run_id":"thr-4of8-35909","n":6,"off_ms":4007}
+{"t":1793735995068,"boot_ns":96236067290133,"test":"burst","run_id":"thr-4of8-35909","n":7,"on_ms":4030,"results":42,"empty_bursts":0}
+{"t":1793735999079,"boot_ns":96240077905776,"test":"gap","run_id":"thr-4of8-35909","n":7,"off_ms":4007}
+{"t":1793736003125,"boot_ns":96244123842546,"test":"burst","run_id":"thr-4of8-35909","n":8,"on_ms":4042,"results":51,"empty_bursts":0}
+{"t":1793736004836,"boot_ns":96245835089576,"test":"window_end","run_id":"thr-4of8-35909","screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":377,"window_ms":60015,"lost":[]}
+{"t":1793736004840,"boot_ns":96245839224382,"test":"scan_summary","run_id":"thr-4of8-35909","bursts":8,"empty_bursts":0,"results":377}
+{"t":1793736004847,"boot_ns":96245845646908,"test":"done","run_id":"thr-4of8-35909","outcome":"ok","error":null,"screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":377}

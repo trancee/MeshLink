@@ -310,7 +310,7 @@ MODEL_X = {"op6": "ONEPLUS A6003", "nord2": "DN2103", "rmx3710": "RMX3710", "not
            "pocom5": "M5", "nokiax20": "X20", **MODEL}
 
 
-def crosscheck(name, peers):
+def crosscheck(name, peers, only=None):
     serial = PHONES[name]
     out = RESULTS / "crosscheck"
     out.mkdir(parents=True, exist_ok=True)
@@ -319,6 +319,8 @@ def crosscheck(name, peers):
             ("idle_gatt_3", "links", ["bearer=gatt", "prio=none", "phy=2m"], peers)]
     tag = TAG + 1 + list(PHONES).index(name)
     for sid, energy, extra, prs in plan:
+        if only and sid not in only:
+            continue
         rid = f"x-{name}-{sid}-{int(time.time()) % 100000}"
         adb(serial, "shell", "am", "force-stop", PKG)
         for p in prs:
@@ -327,16 +329,25 @@ def crosscheck(name, peers):
         time.sleep(5)
         want = [f"want={'+'.join(MODEL_X[p] for p in prs)}", f"n={len(prs)}"] if prs else []
         args = ",".join([f"energy={energy}", f"run={rid}", "window_s=600", "settle_s=20", f"tag={tag}", *want, *extra])
-        sh(serial, "dumpsys batterystats --reset")
+        # batterystats only accumulates on battery: pretend unplugged for the window (reset after reading).
+        sh(serial, "dumpsys battery unplug; dumpsys batterystats --reset")
         adb(serial, "shell", "am", "start-foreground-service", "-n", f"{PKG}/.EnergyService", "--es", "args", args)
         t0 = time.time()
         text = ""
+        if prs:
+            # Reset at window_start so connect scans and retries during link setup are not counted.
+            while time.time() - t0 < 300:
+                time.sleep(2)
+                if '"test":"window_start"' in adb(serial, "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout:
+                    sh(serial, "dumpsys batterystats --reset")
+                    break
         while time.time() - t0 < 600 + 20 + (240 if prs else 0) + 240:
             time.sleep(20)
             text = adb(serial, "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout
             if '"test":"window_end"' in text or '"test":"done"' in text:
                 break
         full = sh(serial, "dumpsys batterystats", timeout=300)
+        sh(serial, "dumpsys battery reset")
         text = adb(serial, "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout
         lines = [l.strip() for l in full.splitlines() if re.search(r"(?i)bluetooth", l)][:80]
         (out / f"{rid}.jsonl").write_text(text)
@@ -422,6 +433,125 @@ def ios_sample(name, seconds, period, out_path):
     return out_path
 
 
+IOS_BUNDLE = {"ip15": "ch.trancee.lab.host", "se2016": "ch.trancee.lab.host.b"}
+IOS_SCENARIOS = {
+    "adv": ["disc=adv"],
+    "scan_low": ["disc=scan", "filter=mesh"],
+    "comb_med": ["disc=both", "filter=mesh", "scan_on_s=4", "scan_off_s=4"],
+    "idle_gatt_3": None,  # iPhone is the peripheral; three Android centrals hold one link each (iOS caps 3 inbound)
+}
+IOS_CENTRALS = ["nothing2", "flip4", "gx6"]
+
+
+def ios_launch(name, args):
+    udid = IOS[name]
+    if name == "ip15":
+        cmd = ["xcrun", "devicectl", "device", "process", "launch", "--device", udid, "--terminate-existing", IOS_BUNDLE[name], *args]
+    else:
+        cmd = ["idevicedebug", "-u", udid, "--detach", "run", IOS_BUNDLE[name], *args]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        raise RuntimeError(f"iOS launch failed: {' '.join(cmd)}: {r.stdout[-300:]} {r.stderr[-300:]}")
+
+
+def ios_power(samples):
+    """Mean |InstantAmperage| x Voltage (mW) over distinct gauge updates; validity flags."""
+    ups = [r for r in samples if "Voltage" in r and r.get("new_update")]
+    bad = [r for r in samples if r.get("ExternalConnected") or r.get("IsCharging")]
+    errors = [r for r in samples if "error" in r]
+    p = [abs(r["InstantAmperage"]) * r["Voltage"] / 1000 for r in ups if isinstance(r.get("InstantAmperage"), int)]
+    pa = [abs(r["Amperage"]) * r["Voltage"] / 1000 for r in ups if isinstance(r.get("Amperage"), int)]
+    invalid = []
+    if bad:
+        invalid.append(f"plugged/charging in {len(bad)} samples")
+    if len(errors) > 0.1 * max(1, len(samples)):
+        invalid.append(f"{len(errors)} sampler errors")
+    if len(p) < 20:
+        invalid.append(f"only {len(p)} gauge updates")
+    return {"power_mw": round(sum(p) / len(p), 2) if p else None, "power_avg_amperage_mw": round(sum(pa) / len(pa), 2) if pa else None,
+            "updates": len(p), "samples": len(samples), "signs": sorted({(r.get("InstantAmperage") or 0) > 0 for r in ups}),
+            "invalid": invalid, "valid": not invalid}
+
+
+def ios_window(name, sid, rep, window_s=600, settle_s=45):
+    rid = f"i{rep}-{name}-{sid}-{int(time.time()) % 100000}"
+    out = RESULTS / "ios"
+    out.mkdir(parents=True, exist_ok=True)
+    centrals = []
+    try:
+        if sid == "idle_gatt_3":
+            ios_launch(name, ["role=peripheral", f"run={rid}", f"tag={TAG + 100}", f"duration={window_s + settle_s + 400}"])
+            time.sleep(8)
+            for c in IOS_CENTRALS:
+                adb(PHONES[c], "shell", "am", "force-stop", PKG)
+                adb(PHONES[c], "shell", "am", "start-foreground-service", "-n", f"{PKG}/.EnergyService", "--es", "args",
+                    f"energy=links,run={rid},n=1,want=iPhone,tag={TAG + 100},bearer=gatt,prio=none,phy=2m,settle_s=5,window_s={window_s + settle_s + 60}")
+                centrals.append(c)
+                time.sleep(3)
+            t0 = time.time()
+            while time.time() - t0 < 300:
+                ups = [c for c in centrals if '"test":"window_start"' in adb(PHONES[c], "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout]
+                if len(ups) == len(centrals):
+                    break
+                time.sleep(10)
+            else:
+                raise RuntimeError(f"iOS links: only {len(ups)}/3 up")
+        else:
+            args = ["mode=discovery", *(IOS_SCENARIOS.get(sid) or ["disc=idle"]), f"run={rid}", "tag=ios", f"duration={window_s + settle_s + 60}"]
+            ios_launch(name, args)
+        time.sleep(settle_s)
+        path = out / f"{rid}.gauge.jsonl"
+        ios_sample(name, window_s, 2, path)
+        samples = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+        result = ios_power(samples)
+        import sys
+        sys.path.insert(0, str(ENERGY.parent / "bearer-bakeoff" / "host"))
+        import bakeoff
+        result["app_log"] = bakeoff.fetch(name, rid, out / f"{rid}.app.jsonl")
+        for c in centrals:
+            text = adb(PHONES[c], "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout
+            (out / f"{rid}-{c}.jsonl").write_text(text)
+            if '"link_lost"' in text:
+                result["valid"] = False
+                result["invalid"].append(f"link lost ({c})")
+    except Exception as e:  # noqa: BLE001
+        result = {"valid": False, "invalid": [str(e)[:300]]}
+    finally:
+        for c in centrals:
+            adb(PHONES[c], "shell", "am", "force-stop", PKG)
+    result.update({"rid": rid, "scenario": sid, "rep": rep, "device": name, "platform": "ios",
+                   "date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "commit": git_commit()})
+    with (RESULTS / "ios-windows.jsonl").open("a") as f:
+        f.write(json.dumps(result) + "\n")
+    log(f"ios window {rid}: valid={result['valid']} {result['invalid']} power={result.get('power_mw')} mW updates={result.get('updates')}")
+    return result
+
+
+def ios_run(name, rep):
+    ids = list(IOS_SCENARIOS)
+    random.Random(100 + rep).shuffle(ids)
+    log(f"ios rep {rep} on {name}: base + {ids} with a baseline after every 2 windows")
+    ios_window(name, "base", rep)
+    for i, sid in enumerate(ids, 1):
+        ios_window(name, sid, rep)
+        if i % 2 == 0 or i == len(ids):
+            ios_window(name, "base", rep)
+
+
+def ios_overnight(name, hours):
+    rid = f"inight-{name}-{int(time.time()) % 100000}"
+    ios_launch(name, ["mode=discovery", "disc=both", "filter=mesh", "scan_on_s=4", "scan_off_s=4", "bg=1", f"run={rid}", "tag=ios",
+                      f"duration={int(hours * 3600) + 600}"])
+    path = ios_sample(name, hours * 3600, 20, RESULTS / "ios" / f"{rid}.gauge.jsonl")
+    samples = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    result = ios_power(samples)
+    result.update({"rid": rid, "scenario": "overnight", "device": name, "platform": "ios", "hours": hours,
+                   "date": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    with (RESULTS / "ios-windows.jsonl").open("a") as f:
+        f.write(json.dumps(result) + "\n")
+    log(f"ios overnight {rid}: {json.dumps(result)}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -436,6 +566,7 @@ def main():
     x = sub.add_parser("crosscheck")
     x.add_argument("phone")
     x.add_argument("--peers", nargs=3, default=["op6", "nord2", "rmx3710"])
+    x.add_argument("--only", nargs="*")
     o = sub.add_parser("overnight")
     o.add_argument("--hours", type=float, default=8)
     i = sub.add_parser("ios-sample")
@@ -443,6 +574,17 @@ def main():
     i.add_argument("--seconds", type=float, default=120)
     i.add_argument("--period", type=float, default=2)
     i.add_argument("--out", type=Path)
+    ir = sub.add_parser("ios-run")
+    ir.add_argument("name")
+    ir.add_argument("--rep", type=int, required=True)
+    iw = sub.add_parser("ios-window")
+    iw.add_argument("name")
+    iw.add_argument("sid")
+    iw.add_argument("--rep", type=int, default=0)
+    iw.add_argument("--window-s", type=int, default=600)
+    io = sub.add_parser("ios-overnight")
+    io.add_argument("name")
+    io.add_argument("--hours", type=float, default=8)
     a = ap.parse_args()
     RESULTS.mkdir(parents=True, exist_ok=True)
     if a.cmd == "trial":
@@ -456,9 +598,15 @@ def main():
     elif a.cmd == "throttle":
         throttle()
     elif a.cmd == "crosscheck":
-        crosscheck(a.phone, a.peers)
+        crosscheck(a.phone, a.peers, a.only)
     elif a.cmd == "overnight":
         overnight(a.hours)
+    elif a.cmd == "ios-run":
+        ios_run(a.name, a.rep)
+    elif a.cmd == "ios-window":
+        print(json.dumps(ios_window(a.name, a.sid, a.rep, window_s=a.window_s), indent=1))
+    elif a.cmd == "ios-overnight":
+        ios_overnight(a.name, a.hours)
     elif a.cmd == "ios-sample":
         print(ios_sample(a.name, a.seconds, a.period, a.out or RESULTS / "ios" / f"{a.name}-sample-{int(time.time())}.jsonl"))
 

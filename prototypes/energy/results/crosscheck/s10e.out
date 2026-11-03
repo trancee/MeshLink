@@ -1,0 +1,3 @@
+[21:19:01] crosscheck x-s10e-base-36510: Bluetooth Idle time:   19s 788ms (3.2%) | Bluetooth Rx time:     23s 433ms (3.7%) | Bluetooth Tx time:     447ms (0.1%)
+[21:29:32] crosscheck x-s10e-scan_low-37141: Bluetooth Idle time:   4m 25s 165ms (42.4%) | Bluetooth Rx time:     5m 48s 710ms (55.7%) | Bluetooth Tx time:     2s 902ms (0.5%)
+[21:40:48] crosscheck x-s10e-idle_gatt_3-37772: Bluetooth Idle time:   8m 12s 540ms (73.9%) | Bluetooth Rx time:     21s 674ms (3.3%) | Bluetooth Tx time:     3s 199ms (0.5%)

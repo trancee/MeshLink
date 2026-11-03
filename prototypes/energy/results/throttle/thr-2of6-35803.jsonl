@@ -1,0 +1,26 @@
+{"t":1793735835968,"boot_ns":96076967103004,"test":"energy_start","run_id":"thr-2of6-35803","mode":"scan","args":{"energy":"scan","run":"thr-2of6-35803","window_s":"60","settle_s":"2","scan_on_s":"2","scan_off_s":"4"},"model":"Google Pixel 6","os":"Android 17 (API 37)","fingerprint":"google/oriole/oriole:17/CP3A.261005.002.A1/16269273:user/release-keys","le_2m":true,"le_extended_adv":true,"offloaded_filtering":true,"screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":0}
+{"t":1793735835970,"boot_ns":96076968541358,"test":"wakelock","run_id":"thr-2of6-35803","held":true}
+{"t":1793735837978,"boot_ns":96078976858579,"test":"window_start","run_id":"thr-2of6-35803","screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":25,"links":[]}
+{"t":1793735837987,"boot_ns":96078985847796,"test":"burst","run_id":"thr-2of6-35803","n":1,"on_ms":2011,"results":25,"empty_bursts":0}
+{"t":1793735841991,"boot_ns":96082990120666,"test":"gap","run_id":"thr-2of6-35803","n":1,"off_ms":4003}
+{"t":1793735844008,"boot_ns":96085007198589,"test":"burst","run_id":"thr-2of6-35803","n":2,"on_ms":2016,"results":19,"empty_bursts":0}
+{"t":1793735848015,"boot_ns":96089013950869,"test":"gap","run_id":"thr-2of6-35803","n":2,"off_ms":4006}
+{"t":1793735850051,"boot_ns":96091050361108,"test":"burst","run_id":"thr-2of6-35803","n":3,"on_ms":2034,"results":25,"empty_bursts":0}
+{"t":1793735854060,"boot_ns":96095059016546,"test":"gap","run_id":"thr-2of6-35803","n":3,"off_ms":4007}
+{"t":1793735856090,"boot_ns":96097088754299,"test":"burst","run_id":"thr-2of6-35803","n":4,"on_ms":2027,"results":26,"empty_bursts":0}
+{"t":1793735860098,"boot_ns":96101096642444,"test":"gap","run_id":"thr-2of6-35803","n":4,"off_ms":4007}
+{"t":1793735862135,"boot_ns":96103133470204,"test":"burst","run_id":"thr-2of6-35803","n":5,"on_ms":2032,"results":26,"empty_bursts":0}
+{"t":1793735866144,"boot_ns":96107143464957,"test":"gap","run_id":"thr-2of6-35803","n":5,"off_ms":4006}
+{"t":1793735868181,"boot_ns":96109179685132,"test":"burst","run_id":"thr-2of6-35803","n":6,"on_ms":2032,"results":28,"empty_bursts":0}
+{"t":1793735872192,"boot_ns":96113191057204,"test":"gap","run_id":"thr-2of6-35803","n":6,"off_ms":4008}
+{"t":1793735874231,"boot_ns":96115229865799,"test":"burst","run_id":"thr-2of6-35803","n":7,"on_ms":2035,"results":26,"empty_bursts":0}
+{"t":1793735878242,"boot_ns":96119240787880,"test":"gap","run_id":"thr-2of6-35803","n":7,"off_ms":4007}
+{"t":1793735880268,"boot_ns":96121266693968,"test":"burst","run_id":"thr-2of6-35803","n":8,"on_ms":2022,"results":23,"empty_bursts":0}
+{"t":1793735884276,"boot_ns":96125275011922,"test":"gap","run_id":"thr-2of6-35803","n":8,"off_ms":4007}
+{"t":1793735886314,"boot_ns":96127312847739,"test":"burst","run_id":"thr-2of6-35803","n":9,"on_ms":2034,"results":22,"empty_bursts":0}
+{"t":1793735890325,"boot_ns":96131323776940,"test":"gap","run_id":"thr-2of6-35803","n":9,"off_ms":4008}
+{"t":1793735892362,"boot_ns":96133361271773,"test":"burst","run_id":"thr-2of6-35803","n":10,"on_ms":2033,"results":24,"empty_bursts":0}
+{"t":1793735896373,"boot_ns":96137372035691,"test":"gap","run_id":"thr-2of6-35803","n":10,"off_ms":4007}
+{"t":1793735898034,"boot_ns":96139033390184,"test":"window_end","run_id":"thr-2of6-35803","screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":263,"window_ms":60020,"lost":[]}
+{"t":1793735898059,"boot_ns":96139058346564,"test":"scan_summary","run_id":"thr-2of6-35803","bursts":11,"empty_bursts":0,"results":264}
+{"t":1793735898074,"boot_ns":96139072687995,"test":"done","run_id":"thr-2of6-35803","outcome":"ok","error":null,"screen_interactive":false,"device_idle":false,"light_idle":false,"wifi_enabled":true,"bt_enabled":true,"plugged":4,"battery_status":4,"level":80,"temp_dc":360,"links_alive":0,"scan_results":264}

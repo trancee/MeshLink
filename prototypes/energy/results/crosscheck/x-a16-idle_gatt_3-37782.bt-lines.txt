@@ -1,0 +1,57 @@
+11-03 21:29:51.370 100 +tmpwhitelist=1000:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:29:51.373 100 +tmpwhitelist=u0a61:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:29:51.389 100 +tmpwhitelist=u0a233:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:29:51.389 100 +tmpwhitelist=u0a242:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:29:51.574 100 +tmpwhitelist=u0a227:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:29:51.953 100 +tmpwhitelist=u0a58:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:30:02.478 100 +tmpwhitelist=1002:"245562b android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:30:22.485 100 -tmpwhitelist=1002:"245562b android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:30:24.994 100 +tmpwhitelist=1002:"7895e3f android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:31:18.402 100 -tmpwhitelist=1002:"7895e3f android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:31:19.955 100 ap_temp=32.4 pa_temp=31.9 skin_temp=31.9 -tmpwhitelist=u0a242:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:31:20.127 100 -tmpwhitelist=u0a233:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:31:20.146 100 -tmpwhitelist=u0a227:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:31:20.265 100 -tmpwhitelist=u0a61:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:31:20.275 100 -tmpwhitelist=1000:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:31:20.766 100 -tmpwhitelist=u0a58:"921ba54 android.bluetooth.device.action.ACL_CONNECTED/u-1/0x2081"
+11-03 21:41:25.304 100 +tmpwhitelist=1000:"36f79dd android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.336 100 +tmpwhitelist=1002:"36f79dd android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.351 100 +tmpwhitelist=u0a61:"36f79dd android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.353 100 +tmpwhitelist=u0a227:"b67944d android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.354 100 +tmpwhitelist=u0a233:"36f79dd android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.358 100 +tmpwhitelist=u0a242:"36f79dd android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+11-03 21:41:25.389 100 +tmpwhitelist=u0a58:"b67944d android.bluetooth.device.action.ACL_DISCONNECTED/u-1/0x2081"
+Bluetooth total received: 0B, sent: 0B
+Bluetooth scan time: 11m 51s 354ms
+Bluetooth Idle time:   6m 43s 34ms (56.7%)
+Bluetooth Rx time:     4m 59s 956ms (42.2%)
+Bluetooth Tx time:     8s 191ms (1.2%)
+bluetooth: 9.43 apps: 9.29
+bluetooth: 9.43 apps: 9.29
+cpu=0.634 cpu:bg=0.634 bluetooth=2.67 bluetooth:bg=2.67 wifi=0.00750 wifi:bg=0.00750
+(on battery, screen on) cpu=0.634 cpu:bg=0.634 bluetooth=2.67 bluetooth:bg=2.67 wifi=0.00750 wifi:bg=0.00750
+cpu=0.000691 cpu:bg=0.000691 bluetooth=2.67 bluetooth:bg=2.67
+(on battery, screen on) cpu=0.000691 cpu:bg=0.000691 bluetooth=2.67 bluetooth:bg=2.67
+bluetooth=2.67 bluetooth:bg=2.67
+(on battery, screen on) bluetooth=2.67 bluetooth:bg=2.67
+cpu=0.174 cpu:bg=0.00474 cpu:fgs=0.169 cpu:cached=0.00000600 bluetooth=1.29 bluetooth:bg=0.0743 bluetooth:fgs=1.22 bluetooth:cached=0.000453
+(on battery, screen on) cpu=0.174 cpu:bg=0.00474 cpu:fgs=0.169 cpu:cached=0.00000600 bluetooth=1.29 bluetooth:bg=0.0743 bluetooth:fgs=1.22 bluetooth:cached=0.000453
+Proc com.android.bluetooth:
+Proc android.hardware.bluetooth@1.1-service:
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 56s 906ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 11m 51s 354ms  (0 times) (currently running)
+Bluetooth Scan (background realtime): 11m 51s 354ms  (0 times) (currently running in background)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 56s 906ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 11m 51s 354ms  (0 times) (currently running)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 56s 906ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 11m 51s 354ms  (0 times) (currently running)
+Bluetooth Scan Results: 4800 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 636ms  (11 times)
+Bluetooth Scan (total actual realtime): 2s 542ms  (11 times)
+Bluetooth Scan Results: 38 (0 in background)

@@ -1,0 +1,21 @@
+Bluetooth total received: 0B, sent: 0B
+Bluetooth scan time: 11m 25s 599ms
+Bluetooth Idle time:   1ms (0.0%)
+Bluetooth Rx time:     57s 868ms (8.4%)
+Bluetooth Tx time:     55s 865ms (8.1%)
+Bluetooth Battery drain: 0.633mAh
+bluetooth: 0.633 apps: 0 duration: 1m 53s 734ms
+Kernel Wake lock hal_bluetooth_lock: 1m 13s 875ms (178 times) realtime
+Kernel Wake lock bluetooth_timer: 9s 922ms (171 times) realtime
+Proc com.android.bluetooth:
+Proc android.hardware.bluetooth@1.0-service-qti:
+Bluetooth Scan (total blamed realtime): 5s 223ms  (0 times)
+Bluetooth Scan (total actual realtime): 10s 498ms  (0 times)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Scan (total blamed realtime): 11m 19s 911ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 11m 25s 599ms  (0 times) (currently running)
+Bluetooth Scan (background realtime): 11m 25s 599ms  (0 times) (currently running in background)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Scan (total blamed realtime): 466ms  (9 times)
+Bluetooth Scan (total actual realtime): 985ms  (9 times)
+Bluetooth Scan Results: 18 (0 in background)

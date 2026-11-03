@@ -1,0 +1,3 @@
+[21:19:01] crosscheck x-moto30-base-36510: Bluetooth Idle time:   56ms (0.0%) | Bluetooth Rx time:     11s 436ms (1.8%) | Bluetooth Tx time:     13s 190ms (2.1%)
+[21:29:32] crosscheck x-moto30-scan_low-37141: Bluetooth Idle time:   2m 57s 287ms (28.4%) | Bluetooth Rx time:     2m 7s 552ms (20.4%) | Bluetooth Tx time:     29s 78ms (4.7%)
+[21:41:05] crosscheck x-moto30-idle_gatt_3-37772: Bluetooth Idle time:   1ms (0.0%) | Bluetooth Rx time:     57s 868ms (8.4%) | Bluetooth Tx time:     55s 865ms (8.1%)

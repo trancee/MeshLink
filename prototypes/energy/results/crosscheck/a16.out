@@ -1,0 +1,3 @@
+[21:19:06] crosscheck x-a16-base-36510: Bluetooth Idle time:   9m 1s 887ms (86.1%) | Bluetooth Rx time:     1m 25s 293ms (13.6%) | Bluetooth Tx time:     1s 758ms (0.3%)
+[21:29:42] crosscheck x-a16-scan_low-37146: Bluetooth Idle time:   4m 58s 566ms (47.4%) | Bluetooth Rx time:     5m 26s 646ms (51.9%) | Bluetooth Tx time:     4s 530ms (0.7%)
+[21:41:42] crosscheck x-a16-idle_gatt_3-37782: Bluetooth Idle time:   6m 43s 34ms (56.7%) | Bluetooth Rx time:     4m 59s 956ms (42.2%) | Bluetooth Tx time:     8s 191ms (1.2%)

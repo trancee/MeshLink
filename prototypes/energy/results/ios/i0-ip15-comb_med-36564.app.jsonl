@@ -1,0 +1,8 @@
+{"t":1793736565814,"test":"disc_start","run_id":"i0-ip15-comb_med-36564","commit":null,"tag":"ios","mode":"both","args":{"mode":"discovery","disc":"both","filter":"mesh","scan_on_s":"4","scan_off_s":"4","run":"i0-ip15-comb_med-36564","tag":"ios","duration":"165","model":"Apple iPhone15,4"},"reporter":{"model":"Apple iPhone15,4","os":"iOS 17.6.1","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793736565822,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793736565835,"test":"central_state","state":5}
+{"t":1793736565835,"test":"scan_start","n":0,"filtered":true,"filter":"mesh","dups":true,"app":"inactive"}
+{"t":1793736565840,"test":"peripheral_state","state":5}
+{"t":1793736565840,"test":"adv_start","cycle":0,"t_call":1793736565840,"error":null,"ad_id":"f19fe663ec795c2d","uuid_list":["4D455348","F19FE663-EC79-5C2D-4D4C-30310010CEF7"],"name":null,"uuids":2,"app":"inactive"}
+{"t":1793736566239,"test":"system_event","event":"did_become_active","app":"active"}
+{"t":1793736625837,"test":"scan_stats","results":0,"bursts":8,"app":"active"}

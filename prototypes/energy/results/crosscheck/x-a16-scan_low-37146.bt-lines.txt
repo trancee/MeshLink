@@ -1,0 +1,34 @@
+Bluetooth total received: 0B, sent: 0B
+Bluetooth scan time: 10m 29s 977ms
+Bluetooth Idle time:   4m 58s 566ms (47.4%)
+Bluetooth Rx time:     5m 26s 646ms (51.9%)
+Bluetooth Tx time:     4s 530ms (0.7%)
+bluetooth: 10.1 apps: 10.0
+bluetooth: 10.1 apps: 10.0
+cpu=0.707 cpu:bg=0.707 bluetooth=2.50 bluetooth:bg=2.50
+(on battery, screen on) cpu=0.707 cpu:bg=0.707 bluetooth=2.50 bluetooth:bg=2.50
+cpu=0.149 cpu:fgs=0.147 cpu:cached=0.00223 bluetooth=2.50 bluetooth:bg=0.000933 bluetooth:fgs=2.46 bluetooth:cached=0.0376
+(on battery, screen on) cpu=0.149 cpu:fgs=0.147 cpu:cached=0.00223 bluetooth=2.50 bluetooth:bg=0.000933 bluetooth:fgs=2.46 bluetooth:cached=0.0376
+cpu=0.000269 cpu:bg=0.000269 bluetooth=2.50 bluetooth:bg=2.50
+(on battery, screen on) cpu=0.000269 cpu:bg=0.000269 bluetooth=2.50 bluetooth:bg=2.50
+bluetooth=2.50 bluetooth:bg=2.50
+(on battery, screen on) bluetooth=2.50 bluetooth:bg=2.50
+Proc com.android.bluetooth:
+Proc android.hardware.bluetooth@1.1-service:
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 2m 38s 324ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 977ms  (0 times) (currently running)
+Bluetooth Scan (background realtime): 10m 29s 977ms  (0 times) (currently running in background)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 2m 38s 324ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 977ms  (0 times) (currently running)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 2m 38s 324ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 977ms  (0 times) (currently running)
+Bluetooth Scan Results: 13300 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 2m 35s 6ms  (1 times)
+Bluetooth Scan (total actual realtime): 10m 20s 22ms  (1 times)
+Bluetooth Scan Results: 1164 (0 in background)

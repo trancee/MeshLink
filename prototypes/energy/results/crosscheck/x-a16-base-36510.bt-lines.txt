@@ -1,0 +1,28 @@
+Bluetooth total received: 0B, sent: 0B
+Bluetooth scan time: 10m 29s 184ms
+Bluetooth Idle time:   9m 1s 887ms (86.1%)
+Bluetooth Rx time:     1m 25s 293ms (13.6%)
+Bluetooth Tx time:     1s 758ms (0.3%)
+bluetooth: 2.81 apps: 2.63
+bluetooth: 2.81 apps: 2.63
+cpu=0.597 cpu:bg=0.597 bluetooth=0.876 bluetooth:bg=0.876 sensors=0.00103 sensors:bg=0.00103 wifi=0.0654 wifi:bg=0.0654
+(on battery, screen on) cpu=0.597 cpu:bg=0.597 bluetooth=0.876 bluetooth:bg=0.876 sensors=0.00103 sensors:bg=0.00103 wifi=0.0654 wifi:bg=0.0654
+cpu=0.000217 cpu:bg=0.000217 bluetooth=0.876 bluetooth:bg=0.876
+(on battery, screen on) cpu=0.000217 cpu:bg=0.000217 bluetooth=0.876 bluetooth:bg=0.876
+bluetooth=0.876 bluetooth:bg=0.876
+(on battery, screen on) bluetooth=0.876 bluetooth:bg=0.876
+Proc com.android.bluetooth:
+Proc android.hardware.bluetooth@1.1-service:
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 29s 728ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 184ms  (0 times) (currently running)
+Bluetooth Scan (background realtime): 10m 29s 184ms  (0 times) (currently running in background)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 29s 728ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 184ms  (0 times) (currently running)
+Bluetooth Scan Results: 0 (0 in background)
+Bluetooth Duty Scan (total actual realtime with duty): 0ms
+Bluetooth Scan (total blamed realtime): 3m 29s 728ms  (0 times) (currently running)
+Bluetooth Scan (total actual realtime): 10m 29s 184ms  (0 times) (currently running)
+Bluetooth Scan Results: 4800 (0 in background)
