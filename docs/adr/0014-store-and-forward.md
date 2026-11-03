@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 1.
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 2 (amended 2026-11-03, ADR 0015).
 
 ## Context
 
@@ -58,3 +58,9 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 - The routing header of a unicast grows by the 16 B commitment (ADR 0012).
 - The threat model and the guarantees table gain the residual tracking risk and the key-exposure bound.
 - The protocol spec defines the catch-up summary, the tombstone layout and `PeerKeyExpired`.
+
+## Amendments
+
+2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
+
+- **Quota (decision 4):** the byte cap is 512 KiB. Only small messages (at most 4 KiB) are held for others; large messages are held only by their origin.

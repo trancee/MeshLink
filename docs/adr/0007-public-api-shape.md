@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 4 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0013).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 5 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?", ADR 0013 and ADR 0015).
 
 ## Context
 
@@ -147,3 +147,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **Delivery status (decision 8):** the exact meaning, order and terminal states of each status are in ADR 0013. `Delivered` is always reported; only read receipts are opt-in. `Failed` covers local causes only, and a message no receipt confirmed becomes `Expired` at its expiry plus 30 s.
 - **Receiving (decision 9):** `ReceivedMessage` gains `readReceiptRequested`.
+
+2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
+
+- **Limits (decision 7):** `config.limits` exposes the effective `maxUnicastPayload` and `maxBroadcastPayload`; `describe()` prints them. `TooLarge` means above the configured cap; `QueueFull` also covers the 1 MiB send-queue byte cap.
+- **Inbox (decision 9):** bounded at 1 MiB as well as by count. The link-local "busy" reply of ADR 0015 concerns reassembly at the next hop, not the destination's inbox.

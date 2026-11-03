@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 3 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0014).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 4 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015).
 
 ## Context
 
@@ -121,3 +121,8 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
 
 - **Default message lifetime (decision 10):** validation also rejects values over 1 h. Preset defaults: `OfflineChat` 30 min; `FieldTeams` and `EmergencyBroadcast` 1 h; `ProximityDiscovery` and `LocalMultiplayer` 120 s.
+
+2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
+
+- **Toggles (decision 10):** `limits.maxUnicastPayload` (4 KiB to 128 KiB) and `limits.maxBroadcastPayload` (at most 1 KiB) may only lower the protocol caps.
+- **Presets (decision 12):** unicast cap 128 KiB for `OfflineChat`, `LocalMultiplayer` and `FieldTeams`; 4 KiB for `EmergencyBroadcast` and `ProximityDiscovery`. Broadcast cap 1 KiB for all.

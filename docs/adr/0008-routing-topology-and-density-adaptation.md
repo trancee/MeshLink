@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 4 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADR 0014). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 5 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -131,3 +131,7 @@ Results for the v1 configuration:
 - **Lifetime (decision 5):** at most 1 h.
 - **Holding (decision 5):** the 100-message quota is for holding for others, with at most ¼ per incoming link and a byte cap from the message-size decision. Mesh broadcasts are held too. Delivered messages are purged through tombstones.
 - **Catch-up (decision 3):** also offers held broadcasts, held unicasts as {message ID, destination tag} and tombstones. Not yet simulated; a routing-simulation rerun must confirm the cost.
+
+2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
+
+- **Large messages (decision 3):** unicast above 4 KiB is never flooded at any density. It goes over a direct link or a route found by route request; at low density the origin sends a route request first. Relays forward but never hold large messages; only the origin retries them. Not yet simulated; the catch-up airtime simulation covers it.

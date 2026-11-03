@@ -58,6 +58,10 @@ _Avoid_: Density (unqualified), mesh size, crowd size
 A bounded unit of application data addressed to one destination and carried whole or in fragments.
 _Avoid_: Packet, payload, file, stream
 
+**Large message**:
+A unicast message above the small-message limit (4 KiB) that travels only over a direct link or a discovered route and is never held by relays.
+_Avoid_: File, attachment, blob
+
 **Delivery receipt**:
 The confirmation a destination always returns for a unicast message once its application has taken the message; it also tells the mesh the way back works. Mesh broadcasts never get one.
 _Avoid_: Ack, routing ack, read receipt

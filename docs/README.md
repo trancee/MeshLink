@@ -36,6 +36,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 12. [Wire format principles and codec](adr/0012-wire-format-and-codec.md)
 13. [Message lifecycle and receipts](adr/0013-message-lifecycle-and-receipts.md)
 14. [Store-and-forward](adr/0014-store-and-forward.md)
+15. [Message size and compression](adr/0015-message-size-and-compression.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

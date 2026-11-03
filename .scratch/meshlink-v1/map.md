@@ -42,6 +42,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - [Are Swift interop and libsodium fast enough on the iPhone SE (2016)?](issues/24-se2016-interop-crypto-bench.md): yes; post-quantum handshake crypto under 0.8 ms per side and a Swift round trip about 0.1 ms on the slowest iPhone. A sender retrying `QueueFull` in a loop overwhelmed the garbage collector, so `send` gains `awaitSendCapacity()` (ADR 0007 v3); the overlay bulk-copies `Data`; libsodium symbols get an export allow-list and a CI gate (ADR 0004 v2).
 - [What are the message lifecycle and receipt semantics?](issues/19-message-lifecycle-receipts.md): the routing ack is the always-on delivery receipt; read receipts need sender request and recipient permission, carry no timestamp and are best effort; broadcasts get no receipts. Statuses only move forward, `Failed` is local-only, `Expired` at expiry plus 30 s; status is in memory. ADR 0013.
 - [How does store-and-forward work?](issues/20-store-and-forward.md): short-term only (lifetime at most 1 h). The origin keeps its copy and relays hold best-effort copies in memory (100 messages, ¼ per link); broadcasts are held too; catch-up offers held messages; delivered copies are purged by tombstones only the destination can produce. Certificates valid 24 h, renewed every 12 h; residual tracking bounded at 1 h. ADR 0014.
+- [What is the message size cap, and is there compression?](issues/21-message-size-compression.md): small unicast (≤4 KiB) behaves as before; large unicast up to 128 KiB (profile pictures) is never flooded, goes only over a direct link or a discovered route, and is held only by its origin. Broadcasts 1 KiB; no compression; 1,024 B records; bounded reassembly with a link-local busy reply. ADR 0015.
 
 ## Not yet specified
 
@@ -53,7 +54,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 
 - Post-quantum signatures in v1: ruled out by the [threat model](issues/08-threat-model.md). Signatures stay classical (Ed25519); SQIsign is the leading candidate for a later suite version once NIST standardizes it.
 - Encrypted named groups (group key agreement, e.g. MLS).
-- File transfer and streaming.
+- File transfer and streaming: profile pictures up to 128 KiB are messages (ADR 0015); resumable transfers, larger payloads and progress APIs are not.
 - Targets other than Android and iOS.
 - Wire compatibility with Bluetooth SIG Mesh, bitchat, Briar or other meshes.
 - Multi-device users and account sync.

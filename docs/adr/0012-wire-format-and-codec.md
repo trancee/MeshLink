@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 2 (amended 2026-11-03, ADR 0014).
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 3 (amended 2026-11-03, ADRs 0014 and 0015).
 
 ## Context
 
@@ -84,3 +84,8 @@ None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the
 2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
 
 - **Routing header:** a unicast carries a 16 B tombstone commitment H(k) in clear. Delivery receipts carry the matching tombstone {message ID, k} in clear.
+
+2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
+
+- **Record cap (decision 4):** a record body is at most 1,024 B in every profile and bearer, without negotiation.
+- **Busy reply (decision 4):** a link-local reply refuses a large frame when the receiver's reassembly budget is full; the sender backs off and retries.
