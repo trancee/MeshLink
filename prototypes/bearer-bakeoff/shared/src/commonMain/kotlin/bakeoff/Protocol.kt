@@ -17,7 +17,10 @@ enum class MessageType(val code: Int) {
     BULK_END(5),
     BULK_ACK(6),
     HANDSHAKE(7),
-    BYE(8);
+    BYE(8),
+
+    /** Energy prototype: ask the peer to send `count` BULK messages of `size` B every `interval_ms`. */
+    RATE(9);
 
     companion object {
         fun fromCode(code: Int): MessageType =

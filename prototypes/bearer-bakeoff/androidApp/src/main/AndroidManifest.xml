@@ -18,6 +18,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <application
         android:allowBackup="false"
@@ -36,6 +38,11 @@
         <service
             android:name=".DiscoveryService"
             android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+        <!-- Energy prototype (ticket 23): exported so the on-device window script can start it from the shell. -->
+        <service
+            android:name=".EnergyService"
+            android:exported="true"
             android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

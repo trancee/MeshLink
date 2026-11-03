@@ -1,0 +1,32 @@
+20:48:16 failed to connect to 'pixel6-wifi:5555': No route to host
+20:49:16 connected to pixel6-wifi:5555
+BACK
+script_start 1793734378 wifi_on=1   mWakefulness=Awake
+perfetto_pid 
+wifi_off 1793734386 wifi_on=0   mWakefulness=Dozing
+Starting service: Intent { cmp=ch.trancee.lab.host/.EnergyService (has extras) }
+app_done 1793734807 waited=70 wifi_on=0   mWakefulness=Dozing
+perfetto_stopped 1793735321 after=60
+wifi_back 1793735327 wifi_on=1
+/data/local/tmp/energy:
+total 126
+drwxrwxrwx 2 shell shell   3452 2026-11-03 20:48 .
+drwxrwx--x 6 shell shell   3452 2026-11-03 20:32 ..
+-rw-rw-rw- 1 shell shell 110317 2026-11-03 20:40 trial-34369.btm.txt
+-rw-rw-rw- 1 shell shell    421 2026-11-03 20:32 trial-34369.cfg
+-rw-rw-rw- 1 shell shell      0 2026-11-03 20:48 trial-34369.done
+-rw-rw-rw- 1 shell shell    332 2026-11-03 20:48 trial-34369.log
+-rw-rw-rw- 1 shell shell      0 2026-11-03 20:32 trial-34369.pfpid
+-rw-rw-rw- 1 shell shell   1386 2026-11-03 20:32 trial-34369.sh
+
+/data/misc/perfetto-traces:
+total 112
+drwxrwx-wx  4 root   shell  3452 2026-11-03 20:32 .
+drwxrwx--t 69 system misc   3452 2026-06-17 08:48 ..
+drwxrwx-wx  2 root   shell  3452 2021-11-18 19:38 bugreport
+drwxrwxrwx  2 root   shell  3452 2026-11-03 16:43 profiling
+-rw-------  1 shell  shell 32089 2026-11-03 20:13 rails.pftrace
+-rw-------  1 shell  shell 69537 2026-11-03 20:48 trial-34369.pftrace
+1
+  mWakefulness=Dozing
+Failed to write while dumping service power: Broken pipe

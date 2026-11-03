@@ -42,9 +42,23 @@ class Responder(
                     val replySize = ByteReader(message.payload).short()
                     pipe.send(MessageType.HANDSHAKE, ByteWriter().short(0).bytes(Random.nextBytes(replySize)).toByteArray())
                 }
+                MessageType.RATE -> sendRate(message.payload)
                 MessageType.BYE -> return
                 MessageType.BULK_ACK -> throw ProtocolException("unexpected BULK_ACK at responder")
             }
+        }
+    }
+
+    private suspend fun sendRate(request: ByteArray) {
+        val reader = ByteReader(request)
+        val count = reader.int()
+        val size = reader.int()
+        val intervalMs = reader.int().toLong()
+        val start = TimeSource.Monotonic.markNow()
+        for (i in 0 until count) {
+            val due = intervalMs * i - start.elapsedNow().inWholeMilliseconds
+            if (due > 0) kotlinx.coroutines.delay(due)
+            pipe.send(MessageType.BULK, ByteWriter(size).int(i).bytes(Random.nextBytes(size - 4)).toByteArray())
         }
     }
 

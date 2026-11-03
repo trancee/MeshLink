@@ -122,4 +122,30 @@ python3 ../energy/host/analyze.py               # → results/summary.json, tabl
 
 ## Amendments
 
-(none yet)
+**A1 (2026-11-03 20:50 CET, after the first 60 s trial, before any measured window): wake lock + script order.**
+The first trial (`results/trial/trial-34369.*`) showed that with the screen off and no wake lock the Pixel
+suspends between Bluetooth events, and both coroutine `delay()` and shell `sleep` stop advancing: the 60 s window
+ran 403 s, the 4 s scan gaps stretched to 11–121 s (logged duty 0.08 instead of 0.5), and the script's
+post-window steps stretched so Wi-Fi (and TCP adb) only came back after ~16 min. Perfetto `--background` printed
+no PID on this build. Changes:
+- Every measured window (baselines included) holds a `PARTIAL_WAKE_LOCK` in `EnergyService` for its whole run,
+  so duty schedules and the window length are honored. This raises the absolute CPU/memory rails in every window
+  (it cancels in window − baseline) and hides the CPU cost of waking up for scan results/link events (limitation).
+- The overnight run passes `wakelock=0` (unassisted behavior is what it is meant to show); its window end uses a
+  boottime deadline.
+- The on-device script starts the app (wake lock) before Wi-Fi off and screen off, re-enables Wi-Fi immediately
+  after the app is done, stops Perfetto via `$!`, and times out on wall-clock (`date +%s`), not loop counts.
+- New validity rule: scan cells with a start/stop schedule are invalid if fewer than 90 % of the expected bursts ran.
+The second trial (`trial-35592`) passed: window 60.05 s, duty 0.50, Wi-Fi back ~1 s after the app finished.
+
+**A2 (2026-11-03): cross-checks ran in parallel and before the wake-lock build.** The three cross-check phones
+ran their windows at the same time (separate peer sets: moto ← Nothing 2 / Flip4 / GX6; S10e ← CPH2359 /
+nova 9 / OnePlus 6; A16 ← Nord 2 / RMX3710 / CPH2251; separate run tags), while the Pixel was idle, on the
+build without the wake lock (A1). Wi-Fi on, screen as found. No MESH advertiser in their `scan_low` window.
+Controller time from batterystats does not depend on the duty timer (only continuous scans and idle links).
+
+**A3 (2026-11-03): iOS gauge source.** iOS 15 (SE 2016) returns an empty `AppleSmartBattery`; the same keys
+(`InstantAmperage`, `Voltage`, `ExternalConnected`, `IsCharging`, `UpdateTime`) are under `AppleARMPMUCharger`.
+The sampler tries both. Measured plugged cadence: `UpdateTime` advances every 20 s (iPhone 15) and 20–21 s
+(SE 2016) while polled every 2 s (`results/ios/plugged-cadence-*.jsonl`); sign of `InstantAmperage` unplugged
+is still unknown (needs the human).

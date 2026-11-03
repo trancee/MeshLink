@@ -9,6 +9,7 @@ import kotlinx.cinterop.invoke
 import kotlinx.cinterop.reinterpret
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -119,6 +120,8 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         symbol?.reinterpret<CFunction<() -> Unit>>()?.invoke()
     }
 
+    private var bgDone = false
+
     private suspend fun enterBackground() {
         // T4 (`live=1`): Core Bluetooth grants foreground privileges in the background on iOS 26+ when an app with a
         // CBManager starts a Live Activity. The manager exists here, so the activity starts after it.
@@ -160,6 +163,12 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
                 when (raw["disc"]) {
                     "adv" -> advertise()
                     "scan" -> scan()
+                    // Energy prototype (ticket 23): idle baseline, and advertising + scanning together.
+                    "idle" -> delay(duration)
+                    "both" -> coroutineScope {
+                        launch { advertise() }
+                        scan()
+                    }
                     "caps" -> Unit
                     else -> throw IllegalArgumentException("unknown disc=${raw["disc"]}")
                 }
@@ -231,7 +240,7 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
         val manager = CBPeripheralManager(delegate = peripheralDelegate, queue = null)
         peripheralManager = manager
         withTimeoutOrNull(30_000) { peripheralOn.await() } ?: throw IllegalStateException("peripheral not powered on")
-        if (raw["bg"] == "1") enterBackground()
+        if (raw["bg"] == "1" && !bgDone) { bgDone = true; enterBackground() }
         val restartEvery = raw["restart_every"]?.toLong()?.times(1000)
         val restartOff = ((raw["restart_off"]?.toDouble() ?: 2.0) * 1000).toLong()
         val kind = raw["restart_kind"] ?: "stop"
@@ -375,20 +384,41 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             restarts++
         }
         // bg=1: the scan starts after the app is suspended, so first sightings are background discoveries.
-        if (raw["bg"] == "1") enterBackground()
+        if (raw["bg"] == "1" && !bgDone) { bgDone = true; enterBackground() }
         lastRestart = now()
         restartScan!!.invoke()
         onStatus("scanning ${raw["run"]} filtered=$filtered dups=$duplicates")
         val started = now()
         var lastStats = started
         try {
+            // Energy duty (ticket 23): scan_on_s seconds on, scan_off_s seconds off.
+            val onMs = raw["scan_on_s"]?.toLong()?.times(1000)
+            val offMs = raw["scan_off_s"]?.toLong()?.times(1000)
+            var scanning = true
+            var phaseStart = now()
+            var bursts = 1
             while (now() - started < duration) {
-                delay(1000)
+                delay(250)
+                if (onMs != null && offMs != null) {
+                    if (scanning && now() - phaseStart >= onMs) {
+                        manager.stopScan()
+                        scanning = false
+                        phaseStart = now()
+                    } else if (!scanning && now() - phaseStart >= offMs) {
+                        manager.scanForPeripheralsWithServices(
+                            if (filtered) listOf(cbuuid(filterUuid)) else null,
+                            options = mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to duplicates),
+                        )
+                        scanning = true
+                        phaseStart = now()
+                        bursts++
+                    }
+                }
                 current.flushOld()
-                maybeRestart(rescanMs)
+                if (scanning) maybeRestart(rescanMs)
                 if (now() - lastStats >= 60_000) {
                     lastStats = now()
-                    record("scan_stats", mapOf("results" to current.results, "app" to appState()))
+                    record("scan_stats", mapOf("results" to current.results, "bursts" to bursts, "app" to appState()))
                 }
             }
         } finally {

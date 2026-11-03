@@ -49,6 +49,8 @@ class CentralTuning(
     val paceMs: Long = 0,
     val requestMtu: Int = 517,
     val maxChunk: Int = 512,
+    /** Energy prototype: `high` (bake-off default), `balanced`, `low_power`, or `none` (no request). */
+    val priority: String = "high",
 ) {
     companion object {
         fun from(raw: Map<String, String>): CentralTuning = CentralTuning(
@@ -58,6 +60,7 @@ class CentralTuning(
             paceMs = raw["pace_ms"]?.toLong() ?: 0,
             requestMtu = raw["req_mtu"]?.toInt() ?: 517,
             maxChunk = raw["max_chunk"]?.toInt() ?: 512,
+            priority = raw["prio"] ?: "high",
         )
     }
 }
@@ -318,7 +321,11 @@ class AndroidCentralConnection(
         clock.mark("services")
         runCatching { operation<Int>("mtu", 5_000) { it.requestMtu(tuning.requestMtu) } }
         clock.mark("mtu")
-        gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+        when (tuning.priority) {
+            "high" -> gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            "balanced" -> gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+            "low_power" -> gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER)
+        }
         // LE PHY HCI commands need a BT 5 controller. On the P10 lite (Android 8.0, BT 4.2) readPhy() aborts the
         // Bluetooth process (gatt_api.cc "Assert failed: len == 5"), so skip PHY commands when 2M is unsupported.
         if (adapter.isLe2MPhySupported) {
