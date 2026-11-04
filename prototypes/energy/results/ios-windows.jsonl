@@ -1,1 +1,2 @@
 {"power_mw": 2.21, "power_avg_amperage_mw": 0.0, "updates": 4, "samples": 30, "signs": [false], "invalid": ["plugged/charging in 30 samples", "only 4 gauge updates"], "valid": false, "rid": "i0-ip15-comb_med-36564", "scenario": "comb_med", "rep": 0, "device": "ip15", "platform": "ios", "date": "2026-11-03T20:11:11+00:00", "commit": "cdede16"}
+{"valid": false, "invalid": ["iOS links: only 2/3 up"], "rid": "i0-ip15-idle_gatt_3-65747", "scenario": "idle_gatt_3", "rep": 0, "device": "ip15", "platform": "ios", "date": "2026-11-04T04:21:09+00:00", "commit": "dd16f79"}

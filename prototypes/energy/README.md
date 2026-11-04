@@ -176,3 +176,10 @@ re-run with this setting (`run --rep 1 --only bulk_gatt_*`, its own interleaved 
 The rep-1 rerun phase that had started with the old setting was stopped by the operator (one window discarded,
 not analysed). Also recorded: `wifi_scan_always_enabled=1` and `ble_scan_always_enabled=1` on the Pixel (left as
 found, constant for all windows).
+
+**A6 (2026-11-04, during rep 2): end-of-window rail coverage and re-analysis.** `e2-idle_gatt_5` was flagged
+"wifi.bt rail missing": the last 1 s rail poll landed 4 ms before `window_end`, because the device can suspend
+as soon as the app releases its wake lock, stalling Perfetto's poll. The analysis now extrapolates the last rail
+segment by at most 2 s at the window edges. Final tables are computed by `analyze.py reanalyze` (all windows
+recomputed from raw traces with the final code → `results/windows.final.jsonl`) and `summary`, which keeps one
+window per scenario and repetition (the first valid one in time).

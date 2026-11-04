@@ -27,8 +27,15 @@ def records(path):
 
 def interp(samples, ts):
     """Linear interpolation of a cumulative counter at ts; samples sorted [(ts, value)]."""
-    if not samples or ts < samples[0][0] or ts > samples[-1][0]:
+    if not samples or ts < samples[0][0]:
         return None
+    if ts > samples[-1][0]:
+        # A6: the device may suspend right after the app releases its wake lock, so the last 1 s poll can land a
+        # few ms before window_end; extrapolate the last segment by at most 2 s.
+        if len(samples) < 2 or ts - samples[-1][0] > 2e9:
+            return None
+        (t0, v0), (t1, v1) = samples[-2], samples[-1]
+        return v1 + (v1 - v0) * (ts - t1) / (t1 - t0)
     lo, hi = 0, len(samples) - 1
     while hi - lo > 1:
         mid = (lo + hi) // 2
@@ -189,8 +196,29 @@ def fmt(v, d=1):
     return "–" if v is None else f"{v:.{d}f}"
 
 
+RAW = Path("copilot-session/files/energy-raw")
+
+
+def reanalyze():
+    """Recomputes every Pixel window from raw files with the current analysis code (-> windows.final.jsonl)."""
+    out = []
+    for line in (RESULTS / "windows.jsonl").read_text().splitlines():
+        row = json.loads(line)
+        rid = row["rid"]
+        trace, jl, lg = RAW / f"{rid}.pftrace", RESULTS / "windows" / f"{rid}.jsonl", RESULTS / "windows" / f"{rid}.log"
+        if trace.exists() and jl.exists():
+            fresh = window(trace, jl, lg)
+            if fresh.get("valid") != row.get("valid"):
+                print(f"{rid}: valid {row.get('valid')} -> {fresh.get('valid')} {fresh.get('invalid')}")
+            row.update(fresh)
+        out.append(row)
+    (RESULTS / "windows.final.jsonl").write_text("".join(json.dumps(r) + "\n" for r in out))
+
+
 def summary():
-    rows = [json.loads(l) for l in (RESULTS / "windows.jsonl").read_text().splitlines() if l.strip()]
+    src = RESULTS / "windows.final.jsonl"
+    src = src if src.exists() else RESULTS / "windows.jsonl"
+    rows = [json.loads(l) for l in src.read_text().splitlines() if l.strip()]
     rows = [r for r in rows if r.get("scenario") != "overnight" and r.get("rep", 0) > 0]
     by_rep = {}
     for r in rows:
@@ -202,6 +230,8 @@ def summary():
         for i, r in enumerate(rs):
             if r["scenario"] == "base" or not r.get("valid"):
                 continue
+            if any(d["rep"] == rep for d in deltas.get(r["scenario"], [])):
+                continue  # one window per scenario and rep: the first valid one
             before = [b for j, b in bases if j < i][-1:]
             after = [b for j, b in bases if j > i][:1]
             br = before + after
@@ -281,5 +311,7 @@ def summary():
 if __name__ == "__main__":
     if sys.argv[1] == "window":
         print(json.dumps(window(*sys.argv[2:5])))
+    elif sys.argv[1] == "reanalyze":
+        reanalyze()
     else:
         summary()

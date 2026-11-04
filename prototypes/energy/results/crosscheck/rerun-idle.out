@@ -1,0 +1,4 @@
+[06:23:10] crosscheck x-a16-idle_gatt_3-69130: Bluetooth Idle time:   1m 1s 142ms (10.0%) | Bluetooth Rx time:     9m 0s 546ms (88.6%) | Bluetooth Tx time:     8s 81ms (1.3%)
+[06:34:01] crosscheck x-moto30-idle_gatt_3-69790: Bluetooth Idle time:   0ms (0.0%) | Bluetooth Rx time:     29s 1ms (4.8%) | Bluetooth Tx time:     30s 872ms (5.1%)
+[06:39:32] crosscheck x-s10e-idle_gatt_3-70441: Bluetooth Idle time:   2m 53s 395ms (53.9%) | Bluetooth Rx time:     1m 30s 524ms (28.2%) | Bluetooth Tx time:     1s 656ms (0.5%)
+XDONE

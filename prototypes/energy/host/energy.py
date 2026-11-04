@@ -474,7 +474,7 @@ IOS_SCENARIOS = {
     "comb_med": ["disc=both", "filter=mesh", "scan_on_s=4", "scan_off_s=4"],
     "idle_gatt_3": None,  # iPhone is the peripheral; three Android centrals hold one link each (iOS caps 3 inbound)
 }
-IOS_CENTRALS = ["nothing2", "flip4", "gx6"]
+IOS_CENTRALS = os.environ.get("IOS_CENTRALS", "nothing2,flip4,gx6").split(",")
 
 
 def ios_launch(name, args):
@@ -552,6 +552,8 @@ def ios_window(name, sid, rep, window_s=600, settle_s=45):
         result = {"valid": False, "invalid": [str(e)[:300]]}
     finally:
         for c in centrals:
+            if not (out / f"{rid}-{c}.jsonl").exists():
+                (out / f"{rid}-{c}.jsonl").write_text(adb(PHONES[c], "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout)
             adb(PHONES[c], "shell", "am", "force-stop", PKG)
     result.update({"rid": rid, "scenario": sid, "rep": rep, "device": name, "platform": "ios",
                    "date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "commit": git_commit()})

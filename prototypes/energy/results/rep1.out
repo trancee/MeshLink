@@ -76,3 +76,18 @@
 [04:56:07] rep 1: rerunning invalid ['bulk_gatt_2m_128k', 'bulk_gatt_1m_128k', 'bulk_gatt_1m_4k', 'bulk_gatt_2m_4k']
 [04:56:14] window e1-bulk_gatt_2m_128k-r1-64567: started (bulk bearer=gatt phy=2m prio=high msg=131072), expect <= 1040 s
 [04:56:30] rep 1: stopped by operator before GATT reruns (systematic ack failure, see A5)
+[05:15:29] rep 1: order ['bulk_gatt_2m_128k', 'bulk_gatt_1m_4k', 'bulk_gatt_2m_4k', 'bulk_gatt_1m_128k']
+[05:15:37] window e1-base-65729: started (idle ), expect <= 800 s
+[05:26:09] window e1-base-65729: valid=True [] wifi.bt=3.77 all=325.754 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[05:26:17] window e1-bulk_gatt_2m_128k-66369: started (bulk bearer=gatt phy=2m prio=high msg=131072 write_ack_every=256), expect <= 1040 s
+[05:38:17] window e1-bulk_gatt_2m_128k-66369: valid=True [] wifi.bt=71.613 all=496.766 mW traffic={'kbps_acked': 81.55911021386665, 'forwarded_in_window': None, 'links': ['Nothing A065']}
+[05:38:25] window e1-bulk_gatt_1m_4k-67097: started (bulk bearer=gatt phy=1m prio=high msg=4096 write_ack_every=256), expect <= 1040 s
+[05:49:48] window e1-bulk_gatt_1m_4k-67097: valid=True [] wifi.bt=71.329 all=496.484 mW traffic={'kbps_acked': 80.33798666967171, 'forwarded_in_window': None, 'links': ['Nothing A065']}
+[05:49:56] window e1-bulk_gatt_2m_4k-67788: started (bulk bearer=gatt phy=2m prio=high msg=4096 write_ack_every=256), expect <= 1040 s
+[06:01:19] window e1-bulk_gatt_2m_4k-67788: valid=True [] wifi.bt=71.354 all=495.678 mW traffic={'kbps_acked': 80.73899672063705, 'forwarded_in_window': None, 'links': ['Nothing A065']}
+[06:01:27] window e1-base-68479: started (idle ), expect <= 800 s
+[06:13:33] window e1-base-68479: valid=True [] wifi.bt=5.644 all=324.636 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[06:13:40] window e1-bulk_gatt_1m_128k-69213: started (bulk bearer=gatt phy=1m prio=high msg=131072 write_ack_every=256), expect <= 1040 s
+[06:25:03] window e1-bulk_gatt_1m_128k-69213: valid=True [] wifi.bt=70.868 all=495.434 mW traffic={'kbps_acked': 81.52259345273875, 'forwarded_in_window': None, 'links': ['Nothing A065']}
+[06:25:11] window e1-base-69903: started (idle ), expect <= 800 s
+[06:36:20] window e1-base-69903: valid=True [] wifi.bt=3.791 all=329.417 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
