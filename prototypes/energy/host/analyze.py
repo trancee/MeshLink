@@ -211,6 +211,10 @@ def summary():
             for rail in ("wifi.bt", "all", "cpu"):
                 d[rail] = r["power_mw"][rail] - statistics.mean(b["power_mw"][rail] for b in br)
             d["base_wifi_bt"] = statistics.mean(b["power_mw"]["wifi.bt"] for b in br)
+            # Secondary (amendment A4): median of per-minute wifi.bt, robust to the short system bursts (~250 mW, ~3 s).
+            med = lambda x: statistics.median(x["wifi_bt_per_min_mw"]) if x.get("wifi_bt_per_min_mw") else None
+            if med(r) is not None and all(med(b) is not None for b in br):
+                d["wifi.bt.med"] = med(r) - statistics.mean(med(b) for b in br)
             deltas.setdefault(r["scenario"], []).append(d)
     base_abs = {rail: [r["power_mw"][rail] for r in rows if r["scenario"] == "base" and r.get("valid")] for rail in ("wifi.bt", "all", "cpu")}
     table = []
@@ -220,6 +224,9 @@ def summary():
             vals = [d[rail] for d in ds]
             e[rail] = {"mean": statistics.mean(vals), "sd": statistics.stdev(vals) if len(vals) > 1 else None,
                        "min": min(vals), "max": max(vals), "values": [round(v, 2) for v in vals]}
+        mv = [d["wifi.bt.med"] for d in ds if "wifi.bt.med" in d]
+        if mv:
+            e["wifi.bt.med"] = {"mean": statistics.mean(mv), "sd": statistics.stdev(mv) if len(mv) > 1 else None, "values": [round(v, 2) for v in mv]}
         e["pct_per_h_wifi_bt"] = e["wifi.bt"]["mean"] / BATTERY_MWH * 100
         e["pct_per_h_all"] = e["all"]["mean"] / BATTERY_MWH * 100
         e["abs_wifi_bt"] = statistics.mean(d["row"]["power_mw"]["wifi.bt"] for d in ds)
@@ -250,8 +257,8 @@ def summary():
               "scenarios": table,
               "invalid_windows": [{k: r.get(k) for k in ("rid", "scenario", "rep", "invalid")} for r in rows if not r.get("valid")]}
     (RESULTS / "summary.json").write_text(json.dumps(result, indent=1) + "\n")
-    print("| scenario | n | wifi.bt ΔmW (±SD) [min–max] | all rails ΔmW (±SD) | CPU ΔmW | %/h (wifi.bt / all) | extra |")
-    print("|---|---|---|---|---|---|---|")
+    print("| scenario | n | wifi.bt ΔmW (±SD) [min–max] | wifi.bt median-minute ΔmW (±SD) | all rails ΔmW (±SD) | CPU ΔmW | %/h (wifi.bt / all) | extra |")
+    print("|---|---|---|---|---|---|---|---|")
     for e in table:
         extra = []
         if "per_link_mw_wifi_bt" in e:
@@ -264,6 +271,7 @@ def summary():
             extra.append(f"duty {e['scan_duty_logged']:.2f}")
         w, a, c = e["wifi.bt"], e["all"], e["cpu"]
         print(f"| {e['scenario']} | {e['n']} | {fmt(w['mean'], 2)} ± {fmt(w['sd'], 2)} [{fmt(w['min'], 1)}–{fmt(w['max'], 1)}] | "
+              f"{fmt((e.get('wifi.bt.med') or {}).get('mean'), 2)} ± {fmt((e.get('wifi.bt.med') or {}).get('sd'), 2)} | "
               f"{fmt(a['mean'])} ± {fmt(a['sd'])} | {fmt(c['mean'])} | {fmt(e['pct_per_h_wifi_bt'], 3)} / {fmt(e['pct_per_h_all'], 3)} | {'; '.join(extra)} |")
     print()
     print("baseline absolute:", json.dumps(result["baseline_abs_mw"]))

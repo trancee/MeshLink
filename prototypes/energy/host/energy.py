@@ -62,7 +62,9 @@ def scenarios():
         for phy in ("1m", "2m"):
             for size, msg in (("4k", 4096), ("128k", 131072)):
                 s[f"bulk_{bearer}_{phy}_{size}"] = {"energy": "bulk", "peers": ["nothing2"],
-                                                     "args": [f"bearer={bearer}", f"phy={phy}", "prio=high", f"msg={msg}"]}
+                                                     "args": [f"bearer={bearer}", f"phy={phy}", "prio=high", f"msg={msg}",
+                                                              # A5: bound the Pixel's write-without-response queue.
+                                                              *(["write_ack_every=256"] if bearer == "gatt" else [])]}
     for rate in (1, 5, 20):
         s[f"relay_{rate}"] = {"energy": "relay", "peers": ["nothing2", "flip4"],
                               "args": ["bearer=coc", "prio=none", "phy=2m", f"rate={rate}", "size=200"]}
@@ -224,6 +226,38 @@ def window(rid, energy, extra, *, peers=(), window_s=600, settle_s=20, poll_ms=1
     (BIG_RAW / f"{rid}.btm.txt").write_text(btm)
     sh(DUT, f"rm -f /data/misc/perfetto-traces/{rid}.pftrace /data/local/tmp/energy/{rid}.*")
     return trace, jsonl, out_dir / f"{rid}.log"
+
+
+def probe(sid, window_s, extra):
+    """Functional check on the Pixel with Wi-Fi on (no Perfetto, not a measurement)."""
+    sc = SCENARIOS[sid]
+    peers = sc.get("peers", [])
+    rid = f"probe-{sid}-{int(time.time()) % 100000}"
+    sh(DUT, f"am force-stop {PKG}")
+    for p in peers:
+        stop_app(p)
+    if peers:
+        start_peers(rid, peers, window_s + 600)
+    time.sleep(6)
+    args = ",".join([f"energy={sc['energy']}", f"run={rid}", f"window_s={window_s}", "settle_s=10", f"tag={TAG}",
+                     *([f"want={'+'.join(MODEL[p] for p in peers)}", f"n={len(peers)}"] if peers else []), *sc.get("args", []), *extra])
+    sh(DUT, f"am start-foreground-service -n {PKG}/.EnergyService --es args '{args}'")
+    t0 = time.time()
+    text = ""
+    while time.time() - t0 < window_s + 400:
+        time.sleep(10)
+        text = adb(DUT, "exec-out", "run-as", PKG, "cat", f"files/results/{rid}.jsonl").stdout
+        if '"test":"done"' in text:
+            break
+    for p in peers:
+        stop_app(p)
+    (RESULTS / "probe").mkdir(exist_ok=True)
+    (RESULTS / "probe" / f"{rid}.jsonl").write_text(text)
+    for line in text.splitlines():
+        d = json.loads(line)
+        if d.get("test") in ("link_up", "window_end", "ack", "done", "link_fail"):
+            d.pop("timings", None)
+            print(json.dumps(d)[:600])
 
 
 def analyze(trace, jsonl, log_path):
@@ -563,6 +597,10 @@ def main():
     r.add_argument("--rep", type=int, required=True)
     r.add_argument("--only", nargs="*")
     sub.add_parser("throttle")
+    pr = sub.add_parser("probe")
+    pr.add_argument("sid")
+    pr.add_argument("--window-s", type=int, default=60)
+    pr.add_argument("--extra", nargs="*", default=[])
     x = sub.add_parser("crosscheck")
     x.add_argument("phone")
     x.add_argument("--peers", nargs=3, default=["op6", "nord2", "rmx3710"])
@@ -597,6 +635,8 @@ def main():
         run_rep(a.rep, a.only)
     elif a.cmd == "throttle":
         throttle()
+    elif a.cmd == "probe":
+        probe(a.sid, a.window_s, a.extra)
     elif a.cmd == "crosscheck":
         crosscheck(a.phone, a.peers, a.only)
     elif a.cmd == "overnight":

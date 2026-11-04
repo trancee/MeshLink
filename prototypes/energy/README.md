@@ -143,9 +143,36 @@ ran their windows at the same time (separate peer sets: moto ← Nothing 2 / Fli
 nova 9 / OnePlus 6; A16 ← Nord 2 / RMX3710 / CPH2251; separate run tags), while the Pixel was idle, on the
 build without the wake lock (A1). Wi-Fi on, screen as found. No MESH advertiser in their `scan_low` window.
 Controller time from batterystats does not depend on the duty timer (only continuous scans and idle links).
+batterystats only accumulates on battery: the first run (phones plugged) gave all-zero BT times and is voided
+(`results/crosscheck/void-plugged/`). The rerun simulates unplug (`dumpsys battery unplug` +
+`dumpsys batterystats --reset` before each window, `dumpsys battery reset` after). In that rerun the reset
+happened before peers connected, so `idle_gatt_3` includes link setup (connect scan + retries); the runner was
+later changed to reset at `window_start` (`--only idle_gatt_3` reruns, if any, are labelled). The A16 screen was
+on (interactive) during its windows; the S10e `scan_low` window saw 0 scan results; the moto reports Idle time ≈ 0
+(its controller does not report idle), so only Rx/Tx are comparable there.
 
 **A3 (2026-11-03): iOS gauge source.** iOS 15 (SE 2016) returns an empty `AppleSmartBattery`; the same keys
 (`InstantAmperage`, `Voltage`, `ExternalConnected`, `IsCharging`, `UpdateTime`) are under `AppleARMPMUCharger`.
 The sampler tries both. Measured plugged cadence: `UpdateTime` advances every 20 s (iPhone 15) and 20–21 s
 (SE 2016) while polled every 2 s (`results/ios/plugged-cadence-*.jsonl`); sign of `InstantAmperage` unplugged
 is still unknown (needs the human).
+
+**A4 (2026-11-03, after rep 1 had started; no window data changed): secondary robust wifi.bt metric.** Rep-1
+windows show short system bursts on `wifi.bt` (~200–300 mW for ~3 s, e.g. ~19 s before every window end ≈ 10 min
+after `svc wifi disable`, plus occasional others) in every scenario including baselines, and baseline plateaus
+that differ between windows (≈2.5 vs ≈6.2 mW). The pre-registered metric (window mean minus bracketing
+baselines) is unchanged and remains primary; `analyze.py summary` additionally reports the same delta computed
+on the median of the per-minute `wifi.bt` power, which is robust to those bursts. Both are reported.
+
+**A5 (2026-11-04, after rep 1): GATT bulk flow control.** All four rep-1 GATT bulk windows were invalid (`bulk ack
+missing`). Root cause (prototype, verified with Wi-Fi-on probes, `results/probe/`): on the Pixel 6 (Android 17)
+`onCharacteristicWrite` for write-without-response completes long before the data is on air, so the sender
+queued ~170 KiB/s while the link carried ~80–90 KiB/s; the stack queue grew for the whole window and the peer was
+still receiving ~1 min after a 60 s probe ended, so the 60 s ack timeout expired. Rep-1 GATT bulk windows are kept
+as invalid (power reflects a saturated link but throughput is unknown). From here GATT bulk uses the bake-off knob
+`write_ack_every=256` (every 256th write is a write-with-response, bounding the queue to ≤256 writes ≈ 123 KiB):
+probes gave 79.6 KiB/s at 1M and 81.5 KiB/s at 2M with the ack 82–114 ms after window end. Rep 1 GATT bulk is
+re-run with this setting (`run --rep 1 --only bulk_gatt_*`, its own interleaved baselines) before reps 2 and 3.
+The rep-1 rerun phase that had started with the old setting was stopped by the operator (one window discarded,
+not analysed). Also recorded: `wifi_scan_always_enabled=1` and `ble_scan_always_enabled=1` on the Pixel (left as
+found, constant for all windows).
