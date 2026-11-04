@@ -1,0 +1,7 @@
+script_start 1793816184 wifi_on=1   mWakefulness=Dozing
+perfetto_pid 11969
+Starting service: Intent { cmp=ch.trancee.lab.host/.EnergyService (has extras) }
+wifi_off 1793816185 wifi_on=0   mWakefulness=Dozing
+app_done 1793816879 waited=695 wifi_on=0   mWakefulness=Dozing
+perfetto_stopped 1793816880 after=0
+wifi_back 1793816880 wifi_on=1
