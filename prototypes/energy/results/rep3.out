@@ -1,0 +1,2 @@
+[14:17:21] rep 3: order ['scanmode_lp', 'relay_1', 'bulk_coc_1m_128k', 'bulk_coc_2m_128k', 'adv_slow', 'scanmode_bal', 'idle_gatt_5', 'idle_gatt_1', 'comb_high', 'idle_coc_3', 'relay_20', 'bulk_coc_2m_4k', 'idle_coc_1', 'scan_med', 'bulk_gatt_1m_4k', 'comb_med', 'bulk_coc_1m_4k', 'adv_fast', 'scan_low', 'relay_5', 'idle_coc_5', 'bulk_gatt_2m_128k', 'idle_gatt_3', 'scan_high', 'bulk_gatt_1m_128k', 'bulk_gatt_2m_4k', 'comb_low']
+[14:17:29] window e3-base-98241: started (idle ), expect <= 800 s

@@ -183,3 +183,10 @@ as soon as the app releases its wake lock, stalling Perfetto's poll. The analysi
 segment by at most 2 s at the window edges. Final tables are computed by `analyze.py reanalyze` (all windows
 recomputed from raw traces with the final code → `results/windows.final.jsonl`) and `summary`, which keeps one
 window per scenario and repetition (the first valid one in time).
+
+**A2 addendum (2026-11-04): `idle_gatt_3` cross-check reruns with the reset at `window_start`**
+(`results/crosscheck/rerun-idle.out`). A16 ← Nord 2 / RMX3710 / CPH2251: valid, 3/3 links, screen off; its
+controller Rx is dominated by a continuous GMS scan (`com.google.android.gms`) for the whole window, so it is not
+a MeshLink-only number. moto ← OnePlus 6 / Nord 2 / RMX3710 and S10e ← CPH2251 / OnePlus 6 / Nokia X20: invalid
+(1/3 links each): peers from the earlier run were still advertising stale run tags and were skipped
+(`link_skip`). Their first-run `idle_gatt_3` (reset before link setup) remains the only, labelled, value.

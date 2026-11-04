@@ -52,3 +52,29 @@
 [11:29:24] window e2-scanmode_lp-88156: started (scan scan_mode=low_power), expect <= 800 s
 [11:40:17] window e2-scanmode_lp-88156: valid=True [] wifi.bt=6.477 all=336.612 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
 [11:40:25] window e2-comb_med-88817: started (adv+scan scan_on_s=4 scan_off_s=4 adv=fast), expect <= 800 s
+[11:51:34] window e2-comb_med-88817: valid=True [] wifi.bt=34.032 all=496.517 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[11:51:41] window e2-comb_high-89494: started (adv+scan scan_on_s=4 scan_off_s=8 adv=slow), expect <= 800 s
+[12:03:09] window e2-comb_high-89494: valid=True [] wifi.bt=20.794 all=622.68 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[12:03:17] window e2-base-90189: started (idle ), expect <= 800 s
+[12:15:23] window e2-base-90189: valid=True [] wifi.bt=5.257 all=429.646 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[12:15:31] window e2-bulk_coc_1m_128k-90923: started (bulk bearer=coc phy=1m prio=high msg=131072), expect <= 1040 s
+[12:27:12] window e2-bulk_coc_1m_128k-90923: valid=True [] wifi.bt=80.448 all=800.467 mW traffic={'kbps_acked': 106.82918531754737, 'forwarded_in_window': None, 'links': ['Nothing A065']}
+[12:27:19] window e2-scanmode_bal-91632: started (scan scan_mode=balanced), expect <= 800 s
+[12:38:10] window e2-scanmode_bal-91632: valid=True [] wifi.bt=4.993 all=626.605 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[12:38:19] window e2-idle_gatt_3-92290: started (links bearer=gatt prio=none phy=2m), expect <= 1040 s
+[12:49:43] window e2-idle_gatt_3-92290: valid=True [] wifi.bt=7.149 all=601.648 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': ['Nothing A065', 'samsung SM-F721B', 'Gigaset E940-2849-00']}
+[12:49:50] window e2-base-92983: started (idle ), expect <= 800 s
+[13:01:56] window e2-base-92983: valid=True [] wifi.bt=3.353 all=486.835 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[13:02:05] window e2-relay_5-93716: started (relay bearer=coc prio=none phy=2m rate=5 size=200), expect <= 1040 s
+[13:13:28] window e2-relay_5-93716: valid=True [] wifi.bt=9.78 all=467.961 mW traffic={'kbps_acked': None, 'forwarded_in_window': 3000, 'links': ['Nothing A065', 'samsung SM-F721B']}
+[13:13:36] window e2-scan_low-94408: started (scan ), expect <= 800 s
+[13:26:00] window e2-scan_low-94408: valid=True [] wifi.bt=18.433 all=392.632 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[13:26:07] window e2-adv_slow-95160: started (adv adv=slow), expect <= 800 s
+[13:39:46] window e2-adv_slow-95160: valid=True [] wifi.bt=3.966 all=338.17 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[13:39:53] window e2-base-95986: started (idle ), expect <= 800 s
+[13:53:33] window e2-base-95986: valid=True [] wifi.bt=6.723 all=337.796 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
+[13:53:33] rep 2: rerunning invalid ['idle_gatt_5']
+[13:53:43] window e2-idle_gatt_5-r1-96813: started (links bearer=gatt prio=none phy=2m), expect <= 1040 s
+[14:05:06] window e2-idle_gatt_5-r1-96813: valid=True [] wifi.bt=6.691 all=339.046 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': ['Nothing A065', 'samsung SM-F721B', 'Gigaset E940-2849-00', 'OPPO CPH2359', 'HUAWEI NAM-LX9']}
+[14:05:13] window e2-base-97506: started (idle ), expect <= 800 s
+[14:17:21] window e2-base-97506: valid=True [] wifi.bt=5.122 all=325.806 mW traffic={'kbps_acked': None, 'forwarded_in_window': None, 'links': []}
