@@ -578,6 +578,7 @@ def ios_overnight(name, hours):
     rid = f"inight-{name}-{int(time.time()) % 100000}"
     ios_launch(name, ["mode=discovery", "disc=both", "filter=mesh", "scan_on_s=4", "scan_off_s=4", "bg=1", f"run={rid}", "tag=ios",
                       f"duration={int(hours * 3600) + 600}"])
+    log(f"ios overnight {rid}: app launched; LOCK THE SCREEN NOW. Sampling {hours} h every 20 s")
     path = ios_sample(name, hours * 3600, 20, RESULTS / "ios" / f"{rid}.gauge.jsonl")
     samples = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
     result = ios_power(samples)

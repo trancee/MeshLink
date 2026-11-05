@@ -1,7 +1,7 @@
 # Energy on real phones (ticket 23): results
 
 PROTOTYPE results, **measured** on a Google Pixel 6 (Android 17, build CP3A.261005.002.A1) from 2026-11-03 21:42 to
-2026-11-04 21:42 CET, plus three cross-check phones on 2026-11-03/04. Method, validity rules and amendments
+2026-11-04 21:42 CET (overnight run until 2026-11-05 05:48), plus three cross-check phones on 2026-11-03/04. Method, validity rules and amendments
 A1–A6: [`README.md`](README.md) (pre-registered before the first measurement). Raw per-window data:
 `results/windows.final.jsonl` (recomputed with the final analysis, A6), app logs `results/windows/`, runner logs
 `results/rep{1,2,3}.out`; Perfetto traces (~1–2 MB each) in the session's `files/energy-raw/`. Tables:
@@ -158,8 +158,26 @@ scans (GMS) and missing Idle reporting (moto), so they cross-check direction, no
 
 Pixel 6, 8 h, screen off, simulated unplug (Doze allowed), **no wake lock**, medium-density duty (4 s on / 4 s
 off scan + fast advertising) and 2 idle CoC links (Nothing Phone (2), Galaxy Z Flip4), Perfetto poll 10 s; Nothing
-Phone (1) scans for the DUT's adverts to record when advertising stops. Started 2026-11-04 21:42 CET.
-_Results: see below (appended when the run finishes)._
+Phone (1) was meant to scan for the DUT's adverts. Ran 2026-11-04 21:42 → 2026-11-05 05:48 CET (`night-24911`,
+window 29,037 s = 8.07 h, valid; `results/overnight/`, batterystats/deviceidle/trace in `files/energy-raw/`).
+
+| Measured | Value |
+|---|---|
+| Doze | deep idle (`DEVICE_IDLE_MODE_CHANGED` true) **2 min** after window start; maintenance exits at +1.0 h, +3.0 h, +7.0 h (~1 min each), otherwise idle all night |
+| Links | both CoC links (2M) stayed up all 8 h (0 failures) |
+| Scanning | app asked for 4 s on / 4 s off; it ran **623 bursts** (3,630 expected), each still ~4.0 s, but gaps averaged **30.2 s** (the coroutine timer only advances when something wakes the CPU): logged duty **0.12**; batterystats: app scan time 42 min 55 s / 623 scans (**8.8 %**). Scan results kept arriving all night (23,178 total, ~2,500–3,400/h). |
+| Advertising | rotation (planned every 300 s) happened every ~30 min (17 `adv_start`); the advert set itself is controller-run. **Not independently verified on air**: the Nothing Phone (1) scanner was offline (`lab-wifi:5555` not in `adb devices`), so its log is empty. |
+| `wifi.bt` mean | **12.9 mW** absolute (vs 5.2 mW awake baseline with wake lock, Wi-Fi off in both); per-minute floor 7–9 mW (11–15 mW in the first 3 h) with ~45–57 mW spikes about every 10–20 min |
+| CPU rails | 13.0 mW (awake baseline with wake lock: 38 mW) |
+| All rails | 382.7 mW (modem 245 mW; display 40 mW with screen off) |
+| batterystats (whole phone, 8 h 5 min) | BT controller Idle 1 h 48 min (22 %), Rx 39 min 36 s (8.2 %), Tx 9 min 58 s (2.1 %); BT scan time 2 h 33 min, of which 2 h 3 min is another app (uid u0a128, 8 long scans) and 43 min is MeshLink; discharge 0 mAh (phone on the charger, held at 80 % / "not charging"; `dumpsys battery unplug` only simulated unplug) |
+
+Reading: with the screen off and no wake lock, Android 17 on the Pixel throttled the app's medium-density duty
+cycle to ~⅙ of the requested scan duty by stretching the gaps, while links and the controller-run advert stayed
+up. The radio rail cost of this "medium density, 2 links, overnight" state is **≈ 8 mW above the awake idle
+baseline (≈ 0.07 %/h of a 3,000 mAh battery)**, i.e. ~0.6 % per 8 h night from Bluetooth; the cost of waking the
+CPU is included here (CPU rails were 13 mW total). The battery gauge cannot confirm it (the phone stayed on the
+charger).
 
 ## iOS
 
@@ -167,6 +185,29 @@ Not run (needs a person; README "iOS"). Prepared and tested while plugged: both 
 gauge sampler parses both phones; `UpdateTime` advances every ~20 s (A3); `idle_gatt_3` with three Android
 centrals linked 2/3 in a 60 s plugged test (OnePlus 6 failed with scan error 2 and is excluded from the default
 centrals).
+
+Human checklist (iPhone 15 first; SE 2016 optional, same steps with `se2016`). Signing profiles expire around
+**2026-11-07**: run before then or rebuild/re-sign first.
+
+1. Do not run any Pixel energy run at the same time (the iOS `idle_gatt_3` centrals are the Pixel's peers
+   Nothing Phone (2), Galaxy Z Flip4, Gigaset GX6).
+2. On the iPhone: Settings → Display & Brightness → Auto-Lock **Never**; brightness **minimum**; Low Power Mode
+   **off**; Bluetooth on; Wi-Fi **on** (the sampler uses Wi-Fi). Note the battery % (needs ≥ 60 %).
+3. Unplug the iPhone (cable and any MagSafe/Qi), leave it unlocked, screen on, on the desk.
+4. Sign check (2 min): `cd prototypes/energy && python3 host/energy.py ios-sample ip15 --seconds 120` → in the
+   printed file, `ExternalConnected` false and `InstantAmperage` non-zero (records the sign while discharging).
+5. Three repetitions, ~1.5 h each (8 windows × ~11 min; the host launches the app each window; keep the phone
+   unlocked): `python3 host/energy.py ios-run ip15 --rep 1`, then `--rep 2`, `--rep 3`. Any sample with
+   `ExternalConnected`/`IsCharging` true voids that window. Results: `results/ios-windows.jsonl`, `results/ios/`.
+6. Plug back in when done or if the battery drops below 20 %; recharge to ≥ 80 % before the overnight.
+7. Overnight (8 h): unplug, unlock, run `python3 host/energy.py ios-overnight ip15 --hours 8`; once it prints
+   `app launched; LOCK THE SCREEN NOW`, press the side button to lock the screen and leave the
+   phone untouched. Plug back in the next morning.
+8. Reset Auto-Lock to its previous value.
+
+Then the parent computes window − bracketing baseline per scenario from `results/ios-windows.jsonl` (the iOS
+summary step is not written yet; `power_mw` per window is |InstantAmperage| × Voltage averaged over gauge
+updates, ~every 20 s).
 
 ## Limitations
 
@@ -178,8 +219,8 @@ centrals).
   MediaTek) and iOS may differ by multiples. Cross-checks only give controller time.
 - **Wake lock** in measured windows (A1) hides the CPU wake-up cost of scan results and link events; idle-link and
   low-duty numbers are therefore lower bounds for the whole device.
-- **Charging:** the Pixel sat on a wireless charger (rails are valid while charging, but charger heat and the
-  PMIC state are not the same as on battery). Battery temperature 33.7–38.5 °C across windows, not controlled.
+- **Charging:** the Pixel sat on a wireless charger, held at 80 % ("not charging", status 4) the whole time (rails
+  are valid, but charger heat and PMIC state differ from running on battery; battery-gauge discharge is 0). Battery temperature 33.7–38.5 °C across windows, not controlled.
 - **Peer-limited throughput:** bulk throughput was the same at 1M and 2M, so per-KiB costs are for ~80–100 KiB/s
   links; GATT used a flow-control knob (`write_ack_every=256`, A5) not specified by any ADR.
 - **Relay stand-in** without routing/crypto; DUT only ever central.
