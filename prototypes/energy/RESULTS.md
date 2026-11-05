@@ -209,6 +209,28 @@ Then the parent computes window − bracketing baseline per scenario from `resul
 summary step is not written yet; `power_mw` per window is |InstantAmperage| × Voltage averaged over gauge
 updates, ~every 20 s).
 
+
+### iOS screen-on results (2026-11-05)
+
+Whole-phone power from the battery gauge (|InstantAmperage| x Voltage, unplugged, screen on at minimum brightness,
+Auto-Lock off). Each scenario window minus the mean of its two bracketing baselines; 3 repeats; all windows valid;
+`idle_gatt_3` windows held 3/3 links (the runner aborts otherwise, `host/energy.py:533`).
+
+| Scenario | iPhone 15 (iOS 17) Δ mW | SE 2020 (iOS 18.7.8) Δ mW |
+|---|---|---|
+| Baseline (absolute) | 462 ± 39 (n = 9) | 466 ± 25 (n = 9) |
+| `adv` | 1 ± 36 (−28, 42, −11) | −14 ± 9 (−4, −22, −15) |
+| `scan_low` | 0 ± 16 (−11, −8, 18) | 11 ± 31 (−24, 37, 19) |
+| `comb_med` | 53 ± 36 (14, 61, 85) | 18 ± 8 (26, 9, 19) |
+| `idle_gatt_3` | 54 ± 103 (−33, 28, 167) | −6 ± 20 (−26, 14, −6) |
+
+Reading: with the screen on, baseline drift between windows (SD 25–39 mW) is larger than every MeshLink effect
+except `comb_med` on the iPhone 15. Advertising, low-density scanning and three idle links are below the
+resolution of this method on both phones; combined medium-density discovery is the only scenario that is positive
+in all six repeats (+9 to +85 mW). This bounds iOS radio cost from above, consistent with the Android rail
+results, but does not measure it. SE 2016 (iOS 15) repeat 1 only (A8): baselines 559/495/524, `adv` 540,
+`idle_gatt_3` 526, `comb_med` 591, `scan_low` 516 mW; not pooled.
+
 ## Limitations
 
 - **Whole-rail, not app attribution.** `wifi.bt` includes every Bluetooth user (system scans with

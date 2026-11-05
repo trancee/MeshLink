@@ -1,0 +1,8 @@
+[13:37:39] ios rep 1 on se2020: base + ['adv', 'idle_gatt_3', 'comb_med', 'scan_low'] with a baseline after every 2 windows
+[13:48:30] ios window i1-se2020-base-82259: valid=True [] power=475.07 mW updates=31
+[13:59:20] ios window i1-se2020-adv-82910: valid=True [] power=484.6 mW updates=31
+[14:10:40] ios window i1-se2020-idle_gatt_3-83560: valid=True [] power=461.98 mW updates=31
+[14:21:30] ios window i1-se2020-base-84240: valid=True [] power=501.82 mW updates=31
+[14:32:19] ios window i1-se2020-comb_med-84890: valid=True [] power=522.55 mW updates=31
+[14:43:09] ios window i1-se2020-scan_low-85539: valid=True [] power=473.36 mW updates=31
+[14:54:00] ios window i1-se2020-base-86189: valid=True [] power=492.04 mW updates=31

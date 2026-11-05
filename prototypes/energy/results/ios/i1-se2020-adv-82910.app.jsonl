@@ -1,0 +1,5 @@
+{"t":1793882911388,"test":"disc_start","run_id":"i1-se2020-adv-82910","commit":null,"tag":"ios","mode":"adv","args":{"mode":"discovery","disc":"adv","run":"i1-se2020-adv-82910","tag":"ios","duration":"705","model":"Apple iPhone12,8"},"reporter":{"model":"Apple iPhone12,8","os":"iOS 18.7.8","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793882911397,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793882911432,"test":"peripheral_state","state":5}
+{"t":1793882911435,"test":"adv_start","cycle":0,"t_call":1793882911433,"error":null,"ad_id":"062b25f0e61f7b19","uuid_list":["4D455348","062B25F0-E61F-7B19-4D4C-3031000A1DEF"],"name":null,"uuids":2,"app":"inactive"}
+{"t":1793882911800,"test":"system_event","event":"did_become_active","app":"active"}

@@ -1,0 +1,3 @@
+{"t":1793876374936,"test":"disc_start","run_id":"i1-se2016-base-76374","commit":null,"tag":"ios","mode":"idle","args":{"mode":"discovery","disc":"idle","run":"i1-se2016-base-76374","tag":"ios","duration":"705","model":"Apple iPhone8,4"},"reporter":{"model":"Apple iPhone8,4","os":"iOS 15.8.8","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793876374998,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793876375003,"test":"system_event","event":"did_become_active","app":"active"}

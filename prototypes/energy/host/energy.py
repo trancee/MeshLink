@@ -427,7 +427,8 @@ def overnight(hours, peers=("nothing2", "flip4"), scanner="nothing1"):
 
 # ---------------------------------------------------------------- iOS battery sampler
 
-IOS = {"ip15": "ip15", "se2016": "se2016"}
+IOS = {"ip15": "ip15", "se2016": "se2016",
+       "se2020": "se2020"}
 IOS_KEYS = ("InstantAmperage", "Amperage", "Voltage", "AppleRawCurrentCapacity", "CurrentCapacity", "ExternalConnected",
             "IsCharging", "FullyCharged", "UpdateTime", "Temperature", "AppleRawBatteryVoltage")
 
@@ -467,7 +468,7 @@ def ios_sample(name, seconds, period, out_path):
     return out_path
 
 
-IOS_BUNDLE = {"ip15": "ch.trancee.lab.host", "se2016": "ch.trancee.lab.host.b"}
+IOS_BUNDLE = {"ip15": "ch.trancee.lab.host", "se2016": "ch.trancee.lab.host.b", "se2020": "ch.trancee.lab.host"}
 IOS_SCENARIOS = {
     "adv": ["disc=adv"],
     "scan_low": ["disc=scan", "filter=mesh"],
@@ -479,7 +480,7 @@ IOS_CENTRALS = os.environ.get("IOS_CENTRALS", "nothing2,flip4,gx6").split(",")
 
 def ios_launch(name, args):
     udid = IOS[name]
-    if name == "ip15":
+    if name in ("ip15", "se2020"):
         cmd = ["xcrun", "devicectl", "device", "process", "launch", "--device", udid, "--terminate-existing", IOS_BUNDLE[name], *args]
     else:
         cmd = ["idevicedebug", "-n", "-u", udid, "--detach", "run", IOS_BUNDLE[name], *args]

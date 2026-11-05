@@ -195,3 +195,14 @@ a MeshLink-only number. moto ← OnePlus 6 / Nord 2 / RMX3710 and S10e ← CPH22
 attempt (11:26) failed every launch at once (`idevicedebug`: "No device found", because the unplugged phone is only
 reachable over Wi-Fi); no window ran. `idevicedebug` and `afcclient` now use `-n` (network). The 21 failed records
 (`i{1,2,3}-se2016-*-7436{4,5}`, `iOS launch failed`) stay in `results/ios-windows.jsonl` as invalid and are excluded.
+
+### A8 (2026-11-05): SE 2020 replaces SE 2016 for the second iOS phone
+
+The SE 2016 (iOS 15) completed screen-on repeat 1 (7/7 valid windows) and the first two windows of repeat 2, then
+switched itself off at about 13:05 with a worn battery (the 3-link window got 0/3 links because the phone was
+already going down). Its repeat-1 data is kept but reported separately and not pooled. The second iOS phone is now
+the iPhone SE (2020) (`se2020`, iOS 18.7.8, team `apple-team-1`, bundle `ch.trancee.lab.host`, launched with
+`devicectl`). To read its gauge over Wi-Fi it was paired with libimobiledevice over USB and lockdown
+`com.apple.mobile.wireless_lockdown/EnableWifiConnections` was set to true (throwaway `lockdownd_set_value` call
+against the installed libimobiledevice 1.4.0; no new dependency). Gauge entry `AppleSmartBattery`, same sign
+convention as the iPhone 15. Scenarios, window lengths and analysis are unchanged.
