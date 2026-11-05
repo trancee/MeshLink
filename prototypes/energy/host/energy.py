@@ -482,7 +482,7 @@ def ios_launch(name, args):
     if name == "ip15":
         cmd = ["xcrun", "devicectl", "device", "process", "launch", "--device", udid, "--terminate-existing", IOS_BUNDLE[name], *args]
     else:
-        cmd = ["idevicedebug", "-u", udid, "--detach", "run", IOS_BUNDLE[name], *args]
+        cmd = ["idevicedebug", "-n", "-u", udid, "--detach", "run", IOS_BUNDLE[name], *args]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
         raise RuntimeError(f"iOS launch failed: {' '.join(cmd)}: {r.stdout[-300:]} {r.stderr[-300:]}")

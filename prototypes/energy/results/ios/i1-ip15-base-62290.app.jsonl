@@ -1,0 +1,3 @@
+{"t":1793862291338,"test":"disc_start","run_id":"i1-ip15-base-62290","commit":null,"tag":"ios","mode":"idle","args":{"mode":"discovery","disc":"idle","run":"i1-ip15-base-62290","tag":"ios","duration":"705","model":"Apple iPhone15,4"},"reporter":{"model":"Apple iPhone15,4","os":"iOS 17.6.1","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793862291346,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793862291757,"test":"system_event","event":"did_become_active","app":"active"}

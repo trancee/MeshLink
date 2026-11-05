@@ -190,3 +190,8 @@ controller Rx is dominated by a continuous GMS scan (`com.google.android.gms`) f
 a MeshLink-only number. moto ← OnePlus 6 / Nord 2 / RMX3710 and S10e ← CPH2251 / OnePlus 6 / Nokia X20: invalid
 (1/3 links each): peers from the earlier run were still advertising stale run tags and were skipped
 (`link_skip`). Their first-run `idle_gatt_3` (reset before link setup) remains the only, labelled, value.
+
+**A7 (2026-11-05 11:30 CET, before any SE 2016 window was measured): SE 2016 over Wi-Fi.** The first SE 2016
+attempt (11:26) failed every launch at once (`idevicedebug`: "No device found", because the unplugged phone is only
+reachable over Wi-Fi); no window ran. `idevicedebug` and `afcclient` now use `-n` (network). The 21 failed records
+(`i{1,2,3}-se2016-*-7436{4,5}`, `iOS launch failed`) stay in `results/ios-windows.jsonl` as invalid and are excluded.

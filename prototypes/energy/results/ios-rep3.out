@@ -1,0 +1,8 @@
+[10:06:47] ios rep 3 on ip15: base + ['scan_low', 'adv', 'comb_med', 'idle_gatt_3'] with a baseline after every 2 windows
+[10:17:37] ios window i3-ip15-base-69607: valid=True [] power=454.73 mW updates=31
+[10:28:29] ios window i3-ip15-scan_low-70257: valid=True [] power=476.88 mW updates=31
+[10:39:20] ios window i3-ip15-adv-70909: valid=True [] power=448.03 mW updates=31
+[10:50:12] ios window i3-ip15-base-71560: valid=True [] power=462.88 mW updates=31
+[11:01:04] ios window i3-ip15-comb_med-72212: valid=True [] power=580.42 mW updates=31
+[11:12:26] ios window i3-ip15-idle_gatt_3-72864: valid=True [] power=662.89 mW updates=31
+[11:23:17] ios window i3-ip15-base-73546: valid=True [] power=528.43 mW updates=31

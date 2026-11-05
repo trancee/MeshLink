@@ -124,7 +124,7 @@ def launch(name, args):
     else:
         # --detach: an attached debugserver session sometimes reports a stop (T11) right after launch and
         # idevicedebug then kills the app, leaving it idle/argument-less; detached launches run reliably.
-        run(["idevicedebug", "-u", device["udid"], "--detach", "run", bundle_id(device), *args], timeout=120)
+        run(["idevicedebug", "-n", "-u", device["udid"], "--detach", "run", bundle_id(device), *args], timeout=120)
 
 
 def stop(name):
@@ -132,7 +132,7 @@ def stop(name):
     if device["platform"] == "android":
         adb(device, "shell", "am", "force-stop", ANDROID_PACKAGE, check=False, quiet=True)
     elif device["tool"] == "imd":
-        subprocess.run(["idevicedebug", "-u", device["udid"], "kill", bundle_id(device)], capture_output=True, timeout=60)
+        subprocess.run(["idevicedebug", "-n", "-u", device["udid"], "kill", bundle_id(device)], capture_output=True, timeout=60)
     elif device["tool"] == "devicectl":
         listing = RESULTS / f".processes-{name}.json"
         RESULTS.mkdir(parents=True, exist_ok=True)
@@ -168,7 +168,7 @@ def fetch(name, run_id, destination):
         return result.returncode == 0 and destination.exists()
     # afcclient refuses to overwrite without -f (and still exits 0), so progress polls would freeze the first copy.
     script = f"get -f Documents/results/{run_id}.jsonl {destination}\nquit\n"
-    result = subprocess.run(["afcclient", "-u", device["udid"], "--container", bundle_id(device)], input=script,
+    result = subprocess.run(["afcclient", "-n", "-u", device["udid"], "--container", bundle_id(device)], input=script,
                             capture_output=True, text=True, timeout=60)
     failed = "Error" in result.stdout or "Error" in result.stderr
     return result.returncode == 0 and not failed and destination.exists() and destination.stat().st_size > 0

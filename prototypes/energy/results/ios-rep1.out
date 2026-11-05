@@ -1,0 +1,8 @@
+[07:31:47] ios rep 1 on ip15: base + ['adv', 'idle_gatt_3', 'comb_med', 'scan_low'] with a baseline after every 2 windows
+[07:42:38] ios window i1-ip15-base-60307: valid=True [] power=502.11 mW updates=31
+[07:53:30] ios window i1-ip15-adv-60958: valid=True [] power=461.14 mW updates=31
+[08:04:50] ios window i1-ip15-idle_gatt_3-61610: valid=True [] power=455.24 mW updates=31
+[08:15:41] ios window i1-ip15-base-62290: valid=True [] power=475.32 mW updates=31
+[08:26:33] ios window i1-ip15-comb_med-62941: valid=True [] power=480.83 mW updates=31
+[08:37:25] ios window i1-ip15-scan_low-63593: valid=True [] power=455.86 mW updates=31
+[08:48:16] ios window i1-ip15-base-64245: valid=True [] power=457.66 mW updates=31

@@ -1,0 +1,5 @@
+{"t":1793865666015,"test":"disc_start","run_id":"i2-ip15-adv-65664","commit":null,"tag":"ios","mode":"adv","args":{"mode":"discovery","disc":"adv","run":"i2-ip15-adv-65664","tag":"ios","duration":"705","model":"Apple iPhone15,4"},"reporter":{"model":"Apple iPhone15,4","os":"iOS 17.6.1","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793865666024,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793865666040,"test":"peripheral_state","state":5}
+{"t":1793865666040,"test":"adv_start","cycle":0,"t_call":1793865666040,"error":null,"ad_id":"7662f51c40518d8c","uuid_list":["4D455348","7662F51C-4051-8D8C-4D4C-3031004208EB"],"name":null,"uuids":2,"app":"inactive"}
+{"t":1793865666441,"test":"system_event","event":"did_become_active","app":"active"}
