@@ -231,6 +231,16 @@ in all six repeats (+9 to +85 mW). This bounds iOS radio cost from above, consis
 results, but does not measure it. SE 2016 (iOS 15) repeat 1 only (A8): baselines 559/495/524, `adv` 540,
 `idle_gatt_3` 526, `comb_med` 591, `scan_low` 516 mW; not pooled.
 
+### iOS overnight (A9)
+
+| Night | Window | Charge (mAh) | Average |
+|---|---|---|---|
+| MeshLink, `comb_med` + `bg=1`, locked, app suspended | Nov 5 17:46 to Nov 6 07:10 (13.4 h) | 3,037 to 2,623 (−414) | 30.9 mA, about 119 mW, 1.05 %/h |
+| Control, no app | Nov 6 to 7 (pending) | | |
+
+The first night includes about 10 minutes unlocked (start and end). Until the control night is in, 119 mW is an
+upper bound on the iOS background cost, not a measurement of it.
+
 ## Limitations
 
 - **Whole-rail, not app attribution.** `wifi.bt` includes every Bluetooth user (system scans with

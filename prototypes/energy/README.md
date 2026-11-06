@@ -206,3 +206,14 @@ the iPhone SE (2020) (`se2020`, iOS 18.7.8, team `apple-team-1`, bundle `ch.tran
 `com.apple.mobile.wireless_lockdown/EnableWifiConnections` was set to true (throwaway `lockdownd_set_value` call
 against the installed libimobiledevice 1.4.0; no new dependency). Gauge entry `AppleSmartBattery`, same sign
 convention as the iPhone 15. Scenarios, window lengths and analysis are unchanged.
+
+### A9 (2026-11-06): iOS overnight by coulomb counting, plus a control night
+
+The iPhone 15 overnight run (`inight-ip15-97188`, 17:46 on Nov 5) recorded only 14 gauge updates: a locked iPhone
+stops answering lockdown over Wi-Fi about 4 minutes after locking, so the streamed sampler cannot cover a locked
+night. The app was suspended about 30 s after locking (`background_task_expired`); afterwards only iOS-managed
+advertising and filtered scanning continued (no wake-ups were logged). The night is instead measured by coulomb
+counting: `AppleRawCurrentCapacity` at the start (Wi-Fi, 3,037 mAh) and at the end, read over USB immediately after
+plugging in (`IsCharging` false; 2,623 mAh at 07:10 on Nov 6). A control night with the same phone, place and radio
+settings but without the app is run on Nov 6 to 7 with the same method; the MeshLink background cost is the
+difference. One night against one night resolves only differences of about 20 mW or more.

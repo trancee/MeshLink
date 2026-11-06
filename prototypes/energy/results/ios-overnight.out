@@ -1,0 +1,2 @@
+[17:46:30] ios overnight inight-ip15-97188: app launched; LOCK THE SCREEN NOW. Sampling 8.0 h every 20 s
+[01:46:42] ios overnight inight-ip15-97188: {"power_mw": 680.41, "power_avg_amperage_mw": 695.66, "updates": 14, "samples": 1440, "signs": [false], "invalid": ["only 14 gauge updates"], "valid": false, "rid": "inight-ip15-97188", "scenario": "overnight", "device": "ip15", "platform": "ios", "hours": 8.0, "date": "2026-11-06T00:46:42+00:00"}

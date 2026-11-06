@@ -1,0 +1,16 @@
+{"t":1793897190595,"test":"disc_start","run_id":"inight-ip15-97188","commit":null,"tag":"ios","mode":"both","args":{"mode":"discovery","disc":"both","filter":"mesh","scan_on_s":"4","scan_off_s":"4","bg":"1","run":"inight-ip15-97188","tag":"ios","duration":"29400","model":"Apple iPhone15,4"},"reporter":{"model":"Apple iPhone15,4","os":"iOS 17.6.1","platform":"ios"},"caps":{"extended_scan_and_connect":false},"app":"background"}
+{"t":1793897190605,"test":"system_event","event":"will_enter_foreground","app":"inactive"}
+{"t":1793897190623,"test":"peripheral_state","state":5}
+{"t":1793897190626,"test":"suspend_request","app":"inactive"}
+{"t":1793897190626,"test":"central_state","state":5}
+{"t":1793897190626,"test":"scan_start","n":0,"filtered":true,"filter":"mesh","dups":true,"app":"inactive"}
+{"t":1793897191209,"test":"system_event","event":"did_enter_background","app":"background"}
+{"t":1793897191350,"test":"background","reached":true,"app":"background"}
+{"t":1793897191356,"test":"adv_start","cycle":0,"t_call":1793897191352,"error":null,"ad_id":"db553612cc6582bc","uuid_list":["4D455348","DB553612-CC65-82BC-4D4C-303100B65B80"],"name":null,"uuids":2,"app":"background"}
+{"t":1793897191680,"test":"adv","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","rssi":-53,"name":null,"svc":null,"ovf":["4D455348"],"mfg":null,"sd":null,"conn":true,"txp":12,"app":"background","step":null,"cycle":null}
+{"t":1793897191679,"test":"s","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","n":1,"rssi":-53}
+{"t":1793897193602,"test":"s","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","n":1,"rssi":-52}
+{"t":1793897193604,"test":"s","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","n":1,"rssi":-70}
+{"t":1793897193875,"test":"s","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","n":1,"rssi":-58}
+{"t":1793897193877,"test":"s","a":"DDAB77B1-9F6A-279A-1252-38F0B7CA7895","id":"svc","n":1,"rssi":-53}
+{"t":1793897229788,"test":"system_event","event":"background_task_expired"}
