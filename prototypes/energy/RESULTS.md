@@ -236,10 +236,11 @@ results, but does not measure it. SE 2016 (iOS 15) repeat 1 only (A8): baselines
 | Night | Window | Charge (mAh) | Average |
 |---|---|---|---|
 | MeshLink, `comb_med` + `bg=1`, locked, app suspended | Nov 5 17:46 to Nov 6 07:10 (13.4 h) | 3,037 to 2,623 (−414) | 30.9 mA, about 119 mW, 1.05 %/h |
-| Control, no app | Nov 6 to 7 (pending) | | |
+| Control, app not running (no Bakeoff log written), locked | Nov 7 19:28 to Nov 8 09:11 (13.7 h) | 3,091 to 2,549 (−542) | 39.5 mA, about 152 mW, 1.24 %/h |
 
-The first night includes about 10 minutes unlocked (start and end). Until the control night is in, 119 mW is an
-upper bound on the iOS background cost, not a measurement of it.
+The first night includes about 10 minutes unlocked (start and end). The control night drew 8.6 mA (about 33 mW)
+more than the MeshLink night, so night-to-night variation exceeds the app's background cost; one pair of nights
+cannot resolve it. 119 mW stays a whole-phone ceiling, not an app cost.
 
 ## Limitations
 
