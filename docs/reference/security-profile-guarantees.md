@@ -20,7 +20,8 @@ Per-profile guarantees against the adversaries A1–A7 defined in the [threat mo
 | Only the destination can purge delivered copies | No (forgeable) | Yes | Yes |
 | Replay rejection within message lifetime | No | Yes | Yes |
 | Receipt authenticity | No (forgeable) | Yes (end-to-end) | Yes (end-to-end) |
-| Relay unlinkability of source/destination across epochs (A3 without the node's public key) | No | Yes, pending routing-simulation cost check | Yes, pending routing-simulation cost check |
+| Relay unlinkability of source/destination across epochs (A3 without the node's certificate) | No | Yes | Yes |
+| Conversation unlinkable to identities after its first message (A3, even holding both certificates) | No | Yes, pending routing-simulation cost check ([observer exposure](observer-exposure.md)) | Yes, pending routing-simulation cost check ([observer exposure](observer-exposure.md)) |
 | Exact message size hidden from relays (A3) | No | Yes, to 32 B steps | Yes, to 32 B steps |
 | On-air identifier unlinkability across rotations (A5) | No claim | Android: yes. iOS: no against a continuous observer. Gated mesh: linked peers recognize you until your daily resolving key rotates | Android: yes. iOS: no against a continuous observer. Gated mesh: linked peers recognize you until your daily resolving key rotates |
 | Hiding that a MeshLink node is present | No | No | No |

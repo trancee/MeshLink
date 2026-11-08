@@ -11,6 +11,7 @@ MeshLink is in its design phase. No library code exists yet, so this page lists 
 | Topic | Source |
 |---|---|
 | What each security profile guarantees | [Security profile guarantees](reference/security-profile-guarantees.md) |
+| What relays and neighbors learn from routing messages | [What each observer learns](reference/observer-exposure.md) |
 | Dependencies and tools, with their rationale | [Dependency register](reference/dependencies.md) |
 | Terms such as node, peer and security profile | [Glossary](../GLOSSARY.md) |
 | Engineering rules | [Constitution](../CONSTITUTION.md) and [Kotlin guidance](../KOTLIN.md) |
@@ -37,6 +38,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 13. [Message lifecycle and receipts](adr/0013-message-lifecycle-and-receipts.md)
 14. [Store-and-forward](adr/0014-store-and-forward.md)
 15. [Message size and compression](adr/0015-message-size-and-compression.md)
+16. [Routing metadata exposure](adr/0016-routing-metadata-exposure.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

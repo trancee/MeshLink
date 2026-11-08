@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 2 (amended 2026-11-03, ADR 0015).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 3 (amended 2026-11-03, ADR 0015; 2026-11-08, ADR 0016).
 
 ## Context
 
@@ -64,3 +64,7 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 2026-11-03, message size ([ADR 0015](0015-message-size-and-compression.md)):
 
 - **Quota (decision 4):** the byte cap is 512 KiB. Only small messages (at most 4 KiB) are held for others; large messages are held only by their origin.
+
+2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
+
+- **Claims (decision 7):** a node claims held messages addressed to its public tags (every static key with a valid certificate, plus an expired one for 1 h and 30 s) and to the conversation tags of its active sessions.

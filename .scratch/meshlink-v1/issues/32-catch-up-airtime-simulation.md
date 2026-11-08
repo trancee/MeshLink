@@ -12,3 +12,4 @@ Rerun the routing simulation with ADR 0014's catch-up (held broadcasts, held uni
 - ADR 0008 simulated catch-up of the last 60 s of message IDs only, and single-copy holding by nodes without a route.
 - Throwaway simulator on branch `prototype/routing-sim` (worktree `../MeshLink-routing-sim`).
 - Results are labeled simulated (P6).
+- Also include ADR 0016: per-conversation routes (conversation tags after the first message, public tag for first messages) instead of per-node routes; confirm route-discovery cost and delivery stay within budget, or return the decision to the project owner.

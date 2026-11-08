@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 7 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements and fake identities). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 8 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities and ADR 0016). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -145,3 +145,8 @@ Results for the v1 configuration:
 2026-11-08, fake identities ([Sybil evidence](../evidence/2026-11-sybil/README.md)):
 
 - **Neighbor selection (decision 1):** unchanged; v1 adds no routing-layer Sybil defense. Stage S (simulated, medium N = 200, 10 seeds) tested peer scoring by usefulness (D1), probation slots for unproven inbound links (D2) and confirmed neighbor lists (D3), alone and combined, against fakes that forward nothing and fakes that relay floods but drop unicast. At 30% fakes the honest largest group stayed at 0.02–0.03 in every arm (criterion 0.8), because a free identity refills every freed slot. D2 cost honest newcomers (10%: 0.90 → 0.82). Proof of work was rejected on paper. The realistic budget of 3 radios × 20 links left the mesh at 0.99. Gated meshes remain the availability answer.
+
+2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
+
+- **Routing tags (decision 6):** public tags derive from the certified static key; after the first message, conversations use per-epoch conversation tags, so routes are per conversation, not per node. Not simulated; the catch-up airtime simulation must confirm the route-discovery cost.
+- **Neighbor lists and shuffles (decision 1):** entries are 8 B on-air advertisement identifiers, sent to direct neighbors only and never forwarded.

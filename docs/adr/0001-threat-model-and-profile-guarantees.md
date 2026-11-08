@@ -1,6 +1,6 @@
 # 0001: Threat model and security-profile guarantees
 
-Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 4 (amended 2026-11-02, ADRs 0010 and 0012; 2026-11-03, ADR 0014).
+Status: accepted (2026-10-31; ticket "What is the threat model, and what does each security profile guarantee?"). Version: 5 (amended 2026-11-02, ADRs 0010 and 0012; 2026-11-03, ADR 0014; 2026-11-08, ADR 0016).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -71,3 +71,8 @@ None: greenfield, nothing released. Any change to a guarantee in the reference t
 
 - **Forward secrecy of held and first messages:** still none, but bounded. Static keys rotate daily and are deleted at most 1 h and 30 s after their certificate expires, so a stolen phone exposes the recorded first and held messages of about the last 25 h.
 - **Tracking (A5):** anyone who recorded a message addressed to a node can recognize that node when it claims or acknowledges the message, until the message expires (at most 1 h).
+
+2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
+
+- **Routing tags:** public tags derive from the certified static key, not the identity key, so a holder of a node's certificate recognizes its public tags for at most about 25 h. After the first message of a session, both directions use conversation tags only the two ends can compute; relays see only that the destination was contacted. `unsecured` keeps NodeId-based tags.
+- **Neighbor lists** carry on-air advertisement identifiers and go only to direct neighbors.

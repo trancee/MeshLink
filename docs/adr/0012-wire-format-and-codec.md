@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 3 (amended 2026-11-03, ADRs 0014 and 0015).
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 4 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADR 0016).
 
 ## Context
 
@@ -89,3 +89,8 @@ None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the
 
 - **Record cap (decision 4):** a record body is at most 1,024 B in every profile and bearer, without negotiation.
 - **Busy reply (decision 4):** a link-local reply refuses a large frame when the receiver's reassembly budget is full; the sender backs off and retries.
+
+2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
+
+- **Routing header:** source and destination fields are 8 B tags of either kind: public tags (first messages, route requests for them) or conversation tags; relays treat both alike. Sizes are unchanged.
+- **Neighbor-list entry:** the 8 B identifier field of the peer's current advertisement (bytes 5–12 of decision 10).
