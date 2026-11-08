@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 4 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 5 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADR 0017).
 
 ## Context
 
@@ -126,3 +126,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 
 - **Toggles (decision 10):** `limits.maxUnicastPayload` (4 KiB to 128 KiB) and `limits.maxBroadcastPayload` (at most 1 KiB) may only lower the protocol caps.
 - **Presets (decision 12):** unicast cap 128 KiB for `OfflineChat`, `LocalMultiplayer` and `FieldTeams`; 4 KiB for `EmergencyBroadcast` and `ProximityDiscovery`. Broadcast cap 1 KiB for all.
+
+2026-11-08, testing architecture ([ADR 0017](0017-testing-architecture.md)):
+
+- **`meshlink-testing` (decision 1):** holds `VirtualAir`, the seeded in-memory radio, and runs real MeshLink nodes over it. MeshLink's own multi-node tests live in its `commonTest` and use the same fake; Kover merges it with `:meshlink`.

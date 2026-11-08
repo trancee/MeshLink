@@ -50,6 +50,8 @@ Facts verified 2026-11-01.
 | Robolectric | 4.17 | test | Android framework on the JVM, SDK 26 and 37 | Google-backed, active | MIT | n/a | n/a | Large (test only) | Instrumented tests can't run in default CI (T2) |
 | JUnit 4 | 4.13.2 | test | Robolectric test runner | Maintenance mode, stable | EPL-1.0 | n/a | n/a | hamcrest-core | Robolectric needs a JUnit 4 runner |
 | androidx.test core | 1.7.0 | test | `ApplicationProvider` for Robolectric | Google, stable | Apache-2.0 | n/a | n/a | n/a | Standard Robolectric companion |
+| Jazzer (`com.code-intelligence:jazzer`) | 0.30.0 | test (scheduled job) | Coverage-guided fuzzing of decoders (T10, ADR 0017); the standalone driver with bundled macOS and Linux natives | Code Intelligence, active (2026-02 release) | Apache-2.0 | n/a | ~8.9 MB jar (test only) | `jazzer-api` (runtime) | The deterministic mutation tests miss deep paths; kotlinx.fuzz needs JDK 8 and custom repositories; `jazzer-junit` would add JUnit 5 |
+| libsodium host build | 1.0.22 | test (host native) | Real crypto and the JNI shim in JVM host tests (ADR 0017) | As the runtime row | ISC | Same tarball, sha256 and minisign check | n/a (never published) | none | Fake crypto would leave the shim and vectors untested on the only Kover-measured target |
 
 ## CI tools (docs checks, ADR 0006)
 

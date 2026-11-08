@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 1.
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 2 (amended 2026-11-08, ADR 0017).
 
 ## Context
 
@@ -158,3 +158,15 @@ Version rules:
 ## Migration
 
 None: greenfield. Scaffolding the build applies this baseline. Bumping the Constitution to 4.0.0 changes no existing code.
+
+## Amendments
+
+2026-11-08, testing architecture ([ADR 0017](0017-testing-architecture.md)):
+
+- **libsodium build:** libsodium and the JNI shim are also built for the host (macOS arm64, Linux x64) from the same verified tarball and flags. The build is test-only, never published, and cached by the tarball's sha256.
+- **Test tools:** Jazzer 0.30.0, as the standalone `jazzer` driver, runs coverage-guided fuzzing of the decoders in a scheduled job.
+- **CI:**
+  - Pull requests: docs gates, detekt, ABI checks, JVM and Robolectric tests with Kover, and iOS simulator tests. Target: at most 15 min.
+  - Scheduled: Jazzer, large density meshes, the Rust reference cross-check and a dependency freshness check.
+  - Devices: manual only.
+  - No automatic retries; every test has a timeout.
