@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 2 (amended 2026-11-08, ADR 0017).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 3 (amended 2026-11-08, ADRs 0017 and 0019).
 
 ## Context
 
@@ -170,3 +170,8 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
   - Scheduled: Jazzer, large density meshes, the Rust reference cross-check and a dependency freshness check.
   - Devices: manual only.
   - No automatic retries; every test has a timeout.
+
+2026-11-08, release and versioning ([ADR 0019](0019-release-versioning-and-api-compatibility.md)):
+
+- **ABI validation:** rechecked 2026-11-08; still Experimental, so the hold stays. Dumps cover JVM and klib, with `explicitApi()` strict.
+- **CI:** a tag-triggered release workflow on `macos-15`, behind an environment that requires manual approval. It covers Maven Central with `automaticRelease`, the attested XCFramework ZIP, a GitHub Release through `gh`, Dokka on Pages, and the `meshlink-swift` update through a GitHub App token. `actions/attest-build-provenance` and `actions/create-github-app-token` gain register rows when the workflow is written.

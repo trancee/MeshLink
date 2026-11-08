@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 5 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADR 0017).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 6 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019).
 
 ## Context
 
@@ -130,3 +130,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-08, testing architecture ([ADR 0017](0017-testing-architecture.md)):
 
 - **`meshlink-testing` (decision 1):** holds `VirtualAir`, the seeded in-memory radio, and runs real MeshLink nodes over it. MeshLink's own multi-node tests live in its `commonTest` and use the same fake; Kover merges it with `:meshlink`.
+
+2026-11-08, release and versioning ([ADR 0019](0019-release-versioning-and-api-compatibility.md)):
+
+- **Swift package (decision 5):** the release workflow updates `meshlink-swift`'s `Package.swift` with the URL and checksum through a GitHub App token, tags the same version, and runs a fresh SwiftPM consumer build as the smoke test. All artifacts share one version.

@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 5 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0016 and 0018).
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 6 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0016, 0018 and 0019).
 
 ## Context
 
@@ -101,3 +101,7 @@ None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the
   - A certificate lookup request: an 8 B salt, an 8 B lookup tag (BLAKE2b over salt ‖ NodeId with a domain-separation string, truncated) and a 32 B ephemeral X25519 key, flooded under route-request rules.
   - A lookup reply: one certificate sealed to that key with ChaCha20-Poly1305 (+16 B tag), returned along the reverse path.
 - The protocol spec defines both layouts, the domain string and their vectors.
+
+2026-11-08, release and versioning ([ADR 0019](0019-release-versioning-and-api-compatibility.md)):
+
+- **Versioning (decision 6):** the version byte is independent of the library version and changes only on incompatible wire changes. A release that introduces protocol N+1 also speaks N for at least one library MINOR; the capability read selects the highest version both sides speak. Other versions are still rejected with a typed reason.
