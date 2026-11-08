@@ -132,4 +132,13 @@ interface NeighborSelection {
 
     /** Peers currently held in the bounded peer table (for eviction metrics). */
     fun peerTable(): IntArray
+
+    /** Stage S: a timely delivery (usefulness credit) arrived on the link to [peer]. */
+    fun onUseful(peer: Int) {}
+
+    /** Stage S D2: whether to accept one more incoming dial; [pendingInbound] incoming dials are in progress. */
+    fun acceptsInbound(pendingInbound: Int): Boolean = true
+
+    /** Stage S fresh identities: drop any per-identity memory of [peer] (it will come back under a new identity). */
+    fun forgetPeer(peer: Int) {}
 }

@@ -12,6 +12,7 @@ import meshlink.routingsim.strategy.Randomness
 import meshlink.routingsim.strategy.ScanResult
 import meshlink.routingsim.strategy.SelectionParams
 import meshlink.routingsim.strategy.StrongestSignalSelection
+import meshlink.routingsim.strategy.SybilDefense
 import meshlink.routingsim.strategy.SybilSelection
 import meshlink.routingsim.strategy.WireSizes
 import kotlin.math.ln
@@ -97,6 +98,7 @@ class Simulation(
     private val outDials = Array(n) { ArrayList<Dial>(4) }
     private val inDials = Array(n) { ArrayList<Dial>(4) }
     private val strategies = arrayOfNulls<NeighborSelection>(n)
+    private val defense = cal.sybil.let { SybilDefense(d1 = it.d1, d2 = it.d2, d3 = it.d3) }
     private val lastFailure = HashMap<Long, Long>()
 
     // Metrics (measured after warm-up).
@@ -122,8 +124,17 @@ class Simulation(
     private var tFirstCross = -1L
     private var tLccRecover = -1L
 
+    // Stage S metrics (output only with cal.sybil.metrics).
+    private var hhCloses = 0L
+    private var hhDowns = 0L
+    private var fakeCloses = 0L
+    private var d2RefusedFake = 0L
+    private var d2RefusedHonest = 0L
+    private val topoCtrlSent = LongArray(n)
+    private val phoneCapacity = DoubleArray(n)
+
     init {
-        val sybilCount = (n * scenario.sybilShare).roundToInt()
+        val sybilCount = scenario.sybilCount ?: (n * scenario.sybilShare).roundToInt()
         val order = (0 until n).shuffled(worldRng)
         for (k in 0 until sybilCount) sybil[order[k]] = true
         sybilIds = (0 until n).filter { sybil[it] }.toIntArray()
@@ -222,7 +233,13 @@ class Simulation(
     }
 
     private val layer: RoutingLayer? =
-        routingSetup?.let { RoutingLayer(access, it, seedOf("routing", scenario.key, seed), BooleanArray(n) { i -> !sybil[i] }) }
+        routingSetup?.let {
+            val honest = BooleanArray(n) { i -> !sybil[i] }
+            val relay = if (cal.sybil.smart) BooleanArray(n) { true } else honest
+            val useful: ((Int, Int) -> Unit)? =
+                if (cal.sybil.usefulness) { to, from -> strategies[to]?.onUseful(from) } else null
+            RoutingLayer(access, it, seedOf("routing", scenario.key, seed), honest, relay, useful, cal.sybil.metrics)
+        }
 
     private inner class NodePort(
         val id: Int,
@@ -275,10 +292,10 @@ class Simulation(
         val port = NodePort(id, seedOf("strategy", scenario.key, strategyKind, seed, id, incarnation[id]))
         val ctx = NodeContext(id, port, port, port, port)
         return when {
-            sybil[id] -> SybilSelection(ctx, sybilIds)
+            sybil[id] -> SybilSelection(ctx, sybilIds, smart = cal.sybil.smart, redial = cal.sybil.freshIdentity)
             strategyKind == StrategyKind.N0 -> StrongestSignalSelection(ctx, params)
-            strategyKind == StrategyKind.N1N2_BRIDGE -> DiverseViewSelection(ctx, params, bridge = true)
-            else -> DiverseViewSelection(ctx, params)
+            strategyKind == StrategyKind.N1N2_BRIDGE -> DiverseViewSelection(ctx, params, bridge = true, defense = defense)
+            else -> DiverseViewSelection(ctx, params, defense = defense)
         }
     }
 
@@ -369,7 +386,7 @@ class Simulation(
         if (capRefused && active(to) && measuring() && !sybil[d.from]) capRefusals++
         val reachable =
             active(to) && used(to) < budget[to] && !capRefused && linkBetween(d.from, to) == null &&
-                radio.meanRssi(d.from, to) >= cal.sensitivityDbm
+                radio.meanRssi(d.from, to) >= cal.sensitivityDbm && !probationRefused(d)
         if (!reachable) {
             failDial(d)
             return
@@ -394,6 +411,13 @@ class Simulation(
         at(now + uniform(cal.handshakeMinMs, cal.handshakeMaxMs) + centralRtt(d.from) + hsExtra) {
             handshakeDone(d)
         }
+    }
+
+    /** Stage S D2: the target refuses one more unproven incoming dial. */
+    private fun probationRefused(d: Dial): Boolean {
+        if (strategies[d.to]!!.acceptsInbound(inDials[d.to].size)) return false
+        if (measuring() && !sybil[d.to]) if (sybil[d.from]) d2RefusedFake++ else d2RefusedHonest++
+        return true
     }
 
     private fun releaseDial(d: Dial) {
@@ -480,6 +504,18 @@ class Simulation(
                 }
             strategies[e]?.onLinkDown(link.other(e), reason)
         }
+        val fa = sybil[link.a]
+        val fb = sybil[link.b]
+        if (measuring()) {
+            if (!fa && !fb) {
+                hhDowns++
+                if (initiator >= 0) hhCloses++
+            } else if (initiator >= 0 && !sybil[initiator]) {
+                fakeCloses++
+            }
+        }
+        // Identities are free: the fake comes back under a new one, so the honest side keeps no memory of it.
+        if (cal.sybil.freshIdentity && fa != fb) strategies[if (fa) link.b else link.a]?.forgetPeer(if (fa) link.a else link.b)
         if (link.rq != null) layer?.onLinkDown(link)
     }
 
@@ -491,6 +527,7 @@ class Simulation(
         val link = linkBetween(from, to) ?: return
         val bytes = message.sizeBytes(sizes)
         if (measuring() && !sybil[from]) {
+            topoCtrlSent[from] += bytes
             controlBytes += bytes
             if (!sybil[to]) controlBytesHonestLinks += bytes
         }
@@ -782,6 +819,8 @@ class Simulation(
         ) {
             tLccRecover = now
         }
+        // Stage S busiest phone: capacity of all its links (its control bytes include those sent to fakes).
+        if (measuring()) for (i in 0 until n) if (!sybil[i]) for (l in links[i]) phoneCapacity[i] += l.capacityBps * SAMPLE_MS / 1000.0
         var honestLinkCount = 0
         for (i in 0 until n) for (l in links[i]) if (l.a == i && !sybil[l.a] && !sybil[l.b]) {
             honestLinkCount++
@@ -951,8 +990,35 @@ class Simulation(
             out["dialToUsableP95S"] = percentile(dialToUsable, 0.95) / 1000
         }
         density?.results(out, cal.tickMs)
+        if (cal.sybil.metrics) sybilResults(out, minutes)
         out["events"] = queue.processed.toDouble()
         return out
+    }
+
+    private fun sybilResults(
+        out: LinkedHashMap<String, Double>,
+        minutes: Double,
+    ) {
+        out["hhClosesPerNodeMin"] = hhCloses / (honestCount * minutes)
+        out["hhDownsPerNodeMin"] = hhDowns / (honestCount * minutes)
+        out["fakeClosesPerNodeMin"] = fakeCloses / (honestCount * minutes)
+        out["d2RefusedFakePerNodeMin"] = d2RefusedFake / (honestCount * minutes)
+        out["d2RefusedHonestPerNodeMin"] = d2RefusedHonest / (honestCount * minutes)
+        out["sybilCount"] = sybilIds.size.toDouble()
+        // Busiest phone: most control bytes sent (topology + routing, on all its links); share of its links' capacity.
+        val routingCtrl = layer?.ctrlSentByNode()
+        var busy = -1
+        var busyBytes = -1L
+        for (i in 0 until n) {
+            if (sybil[i]) continue
+            val b = topoCtrlSent[i] + (routingCtrl?.get(i) ?: 0L)
+            if (b > busyBytes) {
+                busy = i
+                busyBytes = b
+            }
+        }
+        out["busiestCtrlBps"] = if (busy < 0) Double.NaN else busyBytes / (minutes * 60)
+        out["busiestCtrlShare"] = if (busy < 0 || phoneCapacity[busy] == 0.0) Double.NaN else busyBytes / phoneCapacity[busy]
     }
 
     companion object {

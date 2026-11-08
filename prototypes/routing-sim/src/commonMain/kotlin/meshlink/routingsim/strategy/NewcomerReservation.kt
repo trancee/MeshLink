@@ -98,6 +98,11 @@ abstract class NewcomerReservingSelection(
         val t = now()
         blockedUntil.entries.removeAll { it.value <= t }
     }
+
+    override fun forgetPeer(peer: Int) {
+        failures.remove(peer)
+        blockedUntil.remove(peer)
+    }
 }
 
 class HeardPeer(

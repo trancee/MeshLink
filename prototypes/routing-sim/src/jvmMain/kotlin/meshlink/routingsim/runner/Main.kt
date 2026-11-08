@@ -57,6 +57,8 @@ fun main(args: Array<String>) {
         "c-report" -> stageCReport(out)
         "d-pilot", "d-run", "d-aggregate", "d-report", "d-ios3-report" -> stageD(command, args.drop(1), out)
         "e-pilot", "e-run", "e-aggregate", "e-report" -> stageE(command, args.drop(1), out)
+        "s-selftest", "s-pilot", "s-run", "s-report" ->
+            stageS(command, args.drop(1), if (args.contains("--out")) out else File("results/stage-s"))
         else ->
             println(
                 """

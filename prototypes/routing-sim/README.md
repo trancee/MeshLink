@@ -395,6 +395,57 @@ Model additions (all opt-in; earlier stages reproduce byte-for-byte, checked on 
 Recommendations (simulated): rotation 5 min; tag 8 B; message ID 12 B; keep per-hop reassembly; XXhfs within budget.
 See `findings.html` embedded at the top of the report.
 
+## Stage S: Sybil resistance
+
+Pre-registered attack-and-defense grid on the v1 configuration (N1+N2 + bridge rule, UA `F+K2`, BA `CU`, calibration
+`meas+cap3+hide+pq`, density-adaptive settings), medium density, Android, d = 5, static and walking (random
+waypoint), 900 s, 10 seeds; the same seeds and the same fake placement across arms. Output `results/stage-s/`.
+
+```sh
+java -cp "$CP" $M s-selftest                                 # unit checks of D1, D2, D3 and the usefulness counter
+java -Xmx6g -cp "$CP" $M s-pilot --threads=6                 # base and D1+D2+D3, seed 1, into results/stage-s/pilot
+java -Xmx6g -cp "$CP" $M s-run --threads=6 [--arms=all|min|base,D1] [--seeds=10]   # resumable raw-s.csv
+java -cp "$CP" $M s-report                                   # agg-s.csv + stage-s-report.md + pass/fail verdicts
+```
+
+Attackers (fakes never close a link, dial up to 2 honest phones per scan strongest first, +10 dB boost, 16 links each):
+
+- **Dumb** (stage A): empty neighbor list, forwards nothing. 10% and 30% of N = 200 (fakes counted within N, the
+  stage A convention: 180 + 20 and 140 + 60).
+- **Smart**: sends its true current neighbor list (on link-up, then on change at most every 2 s), forwards broadcast
+  data, IHAVE/graft, catch-up, route requests and replies like an honest phone, but drops unicast data and acks.
+- **Few radios**: 200 honest + 3 fakes with 20 links each, dumb and smart.
+- **Fresh identities**: when an honest phone closes a fake's link, it forgets the fake (cool-down and failure state,
+  neighbor lists, usefulness) and the fake re-dials at once, as a new identity would.
+
+Defenses (flags in `Calibration.sybil: SybilSetup`, all default off; `SybilDefense` holds the assumed values):
+
+- **Usefulness counter** (D1, D2): per link, a count of timely deliveries — broadcast data or IHAVE, route request,
+  route reply or ack whose ID this phone had not seen or first saw less than 1 s ago — decaying with a 60 s half-life.
+  Reset at link-up.
+- **D1 scoring**: at the 30 s diversity check, only when the phone has at most one free slot, the least useful link past
+  a 60 s grace is closed if the median score of its other links is ≥ 2 (enough traffic to judge; quiet phones never
+  evict) and its own score is < 0.25 × that median. Runs before the diversity replacement.
+- **D2 probation**: at most 2 inbound links (dials in progress included) with score < 1; more incoming dials are refused.
+- **D3 confirmed lists**: an entry X of neighbor A's list counts for N2 only if X is this phone, a linked or dialing
+  neighbor, listed by another linked neighbor, or heard by this phone's own scans in the last 60 s. A neighbor with no
+  confirmed entry is the most redundant link (formerly an empty list looked maximally diverse).
+
+Metrics: honest LCC (honest–honest links), sybil slot share, unicast delivery over honest pairs, broadcast arrival over
+honest phones, join time (median first link), partition repair (only in an added no-fakes partition-merge cell),
+control share of honest–honest link capacity (topology + routing + broadcast) and of the busiest honest phone's links,
+honest link churn (closes by honest phones of honest links / phone / min). Pass: mean LCC ≥ 0.8 at dumb 30% and at
+smart 30% (static and walking), no-fakes delivery, arrival, join and repair within the base arm's 95% CI half-width,
+and control share ≤ 10%. Earlier stages reproduce exactly with the flags off (checked on stage A probe, d-run ios3 and
+e-run rot, seed 1).
+
+Result (8 arms × 15 cells × 10 seeds = 1,200 runs, 7,147 s at 6 threads on a shared, loaded machine): every arm fails.
+Honest LCC at 30% fakes stays ≤ 0.03 (dumb) and ≈ 0.02 (smart) in all arms; at 10% and with 3 radios the mesh holds
+(≥ 0.80 and ≈ 0.99). Fresh identities refill every slot a defense frees, honest phones' own dials prefer the boosted
+fakes, D1 cannot judge a phone whose links are mostly fakes, smart fakes earn usefulness credit by relaying floods, and
+D2 also refuses honest newcomers (dumb 10% LCC 0.90 → 0.82). No-fakes costs are within the baseline CI except tiny
+deviations (D3 static arrival 0.997, D1+D2 static join 2.6 s vs 2.5 ± 0.1 s); control ≤ 5% of link capacity.
+
 ## Deviations and caveats
 
 - **JDK 21 instead of JDK 25** (ADR 0005 baseline): the task assumed JDK 25 was not installed and prescribed JDK 21.

@@ -3,13 +3,17 @@ package meshlink.routingsim.sim
 import meshlink.routingsim.density.DensityClass
 import meshlink.routingsim.routing.BROADCAST
 import meshlink.routingsim.routing.DataPacket
+import meshlink.routingsim.routing.DeliveryAck
 import meshlink.routingsim.routing.DistanceVector
 import meshlink.routingsim.routing.DropReason
 import meshlink.routingsim.routing.Flood
 import meshlink.routingsim.routing.Gossipsub
+import meshlink.routingsim.routing.IdsControl
 import meshlink.routingsim.routing.OnDemand
 import meshlink.routingsim.routing.Packet
 import meshlink.routingsim.routing.Plumtree
+import meshlink.routingsim.routing.RouteReply
+import meshlink.routingsim.routing.RouteRequest
 import meshlink.routingsim.routing.Routing
 import meshlink.routingsim.routing.RoutingParams
 import meshlink.routingsim.routing.RoutingPort
@@ -230,6 +234,10 @@ private class Stats(
     n: Int,
 ) {
     val bytesSent = LongArray(n)
+
+    /** Stage S: control bytes per sender, and control bytes on honest–honest links. */
+    val ctrlSent = LongArray(n)
+    var ctrlHonestLinks = 0L
     var dataTx = 0L
     var dataBytes = 0L
     var ctrlBytes = 0L
@@ -264,8 +272,18 @@ internal class RoutingLayer(
     private val setup: RoutingSetup,
     private val seed: Long,
     private val honest: BooleanArray,
+    /** Stage S: nodes that run routing instances (honest phones plus smart fakes); traffic and metrics stay honest. */
+    private val relay: BooleanArray = honest,
+    /** Stage S: called with (receiver, sender) for each timely delivery an honest phone receives. */
+    private val onUseful: ((Int, Int) -> Unit)? = null,
+    /** Stage S: extra result columns (kept off so earlier stages' outputs are unchanged). */
+    private val sybilMetrics: Boolean = false,
 ) {
     private val n = sim.n
+
+    /** Stage S usefulness: per node, first-seen time of each delivery key. */
+    private val firstSeen = if (onUseful == null) emptyArray() else Array(n) { HashMap<Long, Long>() }
+    private val nextPrune = LongArray(if (onUseful == null) 0 else n)
     private val inst = setup.instances
     private val k = inst.size
     private val tc = setup.traffic
@@ -394,7 +412,7 @@ internal class RoutingLayer(
         override fun deliver(packet: DataPacket) = onDeliver(x, i, packet)
 
         override fun duplicate(packet: DataPacket) {
-            if (measuring()) stats[x].dupRx++
+            if (measuring() && honest[i]) stats[x].dupRx++
         }
 
         override fun ownTag() = ownTag(i, x)
@@ -407,7 +425,7 @@ internal class RoutingLayer(
             packet: DataPacket,
             reason: DropReason,
         ) {
-            if (measuring()) stats[x].drops[reason.ordinal]++
+            if (measuring() && honest[i]) stats[x].drops[reason.ordinal]++
         }
 
         override fun selfStable() = sim.stable(i)
@@ -471,7 +489,7 @@ internal class RoutingLayer(
     }
 
     fun onJoin(i: Int) {
-        if (!honest[i]) return
+        if (!relay[i]) return
         for (x in 0 until k) routing[x][i] = create(x, i)
     }
 
@@ -524,6 +542,8 @@ internal class RoutingLayer(
         s.bytesSent[f.from] -= f.bytes
         if (f.packet.isControl) {
             s.ctrlBytes -= f.bytes
+            s.ctrlSent[f.from] -= f.bytes
+            if (honest[f.to]) s.ctrlHonestLinks -= f.bytes
             if (f.packet.isIdleControl) s.idleCtrlBytes -= f.bytes
         } else {
             s.dataBytes -= f.bytes
@@ -542,6 +562,8 @@ internal class RoutingLayer(
         val l = sim.link(from, to) ?: return false
         if (!l.alive) return false
         val rq = l.rq ?: return false
+        // Stage S smart fake: a black hole for unicast data and acks (it claims to have sent them).
+        if (!honest[from] && ((packet is DataPacket && !packet.isBroadcast) || packet is DeliveryAck)) return true
         val bytes = packet.sizeBytes(sizesOf[x])
         val slot = 2 * x + if (from == l.a) 0 else 1
         val now = sim.now
@@ -549,7 +571,7 @@ internal class RoutingLayer(
         var done = start + ceil(bytes * 1000.0 / l.capacityBps).toLong()
         val r = procRng[x]
         val proc = l.oneWayMs + tc.procMinMs + (r.nextDouble() * (tc.procMaxMs - tc.procMinMs)).toLong()
-        val counted = measuring()
+        val counted = measuring() && honest[from]
         val f = InFlight(x, from, to, packet, start, bytes, counted)
         // Cut-through: forward each fragment as it arrives. The first fragment is processed (and relayed) on arrival;
         // the last one cannot leave before it has arrived from upstream.
@@ -580,6 +602,8 @@ internal class RoutingLayer(
             s.bytesSent[from] += bytes
             if (packet.isControl) {
                 s.ctrlBytes += bytes
+                s.ctrlSent[from] += bytes
+                if (honest[to]) s.ctrlHonestLinks += bytes
                 if (packet.isIdleControl) s.idleCtrlBytes += bytes
             } else {
                 s.dataBytes += bytes
@@ -596,7 +620,8 @@ internal class RoutingLayer(
                 } else {
                     l.inflight?.remove(f)
                 }
-                if (packet is DataPacket && measuring()) stats[x].dataRx++
+                if (packet is DataPacket && measuring() && honest[to]) stats[x].dataRx++
+                if (onUseful != null && honest[to] && routing[x][to] != null) creditUseful(x, from, to, packet)
                 routing[x][to]?.onPacket(from, packet)
             }
         }
@@ -607,6 +632,47 @@ internal class RoutingLayer(
         node: Int,
         id: Int,
     ) = (node.toLong() shl 32) or id.toLong()
+
+    /**
+     * Stage S usefulness counter: a broadcast data message or IHAVE, route request, route reply or ack whose ID
+     * [to] has not seen yet, or first saw less than 1 s ago, earns the link from [from] one credit.
+     */
+    private fun creditUseful(
+        x: Int,
+        from: Int,
+        to: Int,
+        packet: Packet,
+    ) {
+        val seen = firstSeen[to]
+        val now = sim.now
+        fun timely(key: Long): Boolean {
+            val first = seen.getOrPut(key) { now }
+            return now - first < USEFUL_WINDOW_MS
+        }
+        fun key(
+            type: Long,
+            v: Long,
+        ) = mix64((x.toLong() shl 56) or (type shl 48) or (v and ID_MASK))
+        val useful =
+            when (packet) {
+                is DataPacket -> packet.isBroadcast && timely(key(1, packet.id.toLong()))
+                is IdsControl -> {
+                    var any = false
+                    if (packet.kind == IdsControl.Kind.IHAVE) for (id in packet.ids) if (timely(key(1, id.toLong()))) any = true
+                    any
+                }
+                is RouteRequest -> timely(key(2, mix64(packet.origin) xor packet.requestId.toLong()))
+                is RouteReply ->
+                    timely(key(3, mix64(mix64(packet.origin) xor packet.dst) xor (packet.dstSeq.toLong() shl 20) xor packet.ackId.toLong()))
+                is DeliveryAck -> timely(key(4, packet.msgId.toLong()))
+                else -> false
+            }
+        if (now >= nextPrune[to]) {
+            nextPrune[to] = now + USEFUL_PRUNE_MS
+            seen.entries.removeAll { now - it.value > USEFUL_MEMORY_MS }
+        }
+        if (useful) onUseful!!(to, from)
+    }
 
     /** Cut-through: [node]'s copy of message [id] ended incomplete; so does every onward stream it was feeding. */
     private fun breakCopy(
@@ -848,6 +914,7 @@ internal class RoutingLayer(
             var nodes = 0
             var seenMax = 0.0
             for (i in 0 until n) {
+                if (!honest[i]) continue
                 val r = routing[x][i] ?: continue
                 nodes++
                 table += r.tableSize()
@@ -929,6 +996,13 @@ internal class RoutingLayer(
         }
     }
 
+    /** Stage S: routing control bytes each node sent (all instances, measured period). */
+    fun ctrlSentByNode(): LongArray {
+        val out = LongArray(n)
+        for (s in stats) for (i in 0 until n) out[i] += s.ctrlSent[i]
+        return out
+    }
+
     fun results(): List<Pair<InstanceConfig, LinkedHashMap<String, Double>>> {
         val seconds = (sim.durationMs - sim.warmupMs) / 1000.0
         val honestCount = honest.count { it }
@@ -970,6 +1044,23 @@ internal class RoutingLayer(
                 out["firstN"] = Double.NaN
                 out["coverageP10"] = percentile(cov, 0.1)
                 out["fullCoverShare"] = if (cov.isEmpty()) Double.NaN else cov.count { it >= 0.99 }.toDouble() / cov.size
+                if (sybilMetrics) {
+                    // Arrival among all honest phones active at send (not only the sender's honest group).
+                    val all =
+                        measuredMsgs.mapNotNull { m ->
+                            val reached = bcastReached[x][m.id] ?: return@mapNotNull null
+                            val labels = m.labels!!
+                            var elig = 0
+                            var got = 0
+                            for (j in 0 until n) {
+                                if (j == m.src || labels[j] < 0) continue
+                                elig++
+                                if (reached[j]) got++
+                            }
+                            if (elig == 0) null else got.toDouble() / elig
+                        }
+                    out["arrivalAllHonest"] = if (all.isEmpty()) Double.NaN else all.average()
+                }
             }
             out["dataTxPerDelivery"] = if (deliveries == 0) Double.NaN else s.dataTx.toDouble() / deliveries
             out["dataTxPerNodeS"] = s.dataTx / (honestCount * seconds)
@@ -977,6 +1068,7 @@ internal class RoutingLayer(
             out["ctrlBytesPerNodeS"] = s.ctrlBytes / (honestCount * seconds)
             out["idleCtrlBytesPerNodeS"] = s.idleCtrlBytes / (honestCount * seconds)
             out["idleCtrlShare"] = if (capacity == 0.0) 0.0 else s.idleCtrlBytes / capacity
+            if (sybilMetrics) out["ctrlShareHonestLinks"] = if (capacity == 0.0) 0.0 else s.ctrlHonestLinks / capacity
             val loads = (0 until n).filter { honest[it] }.map { s.bytesSent[it] / seconds }
             out["loadMeanBps"] = loads.average()
             out["loadP99Bps"] = percentile(loads, 0.99)
@@ -1025,7 +1117,7 @@ internal class RoutingLayer(
             out["heldMean"] = s.heldSum / samples
             if (inst[x].protocol == Protocol.BA) {
                 var sw = 0
-                for (i in 0 until n) sw += (routing[x][i] as? Plumtree)?.modeSwitches ?: 0
+                for (i in 0 until n) if (honest[i]) sw += (routing[x][i] as? Plumtree)?.modeSwitches ?: 0
                 out["modeSwitchesPerNodeH"] = sw / (honestCount * seconds / 3600.0)
             }
             densityResults(x, out)
@@ -1036,6 +1128,11 @@ internal class RoutingLayer(
 }
 
 private val DEBUG = System.getProperty("rsim.debug") != null
+
+private const val USEFUL_WINDOW_MS = 1_000L
+private const val USEFUL_MEMORY_MS = 600_000L
+private const val USEFUL_PRUNE_MS = 30_000L
+private const val ID_MASK = (1L shl 48) - 1
 
 /**
  * Adaptive unicast per local density class. Low: flood every message and keep it until acknowledged,

@@ -69,6 +69,8 @@ data class Calibration(
      * channel; the contention factor adds bytes ÷ link throughput × peers in range ÷ [contentionThroughputPeers].
      */
     val handshakeBytes: Int = 0,
+    /** Stage S: attacker model and honest defenses (default: stage A attacker, no defense, no extra metrics). */
+    val sybil: SybilSetup = SybilSetup(),
 ) {
     companion object {
         /**
@@ -101,6 +103,26 @@ data class Calibration(
             return c
         }
     }
+}
+
+/**
+ * Stage S (Sybil resistance). All off by default, so earlier stages run unchanged.
+ * - [smart]: fakes send their true neighbor list, run the routing protocols and forward broadcasts, route requests and
+ *   replies, but drop unicast data and delivery acks (black hole).
+ * - [freshIdentity]: identities are free. An honest phone keeps no per-identity memory of a fake (cool-down, backoff,
+ *   former neighbor list) across links, and a fake whose link goes down re-dials that phone at once.
+ * - [d1] usefulness scoring eviction, [d2] probation of unproven inbound links, [d3] confirmed neighbor lists.
+ * - [metrics]: extra stage S metrics (churn, control shares, busiest phone).
+ */
+data class SybilSetup(
+    val smart: Boolean = false,
+    val freshIdentity: Boolean = false,
+    val d1: Boolean = false,
+    val d2: Boolean = false,
+    val d3: Boolean = false,
+    val metrics: Boolean = false,
+) {
+    val usefulness get() = d1 || d2
 }
 
 enum class Density(
@@ -169,6 +191,8 @@ data class Scenario(
     val warmupMs: Long = 120_000,
     /** Overrides [Calibration.linkDropMeanMs] (seconds; 0 = no supervision drops) for the sensitivity sweep. */
     val dropMeanS: Int? = null,
+    /** Stage S "few radios": exactly this many fakes among [nodes] (overrides [sybilShare]); null = use the share. */
+    val sybilCount: Int? = null,
 ) {
     /** Stage C: true-time window in which density transitions happen (null = none or the whole run). */
     val transitionWindowMs: LongRange?
@@ -183,7 +207,7 @@ data class Scenario(
     val key: String
         get() =
             "${density.label}-n$nodes-${mobility.label}-${platform.label}-d$degree-sybil${(sybilShare * 100).toInt()}" +
-                (dropMeanS?.let { "-drop$it" } ?: "")
+                (dropMeanS?.let { "-drop$it" } ?: "") + (sybilCount?.let { "-fakes$it" } ?: "")
 }
 
 /** Deterministic 64-bit mixing (SplitMix64 finalizer). */

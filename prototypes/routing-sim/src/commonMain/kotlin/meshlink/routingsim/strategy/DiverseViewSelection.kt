@@ -21,7 +21,11 @@ class DiverseViewSelection(
     ctx: NodeContext,
     params: SelectionParams,
     private val bridge: Boolean = false,
+    private val defense: SybilDefense = SybilDefense.OFF,
 ) : NewcomerReservingSelection(ctx, params) {
+    private val useful = Usefulness(defense.halfLifeMs)
+    private val inboundPeers = HashSet<Int>()
+    private val heardAt = HashMap<Int, Long>()
     private val firstHeard = HashMap<Int, Long>()
     private val lastHeardAny = HashMap<Int, Long>()
     private var lastBridgeAt = Long.MIN_VALUE / 2
@@ -48,7 +52,9 @@ class DiverseViewSelection(
                 lastHeardAny[r.peer] = t
             }
             insertPassive(r.peer, r.rssi, t)
+            if (defense.d3) heardAt[r.peer] = t
         }
+        if (defense.d3 && heardAt.size > 8 * capacity) heardAt.entries.removeAll { t - it.value > defense.heardMs }
         if (bridge && lastHeardAny.size > 8 * capacity) {
             val stale = lastHeardAny.filterValues { t - it > 2 * params.bridgeNoveltyGapMs }.keys
             for (k in stale) {
@@ -121,6 +127,7 @@ class DiverseViewSelection(
         if (bridge) tryBridge(t)
         if (t >= nextDiversityAt) {
             nextDiversityAt = t + params.diversityCheckMs
+            if (defense.d1) evictUseless(t)
             replaceRedundant()
         }
         fill()
@@ -142,6 +149,57 @@ class DiverseViewSelection(
             coolDown(worst)
         }
         fullSince = -1
+    }
+
+    /** D1: close the least useful link (see [SybilDefense]). */
+    private fun evictUseless(t: Long) {
+        if (links.usedSlots() < budget - 1) return
+        val scores = LinkedHashMap<Int, Double>()
+        val judged = LinkedHashSet<Int>()
+        for (p in links.linkedPeers()) {
+            scores[p] = useful.get(p, t)
+            if (t - links.linkUpAt(p) >= defense.graceMs) judged.add(p)
+        }
+        val victim = d1Victim(scores, judged, defense)
+        if (victim < 0) return
+        ctx.port.disconnect(victim)
+        coolDown(victim)
+    }
+
+    override fun onUseful(peer: Int) {
+        if (defense.usesScore && links.isLinkedOrPending(peer)) useful.credit(peer, now())
+    }
+
+    override fun acceptsInbound(pendingInbound: Int): Boolean {
+        if (!defense.d2) return true
+        val t = now()
+        var unproven = pendingInbound
+        for (p in inboundPeers) if (useful.get(p, t) < defense.provenScore) unproven++
+        return unproven < defense.maxUnproven
+    }
+
+    override fun forgetPeer(peer: Int) {
+        super.forgetPeer(peer)
+        formerLists.remove(peer)
+        formerListAt.remove(peer)
+    }
+
+    /** Neighbor [a]'s list, restricted to confirmed entries under D3 (null = no list yet). */
+    private fun listOf(a: Int): IntArray? {
+        val list = lists[a] ?: return null
+        if (!defense.d3) return list
+        return list.filter { confirmed(it, a) }.toIntArray()
+    }
+
+    private fun confirmed(
+        x: Int,
+        claimedBy: Int,
+    ): Boolean {
+        if (x == ctx.self || links.isLinkedOrPending(x)) return true
+        val h = heardAt[x]
+        if (h != null && now() - h <= defense.heardMs) return true
+        for (b in links.linkedPeers()) if (b != claimedBy && lists[b]?.contains(x) == true) return true
+        return false
     }
 
     private fun replaceRedundant() {
@@ -175,7 +233,7 @@ class DiverseViewSelection(
         for (a in links.linkedPeers()) {
             if (a == without) continue
             reach.add(a)
-            lists[a]?.let { for (p in it) reach.add(p) }
+            listOf(a)?.let { for (p in it) reach.add(p) }
         }
         return reach
     }
@@ -186,15 +244,21 @@ class DiverseViewSelection(
     ): Int {
         val former = formerLists[candidate]
         if (former != null && now() - (formerListAt[candidate] ?: 0) <= params.formerListTtlMs) {
-            return former.count { it != ctx.self && it in reach }
+            val f = if (defense.d3) former.filter { confirmed(it, candidate) } else former.asList()
+            return f.count { it != ctx.self && it in reach }
         }
         var common = 0
         for (a in links.linkedPeers()) if (lists[a]?.contains(candidate) == true) common++
         return common
     }
 
+    /** Stage S self-test access to the N2 redundancy of a linked neighbor. */
+    internal fun redundancyOf(peer: Int) = redundancy(peer)
+
     private fun redundancy(peer: Int): Int {
-        val list = lists[peer] ?: return 0
+        val list = listOf(peer)
+        if (defense.d3 && (list == null || list.isEmpty())) return MOST_REDUNDANT
+        if (list == null) return 0
         val reach = reachable(peer)
         return list.count { it != ctx.self && it in reach }
     }
@@ -271,6 +335,8 @@ class DiverseViewSelection(
         inbound: Boolean,
     ) {
         super.onLinkUp(peer, inbound)
+        useful.reset(peer)
+        if (inbound) inboundPeers.add(peer)
         passive.remove(peer)
         ctx.port.send(peer, NeighborListMessage(links.linkedPeers()))
         listDirty = true
@@ -296,6 +362,8 @@ class DiverseViewSelection(
         reason: LinkDownReason,
     ) {
         super.onLinkDown(peer, reason)
+        useful.reset(peer)
+        inboundPeers.remove(peer)
         lists.remove(peer)?.let {
             formerLists[peer] = it
             formerListAt[peer] = now()
@@ -338,6 +406,9 @@ class DiverseViewSelection(
 
     override fun peerTable(): IntArray = passive.keys.toIntArray()
 }
+
+/** D3: a neighbor without a confirmed list entry ranks above every real overlap count. */
+private const val MOST_REDUNDANT = 1_000_000
 
 internal fun nth(
     keys: Collection<Int>,
