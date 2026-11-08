@@ -119,6 +119,9 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Pre-registered decision criteria kept the comparison honest. The low-density criterion was amended once, openly, when not even flooding could meet it.
 - Check the accepted design's measurement list before writing the ADR. Four pre-registered measurements were nearly skipped and had to be run as an extra stage.
 - At N=1000, a full protocol set takes 16–18 min per run on an 8-core, 8 GB Mac. Scope those cells down in advance.
+- Sybil (stage S, branch `prototype/sybil`): model identities as free (an evicted fake re-dials at once as someone new), or every eviction defense looks better than it is. Under that rule, scoring, probation and confirmed neighbor lists all failed at 30% fakes. The attacker's real cost is radios and link slots; test a realistic radio budget, not only shares.
+- Usefulness scoring by relayed floods cannot see a black hole that relays broadcasts and drops unicast.
+- New strategy flags default to off; verify with an exact replay of earlier stages (stage S replayed stage A, D `ios3` and E `rot` identically).
 
 ## Docs tooling
 

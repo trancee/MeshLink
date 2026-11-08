@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 6 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 7 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements and fake identities). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -102,7 +102,7 @@ Results for the v1 configuration:
   Device measurements may change the defaults.
 
 - **Unicast p95 at 1 s or less** is met in only 30 of 56 medium and high cells. It is about 6.5 s at N = 1,000, and 1.6 s at high density with the bake-off calibration. This goal is reported, not gated.
-- **Fake identities (Sybil):** at 30% fake identities, every topology collapses. Open and unsecured meshes have no routing defense in v1; this is an open question on the map.
+- **Fake identities (Sybil):** at 30% fake identities, every topology collapses, with or without the defenses tested in stage S. Open and unsecured meshes have no routing defense in v1 (see the 2026-11-08 Sybil amendment).
 - **Staying in step with the BLE address:** the operating system controls the address, so how MeshLink matches its rotation, especially on iOS, is open. The discovery and advertising ticket decides it.
 - **Deliberate message-ID reuse** by a malicious node is a threat-model question at any size.
 
@@ -141,3 +141,7 @@ Results for the v1 configuration:
 - **Energy model (Risks, "the power index"):** an absolute model in mW replaces the power index (0.6 × scan duty + 0.4 × advertising duty). Coefficients from one Pixel 6 Bluetooth rail, above baseline: scanning 55 mW × scan duty, advertising 0 (under the ±2 mW noise), 1 mW per idle link, 0.25 mJ per relayed 200 B message, 0.75 mJ/KiB bulk over CoC and 0.83 mJ/KiB over GATT. They compare presets; they are not a battery guarantee. iOS is reported as bounds only: foreground components stay under about 50 mW of whole-phone power, and combined medium-density discovery costs 18–53 mW.
 - **Scan and advertise (decision 3):** every class scans in start/stop windows with a period of at least 6 s; no class scans continuously. AOSP rejects more than 5 scan starts per 30 s, so a 2 s on / 2 s off schedule lost a third of its bursts, and continuous filtered scans fell to baseline after 2–5 min with the screen off. Interim schedule: low and medium 4 s on / 4 s off (duty 0.5), high 4 s on / 8 s off (duty 0.33). The table's "every 2 s / 4 s / 6 s" was read as duty 1, ½ and ⅓. The power-policy ticket sets the final per-class schedule by rerunning the simulation with the energy model.
 - **Background duty:** the operating system sets it on both platforms. Android Doze stretched the 4 s on / 4 s off timer to 30 s gaps (duty 0.12) overnight; iOS suspends the app about 30 s after locking. Presets cannot promise background discovery latency.
+
+2026-11-08, fake identities ([Sybil evidence](../evidence/2026-11-sybil/README.md)):
+
+- **Neighbor selection (decision 1):** unchanged; v1 adds no routing-layer Sybil defense. Stage S (simulated, medium N = 200, 10 seeds) tested peer scoring by usefulness (D1), probation slots for unproven inbound links (D2) and confirmed neighbor lists (D3), alone and combined, against fakes that forward nothing and fakes that relay floods but drop unicast. At 30% fakes the honest largest group stayed at 0.02–0.03 in every arm (criterion 0.8), because a free identity refills every freed slot. D2 cost honest newcomers (10%: 0.90 → 0.82). Proof of work was rejected on paper. The realistic budget of 3 radios × 20 links left the mesh at 0.99. Gated meshes remain the availability answer.

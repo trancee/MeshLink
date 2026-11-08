@@ -26,6 +26,6 @@ Per-profile guarantees against the adversaries A1–A7 defined in the [threat mo
 | Hiding that a MeshLink node is present | No | No | No |
 | Anonymity against a global observer | No | No | No |
 | Delivery or availability against A3/A4 | No | No | No |
-| Mesh connectivity against fake identities (Sybil, A3) | No | Open mesh: no; gated mesh: costs a stolen mesh key | Open mesh: no; gated mesh: costs a stolen mesh key |
+| Mesh connectivity against fake identities (Sybil, A3) | No | Open mesh: no (no routing-layer defense, [evidence](../evidence/2026-11-sybil/README.md)); gated mesh: costs a stolen mesh key | Open mesh: no (no routing-layer defense, [evidence](../evidence/2026-11-sybil/README.md)); gated mesh: costs a stolen mesh key |
 | Bounded resources under any remote input | Yes | Yes | Yes |
 | Isolation from secured meshes | Yes: secured meshes accept only handshaken frames | n/a | n/a |

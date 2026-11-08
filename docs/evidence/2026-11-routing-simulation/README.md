@@ -325,7 +325,7 @@ The three v1 fixed-cell misses:
 - **The bake-off calibration** was used only in the iOS-cap rechecks. Under it, unicast p95 rises by about 0.1–0.7 s.
 - **Unicast p95 ≤ 1 s** is not reached in 26 of 56 cells, nor at N = 1000 (6.3–6.7 s), nor in long corridors (about 7.4 s).
 - **Small sub-samples** decide the three remaining fixed-cell misses. One lost message flips pass or fail.
-- **Sybil at 30%** collapses both topologies. Open meshes have no defense in v1 routing.
+- **Sybil at 30%** collapses both topologies. Open meshes have no defense in v1 routing; stage S tested defenses and none passed ([Sybil evidence](../2026-11-sybil/README.md)).
 - **N = 1000** covers static cells (stage B) and the arrival scenario (stages C and D) with 5 seeds.
 - **Stage E** covers N = 200 and five cell types only. Collision figures are analytic and cover random collisions, not deliberate reuse. Cut-through was modeled pessimistically, and the measured throughput was assumed at MTU 185. Rotation reaches the topology only through the density estimator.
 - **1 h runs** cover low density only, N = 200, 5 seeds.
