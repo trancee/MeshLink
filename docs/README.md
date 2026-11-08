@@ -42,6 +42,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 17. [Testing architecture](adr/0017-testing-architecture.md)
 18. [Certificate acquisition](adr/0018-certificate-acquisition.md)
 19. [Release, versioning and API compatibility](adr/0019-release-versioning-and-api-compatibility.md)
+20. [Diagnostics catalog](adr/0020-diagnostics-catalog.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

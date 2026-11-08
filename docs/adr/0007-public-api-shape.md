@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 6 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?", ADR 0013 and ADR 0015; 2026-11-08, ADR 0018).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 7 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?", ADR 0013 and ADR 0015; 2026-11-08, ADRs 0018 and 0020).
 
 ## Context
 
@@ -158,3 +158,11 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Sending (decision 7):** `send` to a NodeId without a valid certificate returns `Accepted`. The status stays `Queued` while MeshLink looks the certificate up, then the message is sealed, or it becomes `Expired` at its lifetime. `Rejected(PeerKeyExpired)` is removed. `Rejected(UnknownPeer)` remains only for a malformed NodeId, or an unknown NodeId in `unsecured`.
 - **Peers (decision 10):** a remote node is `Routed` only while MeshLink holds a valid certificate for it and has a route to it.
 - **Certificates:** v1 has no API to import or export certificates.
+
+2026-11-08, diagnostics catalog ([ADR 0020](0020-diagnostics-catalog.md)):
+
+- **Diagnostics (decision 12):**
+  - Codes are `ML` plus four digits, in ranges by area, with severities `Debug`, `Info`, `Warning` and `Error`.
+  - Peers appear as `PeerRef`, a per-start keyed hash, or `LinkRef` before authentication.
+  - Repeats within 10 s are coalesced. The buffer holds 256 events; overflow emits `ML7001`.
+  - New: `diagnosticsSnapshot()`, `exportDiagnostics()` (JSON, never uploaded), and the settings `diagnostics.debug` and `diagnostics.platformLog` (both off by default).
