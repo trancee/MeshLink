@@ -57,6 +57,8 @@ Density classes are written low / medium / high. "Class" means the phone's own e
 
 The power index (0.6 × scan duty + 0.4 × advertising duty) is an assumption. It ranks settings; it does not predict battery use.
 
+Energy measurements on real phones (2026-11-08) replace the power index with an absolute model in mW and change the scan schedule to start/stop windows of at least 6 s: see the [energy evidence](../2026-11-energy/README.md#4-energy-model-feeds-adr-0008) and the ADR 0008 amendment. The rows above record what this simulation ran.
+
 ## Unicast
 
 | Parameter | v1 value | Stage | Evidence | Basis |

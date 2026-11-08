@@ -71,6 +71,43 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Rotating on Android by data update or enable/disable: the address stays (0/72).
 - Forcing a new iOS address by stop/start: never works (0/93).
 
+## Energy measurements
+
+**Concept:** energy counts only as power measured on a real phone, above a bracketing baseline. Evidence: [`docs/evidence/2026-11-energy/`](../evidence/2026-11-energy/README.md); decisions in the ADR 0008 and ADR 0010 amendments of 2026-11-08.
+
+**Code map:** `prototypes/energy/` on throwaway branch `prototype/energy`. `host/energy.py` runs windows, cross-checks, overnight runs and iOS gauge sampling; `host/analyze.py` computes Δ and summaries. Pre-registration and amendments A1–A9 are in its `README.md`. The app side is an `energy=` mode in the bake-off app's foreground service.
+
+**Verified commands** (2026-11-03 to 2026-11-07):
+
+| Task | Command |
+|---|---|
+| Which Android phones have power rails | `adb shell dumpsys powerstats` and look for rail channels; only the Pixel 6 has them in the lab |
+| Android rail trace | Perfetto `android.power` data source with `collect_power_rails: true` |
+| iOS gauge over Wi-Fi | `idevicediagnostics -n -u <udid> ioregentry AppleSmartBattery`; on iOS 15 the same keys are under `AppleARMPMUCharger`; power = \|InstantAmperage\| × Voltage, updated every 20 s, invalid while plugged in |
+| iOS 15/16 launch over Wi-Fi | `idevicedebug -n -u <udid> --detach run <bundle> k=v` |
+| Xcode 27 next to 16.4 (Instruments only) | `xcodes install 27.2 --no-superuser --empty-trash --experimental-unxip` (keeps 16.4 selected); use it per command with `DEVELOPER_DIR=/Applications/Xcode-27.2.0.app/Contents/Developer xcrun xctrace …` |
+| Power Profiler capture, iOS 26+ (2026-11-07, 12 mini) | after `sudo DEVELOPER_DIR=… xcodebuild -runFirstLaunch` and opening Xcode 27 once so the phone comes online: `xcrun xctrace record --template "Power Profiler" --device <udid> --time-limit 60s --output x.trace --launch -- <bundle> k=v`; `--attach` found no process by name or pid |
+| iOS overnight (coulomb counting) | read `AppleRawCurrentCapacity` over USB right before unplugging and right after plugging in (`IsCharging` false) |
+
+**Root causes found:**
+
+- **Only Pixel 6 and later Pixels expose per-rail power (ODPM),** per the Android Studio Power Profiler docs; 32 other lab Android phones had no rail channels. Other phones give only `batterystats` controller time, which ranks but does not measure energy.
+- **AOSP rejects more than 5 scan starts per 30 s.** A 2 s on / 2 s off schedule produced empty bursts; keep start/stop periods at 6 s or more.
+- **Continuous filtered scans degraded after 2–5 min** with the screen off on the Pixel 6 (power and results dropped). The cause is unverified and conflicts with discovery T9 (2 h without a downgrade). Measure start/stop schedules, not continuous scans.
+- **The app wake lock hides the cost of waking up.** Measured windows held one; only the overnight run without it shows Doze stretching the timer to 30 s gaps.
+- **A locked iPhone stops answering lockdown over Wi-Fi** about 4 min after locking, so the gauge stream ends. Screen-off iOS runs need coulomb counting over USB.
+- **iOS suspends the app about 30 s after locking** (`background_task_expired`) despite Bluetooth background modes, and Bluetooth state restoration can relaunch it later. Stop it with `devicectl` and remove its Bluetooth permission before a control night.
+- **usbmuxd drops Wi-Fi iPhones** that are still on the network (ping and port 62078 answer). `sudo kill <usbmuxd pid>` restarts it through launchd; `launchctl kickstart` is blocked by SIP.
+- **A newly paired iPhone does not appear over Wi-Fi** until lockdown `com.apple.mobile.wireless_lockdown` `EnableWifiConnections` is true: the Finder checkbox only takes effect after Apply, or set it with libimobiledevice `lockdownd_set_value` (`idevicesetvalue` is not installed).
+- **Power Profiler has no Bluetooth lane.** Per-process lanes are CPU, display, GPU and networking (Wi-Fi and cellular bytes only); system power is battery %/hour and reads 0 while charging. Scanning and advertising left every app lane unchanged on the 12 mini (n = 1 per scenario). Bluetooth cost needs app-on versus app-off system power, unplugged.
+- **iOS 27.0.1 Performance Trace saves nothing on the 12 mini.** Stopping logs `PerformanceTraceError Code=2` ("Failed to collect any trace files") after a sandbox denial of `hw.uuid`; check `idevicesyslog -n` for `PerformanceTraceModule` before trusting a detached run. Over Wi-Fi, `xctrace --instrument "Power Profiler" --all-processes` gives unplugged %/hr but disconnected after about 2 s (2 of 2); the full template aborts with All Processes. **What works:** the Instruments GUI over Wi-Fi only (Blank template, add the Power Profiler track or Record stays disabled, All Processes) held 24 min unplugged; drive phases with `devicectl device process launch` and compare per-phase medians, since system bursts of 10–100 s swamp means.
+- **Worn batteries switch off under load.** The SE 2016 died mid-repeat; check battery health before multi-hour gauge runs.
+
+**Rejected ideas:**
+
+- iOS screen-off foreground windows: locking suspends the app and ends the Wi-Fi gauge.
+- The simulation's 0.6 × scan + 0.4 × advertising power index: advertising measured about 0, so the index overweighted it.
+
 ## Routing simulation
 
 **Concept:** the throwaway discrete-event simulator models links, not radio packets. Its numbers are always labeled simulated and are recalibrated from device measurements.

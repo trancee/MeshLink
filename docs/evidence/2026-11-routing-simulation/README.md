@@ -320,7 +320,7 @@ The three v1 fixed-cell misses:
 
 - **Simulated only.** No collision model, no real radio scheduling. Link setup, drops and contention are fitted or assumed.
 - **iOS background** is an on/off model (awake 10 s every 60 s), not measured behavior.
-- **Contention** and the **power index** are assumptions. The power index ranks settings; it does not predict battery use.
+- **Contention** and the **power index** are assumptions. The power index ranks settings; it does not predict battery use. Measurements have since replaced it with an absolute model ([energy evidence](../2026-11-energy/README.md#4-energy-model-feeds-adr-0008)).
 - **The drop hazard** is fitted to cairn, not to the bake-off.
 - **The bake-off calibration** was used only in the iOS-cap rechecks. Under it, unicast p95 rises by about 0.1–0.7 s.
 - **Unicast p95 ≤ 1 s** is not reached in 26 of 56 cells, nor at N = 1000 (6.3–6.7 s), nor in long corridors (about 7.4 s).
