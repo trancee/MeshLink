@@ -30,7 +30,24 @@ jobs:
       - uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
         with:
           globs: "**/*.md"
-      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+      - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
+
+  spec:
+    name: Protocol spec and privacy
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The runner image's python3; the tools use the standard library only.
+      - name: Vectors are regenerated without a diff
+        run: python3 tools/spec/gen_vectors.py && git diff --exit-code
+      - name: Spec data and vectors agree
+        run: python3 tools/spec/check_spec.py
+      - name: No private lab or personal identifiers
+        run: python3 tools/check_private.py
 
   links:
     name: Links (${{ github.event_name == 'schedule' && 'external' || 'repository' }})

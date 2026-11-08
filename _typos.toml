@@ -1,6 +1,8 @@
 # typos config (ADR 0006, decision 10): docs use US English.
 [default]
 locale = "en-us"
+# Abbreviated or full commit hashes (for example `03afe42`) are identifiers, not words.
+extend-ignore-re = ['\b[0-9a-f]{7,40}\b']
 
 [files]
 # Generated evidence data (CSV columns, rendered HTML reports, raw runs, generated summary tables) is not prose.

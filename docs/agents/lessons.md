@@ -32,6 +32,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - **iPhone central round trips are quantized to 60/120 ms,** because iOS sets an interval of about 30 ms that apps can't change.
 - **An unbonded Android central reconnecting to an iOS peripheral gets no new `didSubscribe`.** Detect the reconnect from the control read.
 - **Kotlin/Native `NSLog("%@", kotlinString)` varargs crashed** with SIGTRAP. Format in Kotlin and escape `%`.
+- **Private identifiers leaked into history.** Device serials, iOS UDIDs, Apple team IDs, LAN addresses, home paths and an email address were committed in lab scripts and evidence, and the history had to be rewritten before the first push (ticket 30). Record lab aliases only (`pixel6`, `ip15`, `adb-server`, `~/`); `tools/check_private.py` enforces this locally and in CI.
 - **Device state can be changed from outside.** An external process switched the main worktree's branch during a run. Run long device jobs from a dedicated worktree and check the branch before committing.
 
 **Rejected ideas:**
