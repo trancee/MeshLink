@@ -69,6 +69,14 @@ data class Calibration(
      * channel; the contention factor adds bytes ÷ link throughput × peers in range ÷ [contentionThroughputPeers].
      */
     val handshakeBytes: Int = 0,
+    /**
+     * Stage F background cells: this share of all honest phones is backgrounded (instead of [iosBackgroundShare] of the
+     * iOS phones). A backgrounded Android phone scans [androidBgOnTicks] on, [androidBgOffTicks] off; a backgrounded
+     * iOS phone keeps the wake-window model.
+     */
+    val backgroundAllShare: Double = 0.0,
+    val androidBgOnTicks: Int = 2,
+    val androidBgOffTicks: Int = 15,
 ) {
     companion object {
         /**
@@ -95,6 +103,8 @@ data class Calibration(
                         "pq" -> c.copy(handshakeBytes = 2_500)
                         // Stage E: classical Noise XX link handshake (smoke-test times 55–90 ms, about 200 B).
                         "xx" -> c.copy(handshakeMinMs = 55, handshakeMaxMs = 90, handshakeBytes = 200)
+                        // Stage F: half of all phones in the background (Android scans 4 s every 34 s).
+                        "bg50" -> c.copy(backgroundAllShare = 0.5)
                         else -> error("unknown calibration part $part")
                     }
             }

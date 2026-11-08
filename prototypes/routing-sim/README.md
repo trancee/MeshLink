@@ -395,6 +395,114 @@ Model additions (all opt-in; earlier stages reproduce byte-for-byte, checked on 
 Recommendations (simulated): rotation 5 min; tag 8 B; message ID 12 B; keep per-hop reassembly; XXhfs within budget.
 See `findings.html` embedded at the top of the report.
 
+## Stage F: catch-up, conversation tags, lookups, large messages, energy
+
+Adds the remaining accepted mechanisms to the stage E final v1 cumulatively and checks the pre-registered criteria, then tests
+a lookup rate limit and sweeps scan schedules under an absolute energy model. Base: rotation 5 min, `F+K2+T8+I12` unicast,
+`CU+T8+I12` broadcast, calibration `meas+cap3+hide+pq`, 30 min runs with 30 min lifetime (60 min / 1 h in `f-long`).
+Interim scan schedule (on/off s per class low_medium_high) `4-4_4-4_4-8`. Output `files/routing-sim/stage-f/`.
+
+| Arm | Flags (added to the base) | Mechanism |
+|---|---|---|
+| A0 | – | stage E v1 (Plumtree IHAVE catch-up, single-copy holding) |
+| A1 | `H` | ADR 0014 catch-up summaries, claims by tag, tombstones {ID, k}, H(k) in header, holding for others (100 msgs and 512 KiB, ≤ ¼ per incoming link, ≤ 4 KiB) |
+| A2 | `H+CV` | ADR 0016 per-conversation tags (5 min epoch, random phase per pair, ±1 epoch) |
+| A2L | `H+CVL` | A2 + keep the previous-epoch tag while its route works, prefetch the new tag's route |
+| A3 | `H+CV+LK` | ADR 0018 certificate lookups, cold cache, 64-entry LRU, answers by D or any cache |
+| A4 | `H+CV+LK+LG` | ADR 0015 large messages (2 %, 16–128 KiB, never flooded or held by relays) |
+| A3D/A4D | `+LD` | diagnostic, not pre-registered: relays forward only the first lookup reply per salt |
+| RL0/RL1/RL1N | `ATK`, `RL` | misbehaving phone (1 lookup/s), per-incoming-link token bucket 1/s burst 5 |
+
+`G<name>` groups the unicast and broadcast instances of one arm so they share a node's hold quota. U1 (flood) and B1 (flood
+broadcast) run in every set as references for criterion 1.
+
+```sh
+java -Xmx3g -cp "$CP" $M f-check --out DIR --set=main "--only=waypoint&half-ios" --keys=delivery   # one run, prints counters
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=main,a2l,diag,long,rl,sweep --seeds=5 --threads=4
+java -Xmx3g -cp "$CP" $M f-report --out DIR      # prints Balanced/Responsive picks (strict and conditional)
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=conf --seeds=5 --sched=4-4_4-16_4-12,4-2_4-12_4-8
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=bg --seeds=5 --sched=4-4_4-16_4-12
+java -cp "$CP" $M f-aggregate --out DIR && java -cp "$CP" $M f-report --out DIR   # DIR/stage-f-report.html
+```
+
+| Set | Content | Runs | Wall (4 threads) |
+|---|---|---|---|
+| f-main | 10 cells (low/medium/high static, medium walking, arrival × Android/half iOS) × A0–A4 | 50 | 295 s |
+| f-a2l | same cells, A0, A1, A2, A2L (triggered by the pre-registered rule) | 50 | 185 s |
+| f-diag | same cells, A0, A3, A3D, A4D (not pre-registered) | 50 | 229 s |
+| f-long | medium/high static × both mixes, 60 min, 1 h lifetime, A0 and A4 | 20 | 89 s |
+| f-rl | medium/high static Android, A4 with RL0, RL1, RL1N | 10 | 85 s |
+| f-sweep | per class 4 non-interim schedules × class cells × both mixes | 160 | 281 s |
+| f-conf | medium walking + arrival × both mixes × Balanced and Responsive | 40 | 81 s |
+| f-bg | medium static + arrival × both mixes, 50 % backgrounded, Balanced | 20 | 36 s |
+
+Model additions (all opt-in by flag or calibration part; earlier stages do not set them):
+
+- **Scan schedule** as on/off windows in 2 s ticks with a random phase per phone (`scanOnTicks`/`scanOffTicks` per class).
+- **Energy** above baseline: 55 mW × scan duty, 1 mW per open link, 1.25 µJ per routed/control/link-control/handshake byte
+  sent or received, 0.8 mJ/KiB of large-message bulk. iOS uses the same coefficients (bounds only).
+- **Background (`bg50`)**: half the phones backgrounded; Android scans 4 s every 34 s, iOS keeps the awake-10-s-in-60-s model.
+- **Sessions** are per pair of incarnations: the first message after a (re)join goes to the public tag; churn starts a new session.
+- **Simplifications**: claims match all valid public tags within the lifetime (≈ 7–8 epochs at 30 min); relays do not cache
+  lookup replies; certificate caches survive churn; the link certificate exchange is free; the misbehaving phone's lookups
+  are not retried. A2L never triggers with this traffic (one message per directed pair about every 12 min; the old route has
+  always expired).
+
+### Stage F2: amended criteria, final arm A4D
+
+Post-hoc owner amendments after stage F: criterion 3 is an absolute budget (busiest phone ≤ 4,700 B/s of non-bulk routing
+bytes, 10 % of the slowest measured Android link, and its mW ≤ A0's busiest phone + 3 mW in the same run); delivery and
+latency criteria apply only to sub-populations with ≥ 100 messages pooled over the seeds; the final arm is A4D (relays
+forward only the first lookup reply, ADR 0018 amended); no rate limit, no A2L. Report: `StageF2Report.kt`.
+
+Instrumentation (no behavior change; a re-run of an `f-main` run reproduces the stage F raw row bit for bit):
+`busy_<kind>` / `mean_<kind>` (busiest phone's / mean phone's non-bulk bytes sent per s by kind: data, rreq, rrep, lkReq,
+lkRep, idle, other, bcast), `busyMw`, `busyIos`, `busyBulkBps`; `lkHopEq1..6`, `lkHopP50/P90`, `lkHop1/2` (hops from the
+requester to the node whose reply completed the lookup), `c_lookupReplyAtReq` (reply copies reaching the requester).
+
+Sets (`f2-*`, final arm fixed to A4D): `main2` (10 cells × A0, A4D, A1–A4, A3D; A0 and A4D are the first two arms so their
+instance streams equal those of the other F2 sets, which makes `main2` the interim point of the sweep), `long2`, `sweep2`,
+`conf2`, `bg2` (as in stage F).
+
+```sh
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=main2,long2,sweep2 --seeds=5
+java -cp "$CP" $M f2-report --out DIR      # prints the Balanced/Responsive picks
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=conf2 --seeds=5 --sched=<balanced>,<responsive>
+java -Xmx3g -cp "$CP" $M f-run --out DIR --set=bg2 --seeds=5 --sched=<balanced>
+java -cp "$CP" $M f-aggregate --out DIR && java -cp "$CP" $M f2-report --out DIR   # DIR/stage-f2-report.html
+```
+
+Runs executed (5 seeds each, 4 threads, -Xmx3g, all SIMULATED):
+
+| set | runs | wall |
+|---|---|---|
+| `main2` | 50 | 550 s |
+| `long2` | 20 | 86 s |
+| `sweep2` | 160 | 282 s |
+| `conf2` (`--sched=4-4_4-12_4-16,4-2_4-8_4-12`) | 40 | 79 s |
+| `bg2` (`--sched=4-4_4-12_4-16`) | 20 | 35 s |
+
+Total: 1,032 s, against a ~15 min budget. Nothing was cut.
+
+Schedule picks (low · medium · high):
+
+- **Balanced** = 4/4 · 4/12 · 4/16.
+- **Responsive** = 4/2 · 4/8 · 4/12.
+
+The strict rule finds no medium schedule. Medium walking, Android fails criterion 1 in every arm and at every schedule, A0 included: one undelivered message from a low-density sender (n = 158, against flooding's 100%). The medium pick therefore uses stage F's secondary rule, which ignores failures already present at the interim schedule.
+
+A newcomer starts in the low class: `DensityTracker.reset` leaves the class unset, and `classOf` maps that to low. So join time depends mainly on the low-class schedule, and the join guard barely constrains medium and high.
+
+Aggregates are split for size: `main-a0-a4d` / `main-a1-a4` and `sweep-{low,medium,high}`.
+
+Diagnosis traces are JVM-only and environment-gated. They do not change behaviour: a traced run reproduces the raw row.
+
+- `MLSIM_TRACE_LK=<ms>` prints `LKTRACE` for each first message after a lookup with latency ≥ the threshold. It shows the lookup sends, the answer time and hops, release, delivery, and the source/destination platform, background and asleep state. It also prints `CACHEDSLOW` for slow first messages that had the certificate cached.
+- `MLSIM_TRACE_MSG=id:src:dst:fromMs:toMs,...` prints every send of that data packet, plus the route requests and route replies sent by its source or destination (`MSGTRACE`).
+
+Example:
+`MLSIM_TRACE_LK=3000 java -cp "$CP" $M f-check --out DIR --set=long2 --seeds=5 '--only=high-n200-static-half-ios&|4|'`
+
 ## Deviations and caveats
 
 - **JDK 21 instead of JDK 25** (ADR 0005 baseline): the task assumed JDK 25 was not installed and prescribed JDK 21.

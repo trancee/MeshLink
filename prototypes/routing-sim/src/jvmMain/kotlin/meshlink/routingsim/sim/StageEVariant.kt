@@ -25,7 +25,8 @@ object StageEVariant {
             tag.matchEntire(f)?.let { t = it.groupValues[1].toInt() }
             id.matchEntire(f)?.let { m = it.groupValues[1].toInt() }
         }
-        return RoutingSizes(tagBytes = t, messageIdBytes = m)
+        val h = StageFVariant.has(variant, "H")
+        return RoutingSizes(tagBytes = t, messageIdBytes = m, commitBytes = if (h) 16 else 0, tombstoneKeyBytes = if (h) 16 else 0)
     }
 
     /** (fragments, fragment bytes) or null for the normal traffic sizes. */

@@ -1,5 +1,6 @@
 package meshlink.routingsim.sim
 
+import meshlink.routingsim.density.ClassSettings
 import meshlink.routingsim.strategy.Clock
 import meshlink.routingsim.strategy.ControlMessage
 import meshlink.routingsim.strategy.DiverseViewSelection
@@ -132,8 +133,9 @@ class Simulation(
             budget[i] = if (sybil[i]) cal.sybilBudget else scenario.degree
             if (scenario.platform == PlatformMix.HALF_IOS && !sybil[i]) {
                 ios[i] = worldRng.nextDouble() < 0.5
-                background[i] = ios[i] && worldRng.nextDouble() < cal.iosBackgroundShare
+                if (cal.backgroundAllShare <= 0.0) background[i] = ios[i] && worldRng.nextDouble() < cal.iosBackgroundShare
             }
+            if (cal.backgroundAllShare > 0.0 && !sybil[i]) background[i] = worldRng.nextDouble() < cal.backgroundAllShare
         }
         radio = Radio(cal, n, seedOf("shadow", scenario.key, seed), sybil)
         mobility = createMobility(scenario.mobility, radio, cal, extent, Random(seedOf("mobility", scenario.key, seed)))
@@ -182,7 +184,13 @@ class Simulation(
 
             override fun capacityByteSeconds() = capacityByteSeconds
 
-            override fun stable(i: Int) = !background[i]
+            override fun stable(i: Int) = !(background[i] && ios[i])
+
+            override fun ios(i: Int) = this@Simulation.ios[i]
+
+            override fun backgrounded(i: Int) = background[i]
+
+            override fun energyBase(i: Int) = this@Simulation.energyBase(i)
 
             override fun densityClass(i: Int) = this@Simulation.densityClass(i)
 
@@ -213,6 +221,29 @@ class Simulation(
     private val classSettings = densitySetup?.settings
     private val slowHear = densitySetup?.slowAdvertisingHear ?: cal.scanHearProbability
     private val tickCount = IntArray(n)
+    private val phaseRng = Random(seedOf("scanphase", scenario.key, seed))
+
+    // Stage F energy accounting per phone over the measured window.
+    private val onlineMs = LongArray(n)
+    private val scanMs = LongArray(n)
+    private val linkMs = LongArray(n)
+    private val topoBytes = LongArray(n)
+
+    /** Stage F: (online ms, scan ms, link ms, topology bytes tx+rx) of phone [i] over the measured window. */
+    private fun energyBase(i: Int) = longArrayOf(onlineMs[i], scanMs[i], linkMs[i], topoBytes[i])
+
+    private fun scanTick(
+        i: Int,
+        st: ClassSettings?,
+        c: Int,
+    ): Boolean {
+        if (st == null) return true
+        val t = tickCount[i]++
+        if (background[i] && !ios[i] && cal.backgroundAllShare > 0.0) return t % (cal.androidBgOnTicks + cal.androidBgOffTicks) < cal.androidBgOnTicks
+        val on = st.scanOnTicks ?: return t % st.scanEvery[c] == 0
+        val off = st.scanOffTicks!!
+        return t % (on[c] + off[c]) < on[c]
+    }
 
     private fun densityClass(i: Int) = density?.classOf(i) ?: 1
 
@@ -387,7 +418,11 @@ class Simulation(
         inDials[to].add(d)
         var hsExtra = 0L
         if (cal.handshakeBytes > 0) {
-            if (measuring() && !sybil[d.from] && !sybil[to]) handshakeBytes += cal.handshakeBytes
+            if (measuring() && !sybil[d.from] && !sybil[to]) {
+                handshakeBytes += cal.handshakeBytes
+                topoBytes[d.from] += cal.handshakeBytes.toLong()
+                topoBytes[to] += cal.handshakeBytes.toLong()
+            }
             val peers = (radio.nbrCount[d.from] + radio.nbrCount[to]) / 2.0
             hsExtra = (cal.handshakeBytes * 1000.0 / nominalBps(d.from) * peers / cal.contentionThroughputPeers).toLong()
         }
@@ -493,6 +528,8 @@ class Simulation(
         if (measuring() && !sybil[from]) {
             controlBytes += bytes
             if (!sybil[to]) controlBytesHonestLinks += bytes
+            topoBytes[from] += bytes.toLong()
+            topoBytes[to] += bytes.toLong()
         }
         val start = maxOf(now, if (from == link.a) link.busyAB else link.busyBA)
         val done = start + (bytes * 1000.0 / link.capacityBps).toLong()
@@ -523,6 +560,7 @@ class Simulation(
         density?.reset(i)
         applyClass(i)
         strategies[i] = newStrategy(i)
+        classSettings?.scanOnTicks?.let { tickCount[i] = phaseRng.nextInt(1 shl 20) }
         layer?.onJoin(i)
         // Joins still unconnected when the node leaves or the run ends count with their elapsed time (a lower bound).
         if (measuring() && !sybil[i] && now <= scenario.durationMs - 120_000 && awake[i]) {
@@ -566,12 +604,16 @@ class Simulation(
         recurring: Boolean = true,
     ) {
         if (inc != incarnation[i] || !online[i]) return
-        if (recurring) at(now + cal.tickMs) { tick(i, inc) }
+        if (recurring) {
+            at(now + cal.tickMs) { tick(i, inc) }
+            if (measuring() && !sybil[i]) onlineMs[i] += cal.tickMs
+        }
         if (!awake[i]) return
         val s = strategies[i]!!
         val st = classSettings
         val c = densityClass(i)
-        val scanNow = st == null || tickCount[i]++ % st.scanEvery[c] == 0
+        val scanNow = scanTick(i, st, c)
+        if (scanNow && recurring && measuring() && !sybil[i]) scanMs[i] += cal.tickMs
         if (scanNow) {
             val results = ArrayList<ScanResult>(radio.nbrCount[i])
             for (k in 0 until radio.nbrCount[i]) {
@@ -785,7 +827,11 @@ class Simulation(
         var honestLinkCount = 0
         for (i in 0 until n) for (l in links[i]) if (l.a == i && !sybil[l.a] && !sybil[l.b]) {
             honestLinkCount++
-            if (measuring()) capacityByteSeconds += l.capacityBps * SAMPLE_MS / 1000.0
+            if (measuring()) {
+                capacityByteSeconds += l.capacityBps * SAMPLE_MS / 1000.0
+                linkMs[l.a] += SAMPLE_MS
+                linkMs[l.b] += SAMPLE_MS
+            }
         }
         val row =
             linkedMapOf(
@@ -872,7 +918,7 @@ class Simulation(
         for (i in 0 until n) {
             val early = (worldRng.nextDouble() * 10_000).toLong()
             at(mobility.lateJoinMs(i) ?: early) { join(i) }
-            if (background[i]) {
+            if (background[i] && ios[i]) {
                 val phase = (worldRng.nextDouble() * cal.iosCycleMs).toLong()
                 awake[i] = false
                 scheduleWake(i, phase)

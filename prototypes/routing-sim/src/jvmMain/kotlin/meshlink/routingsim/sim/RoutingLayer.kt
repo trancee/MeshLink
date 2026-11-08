@@ -7,8 +7,11 @@ import meshlink.routingsim.routing.DistanceVector
 import meshlink.routingsim.routing.DropReason
 import meshlink.routingsim.routing.Flood
 import meshlink.routingsim.routing.Gossipsub
+import meshlink.routingsim.routing.HoldBudget
 import meshlink.routingsim.routing.OnDemand
 import meshlink.routingsim.routing.Packet
+import meshlink.routingsim.routing.RouteReply
+import meshlink.routingsim.routing.RouteRequest
 import meshlink.routingsim.routing.Plumtree
 import meshlink.routingsim.routing.Routing
 import meshlink.routingsim.routing.RoutingParams
@@ -180,6 +183,14 @@ internal interface SimAccess {
 
     /** Stage E: the phone's rotation phase as a fraction of the period. */
     fun rotationPhaseUnit(i: Int): Double
+
+    fun ios(i: Int): Boolean
+
+    /** Stage F: the phone is backgrounded (iOS wake windows, or Android background scanning in bg50 cells). */
+    fun backgrounded(i: Int): Boolean
+
+    /** Stage F: (online ms, scan ms, link ms, topology bytes tx+rx) over the measured window. */
+    fun energyBase(i: Int): LongArray
 }
 
 private class InFlight(
@@ -216,6 +227,9 @@ private class Msg(
     val classes: ByteArray? = null,
     /** Stage E: the sender or destination rotated its identifiers within the post-rotation window. */
     val postRot: Boolean = false,
+    /** Stage F A4: a large message (payload [largeBytes]) in instances with large messages. */
+    val large: Boolean = false,
+    val largeBytes: Int = 0,
 ) {
     val srcTrueClass get() = DensityClass.of(srcPeers.toDouble())
     val crossMode get() = dst >= 0 && classes != null && classes[src] != classes[dst]
@@ -257,6 +271,39 @@ private class Stats(
     /** Stage E: first-message latency by [pq] (0 classical, 1 post-quantum) × shortest-path hops 1..3, and × sender class. */
     val firstByHop = Array(2) { Array(4) { ArrayList<Double>() } }
     val firstByClass = Array(2) { Array(3) { ArrayList<Double>() } }
+
+    // Stage F.
+    val bytesRecv = LongArray(n)
+    val bulkTx = LongArray(n)
+    val bulkRx = LongArray(n)
+    val counters = HashMap<String, Long>()
+
+    /** First messages (≤ 3 hops) that needed a certificate lookup first, by suite. */
+    val firstLookup = Array(2) { ArrayList<Double>() }
+    val lookupLat = ArrayList<Double>()
+    val largeLat = ArrayList<Double>()
+    var rreqTx = 0L
+    var lookupReqTx = 0L
+
+    /** Stage F2: hops from requester to the node whose reply completed each lookup (measured window). */
+    val lookupHops = ArrayList<Int>()
+
+    /** Stage F2: non-bulk bytes sent per node by [SentKind]. */
+    val kindSent = Array(SentKind.N) { LongArray(n) }
+}
+
+/** Stage F2 busiest-phone breakdown of sent bytes (bulk excluded). */
+private object SentKind {
+    const val DATA = 0
+    const val RREQ = 1
+    const val RREP = 2
+    const val LOOKUP_REQ = 3
+    const val LOOKUP_REP = 4
+    const val IDLE = 5
+    const val OTHER = 6
+    const val BROADCAST = 7
+    const val N = 8
+    val labels = listOf("data", "rreq", "rrep", "lkReq", "lkRep", "idle", "other", "bcast")
 }
 
 internal class RoutingLayer(
@@ -298,6 +345,301 @@ internal class RoutingLayer(
     private val pairSeen = HashSet<Long>()
     private val unicast = (0 until k).filter { !inst[it].protocol.broadcast }
     private val broadcast = (0 until k).filter { inst[it].protocol.broadcast }
+
+    // ---- stage F state ----
+
+    private fun flag(f: String) = inst.map { StageFVariant.has(it.variant, f) }
+
+    private val fH = flag("H")
+    private val fCVL = inst.map { StageFVariant.has(it.variant, "CVL") }
+    private val fCV = inst.map { StageFVariant.has(it.variant, "CV") || StageFVariant.has(it.variant, "CVL") }
+    private val fLK = flag("LK")
+    private val fLG = flag("LG")
+    private val fATK = flag("ATK")
+    private val groupName = inst.map { StageFVariant.group(it.variant) }
+    private val groups = groupName.filter { it.isNotEmpty() }.distinct()
+    private val gIdx = IntArray(k) { groups.indexOf(groupName[it]) }
+    private val groupHold = BooleanArray(groups.size) { g -> (0 until k).any { gIdx[it] == g && fH[it] } }
+    private val budgets = Array(groups.size) { arrayOfNulls<HoldBudget>(n) }
+    private val budgetCounters = Array(groups.size) { LongArray(5) }
+    private val holdSum = DoubleArray(groups.size)
+    private val holdBytesSum = DoubleArray(groups.size)
+    private val holdMax = DoubleArray(groups.size)
+    private var holdSamples = 0
+    private var linkUpsMeasured = 0L
+
+    /** A2: per instance, established sessions by unordered pair → incarnations of both ends when established. */
+    private val sessions = Array(k) { HashMap<Long, Long>() }
+
+    /** A2: conversation tag → (sender, receiver, incarnations, epoch). Shared by every instance (tags are equal). */
+    private class ConvInfo(
+        val from: Int,
+        val to: Int,
+        val sig: Long,
+        val epoch: Long,
+    )
+
+    private val convReg = HashMap<Long, ConvInfo>()
+
+    /** A3: per instance, per node certificate cache (LRU, 64), kept across churn (persisted). */
+    private val certs = Array(k) { arrayOfNulls<LinkedHashMap<Int, Boolean>>(n) }
+
+    private class Queued(
+        val id: Int,
+        val dst: Int,
+        val expiresAt: Long,
+        val payload: Int,
+    )
+
+    /** A3: messages waiting for a certificate, per instance and node. */
+    private val lkQueue = Array(k) { arrayOfNulls<ArrayList<Queued>>(n) }
+
+    /** A3: messages that needed a lookup, per instance. */
+    private val lookupMsg = Array(k) { HashSet<Int>() }
+
+    /** Diagnosis trace (env MLSIM_TRACE_LK=<ms threshold>): lookup timeline of queued messages; no effect on behavior. */
+    private class LkTrace(
+        val queuedAt: Long,
+        val state: String,
+    ) {
+        val tx = ArrayList<Long>()
+        var doneAt = -1L
+        var answerHops = -1
+        var releasedAt = -1L
+        var releaseState = ""
+    }
+
+    private val lkTraceMs = System.getenv("MLSIM_TRACE_LK")?.toLongOrNull()
+
+    /** Diagnosis trace (env MLSIM_TRACE_MSG=id:src:dst:fromMs:toMs,...): sends of that data packet and RREQ/RREP by src or dst. */
+    private val msgTrace =
+        System.getenv("MLSIM_TRACE_MSG")?.split(',')?.map { it.split(':').map(String::toLong) } ?: emptyList()
+
+    private fun traceSend(
+        x: Int,
+        i: Int,
+        peer: Int,
+        p: Packet,
+    ) {
+        if (msgTrace.isEmpty() || !inst[x].label.endsWith("GA4D") || inst[x].protocol != Protocol.UA) return
+        for ((id, src, dst, from, to) in msgTrace) {
+            if (sim.now !in from..to) continue
+            val hit =
+                when (p) {
+                    is DataPacket -> p.id.toLong() == id
+                    is RouteRequest, is RouteReply -> i.toLong() == src || i.toLong() == dst
+                    else -> false
+                }
+            if (!hit) continue
+            val what =
+                when (p) {
+                    is DataPacket -> "DATA hops ${p.hops}"
+                    is RouteRequest -> "RREQ id ${p.requestId} hops ${p.hops} radius ${p.radius}"
+                    is RouteReply -> "RREP hops ${p.hops} ack ${p.ackId}"
+                    else -> ""
+                }
+            println("MSGTRACE $id t+${sim.now - from} $i->$peer $what | node ${nodeState(i)} peer ${nodeState(peer)} | src ${nodeState(src.toInt())} dst ${nodeState(dst.toInt())}")
+        }
+    }
+    private val lkTrace = Array(k) { HashMap<Int, LkTrace>() }
+
+    private fun nodeState(j: Int) =
+        "${if (sim.ios(j)) "iOS" else "And"}${if (sim.backgrounded(j)) "/bg" else ""}${if (!sim.online(j)) "/offline" else if (!sim.active(j)) "/asleep" else ""}" +
+            "/inc${sim.incarnation(j)}/links${sim.peers(j).size}"
+
+    private fun pairState(
+        a: Int,
+        b: Int,
+    ) = "src ${nodeState(a)} dst ${nodeState(b)} dist ${if (sim.active(a) && sim.active(b)) sim.distancesFrom(a)[b] else -1}"
+
+    private fun traceQueued(
+        x: Int,
+        i: Int,
+        target: Int,
+        f: (LkTrace) -> Unit,
+    ) {
+        if (lkTraceMs == null) return
+        lkQueue[x][i]?.forEach { q -> if (q.dst == target) lkTrace[x][q.id]?.let(f) }
+    }
+
+    /** Rate-limit test: the misbehaving phone (−1 none). */
+    private val attacker: Int =
+        if (fATK.none { it }) {
+            -1
+        } else {
+            val ids = (0 until n).filter { honest[it] }
+            ids[Random(seed xor 0xa77acL).nextInt(ids.size)]
+        }
+    private var attackCounter = 0
+
+    private fun lifetimeEpochs(x: Int) = ceil(inst[x].lifetimeMs.toDouble() / tc.epochMs).toLong()
+
+    private fun pairU(
+        a: Int,
+        b: Int,
+    ) = (minOf(a, b).toLong() shl 32) or maxOf(a, b).toLong()
+
+    private fun incSig(
+        a: Int,
+        b: Int,
+    ): Long {
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        return (sim.incarnation(lo).toLong() shl 32) or sim.incarnation(hi).toLong()
+    }
+
+    private fun sessionValid(
+        x: Int,
+        a: Int,
+        b: Int,
+    ) = sessions[x][pairU(a, b)] == incSig(a, b)
+
+    /** Each pair's conversation epochs share one random phase (both directions rotate together). */
+    private fun convEpoch(
+        node: Int,
+        x: Int,
+        a: Int,
+        b: Int,
+    ): Long {
+        val phase = Math.floorMod(mix64(seed xor 0x9a5eL xor pairU(a, b) * 0x2545F4914F6CDD1DL), tc.epochMs)
+        return Math.floorDiv(localNow(node, x) + phase, tc.epochMs)
+    }
+
+    private fun convTag(
+        from: Int,
+        to: Int,
+        epoch: Long,
+    ): Long {
+        val sig = incSig(from, to)
+        val dir = if (from < to) 0x51L else 0xa3L
+        val t =
+            mix64(seed xor 0xc0417L xor pairU(from, to) * 0x9E3779B97F4A7C15uL.toLong() xor sig * 0x632BE59BD9B4E019L xor dir xor epoch * 0x7FB5D329728EA185L) or 1L
+        if (!convReg.containsKey(t)) {
+            convReg[t] = ConvInfo(from, to, sig, epoch)
+            if (measuring()) convNew++
+        }
+        return t
+    }
+
+    private var convNew = 0L
+    private val lgSig = HashMap<Int, Long>()
+
+    /** A2: [tag] is a conversation tag addressed to [i] within [back] epochs before to one epoch after now. */
+    private fun convAccepts(
+        i: Int,
+        x: Int,
+        tag: Long,
+        back: Long,
+    ): Boolean {
+        val c = convReg[tag] ?: return false
+        if (c.to != i || c.sig != incSig(c.from, c.to)) return false
+        val e = convEpoch(i, x, c.from, c.to)
+        return c.epoch in e - back..e + 1
+    }
+
+    /** The tags message [id] from [src] to [dst] carries if sent now in instance [x] (source tag, destination tag). */
+    private fun tagsFor(
+        x: Int,
+        src: Int,
+        dst: Int,
+    ): Pair<Long, Long> {
+        if (fCV[x] && sessionValid(x, src, dst)) {
+            val e = convEpoch(src, x, src, dst)
+            if (fCVL[x]) {
+                // A2L: keep the previous epoch's tag while its route works; find the new tag's route in the background.
+                val r = routing[x][src]
+                val old = convTag(src, dst, e - 1)
+                if (r != null && r.hasRoute(old)) {
+                    r.prefetch(convTag(src, dst, e))
+                    countF(x, "convOldUsed")
+                    return convTag(dst, src, e - 1) to old
+                }
+                countF(x, "convOldMiss")
+            }
+            return convTag(dst, src, e) to convTag(src, dst, e)
+        }
+        val local = localNow(src, x)
+        return ownTag(src, x) to tagOf(dst, epochAt(dst, local, x))
+    }
+
+    private fun claims(
+        i: Int,
+        x: Int,
+        tag: Long,
+    ): Boolean {
+        val l = lifetimeEpochs(x)
+        val e = epochAt(i, localNow(i, x), x)
+        for (ep in e - l - 1..e + 1) if (tagOf(i, ep) == tag) return true
+        return fCV[x] && convAccepts(i, x, tag, l + 1)
+    }
+
+    private fun certCache(
+        x: Int,
+        i: Int,
+    ): LinkedHashMap<Int, Boolean>? {
+        if (!fLK[x]) return null
+        return certs[x][i] ?: LinkedHashMap<Int, Boolean>(16, 0.75f, true).also { certs[x][i] = it }
+    }
+
+    private fun addCert(
+        x: Int,
+        i: Int,
+        target: Int,
+    ) {
+        val c = certCache(x, i) ?: return
+        if (target == i) return
+        c[target] = true
+        if (c.size > CERT_CACHE) c.remove(c.keys.first())
+    }
+
+    private fun hasCert(
+        x: Int,
+        i: Int,
+        target: Int,
+    ) = target == i || certCache(x, i)?.get(target) == true
+
+    private fun pqPair(
+        a: Int,
+        b: Int,
+    ) = (mix64(seed xor ((a.toLong() shl 32) or b.toLong())) and 1L) == 1L
+
+    private fun countF(
+        x: Int,
+        key: String,
+        v: Long = 1,
+    ) {
+        if (measuring()) stats[x].counters.merge(key, v, Long::plus)
+    }
+
+    /** A3: the certificate arrived (or was there): send every message that waited for it. */
+    private fun releaseQueued(
+        x: Int,
+        i: Int,
+        target: Int,
+    ) {
+        val q = lkQueue[x][i] ?: return
+        val r = routing[x][i] ?: return
+        val ready = q.filter { it.dst == target }
+        if (ready.isEmpty()) return
+        if (lkTraceMs != null) {
+            for (m in ready) {
+                lkTrace[x][m.id]?.let {
+                    it.releasedAt = sim.now
+                    it.releaseState = pairState(i, target)
+                }
+            }
+        }
+        q.removeAll { it.dst == target }
+        val now = localNow(i, x)
+        for (m in ready) {
+            if (m.expiresAt < now) {
+                countF(x, "lookupExpiredMsgs")
+                continue
+            }
+            val (st, dt) = tagsFor(x, i, target)
+            r.originate(DataPacket(m.id, st, dt, m.expiresAt, m.payload, 0, tc.hopLimit))
+        }
+    }
 
     private fun measuring() = sim.now >= sim.warmupMs
 
@@ -380,7 +722,10 @@ internal class RoutingLayer(
         override fun send(
             peer: Int,
             packet: Packet,
-        ) = transmit(x, i, peer, packet)
+        ): Boolean {
+            traceSend(x, i, peer, packet)
+            return transmit(x, i, peer, packet)
+        }
 
         override fun after(
             delayMs: Long,
@@ -401,7 +746,7 @@ internal class RoutingLayer(
 
         override fun peerTag(peer: Int) = ownTag(peer, x)
 
-        override fun acceptsTag(tag: Long) = accepts(i, x, tag)
+        override fun acceptsTag(tag: Long) = accepts(i, x, tag) || (fCV[x] && convAccepts(i, x, tag, 1))
 
         override fun drop(
             packet: DataPacket,
@@ -417,6 +762,68 @@ internal class RoutingLayer(
         override fun densityClass() = sim.densityClass(i)
 
         override fun densityEstimate() = sim.densityEstimate(i)
+
+        override fun holdBudget(): HoldBudget? = if (params.holdForOthers && gIdx[x] >= 0) budgets[gIdx[x]][i] else null
+
+        override fun claimsTag(tag: Long) = claims(i, x, tag)
+
+        override fun retag(p: DataPacket): DataPacket? {
+            val m = msgs[p.id]
+            if (m.dst < 0 || m.src != i) return null
+            val (st, dt) = tagsFor(x, i, m.dst)
+            if (st == p.srcTag && dt == p.dstTag) return null
+            return DataPacket(p.id, st, dt, p.expiresAt, p.payloadBytes, 0, p.hopLimit)
+        }
+
+        override fun deliverClaimed(p: DataPacket) {
+            if (msgs[p.id].dst == i && delivered[x][p.id] < 0) countF(x, "claimDelivered")
+            onDeliver(x, i, p)
+        }
+
+        override fun hasCert(target: Int) = hasCert(x, i, target)
+
+        override fun certBytes(
+            requester: Int,
+            target: Int,
+        ) = if (pqPair(requester, target)) CERT_PQ else CERT_CLASSICAL
+
+        override fun lookupWanted(target: Int): Boolean {
+            val q = lkQueue[x][i] ?: return false
+            val now = now()
+            val gone = q.filter { it.dst == target && it.expiresAt < now }
+            if (gone.isNotEmpty()) {
+                countF(x, "lookupExpiredMsgs", gone.size.toLong())
+                q.removeAll(gone.toSet())
+            }
+            return q.any { it.dst == target }
+        }
+
+        override fun lookupDone(
+            target: Int,
+            elapsedMs: Long,
+            answerHops: Int,
+        ) {
+            traceQueued(x, i, target) {
+                it.doneAt = sim.now
+                it.answerHops = answerHops
+            }
+            addCert(x, i, target)
+            if (now() - elapsedMs >= sim.warmupMs) {
+                countF(x, "lookupOk")
+                stats[x].lookupLat.add(elapsedMs.toDouble())
+                stats[x].lookupHops.add(answerHops)
+            }
+            releaseQueued(x, i, target)
+        }
+
+        override fun count(
+            key: String,
+            n: Long,
+        ) = countF(x, key, n)
+
+        override fun lookupSent(target: Int) = traceQueued(x, i, target) { it.tx.add(sim.now) }
+
+        override fun isConvTag(tag: Long) = fCV[x] && convReg.containsKey(tag)
     }
 
     private fun create(
@@ -468,11 +875,27 @@ internal class RoutingLayer(
             }
         }
         sim.at(sim.warmupMs) { sampleState() }
+        if (attacker >= 0) sim.at(tc.trafficStartMs) { attackLoop() }
+    }
+
+    /** Rate-limit test: the misbehaving phone floods one lookup per second for a NodeId that does not exist. */
+    private fun attackLoop() {
+        sim.at(sim.now + 1_000) { attackLoop() }
+        val target = n + 1 + attackCounter++
+        for (x in 0 until k) if (fATK[x]) routing[x][attacker]?.attackLookup(target)
     }
 
     fun onJoin(i: Int) {
         if (!honest[i]) return
-        for (x in 0 until k) routing[x][i] = create(x, i)
+        for (g in groups.indices) {
+            if (!groupHold[g]) continue
+            val p = params[(0 until k).first { gIdx[it] == g && fH[it] }]
+            budgets[g][i] = HoldBudget(p.holdQuotaMsgs, p.holdQuotaBytes, p.holdMaxMsgBytes, budgetCounters[g]) { measuring() }
+        }
+        for (x in 0 until k) {
+            lkQueue[x][i] = null
+            routing[x][i] = create(x, i)
+        }
     }
 
     fun onLeave(i: Int) {
@@ -481,7 +904,15 @@ internal class RoutingLayer(
 
     fun onLinkUp(l: Link) {
         l.rq = LongArray(2 * k)
+        if (measuring()) linkUpsMeasured++
         for (x in 0 until k) {
+            if (fLK[x] && honest[l.a] && honest[l.b]) {
+                // Each link exchanges certificates (covered by the link handshake bytes).
+                addCert(x, l.a, l.b)
+                addCert(x, l.b, l.a)
+                releaseQueued(x, l.a, l.b)
+                releaseQueued(x, l.b, l.a)
+            }
             routing[x][l.a]?.onLinkUp(l.b)
             if (l.alive) routing[x][l.b]?.onLinkUp(l.a)
         }
@@ -522,6 +953,8 @@ internal class RoutingLayer(
     private fun refund(f: InFlight) {
         val s = stats[f.inst]
         s.bytesSent[f.from] -= f.bytes
+        if (isBulk(f.inst, f.packet)) s.bulkTx[f.from] -= f.bytes
+        sentKind(f.inst, f.packet)?.let { s.kindSent[it][f.from] -= f.bytes }
         if (f.packet.isControl) {
             s.ctrlBytes -= f.bytes
             if (f.packet.isIdleControl) s.idleCtrlBytes -= f.bytes
@@ -575,9 +1008,13 @@ internal class RoutingLayer(
         }
         if (counted) {
             val s = stats[x]
-            if (packet is meshlink.routingsim.routing.RouteRequest) s.rreqBytes += bytes
-            if (packet is meshlink.routingsim.routing.RouteReply) s.rrepBytes += bytes
+            if (packet is RouteRequest) s.rreqBytes += bytes
+            if (packet is RouteReply) s.rrepBytes += bytes
+            if (packet is RouteRequest) s.rreqTx++
+            if (packet is meshlink.routingsim.routing.LookupRequest) s.lookupReqTx++
             s.bytesSent[from] += bytes
+            if (isBulk(x, packet)) s.bulkTx[from] += bytes
+            sentKind(x, packet)?.let { s.kindSent[it][from] += bytes }
             if (packet.isControl) {
                 s.ctrlBytes += bytes
                 if (packet.isIdleControl) s.idleCtrlBytes += bytes
@@ -597,6 +1034,9 @@ internal class RoutingLayer(
                     l.inflight?.remove(f)
                 }
                 if (packet is DataPacket && measuring()) stats[x].dataRx++
+                if (counted) {
+                    if (isBulk(x, packet)) stats[x].bulkRx[to] += bytes else stats[x].bytesRecv[to] += bytes
+                }
                 routing[x][to]?.onPacket(from, packet)
             }
         }
@@ -607,6 +1047,29 @@ internal class RoutingLayer(
         node: Int,
         id: Int,
     ) = (node.toLong() shl 32) or id.toLong()
+
+    /** Stage F2: the [SentKind] of a non-bulk packet (null for bulk). */
+    private fun sentKind(
+        x: Int,
+        p: Packet,
+    ): Int? =
+        when {
+            isBulk(x, p) -> null
+            inst[x].protocol.broadcast -> if (p.isIdleControl) SentKind.IDLE else SentKind.BROADCAST
+            p is RouteRequest -> SentKind.RREQ
+            p is RouteReply -> SentKind.RREP
+            p is meshlink.routingsim.routing.LookupRequest -> SentKind.LOOKUP_REQ
+            p is meshlink.routingsim.routing.LookupReply -> SentKind.LOOKUP_REP
+            p.isIdleControl -> SentKind.IDLE
+            p.isControl -> SentKind.OTHER
+            else -> SentKind.DATA
+        }
+
+    /** A4: bulk bytes of a large message (energy at 0.8 mJ/KiB instead of the per-byte routing cost). */
+    private fun isBulk(
+        x: Int,
+        p: Packet,
+    ) = fLG[x] && p is DataPacket && p.payloadBytes > params[x].holdMaxMsgBytes
 
     /** Cut-through: [node]'s copy of message [id] ended incomplete; so does every onward stream it was feeding. */
     private fun breakCopy(
@@ -705,11 +1168,19 @@ internal class RoutingLayer(
         val labels = sim.componentLabels()
         val eligible = sim.active(dst) && labels[src] >= 0 && labels[src] == labels[dst]
         val dist = if (eligible) sim.distancesFrom(src)[dst] else -1
-        val first = pairSeen.add((src.toLong() shl 32) or dst.toLong())
-        val pq = (mix64(seed xor ((src.toLong() shl 32) or dst.toLong())) and 1L) == 1L
+        // A session (and so a first message) per pair of incarnations: a churn rejoin starts a fresh session.
+        val first = pairSeen.add(mix64((src.toLong() shl 32) or dst.toLong()) xor mix64(incSig(src, dst) + 0x5e55L))
+        val pq = pqPair(src, dst)
+        val h = mix64(seed xor 0x1a46eL xor id.toLong() * 0x9E3779B97F4A7C15uL.toLong())
+        val large = ((h ushr 1) % 10_000) < LARGE_PER_10K
+        val largeBytes = (LARGE_MIN * Math.pow(LARGE_MAX / LARGE_MIN, ((h ushr 24) % 1_000_000) / 1_000_000.0)).toInt()
         msgs.add(
-            Msg(id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow(), postRotation(src, dst)),
+            Msg(
+                id, src, dst, sim.now, measured, eligible, first, pq, dist, null, 0, sim.peersInRange(src), inTransition(), classesNow(),
+                postRotation(src, dst), large, largeBytes,
+            ),
         )
+        if (large) lgSig[id] = incSig(src, dst)
         maybeReply(src, dst)
         val payload =
             tc.payloadBytes +
@@ -721,9 +1192,18 @@ internal class RoutingLayer(
         for (x in unicast) {
             val r = routing[x][src] ?: continue
             val local = localNow(src, x)
-            val dstTag = tagOf(dst, epochAt(dst, local, x))
-            val pl = fragmentPayload(x, false) ?: payload
-            r.originate(DataPacket(id, ownTag(src, x), dstTag, local + inst[x].lifetimeMs, pl, 0, tc.hopLimit))
+            val pl = if (fLG[x] && large) largeBytes else fragmentPayload(x, false) ?: payload
+            if (fLK[x] && !(fCV[x] && sessionValid(x, src, dst)) && !hasCert(x, src, dst)) {
+                // ADR 0018: queue the message and look up the destination's certificate.
+                val q = lkQueue[x][src] ?: ArrayList<Queued>().also { lkQueue[x][src] = it }
+                q.add(Queued(id, dst, local + inst[x].lifetimeMs, pl))
+                lookupMsg[x].add(id)
+                if (lkTraceMs != null) lkTrace[x][id] = LkTrace(sim.now, pairState(src, dst))
+                r.lookup(dst)
+                continue
+            }
+            val (st, dt) = tagsFor(x, src, dst)
+            r.originate(DataPacket(id, st, dt, local + inst[x].lifetimeMs, pl, 0, tc.hopLimit))
         }
     }
 
@@ -807,13 +1287,36 @@ internal class RoutingLayer(
         if (m.dst >= 0) {
             if (m.dst != i || delivered[x][p.id] >= 0) return
             delivered[x][p.id] = sim.now
+            if (fCV[x]) sessions[x][pairU(m.src, i)] = incSig(m.src, i)
+            if (fLK[x] && m.first) addCert(x, i, m.src)
             if (!m.measured || !m.eligible) return
             val s = stats[x]
             val lat = (sim.now - m.sentAt).toDouble()
+            if (fLG[x] && m.large) {
+                s.largeLat.add(lat)
+                return
+            }
+            val looked = p.id in lookupMsg[x]
+            if (m.first && m.hopDistance in 1..3 && looked) {
+                s.firstLookup[if (m.pq) 1 else 0].add(lat)
+                val t = lkTrace[x][p.id]
+                if (lkTraceMs != null && t != null && lat >= lkTraceMs) {
+                    fun r(v: Long) = if (v < 0) "-" else "+${v - t.queuedAt}"
+                    println(
+                        "LKTRACE ${inst[x].label} msg ${p.id} ${if (m.pq) "PQ" else "C"} ${m.src}->${m.dst} lat ${lat.toLong()} " +
+                            "hopDist@send ${m.hopDistance} dataHops ${p.hops} queuedAt ${t.queuedAt} [${t.state}] " +
+                            "lookupTx ${t.tx.joinToString(",") { r(it) }} answered ${r(t.doneAt)} ansHops ${t.answerHops} " +
+                            "released ${r(t.releasedAt)} [${t.releaseState}] delivered +${sim.now - t.queuedAt} [${pairState(m.src, m.dst)}]",
+                    )
+                }
+            }
             s.latencies.add(lat)
             s.hops[minOf(p.hops, 256)]++
             if (p.hops in 1..5) s.latByHops[p.hops].add(lat)
-            if (m.first && m.hopDistance in 1..3) {
+            if (m.first && m.hopDistance in 1..3 && !looked) {
+                if (lkTraceMs != null && lat >= lkTraceMs && inst[x].label.endsWith("GA4D")) {
+                    println("CACHEDSLOW msg ${p.id} ${if (m.pq) "PQ" else "C"} ${m.src}->${m.dst} lat ${lat.toLong()} hops ${p.hops} [${pairState(m.src, m.dst)}]")
+                }
                 (if (m.pq) s.firstPq else s.firstClassical).add(lat)
                 val q = if (m.pq) 1 else 0
                 s.firstByHop[q][m.hopDistance].add(lat)
@@ -841,6 +1344,27 @@ internal class RoutingLayer(
 
     private fun sampleState() {
         sim.at(sim.now + 30_000) { sampleState() }
+        if (groups.isNotEmpty()) {
+            holdSamples++
+            for (g in groups.indices) {
+                if (!groupHold[g]) continue
+                var c = 0
+                var sz = 0.0
+                var by = 0.0
+                for (i in 0 until n) {
+                    val b = budgets[g][i] ?: continue
+                    if (!sim.active(i)) continue
+                    c++
+                    sz += b.size
+                    by += b.bytes
+                    holdMax[g] = maxOf(holdMax[g], b.size.toDouble())
+                }
+                if (c > 0) {
+                    holdSum[g] += sz / c
+                    holdBytesSum[g] += by / c
+                }
+            }
+        }
         for (x in 0 until k) {
             var table = 0.0
             var seen = 0.0
@@ -874,7 +1398,7 @@ internal class RoutingLayer(
         out: LinkedHashMap<String, Double>,
     ) {
         val bcast = inst[x].protocol.broadcast
-        val ms = msgs.filter { it.measured && it.eligible && (it.dst < 0) == bcast && it.srcPeers >= 0 }
+        val ms = msgs.filter { it.measured && it.eligible && (it.dst < 0) == bcast && it.srcPeers >= 0 && small(x, it) }
         if (!bcast) {
             fun group(
                 name: String,
@@ -929,6 +1453,170 @@ internal class RoutingLayer(
         }
     }
 
+    /** A4: small-message criteria exclude large messages in instances that send them large. */
+    private fun small(
+        x: Int,
+        m: Msg,
+    ) = !(fLG[x] && m.large)
+
+    /** Stage F per-arm metrics: every row carries them (its group, or itself when it has none). */
+    private fun stageFResults(
+        x: Int,
+        out: LinkedHashMap<String, Double>,
+        seconds: Double,
+    ) {
+        val members = if (gIdx[x] < 0) listOf(x) else (0 until k).filter { gIdx[it] == gIdx[x] }
+        val honestIds = (0 until n).filter { honest[it] }
+        val nodes = honestIds.filter { it != attacker }
+        val capacity = sim.capacityByteSeconds()
+        val minutes = seconds / 60.0
+        val sent = LongArray(n)
+        val bulk = LongArray(n)
+        val recv = LongArray(n)
+        val bulkRx = LongArray(n)
+        val kinds = Array(SentKind.N) { LongArray(n) }
+        var idle = 0L
+        var ctrl = 0L
+        for (y in members) {
+            val s = stats[y]
+            for (i in 0 until n) {
+                sent[i] += s.bytesSent[i]
+                bulk[i] += s.bulkTx[i]
+                recv[i] += s.bytesRecv[i]
+                bulkRx[i] += s.bulkRx[i]
+                for (kd in 0 until SentKind.N) kinds[kd][i] += s.kindSent[kd][i]
+            }
+            idle += s.idleCtrlBytes
+            ctrl += s.ctrlBytes
+        }
+        out["grpLoadMaxBps"] = nodes.maxOfOrNull { sent[it] / seconds } ?: Double.NaN
+        out["grpLoadMaxNoBulkBps"] = nodes.maxOfOrNull { (sent[it] - bulk[it]) / seconds } ?: Double.NaN
+        out["grpLoadMeanBps"] = nodes.map { sent[it] / seconds }.average()
+        out["grpIdleCtrlShare"] = if (capacity == 0.0) 0.0 else idle / capacity
+        out["grpCtrlBytesPerNodeS"] = ctrl / (honestIds.size * seconds)
+        out["grpIdleBytesPerLinkUp"] = if (linkUpsMeasured == 0L) Double.NaN else idle.toDouble() / linkUpsMeasured
+        // Energy per phone (mW above baseline) over the time it was online in the measured window.
+        val busiest = nodes.maxByOrNull { sent[it] - bulk[it] } ?: -1
+        val mw = ArrayList<Double>()
+        val parts = DoubleArray(5)
+        var busyMw = Double.NaN
+        val byPlat = Array(2) { ArrayList<Double>() }
+        val byBg = Array(2) { ArrayList<Double>() }
+        var dutySum = 0.0
+        for (i in nodes) {
+            val b = sim.energyBase(i)
+            if (b[0] < 60_000) continue
+            val sec = b[0] / 1000.0
+            val scan = SCAN_MW * b[1] / 1000.0
+            val link = LINK_MW * b[2] / 1000.0
+            val topo = MJ_PER_BYTE * b[3]
+            val route = MJ_PER_BYTE * ((sent[i] - bulk[i]) + recv[i])
+            val bk = BULK_MJ_PER_KIB * (bulk[i] + bulkRx[i]) / 1024.0
+            val e = (scan + link + topo + route + bk) / sec
+            mw.add(e)
+            if (i == busiest) busyMw = e
+            parts[0] += scan / sec
+            parts[1] += link / sec
+            parts[2] += topo / sec
+            parts[3] += route / sec
+            parts[4] += bk / sec
+            byPlat[if (sim.ios(i)) 1 else 0].add(e)
+            byBg[if (sim.backgrounded(i)) 1 else 0].add(e)
+            dutySum += b[1].toDouble() / b[0]
+        }
+        val cnt = mw.size.coerceAtLeast(1)
+        out["eMeanMw"] = if (mw.isEmpty()) Double.NaN else mw.average()
+        out["eMaxMw"] = mw.maxOrNull() ?: Double.NaN
+        out["eP95Mw"] = percentile(mw, 0.95)
+        val names = listOf("eScanMw", "eLinkMw", "eTopoMw", "eRouteMw", "eBulkMw")
+        for (j in names.indices) out[names[j]] = parts[j] / cnt
+        out["scanDuty"] = dutySum / cnt
+        out["eMeanMwAndroid"] = if (byPlat[0].isEmpty()) Double.NaN else byPlat[0].average()
+        out["eMeanMwIos"] = if (byPlat[1].isEmpty()) Double.NaN else byPlat[1].average()
+        out["eMeanMwFg"] = if (byBg[0].isEmpty()) Double.NaN else byBg[0].average()
+        out["eMeanMwBg"] = if (byBg[1].isEmpty()) Double.NaN else byBg[1].average()
+        // Stage F2: the busiest-bytes phone (criterion 3 amended): its mW and what it sent, by kind.
+        out["busyMw"] = busyMw
+        out["busyIos"] = if (busiest < 0) Double.NaN else if (sim.ios(busiest)) 1.0 else 0.0
+        out["busyBulkBps"] = if (busiest < 0) Double.NaN else bulk[busiest] / seconds
+        for (kd in 0 until SentKind.N) out["busy_${SentKind.labels[kd]}"] = if (busiest < 0) Double.NaN else kinds[kd][busiest] / seconds
+        for (kd in 0 until SentKind.N) out["mean_${SentKind.labels[kd]}"] = nodes.sumOf { kinds[kd][it] } / (nodes.size * seconds)
+        // Counters.
+        val nodeMin = honestIds.size * minutes
+        for (key in stageFCounters) out["c_$key"] = members.sumOf { stats[it].counters[key] ?: 0L }.toDouble()
+        out["rreqOrigPerNodeMin"] = (out["c_rreqOrig"] ?: 0.0) / nodeMin
+        out["rreqTxPerNodeMin"] = members.sumOf { stats[it].rreqTx } / nodeMin
+        out["lookupsPerNodeMin"] = (out["c_lookupEpisodes"] ?: 0.0) / nodeMin
+        out["lookupTxPerNodeMin"] = (out["c_lookupTx"] ?: 0.0) / nodeMin
+        out["lookupReqTxPerNodeMin"] = members.sumOf { stats[it].lookupReqTx } / nodeMin
+        val ep = out["c_lookupEpisodes"] ?: 0.0
+        out["lookupSuccess"] = if (ep == 0.0) Double.NaN else (out["c_lookupOk"] ?: 0.0) / ep
+        val lat = members.flatMap { stats[it].lookupLat }
+        out["lookupP50Ms"] = percentile(lat, 0.5)
+        out["lookupP95Ms"] = percentile(lat, 0.95)
+        val hops = members.flatMap { stats[it].lookupHops }
+        out["lkHopN"] = hops.size.toDouble()
+        out["lkHop1"] = hops.count { it <= 1 }.toDouble()
+        out["lkHop2"] = hops.count { it <= 2 }.toDouble()
+        out["lkHopSum"] = hops.sum().toDouble()
+        for (h in 1..6) out["lkHopEq$h"] = hops.count { if (h < 6) it == h else it >= 6 }.toDouble()
+        out["lkHopP50"] = percentile(hops.map { it.toDouble() }, 0.5)
+        out["lkHopP90"] = percentile(hops.map { it.toDouble() }, 0.9)
+        out["convTagsNew"] = if (fCV[x]) convNew.toDouble() else Double.NaN
+        val g = gIdx[x]
+        if (g >= 0 && groupHold[g]) {
+            val hs = holdSamples.coerceAtLeast(1)
+            out["holdMean"] = holdSum[g] / hs
+            out["holdBytesMean"] = holdBytesSum[g] / hs
+            out["holdMax"] = holdMax[g]
+            val c = budgetCounters[g]
+            out["holdAdmitted"] = c[0].toDouble()
+            out["holdRejSize"] = c[1].toDouble()
+            out["holdRejShare"] = c[2].toDouble()
+            out["holdRejFull"] = c[3].toDouble()
+            out["holdEvicted"] = c[4].toDouble()
+        } else {
+            for (key in listOf("holdMean", "holdBytesMean", "holdMax", "holdAdmitted", "holdRejSize", "holdRejShare", "holdRejFull", "holdEvicted")) {
+                out[key] = Double.NaN
+            }
+        }
+        // First messages that needed a lookup (only in lookup arms).
+        val s = stats[x]
+        out["firstLkP95ClassicalMs"] = percentile(s.firstLookup[0], 0.95)
+        out["firstLkP95PqMs"] = percentile(s.firstLookup[1], 0.95)
+        out["firstLkNC"] = s.firstLookup[0].size.toDouble()
+        out["firstLkNP"] = s.firstLookup[1].size.toDouble()
+        out["firstLkOkC"] = s.firstLookup[0].count { it <= 2_000.0 }.toDouble()
+        out["firstLkOkP"] = s.firstLookup[1].count { it <= 3_000.0 }.toDouble()
+        out["firstNC"] = s.firstClassical.size.toDouble()
+        out["firstNP"] = s.firstPq.size.toDouble()
+        out["firstOkC"] = s.firstClassical.count { it <= 1_000.0 }.toDouble()
+        out["firstOkP"] = s.firstPq.count { it <= 1_500.0 }.toDouble()
+        // Large messages (A4): delivery when a route exists (same component at send), by the sender's true class.
+        val lg = msgs.filter { it.measured && it.eligible && it.dst >= 0 && it.large && it.srcPeers >= 0 }
+        val isLg = fLG[x]
+        for (c in 0 until 3) {
+            val sel = lg.filter { it.srcTrueClass == c }
+            val cl = DensityClass.labels[c]
+            out["lgN_$cl"] = if (isLg) sel.size.toDouble() else Double.NaN
+            out["lgDel_$cl"] = if (!isLg || sel.isEmpty()) Double.NaN else sel.count { delivered[x][it.id] >= 0 }.toDouble() / sel.size
+            // Excluding undelivered messages whose sender or destination left (churn) before the end of the run.
+            val stay = sel.filter { delivered[x][it.id] >= 0 || lgSig[it.id] == incSig(it.src, it.dst) }
+            out["lgNStay_$cl"] = if (isLg) stay.size.toDouble() else Double.NaN
+            out["lgDelStay_$cl"] = if (!isLg || stay.isEmpty()) Double.NaN else stay.count { delivered[x][it.id] >= 0 }.toDouble() / stay.size
+        }
+        if (isLg && System.getProperty("rsim.lgdebug") != null) {
+            val lab = sim.componentLabels()
+            for (m in lg.filter { delivered[x][it.id] < 0 }) {
+                println("LG-UNDELIVERED id=${m.id} ${m.src}->${m.dst} bytes=${m.largeBytes} sentAt=${m.sentAt} hops=${m.hopDistance} endSameComp=${lab[m.src] == lab[m.dst]} churned=${lgSig[m.id] != incSig(m.src, m.dst)} inc=${sim.incarnation(m.src)},${sim.incarnation(m.dst)}")
+            }
+        }
+        out["lgN"] = if (isLg) lg.size.toDouble() else Double.NaN
+        out["lgDel"] = if (!isLg || lg.isEmpty()) Double.NaN else lg.count { delivered[x][it.id] >= 0 }.toDouble() / lg.size
+        out["lgP50Ms"] = if (isLg) percentile(s.largeLat, 0.5) else Double.NaN
+        out["lgP95Ms"] = if (isLg) percentile(s.largeLat, 0.95) else Double.NaN
+    }
+
     fun results(): List<Pair<InstanceConfig, LinkedHashMap<String, Double>>> {
         val seconds = (sim.durationMs - sim.warmupMs) / 1000.0
         val honestCount = honest.count { it }
@@ -937,7 +1625,7 @@ internal class RoutingLayer(
             val s = stats[x]
             val out = LinkedHashMap<String, Double>()
             val bcast = inst[x].protocol.broadcast
-            val measuredMsgs = msgs.filter { it.measured && (it.dst < 0) == bcast }
+            val measuredMsgs = msgs.filter { it.measured && (it.dst < 0) == bcast && small(x, it) }
             val eligible = measuredMsgs.filter { it.eligible }
             var deliveries: Int
             if (!bcast) {
@@ -977,7 +1665,7 @@ internal class RoutingLayer(
             out["ctrlBytesPerNodeS"] = s.ctrlBytes / (honestCount * seconds)
             out["idleCtrlBytesPerNodeS"] = s.idleCtrlBytes / (honestCount * seconds)
             out["idleCtrlShare"] = if (capacity == 0.0) 0.0 else s.idleCtrlBytes / capacity
-            val loads = (0 until n).filter { honest[it] }.map { s.bytesSent[it] / seconds }
+            val loads = (0 until n).filter { honest[it] && it != attacker }.map { s.bytesSent[it] / seconds }
             out["loadMeanBps"] = loads.average()
             out["loadP99Bps"] = percentile(loads, 0.99)
             out["loadMaxBps"] = loads.maxOrNull() ?: Double.NaN
@@ -1029,6 +1717,7 @@ internal class RoutingLayer(
                 out["modeSwitchesPerNodeH"] = sw / (honestCount * seconds / 3600.0)
             }
             densityResults(x, out)
+            stageFResults(x, out, seconds)
             if (DEBUG) System.err.println("${inst[x].label} packets ${s.packetCounts}")
             inst[x] to out
         }
@@ -1036,6 +1725,27 @@ internal class RoutingLayer(
 }
 
 private val DEBUG = System.getProperty("rsim.debug") != null
+
+private const val CERT_CACHE = 64
+private const val CERT_CLASSICAL = 140
+private const val CERT_PQ = 1_350
+private const val LARGE_PER_10K = 200
+private const val LARGE_MIN = 16.0 * 1024
+private const val LARGE_MAX = 128.0 * 1024
+
+/** Stage F energy model (above baseline): 55 mW × scan duty, 1 mW per link, 1.25 µJ/B routed/control, 0.8 mJ/KiB bulk. */
+private const val SCAN_MW = 55.0
+private const val LINK_MW = 1.0
+private const val MJ_PER_BYTE = 1.25e-3
+private const val BULK_MJ_PER_KIB = 0.8
+
+/** Stage F counters reported per arm (sum over the arm's unicast and broadcast instances). */
+private val stageFCounters =
+    listOf(
+        "rreqOrig", "retag", "tombStored", "tombPurgePath", "tombPurgeCatchUp", "summaryUnicastIds", "summaryTombstones",
+        "summaryBroadcastIds", "rreqConv", "prefetch", "convOldUsed", "convOldMiss", "lgRelayDrop", "lgResend", "claimIds", "claimServed", "claimDelivered", "lookupEpisodes", "lookupTx", "lookupOk",
+        "lookupAnsSelf", "lookupAnsCache", "lookupReplyAtReq", "lookupExpiredMsgs", "rlDropped", "attackLookups",
+    )
 
 /**
  * Adaptive unicast per local density class. Low: flood every message and keep it until acknowledged,

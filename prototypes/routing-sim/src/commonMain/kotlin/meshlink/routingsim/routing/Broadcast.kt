@@ -92,7 +92,36 @@ class Plumtree(
     private class Missing {
         val announcers = ArrayList<Int>(2)
         var armed = false
+        var catchUp = false
     }
+
+    /** Stage F A1: broadcasts held until expiry under the shared quota (own ones outside it). */
+    private val held = LinkedHashMap<Int, DataPacket>()
+    private val holdEvictor = HoldBudget.Evictor { id -> held.remove(id) }
+
+    private fun hold(
+        p: DataPacket,
+        from: Int,
+    ) {
+        if (!port.params.holdForOthers || held.containsKey(p.id)) return
+        val b = port.holdBudget()
+        if (from >= 0 && b != null && !b.admit(p.id, p.payloadBytes, from, p.expiresAt, port.now(), holdEvictor)) return
+        held[p.id] = p
+    }
+
+    private fun pruneHeld() {
+        val b = port.holdBudget()
+        val it = held.values.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
+            if (port.expired(p)) {
+                it.remove()
+                b?.release(p.id)
+            }
+        }
+    }
+
+    private fun stored(id: Int): DataPacket? = cache.get(id) ?: held[id]?.takeIf { !port.expired(it) }
 
     private val eager = LinkedHashSet<Int>()
     private val lazy = LinkedHashSet<Int>()
@@ -105,8 +134,16 @@ class Plumtree(
         eager.add(peer)
         val w = port.params.catchUpMs
         if (w > 0) {
-            val ids = cache.recentIds(w)
-            if (ids.isNotEmpty()) port.send(peer, IdsControl(IdsControl.Kind.IHAVE, ids))
+            // Stage F: catch-up announcements are idle control in every arm.
+            var ids = cache.recentIds(w)
+            if (port.params.holdForOthers) {
+                pruneHeld()
+                ids = (ids.asList() + held.keys).distinct().toIntArray()
+            }
+            if (ids.isNotEmpty()) {
+                port.count("summaryBroadcastIds", ids.size.toLong())
+                port.send(peer, IdsControl(IdsControl.Kind.IHAVE, ids, isIdleControl = true))
+            }
         }
     }
 
@@ -118,6 +155,7 @@ class Plumtree(
     override fun originate(packet: DataPacket) {
         seen.add(packet)
         cache.put(packet)
+        hold(packet, -1)
         push(packet, -1)
     }
 
@@ -161,12 +199,12 @@ class Plumtree(
                         eager.remove(from)
                         if (port.isLinked(from)) lazy.add(from)
                     }
-                    IdsControl.Kind.IHAVE -> for (id in packet.ids) onIhave(from, id)
+                    IdsControl.Kind.IHAVE -> for (id in packet.ids) onIhave(from, id, packet.isIdleControl)
                     IdsControl.Kind.GRAFT -> {
                         if (!port.isLinked(from)) return
                         lazy.remove(from)
                         eager.add(from)
-                        for (id in packet.ids) cache.get(id)?.let { if (!port.expired(it)) port.send(from, it.forwarded()) }
+                        for (id in packet.ids) stored(id)?.let { if (!port.expired(it)) port.send(from, it.forwarded()) }
                     }
                     else -> {}
                 }
@@ -197,6 +235,7 @@ class Plumtree(
             eager.add(from)
         }
         cache.put(p)
+        hold(p, from)
         if (p.hops >= p.hopLimit) {
             port.drop(p, DropReason.HOP_LIMIT)
             return
@@ -207,9 +246,11 @@ class Plumtree(
     private fun onIhave(
         from: Int,
         id: Int,
+        catchUp: Boolean = false,
     ) {
         if (seen.contains(id)) return
         val m = missing.getOrPut(id) { Missing() }
+        if (catchUp) m.catchUp = true
         m.announcers.add(from)
         if (!m.armed) {
             m.armed = true
@@ -228,7 +269,7 @@ class Plumtree(
             if (!port.isLinked(q)) continue
             lazy.remove(q)
             eager.add(q)
-            port.send(q, IdsControl(IdsControl.Kind.GRAFT, intArrayOf(id)))
+            port.send(q, IdsControl(IdsControl.Kind.GRAFT, intArrayOf(id), isIdleControl = m.catchUp))
             port.after(port.params.graftRetryMs) { onTimer(id) }
             return
         }

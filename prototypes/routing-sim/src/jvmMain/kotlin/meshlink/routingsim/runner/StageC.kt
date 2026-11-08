@@ -74,9 +74,30 @@ enum class CSet(
     E_BASE("e-base"),
     E_ROT("e-rot"),
     E_HS("e-hs"),
+
+    /** Stage F sets (see StageF.kt). */
+    F_MAIN("f-main"),
+    F_LONG("f-long"),
+    F_RL("f-rl"),
+    F_SWEEP("f-sweep"),
+    F_CONF("f-conf"),
+    F_BG("f-bg"),
+    F_A2L("f-a2l"),
+    F_DIAG("f-diag"),
+
+    /** Stage F2 sets (see StageF.kt): final arm A4D with busiest-phone and lookup-distance instrumentation. */
+    F2_MAIN("f2-main"),
+    F2_LONG("f2-long"),
+    F2_SWEEP("f2-sweep"),
+    F2_CONF("f2-conf"),
+    F2_BG("f2-bg"),
     ;
 
     val stageE get() = this == E_BASE || this == E_ROT || this == E_HS
+
+    val stageF get() = label.startsWith("f-") || stageF2
+
+    val stageF2 get() = label.startsWith("f2-")
 }
 
 fun stageCInstances(set: CSet): List<InstanceConfig> =
@@ -121,10 +142,13 @@ data class CSpec(
     val calib: String? = null,
     /** Stage E identifier rotation: period in seconds, "none", or "<s>a" for aligned. */
     val rot: String? = null,
+    /** Stage F scan schedule, on-off seconds per class low_medium_high (e.g. "4-4_4-4_4-8"); null = the topology's. */
+    val sched: String? = null,
 ) {
     val id get() =
         "${scenario.key}|dur${scenario.durationMs / 1000}|${topo.label}|gap${gapLabel(bridgeGapMs)}|$seed|${set.label}" +
-            (drive?.let { "|drive=$it" } ?: "") + (calib?.let { "|cal=$it" } ?: "") + (rot?.let { "|rot=$it" } ?: "")
+            (drive?.let { "|drive=$it" } ?: "") + (calib?.let { "|cal=$it" } ?: "") + (rot?.let { "|rot=$it" } ?: "") +
+            (sched?.let { "|sched=$it" } ?: "")
 }
 
 fun gapLabel(ms: Long) = if (ms < 0) "off" else (ms / 1000).toString()
@@ -142,13 +166,14 @@ class StageCRunner(
         settings: ClassSettings?,
         drive: String?,
         rot: StageERotation?,
+        shadows: Boolean = true,
     ): DensitySetup {
         if (rot != null) {
             return DensitySetup(
                 settings = settings,
                 advertRotationMs = rot.periodMs ?: StageERotation.NEVER_MS,
                 advertAligned = rot.aligned,
-                shadowRotations = StageERotation.shadows,
+                shadowRotations = if (shadows) StageERotation.shadows else emptyList(),
             )
         }
         if (drive == null) return DensitySetup(settings = settings)
@@ -188,15 +213,26 @@ class StageCRunner(
         val bridgeOn = spec.topo.adaptive || spec.bridgeGapMs >= 0
         val strategy = if (bridgeOn) StrategyKind.N1N2_BRIDGE else StrategyKind.N1N2
         val params = SelectionParams(bridgeMinGapMs = if (spec.bridgeGapMs >= 0) spec.bridgeGapMs else 10_000)
-        val rot = if (spec.set.stageE) StageERotation.parse(spec.rot ?: StageEPlan.V1_ROTATION) else null
-        val list = if (spec.set.stageE) StageEPlan.instances(spec.set, rot!!) else stageCInstances(spec.set)
+        val rot =
+            when {
+                spec.set.stageE -> StageERotation.parse(spec.rot ?: StageEPlan.V1_ROTATION)
+                spec.set.stageF -> StageERotation.parse(spec.rot ?: StageFPlan.ROTATION)
+                else -> null
+            }
+        val list =
+            when {
+                spec.set.stageE -> StageEPlan.instances(spec.set, rot!!)
+                spec.set.stageF -> StageFPlan.instances(spec)
+                else -> stageCInstances(spec.set)
+            }
         val traffic = stageDTraffic(spec.set).let { t -> rot?.let { t.copy(rotationPhased = true, epochMs = it.periodMs ?: StageERotation.NEVER_MS) } ?: t }
+        val settings = settingsFor(spec.topo)?.let { st -> spec.sched?.let { StageFPlan.withSchedule(st, it) } ?: st }
         val setup = if (list.isEmpty()) null else RoutingSetup(list, traffic)
         val r =
             Simulation(
                 s, strategy, spec.seed, spec.calib?.let { Calibration.named(it) } ?: cal, params, extent,
                 routingSetup = setup,
-                densitySetup = densitySetup(settingsFor(spec.topo), spec.drive, rot),
+                densitySetup = densitySetup(settings, spec.drive, rot, shadows = !spec.set.stageF),
             ).run()
         return r to (System.nanoTime() - t0) / 1_000_000
     }
@@ -268,7 +304,7 @@ object CRaw {
     val keyColumns =
         listOf(
             "runId", "set", "scenario", "density", "nodes", "platform", "degree", "topo", "bridgeGapS", "durationS", "seed",
-            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref", "variant", "rot",
+            "drive", "protocol", "instance", "lifetimeS", "holdS", "skewS", "rotation", "pref", "variant", "rot", "sched",
         )
     private val headers = HashMap<String, List<String>>()
 
@@ -321,7 +357,8 @@ object CRaw {
             values["durationS"] = (s.durationMs / 1000).toString()
             values["seed"] = spec.seed.toString()
             values["drive"] = spec.drive ?: spec.calib ?: "default"
-            values["rot"] = spec.rot ?: (if (spec.set.stageE) StageEPlan.V1_ROTATION else "")
+            values["rot"] = spec.rot ?: (if (spec.set.stageE) StageEPlan.V1_ROTATION else if (spec.set.stageF) StageFPlan.ROTATION else "")
+            values["sched"] = spec.sched ?: (if (spec.set.stageF) StageFPlan.INTERIM else "")
             values["wallMs"] = wallMs.toString()
             for ((k, v) in r.metrics) values["t_$k"] = RawCsv.fmt(v)
             if (inst == null) {

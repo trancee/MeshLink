@@ -23,11 +23,13 @@ class RouteReply(
     val hops: Int,
     /** U6: the message that reached the destination through the data ring (−1 = none). */
     val ackId: Int = -1,
+    /** Stage F A1: expiry of the acknowledged message (simulation metadata for the tombstone; not on the wire). */
+    val ackExpiresAt: Long = 0,
 ) : Packet() {
     override val isControl get() = true
 
     override fun sizeBytes(s: RoutingSizes) =
-        s.headerBytes + 2 * s.tagBytes + 4 + s.hopFieldBytes + 4 + if (ackId >= 0) s.messageIdBytes else 0
+        s.headerBytes + 2 * s.tagBytes + 4 + s.hopFieldBytes + 4 + if (ackId >= 0) s.messageIdBytes + s.tombstoneKeyBytes else 0
 }
 
 /** Stage D K2: end-to-end delivery ack of a routed message, retracing the message's path hop by hop. */
@@ -35,10 +37,12 @@ class DeliveryAck(
     val origin: Long,
     val dst: Long,
     val msgId: Int,
+    /** Stage F A1: expiry of the acknowledged message (simulation metadata for the tombstone; not on the wire). */
+    val expiresAt: Long = 0,
 ) : Packet() {
     override val isControl get() = true
 
-    override fun sizeBytes(s: RoutingSizes) = s.headerBytes + 2 * s.tagBytes + s.messageIdBytes
+    override fun sizeBytes(s: RoutingSizes) = s.headerBytes + 2 * s.tagBytes + s.messageIdBytes + s.tombstoneKeyBytes
 }
 
 /** U4 route error listing unreachable destinations. */
@@ -127,6 +131,40 @@ class OnDemand(
     private var requestId = 0
     private var started = false
 
+    // Stage F state.
+
+    /** A1/A4: messages this phone originated (its outbox), with their expiry. */
+    private val ownIds = HashMap<Int, Long>()
+
+    /** A1: tombstones {message ID, k} by message ID, with the message's expiry; oldest first. */
+    private val tombstones = LinkedHashMap<Int, Long>()
+
+    /** A1: message IDs this phone claimed at catch-up and has not received yet. */
+    private val claimed = HashSet<Int>()
+    private var nextRetag = 0L
+
+    /** RL1: per incoming link, token count and last refill time. */
+    private val buckets = HashMap<Int, DoubleArray>()
+
+    /** A3: outstanding lookups by target NodeId. */
+    private class Lookup(
+        val startedAt: Long,
+    ) {
+        val salts = HashSet<Long>()
+        var attempts = 0
+        var level = 0
+        var gen = 0
+    }
+
+    private val lookups = HashMap<Int, Lookup>()
+    private val lookupSeen = HashMap<Long, Long>()
+    private val lookupBack = HashMap<Long, Pair<Int, Long>>()
+    private val holdEvictor = HoldBudget.Evictor { id -> pending.removeId(id) }
+
+    private fun isLarge(p: DataPacket) = port.params.largeMessages && p.payloadBytes > port.params.holdMaxMsgBytes
+
+    private fun own(id: Int) = ownIds.containsKey(id)
+
     private fun start() {
         if (started) return
         started = true
@@ -139,7 +177,255 @@ class OnDemand(
         if (requestsSeen.size > 256) requestsSeen.entries.removeAll { it.value < t }
         if (routes.size > 64) routes.entries.removeAll { !it.value.valid && t - it.value.expires > 30_000 }
         if (ackBack.size > 64) ackBack.entries.removeAll { it.value.second < t }
+        if (ownIds.size > 256) ownIds.entries.removeAll { it.value < t }
+        if (lookupSeen.size > 256) lookupSeen.entries.removeAll { it.value < t }
+        if (lookupBack.size > 256) lookupBack.entries.removeAll { it.value.second < t }
+        if (port.params.holdForOthers) {
+            if (tombstones.size > 64) tombstones.entries.removeAll { it.value < t }
+            if (t >= nextRetag) {
+                nextRetag = t + port.params.retagCheckMs
+                retagOwn()
+            }
+        }
         port.after(1_000) { sweepLoop() }
+    }
+
+    /** A1: the origin re-tags its own held copies when the destination's tag (or its own) has rotated. */
+    private fun retagOwn() {
+        val moved = ArrayList<DataPacket>()
+        for (p in pending.all()) {
+            if (!own(p.id)) continue
+            val q = port.retag(p) ?: continue
+            pending.removeId(p.id)
+            moved.add(q)
+        }
+        for (q in moved) {
+            port.count("retag")
+            forward(q, -1)
+        }
+    }
+
+    // ---- stage F A1: catch-up, claims, tombstones ----
+
+    private fun addTombstone(
+        id: Int,
+        expiresAt: Long,
+    ) {
+        if (tombstones.containsKey(id)) return
+        tombstones[id] = expiresAt
+        port.count("tombStored")
+        while (tombstones.size > port.params.tombstoneMax) {
+            val it = tombstones.keys.iterator()
+            it.next()
+            it.remove()
+        }
+    }
+
+    /** A tombstone for [id] reached this node: drop any held copy (and remember the tombstone if it mattered here). */
+    private fun onTombstone(
+        id: Int,
+        expiresAt: Long,
+        onPath: Boolean,
+    ) {
+        val held = pending.removeId(id)
+        port.holdBudget()?.release(id)
+        if (held) {
+            port.count(if (onPath) "tombPurgePath" else "tombPurgeCatchUp")
+        }
+        unacked.remove(id)
+        if (held || onPath) addTombstone(id, expiresAt)
+    }
+
+    private fun sendSummary(peer: Int) {
+        val t = port.now()
+        val held = pending.all().filter { it.expiresAt >= t }.distinctBy { it.id }
+        val tombs = tombstones.entries.filter { it.value >= t }
+        if (held.isEmpty() && tombs.isEmpty()) return
+        port.count("summaryUnicastIds", held.size.toLong())
+        port.count("summaryTombstones", tombs.size.toLong())
+        port.send(
+            peer,
+            CatchUpSummary(
+                IntArray(held.size) { held[it].id },
+                LongArray(held.size) { held[it].dstTag },
+                IntArray(tombs.size) { tombs[it].key },
+                LongArray(tombs.size) { tombs[it].value },
+            ),
+        )
+    }
+
+    private fun onSummary(
+        from: Int,
+        s: CatchUpSummary,
+    ) {
+        for (k in s.tombIds.indices) onTombstone(s.tombIds[k], s.tombExpiry[k], onPath = false)
+        val want = ArrayList<Int>()
+        for (k in s.ids.indices) {
+            val id = s.ids[k]
+            if (tombstones.containsKey(id) || claimed.contains(id)) continue
+            if (port.claimsTag(s.dstTags[k])) want.add(id)
+        }
+        if (want.isEmpty()) return
+        claimed.addAll(want)
+        if (claimed.size > 256) claimed.clear()
+        port.count("claimIds", want.size.toLong())
+        port.send(from, Claim(want.toIntArray()))
+    }
+
+    private fun onClaim(
+        from: Int,
+        c: Claim,
+    ) {
+        for (id in c.ids) {
+            val p = pending.find(id) ?: continue
+            if (port.expired(p)) continue
+            if (port.send(from, DataPacket(p.id, p.srcTag, p.dstTag, p.expiresAt, p.payloadBytes, p.hops + 1, p.hopLimit))) {
+                port.count("claimServed")
+            }
+        }
+    }
+
+    /** Delivery at the destination: A1 keeps a tombstone; K2 acknowledges back to [from] with the tombstone. */
+    private fun deliverHere(
+        p: DataPacket,
+        from: Int,
+        viaClaim: Boolean,
+    ) {
+        if (viaClaim) port.deliverClaimed(p) else port.deliver(p)
+        if (port.params.holdForOthers) addTombstone(p.id, p.expiresAt)
+        if (port.params.deliveryAck && from >= 0) port.send(from, DeliveryAck(p.srcTag, p.dstTag, p.id, p.expiresAt))
+    }
+
+    /** A1: a message held for others must fit the shared quota; [from] is the incoming link (−1 unknown). */
+    private fun admitHeld(
+        p: DataPacket,
+        from: Int,
+    ): Boolean {
+        val b = port.holdBudget() ?: return true
+        if (b.admit(p.id, p.payloadBytes, from, p.expiresAt, port.now(), holdEvictor)) return true
+        port.drop(p, DropReason.HOLD_FULL)
+        return false
+    }
+
+    // ---- stage F RL1 ----
+
+    private fun allowRequest(from: Int): Boolean {
+        val rate = port.params.rateLimitPerS
+        if (rate <= 0.0 || from < 0) return true
+        val t = port.now()
+        val b = buckets.getOrPut(from) { doubleArrayOf(port.params.rateLimitBurst, t.toDouble()) }
+        b[0] = minOf(port.params.rateLimitBurst, b[0] + (t - b[1]) / 1000.0 * rate)
+        b[1] = t.toDouble()
+        if (b[0] >= 1.0) {
+            b[0] -= 1.0
+            return true
+        }
+        port.count("rlDropped")
+        return false
+    }
+
+    // ---- stage F A3: certificate lookups ----
+
+    private fun lookupWaitMs() = 2 * port.params.nodeTraversalMs * port.params.netDiameter
+
+    override fun lookup(target: Int) {
+        start()
+        if (lookups.containsKey(target)) return
+        val l = Lookup(port.now())
+        lookups[target] = l
+        port.count("lookupEpisodes")
+        sendLookup(target, l)
+    }
+
+    private fun newSalt() = (port.random.nextDouble() * 9.0E15).toLong() xor (self.toLong() shl 53)
+
+    private fun sendLookup(
+        target: Int,
+        l: Lookup,
+    ) {
+        val salt = newSalt()
+        l.salts.add(salt)
+        l.attempts++
+        lookupSeen[salt] = port.now() + lookupWaitMs()
+        port.count("lookupTx")
+        port.lookupSent(target)
+        for (peer in port.linkedPeers()) port.send(peer, LookupRequest(salt, target, self, 0))
+        val gen = ++l.gen
+        port.after(lookupWaitMs()) { onLookupTimeout(target, l, gen) }
+    }
+
+    private fun onLookupTimeout(
+        target: Int,
+        l: Lookup,
+        gen: Int,
+    ) {
+        if (lookups[target] !== l || l.gen != gen) return
+        if (!port.lookupWanted(target)) {
+            lookups.remove(target)
+            return
+        }
+        val p = port.params
+        // ADR 0008 unicast schedule: the request and its retries at full range, then held retries with backoff.
+        if (l.attempts % (p.rreqRetries + 1) != 0) {
+            sendLookup(target, l)
+            return
+        }
+        val c = cls()
+        val lo = p.classPolicy?.retryMinMs?.get(c) ?: p.sfRetryMinMs
+        val hi = p.classPolicy?.retryMaxMs?.get(c) ?: p.sfRetryMaxMs
+        val delay = minOf(hi, lo shl minOf(l.level, 20))
+        l.level++
+        val g = ++l.gen
+        port.after(delay) {
+            if (lookups[target] !== l || l.gen != g) return@after
+            if (!port.lookupWanted(target)) {
+                lookups.remove(target)
+                return@after
+            }
+            sendLookup(target, l)
+        }
+    }
+
+    override fun attackLookup(target: Int) {
+        start()
+        val salt = newSalt()
+        lookupSeen[salt] = port.now() + lookupWaitMs()
+        port.count("attackLookups")
+        for (peer in port.linkedPeers()) port.send(peer, LookupRequest(salt, target, self, 0))
+    }
+
+    private fun onLookupRequest(
+        from: Int,
+        q: LookupRequest,
+    ) {
+        val t = port.now()
+        if ((lookupSeen[q.salt] ?: Long.MIN_VALUE) >= t) return
+        lookupSeen[q.salt] = t + lookupWaitMs()
+        if (!allowRequest(from)) return
+        lookupBack[q.salt] = from to t + lookupWaitMs()
+        if (q.target == self || port.hasCert(q.target)) {
+            port.count(if (q.target == self) "lookupAnsSelf" else "lookupAnsCache")
+            port.send(from, LookupReply(q.salt, q.target, port.certBytes(q.requester, q.target), q.hops + 1, q.requester))
+            return
+        }
+        if (q.hops + 1 >= port.params.netDiameter) return
+        relayAll(LookupRequest(q.salt, q.target, q.requester, q.hops + 1), from)
+    }
+
+    private fun onLookupReply(
+        from: Int,
+        a: LookupReply,
+    ) {
+        if (a.requester == self) port.count("lookupReplyAtReq")
+        val l = lookups[a.target]
+        if (l != null && a.salt in l.salts) {
+            lookups.remove(a.target)
+            port.lookupDone(a.target, port.now() - l.startedAt, a.answerHops)
+            return
+        }
+        val (back, until) = (if (port.params.lookupReplyDedupe) lookupBack.remove(a.salt) else lookupBack[a.salt]) ?: return
+        if (until < port.now() || !port.isLinked(back)) return
+        port.send(back, a)
     }
 
     private fun usable(dst: Long): Route? {
@@ -194,6 +480,7 @@ class OnDemand(
 
     override fun onLinkUp(peer: Int) {
         start()
+        if (port.params.holdForOthers) sendSummary(peer)
         val retry = port.params.classPolicy?.linkUpRetry?.get(cls()) ?: port.params.sfTuned
         if (!retry) return
         // A new link may connect a held destination: re-discover (rate-limited per destination).
@@ -255,6 +542,10 @@ class OnDemand(
             is RouteReply -> onReply(from, packet)
             is RouteError -> onError(from, packet)
             is DeliveryAck -> onAck(from, packet)
+            is CatchUpSummary -> onSummary(from, packet)
+            is Claim -> onClaim(from, packet)
+            is LookupRequest -> onLookupRequest(from, packet)
+            is LookupReply -> onLookupReply(from, packet)
             is DataPacket -> if (packet.scope >= 0) onRing(from, packet) else forward(packet, from)
             else -> {}
         }
@@ -274,6 +565,7 @@ class OnDemand(
         val t = port.now()
         if ((requestsSeen[key] ?: Long.MIN_VALUE) >= t) return
         requestsSeen[key] = t + 2 * port.params.nodeTraversalMs * port.params.netDiameter
+        if (!allowRequest(from)) return
         upsert(q.origin, from, q.hops + 1, q.originSeq, reverseMs())
         // Tuned holding: the destination's own request just gave a route to it.
         if (port.params.sfTuned && pending.has(q.origin)) flush(q.origin)
@@ -299,7 +591,10 @@ class OnDemand(
         a: RouteReply,
     ) {
         val fwd = upsert(a.dst, from, a.hops + 1, a.dstSeq, maxOf(2 * port.params.activeRouteMs, port.params.convKeepMs))
-        if (a.ackId >= 0) pending.remove(a.dst, a.ackId)
+        if (a.ackId >= 0) {
+            pending.remove(a.dst, a.ackId)
+            if (port.params.holdForOthers) onTombstone(a.ackId, a.ackExpiresAt, onPath = true)
+        }
         if (port.acceptsTag(a.origin)) {
             discoveries.remove(a.dst)
             flush(a.dst)
@@ -310,7 +605,7 @@ class OnDemand(
         val back = usable(a.origin) ?: return
         fwd.precursors.add(back.next)
         back.precursors.add(from)
-        port.send(back.next, RouteReply(a.origin, a.dst, a.dstSeq, a.hops + 1, a.ackId))
+        port.send(back.next, RouteReply(a.origin, a.dst, a.dstSeq, a.hops + 1, a.ackId, a.ackExpiresAt))
     }
 
     private fun onError(
@@ -335,6 +630,12 @@ class OnDemand(
 
     override fun originate(packet: DataPacket) {
         start()
+        if (port.params.holdForOthers || port.params.largeMessages) ownIds[packet.id] = packet.expiresAt
+        if (isLarge(packet)) {
+            // ADR 0015: never flooded, in any class: a direct link or a route found by route request.
+            forward(packet, -1)
+            return
+        }
         val sparse = port.params.sparseFloodBelow
         val est = port.densityEstimate()
         if (floodAll() || (sparse > 0 && est >= 0 && est < sparse)) floodOut(packet) else forward(packet, -1)
@@ -372,9 +673,12 @@ class OnDemand(
             learnBack(p, from)
             if (port.params.deliveryAck) ackBack[p.id] = from to port.now() + 10_000
         }
+        if (from >= 0 && claimed.remove(p.id)) {
+            deliverHere(p, from, viaClaim = true)
+            return
+        }
         if (from >= 0 && port.acceptsTag(p.dstTag)) {
-            port.deliver(p)
-            if (port.params.deliveryAck) port.send(from, DeliveryAck(p.srcTag, p.dstTag, p.id))
+            deliverHere(p, from, viaClaim = false)
             return
         }
         val r = usable(p.dstTag)
@@ -389,6 +693,15 @@ class OnDemand(
             port.drop(p, DropReason.HOP_LIMIT)
             return
         }
+        if (!own(p.id)) {
+            // A4: relays forward large messages but never hold them; only the origin holds and retries.
+            if (isLarge(p)) {
+                port.count("lgRelayDrop")
+                port.drop(p, DropReason.NO_ROUTE)
+                return
+            }
+            if (port.params.holdForOthers && !admitHeld(p, from)) return
+        }
         pending.wait(p)
         if (!discoveries.containsKey(p.dstTag) && !retryScheduled.contains(p.dstTag)) discover(p.dstTag)
     }
@@ -399,6 +712,7 @@ class OnDemand(
         from: Int,
     ): Boolean {
         if (!port.send(r.next, p.forwarded())) return false
+        if (port.params.holdForOthers) port.holdBudget()?.release(p.id)
         val t = port.now()
         val keep = keepMs()
         r.expires = maxOf(r.expires, t + keep)
@@ -435,10 +749,12 @@ class OnDemand(
     ) {
         if (unacked.containsKey(p.id)) return
         unacked[p.id] = p
-        val wait = port.params.ackWaitMs + 2 * port.params.dataNodeTraversalMs * hops
+        val bulk = if (isLarge(p)) (hops * p.payloadBytes / port.params.largeAckBytesPerMs).toLong() else 0L
+        val wait = port.params.ackWaitMs + 2 * port.params.dataNodeTraversalMs * hops + bulk
         port.after(wait) {
             val q = unacked.remove(p.id) ?: return@after
             if (port.expired(q)) return@after
+            if (isLarge(q)) port.count("lgResend")
             routes[q.dstTag]?.let { if (it.valid) it.valid = false }
             forward(DataPacket(q.id, q.srcTag, q.dstTag, q.expiresAt, q.payloadBytes, 0, q.hopLimit), -1)
         }
@@ -450,6 +766,7 @@ class OnDemand(
     ) {
         val t = port.now()
         routes[a.dst]?.let { fwd -> if (fwd.valid && fwd.next == from) fwd.expires = maxOf(fwd.expires, t + keepMs()) }
+        if (port.params.holdForOthers) onTombstone(a.msgId, a.expiresAt, onPath = true)
         if (port.acceptsTag(a.origin)) {
             unacked.remove(a.msgId)
             return
@@ -464,7 +781,7 @@ class OnDemand(
         val p = port.params
         val hops = minOf(ringHops(), p.netDiameter)
         val head = if (hops > 0) pending.waiting.peek(dst) ?: pending.held.peek(dst) else null
-        if (head != null && ringed.add(head.id) && !port.expired(head)) {
+        if (head != null && !isLarge(head) && ringed.add(head.id) && !port.expired(head)) {
             // U6: no route, so flood the message itself a few hops; it doubles as the route request.
             val d = Discovery(hops, if (hops >= p.netDiameter) p.rreqRetries else 0, 0)
             discoveries[dst] = d
@@ -504,8 +821,10 @@ class OnDemand(
         upsert(p.srcTag, from, p.hops, routes[p.srcTag]?.seq ?: 0, reverseMs())
         if (port.acceptsTag(p.dstTag)) {
             port.deliver(p)
+            if (port.params.holdForOthers) addTombstone(p.id, p.expiresAt)
             ownSeq++
-            port.send(from, RouteReply(p.srcTag, port.ownTag(), ownSeq, 0, p.id))
+            val me = if (port.params.convTags) p.dstTag else port.ownTag()
+            port.send(from, RouteReply(p.srcTag, me, ownSeq, 0, p.id, p.expiresAt))
             return
         }
         if (p.hops >= p.hopLimit) {
@@ -529,6 +848,8 @@ class OnDemand(
         val p = port.params
         ownSeq++
         val q = RouteRequest(++requestId, port.ownTag(), ownSeq, dst, routes[dst]?.seq ?: 0, 0, d.radius)
+        port.count("rreqOrig")
+        if (port.isConvTag(dst)) port.count("rreqConv")
         requestsSeen[requestKey(q.origin, q.requestId)] = port.now() + 2 * p.nodeTraversalMs * p.netDiameter
         for (peer in port.linkedPeers()) port.send(peer, q)
         val wait =
@@ -610,4 +931,13 @@ class OnDemand(
     override fun tableSize() = routes.size
 
     override fun heldCount() = pending.size
+
+    override fun hasRoute(tag: Long) = usable(tag) != null
+
+    override fun prefetch(tag: Long) {
+        start()
+        if (usable(tag) != null || discoveries.containsKey(tag) || retryScheduled.contains(tag)) return
+        port.count("prefetch")
+        discover(tag)
+    }
 }

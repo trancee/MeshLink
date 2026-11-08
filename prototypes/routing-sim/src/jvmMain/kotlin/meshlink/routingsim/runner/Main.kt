@@ -57,6 +57,7 @@ fun main(args: Array<String>) {
         "c-report" -> stageCReport(out)
         "d-pilot", "d-run", "d-aggregate", "d-report", "d-ios3-report" -> stageD(command, args.drop(1), out)
         "e-pilot", "e-run", "e-aggregate", "e-report" -> stageE(command, args.drop(1), out)
+        "f-pilot", "f-run", "f-aggregate", "f-report", "f2-report", "f-check" -> stageF(command, args.drop(1), out)
         else ->
             println(
                 """

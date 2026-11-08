@@ -45,9 +45,9 @@ object StageDVariant {
                     "PIN" -> q.copy(classPolicy = pinnedPolicy, pinFlood = true)
                     "FG" -> q.copy(graftTimeoutMs = 150, graftRetryMs = 100)
                     "CU" -> q.copy(catchUpMs = 60_000)
-                    else -> if (StageEVariant.handles(flag)) q else error("unknown stage D variant flag $flag")
+                    else -> if (StageEVariant.handles(flag) || StageFVariant.handles(flag)) q else error("unknown stage D variant flag $flag")
                 }
         }
-        return q
+        return StageFVariant.apply(variant, q)
     }
 }

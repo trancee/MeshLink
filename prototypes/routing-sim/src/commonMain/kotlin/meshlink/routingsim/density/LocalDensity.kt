@@ -132,4 +132,7 @@ class ClassSettings(
     val fastAdvertising: BooleanArray,
     /** Bridge rate limit; negative disables the bridge preference. */
     val bridgeGapMs: LongArray,
+    /** Stage F: scan schedule as on-ticks then off-ticks per class (overrides [scanEvery] when set). */
+    val scanOnTicks: IntArray? = null,
+    val scanOffTicks: IntArray? = null,
 )

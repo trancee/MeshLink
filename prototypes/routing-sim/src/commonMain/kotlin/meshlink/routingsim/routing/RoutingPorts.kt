@@ -11,6 +11,10 @@ class RoutingSizes(
     val hopFieldBytes: Int = 2,
     val seqBytes: Int = 2,
     val metricBytes: Int = 2,
+    /** Stage F A1 (ADR 0014): commitment H(k) in every unicast header (0 = off). */
+    val commitBytes: Int = 0,
+    /** Stage F A1: tombstone secret k that a delivery receipt carries in clear (0 = off). */
+    val tombstoneKeyBytes: Int = 0,
 )
 
 /** Protocol tunables. Times in milliseconds (node-local clock). */
@@ -97,6 +101,29 @@ data class RoutingParams(
     val gsPruneBackoffMs: Long = 10_000,
     val gsIdontwantThresholdBytes: Int = 1_024,
     val gsFloodPublish: Boolean = true,
+    // Stage F (see StageFVariant).
+    /** A1 (ADR 0014): holding quota for others, catch-up summaries and claims, tombstones, origin re-tagging. */
+    val holdForOthers: Boolean = false,
+    val holdQuotaMsgs: Int = 100,
+    val holdQuotaBytes: Long = 512L * 1024,
+    /** Only messages at most this large are held for others (ADR 0015); larger ones count as large messages. */
+    val holdMaxMsgBytes: Int = 4 * 1024,
+    val tombstoneMax: Int = 1_000,
+    /** A1: how often the origin re-tags its own held copies (the destination's tag rotates). */
+    val retagCheckMs: Long = 10_000,
+    /** A2 (ADR 0016): conversation tags; a data ring reply names the tag the message was addressed to. */
+    val convTags: Boolean = false,
+    /** A3 (ADR 0018): certificate lookups before a first message to a node without a cached certificate. */
+    val certLookup: Boolean = false,
+    /** Diagnostic: a relay forwards only the first lookup reply per request. */
+    val lookupReplyDedupe: Boolean = false,
+    /** A4 (ADR 0015): messages above [holdMaxMsgBytes] are never flooded and never held by relays. */
+    val largeMessages: Boolean = false,
+    /** A4: assumed bulk rate for the ack wait of a large message, bytes per millisecond per hop. */
+    val largeAckBytesPerMs: Double = 10.0,
+    /** RL1: per-incoming-link token bucket for route requests and lookups together (0 = off). */
+    val rateLimitPerS: Double = 0.0,
+    val rateLimitBurst: Double = 5.0,
 )
 
 /** Anything sent over a link by a routing protocol. */
@@ -141,7 +168,7 @@ class DataPacket(
     ) = DataPacket(id, srcTag, dstTag, expiresAt, payloadBytes, hops + 1, hopLimit, route, routeIndex, scope)
 
     override fun sizeBytes(s: RoutingSizes): Int =
-        s.headerBytes + s.messageIdBytes + s.tagBytes + (if (isBroadcast) 0 else s.tagBytes) + s.expiryBytes +
+        s.headerBytes + s.messageIdBytes + s.tagBytes + (if (isBroadcast) 0 else s.tagBytes + s.commitBytes) + s.expiryBytes +
             s.hopFieldBytes + (route?.size ?: 0) * s.tagBytes + payloadBytes
 }
 
@@ -203,6 +230,51 @@ interface RoutingPort {
 
     /** This phone's own smoothed count of peers heard (driving estimator), −1 before its first scan. */
     fun densityEstimate(): Double = -1.0
+
+    // Stage F hooks (defaults: off).
+
+    /** A1: the node's quota for messages held for others, shared by the arm's unicast and broadcast instances. */
+    fun holdBudget(): HoldBudget? = null
+
+    /** A1 claims: [tag] is one of this node's public tags within the maximum lifetime or an active conversation tag. */
+    fun claimsTag(tag: Long): Boolean = acceptsTag(tag)
+
+    /** A1: the origin's copy [p] re-tagged for the current epochs, or null when nothing changed. */
+    fun retag(p: DataPacket): DataPacket? = null
+
+    /** A1: [p] arrived because this node claimed it at catch-up (counts claim deliveries). */
+    fun deliverClaimed(p: DataPacket) = deliver(p)
+
+    /** A3: this node holds a valid certificate for node [target] (cache or itself). */
+    fun hasCert(target: Int): Boolean = false
+
+    /** A3: size of the certificate for [target] as a responder would send it to [requester]. */
+    fun certBytes(
+        requester: Int,
+        target: Int,
+    ): Int = 140
+
+    /** A3: messages still wait for [target]'s certificate (keep looking up). */
+    fun lookupWanted(target: Int): Boolean = false
+
+    /** A3: a lookup for [target] succeeded after [elapsedMs]; the first reply came from [answerHops] hops away. */
+    fun lookupDone(
+        target: Int,
+        elapsedMs: Long,
+        answerHops: Int,
+    ) {}
+
+    /** Simulation-only trace hook: a lookup request (first try or retry) for [target] left this node. */
+    fun lookupSent(target: Int) {}
+
+    /** A2: [tag] is a per-conversation tag (for counters only). */
+    fun isConvTag(tag: Long) = false
+
+    /** Event counters for stage F metrics and sanity checks (measured window only). */
+    fun count(
+        key: String,
+        n: Long = 1,
+    ) {}
 }
 
 /**
@@ -257,6 +329,18 @@ interface Routing {
     fun seenSize(): Int = 0
 
     fun heldCount(): Int = 0
+
+    /** Stage F A3: look up node [target]'s certificate (unicast instances with lookups). */
+    fun lookup(target: Int) {}
+
+    /** A2L: a usable route to [tag] exists. */
+    fun hasRoute(tag: Long) = false
+
+    /** A2L: discover a route to [tag] in the background (no message waiting) unless one exists or is being found. */
+    fun prefetch(tag: Long) {}
+
+    /** Stage F rate-limit test: a misbehaving node floods one lookup for a node that does not exist. */
+    fun attackLookup(target: Int) {}
 }
 
 /** Generic control packet with a fixed size. */
@@ -318,6 +402,27 @@ class HoldQueue(
     }
 
     fun destinations(): List<Long> = byDst.keys.toList()
+
+    /** Every queued message (stage F catch-up summaries). */
+    fun all(): List<DataPacket> = byDst.values.flatten()
+
+    fun find(id: Int): DataPacket? {
+        for (list in byDst.values) for (p in list) if (p.id == id) return p
+        return null
+    }
+
+    /** Removes message [id] whatever its destination tag; returns true if it was queued. */
+    fun removeId(id: Int): Boolean {
+        val it = byDst.values.iterator()
+        var found = false
+        while (it.hasNext()) {
+            val list = it.next()
+            if (list.removeAll { p -> p.id == id }) found = true
+            if (list.isEmpty()) it.remove()
+        }
+        if (found) size = byDst.values.sumOf { it.size }
+        return found
+    }
 
     /** Removes and returns the unexpired messages for [dst]; expired ones are dropped. */
     fun take(dst: Long): List<DataPacket> {
@@ -507,4 +612,118 @@ class PendingRoutes(
     }
 
     val size get() = waiting.size + held.size
+
+    fun all(): List<DataPacket> = waiting.all() + held.all()
+
+    fun find(id: Int): DataPacket? = waiting.find(id) ?: held.find(id)
+
+    fun removeId(id: Int): Boolean {
+        val a = waiting.removeId(id)
+        val b = held.removeId(id)
+        return a || b
+    }
+}
+
+/**
+ * Stage F A1 (ADR 0014 decisions 4 and 5): quota for messages held for others, shared by one node's unicast and
+ * broadcast instances of an arm. At most [maxMsgs] messages and [maxBytes]; one incoming link may fill at most a
+ * quarter of each. Eviction: expired first; when full, the entry closest to expiry of the link furthest over its
+ * fair share (quota ÷ links holding), otherwise the entry closest to expiry if the new message lives longer.
+ */
+class HoldBudget(
+    private val maxMsgs: Int,
+    private val maxBytes: Long,
+    private val maxItemBytes: Int,
+    /** Counters: 0 admitted, 1 rejected (too large), 2 rejected (link share), 3 rejected (full), 4 evicted. */
+    val counters: LongArray,
+    private val measuring: () -> Boolean,
+) {
+    fun interface Evictor {
+        fun evict(id: Int)
+    }
+
+    private class Entry(
+        val id: Int,
+        val bytes: Int,
+        val from: Int,
+        val expiresAt: Long,
+        val owner: Evictor,
+    )
+
+    private val entries = LinkedHashMap<Int, Entry>()
+    var bytes = 0L
+        private set
+
+    val size get() = entries.size
+
+    private fun note(k: Int) {
+        if (measuring()) counters[k]++
+    }
+
+    fun contains(id: Int) = entries.containsKey(id)
+
+    fun release(id: Int) {
+        val e = entries.remove(id) ?: return
+        bytes -= e.bytes
+    }
+
+    private fun evict(e: Entry) {
+        release(e.id)
+        e.owner.evict(e.id)
+    }
+
+    fun admit(
+        id: Int,
+        size: Int,
+        from: Int,
+        expiresAt: Long,
+        now: Long,
+        owner: Evictor,
+    ): Boolean {
+        if (entries.containsKey(id)) return true
+        if (size > maxItemBytes) {
+            note(1)
+            return false
+        }
+        for (e in entries.values.filter { it.expiresAt < now }) evict(e)
+        var fromCount = 0
+        var fromBytes = 0L
+        for (e in entries.values) {
+            if (e.from == from) {
+                fromCount++
+                fromBytes += e.bytes
+            }
+        }
+        if (fromCount + 1 > maxMsgs / 4 || fromBytes + size > maxBytes / 4) {
+            note(2)
+            return false
+        }
+        while (entries.size + 1 > maxMsgs || bytes + size > maxBytes) {
+            val victim = victim(from, expiresAt)
+            if (victim == null) {
+                note(3)
+                return false
+            }
+            evict(victim)
+            note(4)
+        }
+        entries[id] = Entry(id, size, from, expiresAt, owner)
+        bytes += size
+        note(0)
+        return true
+    }
+
+    private fun victim(
+        from: Int,
+        expiresAt: Long,
+    ): Entry? {
+        val perLink = HashMap<Int, Int>()
+        for (e in entries.values) perLink[e.from] = (perLink[e.from] ?: 0) + 1
+        if (perLink.isEmpty()) return null
+        val fair = maxMsgs.toDouble() / perLink.size
+        val over = perLink.entries.filter { it.key != from && it.value > fair }.maxByOrNull { it.value }
+        if (over != null) return entries.values.filter { it.from == over.key }.minByOrNull { it.expiresAt }
+        val oldest = entries.values.minByOrNull { it.expiresAt } ?: return null
+        return if (expiresAt > oldest.expiresAt) oldest else null
+    }
 }
