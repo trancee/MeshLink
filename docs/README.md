@@ -10,6 +10,7 @@ MeshLink is in its design phase. No library code exists yet, so this page lists 
 
 | Topic | Source |
 |---|---|
+| Bytes on the wire, derivations, limits and conformance vectors (protocol 1, Draft) | [Protocol spec](spec/README.md) |
 | What each security profile guarantees | [Security profile guarantees](reference/security-profile-guarantees.md) |
 | What relays and neighbors learn from routing messages | [What each observer learns](reference/observer-exposure.md) |
 | Dependencies and tools, with their rationale | [Dependency register](reference/dependencies.md) |

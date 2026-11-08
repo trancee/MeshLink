@@ -1,0 +1,102 @@
+{
+  "$schema": "./constants.schema.json",
+  "title": "MeshLink protocol 1 constants",
+  "entries": [
+    {
+      "name": "protocol-version",
+      "value": "0x01",
+      "decision": "-",
+      "source": "ADR 0012 decision 6; ADR 0019 decision 2"
+    },
+    {
+      "name": "mesh-service-uuid16",
+      "value": "0x4D455348",
+      "decision": "-",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "name": "mesh-service-uuid",
+      "value": "4D455348-0000-1000-8000-00805F9B34FB",
+      "decision": "-",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "name": "capability-characteristic-uuid",
+      "value": "4D455348-4D4C-4E4B-8001-000000000001",
+      "decision": "D-13",
+      "source": "ADR 0009 decision 1"
+    },
+    {
+      "name": "central-to-peripheral-characteristic-uuid",
+      "value": "4D455348-4D4C-4E4B-8001-000000000002",
+      "decision": "D-13",
+      "source": "ADR 0009 decision 1"
+    },
+    {
+      "name": "peripheral-to-central-characteristic-uuid",
+      "value": "4D455348-4D4C-4E4B-8001-000000000003",
+      "decision": "D-13",
+      "source": "ADR 0009 decision 1"
+    },
+    {
+      "name": "noise-xx",
+      "value": "Noise_XX_25519_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "noise-xxpsk3",
+      "value": "Noise_XXpsk3_25519_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "noise-xxhfs",
+      "value": "Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "noise-xxhfspsk3",
+      "value": "Noise_XXhfspsk3_25519+ML-KEM-768_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "noise-ik",
+      "value": "Noise_IK_25519_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "noise-ikhfs",
+      "value": "Noise_IKhfs_25519+ML-KEM-768_ChaChaPoly_SHA256",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "hpke-kem",
+      "value": "0x647A",
+      "decision": "-",
+      "source": "ADR 0004 amendment"
+    },
+    {
+      "name": "hpke-kdf",
+      "value": "0x0001",
+      "decision": "D-35",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "hpke-aead",
+      "value": "0x0003",
+      "decision": "D-35",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "hpke-mode",
+      "value": "0x00",
+      "decision": "D-35",
+      "source": "ADR 0002 decision"
+    }
+  ]
+}

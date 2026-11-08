@@ -1,0 +1,559 @@
+{
+  "$schema": "./limits.schema.json",
+  "title": "MeshLink protocol 1 limits and timers",
+  "entries": [
+    {
+      "name": "advertisement-length",
+      "value": 16,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0012 decision 10"
+    },
+    {
+      "name": "advertisement-layout-version",
+      "value": 1,
+      "unit": "-",
+      "decision": "D-12",
+      "source": "ADR 0012 decision 10"
+    },
+    {
+      "name": "mesh-id-min-length",
+      "value": 1,
+      "unit": "B",
+      "decision": "D-03",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "name": "mesh-id-max-length",
+      "value": 64,
+      "unit": "B",
+      "decision": "D-03",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "name": "epoch-length",
+      "value": 300,
+      "unit": "s",
+      "decision": "D-02",
+      "source": "ADR 0010 decision 3; ADR 0008 decision 6"
+    },
+    {
+      "name": "epoch-acceptance",
+      "value": 1,
+      "unit": "epochs",
+      "decision": "D-02",
+      "source": "ADR 0010 decision 3"
+    },
+    {
+      "name": "certificate-version",
+      "value": 1,
+      "unit": "-",
+      "decision": "D-11",
+      "source": "ADR 0012 decision 9"
+    },
+    {
+      "name": "certificate-classical-length",
+      "value": 138,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0012 decision 9"
+    },
+    {
+      "name": "certificate-post-quantum-length",
+      "value": 1354,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0012 decision 9"
+    },
+    {
+      "name": "certificate-validity-max",
+      "value": 86400,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0014 decision 9"
+    },
+    {
+      "name": "certificate-renewal-interval",
+      "value": 43200,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0014 decision 9"
+    },
+    {
+      "name": "static-key-grace",
+      "value": 3630,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0014 decision 9"
+    },
+    {
+      "name": "clock-skew",
+      "value": 30,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 5"
+    },
+    {
+      "name": "versions-max",
+      "value": 8,
+      "unit": "versions",
+      "decision": "D-14",
+      "source": "ADR 0019 amendment to ADR 0012"
+    },
+    {
+      "name": "capability-record-max",
+      "value": 512,
+      "unit": "B",
+      "decision": "D-14",
+      "source": "ADR 0009 decision 1"
+    },
+    {
+      "name": "record-body-min",
+      "value": 1,
+      "unit": "B",
+      "decision": "D-19",
+      "source": "ADR 0012 decision 3"
+    },
+    {
+      "name": "record-body-max",
+      "value": 1024,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 5"
+    },
+    {
+      "name": "aead-tag-length",
+      "value": 16,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "frame-small-max",
+      "value": 8192,
+      "unit": "B",
+      "decision": "D-19",
+      "source": "ADR 0015 decisions 1 and 3"
+    },
+    {
+      "name": "frame-max",
+      "value": 139264,
+      "unit": "B",
+      "decision": "D-19",
+      "source": "ADR 0015 decision 1"
+    },
+    {
+      "name": "fragment-index-max",
+      "value": 32767,
+      "unit": "-",
+      "decision": "-",
+      "source": "ADR 0012 decision 4"
+    },
+    {
+      "name": "handshake-message-max",
+      "value": 4096,
+      "unit": "B",
+      "decision": "D-20",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "handshake-half-open-per-link",
+      "value": 1,
+      "unit": "handshakes",
+      "decision": "D-20",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "handshake-half-open-global",
+      "value": 8,
+      "unit": "handshakes",
+      "decision": "D-20",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "handshake-timeout",
+      "value": 10,
+      "unit": "s",
+      "decision": "D-20",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "handshake-neighbor-interval",
+      "value": 2,
+      "unit": "s",
+      "decision": "D-20",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "rekey-interval",
+      "value": 3600,
+      "unit": "s",
+      "decision": "D-21",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "rekey-records",
+      "value": 65536,
+      "unit": "records",
+      "decision": "D-21",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "reassemblies-per-link",
+      "value": 4,
+      "unit": "streams",
+      "decision": "-",
+      "source": "ADR 0015 decision 6"
+    },
+    {
+      "name": "large-reassemblies-per-link",
+      "value": 1,
+      "unit": "streams",
+      "decision": "-",
+      "source": "ADR 0015 decision 6"
+    },
+    {
+      "name": "large-reassembly-budget",
+      "value": 1048576,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 7"
+    },
+    {
+      "name": "stream-idle-timeout",
+      "value": 10,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0015 decision 6"
+    },
+    {
+      "name": "unicast-payload-small-max",
+      "value": 4096,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 1"
+    },
+    {
+      "name": "unicast-payload-max",
+      "value": 131072,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 1"
+    },
+    {
+      "name": "broadcast-payload-max",
+      "value": 1024,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 2"
+    },
+    {
+      "name": "padding-block",
+      "value": 32,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0012 decision 11"
+    },
+    {
+      "name": "neighbor-list-max",
+      "value": 32,
+      "unit": "entries",
+      "decision": "D-24",
+      "source": "ADR 0016 decision 3"
+    },
+    {
+      "name": "neighbor-list-min-interval",
+      "value": 2,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 1; v1-parameters"
+    },
+    {
+      "name": "shuffle-interval",
+      "value": 10,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 1; v1-parameters"
+    },
+    {
+      "name": "shuffle-entries-max",
+      "value": 5,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0008 decision 1; v1-parameters"
+    },
+    {
+      "name": "catch-up-offered-max",
+      "value": 128,
+      "unit": "entries",
+      "decision": "D-25",
+      "source": "ADR 0014 decision 7"
+    },
+    {
+      "name": "catch-up-held-max",
+      "value": 100,
+      "unit": "entries",
+      "decision": "D-25",
+      "source": "ADR 0014 decisions 4 and 7"
+    },
+    {
+      "name": "catch-up-tombstones-max",
+      "value": 128,
+      "unit": "entries",
+      "decision": "D-25",
+      "source": "ADR 0014 decision 7"
+    },
+    {
+      "name": "catch-up-window",
+      "value": 60,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 5; v1-parameters"
+    },
+    {
+      "name": "ihave-ids-max",
+      "value": 32,
+      "unit": "entries",
+      "decision": "D-26",
+      "source": "ADR 0008 decision 3"
+    },
+    {
+      "name": "graft-timeout-base",
+      "value": 500,
+      "unit": "ms",
+      "decision": "-",
+      "source": "ADR 0008 decision 3"
+    },
+    {
+      "name": "graft-timeout-per-announcer",
+      "value": 250,
+      "unit": "ms",
+      "decision": "-",
+      "source": "ADR 0008 amendments; v1-parameters"
+    },
+    {
+      "name": "hop-limit-default",
+      "value": 255,
+      "unit": "hops",
+      "decision": "-",
+      "source": "ADR 0008 decision 6"
+    },
+    {
+      "name": "route-request-radius",
+      "value": 64,
+      "unit": "hops",
+      "decision": "-",
+      "source": "ADR 0008 decision 4; v1-parameters"
+    },
+    {
+      "name": "u6-flood-radius",
+      "value": 3,
+      "unit": "hops",
+      "decision": "-",
+      "source": "ADR 0008 decision 3; v1-parameters"
+    },
+    {
+      "name": "route-active-timeout",
+      "value": 30,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 4"
+    },
+    {
+      "name": "forward-route-timeout",
+      "value": 60,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 4; v1-parameters"
+    },
+    {
+      "name": "reverse-route-timeout",
+      "value": 6,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 4; v1-parameters"
+    },
+    {
+      "name": "unicast-seen-window",
+      "value": 1000,
+      "unit": "ms",
+      "decision": "D-29",
+      "source": "ADR 0008 decision 3 and amendments"
+    },
+    {
+      "name": "message-lifetime-min",
+      "value": 120,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0014 decision 2"
+    },
+    {
+      "name": "message-lifetime-max",
+      "value": 3600,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0014 decision 2"
+    },
+    {
+      "name": "hold-messages",
+      "value": 100,
+      "unit": "messages",
+      "decision": "-",
+      "source": "ADR 0014 decision 4"
+    },
+    {
+      "name": "hold-bytes",
+      "value": 524288,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 7"
+    },
+    {
+      "name": "hold-link-share-divisor",
+      "value": 4,
+      "unit": "-",
+      "decision": "-",
+      "source": "ADR 0014 decision 4"
+    },
+    {
+      "name": "hold-message-max",
+      "value": 4096,
+      "unit": "B",
+      "decision": "-",
+      "source": "ADR 0015 decision 1"
+    },
+    {
+      "name": "hold-min-remaining",
+      "value": 10,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0008 decision 5; v1-parameters"
+    },
+    {
+      "name": "retry-min-low",
+      "value": 2,
+      "unit": "s",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "retry-max-low",
+      "value": 30,
+      "unit": "s",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "retry-min-high",
+      "value": 5,
+      "unit": "s",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "retry-max-high",
+      "value": 60,
+      "unit": "s",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "resend-base",
+      "value": 1000,
+      "unit": "ms",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "resend-per-hop",
+      "value": 200,
+      "unit": "ms",
+      "decision": "-",
+      "source": "v1-parameters"
+    },
+    {
+      "name": "receipt-batch-max",
+      "value": 32,
+      "unit": "entries",
+      "decision": "D-38",
+      "source": "ADR 0013 decision 2"
+    },
+    {
+      "name": "receipt-batch-delay",
+      "value": 500,
+      "unit": "ms",
+      "decision": "D-38",
+      "source": "ADR 0013 decision 2"
+    },
+    {
+      "name": "read-receipt-batch-max",
+      "value": 64,
+      "unit": "entries",
+      "decision": "D-39",
+      "source": "ADR 0013 decision 4"
+    },
+    {
+      "name": "read-receipt-batch-delay",
+      "value": 2000,
+      "unit": "ms",
+      "decision": "D-39",
+      "source": "ADR 0013 decision 4"
+    },
+    {
+      "name": "tombstone-store",
+      "value": 1000,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0014 decision 8"
+    },
+    {
+      "name": "read-tracking",
+      "value": 1000,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0013 decision 3"
+    },
+    {
+      "name": "certificate-cache",
+      "value": 64,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0018 decision 7"
+    },
+    {
+      "name": "e2e-session-max-age",
+      "value": 21600,
+      "unit": "s",
+      "decision": "D-33",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "e2e-session-max-messages",
+      "value": 4096,
+      "unit": "messages",
+      "decision": "D-33",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "e2e-replay-window",
+      "value": 1024,
+      "unit": "nonces",
+      "decision": "D-33",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "name": "resolving-key-lifetime",
+      "value": 86400,
+      "unit": "s",
+      "decision": "-",
+      "source": "ADR 0010 decision 3"
+    },
+    {
+      "name": "resolving-key-lead",
+      "value": 3600,
+      "unit": "s",
+      "decision": "D-41",
+      "source": "ADR 0010 decision 3"
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+{
+  "$schema": "./codes.schema.json",
+  "title": "MeshLink protocol 1 small code registries",
+  "entries": [
+    {
+      "registry": "profile",
+      "code": "0x00",
+      "name": "unsecured",
+      "decision": "D-04",
+      "source": "ADR 0001 decision"
+    },
+    {
+      "registry": "profile",
+      "code": "0x01",
+      "name": "classical",
+      "decision": "D-04",
+      "source": "ADR 0001 decision"
+    },
+    {
+      "registry": "profile",
+      "code": "0x02",
+      "name": "post-quantum",
+      "decision": "D-04",
+      "source": "ADR 0001 decision"
+    },
+    {
+      "registry": "advertisement-flag",
+      "code": "0x00",
+      "name": "COC_AVAILABLE",
+      "decision": "D-12",
+      "source": "ADR 0012 decision 10; ADR 0009 decision 1"
+    },
+    {
+      "registry": "advertisement-flag",
+      "code": "0x01",
+      "name": "PHY_2M",
+      "decision": "D-12",
+      "source": "ADR 0012 decision 10; ADR 0009 decision 3"
+    },
+    {
+      "registry": "handshake-step",
+      "code": "0x01",
+      "name": "initiator message 1",
+      "decision": "D-15",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "handshake-step",
+      "code": "0x02",
+      "name": "responder message 2",
+      "decision": "D-15",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "handshake-step",
+      "code": "0x03",
+      "name": "initiator message 3",
+      "decision": "D-15",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x00",
+      "name": "NORMAL",
+      "decision": "D-22",
+      "source": "ADR 0009 decision 5"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x01",
+      "name": "DUPLICATE_LINK",
+      "decision": "D-22",
+      "source": "ADR 0009 decision 5"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x02",
+      "name": "PROTOCOL_ERROR",
+      "decision": "D-22",
+      "source": "ADR 0012 decision 7"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x03",
+      "name": "HANDSHAKE_FAILED",
+      "decision": "D-22",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x04",
+      "name": "UNSUPPORTED_VERSION",
+      "decision": "D-22",
+      "source": "ADR 0012 decision 6"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x05",
+      "name": "WRONG_MESH",
+      "decision": "D-22",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x06",
+      "name": "RESOURCE_LIMIT",
+      "decision": "D-22",
+      "source": "ADR 0009 decision 6"
+    },
+    {
+      "registry": "close-reason",
+      "code": "0x07",
+      "name": "SHUTTING_DOWN",
+      "decision": "D-22",
+      "source": "ADR 0013 decision 9"
+    },
+    {
+      "registry": "busy-reason",
+      "code": "0x01",
+      "name": "REASSEMBLY_SLOTS",
+      "decision": "D-23",
+      "source": "ADR 0015 decision 6"
+    },
+    {
+      "registry": "busy-reason",
+      "code": "0x02",
+      "name": "LARGE_BUDGET",
+      "decision": "D-23",
+      "source": "ADR 0015 decision 7"
+    },
+    {
+      "registry": "container-kind",
+      "code": "0x01",
+      "name": "IK_INITIATOR",
+      "decision": "D-30",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "container-kind",
+      "code": "0x02",
+      "name": "IK_RESPONDER",
+      "decision": "D-30",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "container-kind",
+      "code": "0x03",
+      "name": "TRANSPORT",
+      "decision": "D-30",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "registry": "container-kind",
+      "code": "0x04",
+      "name": "UNSECURED",
+      "decision": "D-30",
+      "source": "ADR 0012 decision 12"
+    },
+    {
+      "registry": "container-kind",
+      "code": "0x05",
+      "name": "SIGNED_BROADCAST",
+      "decision": "D-40",
+      "source": "ADR 0001 decision"
+    },
+    {
+      "registry": "conversation-direction",
+      "code": "0x01",
+      "name": "initiator to responder",
+      "decision": "D-32",
+      "source": "ADR 0016 decision 2"
+    },
+    {
+      "registry": "conversation-direction",
+      "code": "0x02",
+      "name": "responder to initiator",
+      "decision": "D-32",
+      "source": "ADR 0016 decision 2"
+    }
+  ]
+}

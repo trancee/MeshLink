@@ -1,6 +1,6 @@
 # 0018: Certificate acquisition
 
-Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 2 (amended 2026-11-08, stage F simulation).
+Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 3 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -97,3 +97,8 @@ Inputs:
   - With a lookup, first messages reach a 95th percentile of 0.20–0.34 s classical and 0.35–1.23 s post-quantum (rule: 2 s and 3 s).
   - The one remaining miss came from backgrounded iPhones, not from lookups: in the 1 h high-density half-iPhone runs, one seed had two messages stuck behind an iPhone's 50 s background sleep.
 - **Lookup storms (Risks):** no route-request rate limit in v1; the measured cost of a misbehaving phone is in ADR 0008.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Reply size (decision 5, [C-02](../spec/decisions.md#c-02)):** besides the 16 B tag, a sealed reply carries the responder's fresh 32 B X25519 ephemeral key and a 2 B length. A reply is 222 B (classical) or 1,438 B (post-quantum), including its 34 B header. Stage F's reply sizes were about 34 B smaller, well inside its seed-to-seed noise.
+- **Derivation ([D-36](../spec/decisions.md#d-36-lookup-reply)):** the reply key is HKDF over the X25519 shared secret of both ephemeral keys; the AEAD uses a zero nonce, safe because each key seals once. Retries use a new salt, ephemeral key and message ID ([D-37](../spec/decisions.md#d-37-lookup-retry-and-first-reply)).

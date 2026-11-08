@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 6 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0016, 0018 and 0019).
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 7 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0016, 0018 and 0019; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -105,3 +105,9 @@ None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the
 2026-11-08, release and versioning ([ADR 0019](0019-release-versioning-and-api-compatibility.md)):
 
 - **Versioning (decision 6):** the version byte is independent of the library version and changes only on incompatible wire changes. A release that introduces protocol N+1 also speaks N for at least one library MINOR; the capability read selects the highest version both sides speak. Other versions are still rejected with a typed reason.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Fragments (decision 4, [C-01](../spec/decisions.md#c-01)):** a fragment costs 4 B: the 1 B frame type plus the 1 B stream ID and the 2 B index.
+- **Versioning (decision 6, [C-08](../spec/decisions.md#c-08)):** the version byte has no major and minor parts. Each value is a separate version; peers select the highest value both list. Compatible additions use new frame types or non-critical TLVs and keep the byte (ADR 0019 decision 3).
+- **Frame type ranges (decision 7):** `0x00` reserved; `0x01`–`0x3F` link-local; `0x40`–`0x7F` routed unicast; `0x80`–`0xBF` routed flood or broadcast; `0xC0`–`0xFE` reserved for future versions; `0xFF` reserved. The top bit of a TLV type marks it critical.

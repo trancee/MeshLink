@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 3 (amended 2026-11-08, energy measurements).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 4 (amended 2026-11-08, energy measurements; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -106,3 +106,8 @@ Measured:
 - **Scanning rules (decision 6):** Android never scans continuously; every scan runs in start/stop windows with a period of at least 6 s (ADR 0008 amendment). AOSP rejects more than 5 scan starts per 30 s: a 2 s on / 2 s off schedule produced 5 empty bursts of 16. On the Pixel 6 with the screen off, continuous filtered LOW_LATENCY and BALANCED scans fell to baseline power after 2–5 min and returned about 15× fewer results (6 of 6 windows). This conflicts with the 2 h T9 run, which saw no downgrade with one advertiser; the cause is unverified. The 4 min restart for unfiltered scans still applies.
 - **Background timing:** Android Doze stretched a 4 s on / 4 s off schedule to 30 s gaps overnight (scan duty 0.12), with links held and results still arriving. iOS suspended the energy app about 30 s after locking even with Bluetooth background modes, so only iOS-managed scanning and advertising continue. Background discovery latency is set by the OS on both platforms.
 - **Risk "Coverage":** Doze and one overnight run per platform are now measured (Pixel 6, iPhone 15); other Android OEMs overnight remain untested.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Mesh tag (decision 1, [C-03](../spec/decisions.md#c-03)):** the mesh tag is the same for all members within one epoch number, `floor(unix / 300)`. Each node switches at its own moment, so members can show tags from adjacent epochs at once; scanners accept e − 1 to e + 1 ([D-02](../spec/decisions.md#d-02-epoch-number-and-acceptance)).
+- **Next identifier (decision 3, [C-10](../spec/decisions.md#c-10)):** before each rotation a node sends linked peers a `NEIGHBOR_LIST` that carries its next 8 B advertisement identifier, as the routing simulation assumed. Only peers already linked learn it.

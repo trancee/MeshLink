@@ -63,6 +63,7 @@ Run in CI and locally; never shipped. Actions are pinned by commit SHA with a ve
 | markdownlint-cli2 | 0.24.0 | `DavidAnson/markdownlint-cli2-action` v25.0.0 | MIT | Markdown structure lint (O6) | Spotless/ktlint cover Kotlin only |
 | typos | 1.51.1 | `crate-ci/typos` v1.51.1 | Apache-2.0 OR MIT | Spelling, US English, offline, low false positives (O6) | No spelling gate exists; cspell needs Node and is noisier |
 | actions/checkout | 7.0.1 | `actions/checkout` v7.0.1 | MIT | Check out the repository for the docs jobs | GitHub's own checkout action; nothing to replace |
+| Python 3 (standard library only) | 3.9 or newer (verified: 3.9.6, 3.13 and 3.15.2 produce identical vectors) | `actions/setup-python` (pin when the spec job is added) | PSF-2.0 | Generates and checks the protocol spec's tier-1 vectors and data tables: `tools/spec/gen_vectors.py`, `tools/spec/check_spec.py` (C10, ticket 29). Uses `hashlib` BLAKE2b and `hmac` HKDF; no third-party packages | Gradle tests run only after Kotlin code exists, and the spec must be self-checking now; the standard library needs no extra dependency |
 
 ## Reference (test-only Rust, `tools/reference/`, never published)
 

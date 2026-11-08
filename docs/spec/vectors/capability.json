@@ -1,0 +1,197 @@
+{
+  "$schema": "./capability.schema.json",
+  "algorithm": "MeshLink/1 GATT capability record",
+  "schema": "capability.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 14,
+  "notes": {},
+  "testGroups": [
+    {
+      "layout": "capability",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "version 1, no extensions",
+          "flags": [],
+          "result": "valid",
+          "encoded": "0101",
+          "decoded": {
+            "versions": [
+              {
+                "version": 1
+              }
+            ],
+            "extensions": []
+          }
+        },
+        {
+          "tcId": 2,
+          "comment": "version 1, PSM and advertisement",
+          "flags": [],
+          "result": "valid",
+          "encoded": "01010100020081020010b8773ca94fa89b92c015c45efa125ddd",
+          "decoded": {
+            "versions": [
+              {
+                "version": 1
+              }
+            ],
+            "extensions": [
+              {
+                "type": "0x01",
+                "value": "0081"
+              },
+              {
+                "type": "0x02",
+                "value": "b8773ca94fa89b92c015c45efa125ddd"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 3,
+          "comment": "versions 2 and 1, PSM",
+          "flags": [
+            "Upgrade"
+          ],
+          "result": "valid",
+          "encoded": "0202010100020081",
+          "decoded": {
+            "versions": [
+              {
+                "version": 2
+              },
+              {
+                "version": 1
+              }
+            ],
+            "extensions": [
+              {
+                "type": "0x01",
+                "value": "0081"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 4,
+          "comment": "unknown non-critical TLV 0x7F is ignored",
+          "flags": [
+            "UnknownTlv"
+          ],
+          "result": "valid",
+          "encoded": "010101000200817f000100",
+          "decoded": {
+            "versions": [
+              {
+                "version": 1
+              }
+            ],
+            "extensions": [
+              {
+                "type": "0x01",
+                "value": "0081"
+              },
+              {
+                "type": "0x7F",
+                "value": "00"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 5,
+          "comment": "zero versions",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "00",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 6,
+          "comment": "nine versions",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "09090807060504030201",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 7,
+          "comment": "version 0",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "0100",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 8,
+          "comment": "versions ascending",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "020102",
+          "error": "version-order"
+        },
+        {
+          "tcId": 9,
+          "comment": "unknown critical TLV 0xF0",
+          "flags": [
+            "UnknownTlv"
+          ],
+          "result": "invalid",
+          "encoded": "0101f00000",
+          "error": "unknown-critical-tlv"
+        },
+        {
+          "tcId": 10,
+          "comment": "PSM with 3 B value",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "0101010003008100",
+          "error": "tlv-length"
+        },
+        {
+          "tcId": 11,
+          "comment": "TLVs out of order",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "0101020010b8773ca94fa89b92c015c45efa125ddd0100020081",
+          "error": "tlv-order"
+        },
+        {
+          "tcId": 12,
+          "comment": "duplicate TLV",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "010101000200810100020081",
+          "error": "tlv-order"
+        },
+        {
+          "tcId": 13,
+          "comment": "TLV value cut",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "010101000200",
+          "error": "truncated"
+        },
+        {
+          "tcId": 14,
+          "comment": "record over 512 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "01017f020800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "error": "too-long"
+        }
+      ]
+    }
+  ]
+}

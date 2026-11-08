@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 5 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 6 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -80,3 +80,8 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
   - Claims delivered held unicasts in every cell, and tombstones purged copies along the receipt's path and on catch-up.
   - Over 1 h, phones held 57–69 messages on average, against the cap of 100.
   - The model matched every public tag within the lifetime (about 7–8 epochs at 30 min), so its claim lists are larger than this ADR's 4-epoch rule.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Rotation period (decision 7, [C-04](../spec/decisions.md#c-04)):** tags rotate every 5 min (ADR 0008 and ADR 0010 amendments), not 15 min. A message with the maximum 1 h lifetime spans up to 13 epochs, so claims match destination tags from up to 13 epochs.
+- **Tombstone storage (decision 8, [D-42](../spec/decisions.md#d-42-tombstone-storage)):** a node stores a tombstone only after verifying it against a held copy or a relayed delivery receipt, keeps it until that message expires, and stores at most 1,000.

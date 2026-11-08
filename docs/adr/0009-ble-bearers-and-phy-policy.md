@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 2 (amended 2026-11-02, ADR 0010).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 3 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -114,3 +114,8 @@ Measured, medians unless noted:
 - **iPhone 15 incoming-link closes:** not reproduced with the current build. In 3 of 3 runs the iPhone 15 held 4 incoming links for 500 s with no close. The cap of 3 stays. Candidate causes, all unverified: the old build `be5c761`, the larger fleet in step 4, and `bluetoothd`'s "scalable pipes are idle" disconnect logic seen for iPhone centrals.
 - **Coded PHY:** stays out of v1. 6 of 15 Android phones that report Coded support received no Coded advertisement.
 - **Legacy 1M advertisement:** confirmed. No iPhone and no legacy-only Android phone received extended advertising.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **CoC failure (decision 1, [C-07](../spec/decisions.md#c-07)):** "without losing the session" means routing and end-to-end state. Link cipher state never moves to another bearer after a failure: losing the CoC channel ends the link, and a GATT reconnect runs a fresh link handshake. Routing state is kept by NodeId, end-to-end sessions are unaffected, and retries recover frames in flight. A planned move to CoC uses the `BEARER_SWITCH` frame ([D-43](../spec/decisions.md#d-43-bearer-switch)).
+- **Flow control (decision 7, [C-09](../spec/decisions.md#c-09)):** pacing is local to the peripheral. There is no credit frame in protocol 1; one could be added later as a non-critical link-local frame type.

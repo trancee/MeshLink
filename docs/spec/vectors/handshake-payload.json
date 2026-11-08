@@ -1,0 +1,129 @@
+{
+  "$schema": "./handshake-payload.schema.json",
+  "algorithm": "MeshLink/1 link handshake payload TLVs",
+  "schema": "handshake-payload.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 8,
+  "notes": {
+    "Placeholder": "Certificate bytes are placeholders; the payload is carried inside Noise (tier 2)."
+  },
+  "testGroups": [
+    {
+      "layout": "handshake-payload",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "empty payload (XX message 1)",
+          "flags": [],
+          "result": "valid",
+          "encoded": "",
+          "decoded": {
+            "tlvs": []
+          }
+        },
+        {
+          "tcId": 2,
+          "comment": "certificate only (open mesh)",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "81008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11",
+          "decoded": {
+            "tlvs": [
+              {
+                "type": "0x81",
+                "value": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 3,
+          "comment": "resolving key and certificate (gated mesh)",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "020024b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca6b383e0081008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11",
+          "decoded": {
+            "tlvs": [
+              {
+                "type": "0x02",
+                "value": "b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca6b383e00"
+              },
+              {
+                "type": "0x81",
+                "value": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 4,
+          "comment": "unknown non-critical TLV ignored",
+          "flags": [
+            "Placeholder",
+            "UnknownTlv"
+          ],
+          "result": "valid",
+          "encoded": "020024b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca6b383e00100002abcd81008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11",
+          "decoded": {
+            "tlvs": [
+              {
+                "type": "0x02",
+                "value": "b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca6b383e00"
+              },
+              {
+                "type": "0x10",
+                "value": "abcd"
+              },
+              {
+                "type": "0x81",
+                "value": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 5,
+          "comment": "unknown critical TLV",
+          "flags": [
+            "UnknownTlv"
+          ],
+          "result": "invalid",
+          "encoded": "81008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11900000",
+          "error": "unknown-critical-tlv"
+        },
+        {
+          "tcId": 6,
+          "comment": "certificate before resolving key",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "81008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11020024b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca6b383e00",
+          "error": "tlv-order"
+        },
+        {
+          "tcId": 7,
+          "comment": "resolving key of 32 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "020020b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca",
+          "error": "tlv-length"
+        },
+        {
+          "tcId": 8,
+          "comment": "TLV header cut",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "8100",
+          "error": "truncated"
+        }
+      ]
+    }
+  ]
+}

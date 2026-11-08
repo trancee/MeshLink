@@ -9,6 +9,8 @@ extend-exclude = [
   "docs/evidence/**/*.html",
   "docs/evidence/**/raw/**",
   "docs/evidence/**/summary/**",
+  # Generated protocol test vectors: hex strings, not prose.
+  "docs/spec/vectors/*.json",
 ]
 
 [default.extend-words]

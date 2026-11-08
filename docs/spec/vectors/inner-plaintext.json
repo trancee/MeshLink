@@ -1,0 +1,292 @@
+{
+  "$schema": "./inner-plaintext.schema.json",
+  "algorithm": "MeshLink/1 end-to-end plaintext",
+  "schema": "inner-plaintext.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 19,
+  "notes": {
+    "Framing": "The plaintext that Noise or HPKE encrypts, or that kind 0x04 carries in clear."
+  },
+  "testGroups": [
+    {
+      "layout": "inner-message",
+      "secured": true,
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "short message",
+          "flags": [],
+          "result": "valid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600006869000000000000000000000000000000000000000000000000",
+          "decoded": {
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16",
+            "extensions": [],
+            "payload": "6869"
+          }
+        },
+        {
+          "tcId": 2,
+          "comment": "first message with seed, receipt request and certificate",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "000000d78f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600b301008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11040000820020adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f68690000000000",
+          "decoded": {
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16",
+            "extensions": [
+              {
+                "type": "0x01",
+                "value": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+              },
+              {
+                "type": "0x04",
+                "value": ""
+              },
+              {
+                "type": "0x82",
+                "value": "adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f"
+              }
+            ],
+            "payload": "6869"
+          }
+        },
+        {
+          "tcId": 3,
+          "comment": "content already a multiple of 32 B",
+          "flags": [
+            "Padding"
+          ],
+          "result": "valid",
+          "encoded": "0000003e8f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a16000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "decoded": {
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16",
+            "extensions": [],
+            "payload": "00000000000000000000000000000000000000000000000000000000"
+          }
+        },
+        {
+          "tcId": 4,
+          "comment": "non-zero padding byte",
+          "flags": [
+            "Padding"
+          ],
+          "result": "invalid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600006869000000000000000000000000000000000000000000000001",
+          "error": "bad-padding"
+        },
+        {
+          "tcId": 5,
+          "comment": "32 B of padding",
+          "flags": [
+            "Padding"
+          ],
+          "result": "invalid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a16000068690000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "error": "bad-padding"
+        },
+        {
+          "tcId": 6,
+          "comment": "total not a multiple of 32",
+          "flags": [
+            "Padding"
+          ],
+          "result": "invalid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a16000068690000000000000000000000000000000000000000000000",
+          "error": "bad-padding"
+        },
+        {
+          "tcId": 7,
+          "comment": "content length beyond the buffer",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "0000100000000000000000000000000000000000000000000000000000000000",
+          "error": "truncated"
+        },
+        {
+          "tcId": 8,
+          "comment": "unknown critical TLV",
+          "flags": [
+            "UnknownTlv"
+          ],
+          "result": "invalid",
+          "encoded": "000000278f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a160003a000006869000000000000000000000000000000000000000000",
+          "error": "unknown-critical-tlv"
+        },
+        {
+          "tcId": 9,
+          "comment": "conversation seed of 16 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "000000378f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600138200100000000000000000000000000000000068690000000000",
+          "error": "tlv-length"
+        }
+      ]
+    },
+    {
+      "layout": "inner-receipt",
+      "secured": true,
+      "tests": [
+        {
+          "tcId": 10,
+          "comment": "receipt listing two message IDs",
+          "flags": [],
+          "result": "valid",
+          "encoded": "0000002dd4f2936eaba3f08c3de05b146b36eed8001b8300188f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e000000000000000000000000000000",
+          "decoded": {
+            "message_id": "d4f2936eaba3f08c3de05b14",
+            "expiry": 1798762200,
+            "extensions": [
+              {
+                "type": "0x83",
+                "value": "8f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 11,
+          "comment": "trailing byte inside the content",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "0000002ed4f2936eaba3f08c3de05b146b36eed8001b8300188f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e000000000000000000000000000000",
+          "error": "trailing-bytes"
+        }
+      ]
+    },
+    {
+      "layout": "inner-message",
+      "secured": false,
+      "tests": [
+        {
+          "tcId": 12,
+          "comment": "short message",
+          "flags": [],
+          "result": "valid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600006869",
+          "decoded": {
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16",
+            "extensions": [],
+            "payload": "6869"
+          }
+        },
+        {
+          "tcId": 13,
+          "comment": "first message with seed, receipt request and certificate",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "000000d78f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a1600b301008a01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11040000820020adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f6869",
+          "decoded": {
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16",
+            "extensions": [
+              {
+                "type": "0x01",
+                "value": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+              },
+              {
+                "type": "0x04",
+                "value": ""
+              },
+              {
+                "type": "0x82",
+                "value": "adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f"
+              }
+            ],
+            "payload": "6869"
+          }
+        },
+        {
+          "tcId": 14,
+          "comment": "padding in unsecured",
+          "flags": [
+            "Padding"
+          ],
+          "result": "invalid",
+          "encoded": "000000248f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a160000686900",
+          "error": "bad-padding"
+        },
+        {
+          "tcId": 15,
+          "comment": "content length beyond the buffer",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "0000100000000000000000000000000000000000000000000000000000000000",
+          "error": "truncated"
+        },
+        {
+          "tcId": 16,
+          "comment": "unknown critical TLV",
+          "flags": [
+            "UnknownTlv"
+          ],
+          "result": "invalid",
+          "encoded": "000000278f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a160003a000006869",
+          "error": "unknown-critical-tlv"
+        },
+        {
+          "tcId": 17,
+          "comment": "conversation seed of 16 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "000000378f024f5d07235072ec8b12a46b36eed85190dfcbbcfc7fd7bf282b5d10696a160013820010000000000000000000000000000000006869",
+          "error": "tlv-length"
+        }
+      ]
+    },
+    {
+      "layout": "inner-receipt",
+      "secured": false,
+      "tests": [
+        {
+          "tcId": 18,
+          "comment": "receipt listing two message IDs",
+          "flags": [],
+          "result": "valid",
+          "encoded": "0000002dd4f2936eaba3f08c3de05b146b36eed8001b8300188f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e",
+          "decoded": {
+            "message_id": "d4f2936eaba3f08c3de05b14",
+            "expiry": 1798762200,
+            "extensions": [
+              {
+                "type": "0x83",
+                "value": "8f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e"
+              }
+            ]
+          }
+        },
+        {
+          "tcId": 19,
+          "comment": "trailing byte inside the content",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "0000002ed4f2936eaba3f08c3de05b146b36eed8001b8300188f024f5d07235072ec8b12a457fac0f41ce4572c65194c2e00",
+          "error": "trailing-bytes"
+        }
+      ]
+    }
+  ]
+}

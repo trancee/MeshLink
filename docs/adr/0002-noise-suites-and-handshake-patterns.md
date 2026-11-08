@@ -1,6 +1,6 @@
 # 0002: Noise suites and handshake patterns per security profile
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 1.
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 2 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -55,3 +55,8 @@ None: greenfield. A suite change is a new protocol version with new vectors (C6,
   - Vectors are cross-checked against snow with ML-KEM-768 `hfs` ([snow#210](https://github.com/mcginty/snow/pull/210), once merged, or a pinned commit if approved) and any vectors libp2p publishes.
   - If the libp2p proposal diverges from the Noise HFS spec, the HFS spec wins and the divergence goes back to the project owner.
 - **Status:** the libp2p proposal and snow#210 are open as of 2026-11-01.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Post-quantum seal overhead ([C-06](../spec/decisions.md#c-06)):** the nested HPKE X-Wing seal adds 1,136 B, not 1,120 B: the 1,120 B X-Wing encapsulation plus the 16 B HPKE AEAD tag. `IKhfs` adds its ML-KEM fields on top of `IK`.
+- **Numbers left to the spec:** rekey every 3,600 s or 65,536 records ([D-21](../spec/decisions.md#d-21-rekey-schedule)); end-to-end sessions last 6 h or 4,096 frames per direction with an explicit 64-bit nonce and a 1,024-nonce replay window ([D-33](../spec/decisions.md#d-33-end-to-end-session-limits)); handshake bounds of 4,096 B per Noise message, one handshake per bearer, 8 at once, a 10 s timeout and one new handshake per remote address per 2 s ([D-20](../spec/decisions.md#d-20-handshake-denial-of-service-bounds)); HPKE base mode with KEM 0x647A, HKDF-SHA256 and ChaCha20Poly1305 ([D-35](../spec/decisions.md#d-35-hpke-parameters)).

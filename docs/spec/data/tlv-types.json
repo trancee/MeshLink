@@ -1,0 +1,78 @@
+{
+  "$schema": "./tlv-types.schema.json",
+  "title": "MeshLink protocol 1 TLV types",
+  "entries": [
+    {
+      "context": "capability",
+      "code": "0x01",
+      "name": "L2CAP_PSM",
+      "critical": false,
+      "length": 2,
+      "decision": "D-14",
+      "source": "ADR 0009 decision 1"
+    },
+    {
+      "context": "capability",
+      "code": "0x02",
+      "name": "ADVERTISEMENT",
+      "critical": false,
+      "length": 16,
+      "decision": "D-14",
+      "source": "ADR 0010 decision 5"
+    },
+    {
+      "context": "handshake",
+      "code": "0x02",
+      "name": "RESOLVING_KEY",
+      "critical": false,
+      "length": 36,
+      "decision": "D-16",
+      "source": "ADR 0010 decision 4"
+    },
+    {
+      "context": "handshake",
+      "code": "0x81",
+      "name": "CERTIFICATE",
+      "critical": true,
+      "length": null,
+      "decision": "D-16",
+      "source": "ADR 0012 decision 9"
+    },
+    {
+      "context": "e2e",
+      "code": "0x01",
+      "name": "SENDER_CERTIFICATE",
+      "critical": false,
+      "length": null,
+      "decision": "D-31",
+      "source": "ADR 0014 decision 9; ADR 0018 decision 2"
+    },
+    {
+      "context": "e2e",
+      "code": "0x04",
+      "name": "READ_RECEIPT_REQUESTED",
+      "critical": false,
+      "length": 0,
+      "decision": "D-31",
+      "source": "ADR 0013 decision 3"
+    },
+    {
+      "context": "e2e",
+      "code": "0x82",
+      "name": "CONVERSATION_SEED",
+      "critical": true,
+      "length": 32,
+      "decision": "D-31",
+      "source": "ADR 0016 decision 2"
+    },
+    {
+      "context": "e2e",
+      "code": "0x83",
+      "name": "MESSAGE_IDS",
+      "critical": true,
+      "length": null,
+      "decision": "D-31",
+      "source": "ADR 0013 decisions 2 and 4"
+    }
+  ]
+}

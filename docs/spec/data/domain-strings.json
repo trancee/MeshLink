@@ -1,0 +1,132 @@
+{
+  "$schema": "./domain-strings.schema.json",
+  "title": "MeshLink protocol 1 domain-separation strings",
+  "entries": [
+    {
+      "purpose": "node-id",
+      "string": "MeshLink/1 node-id",
+      "primitive": "BLAKE2b-256",
+      "section": "identity.md",
+      "source": "ADR 0012 decision 8"
+    },
+    {
+      "purpose": "certificate",
+      "string": "MeshLink/1 certificate",
+      "primitive": "Ed25519 signature",
+      "section": "identity.md",
+      "source": "ADR 0012 decision 9"
+    },
+    {
+      "purpose": "mesh-id",
+      "string": "MeshLink/1 mesh-id",
+      "primitive": "BLAKE2b-256",
+      "section": "discovery.md",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "purpose": "mesh-tag",
+      "string": "MeshLink/1 mesh-tag",
+      "primitive": "keyed BLAKE2b, 4 B",
+      "section": "discovery.md",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "purpose": "mesh-tag-key",
+      "string": "MeshLink/1 mesh-tag-key",
+      "primitive": "HKDF-SHA-256",
+      "section": "discovery.md",
+      "source": "ADR 0010 decision 1"
+    },
+    {
+      "purpose": "mesh-psk",
+      "string": "MeshLink/1 mesh-psk",
+      "primitive": "HKDF-SHA-256",
+      "section": "link.md",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "purpose": "resolvable-tag",
+      "string": "MeshLink/1 resolvable-tag",
+      "primitive": "keyed BLAKE2b, 8 B",
+      "section": "discovery.md",
+      "source": "ADR 0010 decision 4"
+    },
+    {
+      "purpose": "link-prologue",
+      "string": "MeshLink/1 link-prologue",
+      "primitive": "Noise prologue",
+      "section": "link.md",
+      "source": "ADR 0012 decision 6"
+    },
+    {
+      "purpose": "public-tag",
+      "string": "MeshLink/1 public-tag",
+      "primitive": "BLAKE2b, 8 B",
+      "section": "routing.md",
+      "source": "ADR 0016 decision 1"
+    },
+    {
+      "purpose": "unsecured-tag",
+      "string": "MeshLink/1 unsecured-tag",
+      "primitive": "BLAKE2b, 8 B",
+      "section": "routing.md",
+      "source": "ADR 0016 decision 1"
+    },
+    {
+      "purpose": "lookup-tag",
+      "string": "MeshLink/1 lookup-tag",
+      "primitive": "BLAKE2b, 8 B",
+      "section": "routing.md",
+      "source": "ADR 0018 decision 3"
+    },
+    {
+      "purpose": "lookup-reply",
+      "string": "MeshLink/1 lookup-reply",
+      "primitive": "HKDF-SHA-256",
+      "section": "routing.md",
+      "source": "ADR 0018 decision 5"
+    },
+    {
+      "purpose": "broadcast",
+      "string": "MeshLink/1 broadcast",
+      "primitive": "Ed25519 signature",
+      "section": "routing.md",
+      "source": "ADR 0001 decision"
+    },
+    {
+      "purpose": "tombstone",
+      "string": "MeshLink/1 tombstone",
+      "primitive": "BLAKE2b, 16 B",
+      "section": "end-to-end.md",
+      "source": "ADR 0014 decision 8"
+    },
+    {
+      "purpose": "e2e-prologue",
+      "string": "MeshLink/1 e2e-prologue",
+      "primitive": "Noise prologue",
+      "section": "end-to-end.md",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "purpose": "hpke-first-message",
+      "string": "MeshLink/1 hpke-first-message",
+      "primitive": "HPKE info",
+      "section": "end-to-end.md",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "purpose": "conversation",
+      "string": "MeshLink/1 conversation",
+      "primitive": "HKDF-SHA-256",
+      "section": "end-to-end.md",
+      "source": "ADR 0016 decision 2"
+    },
+    {
+      "purpose": "conversation-tag",
+      "string": "MeshLink/1 conversation-tag",
+      "primitive": "keyed BLAKE2b, 8 B",
+      "section": "end-to-end.md",
+      "source": "ADR 0016 decision 2"
+    }
+  ]
+}

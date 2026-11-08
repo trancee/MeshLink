@@ -1,0 +1,137 @@
+{
+  "$schema": "./advertisement.schema.json",
+  "algorithm": "MeshLink/1 advertisement payload",
+  "schema": "advertisement.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 10,
+  "notes": {},
+  "testGroups": [
+    {
+      "layout": "advertisement",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "no flags",
+          "flags": [],
+          "result": "valid",
+          "encoded": "2046f40543aebfd3a50d5b3f4543176d",
+          "decoded": {
+            "layout_version": 1,
+            "flags": 0,
+            "mesh_tag": "46f40543",
+            "resolvable_tag": "aebfd3a50d5b3f45",
+            "random": "43176d"
+          }
+        },
+        {
+          "tcId": 2,
+          "comment": "COC_AVAILABLE",
+          "flags": [],
+          "result": "valid",
+          "encoded": "2146f40543aebfd3a50d5b3f4543176d",
+          "decoded": {
+            "layout_version": 1,
+            "flags": 1,
+            "mesh_tag": "46f40543",
+            "resolvable_tag": "aebfd3a50d5b3f45",
+            "random": "43176d"
+          }
+        },
+        {
+          "tcId": 3,
+          "comment": "PHY_2M",
+          "flags": [],
+          "result": "valid",
+          "encoded": "2246f40543aebfd3a50d5b3f4543176d",
+          "decoded": {
+            "layout_version": 1,
+            "flags": 2,
+            "mesh_tag": "46f40543",
+            "resolvable_tag": "aebfd3a50d5b3f45",
+            "random": "43176d"
+          }
+        },
+        {
+          "tcId": 4,
+          "comment": "COC_AVAILABLE and PHY_2M",
+          "flags": [],
+          "result": "valid",
+          "encoded": "2346f40543aebfd3a50d5b3f4543176d",
+          "decoded": {
+            "layout_version": 1,
+            "flags": 3,
+            "mesh_tag": "46f40543",
+            "resolvable_tag": "aebfd3a50d5b3f45",
+            "random": "43176d"
+          }
+        },
+        {
+          "tcId": 5,
+          "comment": "reserved flag bit 4 set: ignored",
+          "flags": [
+            "ReservedBits"
+          ],
+          "result": "acceptable",
+          "encoded": "3346f40543aebfd3a50d5b3f4543176d",
+          "decoded": {
+            "layout_version": 1,
+            "flags": 19,
+            "mesh_tag": "46f40543",
+            "resolvable_tag": "aebfd3a50d5b3f45",
+            "random": "43176d"
+          }
+        },
+        {
+          "tcId": 6,
+          "comment": "15 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "2046f40543aebfd3a50d5b3f454317",
+          "error": "bad-length"
+        },
+        {
+          "tcId": 7,
+          "comment": "17 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "2046f40543aebfd3a50d5b3f4543176d00",
+          "error": "bad-length"
+        },
+        {
+          "tcId": 8,
+          "comment": "layout version 0",
+          "flags": [
+            "UnknownVersion"
+          ],
+          "result": "invalid",
+          "encoded": "0046f40543aebfd3a50d5b3f4543176d",
+          "error": "unknown-version"
+        },
+        {
+          "tcId": 9,
+          "comment": "layout version 2",
+          "flags": [
+            "UnknownVersion"
+          ],
+          "result": "invalid",
+          "encoded": "4046f40543aebfd3a50d5b3f4543176d",
+          "error": "unknown-version"
+        },
+        {
+          "tcId": 10,
+          "comment": "layout version 7",
+          "flags": [
+            "UnknownVersion"
+          ],
+          "result": "invalid",
+          "encoded": "e046f40543aebfd3a50d5b3f4543176d",
+          "error": "unknown-version"
+        }
+      ]
+    }
+  ]
+}

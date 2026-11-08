@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "derivations.schema.json",
+  "title": "MeshLink protocol 1 test vectors: derivations.json",
+  "type": "object",
+  "required": [
+    "algorithm",
+    "schema",
+    "generatorVersion",
+    "numberOfTests",
+    "notes",
+    "testGroups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "schema": {
+      "type": "string"
+    },
+    "generatorVersion": {
+      "type": "string"
+    },
+    "numberOfTests": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "notes": {
+      "type": "object"
+    },
+    "testGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "derivation",
+          "tests"
+        ],
+        "properties": {
+          "derivation": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "tcId",
+                "comment",
+                "flags",
+                "result",
+                "inputs",
+                "output"
+              ],
+              "properties": {
+                "tcId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "enum": [
+                    "valid",
+                    "invalid",
+                    "acceptable"
+                  ]
+                },
+                "inputs": {
+                  "type": "object"
+                },
+                "output": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

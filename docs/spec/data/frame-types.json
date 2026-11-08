@@ -1,0 +1,190 @@
+{
+  "$schema": "./frame-types.schema.json",
+  "title": "MeshLink protocol 1 frame types",
+  "entries": [
+    {
+      "code": "0x01",
+      "name": "FRAGMENT",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0012 decision 4"
+    },
+    {
+      "code": "0x02",
+      "name": "HANDSHAKE",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0002 decision; ADR 0012 decision 6"
+    },
+    {
+      "code": "0x03",
+      "name": "PLAIN_HELLO",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0012 decision 12"
+    },
+    {
+      "code": "0x04",
+      "name": "CLOSE",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0009 decision 5"
+    },
+    {
+      "code": "0x05",
+      "name": "REKEY",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0002 decision"
+    },
+    {
+      "code": "0x06",
+      "name": "BUSY",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0015 decision 6; ADR 0012 amendment"
+    },
+    {
+      "code": "0x07",
+      "name": "NEIGHBOR_LIST",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0016 decision 3"
+    },
+    {
+      "code": "0x08",
+      "name": "SHUFFLE",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 1"
+    },
+    {
+      "code": "0x09",
+      "name": "SHUFFLE_REPLY",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 1"
+    },
+    {
+      "code": "0x0A",
+      "name": "CATCH_UP",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0014 decision 7"
+    },
+    {
+      "code": "0x0B",
+      "name": "IHAVE",
+      "class": "link-local",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 3"
+    },
+    {
+      "code": "0x0C",
+      "name": "GRAFT",
+      "class": "link-local",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 3"
+    },
+    {
+      "code": "0x0D",
+      "name": "PRUNE",
+      "class": "link-local",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 3"
+    },
+    {
+      "code": "0x0E",
+      "name": "RESOLVING_KEY_UPDATE",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0010 decision 4"
+    },
+    {
+      "code": "0x0F",
+      "name": "BEARER_SWITCH",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-18",
+      "source": "ADR 0009 decision 1; ADR 0012 decision 3"
+    },
+    {
+      "code": "0x40",
+      "name": "MESSAGE",
+      "class": "unicast",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 4; ADR 0014 decision 8"
+    },
+    {
+      "code": "0x41",
+      "name": "DELIVERY_RECEIPT",
+      "class": "unicast",
+      "section": "end-to-end.md",
+      "decision": "D-18",
+      "source": "ADR 0013 decisions 1 and 2"
+    },
+    {
+      "code": "0x42",
+      "name": "READ_RECEIPT",
+      "class": "unicast",
+      "section": "end-to-end.md",
+      "decision": "D-18",
+      "source": "ADR 0013 decision 4"
+    },
+    {
+      "code": "0x43",
+      "name": "ROUTE_REPLY",
+      "class": "unicast",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 4"
+    },
+    {
+      "code": "0x44",
+      "name": "LOOKUP_REPLY",
+      "class": "unicast",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0018 decision 5"
+    },
+    {
+      "code": "0x80",
+      "name": "BROADCAST",
+      "class": "flood",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0001 decision; ADR 0008 decision 3"
+    },
+    {
+      "code": "0x81",
+      "name": "ROUTE_REQUEST",
+      "class": "flood",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0008 decision 4"
+    },
+    {
+      "code": "0x82",
+      "name": "LOOKUP_REQUEST",
+      "class": "flood",
+      "section": "routing.md",
+      "decision": "D-18",
+      "source": "ADR 0018 decision 3"
+    }
+  ]
+}

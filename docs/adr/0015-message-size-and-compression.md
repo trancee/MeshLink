@@ -1,6 +1,6 @@
 # 0015: Message size and compression
 
-Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 2 (amended 2026-11-08, stage F simulation).
+Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 3 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec).
 
 ## Context
 
@@ -64,3 +64,8 @@ Status: accepted (2026-11-03; ticket "What is the message size cap, and is there
 2026-11-08, large messages simulated ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power)):
 
 - **Large messages (decision 3):** confirmed. With 2% of chat messages at 16–128 KiB, sent along routes only and held only by their sender, 96.4–100% arrive when sender and destination stay in the mesh. Small messages still pass every rule. Latency is 3.4–29 s at the median and 14–193 s at the 95th percentile. Raw delivery drops to 79.5% where the sender or destination leaves the mesh, because relays never hold large messages.
+
+2026-11-08, protocol spec ([ticket 29 decision log](../spec/decisions.md)):
+
+- **Size classes at relays (decision 1, [C-05](../spec/decisions.md#c-05)):** relays cannot see the payload size inside encryption, so they enforce the classes by frame size: a small frame is at most 8,192 B and no frame exceeds 139,264 B ([D-19](../spec/decisions.md#d-19-record-and-frame-size-thresholds)). Caps on application payload stay as decided.
+- **Post-quantum overhead (context, [C-06](../spec/decisions.md#c-06)):** the nested seal adds 1,136 B to a first message, not 1,120 B (ADR 0002 amendment).

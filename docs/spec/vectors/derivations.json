@@ -1,0 +1,697 @@
+{
+  "$schema": "./derivations.schema.json",
+  "algorithm": "MeshLink/1 derivations",
+  "schema": "derivations.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 51,
+  "notes": {
+    "Derivation": "Hash-only derivations; recomputable with BLAKE2b and HKDF-SHA-256."
+  },
+  "testGroups": [
+    {
+      "derivation": "epoch",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "unix 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "unix_seconds": 0
+          },
+          "output": "00000000"
+        },
+        {
+          "tcId": 2,
+          "comment": "unix 299",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "unix_seconds": 299
+          },
+          "output": "00000000"
+        },
+        {
+          "tcId": 3,
+          "comment": "unix 300",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "unix_seconds": 300
+          },
+          "output": "00000001"
+        },
+        {
+          "tcId": 4,
+          "comment": "unix 1798761600",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "unix_seconds": 1798761600
+          },
+          "output": "005b7d60"
+        },
+        {
+          "tcId": 5,
+          "comment": "unix 4294967295",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "unix_seconds": 4294967295
+          },
+          "output": "00da740d"
+        }
+      ]
+    },
+    {
+      "derivation": "node-id",
+      "domain": "MeshLink/1 node-id",
+      "tests": [
+        {
+          "tcId": 6,
+          "comment": "Ed25519 key 0 (placeholder bytes)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "ed25519_key": "6bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347"
+          },
+          "output": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c"
+        },
+        {
+          "tcId": 7,
+          "comment": "Ed25519 key 1 (placeholder bytes)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "ed25519_key": "f41b7eb902cb0e2c99c98750839592c61e620234c28d47093858327a4c129e78"
+          },
+          "output": "df7fab45509c78df0b8443f1fa1905b2195a0752b96929d7860dcd51e6eb0ab8"
+        },
+        {
+          "tcId": 8,
+          "comment": "Ed25519 key 2 (placeholder bytes)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "ed25519_key": "80bddd3a8400f440729a986ed90fcf0a16a1a1db28ffe952e18dd16aab2f5e15"
+          },
+          "output": "0414425335818b7209b8d57130f6360f8ee7686889cfb517bd66cb8c8b534d5b"
+        }
+      ]
+    },
+    {
+      "derivation": "mesh-id-digest",
+      "domain": "MeshLink/1 mesh-id",
+      "tests": [
+        {
+          "tcId": 9,
+          "comment": "mesh id 'Festival' profile 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_id_utf8": "466573746976616c",
+            "profile": 1
+          },
+          "output": "d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585"
+        },
+        {
+          "tcId": 10,
+          "comment": "mesh id 'Festival' profile 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_id_utf8": "466573746976616c",
+            "profile": 2
+          },
+          "output": "d5f60daa4a577639ff78c56ee420714ebddecae5e5201631255c22412e41367c"
+        },
+        {
+          "tcId": 11,
+          "comment": "mesh id 'a' profile 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_id_utf8": "61",
+            "profile": 0
+          },
+          "output": "cebe1d832a9b15ab85dd72a3e0a481db93128f68f07c4babc2615aa0685c75e1"
+        },
+        {
+          "tcId": 12,
+          "comment": "mesh id '\u00dcn\u00efc\u00f6d\u00e9 mesh' profile 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_id_utf8": "c39c6ec3af63c3b664c3a9206d657368",
+            "profile": 1
+          },
+          "output": "dce9bab5ac26726ecf0388183b667ef86faf8c6f215c888c82cec5f6e2378fea"
+        },
+        {
+          "tcId": 13,
+          "comment": "mesh id 'xxxxxxxx...' profile 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_id_utf8": "78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
+            "profile": 2
+          },
+          "output": "2c4718cfe8be27c705eadb59902ee90a6dbb6326631cb2a5d1652252a43e419a"
+        }
+      ]
+    },
+    {
+      "derivation": "mesh-tag-key",
+      "domain": "MeshLink/1 mesh-tag-key",
+      "tests": [
+        {
+          "tcId": 14,
+          "comment": "gated mesh 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_key": "74c2944de9fe375edac8870c4cb93d9afe139771aab98f4a221e2238b0aa9d33",
+            "mesh_id_digest": "ae32b8ceeb6b183c93e42ed4840f24ffb893873e66ecd80c4c2152092959fe29"
+          },
+          "output": "0beec126a0fa577daf758e10fd14c9a41b235cf468f8c6ac2e6bb7fd44395558"
+        },
+        {
+          "tcId": 15,
+          "comment": "gated mesh 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_key": "ca3175132d79916af457f3d57efe9cc77c4042069215a8028e19eeec29795d8b",
+            "mesh_id_digest": "421779ab9fed1c2d7b8f5c20d684ae6d1651df748e663b54d962b6567102ecd9"
+          },
+          "output": "45ad287f950a673e4acaf07e193b4274335fe3891dfd6c6a0c58c84f4adb22ec"
+        }
+      ]
+    },
+    {
+      "derivation": "mesh-tag",
+      "domain": "MeshLink/1 mesh-tag",
+      "tests": [
+        {
+          "tcId": 16,
+          "comment": "open mesh, key = mesh id digest, epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "tag_key": "d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585",
+            "epoch": 5995872
+          },
+          "output": "a91e1ce7"
+        },
+        {
+          "tcId": 17,
+          "comment": "open mesh, key = mesh id digest, epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "tag_key": "d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585",
+            "epoch": 5995873
+          },
+          "output": "61ef0a64"
+        },
+        {
+          "tcId": 18,
+          "comment": "open mesh, key = mesh id digest, epoch 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "tag_key": "d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585",
+            "epoch": 0
+          },
+          "output": "ac8d0f01"
+        },
+        {
+          "tcId": 19,
+          "comment": "gated mesh, derived tag key, epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "tag_key": "0beec126a0fa577daf758e10fd14c9a41b235cf468f8c6ac2e6bb7fd44395558",
+            "epoch": 5995872
+          },
+          "output": "75c45dc5"
+        },
+        {
+          "tcId": 20,
+          "comment": "gated mesh, derived tag key, epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "tag_key": "0beec126a0fa577daf758e10fd14c9a41b235cf468f8c6ac2e6bb7fd44395558",
+            "epoch": 5995873
+          },
+          "output": "272a7c26"
+        }
+      ]
+    },
+    {
+      "derivation": "mesh-psk",
+      "domain": "MeshLink/1 mesh-psk",
+      "tests": [
+        {
+          "tcId": 21,
+          "comment": "gated mesh 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_key": "74c2944de9fe375edac8870c4cb93d9afe139771aab98f4a221e2238b0aa9d33",
+            "mesh_id_digest": "ae32b8ceeb6b183c93e42ed4840f24ffb893873e66ecd80c4c2152092959fe29"
+          },
+          "output": "b413dbf3cc1bcf4553a560d0d918e7a8c2fb4c38ee4ea9a12a535138ab0c30cc"
+        },
+        {
+          "tcId": 22,
+          "comment": "gated mesh 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "mesh_key": "ca3175132d79916af457f3d57efe9cc77c4042069215a8028e19eeec29795d8b",
+            "mesh_id_digest": "0193f23c849ae36b1dbfe5378bb9305003197a7477a25afe82e95bbecf6ef81d"
+          },
+          "output": "b3e484c5a2cccb1218fb68b257cbfce9e176d50af9bf66510f22f796e2f1e618"
+        }
+      ]
+    },
+    {
+      "derivation": "resolvable-tag",
+      "domain": "MeshLink/1 resolvable-tag",
+      "tests": [
+        {
+          "tcId": 23,
+          "comment": "epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "resolving_key": "b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca",
+            "epoch": 5995872
+          },
+          "output": "cd9133011692a0fd"
+        },
+        {
+          "tcId": 24,
+          "comment": "epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "resolving_key": "b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca",
+            "epoch": 5995873
+          },
+          "output": "241b4ddce7f23981"
+        },
+        {
+          "tcId": 25,
+          "comment": "epoch 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "resolving_key": "b3cf2994e0a4fce85b4b6a25670e91665f085cfffb308f8d1b6e242bd44020ca",
+            "epoch": 0
+          },
+          "output": "5b092ff3d99cb700"
+        }
+      ]
+    },
+    {
+      "derivation": "public-tag",
+      "domain": "MeshLink/1 public-tag",
+      "tests": [
+        {
+          "tcId": 26,
+          "comment": "epoch 5995872 (placeholder X25519 key)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "x25519_key": "c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac",
+            "epoch": 5995872
+          },
+          "output": "c8b1d525a899c84f"
+        },
+        {
+          "tcId": 27,
+          "comment": "epoch 5995873 (placeholder X25519 key)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "x25519_key": "c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac",
+            "epoch": 5995873
+          },
+          "output": "745b26d8b124d5ce"
+        },
+        {
+          "tcId": 28,
+          "comment": "epoch 0 (placeholder X25519 key)",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "x25519_key": "c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac",
+            "epoch": 0
+          },
+          "output": "bc7ca9676c981c54"
+        }
+      ]
+    },
+    {
+      "derivation": "unsecured-tag",
+      "domain": "MeshLink/1 unsecured-tag",
+      "tests": [
+        {
+          "tcId": 29,
+          "comment": "epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c",
+            "epoch": 5995872
+          },
+          "output": "52806b66623bf11d"
+        },
+        {
+          "tcId": 30,
+          "comment": "epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c",
+            "epoch": 5995873
+          },
+          "output": "f5a6764505e8a7f5"
+        },
+        {
+          "tcId": 31,
+          "comment": "epoch 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c",
+            "epoch": 0
+          },
+          "output": "8524f121fa5ebf72"
+        }
+      ]
+    },
+    {
+      "derivation": "conversation-secret",
+      "domain": "MeshLink/1 conversation",
+      "tests": [
+        {
+          "tcId": 32,
+          "comment": "initiator 0, responder 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "seed": "adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f",
+            "initiator_node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c",
+            "responder_node_id": "df7fab45509c78df0b8443f1fa1905b2195a0752b96929d7860dcd51e6eb0ab8"
+          },
+          "output": "e940a8e69341da3647c9f5b37416a8b5e7e6a59ab6d30eaad6f3f10af289f24d"
+        },
+        {
+          "tcId": 33,
+          "comment": "roles swapped give a different secret",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "seed": "adf0304104e50cdab0f022a912851d2483a4c4b3f08d42cdc39ead959aa56c8f",
+            "initiator_node_id": "df7fab45509c78df0b8443f1fa1905b2195a0752b96929d7860dcd51e6eb0ab8",
+            "responder_node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c"
+          },
+          "output": "cbb896d7334aef71c832cac4532734024ce606ad3ed9002e709ce517d3c134d7"
+        }
+      ]
+    },
+    {
+      "derivation": "conversation-tag",
+      "domain": "MeshLink/1 conversation-tag",
+      "tests": [
+        {
+          "tcId": 34,
+          "comment": "direction 1 epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "conversation_secret": "e940a8e69341da3647c9f5b37416a8b5e7e6a59ab6d30eaad6f3f10af289f24d",
+            "direction": 1,
+            "epoch": 5995872
+          },
+          "output": "c85804edd2d1b4cc"
+        },
+        {
+          "tcId": 35,
+          "comment": "direction 1 epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "conversation_secret": "e940a8e69341da3647c9f5b37416a8b5e7e6a59ab6d30eaad6f3f10af289f24d",
+            "direction": 1,
+            "epoch": 5995873
+          },
+          "output": "8dd21044db6fbf27"
+        },
+        {
+          "tcId": 36,
+          "comment": "direction 2 epoch 5995872",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "conversation_secret": "e940a8e69341da3647c9f5b37416a8b5e7e6a59ab6d30eaad6f3f10af289f24d",
+            "direction": 2,
+            "epoch": 5995872
+          },
+          "output": "3621096e273062c5"
+        },
+        {
+          "tcId": 37,
+          "comment": "direction 2 epoch 5995873",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "conversation_secret": "e940a8e69341da3647c9f5b37416a8b5e7e6a59ab6d30eaad6f3f10af289f24d",
+            "direction": 2,
+            "epoch": 5995873
+          },
+          "output": "ada5e683119bf91c"
+        }
+      ]
+    },
+    {
+      "derivation": "lookup-tag",
+      "domain": "MeshLink/1 lookup-tag",
+      "tests": [
+        {
+          "tcId": 38,
+          "comment": "salt 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "salt": "d1a81eaa5b83263e",
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c"
+          },
+          "output": "29d269005a5cf1ce"
+        },
+        {
+          "tcId": 39,
+          "comment": "salt 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "salt": "3a0bb3604ec0a042",
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c"
+          },
+          "output": "7bb42ec37df9db01"
+        },
+        {
+          "tcId": 40,
+          "comment": "salt 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "salt": "4bfb58b5ddb531c7",
+            "node_id": "3b5a3f4824e97bf6b1e2c6a7fc91b637a8923efc7bfbd692e19e741d031af05c"
+          },
+          "output": "5a0045b5c6a39e1c"
+        }
+      ]
+    },
+    {
+      "derivation": "tombstone-commitment",
+      "domain": "MeshLink/1 tombstone",
+      "tests": [
+        {
+          "tcId": 41,
+          "comment": "k 0",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "k": "5190dfcbbcfc7fd7bf282b5d10696a16"
+          },
+          "output": "30a53f758a8d877dbf382b43324f250c"
+        },
+        {
+          "tcId": 42,
+          "comment": "k 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "k": "b8ef73dd97507e7d4f8642488b8c7b43"
+          },
+          "output": "a0b07579534c2873292c56460f4e80fc"
+        },
+        {
+          "tcId": 43,
+          "comment": "k 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "k": "d6210c4d6cb729bee624c96e4cce3cca"
+          },
+          "output": "eab651ee5b2d14f1e41d6b684cdbcd34"
+        }
+      ]
+    },
+    {
+      "derivation": "lookup-reply-key",
+      "domain": "MeshLink/1 lookup-reply",
+      "tests": [
+        {
+          "tcId": 44,
+          "comment": "HKDF step only; shared secret is placeholder bytes",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "inputs": {
+            "shared_secret": "137b48d0d8378dcd576684962344ae80301805bb5f0906f07c624143d8ef6355",
+            "salt": "d1a81eaa5b83263e",
+            "lookup_tag": "29d269005a5cf1ce",
+            "requester_ephemeral": "d6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842af",
+            "responder_ephemeral": "0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391"
+          },
+          "output": "bcdc7d4d76a3a6d1d3e8ea2a99fa268dab73b47b227d0795b584599abd59d96e"
+        }
+      ]
+    },
+    {
+      "derivation": "link-prologue",
+      "domain": "MeshLink/1 link-prologue",
+      "tests": [
+        {
+          "tcId": 45,
+          "comment": "versions [1] selected 1 profile 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "versions": [
+              1
+            ],
+            "selected": 1,
+            "profile": 1,
+            "mesh_id_digest": "d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585"
+          },
+          "output": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101d51bb959864af39f3cd713707f5f969b5fa6526f4d6d214d1840519dcfb8c585"
+        },
+        {
+          "tcId": 46,
+          "comment": "versions [2, 1] selected 1 profile 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "versions": [
+              2,
+              1
+            ],
+            "selected": 1,
+            "profile": 2,
+            "mesh_id_digest": "b7d0edb96e6326a98c05b6dbc072ed31c02f88545d0b0b48d0e70c4d50c70c6a"
+          },
+          "output": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f6775650202010102b7d0edb96e6326a98c05b6dbc072ed31c02f88545d0b0b48d0e70c4d50c70c6a"
+        }
+      ]
+    },
+    {
+      "derivation": "e2e-prologue",
+      "domain": "MeshLink/1 e2e-prologue",
+      "tests": [
+        {
+          "tcId": 47,
+          "comment": "profile 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "version": 1,
+            "profile": 1
+          },
+          "output": "174d6573684c696e6b2f31206532652d70726f6c6f6775650101"
+        },
+        {
+          "tcId": 48,
+          "comment": "profile 2",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "version": 1,
+            "profile": 2
+          },
+          "output": "174d6573684c696e6b2f31206532652d70726f6c6f6775650102"
+        }
+      ]
+    },
+    {
+      "derivation": "hpke-info",
+      "domain": "MeshLink/1 hpke-first-message",
+      "tests": [
+        {
+          "tcId": 49,
+          "comment": "sender 0 to recipient 1",
+          "flags": [],
+          "result": "valid",
+          "inputs": {
+            "sender_static_key": "c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac",
+            "recipient_node_id": "df7fab45509c78df0b8443f1fa1905b2195a0752b96929d7860dcd51e6eb0ab8"
+          },
+          "output": "1d4d6573684c696e6b2f312068706b652d66697273742d6d657373616765c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798acdf7fab45509c78df0b8443f1fa1905b2195a0752b96929d7860dcd51e6eb0ab8"
+        }
+      ]
+    },
+    {
+      "derivation": "certificate-signing-input",
+      "domain": "MeshLink/1 certificate",
+      "tests": [
+        {
+          "tcId": 50,
+          "comment": "classical certificate body (placeholder keys)",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "inputs": {
+            "certificate_without_signature": "01016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00"
+          },
+          "output": "164d6573684c696e6b2f3120636572746966696361746501016bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347c103488eaeb70f48939ffaffc877df6ddf59e140a9d99140d7ec4d4a24c798ac6b36ec806b383e00"
+        }
+      ]
+    },
+    {
+      "derivation": "broadcast-signing-input",
+      "domain": "MeshLink/1 broadcast",
+      "tests": [
+        {
+          "tcId": 51,
+          "comment": "signed broadcast without signature; hop limit byte removed",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "inputs": {
+            "frame_without_signature": "804057fac0f41ce4572c65194c2e6b36eed8056bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033"
+          },
+          "output": "144d6573684c696e6b2f312062726f6164636173748057fac0f41ce4572c65194c2e6b36eed8056bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033"
+        }
+      ]
+    }
+  ]
+}

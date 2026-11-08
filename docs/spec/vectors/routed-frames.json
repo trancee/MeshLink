@@ -1,0 +1,773 @@
+{
+  "$schema": "./routed-frames.schema.json",
+  "algorithm": "MeshLink/1 routed frames",
+  "schema": "routed-frames.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 59,
+  "notes": {
+    "Placeholder": "Noise messages, ciphertexts, keys and signatures are placeholder bytes: only the framing is tested."
+  },
+  "testGroups": [
+    {
+      "layout": "frame",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "MESSAGE, IK initiator container",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c01000000a0975904fd23d18a667262d44ca45086e2043d268503aa1622ffb0ff575ae1a41d0090562ea231a69bc2f7e2d5ff9a8994ebd73d0386b2255e42e4a87368974d64188e8287df9cd791939d5832ba9b96611e2e53b851c81703525128bb7714c2892e3203947d047a873d9a0011091dbf72702fe91fa4c0cc82b18dd52f5076ba79f87055de5d92297059785148f27d8dd5c961a3c349df00e7286f699f1201da01",
+          "decoded": {
+            "type": "0x40",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "commitment": "30a53f758a8d877dbf382b43324f250c",
+            "container": {
+              "kind": "0x01",
+              "noise_message": "975904fd23d18a667262d44ca45086e2043d268503aa1622ffb0ff575ae1a41d0090562ea231a69bc2f7e2d5ff9a8994ebd73d0386b2255e42e4a87368974d64188e8287df9cd791939d5832ba9b96611e2e53b851c81703525128bb7714c2892e3203947d047a873d9a0011091dbf72702fe91fa4c0cc82b18dd52f5076ba79f87055de5d92297059785148f27d8dd5c961a3c349df00e7286f699f1201da01"
+            }
+          }
+        },
+        {
+          "tcId": 2,
+          "comment": "MESSAGE, transport container",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c030000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb",
+          "decoded": {
+            "type": "0x40",
+            "hop_limit": 7,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "commitment": "30a53f758a8d877dbf382b43324f250c",
+            "container": {
+              "kind": "0x03",
+              "nonce": 41,
+              "ciphertext": "7e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb"
+            }
+          }
+        },
+        {
+          "tcId": 3,
+          "comment": "MESSAGE, unsecured container",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000568656c6c6f",
+          "decoded": {
+            "type": "0x40",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "commitment": "30a53f758a8d877dbf382b43324f250c",
+            "container": {
+              "kind": "0x04",
+              "sender_node_id": "4bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d12853",
+              "plaintext": "68656c6c6f"
+            }
+          }
+        },
+        {
+          "tcId": 4,
+          "comment": "DELIVERY_RECEIPT, one tombstone, transport",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f018f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1603000000000000000300000030ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f35",
+          "decoded": {
+            "type": "0x41",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "tombstones": [
+              {
+                "message_id": "8f024f5d07235072ec8b12a4",
+                "k": "5190dfcbbcfc7fd7bf282b5d10696a16"
+              }
+            ],
+            "container": {
+              "kind": "0x03",
+              "nonce": 3,
+              "ciphertext": "ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f35"
+            }
+          }
+        },
+        {
+          "tcId": 5,
+          "comment": "DELIVERY_RECEIPT, two tombstones, IK responder",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f028f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1657fac0f41ce4572c65194c2eb8ef73dd97507e7d4f8642488b8c7b430200000060e64410117d56a365ffcf8d01db0cb558fca716a9424e34d70dacc645d49caecf8c1369d3fae64d9dcbef28fa8cf77bd3fbcf5b0a15662cd5e2e271ff7f202ebeb2cb0f92db461677728f9f781ab9526a4869d17e6b107c488c869fa9d44b7c7c",
+          "decoded": {
+            "type": "0x41",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "tombstones": [
+              {
+                "message_id": "8f024f5d07235072ec8b12a4",
+                "k": "5190dfcbbcfc7fd7bf282b5d10696a16"
+              },
+              {
+                "message_id": "57fac0f41ce4572c65194c2e",
+                "k": "b8ef73dd97507e7d4f8642488b8c7b43"
+              }
+            ],
+            "container": {
+              "kind": "0x02",
+              "noise_message": "e64410117d56a365ffcf8d01db0cb558fca716a9424e34d70dacc645d49caecf8c1369d3fae64d9dcbef28fa8cf77bd3fbcf5b0a15662cd5e2e271ff7f202ebeb2cb0f92db461677728f9f781ab9526a4869d17e6b107c488c869fa9d44b7c7c"
+            }
+          }
+        },
+        {
+          "tcId": 6,
+          "comment": "READ_RECEIPT, transport",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f0300000000000000090000003037cddda3a2a9f099340fd27454c1b535e770815667489ea6fbb08bc9e3daf81a5f9f9e123c98d75fd5dfd380762d3c3c",
+          "decoded": {
+            "type": "0x42",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "container": {
+              "kind": "0x03",
+              "nonce": 9,
+              "ciphertext": "37cddda3a2a9f099340fd27454c1b535e770815667489ea6fbb08bc9e3daf81a5f9f9e123c98d75fd5dfd380762d3c3c"
+            }
+          }
+        },
+        {
+          "tcId": 7,
+          "comment": "READ_RECEIPT, IK initiator (new session)",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f01000000a03e7bf9d8149a043c5e14025bb484b2cb2d7e83319aeb58cbc9cbbde69c079b5d98e6bdb787dbab62ca02d0c77a1c2b07d0172f64663d540db6ef20e47243d98a1365b3701f9ee21fd092764f37ff641693ce6fe0e0a3054ca85bd1ec2a0223950459367f196243ef67db49f77bc288590afdd9c5e4a6aac8e7d838c104d75085b1d05ac35c3a33aad4a78c9d947458183cce28e84e00c5c7ab6cc3ee4be63f99",
+          "decoded": {
+            "type": "0x42",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "container": {
+              "kind": "0x01",
+              "noise_message": "3e7bf9d8149a043c5e14025bb484b2cb2d7e83319aeb58cbc9cbbde69c079b5d98e6bdb787dbab62ca02d0c77a1c2b07d0172f64663d540db6ef20e47243d98a1365b3701f9ee21fd092764f37ff641693ce6fe0e0a3054ca85bd1ec2a0223950459367f196243ef67db49f77bc288590afdd9c5e4a6aac8e7d838c104d75085b1d05ac35c3a33aad4a78c9d947458183cce28e84e00c5c7ab6cc3ee4be63f99"
+            }
+          }
+        },
+        {
+          "tcId": 8,
+          "comment": "ROUTE_REPLY",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "43ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f79a787df599f4a220000001103",
+          "decoded": {
+            "type": "0x43",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "target_tag": "79a787df599f4a22",
+            "target_sequence": 17,
+            "hop_count": 3
+          }
+        },
+        {
+          "tcId": 9,
+          "comment": "LOOKUP_REPLY, classical certificate",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391009a8af5c4292aad2cb6e496cd1e592686a54d98ccdc0a7c6fe94ec103cd6a04922c0fdae18880baf912ddd7542d6039801ce70fb973e71c8a131ddd9b70c908da358a1b842a797a1c4dd358e68fef1a83ec474d231e8fd417bbc48e5156b7b9baa9a72e925e893097ea0b95613d227c6dd19e34cee6aa790215ff9b9a4d442f63c6ae7ab34d3b5f0922718207d2b2071f8be1cd0c6ac8b20497a72e",
+          "decoded": {
+            "type": "0x44",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "d1a81eaa5b83263e",
+            "source_tag": "05514919d593747f",
+            "ephemeral_key": "0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391",
+            "sealed_certificate": "8af5c4292aad2cb6e496cd1e592686a54d98ccdc0a7c6fe94ec103cd6a04922c0fdae18880baf912ddd7542d6039801ce70fb973e71c8a131ddd9b70c908da358a1b842a797a1c4dd358e68fef1a83ec474d231e8fd417bbc48e5156b7b9baa9a72e925e893097ea0b95613d227c6dd19e34cee6aa790215ff9b9a4d442f63c6ae7ab34d3b5f0922718207d2b2071f8be1cd0c6ac8b20497a72e"
+          }
+        },
+        {
+          "tcId": 10,
+          "comment": "LOOKUP_REPLY, post-quantum certificate",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391055a04f8b7c0902e6bfefd2d8f220c8672fca5e022f386faa5faeff33aee5450bcd84eea59bb2da3a21125c894dee3bcc87c94b2dbcf86c5c715b55cd8ae4cb599966bc41db78f57fa4bcb589f512779e9bd7888e4fe31454c16b8c90baf83fe54d64c51b06b1ab770adb52ac56d98ba88da03ec0783123a8a7395de0f7493af2b62091c0caaa6757939749b6c429d100ba990831a7cefd9b78dd8ad9967e027df20b4b3cc4905a508644d6fd50f4e0885d1530be4bdab9d0d399ce757bed4a74db4b73ac18296f67afcdbe406099913e753dda3df5e79c57336c73d4b9ac5ef85c63be42a0e2467f49b7fac51d0e05a69bfd0a94a16aaa994d331a3f157d83df6321358bcb9e2974ba1d83dbecb946f1dcc88d643d3ba6d7ec3f420b8ba932eb12ecd7de20dd469de3425afc24d03e4643c1e8b4c574769aa1a7e8d9ff144128b57b48863b7d67f8374d6e8dface044695ff96a1550d97fd35b8e62a0ef6197df4ab3b5436716dbe764d281d6c0ee1b325375ce233c50f976cbd9b045bc0ba7fe9cf6539aa0cbb29dac435b2b020c1f4bb79ee5d1c322928fe1516a6a7d846560c7784b793565e037c8dee7e7c1adecd92897f4d0038b9218dc23ea0784c702eb893e0f2db3b2dd05d0eba71ab5663d24ab5532cbd78ee7fb339912b141a9d3ee3aa0a05995bf949202ecb94144f864e0c92f4be90b5b1537042cff5966aa3ed2f3038f4c3dfb913a81a3991fa7ab45a579fdeaea6756a2ae815040a5ace4ddd6142432412dbfbacd460b80299e41c2c556defce2541fc2fec22198924679bca817d70b964fd76a601eb1dfb97320ae8855239e0a6005c889950c63aec5a5fc2bf26fb3dc963a862b81a94b8007230df65baf0ace2191fc5ec44fedcc99cb0b116c65e89eb581ca287f83e1dbe277b6b69db75923d5802c126057ee175672a513dafe22726373ddfb19fb102e04ce8b7749233dd18f4ce1e98832c7f38e691744fb5c3d1585a43ba0664cb1a29f3da0c54aca767d6ff179862258dbaaa8b16417951b35c64d25ff16d74867073aa708b7eb67507cb2a5842369d1f64981d2a6b4b4dd75d09863179af1d873397eb50930ceb039e120e5270706d48048a21b296f12dcb52bf2321a9df2c8afe17cb51af1887418e01608eba62b3346877c52b17a9a462f7e302648bc6f74bad7d835af995a6fc781123ab7739574f932ac747bb4d6f8a74afb8fedc8584c68e7e940e6aeb63af600bd09ada9fa5d73d70478ddc7249ac19ea1b5896b6d72ec6adedafa5c4c5881aa281648b50c61a2ace9afd42407fbdda5c9b7a0d40b60026fd124722a118363a3c1242eadc4f6f4fd872450dda19e25c511aa845497e279b7476c98a500deb8a63d02c994a8fdfaffed1564332ab2eab2b48164bffe6faa438eaf8c8dcfc979c2b86d51ff98ae98ddb48a67441114f78f6e8d69a99aeb7fe5a35caf9919aadb17fdbae173ee969cce356927c7f68bc7aabd2c673549df1065ebf78a86d187eb9d57513a494f54bd74af87ff8c5c9be88cd4d1184f12195d22d2fb0d9f8284d4ed113c059e86c71f085054956cc916c3a03eed908d430c9128a3998914e054cdc451361bd11c55925ccce4ffa07fc1b09f59b5e43003dd99ff76c85b80707df828cc2cd6101728b8cd1eb5e8ca212806a59820eaa015c1d88f630026f18196c6c49fd79c451e79ce3be84cf9fad95cae831f79b43d8d7155fab91a359d2f9770c15c46bd86cfe16ae77cea8755775f76452ade5b8c96f570fd456b877fbad638218be74fe3fd7d3329b387cd6e5e1c70305d23eb7bfd89c38364cca99d474da30ff2e951b3fc69882c83c8f145256f41afe752edd4d163c25b01742c4a7b4c2a9e97fd4790d8a6af3ff7613e14090fe2ebdf8f8e4bdb238b97f3c6af78c156bf7249d721f8a10591",
+          "decoded": {
+            "type": "0x44",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "d1a81eaa5b83263e",
+            "source_tag": "05514919d593747f",
+            "ephemeral_key": "0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391",
+            "sealed_certificate": "04f8b7c0902e6bfefd2d8f220c8672fca5e022f386faa5faeff33aee5450bcd84eea59bb2da3a21125c894dee3bcc87c94b2dbcf86c5c715b55cd8ae4cb599966bc41db78f57fa4bcb589f512779e9bd7888e4fe31454c16b8c90baf83fe54d64c51b06b1ab770adb52ac56d98ba88da03ec0783123a8a7395de0f7493af2b62091c0caaa6757939749b6c429d100ba990831a7cefd9b78dd8ad9967e027df20b4b3cc4905a508644d6fd50f4e0885d1530be4bdab9d0d399ce757bed4a74db4b73ac18296f67afcdbe406099913e753dda3df5e79c57336c73d4b9ac5ef85c63be42a0e2467f49b7fac51d0e05a69bfd0a94a16aaa994d331a3f157d83df6321358bcb9e2974ba1d83dbecb946f1dcc88d643d3ba6d7ec3f420b8ba932eb12ecd7de20dd469de3425afc24d03e4643c1e8b4c574769aa1a7e8d9ff144128b57b48863b7d67f8374d6e8dface044695ff96a1550d97fd35b8e62a0ef6197df4ab3b5436716dbe764d281d6c0ee1b325375ce233c50f976cbd9b045bc0ba7fe9cf6539aa0cbb29dac435b2b020c1f4bb79ee5d1c322928fe1516a6a7d846560c7784b793565e037c8dee7e7c1adecd92897f4d0038b9218dc23ea0784c702eb893e0f2db3b2dd05d0eba71ab5663d24ab5532cbd78ee7fb339912b141a9d3ee3aa0a05995bf949202ecb94144f864e0c92f4be90b5b1537042cff5966aa3ed2f3038f4c3dfb913a81a3991fa7ab45a579fdeaea6756a2ae815040a5ace4ddd6142432412dbfbacd460b80299e41c2c556defce2541fc2fec22198924679bca817d70b964fd76a601eb1dfb97320ae8855239e0a6005c889950c63aec5a5fc2bf26fb3dc963a862b81a94b8007230df65baf0ace2191fc5ec44fedcc99cb0b116c65e89eb581ca287f83e1dbe277b6b69db75923d5802c126057ee175672a513dafe22726373ddfb19fb102e04ce8b7749233dd18f4ce1e98832c7f38e691744fb5c3d1585a43ba0664cb1a29f3da0c54aca767d6ff179862258dbaaa8b16417951b35c64d25ff16d74867073aa708b7eb67507cb2a5842369d1f64981d2a6b4b4dd75d09863179af1d873397eb50930ceb039e120e5270706d48048a21b296f12dcb52bf2321a9df2c8afe17cb51af1887418e01608eba62b3346877c52b17a9a462f7e302648bc6f74bad7d835af995a6fc781123ab7739574f932ac747bb4d6f8a74afb8fedc8584c68e7e940e6aeb63af600bd09ada9fa5d73d70478ddc7249ac19ea1b5896b6d72ec6adedafa5c4c5881aa281648b50c61a2ace9afd42407fbdda5c9b7a0d40b60026fd124722a118363a3c1242eadc4f6f4fd872450dda19e25c511aa845497e279b7476c98a500deb8a63d02c994a8fdfaffed1564332ab2eab2b48164bffe6faa438eaf8c8dcfc979c2b86d51ff98ae98ddb48a67441114f78f6e8d69a99aeb7fe5a35caf9919aadb17fdbae173ee969cce356927c7f68bc7aabd2c673549df1065ebf78a86d187eb9d57513a494f54bd74af87ff8c5c9be88cd4d1184f12195d22d2fb0d9f8284d4ed113c059e86c71f085054956cc916c3a03eed908d430c9128a3998914e054cdc451361bd11c55925ccce4ffa07fc1b09f59b5e43003dd99ff76c85b80707df828cc2cd6101728b8cd1eb5e8ca212806a59820eaa015c1d88f630026f18196c6c49fd79c451e79ce3be84cf9fad95cae831f79b43d8d7155fab91a359d2f9770c15c46bd86cfe16ae77cea8755775f76452ade5b8c96f570fd456b877fbad638218be74fe3fd7d3329b387cd6e5e1c70305d23eb7bfd89c38364cca99d474da30ff2e951b3fc69882c83c8f145256f41afe752edd4d163c25b01742c4a7b4c2a9e97fd4790d8a6af3ff7613e14090fe2ebdf8f8e4bdb238b97f3c6af78c156bf7249d721f8a10591"
+          }
+        },
+        {
+          "tcId": 11,
+          "comment": "BROADCAST, signed",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8056bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11",
+          "decoded": {
+            "type": "0x80",
+            "hop_limit": 64,
+            "message_id": "57fac0f41ce4572c65194c2e",
+            "expiry": 1798762200,
+            "container": {
+              "kind": "0x05",
+              "origin_key": "6bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347",
+              "payload": "576174657220617420676174652033",
+              "signature": "f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11"
+            }
+          }
+        },
+        {
+          "tcId": 12,
+          "comment": "BROADCAST, unsecured",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000f4c6f737420646f672c20626c61636b",
+          "decoded": {
+            "type": "0x80",
+            "hop_limit": 64,
+            "message_id": "57fac0f41ce4572c65194c2e",
+            "expiry": 1798762200,
+            "container": {
+              "kind": "0x04",
+              "sender_node_id": "4bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d12853",
+              "plaintext": "4c6f737420646f672c20626c61636b"
+            }
+          }
+        },
+        {
+          "tcId": 13,
+          "comment": "ROUTE_REQUEST",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "814057fac0f41ce4572c65194c2e6b36eed879a787df599f4a22a48619f7a310a8b3000000010000000000",
+          "decoded": {
+            "type": "0x81",
+            "hop_limit": 64,
+            "message_id": "57fac0f41ce4572c65194c2e",
+            "expiry": 1798762200,
+            "target_tag": "79a787df599f4a22",
+            "origin_tag": "a48619f7a310a8b3",
+            "origin_sequence": 1,
+            "target_sequence": 0,
+            "hop_count": 0
+          }
+        },
+        {
+          "tcId": 14,
+          "comment": "LOOKUP_REQUEST",
+          "flags": [
+            "Placeholder"
+          ],
+          "result": "valid",
+          "encoded": "824057fac0f41ce4572c65194c2e6b36eed8d1a81eaa5b83263e29d269005a5cf1ced6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842af",
+          "decoded": {
+            "type": "0x82",
+            "hop_limit": 64,
+            "message_id": "57fac0f41ce4572c65194c2e",
+            "expiry": 1798762200,
+            "salt": "d1a81eaa5b83263e",
+            "lookup_tag": "29d269005a5cf1ce",
+            "ephemeral_key": "d6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842af"
+          }
+        },
+        {
+          "tcId": 15,
+          "comment": "MESSAGE, IK initiator container: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c01000000a0975904fd23d18a667262d44ca45086e2043d268503aa1622ffb0ff575ae1a41d0090562ea231a69bc2f7e2d5ff9a8994ebd73d0386b2255e42e4a87368974d64188e8287df9cd791939d5832ba9b96611e2e53b851c81703525128bb7714c2892e3203947d047a873d9a0011091dbf72702fe91fa4c0cc82b18dd52f5076ba79f87055de5d92297059785148f27d8dd5c961a3c349df00e7286f699f1201da",
+          "error": "truncated"
+        },
+        {
+          "tcId": 16,
+          "comment": "MESSAGE, IK initiator container: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c01000000a0975904fd23d18a667262d44ca45086e2043d268503aa1622ffb0ff575ae1a41d0090562ea231a69bc2f7e2d5ff9a8994ebd73d0386b2255e42e4a87368974d64188e8287df9cd791939d5832ba9b96611e2e53b851c81703525128bb7714c2892e3203947d047a873d9a0011091dbf72702fe91fa4c0cc82b18dd52f5076ba79f87055de5d92297059785148f27d8dd5c961a3c349df00e7286f699f1201da0100",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 17,
+          "comment": "MESSAGE, transport container: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c030000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfb",
+          "error": "truncated"
+        },
+        {
+          "tcId": 18,
+          "comment": "MESSAGE, transport container: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c030000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 19,
+          "comment": "MESSAGE, unsecured container: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000568656c6c",
+          "error": "truncated"
+        },
+        {
+          "tcId": 20,
+          "comment": "MESSAGE, unsecured container: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000568656c6c6f00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 21,
+          "comment": "DELIVERY_RECEIPT, one tombstone, transport: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f018f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1603000000000000000300000030ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f",
+          "error": "truncated"
+        },
+        {
+          "tcId": 22,
+          "comment": "DELIVERY_RECEIPT, one tombstone, transport: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f018f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1603000000000000000300000030ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f3500",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 23,
+          "comment": "DELIVERY_RECEIPT, two tombstones, IK responder: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f028f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1657fac0f41ce4572c65194c2eb8ef73dd97507e7d4f8642488b8c7b430200000060e64410117d56a365ffcf8d01db0cb558fca716a9424e34d70dacc645d49caecf8c1369d3fae64d9dcbef28fa8cf77bd3fbcf5b0a15662cd5e2e271ff7f202ebeb2cb0f92db461677728f9f781ab9526a4869d17e6b107c488c869fa9d44b7c",
+          "error": "truncated"
+        },
+        {
+          "tcId": 24,
+          "comment": "DELIVERY_RECEIPT, two tombstones, IK responder: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f028f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a1657fac0f41ce4572c65194c2eb8ef73dd97507e7d4f8642488b8c7b430200000060e64410117d56a365ffcf8d01db0cb558fca716a9424e34d70dacc645d49caecf8c1369d3fae64d9dcbef28fa8cf77bd3fbcf5b0a15662cd5e2e271ff7f202ebeb2cb0f92db461677728f9f781ab9526a4869d17e6b107c488c869fa9d44b7c7c00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 25,
+          "comment": "READ_RECEIPT, transport: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f0300000000000000090000003037cddda3a2a9f099340fd27454c1b535e770815667489ea6fbb08bc9e3daf81a5f9f9e123c98d75fd5dfd380762d3c",
+          "error": "truncated"
+        },
+        {
+          "tcId": 26,
+          "comment": "READ_RECEIPT, transport: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f0300000000000000090000003037cddda3a2a9f099340fd27454c1b535e770815667489ea6fbb08bc9e3daf81a5f9f9e123c98d75fd5dfd380762d3c3c00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 27,
+          "comment": "READ_RECEIPT, IK initiator (new session): last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f01000000a03e7bf9d8149a043c5e14025bb484b2cb2d7e83319aeb58cbc9cbbde69c079b5d98e6bdb787dbab62ca02d0c77a1c2b07d0172f64663d540db6ef20e47243d98a1365b3701f9ee21fd092764f37ff641693ce6fe0e0a3054ca85bd1ec2a0223950459367f196243ef67db49f77bc288590afdd9c5e4a6aac8e7d838c104d75085b1d05ac35c3a33aad4a78c9d947458183cce28e84e00c5c7ab6cc3ee4be63f",
+          "error": "truncated"
+        },
+        {
+          "tcId": 28,
+          "comment": "READ_RECEIPT, IK initiator (new session): one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f01000000a03e7bf9d8149a043c5e14025bb484b2cb2d7e83319aeb58cbc9cbbde69c079b5d98e6bdb787dbab62ca02d0c77a1c2b07d0172f64663d540db6ef20e47243d98a1365b3701f9ee21fd092764f37ff641693ce6fe0e0a3054ca85bd1ec2a0223950459367f196243ef67db49f77bc288590afdd9c5e4a6aac8e7d838c104d75085b1d05ac35c3a33aad4a78c9d947458183cce28e84e00c5c7ab6cc3ee4be63f9900",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 29,
+          "comment": "ROUTE_REPLY: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "43ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f79a787df599f4a2200000011",
+          "error": "truncated"
+        },
+        {
+          "tcId": 30,
+          "comment": "ROUTE_REPLY: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "43ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f79a787df599f4a22000000110300",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 31,
+          "comment": "LOOKUP_REPLY, classical certificate: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391009a8af5c4292aad2cb6e496cd1e592686a54d98ccdc0a7c6fe94ec103cd6a04922c0fdae18880baf912ddd7542d6039801ce70fb973e71c8a131ddd9b70c908da358a1b842a797a1c4dd358e68fef1a83ec474d231e8fd417bbc48e5156b7b9baa9a72e925e893097ea0b95613d227c6dd19e34cee6aa790215ff9b9a4d442f63c6ae7ab34d3b5f0922718207d2b2071f8be1cd0c6ac8b20497a7",
+          "error": "truncated"
+        },
+        {
+          "tcId": 32,
+          "comment": "LOOKUP_REPLY, classical certificate: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391009a8af5c4292aad2cb6e496cd1e592686a54d98ccdc0a7c6fe94ec103cd6a04922c0fdae18880baf912ddd7542d6039801ce70fb973e71c8a131ddd9b70c908da358a1b842a797a1c4dd358e68fef1a83ec474d231e8fd417bbc48e5156b7b9baa9a72e925e893097ea0b95613d227c6dd19e34cee6aa790215ff9b9a4d442f63c6ae7ab34d3b5f0922718207d2b2071f8be1cd0c6ac8b20497a72e00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 33,
+          "comment": "LOOKUP_REPLY, post-quantum certificate: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391055a04f8b7c0902e6bfefd2d8f220c8672fca5e022f386faa5faeff33aee5450bcd84eea59bb2da3a21125c894dee3bcc87c94b2dbcf86c5c715b55cd8ae4cb599966bc41db78f57fa4bcb589f512779e9bd7888e4fe31454c16b8c90baf83fe54d64c51b06b1ab770adb52ac56d98ba88da03ec0783123a8a7395de0f7493af2b62091c0caaa6757939749b6c429d100ba990831a7cefd9b78dd8ad9967e027df20b4b3cc4905a508644d6fd50f4e0885d1530be4bdab9d0d399ce757bed4a74db4b73ac18296f67afcdbe406099913e753dda3df5e79c57336c73d4b9ac5ef85c63be42a0e2467f49b7fac51d0e05a69bfd0a94a16aaa994d331a3f157d83df6321358bcb9e2974ba1d83dbecb946f1dcc88d643d3ba6d7ec3f420b8ba932eb12ecd7de20dd469de3425afc24d03e4643c1e8b4c574769aa1a7e8d9ff144128b57b48863b7d67f8374d6e8dface044695ff96a1550d97fd35b8e62a0ef6197df4ab3b5436716dbe764d281d6c0ee1b325375ce233c50f976cbd9b045bc0ba7fe9cf6539aa0cbb29dac435b2b020c1f4bb79ee5d1c322928fe1516a6a7d846560c7784b793565e037c8dee7e7c1adecd92897f4d0038b9218dc23ea0784c702eb893e0f2db3b2dd05d0eba71ab5663d24ab5532cbd78ee7fb339912b141a9d3ee3aa0a05995bf949202ecb94144f864e0c92f4be90b5b1537042cff5966aa3ed2f3038f4c3dfb913a81a3991fa7ab45a579fdeaea6756a2ae815040a5ace4ddd6142432412dbfbacd460b80299e41c2c556defce2541fc2fec22198924679bca817d70b964fd76a601eb1dfb97320ae8855239e0a6005c889950c63aec5a5fc2bf26fb3dc963a862b81a94b8007230df65baf0ace2191fc5ec44fedcc99cb0b116c65e89eb581ca287f83e1dbe277b6b69db75923d5802c126057ee175672a513dafe22726373ddfb19fb102e04ce8b7749233dd18f4ce1e98832c7f38e691744fb5c3d1585a43ba0664cb1a29f3da0c54aca767d6ff179862258dbaaa8b16417951b35c64d25ff16d74867073aa708b7eb67507cb2a5842369d1f64981d2a6b4b4dd75d09863179af1d873397eb50930ceb039e120e5270706d48048a21b296f12dcb52bf2321a9df2c8afe17cb51af1887418e01608eba62b3346877c52b17a9a462f7e302648bc6f74bad7d835af995a6fc781123ab7739574f932ac747bb4d6f8a74afb8fedc8584c68e7e940e6aeb63af600bd09ada9fa5d73d70478ddc7249ac19ea1b5896b6d72ec6adedafa5c4c5881aa281648b50c61a2ace9afd42407fbdda5c9b7a0d40b60026fd124722a118363a3c1242eadc4f6f4fd872450dda19e25c511aa845497e279b7476c98a500deb8a63d02c994a8fdfaffed1564332ab2eab2b48164bffe6faa438eaf8c8dcfc979c2b86d51ff98ae98ddb48a67441114f78f6e8d69a99aeb7fe5a35caf9919aadb17fdbae173ee969cce356927c7f68bc7aabd2c673549df1065ebf78a86d187eb9d57513a494f54bd74af87ff8c5c9be88cd4d1184f12195d22d2fb0d9f8284d4ed113c059e86c71f085054956cc916c3a03eed908d430c9128a3998914e054cdc451361bd11c55925ccce4ffa07fc1b09f59b5e43003dd99ff76c85b80707df828cc2cd6101728b8cd1eb5e8ca212806a59820eaa015c1d88f630026f18196c6c49fd79c451e79ce3be84cf9fad95cae831f79b43d8d7155fab91a359d2f9770c15c46bd86cfe16ae77cea8755775f76452ade5b8c96f570fd456b877fbad638218be74fe3fd7d3329b387cd6e5e1c70305d23eb7bfd89c38364cca99d474da30ff2e951b3fc69882c83c8f145256f41afe752edd4d163c25b01742c4a7b4c2a9e97fd4790d8a6af3ff7613e14090fe2ebdf8f8e4bdb238b97f3c6af78c156bf7249d721f8a105",
+          "error": "truncated"
+        },
+        {
+          "tcId": 34,
+          "comment": "LOOKUP_REPLY, post-quantum certificate: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391055a04f8b7c0902e6bfefd2d8f220c8672fca5e022f386faa5faeff33aee5450bcd84eea59bb2da3a21125c894dee3bcc87c94b2dbcf86c5c715b55cd8ae4cb599966bc41db78f57fa4bcb589f512779e9bd7888e4fe31454c16b8c90baf83fe54d64c51b06b1ab770adb52ac56d98ba88da03ec0783123a8a7395de0f7493af2b62091c0caaa6757939749b6c429d100ba990831a7cefd9b78dd8ad9967e027df20b4b3cc4905a508644d6fd50f4e0885d1530be4bdab9d0d399ce757bed4a74db4b73ac18296f67afcdbe406099913e753dda3df5e79c57336c73d4b9ac5ef85c63be42a0e2467f49b7fac51d0e05a69bfd0a94a16aaa994d331a3f157d83df6321358bcb9e2974ba1d83dbecb946f1dcc88d643d3ba6d7ec3f420b8ba932eb12ecd7de20dd469de3425afc24d03e4643c1e8b4c574769aa1a7e8d9ff144128b57b48863b7d67f8374d6e8dface044695ff96a1550d97fd35b8e62a0ef6197df4ab3b5436716dbe764d281d6c0ee1b325375ce233c50f976cbd9b045bc0ba7fe9cf6539aa0cbb29dac435b2b020c1f4bb79ee5d1c322928fe1516a6a7d846560c7784b793565e037c8dee7e7c1adecd92897f4d0038b9218dc23ea0784c702eb893e0f2db3b2dd05d0eba71ab5663d24ab5532cbd78ee7fb339912b141a9d3ee3aa0a05995bf949202ecb94144f864e0c92f4be90b5b1537042cff5966aa3ed2f3038f4c3dfb913a81a3991fa7ab45a579fdeaea6756a2ae815040a5ace4ddd6142432412dbfbacd460b80299e41c2c556defce2541fc2fec22198924679bca817d70b964fd76a601eb1dfb97320ae8855239e0a6005c889950c63aec5a5fc2bf26fb3dc963a862b81a94b8007230df65baf0ace2191fc5ec44fedcc99cb0b116c65e89eb581ca287f83e1dbe277b6b69db75923d5802c126057ee175672a513dafe22726373ddfb19fb102e04ce8b7749233dd18f4ce1e98832c7f38e691744fb5c3d1585a43ba0664cb1a29f3da0c54aca767d6ff179862258dbaaa8b16417951b35c64d25ff16d74867073aa708b7eb67507cb2a5842369d1f64981d2a6b4b4dd75d09863179af1d873397eb50930ceb039e120e5270706d48048a21b296f12dcb52bf2321a9df2c8afe17cb51af1887418e01608eba62b3346877c52b17a9a462f7e302648bc6f74bad7d835af995a6fc781123ab7739574f932ac747bb4d6f8a74afb8fedc8584c68e7e940e6aeb63af600bd09ada9fa5d73d70478ddc7249ac19ea1b5896b6d72ec6adedafa5c4c5881aa281648b50c61a2ace9afd42407fbdda5c9b7a0d40b60026fd124722a118363a3c1242eadc4f6f4fd872450dda19e25c511aa845497e279b7476c98a500deb8a63d02c994a8fdfaffed1564332ab2eab2b48164bffe6faa438eaf8c8dcfc979c2b86d51ff98ae98ddb48a67441114f78f6e8d69a99aeb7fe5a35caf9919aadb17fdbae173ee969cce356927c7f68bc7aabd2c673549df1065ebf78a86d187eb9d57513a494f54bd74af87ff8c5c9be88cd4d1184f12195d22d2fb0d9f8284d4ed113c059e86c71f085054956cc916c3a03eed908d430c9128a3998914e054cdc451361bd11c55925ccce4ffa07fc1b09f59b5e43003dd99ff76c85b80707df828cc2cd6101728b8cd1eb5e8ca212806a59820eaa015c1d88f630026f18196c6c49fd79c451e79ce3be84cf9fad95cae831f79b43d8d7155fab91a359d2f9770c15c46bd86cfe16ae77cea8755775f76452ade5b8c96f570fd456b877fbad638218be74fe3fd7d3329b387cd6e5e1c70305d23eb7bfd89c38364cca99d474da30ff2e951b3fc69882c83c8f145256f41afe752edd4d163c25b01742c4a7b4c2a9e97fd4790d8a6af3ff7613e14090fe2ebdf8f8e4bdb238b97f3c6af78c156bf7249d721f8a1059100",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 35,
+          "comment": "BROADCAST, signed: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8056bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e",
+          "error": "truncated"
+        },
+        {
+          "tcId": 36,
+          "comment": "BROADCAST, signed: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8056bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e1100",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 37,
+          "comment": "BROADCAST, unsecured: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000f4c6f737420646f672c20626c6163",
+          "error": "truncated"
+        },
+        {
+          "tcId": 38,
+          "comment": "BROADCAST, unsecured: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000f4c6f737420646f672c20626c61636b00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 39,
+          "comment": "ROUTE_REQUEST: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "814057fac0f41ce4572c65194c2e6b36eed879a787df599f4a22a48619f7a310a8b30000000100000000",
+          "error": "truncated"
+        },
+        {
+          "tcId": 40,
+          "comment": "ROUTE_REQUEST: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "814057fac0f41ce4572c65194c2e6b36eed879a787df599f4a22a48619f7a310a8b300000001000000000000",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 41,
+          "comment": "LOOKUP_REQUEST: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "824057fac0f41ce4572c65194c2e6b36eed8d1a81eaa5b83263e29d269005a5cf1ced6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842",
+          "error": "truncated"
+        },
+        {
+          "tcId": 42,
+          "comment": "LOOKUP_REQUEST: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "824057fac0f41ce4572c65194c2e6b36eed8d1a81eaa5b83263e29d269005a5cf1ced6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842af00",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 43,
+          "comment": "unknown unicast type 0x7E: relayed by header, not delivered",
+          "flags": [
+            "UnknownType"
+          ],
+          "result": "acceptable",
+          "encoded": "7eff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f0102",
+          "decoded": {
+            "type": "0x7E",
+            "hop_limit": 255,
+            "message_id": "8f024f5d07235072ec8b12a4",
+            "expiry": 1798762200,
+            "destination_tag": "3975e4d6e4bc2c05",
+            "source_tag": "05514919d593747f",
+            "body": "0102"
+          }
+        },
+        {
+          "tcId": 44,
+          "comment": "unknown flood type 0xBF: relayed by header, not delivered",
+          "flags": [
+            "UnknownType"
+          ],
+          "result": "acceptable",
+          "encoded": "bf4057fac0f41ce4572c65194c2e6b36eed8",
+          "decoded": {
+            "type": "0xBF",
+            "hop_limit": 64,
+            "message_id": "57fac0f41ce4572c65194c2e",
+            "expiry": 1798762200,
+            "body": ""
+          }
+        },
+        {
+          "tcId": 45,
+          "comment": "unknown unicast type with cut header",
+          "flags": [
+            "UnknownType",
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "7e0500000000000000000000",
+          "error": "truncated"
+        },
+        {
+          "tcId": 46,
+          "comment": "hop limit 0",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "40008f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c030000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 47,
+          "comment": "MESSAGE container kind 0x05",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c050000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 48,
+          "comment": "MESSAGE container kind 0x00",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c000000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfbdb",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 49,
+          "comment": "MESSAGE with IK responder container",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c020000000400000000",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 50,
+          "comment": "READ_RECEIPT with IK responder container",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "42ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f020000000400000000",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 51,
+          "comment": "DELIVERY_RECEIPT with IK initiator container",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f018f024f5d07235072ec8b12a45190dfcbbcfc7fd7bf282b5d10696a16010000000400000000",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 52,
+          "comment": "DELIVERY_RECEIPT with zero tombstones",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f0003000000000000000300000030ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f35",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 53,
+          "comment": "DELIVERY_RECEIPT with 33 tombstones",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "41ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f2100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000300000030ee479b63b5ef78c38e1f8f728264969c0aefc1086c84a7ddd9a5ef7eadae549fb26bd020f6b09c2eca05f313ad878f35",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 54,
+          "comment": "transport ciphertext shorter than the AEAD tag",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c0300000000000000010000001000000000000000000000000000000000",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 55,
+          "comment": "ciphertext length says 80, 79 present",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "40078f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c030000000000000029000000507e01403f13dc5118fb96b8516e365be6aac38762d47faa143e67b7fb992cf1c32192dd427050cf74b2077defa6dbbbfc73cf34337572d448c33d1258b994895dce66ca97c6b21dcf68dab4f72ccdfb",
+          "error": "truncated"
+        },
+        {
+          "tcId": 56,
+          "comment": "BROADCAST payload 1,025 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d12853000004010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 57,
+          "comment": "BROADCAST container kind 0x03",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "804057fac0f41ce4572c65194c2e6b36eed8036bd4a421df32031ccfec06579097c275c3c386d639d79dc8649d5c5bf5a44347000f576174657220617420676174652033f63375314837554cdeaf15120173c5c30988a59aa6add252cff640374cb0dc7d552677da1241c15e9db49f9c8d5f0673ae6aa11b93db11669450a6de6e951e11",
+          "error": "unknown-kind"
+        },
+        {
+          "tcId": 58,
+          "comment": "ROUTE_REQUEST origin sequence 0",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "814057fac0f41ce4572c65194c2e6b36eed879a787df599f4a22a48619f7a310a8b3000000000000000000",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 59,
+          "comment": "LOOKUP_REPLY sealed certificate of 153 B",
+          "flags": [
+            "BadLength"
+          ],
+          "result": "invalid",
+          "encoded": "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d3910099000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "error": "out-of-range"
+        }
+      ]
+    }
+  ]
+}
