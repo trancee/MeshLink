@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 5 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?", ADR 0013 and ADR 0015).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 6 (amended 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?", ADR 0013 and ADR 0015; 2026-11-08, ADR 0018).
 
 ## Context
 
@@ -152,3 +152,9 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **Limits (decision 7):** `config.limits` exposes the effective `maxUnicastPayload` and `maxBroadcastPayload`; `describe()` prints them. `TooLarge` means above the configured cap; `QueueFull` also covers the 1 MiB send-queue byte cap.
 - **Inbox (decision 9):** bounded at 1 MiB as well as by count. The link-local "busy" reply of ADR 0015 concerns reassembly at the next hop, not the destination's inbox.
+
+2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
+
+- **Sending (decision 7):** `send` to a NodeId without a valid certificate returns `Accepted`. The status stays `Queued` while MeshLink looks the certificate up, then the message is sealed, or it becomes `Expired` at its lifetime. `Rejected(PeerKeyExpired)` is removed. `Rejected(UnknownPeer)` remains only for a malformed NodeId, or an unknown NodeId in `unsecured`.
+- **Peers (decision 10):** a remote node is `Routed` only while MeshLink holds a valid certificate for it and has a route to it.
+- **Certificates:** v1 has no API to import or export certificates.

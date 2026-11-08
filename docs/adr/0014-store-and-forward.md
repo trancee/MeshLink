@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 3 (amended 2026-11-03, ADR 0015; 2026-11-08, ADR 0016).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 4 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018).
 
 ## Context
 
@@ -68,3 +68,8 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
 
 - **Claims (decision 7):** a node claims held messages addressed to its public tags (every static key with a valid certificate, plus an expired one for 1 h and 30 s) and to the conversation tags of its active sessions.
+
+2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
+
+- **Expired certificates (decision 10):** `send` no longer returns `Rejected(PeerKeyExpired)`. The message stays `Queued` while MeshLink looks up a fresh certificate (ADR 0018); piggybacked refresh is unchanged.
+- **Certificate acquisition (open in Risks):** decided by ADR 0018. A node caching D's valid certificate answers lookups, so first messages can be sealed and held for an offline D.

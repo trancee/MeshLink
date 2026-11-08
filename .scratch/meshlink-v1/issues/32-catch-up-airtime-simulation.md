@@ -13,3 +13,4 @@ Rerun the routing simulation with ADR 0014's catch-up (held broadcasts, held uni
 - Throwaway simulator on branch `prototype/routing-sim` (worktree `../MeshLink-routing-sim`).
 - Results are labeled simulated (P6).
 - Also include ADR 0016: per-conversation routes (conversation tags after the first message, public tag for first messages) instead of per-node routes; confirm route-discovery cost and delivery stay within budget, or return the decision to the project owner.
+- Also include ADR 0018: certificate lookups (salted, flooded under route-request rules, answered by D or a node caching its certificate, at most one outstanding per NodeId) before first messages to nodes without a cached certificate; confirm the cost stays within budget and whether route requests need a rate limit.

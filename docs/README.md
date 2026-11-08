@@ -40,6 +40,7 @@ The [ADRs](adr/) record each hard decision with its alternatives and risks:
 15. [Message size and compression](adr/0015-message-size-and-compression.md)
 16. [Routing metadata exposure](adr/0016-routing-metadata-exposure.md)
 17. [Testing architecture](adr/0017-testing-architecture.md)
+18. [Certificate acquisition](adr/0018-certificate-acquisition.md)
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 

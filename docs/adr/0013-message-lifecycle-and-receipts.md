@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 3 (amended 2026-11-03, ADR 0014; 2026-11-08, ADR 0016).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 4 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018).
 
 ## Context
 
@@ -80,3 +80,7 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
 
 - **Receipt addressing:** delivery acks and receipts use the conversation tag toward the sender. A read receipt sent after the end-to-end session ended starts a new session and is addressed to the sender's public tag.
+
+2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
+
+- **`Queued` (decision 5):** also covers a unicast waiting for the destination's certificate. It moves to `Sent` once a certificate arrives and the message is sealed, or to `Expired` at its lifetime.

@@ -1,6 +1,6 @@
 # 0012: Wire format principles and codec
 
-Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 4 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADR 0016).
+Status: accepted (2026-11-02; ticket "What is the wire format, and which codec implements it?"). Version: 5 (amended 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0016 and 0018).
 
 ## Context
 
@@ -94,3 +94,10 @@ None: greenfield. The amendments to ADRs 0003 and 0010, the threat model and the
 
 - **Routing header:** source and destination fields are 8 B tags of either kind: public tags (first messages, route requests for them) or conversation tags; relays treat both alike. Sizes are unchanged.
 - **Neighbor-list entry:** the 8 B identifier field of the peer's current advertisement (bytes 5–12 of decision 10).
+
+2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
+
+- **New routing messages:**
+  - A certificate lookup request: an 8 B salt, an 8 B lookup tag (BLAKE2b over salt ‖ NodeId with a domain-separation string, truncated) and a 32 B ephemeral X25519 key, flooded under route-request rules.
+  - A lookup reply: one certificate sealed to that key with ChaCha20-Poly1305 (+16 B tag), returned along the reverse path.
+- The protocol spec defines both layouts, the domain string and their vectors.

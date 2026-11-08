@@ -1,6 +1,6 @@
 # 0016: Routing metadata exposure
 
-Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 1.
+Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 2 (amended 2026-11-08, ADR 0018).
 
 ## Context
 
@@ -49,3 +49,10 @@ Link encryption hides routing messages from outsiders in the secured profiles (A
 ## Migration
 
 None: greenfield.
+
+## Amendments
+
+2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
+
+- **Message set:** gains certificate lookups and their replies. A lookup's salted tag lets anyone who knows D's NodeId recognize "someone is looking for D". The requester stays anonymous, and replies are sealed to the requester's ephemeral key.
+- **Key holders:** also include nodes that cache D's certificate: neighbors and recent `IK` senders, up to 64 certificates per node, each dropped at its not-after.
