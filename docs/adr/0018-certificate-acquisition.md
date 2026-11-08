@@ -1,6 +1,6 @@
 # 0018: Certificate acquisition
 
-Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 1.
+Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 2 (amended 2026-11-08, stage F simulation).
 
 ## Context
 
@@ -71,7 +71,7 @@ Inputs:
 ## Risks
 
 - **Lookups reveal interest:** anyone who knows D's NodeId can recognize "someone is looking for D". NodeIds are learned from contacts and from signed broadcasts. The requester stays anonymous. This is documented in the [observer page](../reference/observer-exposure.md).
-- **Flood cost:** lookups add mesh-wide floods. Not yet simulated (decision 11).
+- **Flood cost:** lookups add mesh-wide floods. Simulated in stage F; see Amendments.
 - **Cache poisoning:** not possible, because a certificate only verifies against its own NodeId. A stale but valid certificate costs D at most one missed refresh, since D still holds its static keys until not-after plus 1 h 30 s (ADR 0014).
 - **Lookup storms:** an app sending to many unknown NodeIds creates many lookups. At most one is outstanding per NodeId, and the send queue's caps (ADR 0007) bound how many NodeIds can wait. ADR 0008 has no route-request rate limit yet; ticket 32 shows whether one is needed.
 
@@ -85,3 +85,15 @@ Inputs:
 - **[ADR 0016](0016-routing-metadata-exposure.md):** lookups are added to the message set, and caching nodes become certificate holders.
 - **[Observer page](../reference/observer-exposure.md):** gains a lookup row.
 - **The protocol spec (ticket 29):** defines the layouts, the domain string and the vectors.
+
+## Amendments
+
+2026-11-08, lookup cost ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power), simulated):
+
+- **Sealed replies (decision 5):** a relay passes on only the first reply per lookup request and drops the rest. Every neighbor of D caches D's certificate, so a lookup drew 0.5–47 cache answers depending on density and movement. That alone raised the busiest phone's load by up to 2.1× over v1. Passing on only the first reply cut the replies reaching the requester from up to 43 to at most 3.7.
+- **Flood cost (Risks):** measured.
+  - Lookups succeed 89–99.5% of the time.
+  - The first answer comes from 1–3 hops away at the median and 2–6 at p90. It never came from D itself: D's neighbors answer first.
+  - With a lookup, first messages reach a 95th percentile of 0.20–0.34 s classical and 0.35–1.23 s post-quantum (rule: 2 s and 3 s).
+  - The one remaining miss came from backgrounded iPhones, not from lookups: in the 1 h high-density half-iPhone runs, one seed had two messages stuck behind an iPhone's 50 s background sleep.
+- **Lookup storms (Risks):** no route-request rate limit in v1; the measured cost of a misbehaving phone is in ADR 0008.

@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 4 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 5 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation).
 
 ## Context
 
@@ -48,7 +48,7 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 
 ## Risks
 
-- **Catch-up cost:** offering held messages and tombstones on every new link changes ADR 0008 and was not simulated. A routing-simulation rerun must confirm the airtime cost before the protocol spec.
+- **Catch-up cost:** offering held messages and tombstones on every new link changes ADR 0008. Simulated in stage F and within budget; see Amendments.
 - **Key exposure:** a phone stolen with its keys exposes the first and held messages sealed to it that an attacker recorded during roughly the last 25 h.
 - **Certificate acquisition:** how a sender gets the certificate of a node it has never linked with is still open; short validity makes the answer matter more.
 - **Process death on iOS:** a backgrounded app that iOS terminates loses its held messages.
@@ -73,3 +73,10 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 
 - **Expired certificates (decision 10):** `send` no longer returns `Rejected(PeerKeyExpired)`. The message stays `Queued` while MeshLink looks up a fresh certificate (ADR 0018); piggybacked refresh is unchanged.
 - **Certificate acquisition (open in Risks):** decided by ADR 0018. A node caching D's valid certificate answers lookups, so first messages can be sealed and held for an offline D.
+
+2026-11-08, catch-up cost ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power), simulated):
+
+- **Catch-up cost (Risks):** confirmed within the ADR 0008 budgets. Catch-up summaries, claims and tombstones raise idle control traffic from at most 0.10% to at most 0.32% of link capacity in 30 min runs, and to at most 0.43% in 1 h runs. On the busiest phone, catch-up adds about 130–260 B/s.
+  - Claims delivered held unicasts in every cell, and tombstones purged copies along the receipt's path and on catch-up.
+  - Over 1 h, phones held 57–69 messages on average, against the cap of 100.
+  - The model matched every public tag within the lifetime (about 7–8 epochs at 30 min), so its claim lists are larger than this ADR's 4-epoch rule.

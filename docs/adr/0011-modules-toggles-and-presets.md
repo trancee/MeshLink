@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 6 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 7 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation).
 
 ## Context
 
@@ -134,3 +134,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-08, release and versioning ([ADR 0019](0019-release-versioning-and-api-compatibility.md)):
 
 - **Swift package (decision 5):** the release workflow updates `meshlink-swift`'s `Package.swift` with the URL and checksum through a GitHub App token, tags the same version, and runs a fresh SwiftPM consumer build as the smoke test. All artifacts share one version.
+
+2026-11-08, power policy ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power), simulated; ADR 0008):
+
+- **Built-in presets (decision 12):** a new knob, `power`, with two values: `Balanced` and `Responsive`. Each sets the scan schedule per density class (ADR 0008). `ProximityDiscovery` and `LocalMultiplayer` use `Responsive`; `OfflineChat`, `EmergencyBroadcast` and `FieldTeams` use `Balanced`. `LocalMultiplayer` is pinned to the low class, so it always scans 4 s on / 2 s off. Apps can override the knob. Background scanning is set by the operating system, so no preset promises background discovery latency.

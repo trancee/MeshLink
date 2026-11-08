@@ -29,6 +29,7 @@ The strategies under test are defined in the [routing research note](../../resea
 - **Lifetime and store-and-forward:** minimum message lifetime 120 s, minimum hold 10 s, hold capacity 100 messages.
 - **Pinned low class:** an optional low-latency preset that floods everywhere.
 - **Security costs (stage E):** the shortest rotation period within budget is 5 min. The owner chose 15 min (2026-11-02), also within budget, to stay in step with the BLE address rotation (ADR 0001). Keep the routing tag at 8 B. Shorten the message ID to 12 B. Reassemble long messages at every hop. The post-quantum XXhfs link handshake fits the latency budget.
+- **Store-and-forward, conversation routes, lookups and power (stage F):** full catch-up, per-conversation routes, certificate lookups and large messages fit the budgets, once relays pass on only the first lookup reply. Scan schedules per class: `Balanced` low 4/4, medium 4/12, high 4/16 (seconds on / off); `Responsive` one step faster. Low scans more than medium because newcomers start in the low class. No route-request rate limit.
 
 v1 meets the pre-registered criteria in 16 of 16 dynamic cells and 37 of 40 fixed-density cells. Flooding everywhere meets them in 16 of 16 and 36 of 40. The aim of unicast p95 ≤ 1 s at medium and high density is met in only 30 of 56 cells. See [Final criteria check](#final-criteria-check) and [Limitations](#limitations).
 
@@ -107,6 +108,20 @@ Amendments:
 - **Stage C:** criteria are applied by the sender's true local density at send time, because density changes within a run.
 - **Stage D aim (not a pass/fail criterion):** unicast p95 ≤ 1 s at medium and high density.
 
+Stage F, pre-registered with the owner on 2026-11-08:
+
+- Criteria 1, 2 and 4 stay. Catch-up summaries, claims and tombstones count as idle control.
+- **3a.** The busiest phone sends at most 1.25× the v1 reference (A0) in the same cell.
+- **4a.** A first message that needed a certificate lookup, 3 hops or fewer: p95 ≤ 2 s classical, ≤ 3 s post-quantum.
+- **6.** Large messages: delivery ≥ 95% at medium and high density when a route exists, reported separately.
+- **Rate limit:** adopt one if a phone sending 1 lookup/s costs other phones more than 1 pp of delivery, or raises the busiest phone's load by more than 25%.
+- **Schedule pick:** per class, the lowest-energy schedule that passes the criteria and keeps newcomer join p95 within 1.25× the interim schedule. `Responsive` is one step faster.
+
+**Post-hoc amendments (owner, 2026-11-08, after stage F results):**
+
+- **3a is replaced by 3b:** the busiest phone sends at most 4,700 B/s of routing bytes (10% of the slowest measured Android link), and uses at most +3 mW over A0's busiest phone in the same cell. Reason: the 1.25× ratio swung by ±0.5 between seeds and compared against an almost idle reference. In absolute terms, every arm stayed at or below 4.2 kB/s and +2.5 mW.
+- **Minimum sample:** a delivery or latency criterion applies to a sub-population only with at least 100 messages pooled over 5 seeds; smaller ones are reported with n. Reason: in stage F, single lost messages in samples of 20–160 decided several cells.
+
 ## Stages
 
 | Stage | Question | Grid | Seeds | Runs | Wall time | Cuts |
@@ -118,6 +133,8 @@ Amendments:
 | D, iOS cap 4 | iOS inbound cap 4, bake-off calibration | half-iOS medium static N = 50 / 200, high static N = 200, arrival N = 200 × 5 calibrations | 5 | 100 | 55 s | none |
 | D, iOS cap 3 | iOS inbound cap 3, undiscoverable at the cap | same 4 cells × 2 calibrations | 5 | 40 | 26 s | none |
 | E | Security costs: rotation period, tag and message-ID sizes, fragment reassembly, XX vs XXhfs | N = 200: low, medium, high static, medium walking, arrival × 2 mixes; final v1, bake-off calibration | 5 | 350 | about 41 min (budget 30–45 min) | none |
+| F | Catch-up (ADR 0014), per-conversation routes (ADR 0016), certificate lookups (ADR 0018), large messages (ADR 0015), rate limit, scan schedules with the energy model, background | N = 200: low, medium, high static, medium walking, arrival × 2 mixes; arms A0–A4, A2L, A3D/A4D; 60 min runs; lookup attacker; 5 schedules per class; background | 5 | 440 | about 21 min + 5 min pilot | none |
+| F2 | Final arm A4D under the amended criteria; instrumentation; schedule picks | same cells; main, 60 min, sweep, confirmation, background | 5 | about 330 | 1,032 s + checks | none |
 
 All runs used at most 4 worker threads and `-Xmx3g` on a machine shared with the bake-off. Stage D ran about 20 min over its budget for a follow-up that backed the recommendation with lifetime and N = 1000 evidence.
 
@@ -290,6 +307,63 @@ Broadcast 16 × 514 B: 99.94% with per-hop reassembly, 96.03% with cut-through (
 
 Across all 10 cells, XXhfs uses 0.12–0.41% of link capacity. First-message p95 by hop count (1–3) and by sender density class stays below 1 s classical and 1.5 s post-quantum in every cell. The worst median over seeds is 828 ms (post-quantum, 3 hops, high static half-iOS). Pooled, 99.8% of first messages are within budget. The rare misses are single messages caught by a 60 s iPhone background gap.
 
+### Stage F: store-and-forward, conversation routes, lookups and power
+
+Final v1 from stage E (rotation 5 min, tag 8 B, message ID 12 B, unicast F+K2, broadcast CU, iOS inbound cap 3) with the bake-off calibration. N = 200; low, medium and high static, medium walking, and arrival; Android-only and half-iOS; 5 seeds; 30 min runs with a 30 min lifetime, plus 60 min runs with a 1 h lifetime. The scan model became start/stop windows with a random phase per phone, and the energy model of the [energy evidence](../2026-11-energy/README.md#4-energy-model-feeds-adr-0008) replaced the power index. iOS energy figures are bounds only.
+
+**Arms**, each adding to the previous:
+
+| Arm | Adds | Rule |
+|---|---|---|
+| A0 | v1 as in stage E | reference |
+| A1 | full catch-up: held broadcasts, held unicasts as {message ID, destination tag}, tombstones; holding 100 messages and 512 KiB, ≤ ¼ per incoming link, ≤ 4 KiB per message | ADR 0014 |
+| A2 | conversation tags after the first message, one per direction, changing every 5 min; routes keyed by tag | ADR 0016 |
+| A2L | A2, but the sender keeps the previous-epoch tag while its route works | pre-registered fallback |
+| A3 | certificate lookups, cold caches (140 B classical, 1,350 B post-quantum certificates) | ADR 0018 |
+| A4 | 2% of chat messages at 16–128 KiB, routes only, held only by the sender | ADR 0015 |
+| A3D, A4D | relays pass on only the first lookup reply per request | not pre-registered; adopted |
+
+**Stage F under the pre-registered criteria:** no arm passed criterion 3a in every cell. The busiest-phone ratio to A0 was 0.97–1.35 for A1 and A2, and 1.10–2.10 for A3 and A4. The same arm on a different random stream moved by up to ±0.36, and per-seed ratios in half-iOS cells spread by about 0.5. Criteria 1, 2 and 4 held apart from samples of 1–2 messages. A2 cost the same as A1, and A2L never took effect: with about 12 min between messages per pair, the old route had always expired (0 uses in 677 sends). Almost all of A3's extra bytes were lookup replies: every neighbor of the destination caches its certificate, so a lookup drew 0.5–47 cache answers. The owner then amended the criteria (above) and adopted first-reply-only relaying (A4D) for a confirmation run, stage F2.
+
+**Stage F2, final arm A4D vs A0, 30 min runs at the interim schedule:**
+
+| Cell | Delivery (worst class) | Idle control | Busiest phone B/s | Δ busiest mW | First message p95, cached C / PQ (ms) | After lookup C / PQ (ms) | Unicast p95 (ms) | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| low static, Android | 99.96% | 0.04 → 0.11% | 3,824 → 4,095 | +0.5 | 94 / 212 | 202 / 353 | 719 → 1,014 | pass |
+| low static, half-iOS | 99.96 → 99.73% | 0.05 → 0.15% | 2,373 → 2,645 | +0.8 | 115 / 320 | 258 / 609 | 992 → 1,565 | pass |
+| medium static, Android | 99.91% | 0.04 → 0.13% | 891 → 1,187 | +0.6 | 104 / 261 | 209 / 418 | 848 → 995 | pass |
+| medium static, half-iOS | 99.82% | 0.07 → 0.20% | 1,244 → 1,264 | −0.1 | 155 / 487 | 288 / 672 | 1,014 → 1,298 | pass |
+| high static, Android | 100% | 0.07 → 0.23% | 580 → 875 | +0.3 | 122 / 404 | 252 / 602 | 1,291 → 1,445 | pass |
+| high static, half-iOS | 99.85% | 0.10 → 0.32% | 842 → 959 | −2.1 | 181 / 707 | 322 / 1,234 (n = 98, reported) | 1,678 → 1,917 | pass |
+| medium walking, Android | low senders 99.20% vs flooding 100% | 0.07 → 0.22% | 680 → 1,061 | +0.8 | 106 / 292 | 208 / 436 | 1,341 → 1,386 | fail, criterion 1, in every arm including A0 (1 message of 158) |
+| medium walking, half-iOS | 99.64% | 0.09 → 0.31% | 919 → 1,340 | +1.1 | 180 / 514 | 291 / 1,022 | 1,859 → 3,195 | pass |
+| arrival, Android | 99.83% | 0.07 → 0.23% | 900 → 1,479 | +1.9 | 114 / 351 | 208 / 465 | 1,171 → 1,297 | pass |
+| arrival, half-iOS | 99.70% | 0.10 → 0.31% | 870 → 1,177 | +0.8 | 185 / 782 | 341 / 831 | 1,579 → 1,725 | pass |
+
+Under the amended criteria, A1–A4 and A3D pass the same cells. The exception is A2 in high static Android, at +3.59 mW. A2 adds nothing over A1 that should cost energy, so this is noise in which phone ends up busiest. The highest busiest-phone load of any arm is 4,211 B/s (A3, low static Android), mostly relayed data. On the busiest phone in A4D, catch-up adds 141–235 B/s, lookup requests 22–31 B/s and lookup replies 49–145 B/s (84–509 B/s in A3). The unicast p95 aim of 1 s is still met only at medium static Android.
+
+**Lookups (A4D):** success 88.7–99.5%. The first answer comes from 1–3 hops at the median and 2–6 at p90; 37–67% come from within 1 hop. The destination never gave the winning answer. At low density about 30% of lookups travel 6 hops or more. Replies reaching the requester fell from 0.4–43 to 0.3–3.7 per lookup.
+
+**Rate limit (stage F, medium and high static Android, final arm):** a phone sending 1 lookup/s for random NodeIds cost honest phones 0.00 / −0.02 pp of delivery, and raised the busiest honest phone's load by +10.4% ± 22.3 (medium) and +15.9% ± 2.6 (high). Both are under the thresholds, so no limit was adopted. A 1/s, burst-5 token bucket per incoming link would have left +5.4% / +13.4% and cost −0.02 pp without an attacker.
+
+**Large messages (A4D):** 96.4–100% delivered when sender and destination stay in the mesh; raw delivery 79.5–100%. Every loss involved an endpoint leaving, because relays never hold large messages.
+
+**Scan schedules (A4D):** mean mW over each class's cells, then join p95 relative to the interim schedule:
+
+| Class | 4/16 | 4/12 | 4/8 | 4/4 | 4/2 | `Balanced` / `Responsive` |
+|---|---|---|---|---|---|---|
+| low | 16.3 mW, ×2.35 | 19.1, ×1.78 | 23.8, ×1.45 | 32.4, ×1.00 (interim) | 40.7, ×0.84 | 4/4 / 4/2 |
+| medium | 16.7, fails 3b (+3.45 mW) | 19.3, ×1.02 | 23.1 | 30.6 (interim) | 37.9 | 4/12 / 4/8 |
+| high | 20.7, ×1.03 | 22.5 | 24.6 (interim) | 29.9 | 35.1 | 4/16 / 4/12 |
+
+At medium, the walking Android criterion-1 miss shows up at every schedule. The pick therefore uses stage F's secondary rule: ignore failures already present at the interim schedule. Low scans more than medium because a newcomer stays in the low class until its first estimate, so join time follows the low schedule.
+
+Confirmation on medium walking and arrival, both mixes: `Balanced` uses 16.5–21.9 mW (interim 24.2–34.2 mW) with join 0.99–1.04×; `Responsive` uses 20.5–26.6 mW with join 0.82–0.88×. All pass except the shared walking Android miss.
+
+**Background (report only; medium static and arrival, half the phones backgrounded, `Balanced`):** unicast delivery 99.87–99.92%, broadcast 100%. Join p95 is 13.2–17.1 s (median 4.2–5.2 s), against about 7–8 s in the foreground. Mean energy: foreground 21.2–22.7 mW; Android background 11.9–12.2 mW; background in half-iOS cells 7.5–8.3 mW (bounds only).
+
+**60 min runs (1 h lifetime, A4D):** 3 of 4 cells pass. The busiest phone sends 876–1,385 B/s at −0.1 to +0.7 mW, and phones hold 57–69 messages on average. High static half-iOS fails criterion 4a: post-quantum p95 after a lookup is 11.9 s (n = 122). Seed 4 alone is 55 s (n = 25); the other seeds are 0.8–1.4 s. A trace of the two slow messages showed both lookups answered from 1 hop in under 200 ms. The delay was a backgrounded iPhone, at the source or the destination, sleeping for about 50 s under the iOS background model. A cached certificate would not have avoided it.
+
 ## Final criteria check
 
 v1 = N1+N2 + N3 with d = 6 / 5 / 5, bridge limit 60 s, local density estimator, unicast UA with F+K2, broadcast with catch-up (CU), relay preference off, iOS inbound cap 3. Compared with stage C adaptive and with flooding on the same topology.
@@ -331,6 +405,7 @@ The three v1 fixed-cell misses:
 - **1 h runs** cover low density only, N = 200, 5 seeds.
 - **iPhone at the cap:** the model refuses at connect time. A real iPhone accepts and then closes, which costs the dialer slightly more.
 - **U3** was a simplified Babel; its control traffic is an upper bound.
+- **Stage F** used sparse traffic (about one message per pair every 12 min), so A2L and per-epoch rediscovery were barely exercised; bursty conversations were not simulated. Certificate caches survived churn, relays did not cache lookup replies, and the certificate exchange on links cost no bytes. Claims matched about 7–8 epochs of public tags instead of ADR 0014's 4. Energy counts every sent and received byte at 1.25 µJ/B. Two criteria were amended after the results (see the criteria section).
 - **Determinism:** separate run sets give slightly different values for the same protocol (for example U1 99.00% vs 98.97%). Comparisons always use the same runs.
 
 ## Files in this folder
@@ -344,6 +419,8 @@ The three v1 fixed-cell misses:
 | `stage-c-agg-{main,big,life,long}.csv` | stage C aggregates per run set, one row per cell × protocol instance |
 | `stage-d-agg-{main,conv,big,big-v1,life,life-v1,pin,ios4,ios3}.csv` | stage D aggregates per run set |
 | `stage-e-report.html`, `stage-e-agg-{base,rot,hs}.csv` | stage E: sizes, fragments and v1 references (`base`), rotation periods (`rot`), classical XX handshakes (`hs`) |
+| `stage-f-report.html`, `stage-f-agg-{main,a2l,long,rl}.csv` | stage F under the pre-registered criteria: arms A0–A4 (`main`), the A2L fallback, 60 min runs, the rate-limit test |
+| `stage-f2-report.html`, `stage-f2-agg-{main-a0-a4d,main-a1-a4,long,sweep-low,sweep-medium,sweep-high,conf,bg}.csv` | stage F2 under the amended criteria: final arm, other arms, 60 min, schedule sweep per class, dynamic confirmation, background |
 | `*-topology.csv` | topology and density metrics, one row per cell (these repeat on every protocol row in the full aggregates) |
 
 The CSVs are trimmed to fit the folder in about 5 MB:
@@ -352,9 +429,10 @@ The CSVs are trimmed to fit the folder in about 5 MB:
 - 95% intervals are kept only for key metrics (delivery, p95, first-message p95, control, idle control share, busiest phone, connected group, diameter, partition repair, join time, slot occupancy, Sybil shares, dial and link-up rates, power index, per-sender-class delivery and p95);
 - simulator diagnostics are dropped (drop reasons, table sizes, duplicate rate, hop percentiles, mean and p99 loads, wall time);
 - estimator and classifier columns: stage C main keeps every estimator and every classifier on the w10e estimator; the other files keep only the driving pair `w10e:s1h25/d60`;
+- stage F and F2 files keep 95% intervals only for key metrics (delivery, latency, idle control, busiest phone, energy, join, lookups, large messages). Stage F's sweep, confirmation, background and A3D files are superseded by F2 and not committed;
 - stage E files keep a fixed column list: key metrics with intervals, plus means for per-hop latency, first message by hops and class, rotation over-count, handshake and dial metrics.
 
-Column meanings are in `prototypes/routing-sim/README.md`. The full aggregates and the raw per-run CSVs are not committed. They live in the session folder of the agent run (`files/routing-sim/stage-{a,b,c,d,e}/`, about 200 MB) and can be regenerated with the commands below.
+Column meanings are in `prototypes/routing-sim/README.md`. The full aggregates and the raw per-run CSVs are not committed. They live in the session folder of the agent run (`files/routing-sim/stage-{a,b,c,d,e,f}/`, about 200 MB; full stage F aggregates in `files/routing-sim/stage-f-full-agg/`) and can be regenerated with the commands below.
 
 ## How to reproduce
 
@@ -368,9 +446,10 @@ Code: branch `prototype/routing-sim`, directory `prototypes/routing-sim/`.
 | C | `9cec6e7`, `a543c76`, report `9637738` |
 | D and cap-4 recheck | `d15d0f3` |
 | Cap-3 recheck | `3a6bf7a` |
-| E (final) | `ca9a393f1a17a86f5d10fdadb12bed6e95cb32c3` (`ca9a393`) |
+| E | `ca9a393f1a17a86f5d10fdadb12bed6e95cb32c3` (`ca9a393`) |
+| F and F2 (final) | `483ccbbf776d03dc88fec8d0c950a5879f656133` (`483ccbb`) |
 
-Commands, from `prototypes/routing-sim/` at `ca9a393` (stages A–D reproduce unchanged at this commit):
+Commands, from `prototypes/routing-sim/`. Stages A–E reproduce at `ca9a393`; stage F and F2 at the stage F commit:
 
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21
@@ -403,6 +482,19 @@ java -cp "$CP" $M d-ios3-report --out D/ios-cap3 --cap4=D
 java -Xmx3g -cp "$CP" $M e-pilot --out E --set=base,rot,hs --seeds=1
 java -Xmx3g -cp "$CP" $M e-run --out E --seeds=5
 java -cp "$CP" $M e-aggregate --out E && java -cp "$CP" $M e-report --out E
+
+# Stage F (at the stage F commit)
+java -Xmx3g -cp "$CP" $M f-run --out F --set=main,a2l,diag,long,rl,sweep --seeds=5 --threads=4
+java -Xmx3g -cp "$CP" $M f-run --out F --set=conf --seeds=5 --sched=4-4_4-16_4-12,4-2_4-12_4-8
+java -Xmx3g -cp "$CP" $M f-run --out F --set=bg --seeds=5 --sched=4-4_4-16_4-12
+java -cp "$CP" $M f-aggregate --out F && java -cp "$CP" $M f-report --out F
+
+# Stage F2
+java -Xmx3g -cp "$CP" $M f-run --out F --set=main2,long2,sweep2 --seeds=5
+java -Xmx3g -cp "$CP" $M f-run --out F --set=conf2 --seeds=5 --sched=4-4_4-12_4-16,4-2_4-8_4-12
+java -Xmx3g -cp "$CP" $M f-run --out F --set=bg2 --seeds=5 --sched=4-4_4-12_4-16
+java -cp "$CP" $M f-aggregate --out F && java -cp "$CP" $M f2-report --out F
+# Trace slow first messages: MLSIM_TRACE_LK=3000 ... f-check --out F --set=long2 --seeds=5 '--only=high-n200-static-half-ios&|4|'
 ```
 
 Every run is fully determined by (scenario, strategy or protocol set, seed). Runs are resumable.
@@ -411,12 +503,12 @@ Every run is fully determined by (scenario, strategy or protocol set, seed). Run
 
 | Field | Value |
 |---|---|
-| Dates | stage A 2026-11-01 13:39; stage B 2026-11-01 afternoon; stage C 2026-11-01 20:00–21:53 plus follow-up; stage D 2026-11-01 late evening to 2026-11-02 00:06; cap-3 recheck 2026-11-02 08:46; stage E 2026-11-02 09:24–10:12 |
+| Dates | stage A 2026-11-01 13:39; stage B 2026-11-01 afternoon; stage C 2026-11-01 20:00–21:53 plus follow-up; stage D 2026-11-01 late evening to 2026-11-02 00:06; cap-3 recheck 2026-11-02 08:46; stage E 2026-11-02 09:24–10:12; stages F and F2 2026-11-08 |
 | Machine | Apple M1, 8 cores, 8 GB RAM, macOS 27.0.1 (26A434); shared with the bearer bake-off |
 | JDK | OpenJDK 21.0.13 (Homebrew `openjdk@21`). Deviation from ADR 0005 (JDK 25): kept on 21 for consistency across stages |
 | Kotlin / Gradle | Kotlin 2.4.21, Gradle wrapper 9.7.1, `jvmToolchain(21)` |
 | Dependencies | Kotlin standard library only |
 | Resources | at most 4 worker threads, `-Xmx3g` |
 | Base commit | branched from `main` at `6a92ad6` |
-| Final commit | `ca9a393` on `prototype/routing-sim` (local, not pushed) |
+| Final commit | `483ccbbf776d03dc88fec8d0c950a5879f656133` (`483ccbb`) on `prototype/routing-sim` (local, not pushed); stage E at `ca9a393` |
 | Hardware evidence | none produced here. Device values are inputs from the bearer bake-off and cairn; their own evidence records apply |

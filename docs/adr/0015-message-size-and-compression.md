@@ -1,6 +1,6 @@
 # 0015: Message size and compression
 
-Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 1.
+Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 2 (amended 2026-11-08, stage F simulation).
 
 ## Context
 
@@ -58,3 +58,9 @@ Status: accepted (2026-11-03; ticket "What is the message size cap, and is there
 - ADR 0012 fixes the 1,024 B record cap and adds the link-local busy reply.
 - ADR 0014's byte cap is 512 KiB, for small messages only.
 - The protocol spec defines the busy reply and the size-class rules with vectors.
+
+## Amendments
+
+2026-11-08, large messages simulated ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power)):
+
+- **Large messages (decision 3):** confirmed. With 2% of chat messages at 16–128 KiB, sent along routes only and held only by their sender, 96.4–100% arrive when sender and destination stay in the mesh. Small messages still pass every rule. Latency is 3.4–29 s at the median and 14–193 s at the 95th percentile. Raw delivery drops to 79.5% where the sender or destination leaves the mesh, because relays never hold large messages.

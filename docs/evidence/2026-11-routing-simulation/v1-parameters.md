@@ -59,6 +59,14 @@ The power index (0.6 × scan duty + 0.4 × advertising duty) is an assumption. I
 
 Energy measurements on real phones (2026-11-08) replace the power index with an absolute model in mW and change the scan schedule to start/stop windows of at least 6 s: see the [energy evidence](../2026-11-energy/README.md#4-energy-model-feeds-adr-0008) and the ADR 0008 amendment. The rows above record what this simulation ran.
 
+Stage F (2026-11-08, energy model, start/stop windows; [results](README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power)) sets the v1 schedule:
+
+| Parameter | Low | Medium | High | Stage | Evidence | Basis |
+|---|---|---|---|---|---|---|
+| Scan, `Balanced` (s on / s off) | 4/4 | 4/12 | 4/16 | F2 | lowest energy passing criteria 1–4 with newcomer join p95 ≤ 1.25 × the interim schedule; dynamic confirmation 17–22 mW, join 0.99–1.04× | swept (4/16, 4/12, 4/8, 4/4, 4/2) |
+| Scan, `Responsive` | 4/2 | 4/8 | 4/12 | F2 | one step faster than `Balanced`; 21–27 mW, join 0.82–0.88× | rule |
+| Background scan (Android) | duty 0.12 (4 s every 34 s) | same | same | F2 | operating-system behavior measured in the energy evidence; report only | measured on one phone |
+
 ## Unicast
 
 | Parameter | v1 value | Stage | Evidence | Basis |
@@ -87,6 +95,8 @@ Energy measurements on real phones (2026-11-08) replace the power index with an 
 | Graft timeout | 500 ms after the first IHAVE, then 250 ms per further announcer | B | FG (150 / 100 ms) had no effect: N = 1000 arrival 98.88% either way | swept (500 vs 150 ms) |
 | Message cache for grafts | 60 s, capped by the message lifetime | B | – | assumed |
 | Catch-up (CU) | on every new link, each side sends one IHAVE with the IDs of unexpired messages received in the last 60 s; the other side grafts what it lacks | D | N = 1000 half-iOS arrival medium senders 98.86% → 99.99% ± 0.02; +10 B/phone·s control | swept (on vs off); window assumed |
+| Catch-up content (stage F) | held broadcast IDs, held unicasts as {message ID 12 B, destination tag 8 B}, tombstones {message ID 12 B, k 16 B}; claims by own public or conversation tag; holding 100 messages and 512 KiB, ≤ ¼ per incoming link, ≤ 4 KiB per message | F | idle control ≤ 0.43% of capacity; busiest phone +130–260 B/s | ADR 0014 |
+| Certificate lookup reply (stage F) | relays pass on the first reply per request only | F2 | replies at requester 0.3–3.7 instead of up to 43 | swept (all vs first) |
 | Catch-up message size | 4 B header + 1 B + one message ID (16 B in stages A–D; 12 B accepted) per message; all IDs in the window in one frame (about 4 IDs at one broadcast per 15 s mesh-wide) | D | – | assumed; no size cap modeled |
 | Pinned low class | flood in every class, plus catch-up | D | 16 of 16 dynamic cells | swept (preset) |
 

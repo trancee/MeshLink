@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 8 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities and ADR 0016). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 9 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -150,3 +150,21 @@ Results for the v1 configuration:
 
 - **Routing tags (decision 6):** public tags derive from the certified static key; after the first message, conversations use per-epoch conversation tags, so routes are per conversation, not per node. Not simulated; the catch-up airtime simulation must confirm the route-discovery cost.
 - **Neighbor lists and shuffles (decision 1):** entries are 8 B on-air advertisement identifiers, sent to direct neighbors only and never forwarded.
+
+2026-11-08, store-and-forward, conversation routes, lookups and power ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power), simulated):
+
+- **Catch-up, large messages and per-conversation routes (decision 3):** confirmed within budget. The final arm adds full catch-up, conversation tags, certificate lookups and large messages to v1. It passes every criterion in 9 of 10 main cells. The tenth fails on one lost message, which the v1 reference loses too. Idle control is at most 0.43% of capacity. The busiest phone sends at most 4.2 kB/s and uses at most +1.9 mW over v1. Two of the pass/fail rules were changed after the first results; the evidence labels both changes.
+- **Scan schedule (decision 3):** two policies per class, as start/stop windows (seconds on / off):
+
+  | Class | Balanced | Responsive |
+  |---|---|---|
+  | low | 4/4 (duty 0.5) | 4/2 (0.67) |
+  | medium | 4/12 (0.25) | 4/8 (0.33) |
+  | high | 4/16 (0.2) | 4/12 (0.25) |
+
+  - Low scans more than medium. A newcomer is in the low class until its first estimate, so how fast it joins depends on the low schedule. Every slower low schedule raised the 95th-percentile join time by 1.45× or more.
+  - Medium and high join times barely depend on the phone's own schedule (0.99–1.03× the interim schedule).
+  - Balanced cuts mean energy from 24–34 mW to 17–22 mW in the dynamic scenarios, with join time 0.99–1.04× the interim schedule. Responsive costs 21–27 mW and joins in 0.82–0.88× the time.
+  - Advertising is unchanged.
+- **Background (Risks):** with half the phones in the background, simulated delivery stays at or above 99.87%. Join p95 rises to 13–17 s, from about 7–8 s in the foreground. Background cost is about 12 mW on Android; iOS figures are bounds only.
+- **Route-request rate limit (Risks):** none in v1. A phone sending 1 certificate lookup per second for random NodeIds cost other phones 0.00–0.02 pp of delivery and raised the busiest honest phone's load by 10–16%, under the adoption thresholds of 1 pp and 25%.

@@ -1,6 +1,6 @@
 # 0016: Routing metadata exposure
 
-Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 2 (amended 2026-11-08, ADR 0018).
+Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 3 (amended 2026-11-08, ADR 0018 and the stage F simulation).
 
 ## Context
 
@@ -35,7 +35,7 @@ Link encryption hides routing messages from outsiders in the secured profiles (A
 
 ## Risks
 
-- **Not simulated:** per-conversation routes and tag sets change the route-discovery load. The catch-up airtime simulation (ticket 32) reruns the routing simulation and must confirm the cost; if it fails, the decision returns to the project owner.
+- **Route-discovery load:** per-conversation routes and tag sets change the route-discovery load. Simulated in stage F and within budget; see Amendments.
 - **First messages:** the first message of every session still reveals its destination's public tag, so a holder of that node's key sees that the node was contacted.
 - **Direct neighbors:** a direct neighbor knows the node's identity, its other neighbors' on-air identifiers and its recent catch-up history.
 - **Session ends:** a read receipt sent after the session ended starts a new session and is addressed to the original sender's public tag.
@@ -56,3 +56,9 @@ None: greenfield.
 
 - **Message set:** gains certificate lookups and their replies. A lookup's salted tag lets anyone who knows D's NodeId recognize "someone is looking for D". The requester stays anonymous, and replies are sealed to the requester's ephemeral key.
 - **Key holders:** also include nodes that cache D's certificate: neighbors and recent `IK` senders, up to 64 certificates per node, each dropped at its not-after.
+
+2026-11-08, per-conversation routes simulated ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power)):
+
+- **Not simulated (Risks):** resolved. Per-conversation routes, with conversation tags changing every 5 min, cost about the same as per-node routes in every cell; route requests stayed within noise. The decision stands.
+  - The pre-registered fallback, keeping the previous-epoch tag while its route works, was not adopted: with about 12 min between messages per pair, the old route had always expired by the next send.
+  - Bursty conversations were not simulated.
