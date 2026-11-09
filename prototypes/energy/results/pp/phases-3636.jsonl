@@ -1,0 +1,15 @@
+{"seed": 3636, "plan": [["warm", "A"], ["b1", "A"], ["b1", "C"], ["b1", "D"], ["b2", "A"], ["b2", "C"], ["b2", "D"], ["b3", "C"], ["b3", "D"], ["b3", "A"], ["b4", "D"], ["b4", "A"], ["b4", "C"]]}
+{"block": "warm", "cond": "A", "run": "pp3-3636-warm-A", "launch_t": 1794207364.669141, "launched_t": 1794207366.258029, "retries": 0}
+{"block": "b1", "cond": "A", "run": "pp3-3636-b1-A", "launch_t": 1794208264.658795, "launched_t": 1794208266.652299, "retries": 0}
+{"block": "b1", "cond": "C", "run": "pp3-3636-b1-C", "launch_t": 1794208504.6697469, "launched_t": 1794208506.5947149, "retries": 0}
+{"block": "b1", "cond": "D", "run": "pp3-3636-b1-D", "launch_t": 1794208744.675452, "launched_t": 1794208746.608738, "retries": 0}
+{"block": "b2", "cond": "A", "run": "pp3-3636-b2-A", "launch_t": 1794208984.6809778, "launched_t": 1794208986.674313, "retries": 0}
+{"block": "b2", "cond": "C", "run": "pp3-3636-b2-C", "launch_t": 1794209224.68083, "launched_t": 1794209226.709887, "retries": 0}
+{"block": "b2", "cond": "D", "run": "pp3-3636-b2-D", "launch_t": 1794209464.676596, "launched_t": 1794209466.276233, "retries": 0}
+{"block": "b3", "cond": "C", "run": "pp3-3636-b3-C", "launch_t": 1794209704.6712909, "launched_t": 1794209706.5950341, "retries": 0}
+{"block": "b3", "cond": "D", "run": "pp3-3636-b3-D", "launch_t": 1794209944.680227, "launched_t": 1794209946.552437, "retries": 0}
+{"block": "b3", "cond": "A", "run": "pp3-3636-b3-A", "launch_t": 1794210184.692112, "launched_t": 1794210186.565407, "retries": 0}
+{"block": "b4", "cond": "D", "run": "pp3-3636-b4-D", "launch_t": 1794210424.69631, "launched_t": 1794210426.385304, "retries": 0}
+{"block": "b4", "cond": "A", "run": "pp3-3636-b4-A", "launch_t": 1794210664.700274, "launched_t": 1794210666.340271, "retries": 0}
+{"block": "b4", "cond": "C", "run": "pp3-3636-b4-C", "launch_t": 1794210904.7042508, "launched_t": 1794210906.3976178, "retries": 0}
+{"end_t": 1794211146.3365278}

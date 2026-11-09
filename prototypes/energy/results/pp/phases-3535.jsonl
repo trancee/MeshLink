@@ -1,0 +1,15 @@
+{"seed": 3535, "plan": [["warm", "A"], ["b1", "A"], ["b1", "B"], ["b1", "C"], ["b2", "B"], ["b2", "A"], ["b2", "C"], ["b3", "A"], ["b3", "C"], ["b3", "B"], ["b4", "A"], ["b4", "B"], ["b4", "C"]]}
+{"block": "warm", "cond": "A", "run": "pp3-3535-warm-A", "launch_t": 1794163671.9752471, "launched_t": 1794163686.059295, "retries": 0}
+{"block": "b1", "cond": "A", "run": "pp3-3535-b1-A", "launch_t": 1794163971.969623, "launched_t": 1794163976.168576, "retries": 0}
+{"block": "b1", "cond": "B", "run": "pp3-3535-b1-B", "launch_t": 1794164211.973556, "launched_t": 1794164215.894486, "retries": 0}
+{"block": "b1", "cond": "C", "run": "pp3-3535-b1-C", "launch_t": 1794164451.9766378, "launched_t": 1794164455.568195, "retries": 0}
+{"block": "b2", "cond": "B", "run": "pp3-3535-b2-B", "launch_t": 1794164691.980195, "launched_t": 1794164699.9631748, "retries": 1}
+{"block": "b2", "cond": "A", "run": "pp3-3535-b2-A", "launch_t": 1794164931.9747221, "launched_t": 1794164933.7812831, "retries": 0}
+{"block": "b2", "cond": "C", "run": "pp3-3535-b2-C", "launch_t": 1794165171.973664, "launched_t": 1794165174.241065, "retries": 0}
+{"block": "b3", "cond": "A", "run": "pp3-3535-b3-A", "launch_t": 1794165411.977283, "launched_t": 1794165413.985802, "retries": 0}
+{"block": "b3", "cond": "C", "run": "pp3-3535-b3-C", "launch_t": 1794165651.9727979, "launched_t": 1794165653.849102, "retries": 0}
+{"block": "b3", "cond": "B", "run": "pp3-3535-b3-B", "launch_t": 1794165891.9716039, "launched_t": 1794165893.615768, "retries": 0}
+{"block": "b4", "cond": "A", "run": "pp3-3535-b4-A", "launch_t": 1794166131.969486, "launched_t": 1794166133.6038709, "retries": 0}
+{"block": "b4", "cond": "B", "run": "pp3-3535-b4-B", "launch_t": 1794166371.9731169, "launched_t": 1794166373.583636, "retries": 0}
+{"block": "b4", "cond": "C", "run": "pp3-3535-b4-C", "launch_t": 1794166611.976686, "launched_t": 1794166613.905685, "retries": 0}
+{"end_t": 1794166853.647466}

@@ -164,7 +164,11 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
                     "adv" -> advertise()
                     "scan" -> scan()
                     // Energy prototype (ticket 23): idle baseline, and advertising + scanning together.
-                    "idle" -> delay(duration)
+                    // bg=1 (ticket 35): the Home-screen control for backgrounded discovery, without Bluetooth.
+                    "idle" -> {
+                        if (raw["bg"] == "1") { bgDone = true; enterBackground() }
+                        delay(duration)
+                    }
                     "both" -> coroutineScope {
                         launch { advertise() }
                         scan()

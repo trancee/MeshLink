@@ -217,3 +217,34 @@ counting: `AppleRawCurrentCapacity` at the start (Wi-Fi, 3,037 mAh) and at the e
 plugging in (`IsCharging` false; 2,623 mAh at 07:10 on Nov 6). A control night with the same phone, place and radio
 settings but without the app is run on Nov 6 to 7 with the same method; the MeshLink background cost is the
 difference. One night against one night resolves only differences of about 20 mW or more.
+
+### A10 (2026-11-07 to 2026-11-09): iOS system power with Apple's Power Profiler (ticket 35)
+
+Phone: iPhone 12 mini (iOS 27.0.1), the only lab iPhone on iOS 26 or later. Recorded in the Instruments GUI
+(Xcode 27.2, Blank template plus the Power Profiler track, All Processes) over Wi-Fi only, unplugged, screen on and
+unlocked. Detached Performance Trace saved nothing on iOS 27.0.1 and `xctrace` over Wi-Fi disconnected after about
+2 s. The measure is `SystemPowerLevel` (whole-phone battery %/hour, 1 s samples); Power Profiler has no Bluetooth
+lane. 1 %/hour ≈ 67 mW (full charge 1,741 mAh at about 3.85 V).
+
+Conditions, each a fresh `devicectl` launch of the bake-off app: A idle (`disc=idle`); B foreground medium
+discovery (`disc=both filter=mesh scan_on_s=4 scan_off_s=4`); C background (`disc=both filter=mesh bg=1`: continuous
+filtered scan plus advertising, then the app sends itself to the Home screen); D idle sent to the Home screen
+(`disc=idle bg=1`, added for session 3). Phases are 240 s in 4 random blocks after a warm-up; each phase median uses
+samples from 15 s after launch to 5 s before the next launch. `host/pp/drive.py` runs the schedule (phase logs in
+`results/pp/`), `host/pp/analyze.py` exports the trace and computes per-block deltas.
+
+- **Session 1** (Nov 7, 23.7 min, no blocks): comb_med − idle +0.8 to +1.2 %/hour (54–80 mW), n = 2.
+- **Session 2** (Nov 8, seed 3535, conditions A, B, C, 5 min warm-up): B − A +0.08, +0.20, +0.67, +0.58 %/hour,
+  positive in 4 of 4 blocks, median +26 mW. C − A was confounded by the Home screen. A system state at about
+  20 %/hour lasted the first 15 min and covered most of b1. The trace was later overwritten by an accidental save;
+  these deltas come from the analysis made at the time.
+- **Session 3** (Nov 9, seed 3636, conditions A, C, D, 15 min warm-up, rule fixed before the run: a block is invalid
+  if any phase median exceeds 2× the lowest A median): no block invalid. C − D +0.26, −0.03, +0.01, −1.74 %/hour,
+  positive in 2 of 4 blocks (verdict needed 3 of 4), median ≈ 0 mW, upper bound +17 mW in 3 of 4 blocks; b4's D
+  phase ran high (7.99 %/hour). D − A, the Home screen against the app's own screen, was +53 mW (positive 4 of 4).
+  App logs confirm C advertised, scanned and saw the peer before iOS suspended the app about 40 s after
+  backgrounding. Full output in `results/pp/session3-analysis.txt`.
+
+Verdict: iOS foreground medium discovery costs about 5–80 mW of whole-phone power on the 12 mini; background
+discovery is not resolvable by this method (median about 0, at most about +17 mW). Raw traces (40–55 MB, with device
+identifiers) are kept outside git.
