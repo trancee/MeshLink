@@ -1,6 +1,6 @@
 # 0006: Documentation architecture for humans and agents
 
-Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 1.
+Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 2 (amended 2026-11-09, ADR headers and pre-push privacy gate).
 
 ## Context
 
@@ -99,3 +99,12 @@ Facts verified 2026-11-01 from primary sources (release pages, project docs):
 - British spellings changed to US English on 2026-11-01.
 - `docs/README.md` is added now.
 - The generators (`docs/agents/index.md`, `docs/adr/README.md`, reference pages, the diagnostic index) and the region and register checks arrive with the first build scaffolding.
+
+## Amendments
+
+2026-11-09, ADR headers and the pre-push privacy gate (retro after ticket 35):
+
+- **Version rule (decision 9):** an ADR's version is 1 plus the number of amendment blocks. An amendment block is a line under `## Amendments` that starts with a date and a comma (`YYYY-MM-DD,`). The status line's `(amended …)` names every block date and no other date.
+- **ADR header check (decision 10):** `tools/check_adrs.py` enforces the version rule in the Docs workflow's lint job. Its first run found 4 drifted headers (ADRs 0002, 0003, 0007 and 0010), which were corrected.
+- **Link check retry (decision 10):** the lychee step runs a second time only if the first fails, which absorbs a transient download failure of the lychee binary. A real broken link fails both runs.
+- **Pre-push privacy gate:** the tracked hook `.githooks/pre-push` runs `tools/check_private.py --history` on the commits being pushed. Each clone enables it once with `git config core.hooksPath .githooks`.

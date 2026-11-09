@@ -1,0 +1,15 @@
+#!/bin/sh
+# Privacy gate before every push: scans every blob reachable from the pushed
+# commits for private lab and personal identifiers (docs/agents/lessons.md,
+# "Device lab"). Enable once per clone: git config core.hooksPath .githooks
+set -eu
+zero=0000000000000000000000000000000000000000
+set --
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # branch deletion: nothing to scan
+  set -- "$@" --rev "$local_sha"
+done
+[ $# -eq 0 ] && exit 0
+inventory=../android-devices/devices.md
+[ -f "$inventory" ] && set -- "$@" --inventory "$inventory"
+exec python3 tools/check_private.py --history "$@"

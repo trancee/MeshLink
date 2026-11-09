@@ -1,6 +1,6 @@
 # 0003: Installation identity key model
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 4 (amended 2026-11-03, ADR 0014; 2026-11-08, ADR 0018).
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 4 (amended 2026-11-02, ADR 0012; 2026-11-03, ADR 0014; 2026-11-08, ADR 0018).
 
 ## Context
 

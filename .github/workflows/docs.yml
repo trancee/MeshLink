@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Markdown lint and spelling
+    name: Markdown lint, spelling and ADR headers
     if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -31,6 +31,9 @@ jobs:
         with:
           globs: "**/*.md"
       - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
+      # The runner image's python3; the tool uses the standard library only.
+      - name: ADR versions match their amendments
+        run: python3 tools/check_adrs.py
 
   spec:
     name: Protocol spec
@@ -55,10 +58,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
-        with:
+      # One retry absorbs a transient lychee binary download failure; a real
+      # broken link fails both attempts.
+      - id: lychee
+        continue-on-error: true
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with: &lychee
           lycheeVersion: v0.24.2
           args: >-
             --no-progress
             ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '--max-concurrency 8' || '--offline' }}
             .
+      - name: Retry lychee
+        if: steps.lychee.outcome == 'failure'
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with: *lychee

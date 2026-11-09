@@ -1,6 +1,6 @@
 # 0002: Noise suites and handshake patterns per security profile
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 2 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec).
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 3 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 

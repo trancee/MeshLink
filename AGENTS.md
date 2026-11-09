@@ -57,6 +57,7 @@ Failure => incomplete: fix cause + rerun. External prerequisite => finish reacha
 - X discard unrelated work/rewrite history/force-push/destructive cleanup without explicit approval.
 - Approved commit => repo format else Conventional Commits; AI co-author trailer if repo requires.
 - R repo-preferred issue/PR/CI integration tool.
+- Push => R pre-push privacy gate active: `git config core.hooksPath .githooks` once per clone (`docs/agents/lessons.md`, "Device lab").
 
 ## DONE
 

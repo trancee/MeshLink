@@ -10,7 +10,8 @@ Gzipped files are decompressed and scanned; other binary files are skipped.
 Usage (from the repository root; stdlib only):
   python3 tools/check_private.py                  # tracked files in the worktree
   python3 tools/check_private.py --history        # every blob reachable from any ref
-  python3 tools/check_private.py --history --rev 'b:*' # local branches only (before a push)
+  python3 tools/check_private.py --history --rev 'b:*' # local branches only
+  python3 tools/check_private.py --history --rev SHA   # one commit's history (.githooks/pre-push)
   python3 tools/check_private.py --inventory PATH # also match exact serials from a local inventory
 """
 import argparse
