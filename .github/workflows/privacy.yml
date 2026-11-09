@@ -1,0 +1,33 @@
+# Privacy gate: no device serials, UDIDs, team IDs, LAN addresses, real
+# Bluetooth addresses or personal data in any blob of any branch, gzipped
+# evidence included (docs/agents/lessons.md, "Device lab").
+# Workflows run only on branches that contain this file, so the daily scan of
+# every branch's full history also covers prototype branches.
+name: Privacy
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: "41 4 * * *" # daily, 04:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  history:
+    name: No private identifiers in any branch history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # every branch and its full history
+          persist-credentials: false
+      # The runner image's python3; the tool uses the standard library only.
+      - run: python3 tools/check_private.py --history

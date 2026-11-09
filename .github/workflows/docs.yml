@@ -33,7 +33,7 @@ jobs:
       - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
 
   spec:
-    name: Protocol spec and privacy
+    name: Protocol spec
     if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -46,8 +46,6 @@ jobs:
         run: python3 tools/spec/gen_vectors.py && git diff --exit-code
       - name: Spec data and vectors agree
         run: python3 tools/spec/check_spec.py
-      - name: No private lab or personal identifiers
-        run: python3 tools/check_private.py
 
   links:
     name: Links (${{ github.event_name == 'schedule' && 'external' || 'repository' }})
