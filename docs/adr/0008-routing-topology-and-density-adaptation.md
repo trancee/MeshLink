@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 9 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 10 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -168,3 +168,8 @@ Results for the v1 configuration:
   - Advertising is unchanged.
 - **Background (Risks):** with half the phones in the background, simulated delivery stays at or above 99.87%. Join p95 rises to 13–17 s, from about 7–8 s in the foreground. Background cost is about 12 mW on Android; iOS figures are bounds only.
 - **Route-request rate limit (Risks):** none in v1. A phone sending 1 certificate lookup per second for random NodeIds cost other phones 0.00–0.02 pp of delivery and raised the busiest honest phone's load by 10–16%, under the adoption thresholds of 1 pp and 25%.
+
+2026-11-09, iOS Power Profiler ([evidence](../evidence/2026-11-energy/README.md#ios-power-profiler-iphone-12-mini-run)):
+
+- **Energy model (Risks, "the power index"):** iOS now has a whole-phone figure instead of bounds only. On the iPhone 12 mini with the screen on, combined medium-density discovery in the foreground costs about 5–80 mW (three sessions; 4 of 4 blocks positive in session 2). Background discovery is not resolvable with Power Profiler: median about 0, at most about +17 mW in 3 of 4 blocks. The energy model keeps no iOS component coefficients; one phone, screen on.
+- **Background (Risks):** this replaces "iOS figures are bounds only" in the stage F amendment. iOS still owns background duty, so presets promise neither background latency nor background cost on iOS.

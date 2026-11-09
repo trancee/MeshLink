@@ -1,7 +1,7 @@
 # What does MeshLink cost on iOS when measured with Apple's Power Profiler?
 
 Type: prototype
-Status: open
+Status: resolved
 
 ## Question
 
@@ -28,3 +28,14 @@ Measure MeshLink's Bluetooth and CPU energy on iPhones with Apple's Power Profil
   - Medians (%/hr): idle1 5.50, comb2 6.09, idle3 5.08, comb4 6.23, idle5 5.30. comb_med minus idle ≈ +0.8 to +1.2 %/hr.
   - Means are confounded by system bursts of 10–100 s (8–38 %/hr) in idle and comb phases alike (idle1 mean 8.95); they do not follow the 8 s scan cycle. Mean delta (comb versus idle3 and idle5) +2.4 %/hr, not attributable to Bluetooth.
   - In mW the basis matters: Apple states a fraction of total battery energy. Full charge 1,741 mAh (design 2,214) at about 3.85 V gives about 6.7 Wh (8.5 Wh design), so +0.8 to +1.2 %/hr ≈ 54–80 mW (68–102 mW on design capacity). This is the same order as the ticket 23 iOS comb_med gauge deltas on the iPhone 15 and SE 2020 (different models; the 12 mini was not gauge-measured); n = 2 per condition on one phone, so not yet conclusive.
+
+## Verdict (grilled 2026-11-08 and 2026-11-09)
+
+Prototype branch: `prototype/energy` (amendment A10, `host/pp/`, `results/pp/`). Evidence: [energy evidence, iOS Power Profiler](../../../docs/evidence/2026-11-energy/README.md#ios-power-profiler-iphone-12-mini-run).
+
+1. **Method:** the Instruments GUI over Wi-Fi, unplugged, screen on; conditions alternate in 240 s phases in 4 random blocks; per-phase medians of `SystemPowerLevel`. Session 2 (seed 3535, A/B/C) and session 3 (seed 3636, A/C/D, 15 min warm-up, block-invalid rule fixed in advance).
+2. **Foreground (accepted round 2):** combined medium discovery costs about 5–80 mW of whole-phone power on the 12 mini (session 2: B − A positive in 4 of 4 blocks, median +26 mW; session 1: 54–80 mW). This replaces "bounds only" in the evidence and ADR 0008.
+3. **Background (round 3, Q1):** the pre-registered verdict (C − D positive in at least 3 of 4 blocks) failed: +17, −2, +1, −116 mW. Recorded as not resolvable, median about 0, upper bound about +17 mW; block 4 is reported, not excluded. The Home screen itself costs about +53 mW (D − A), which confounded session 2's C − A.
+4. **No fourth session (Q2):** a longer run could narrow the bound but no preset depends on it; iOS sets background duty.
+5. **Lessons (Q3):** warm-up, Home-screen confound, empty per-process table, Save As after long recordings.
+6. **Prototype captured (Q4):** the `idle` + `bg=1` condition, the phase driver (device from `PP_DEVICE`) and the analysis are committed on `prototype/energy`; raw traces stay outside git. Session 2's trace was overwritten by an accidental save; its deltas come from the analysis at the time.

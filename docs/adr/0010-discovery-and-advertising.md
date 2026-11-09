@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 4 (amended 2026-11-08, energy measurements; 2026-11-08, protocol spec).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 5 (amended 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler).
 
 ## Context
 
@@ -111,3 +111,7 @@ Measured:
 
 - **Mesh tag (decision 1, [C-03](../spec/decisions.md#c-03)):** the mesh tag is the same for all members within one epoch number, `floor(unix / 300)`. Each node switches at its own moment, so members can show tags from adjacent epochs at once; scanners accept e − 1 to e + 1 ([D-02](../spec/decisions.md#d-02-epoch-number-and-acceptance)).
 - **Next identifier (decision 3, [C-10](../spec/decisions.md#c-10)):** before each rotation a node sends linked peers a `NEIGHBOR_LIST` that carries its next 8 B advertisement identifier, as the routing simulation assumed. Only peers already linked learn it.
+
+2026-11-09, iOS Power Profiler ([evidence](../evidence/2026-11-energy/README.md#ios-power-profiler-iphone-12-mini-run)):
+
+- **Background timing:** with the screen on and the app sent to the Home screen (iPhone 12 mini, iOS 27.0.1), iOS kept advertising and the filtered scan running and suspended the app about 40 s after backgrounding, the same as after locking. Background scanning and advertising cost no measurable whole-phone power (median about 0, at most about +17 mW), so the background rules need no energy-driven change.

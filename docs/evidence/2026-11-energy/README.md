@@ -1,9 +1,9 @@
 # Energy on real phones: evidence
 
-- **Date:** 2026-11-03 21:42 to 2026-11-08 CET.
-- **Ticket:** `.scratch/meshlink-v1/issues/23-energy-on-devices.md`
+- **Date:** 2026-11-03 21:42 to 2026-11-09 CET.
+- **Tickets:** `.scratch/meshlink-v1/issues/23-energy-on-devices.md`; iOS Power Profiler: `.scratch/meshlink-v1/issues/35-ios-power-profiler.md`
 - **Decisions it feeds:** [ADR 0008](../../adr/0008-routing-topology-and-density-adaptation.md) (energy model, scan schedule), [ADR 0010](../../adr/0010-discovery-and-advertising.md) (scanning rules)
-- **Code:** throwaway prototype on branch `prototype/energy` (last commit `4b4b835`), under `prototypes/energy/`: pre-registration and amendments A1–A9 in `README.md`, full tables in `RESULTS.md`, runner `host/energy.py`, analysis `host/analyze.py`. The bake-off app (`prototypes/bearer-bakeoff/`) gained an energy mode. It is never merged.
+- **Code:** throwaway prototype on branch `prototype/energy` (last commit `b18c903`), under `prototypes/energy/`: pre-registration and amendments A1–A10 in `README.md`, full tables in `RESULTS.md`, runner `host/energy.py`, analysis `host/analyze.py`, Power Profiler driver and analysis in `host/pp/`. The bake-off app (`prototypes/bearer-bakeoff/`) gained an energy mode. It is never merged.
 
 All numbers here were observed on real phones. Simulators were not used. Anything not observed is marked **unverified**.
 
@@ -21,12 +21,13 @@ What does MeshLink cost in energy on real phones, per scanning and advertising d
 
 ## 2. Method
 
-The method was pre-registered before the first measurement (`prototypes/energy/README.md`); deviations are amendments A1–A9.
+The method was pre-registered before the first measurement (`prototypes/energy/README.md`); deviations are amendments A1–A10.
 
 - **Android reference:** Google Pixel 6 (Android 17), the only lab phone with on-device power rails (ODPM; Android Studio documents them on Pixel 6 and later Pixels only). It was read through Perfetto `android.power` with `collect_power_rails`. The `wifi.bt` rail combines Wi-Fi and Bluetooth; Wi-Fi was off in every window. Rails are measured after the battery, so they stay valid on the charger.
 - **Windows:** 600 s, screen off, app wake lock held (A1), 3 repeats per scenario, interleaved with baseline windows. **Δ** = window mean − mean of the two bracketing baselines.
 - **Android cross-checks:** Bluetooth controller Idle/Rx/Tx time from `batterystats` on the moto edge 30 fusion, Galaxy S10e and Galaxy A16 (time, not energy).
 - **iOS:** whole-phone power from the battery gauge (`AppleSmartBattery` over Wi-Fi lockdown: |InstantAmperage| × Voltage, about one update per 20 s), unplugged, screen on at minimum brightness, because a locked iPhone stops answering over Wi-Fi about 4 min after locking. iPhone 15 (iOS 17) and iPhone SE (2020) (iOS 18.7.8), 3 repeats each. The SE 2016 switched itself off with a worn battery after repeat 1 (A8); its data is reported separately.
+- **iOS, Power Profiler (A10):** whole-phone system power (`SystemPowerLevel`, battery %/hour, 1 s samples) on the iPhone 12 mini (iOS 27.0.1), recorded in the Instruments GUI over Wi-Fi, unplugged, screen on. Conditions alternate in 240 s phases within random blocks; each phase is summarized by its median.
 - **Overnight:** Pixel 6 for 8 h without wake lock (Doze allowed) on the rails; iPhone 15 for 13.4 h locked, measured by coulomb counting (`AppleRawCurrentCapacity` at start and end, read over USB, A9), against a control night without the app.
 
 ## 3. Results
@@ -76,7 +77,7 @@ Whole-phone Δ, each window minus its bracketing baselines, 3 repeats, all windo
 | Scan 4 s on / 4 s off + advertising | 53 ± 36 (14, 61, 85) | 18 ± 8 (26, 9, 19) |
 | 3 idle GATT links (iPhone as peripheral) | 54 ± 103 | −6 ± 20 |
 
-Baseline drift (SD 25–39 mW) hides every component except combined medium-density discovery, the only scenario positive in all six repeats. These numbers bound iOS costs from above; they do not measure them. SE 2016 repeat 1 only: baselines 559, 495 and 524 mW; advertising 540, 3 links 526, combined 591, scan 516 mW.
+Baseline drift (SD 25–39 mW) hides every component except combined medium-density discovery, the only scenario positive in all six repeats. These numbers bound iOS costs from above; they do not measure them. The Power Profiler sessions below agree for combined discovery. SE 2016 repeat 1 only: baselines 559, 495 and 524 mW; advertising 540, 3 links 526, combined 591, scan 516 mW.
 
 ### iOS overnight [RUN]
 
@@ -85,7 +86,23 @@ Baseline drift (SD 25–39 mW) hides every component except combined medium-dens
 | MeshLink: scan 4 s on / 4 s off + advertising, background mode | Nov 5 17:46 to Nov 6 07:10 (13.4 h) | 3,037 → 2,623 mAh | 30.9 mA, about 119 mW, 1.05%/h |
 | Control: same phone and place, app not running (no Bakeoff log written) | Nov 7 19:28 to Nov 8 09:11 (13.7 h) | 3,091 → 2,549 mAh | 39.5 mA, about 152 mW, 1.24%/h |
 
-iOS suspended the app about 30 s after locking (`background_task_expired` [LOG]); the app's scan schedule stopped and only iOS-managed advertising and filtered scanning continued. The control night used more than the MeshLink night (−8.6 mA, about −33 mW), so night-to-night variation on the same phone exceeds MeshLink's iOS background cost, which this method cannot resolve. 119 mW stays a whole-phone ceiling for a MeshLink night, not an app cost. Resolving the app cost needs alternating app and control nights or an unplugged Power Profiler night (ticket 35).
+iOS suspended the app about 30 s after locking (`background_task_expired` [LOG]); the app's scan schedule stopped and only iOS-managed advertising and filtered scanning continued. The control night used more than the MeshLink night (−8.6 mA, about −33 mW), so night-to-night variation on the same phone exceeds MeshLink's iOS background cost, which this method cannot resolve. 119 mW stays a whole-phone ceiling for a MeshLink night, not an app cost. On-phone overnight Power Profiler recording saves nothing on iOS 27.0.1, so ticket 35 measured background cost screen on instead (next section).
+
+### iOS, Power Profiler, iPhone 12 mini [RUN]
+
+Whole-phone system power, screen on, unplugged; 1 %/hour ≈ 67 mW (full charge 1,741 mAh at about 3.85 V). Δ per block is the difference of phase medians.
+
+| Session | Comparison | Per block (%/hour) | Positive | Median |
+|---|---|---|---|---|
+| 1 (Nov 7, no blocks, n = 2) | comb_med − idle | +0.8 to +1.2 | 2 of 2 | 54–80 mW |
+| 2 (Nov 8, seed 3535) | foreground comb_med − idle (B − A) | +0.08, +0.20, +0.67, +0.58 | 4 of 4 | +26 mW (5–45) |
+| 3 (Nov 9, seed 3636) | background comb_med − idle on the Home screen (C − D) | +0.26, −0.03, +0.01, −1.74 | 2 of 4 | ≈ 0 mW (−116 to +17) |
+| 3 | idle on the Home screen − idle in the app (D − A) | +0.85, +0.73, +0.68, +1.95 | 4 of 4 | +53 mW |
+
+- **Foreground:** combined medium-density discovery costs about **5–80 mW** of whole-phone power, consistent with the gauge deltas above (18–53 mW on other models).
+- **Background:** the verdict, fixed before session 3, needed C − D positive in at least 3 of 4 blocks; it was positive in 2. The cost is not resolvable: median about 0, at most about +17 mW in 3 of 4 blocks. Block 4's Home-screen phase ran high (7.99 %/hour against about 6.2), which gives the −116 mW. The app logs show advertising, scanning and the peer seen in every C phase before iOS suspended the app about 40 s after backgrounding [LOG].
+- **Display confound:** sending the app to the Home screen alone adds about 53 mW on this OLED phone, which inflated session 2's background comparison against the in-app idle phase. Session 3 compares against an idle app on the Home screen instead.
+- Session 2's trace was overwritten by a later save; its deltas come from the analysis at the time (A10). Session 3's output is `results/pp/session3-analysis.txt` on the prototype branch.
 
 ## 4. Energy model (feeds ADR 0008)
 
@@ -100,7 +117,7 @@ Coefficients for comparing presets, from one Pixel 6 (`wifi.bt` rail, Δ above b
 | Bulk transfer | 0.75 mJ/KiB CoC, 0.83 mJ/KiB GATT (radio); about 2× CPU on GATT | `bulk_*` |
 | Battery for %/h | 11,550 mWh (3,000 mAh × 3.85 V) | convention |
 
-iOS gets bounds instead of coefficients (section 3). Background duty on both platforms is set by the OS: Doze stretched Android's scan gaps to 30 s, and iOS suspends the app.
+iOS gets one whole-phone figure instead of component coefficients: foreground combined medium discovery about 5–80 mW; background discovery below what Power Profiler resolves (at most about +17 mW). Background duty on both platforms is set by the OS: Doze stretched Android's scan gaps to 30 s, and iOS suspends the app.
 
 ## 5. Limitations
 
@@ -111,6 +128,7 @@ iOS gets bounds instead of coefficients (section 3). Background duty on both pla
 - **Bulk throughput was limited by the peer**, so 2M's per-bit saving is not shown.
 - **Relay stand-in** without routing or crypto.
 - **iOS screen on:** the noise floor is about 50 mW; screen-off foreground windows are impossible because locking suspends the app and stops the Wi-Fi gauge.
+- **iOS Power Profiler:** one phone (12 mini), screen on only, whole-phone power with no Bluetooth lane; minute-scale system states of 10–100 s and a roughly 15 min state after unplugging must be skipped with a warm-up and medians. Detached and locked recording does not work on iOS 27.0.1.
 - **iOS overnight:** night-to-night variation on one phone was at least 33 mW (the control night drew more than the MeshLink night), so a single pair of nights cannot isolate the app.
 
 ## 6. Reproduce
@@ -122,6 +140,8 @@ python3 host/energy.py run --rep 1                     # Android scenarios, Pixe
 python3 host/analyze.py reanalyze && python3 host/analyze.py summary
 python3 host/energy.py ios-run ip15 --rep 1            # iOS screen-on windows (phone unplugged, unlocked)
 python3 host/energy.py ios-sample se2020 --seconds 60  # gauge check over Wi-Fi
+PP_DEVICE=<udid> python3 host/pp/drive.py 3636 ACD 900  # Power Profiler phases; record in Instruments first
+python3 host/pp/analyze.py <trace> results/pp/phases-3636.jsonl
 ```
 
 The device-lab steps that made iOS gauges readable over Wi-Fi are in [`docs/agents/lessons.md`](../../agents/lessons.md#energy-measurements).
