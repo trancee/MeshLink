@@ -1,6 +1,7 @@
 # Map: MeshLink v1
 
 Label: `wayfinder:map`
+Status: destination reached (2026-11-09)
 
 ## Destination
 
@@ -58,8 +59,7 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 
 ## Not yet specified
 
-- libp2p post-quantum Noise watch (ADR 0002 amendment): track specs#727 and snow#210; adopt published `XXhfs` vectors when they appear, and return any divergence from Noise HFS to the user.
-- libsodium HPKE upstream offer (ADR 0004): draft an "Ideas" thread once MeshLink's HPKE passes the hpke-pq vectors; posting needs explicit approval.
+None. The two watch items moved to "Carried forward" on 2026-11-09.
 
 ## Out of scope
 
@@ -71,3 +71,18 @@ An approved v1 specification bundle ready to hand off as implementation tickets:
 - Multi-device users and account sync.
 - Non-BLE bearers (Wi-Fi Aware, Multipeer Connectivity, Nearby Connections): v1 is BLE-only; the bearer abstraction of ADR 0009 keeps a later addition possible (user decision 2026-11-02).
 - Precise distance via UWB (Nearby Interaction, Android UWB): possible later optional module; v1 offers only coarse proximity for direct peers.
+- [Does the energy model hold on a second rail-equipped Android phone?](issues/34-energy-second-android.md): needs a Pixel 7 or newer, which the lab lacks; the spec does not depend on it. Carried forward.
+- [Set up the release infrastructure](issues/36-release-infrastructure.md): execution work, blocked on 0.1.0 code. Carried forward.
+
+## Handoff (2026-11-09)
+
+The v1 specification bundle is complete: [`PROJECT.md`](../../PROJECT.md), [`GLOSSARY.md`](../../GLOSSARY.md), ADRs 0001–0020 in [`docs/adr/`](../../docs/adr/), the protocol spec with 253 conformance vectors in [`docs/spec/`](../../docs/spec/README.md), the public API ([ADR 0007](../../docs/adr/0007-public-api-shape.md)), modules, toggles and presets ([ADR 0011](../../docs/adr/0011-modules-toggles-and-presets.md)), the [dependency register](../../docs/reference/dependencies.md), the documentation architecture ([ADR 0006](../../docs/adr/0006-documentation-architecture.md)) and the toolchain, testing and release plans (ADRs [0005](../../docs/adr/0005-toolchain-and-dependency-baseline.md), [0017](../../docs/adr/0017-testing-architecture.md), [0019](../../docs/adr/0019-release-versioning-and-api-compatibility.md)). Prototype branches stay throwaway evidence. The next effort charts the implementation toward 0.1.0 as a new map.
+
+## Carried forward
+
+Inherited by the implementation effort; none blocks the spec.
+
+- Second rail-equipped Android phone: re-measure the energy model on a Pixel 7 or newer ([ticket 34](issues/34-energy-second-android.md)).
+- Release infrastructure: `meshlink-swift`, the release environment, secrets and the GitHub App ([ticket 36](issues/36-release-infrastructure.md)).
+- libp2p post-quantum Noise watch (ADR 0002 amendment): track specs#727 and snow#210; adopt published `XXhfs` vectors when they appear, and return any divergence from Noise HFS to the user.
+- libsodium HPKE upstream offer (ADR 0004): draft an "Ideas" thread once MeshLink's HPKE passes the hpke-pq vectors; posting needs explicit approval.
