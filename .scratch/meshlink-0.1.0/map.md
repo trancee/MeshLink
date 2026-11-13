@@ -20,6 +20,7 @@ An ordered 0.1.0 implementation backlog: vertical slices an agent can take one a
 
 - [Is the October toolchain still the newest stable, and can Xcode 27.2 replace Xcode 16.4?](issues/01-toolchain-refresh.md): Kotlin 2.4.21 is still current. Dokka 2.3.0 fixes CVEs; detekt 2, Kover and ABI validation are still not stable. Xcode 27.2 builds for iOS 15 but debugs only on iOS 17+ devices. A build-logic check needs no new dependency. Whether Kotlin builds with Xcode 27.2 is now ticket 10.
 - [Which prose docs site generator fits 0.1.0?](issues/02-docs-site-generator.md): no preferred generator is stable. Zensical is in beta (stable expected around February 2027) and builds the docs unchanged; Starlight needs every page edited. The choice is between Dokka only, Zensical's beta, Starlight and mdBook.
+- [What are MeshLink's Maven coordinates, Kotlin package and Swift module names?](issues/04-coordinates-and-names.md): groupId `ch.trancee.meshlink` (domain namespace `ch.trancee`), packages under `ch.trancee.meshlink`, XCFramework `MeshLinkKit`, Swift package `MeshLink` in `trancee/meshlink-swift`. Recorded in ADR 0011 v8.
 
 ## Not yet specified
 

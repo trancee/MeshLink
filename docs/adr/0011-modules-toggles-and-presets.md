@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 7 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 8 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names).
 
 ## Context
 
@@ -138,3 +138,11 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-08, power policy ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power), simulated; ADR 0008):
 
 - **Built-in presets (decision 12):** a new knob, `power`, with two values: `Balanced` and `Responsive`. Each sets the scan schedule per density class (ADR 0008). `ProximityDiscovery` and `LocalMultiplayer` use `Responsive`; `OfflineChat`, `EmergencyBroadcast` and `FieldTeams` use `Balanced`. `LocalMultiplayer` is pinned to the low class, so it always scans 4 s on / 2 s off. Apps can override the knob. Background scanning is set by the operating system, so no preset promises background discovery latency.
+
+2026-11-13, coordinates and names (0.1.0 map ticket "What are MeshLink's Maven coordinates, Kotlin package and Swift module names?"):
+
+- **Maven Central (decision 1):** namespace `ch.trancee`, verified through a DNS TXT record on `trancee.ch` ([Sonatype: register a namespace](https://central.sonatype.org/register/namespace/); a domain namespace covers every groupId under it). groupId `ch.trancee.meshlink`; artifact IDs `meshlink` and `meshlink-testing`. The Kotlin Multiplatform plugin adds the per-target artifacts. The domain must stay registered: if it lapses, someone else could claim the namespace.
+- **Kotlin packages (decision 1):** the public API lives in `ch.trancee.meshlink`, the test kit in `ch.trancee.meshlink.testing`, and internals under `ch.trancee.meshlink.internal`. The Android library `namespace` is `ch.trancee.meshlink`.
+- **Apple binary (decision 1):** the XCFramework `baseName` is `MeshLinkKit`, so its Swift module is `MeshLinkKit`; its bundle ID is `ch.trancee.meshlink.kit` (ADR 0005 sets it through `binaryOption("bundleId", …)`).
+- **Swift package (decision 5):** repository `trancee/meshlink-swift`, package name `MeshLink`, products and modules `MeshLink` (the overlay, which re-exports `MeshLinkKit`) and `MeshLinkTesting`.
+- These names are fixed from 0.1.0. Renaming any of them breaks every consumer and needs a new major version (ADR 0019).
