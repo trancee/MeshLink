@@ -48,7 +48,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 
 **Concept:** the slowest supported iPhone sets the bar for Swift interop and crypto cost. Evidence: [`docs/evidence/2026-11-se2016-bench/`](../evidence/2026-11-se2016-bench/README.md); code on throwaway branch `prototype/se2016-bench`.
 
-**Signing:** the SE 2016 is not provisioned for `ch.trancee.lab.host` (team `apple-team-1`). Sign it with team `apple-team-2` and bundle `ch.trancee.lab.host.b`.
+**Signing:** the SE 2016 is not provisioned for `ch.trancee.lab.host` (team `apple-team-1`). Sign it with team `apple-team-2` and bundle `ch.trancee.lab.host.b`. The same applies to the iPhone X, because a free-team profile lists at most 3 devices. Read a team ID from the signing certificate's OU field (`security find-certificate -a -c "Apple Development: <account>" -p | openssl x509 -noout -subject`); never write it into the repository. After a profile is regenerated, every phone must trust the developer again (Settings › General › VPN & Device Management). Until then a launch fails with "profile has not been explicitly trusted" (`idevicedebug`) or CoreDevice error 10002 / FBSOpenApplicationServiceErrorDomain error 1 (`devicectl`).
 
 **Root causes found:**
 
