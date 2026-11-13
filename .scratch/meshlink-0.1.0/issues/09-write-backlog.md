@@ -11,3 +11,4 @@ Write the ordered implementation backlog in the form ticket 05 decides, sliced p
 ## Context
 
 - Carried from v1: [ticket 36](../../meshlink-v1/issues/36-release-infrastructure.md).
+- From ticket 06 ([ADR 0017 amendment](../../../docs/adr/0017-testing-architecture.md#amendments)): the `labapp/` app, the `tools/lab/` scripts, a HITL lab-fault ticket (Bluetooth off on 5 remote phones, nova 9 adb timeout, Pixel 4a address) and the release evidence run itself.
