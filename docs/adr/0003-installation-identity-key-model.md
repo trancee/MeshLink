@@ -1,6 +1,6 @@
 # 0003: Installation identity key model
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 4 (amended 2026-11-02, ADR 0012; 2026-11-03, ADR 0014; 2026-11-08, ADR 0018).
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 5 (amended 2026-11-02, ADR 0012; 2026-11-03, ADR 0014; 2026-11-08, ADR 0018; 2026-11-13, errata).
 
 ## Context
 
@@ -41,8 +41,12 @@ None: greenfield.
 2026-11-03, store-and-forward ([ADR 0014](0014-store-and-forward.md)):
 
 - **Rotation period:** a certificate is valid for 24 h, and a new one is issued every 12 h. Its static private keys are deleted at its not-after plus 1 h plus 30 s.
-- **Expired certificates (risk above):** a sender never seals to an expired certificate (`Rejected(PeerKeyExpired)`); nodes attach their current certificate to `IK` replies and receipts when the sender's copy is past half its validity.
+- **Expired certificates (risk above):** a sender never seals to an expired certificate; nodes attach their current certificate to `IK` replies and receipts when the sender's copy is past half its validity.
 
 2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
 
 - **Certificate distribution:** besides links, `IK` first messages and piggybacked refreshes, senders get certificates through a salted, anonymous lookup. D or any node caching a valid certificate answers, sealed to the requester's ephemeral key. Expired certificates trigger a lookup instead of `Rejected(PeerKeyExpired)`.
+
+2026-11-13, errata (0.1.0 backlog review):
+
+- **Expired certificates (2026-11-03 amendment):** no longer names `Rejected(PeerKeyExpired)`, which ADR 0018 removed. A unicast to a node without a valid certificate stays `Queued` while MeshLink looks one up, then is sealed or becomes `Expired` (ADR 0007 and ADR 0013 amendments for ADR 0018).

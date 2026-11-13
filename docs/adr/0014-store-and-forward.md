@@ -1,10 +1,10 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 6 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 7 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata).
 
 ## Context
 
-- **ADR 0008:** a node with no route holds a message; it holds up to 100 messages and takes one only with at least 10 s of lifetime left. The minimum lifetime is 120 s with ±30 s clock skew. On every new link, catch-up exchanges the message IDs of the last 60 s. Routing tags rotate every 15 min and are accepted for ±1 epoch. The routing simulation held one copy per node with no route.
+- **ADR 0008:** a node with no route holds a message; it holds up to 100 messages and takes one only with at least 10 s of lifetime left. The minimum lifetime is 120 s with ±30 s clock skew. On every new link, catch-up exchanges the message IDs of the last 60 s. Routing tags rotate every 5 min (ADR 0008 and ADR 0010 amendments) and are accepted for ±1 epoch. The routing simulation held one copy per node with no route.
 - **ADR 0013:** the delivery receipt is always sent and is end-to-end in the secured profiles; status lives in memory; `Expired` at expiry plus 30 s.
 - **ADR 0001 and ADR 0002:** held and first messages are sealed to the recipient's static key (`IK` message 1, plus HPKE X-Wing in `post-quantum`) and have no forward secrecy. ADR 0003 leaves the static-key rotation period to this decision.
 - **ADR 0011:** holding for others is a preset toggle that never affects relaying.
@@ -85,3 +85,7 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 
 - **Rotation period (decision 7, [C-04](../spec/decisions.md#c-04)):** tags rotate every 5 min (ADR 0008 and ADR 0010 amendments), not 15 min. A message with the maximum 1 h lifetime spans up to 13 epochs, so claims match destination tags from up to 13 epochs.
 - **Tombstone storage (decision 8, [D-42](../spec/decisions.md#d-42-tombstone-storage)):** a node stores a tombstone only after verifying it against a held copy or a relayed delivery receipt, keeps it until that message expires, and stores at most 1,000.
+
+2026-11-13, errata (0.1.0 backlog review):
+
+- **Context:** the ADR 0008 summary gave the tag rotation period as 15 min. It is 5 min, as the 2026-11-08 protocol spec amendment above already states for decision 7.

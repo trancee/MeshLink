@@ -213,3 +213,4 @@ python3 tools/spec/check_spec.py    # compare tables with data, check schemas, r
 |---|---|
 | 2026-11-08 | First draft of protocol 1 (ticket 29). |
 | 2026-11-08 | Owner accepted decisions D-01 to D-43 and conflict resolutions C-01 to C-10; `NEIGHBOR_LIST` carries the sender's next advertisement identifier (D-24). Decision log renamed to `decisions.md`. |
+| 2026-11-13 | Errata, no layout change: ADR decision citations in `link.md` (keep one link, close, neighbor list, shuffle, catch-up) and D-24 corrected; in `end-to-end.md`, retries of a first message resend the same container re-tagged for the current epoch, as `routing.md` already stated. |

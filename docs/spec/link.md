@@ -171,7 +171,7 @@ Total: 67 B. A node that receives a different `mesh_id_digest` sends `CLOSE` wit
 
 ## Keep one link per neighbor
 
-(ADR 0009 decision 4; [D-22].)
+(ADR 0009 decision 5; [D-22].)
 
 Two nodes may connect to each other in both directions at once. When a node has two completed links to the same NodeId, it keeps the link whose central has the lower NodeId (bytewise comparison) and sends `CLOSE` with `DUPLICATE_LINK` on the other. Both sides reach the same result without coordination. Frames already received on the closed link are processed normally; frames still queued on it are moved to the kept link.
 
@@ -235,7 +235,7 @@ The sender stops sending that stream and treats the frame as not sent on this ho
 
 ## Close
 
-(ADR 0009 decision 4; ADR 0020 decision; [D-22].)
+(ADR 0009 decision 5; ADR 0020 decision; [D-22].)
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
@@ -296,7 +296,7 @@ Total: 1 B.
 
 ## Neighbor list
 
-(ADR 0016 decision 4 and amendment; ADR 0008 decisions 2 and 4; [D-24]; [conflict C-10](decisions.md#c-10).)
+(ADR 0016 decision 3 and amendment; ADR 0008 decisions 2 and 4; [D-24]; [conflict C-10](decisions.md#c-10).)
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
@@ -322,7 +322,7 @@ Size: 18 to 274 B.
 
 ## Shuffle
 
-(ADR 0008 decision 2 and amendment "Partial view".)
+(ADR 0008 decision 1 and amendment "Partial view".)
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
@@ -341,7 +341,7 @@ Size: 18 to 274 B.
 
 ## Catch-up
 
-(ADR 0014 decision 4 and amendment v3; [D-25].)
+(ADR 0014 decision 7 and amendment v3; [D-25].)
 
 When a link comes up, each side sends one `CATCH_UP` frame. It lists what the sender can offer, so the peer can request missing broadcasts with `GRAFT` and receive held unicasts for destinations it can reach.
 

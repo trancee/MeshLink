@@ -1,6 +1,6 @@
 # 0019: Release, versioning and API compatibility
 
-Status: accepted (2026-11-08; ticket "What is the release, versioning and API-compatibility process?"). Version: 2 (amended 2026-11-13, toolchain decision).
+Status: accepted (2026-11-08; ticket "What is the release, versioning and API-compatibility process?"). Version: 3 (amended 2026-11-13, toolchain decision; 2026-11-13, errata).
 
 ## Context
 
@@ -50,7 +50,7 @@ Status: accepted (2026-11-08; ticket "What is the release, versioning and API-co
    - A hand-written `CHANGELOG.md` in the Keep a Changelog style. Each PR adds an entry under "Unreleased" with its SemVer impact.
    - A build-logic task, `checkChangelog`, wired into `check`, fails if an API dump changed without a changelog change.
    - No changelog tool and no new dependency.
-7. **Release workflow.** Pushing a `vX.Y.Z` tag on `main` starts a GitHub Actions workflow on `macos-15`:
+7. **Release workflow.** Pushing a `vX.Y.Z` tag on `main` starts a GitHub Actions workflow on `macos-26` (originally `macos-15`; see Amendments):
    1. Run every gate, and check that the changelog has a section for the version and that the device evidence record linked from it exists.
    2. Wait in a GitHub environment that requires the owner's manual approval. Nothing irreversible happens before this step.
    3. Sign the Maven artifacts with PGP, upload them to Maven Central, and release them automatically once Central has validated them (vanniktech `automaticRelease`).
@@ -61,7 +61,7 @@ Status: accepted (2026-11-08; ticket "What is the release, versioning and API-co
 8. **Cross-repository credentials.**
    - A GitHub App installed only on `meshlink-swift`, with contents write access. The workflow takes a short-lived token from it with `actions/create-github-app-token`.
    - The PGP key, the Central token and the App's private key are secrets of the release environment only.
-   - Creating the App and the secrets is part of ticket 30.
+   - Creating the App and the secrets is part of the 0.1.0 backlog's release infrastructure ticket (58).
 9. **Support before 1.0.** Only the latest release is supported, and fixes ship as new releases.
 
 ## Alternatives
@@ -99,3 +99,8 @@ None: greenfield. The first release creates `CHANGELOG.md`, `docs/reference/comp
 
 - **Release workflow (decision 7):** runs on `macos-26` with Xcode 26.4.1 selected, not `macos-15`.
 - **`swift-api-digester`:** ships in Xcode 27.2 (verified locally 2026-11-13); the release workflow uses the one in Xcode 26.4.1.
+
+2026-11-13, errata (0.1.0 backlog review):
+
+- **Runner (decision 7):** the decision text now names `macos-26`, as the toolchain amendment above decided.
+- **Ticket number (decision 8):** "ticket 30" referred to the retired v1 map. The 0.1.0 backlog creates the App and the secrets in its release infrastructure ticket (58).

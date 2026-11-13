@@ -163,7 +163,7 @@ Vectors: `derivations.json`, derivation `hpke-info`. Seal vectors are tier 2.
 
 (ADR 0002 decision "Sessions"; [D-33], [D-34].)
 
-- **Opening.** An initiator has at most one first message outstanding per peer. Further messages to that peer wait until the session opens or the first message expires; then the next waiting message becomes a first message. Retries of a first message resend the same frame bytes.
+- **Opening.** An initiator has at most one first message outstanding per peer. Further messages to that peer wait until the session opens or the first message expires; then the next waiting message becomes a first message. Retries of a first message resend the same container bytes, re-tagged for the current epoch ([routing.md](routing.md#origin-behavior)).
 - **Answering.** The responder processes each message 1 once (by `message_id`). It sends `IK` message 2 in the `DELIVERY_RECEIPT` for that message, container kind `0x02`; the plaintext is the receipt. It keeps that container and resends it unchanged in the receipt for every later copy. After message 2, the responder sends with the session.
 - **Adopting.** The initiator matches a message 2 to its first message by the receipt's tombstone `message_id`. It processes the first such message 2 and ignores later copies.
 - **Transport.** Each side keeps a `u64` send counter per session, starting at 0, and sends each frame as kind `0x03` with that counter as the Noise nonce (`SetNonce`). Associated data is empty. The receiver accepts each nonce once, within a window of the highest nonce seen.

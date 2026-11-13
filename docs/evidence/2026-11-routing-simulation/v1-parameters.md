@@ -17,7 +17,7 @@ Density classes are written low / medium / high. "Class" means the phone's own e
 | iOS inbound (peripheral-role) cap | 3 incoming links, counting incoming dials in progress. At the cap an iPhone stops being discoverable; further links start from the iPhone as central | D (cap-3 recheck) | bake-off: iPhone X invisible to scanners at 4 incoming links. Simulated cap 3: 8 of 8 combinations pass; refused dials 0.36–0.48 per phone per minute | device-derived; rechecked, not swept |
 | Passive view (peer table) size | 4·d (24 / 20 / 20) | A | control traffic 18–48 B/phone·s at d = 5 | assumed |
 | Passive view eviction | random replacement when full (HyParView); only peers heard in the last 4 s can be dialed | A | – | assumed |
-| Shuffle | every 10 s with one neighbor: 2 active + 3 passive identifiers, same-size reply, 8 B per identifier | A | counted as control traffic | assumed |
+| Shuffle | every 10 s with one neighbor: up to 5 identifiers from the passive view, reply of up to 5, 8 B per identifier ([protocol 1](../../spec/link.md#shuffle)); the model sent 2 active + 3 passive, the same size on air | A | counted as control traffic | assumed |
 | Neighbor-list exchange | to all neighbors on change, at most every 2 s; 4 B header + 8 B per neighbor | A | same | assumed |
 | Diversity replacement | every 30 s, replace the most redundant link if a candidate overlaps ≥ 2 fewer peers in the 1–2-hop set | A | – | assumed |
 | Former neighbor list reuse | 120 s | A | – | assumed |

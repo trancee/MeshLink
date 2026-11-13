@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 2 (amended 2026-11-13, release device evidence).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 3 (amended 2026-11-13, release device evidence; 2026-11-13, errata).
 
 ## Context
 
@@ -86,7 +86,8 @@ Inputs:
     - Sets:
       - Wycheproof, at a pinned commit;
       - cacophony;
-      - our own: `XXhfs`, `IKhfs`, the certificate, the X-Wing seal and the wire codecs.
+      - hpke-pq (`draft-ietf-hpke-pq-05` Appendix A.5, ADR 0004);
+      - our own: `XXhfs`, `XXhfspsk3`, `IKhfs`, the certificate, the X-Wing seal and the wire codecs.
 11. **Density tests.**
     - **Pull requests:** small seeded `VirtualAir` meshes of 2–12 nodes cover routing, receipts, store-and-forward and link churn.
     - **Scheduled:** 50–200-node meshes at low, medium and high density. They assert delivery and airtime bands taken from the [routing-simulator evidence](../evidence/2026-11-routing-simulation/README.md).
@@ -121,23 +122,29 @@ Inputs:
 - **Swift fake drift:** `MeshLinkTesting` stays hand-written (ADR 0011). Both fakes run the same reference scenarios.
 - **Host native build:** a second libsodium build adds CI time and a platform split. It is cached by the tarball's sha256, as the iOS build is.
 - **Jazzer on the Android host classpath:** unproven until the first decoder exists. If the wiring fails, the choice returns to the owner.
-- **Manual device runs** can be skipped under time pressure. The release checklist (ticket 27) requires the evidence record.
+- **Manual device runs** can be skipped under time pressure. The release checklist (0.1.0 backlog ticket 64) requires the evidence record.
 
 ## Consequences
 
 - **[ADR 0005](0005-toolchain-and-dependency-baseline.md):** gains the host libsodium build, Jazzer and the CI tiers.
 - **[ADR 0011](0011-modules-toggles-and-presets.md):** `meshlink-testing` holds `VirtualAir` and runs real nodes over it.
 - **[Dependency register](../reference/dependencies.md):** gains Jazzer and the host libsodium build.
-- **The release ticket (27)** makes the decision 8 evidence record a release gate.
+- **The release ticket (0.1.0 backlog ticket 64)** makes the decision 8 evidence record a release gate; backlog ticket 62 produces the record.
 
 ## Amendments
 
 2026-11-13, release device evidence (0.1.0 map ticket "What device evidence does the 0.1.0 release need?"):
 
 - **Release phones (decision 8):** 8 phones, by lab alias. Android: `p10lite` (8.0, the oldest; 1M only, so it never gets PHY commands), `xcover4` (9, 32-bit `armeabi-v7a` only), `nothing2` (16, 2M) and `pixel6` (17, the newest). iOS: `se2016` (15.8, the oldest), `ipx` (16.7), `ip15` (17.6) and `ip12mini` (27, the newest). iOS 15 and 16 are installed through libimobiledevice ([lessons](../agents/lessons.md#device-lab)).
-- **Pairwise scenarios (decision 8):** on every platform pairing and both roles: discovery, handshake, direct unicast with delivery and read receipts, and a 128 KiB message over GATT and, where both phones support it, over L2CAP CoC. Direct unicast runs under all three profiles (`none`, `classical`, `post-quantum`); the other scenarios run under `classical`.
+- **Pairwise scenarios (decision 8):** on every platform pairing and both roles: discovery, handshake, direct unicast with delivery and read receipts, and a 128 KiB message over GATT and, where both phones support it, over L2CAP CoC. Direct unicast runs under all three profiles (`unsecured`, `classical`, `post-quantum`); the other scenarios run under `classical`.
 - **Mesh scenarios (decision 8):** the 8 phones form a mixed-platform line of at least 3 hops, forced by an internal topology filter that only the lab app enables and that is not public API (ADR 0007). Scenarios: routed unicast, signed broadcast, store-and-forward (a relay goes offline and returns) and link churn.
 - **Fleet smoke run (decision 8):** every reachable lab phone, at least 15, carries traffic for 10 minutes with no crash and full delivery. The density bands stay simulator evidence and are labeled as such (T9). 0.1.0 claims no background behavior; the docs mark it unverified.
 - **Pass criteria (decision 8):** every message is delivered within its lifetime, exactly once and intact; receipts match the messages; no crash or ANR. Any miss blocks the release unless the record root-causes it to an external fault (for example, a phone locking itself). Latency, throughput and connect time are recorded: 0.1.0 sets the baseline, and later releases fail on a regression above 10% (P4).
 - **Lab app (decision 7):** one unpublished app per platform in `labapp/` (Compose on Android, a thin SwiftUI shell on iOS), installed as `ch.trancee.lab.host` (ADR 0005) and driven only through launch arguments and result files, as in the bake-off.
 - **Who runs it (decision 7):** an agent runs `tools/lab/` from a dedicated worktree; the owner fixes physical lab faults. The record has every T9 field, and Bluetooth addresses are pseudonymized ([lessons](../agents/lessons.md#device-lab)).
+
+2026-11-13, errata (0.1.0 backlog review):
+
+- **Profile name (2026-11-13 release amendment):** the first profile is `unsecured`, not `none` (ADR 0007 decision 5).
+- **Ticket numbers (Risks, Consequences):** "ticket 27" referred to the retired v1 map. The 0.1.0 backlog's release ticket is 64, and its release evidence run is ticket 62.
+- **Vector sets (decision 10):** the list now names the hpke-pq vectors that ADR 0004 makes a conformance gate, and `XXhfspsk3`, which the spec's [tier 2 vectors](../spec/vectors/README.md#tier-2-pending) require.

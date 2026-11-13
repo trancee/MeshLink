@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 4 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 5 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata).
 
 ## Context
 
@@ -31,7 +31,7 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
    - **`Delivered`:** the delivery receipt arrived.
    - **`Read`:** the read receipt arrived. A read receipt without its delivery receipt implies delivery and goes straight to `Read`.
    - **`Expired`:** no delivery receipt by the expiry plus 30 s of clock skew.
-   - **`Failed(reason)`:** only for local causes, for example `Stopped`. The spec lists the reasons.
+   - **`Failed(reason)`:** only for local causes. This ADR defines the reasons; the only one is `Stopped` (decision 9).
 6. **Ordering and terminal states:** status only moves forward, except that `Sent` and `Held` may alternate.
    - Terminal: `Read`, `Expired`, `Failed`, and `Delivered` when no read receipt was requested.
    - The origin's retries are bounded (ADR 0008), but running out of them is not a failure: a holder may still deliver, so a late receipt can still turn the message into `Delivered` until it expires.
@@ -84,3 +84,7 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
 
 - **`Queued` (decision 5):** also covers a unicast waiting for the destination's certificate. It moves to `Sent` once a certificate arrives and the message is sealed, or to `Expired` at its lifetime.
+
+2026-11-13, errata (0.1.0 backlog review):
+
+- **`Failed` reasons (decision 5):** the protocol spec has no list of `Failed` reasons, because they are local API results. This ADR defines them, and decision 9's `Stopped` is the only one.

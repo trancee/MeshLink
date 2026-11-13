@@ -1,6 +1,6 @@
 # 0021: Change workflow and merge gates
 
-Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticket get from the backlog to main?"). Version: 1.
+Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticket get from the backlog to main?"). Version: 2 (amended 2026-11-13, CI ticket).
 
 ## Context
 
@@ -29,7 +29,7 @@ Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticke
    - a pull request with 0 required approvals and squash as the only allowed merge method;
    - no bypass actors.
 
-   "Links" is not required, because its scheduled external run depends on other sites. The backlog's first build ticket adds its Gradle and Xcode jobs to the required checks in the same change.
+   "Links" is not required, because its scheduled external run depends on other sites. The backlog ticket that creates the CI workflow (05) adds its Gradle and Xcode jobs to the required checks (see Amendments).
 7. **Agent autonomy.** On a `ready-for-agent` ticket, an agent may create a feature branch, commit, push it and open the PR without asking each time. Merging, releases, ruleset and settings changes, and anything outside the repository still need the owner's explicit approval each time.
 
 ## Alternatives
@@ -57,3 +57,9 @@ Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticke
 
 - **0.1.0 map:** the "write backlog" ticket writes into `.scratch/meshlink-0.1.0-build/` with this template, and the build-order ticket can rely on PR-sized slices.
 - **[ADR 0019](0019-release-versioning-and-api-compatibility.md):** releases still need explicit approval through the release environment; this ADR does not change that.
+
+## Amendments
+
+2026-11-13, CI ticket (owner decision, 0.1.0 backlog review):
+
+- **Required checks (decision 6):** the ticket that creates the CI workflow, 0.1.0 backlog ticket 05 ("Run the build in CI and make its jobs required on `main`"), adds the Gradle and Xcode jobs to the required checks, not the backlog's first build ticket. Tickets 01–04 come before any CI workflow, so they merge under the existing docs and privacy checks. The ruleset change follows ticket 05's merge and needs the owner's approval (decision 7).
