@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 1.
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 2 (amended 2026-11-13, release device evidence).
 
 ## Context
 
@@ -129,3 +129,15 @@ Inputs:
 - **[ADR 0011](0011-modules-toggles-and-presets.md):** `meshlink-testing` holds `VirtualAir` and runs real nodes over it.
 - **[Dependency register](../reference/dependencies.md):** gains Jazzer and the host libsodium build.
 - **The release ticket (27)** makes the decision 8 evidence record a release gate.
+
+## Amendments
+
+2026-11-13, release device evidence (0.1.0 map ticket "What device evidence does the 0.1.0 release need?"):
+
+- **Release phones (decision 8):** 8 phones, by lab alias. Android: `p10lite` (8.0, the oldest; 1M only, so it never gets PHY commands), `xcover4` (9, 32-bit `armeabi-v7a` only), `nothing2` (16, 2M) and `pixel6` (17, the newest). iOS: `se2016` (15.8, the oldest), `ipx` (16.7), `ip15` (17.6) and `ip12mini` (27, the newest). iOS 15 and 16 are installed through libimobiledevice ([lessons](../agents/lessons.md#device-lab)).
+- **Pairwise scenarios (decision 8):** on every platform pairing and both roles: discovery, handshake, direct unicast with delivery and read receipts, and a 128 KiB message over GATT and, where both phones support it, over L2CAP CoC. Direct unicast runs under all three profiles (`none`, `classical`, `post-quantum`); the other scenarios run under `classical`.
+- **Mesh scenarios (decision 8):** the 8 phones form a mixed-platform line of at least 3 hops, forced by an internal topology filter that only the lab app enables and that is not public API (ADR 0007). Scenarios: routed unicast, signed broadcast, store-and-forward (a relay goes offline and returns) and link churn.
+- **Fleet smoke run (decision 8):** every reachable lab phone, at least 15, carries traffic for 10 minutes with no crash and full delivery. The density bands stay simulator evidence and are labeled as such (T9). 0.1.0 claims no background behavior; the docs mark it unverified.
+- **Pass criteria (decision 8):** every message is delivered within its lifetime, exactly once and intact; receipts match the messages; no crash or ANR. Any miss blocks the release unless the record root-causes it to an external fault (for example, a phone locking itself). Latency, throughput and connect time are recorded: 0.1.0 sets the baseline, and later releases fail on a regression above 10% (P4).
+- **Lab app (decision 7):** one unpublished app per platform in `labapp/` (Compose on Android, a thin SwiftUI shell on iOS), installed as `ch.trancee.lab.host` (ADR 0005) and driven only through launch arguments and result files, as in the bake-off.
+- **Who runs it (decision 7):** an agent runs `tools/lab/` from a dedicated worktree; the owner fixes physical lab faults. The record has every T9 field, and Bluetooth addresses are pseudonymized ([lessons](../agents/lessons.md#device-lab)).

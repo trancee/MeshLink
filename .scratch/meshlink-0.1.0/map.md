@@ -22,6 +22,7 @@ An ordered 0.1.0 implementation backlog: vertical slices an agent can take one a
 - [Which prose docs site generator fits 0.1.0?](issues/02-docs-site-generator.md): no preferred generator is stable. Zensical is in beta (stable expected around February 2027) and builds the docs unchanged; Starlight needs every page edited. The choice is between Dokka only, Zensical's beta, Starlight and mdBook.
 - [What are MeshLink's Maven coordinates, Kotlin package and Swift module names?](issues/04-coordinates-and-names.md): groupId `ch.trancee.meshlink` (domain namespace `ch.trancee`), packages under `ch.trancee.meshlink`, XCFramework `MeshLinkKit`, Swift package `MeshLink` in `trancee/meshlink-swift`. Recorded in ADR 0011 v8.
 - [How does an implementation ticket get from the backlog to main?](issues/05-backlog-to-main.md): local backlog in `.scratch/meshlink-0.1.0-build/` with a fixed template; every change through a squash-merged PR behind three required checks; agents may open PRs on `ready-for-agent` tickets, merges need approval. Recorded in ADR 0021.
+- [What device evidence does the 0.1.0 release need?](issues/06-release-device-evidence.md): 8 phones (Android 8–17, iOS 15.8–27), pairwise and 3-hop mesh scenarios plus a 15-phone fleet smoke run, exactly-once delivery as the pass bar, an in-repo `labapp/` driven by `tools/lab/`. Recorded in ADR 0017 v2.
 
 ## Not yet specified
 
