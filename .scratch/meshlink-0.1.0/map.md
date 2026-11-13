@@ -26,6 +26,7 @@ An ordered 0.1.0 implementation backlog: vertical slices an agent can take one a
 - [Does 0.1.0 publish a prose docs site, and with which generator?](issues/08-docs-site.md): no; Pages carries only Dokka at `/api/` with a small root page, prose stays on GitHub; re-evaluate at Zensical's first stable release or 1.0.0. Recorded in ADR 0006 v3.
 - [Does Kotlin 2.4.21 build with Xcode 27.2, and do its builds run on iOS 15 and 16 phones?](issues/10-xcode27-smoke.md): yes; the framework and app build without a Kotlin Xcode warning, and the app runs on iOS 15.8.8 through 27.2 with every vector matching, using libimobiledevice on iOS 15/16 and devicectl from iOS 17.
 - [Which toolchain and build checks does the first build start on?](issues/03-toolchain-decision.md): hold Kotlin 2.4.21 / Gradle 9.7.1 / AGP 9.3.3; Dokka 2.3.0, Spotless 8.11.0, Robolectric 4.18 (proven by the scaffold), Rust 1.100.0; Xcode 27.2 locally, Xcode 26.4.1 on `macos-26` in CI with a scheduled `xcode-27` job; a dependency-free `build-logic/` direction check. Recorded in ADR 0005 v4, 0011 v9 and 0019 v2.
+- [In what order is 0.1.0 built, and how is it sliced?](issues/07-build-order-and-slices.md): one behavior per PR, no layer ahead of need; M0 scaffold, M1 `Unsecured` two-node tracer on `VirtualAir`, M2 the same over GATT on real phones, then security, links, routing, end-to-end, store-and-forward and large messages, presets/diagnostics/Swift overlay, release. Every ticket written in full; milestones in the backlog's `spec.md`.
 
 ## Not yet specified
 
