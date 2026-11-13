@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 8 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 9 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision).
 
 ## Context
 
@@ -42,7 +42,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
    | `:meshlink` | Android and iOS adapters (BLE, lifecycle) and the public API; the published umbrella | `:meshlink-core`, `:meshlink-crypto-sodium` |
    | `:meshlink-testing` | The fake mesh | `:meshlink` |
 
-   `:meshlink-core` and `:meshlink-crypto-sodium` are not published on their own. A build check enforces the dependency direction; the tool is chosen with the first module and needs an E3 row.
+   `:meshlink-core` and `:meshlink-crypto-sodium` are not published on their own. A build check enforces the dependency direction (see the 2026-11-13 toolchain amendment).
 
 3. **Noise:** no standalone Noise artifact in v1. Noise lives in `:meshlink-core` behind `CryptoProvider` as internal API.
 
@@ -146,3 +146,8 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 - **Apple binary (decision 1):** the XCFramework `baseName` is `MeshLinkKit`, so its Swift module is `MeshLinkKit`; its bundle ID is `ch.trancee.meshlink.kit` (ADR 0005 sets it through `binaryOption("bundleId", …)`).
 - **Swift package (decision 5):** repository `trancee/meshlink-swift`, package name `MeshLink`, products and modules `MeshLink` (the overlay, which re-exports `MeshLinkKit`) and `MeshLinkTesting`.
 - These names are fixed from 0.1.0. Renaming any of them breaks every consumer and needs a new major version (ADR 0019).
+
+2026-11-13, toolchain decision (0.1.0 map ticket "Which toolchain and build checks does the first build start on?"):
+
+- **Dependency-direction check (decision 2):** a convention plugin in `build-logic/`, with no new dependency, applied to every module. It reads each configuration's `ProjectDependency.path` (including KMP source-set and test configurations) and fails `check` when a module depends on a project outside its allow-list: `:meshlink-core` → none; `:meshlink-crypto-sodium` → `:meshlink-core`; `:meshlink` → both; `:meshlink-testing` → `:meshlink`. One test proves that a forbidden edge fails (T1).
+- **Rejected:** modules-graph-assert (a new dependency and E3 row for four rules; KMP configurations must be listed by hand); dependency-analysis-gradle-plugin, Konsist and ArchUnit (they don't check the Gradle module graph).

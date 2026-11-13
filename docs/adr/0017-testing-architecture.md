@@ -57,7 +57,7 @@ Inputs:
    - Host tests therefore run the real crypto, including the vectors and the shim.
    - Fake crypto appears only in unit tests of `unsecured`-profile code.
 5. **Robolectric scope.**
-   - Robolectric 4.17 tests only the Android BLE adapter, on SDK 26 and 37.
+   - Robolectric (version pinned by ADR 0005) tests only the Android BLE adapter, on SDK 26 and 37.
    - The android-all jars are pinned and load offline.
    - Where Robolectric's BLE shadows fall short, our own shadows fill the gaps, for example GATT write status and failing registrations.
    - The library has no UI tests. A Compose UI test exists only if a sample app does, and then runs under Robolectric.

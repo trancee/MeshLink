@@ -63,7 +63,7 @@ Facts verified 2026-11-01 from primary sources (release pages, project docs):
    - `docs/how-to/troubleshoot-*.md` pages group codes by symptom: peers not found, messages not delivered, high battery use.
    - Humans and agents read the same generated entries.
 7. **Protocol spec:** Markdown with BCP 14 keywords. Vectors are Wycheproof-style JSON with a JSON Schema per file and `tcId`/`result`/`flags` fields, consumed by the Kotlin conformance tests and the Rust reference. Use the IETF formats (xml2rfc/kramdown-rfc) only for an IETF submission.
-8. **API reference:** Dokka 2.2.0 HTML only, published on GitHub Pages. No site generator for the prose until the first release. The prose Markdown renders on GitHub. Re-evaluate then: Zensical if it is stable, otherwise Starlight.
+8. **API reference:** Dokka HTML only (version pinned by ADR 0005), published on GitHub Pages. No site generator for the prose until the first release. The prose Markdown renders on GitHub. Re-evaluate then: Zensical if it is stable, otherwise Starlight.
 9. **ADRs:**
    - One flat numbered list, `docs/adr/NNNN-*.md`, with a status line and a version.
    - A replaced ADR is marked "superseded by NNNN" and never deleted.

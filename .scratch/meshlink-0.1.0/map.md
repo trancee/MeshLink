@@ -25,6 +25,7 @@ An ordered 0.1.0 implementation backlog: vertical slices an agent can take one a
 - [What device evidence does the 0.1.0 release need?](issues/06-release-device-evidence.md): 8 phones (Android 8–17, iOS 15.8–27), pairwise and 3-hop mesh scenarios plus a 15-phone fleet smoke run, exactly-once delivery as the pass bar, an in-repo `labapp/` driven by `tools/lab/`. Recorded in ADR 0017 v2.
 - [Does 0.1.0 publish a prose docs site, and with which generator?](issues/08-docs-site.md): no; Pages carries only Dokka at `/api/` with a small root page, prose stays on GitHub; re-evaluate at Zensical's first stable release or 1.0.0. Recorded in ADR 0006 v3.
 - [Does Kotlin 2.4.21 build with Xcode 27.2, and do its builds run on iOS 15 and 16 phones?](issues/10-xcode27-smoke.md): yes; the framework and app build without a Kotlin Xcode warning, and the app runs on iOS 15.8.8 through 27.2 with every vector matching, using libimobiledevice on iOS 15/16 and devicectl from iOS 17.
+- [Which toolchain and build checks does the first build start on?](issues/03-toolchain-decision.md): hold Kotlin 2.4.21 / Gradle 9.7.1 / AGP 9.3.3; Dokka 2.3.0, Spotless 8.11.0, Robolectric 4.18 (proven by the scaffold), Rust 1.100.0; Xcode 27.2 locally, Xcode 26.4.1 on `macos-26` in CI with a scheduled `xcode-27` job; a dependency-free `build-logic/` direction check. Recorded in ADR 0005 v4, 0011 v9 and 0019 v2.
 
 ## Not yet specified
 
