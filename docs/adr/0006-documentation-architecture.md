@@ -1,6 +1,6 @@
 # 0006: Documentation architecture for humans and agents
 
-Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 2 (amended 2026-11-09, ADR headers and pre-push privacy gate).
+Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 3 (amended 2026-11-09, ADR headers and pre-push privacy gate; 2026-11-13, docs site for 0.1.0).
 
 ## Context
 
@@ -108,3 +108,10 @@ Facts verified 2026-11-01 from primary sources (release pages, project docs):
 - **ADR header check (decision 10):** `tools/check_adrs.py` enforces the version rule in the Docs workflow's lint job. Its first run found 4 drifted headers (ADRs 0002, 0003, 0007 and 0010), which were corrected.
 - **Link check retry (decision 10):** the lychee step runs a second time only if the first fails, which absorbs a transient download failure of the lychee binary. A real broken link fails both runs.
 - **Pre-push privacy gate:** the tracked hook `.githooks/pre-push` runs `tools/check_private.py --history` on the commits being pushed. Each clone enables it once with `git config core.hooksPath .githooks`.
+
+2026-11-13, docs site for 0.1.0 (0.1.0 map ticket "Does 0.1.0 publish a prose docs site, and with which generator?"; [research](https://github.com/trancee/MeshLink/blob/research/docs-site-generator/docs/research/2026-11-13-docs-site-generator.md)):
+
+- **No prose site in 0.1.0 (decision 8):** the re-evaluation at the first release found neither preferred generator stable: Zensical is 0.1.1 beta (stable expected around 2027-02-05) and Starlight is 0.43. E1–E3 allow only stable releases, so GitHub Pages publishes only the Dokka reference. The prose stays on GitHub, linked from the README and from Dokka's module page.
+- **URL layout (decision 8):** Dokka lives at `https://trancee.github.io/MeshLink/api/` from the first release, so a later prose site can take the root without breaking API links. The root is a small hand-written `index.html` linking to the API and to `docs/README.md` on GitHub. Pages holds only the latest release (ADR 0019).
+- **Next re-evaluation (decision 8):** at Zensical's first stable release or at 1.0.0, whichever comes first: Zensical if it is stable then, otherwise Starlight. The scheduled dependency freshness check (ADR 0017) reports the Zensical release.
+- No new tool: Dokka is already in the [dependency register](../reference/dependencies.md).
