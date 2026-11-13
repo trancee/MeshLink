@@ -1,6 +1,6 @@
 # 0019: Release, versioning and API compatibility
 
-Status: accepted (2026-11-08; ticket "What is the release, versioning and API-compatibility process?"). Version: 1.
+Status: accepted (2026-11-08; ticket "What is the release, versioning and API-compatibility process?"). Version: 2 (amended 2026-11-13, toolchain decision).
 
 ## Context
 
@@ -92,3 +92,10 @@ None: greenfield. The first release creates `CHANGELOG.md`, `docs/reference/comp
 - **[ADR 0005](0005-toolchain-and-dependency-baseline.md):** the CI section gains the release workflow, and the register gains the two actions when the workflow is written.
 - **[ADR 0011](0011-modules-toggles-and-presets.md):** the `meshlink-swift` update and its smoke test are defined here.
 - **Ticket 30:** unblocked. It creates both repositories, the release environment, the GitHub App and the secrets, with approval.
+
+## Amendments
+
+2026-11-13, toolchain decision (0.1.0 map ticket "Which toolchain and build checks does the first build start on?"; [ADR 0005](0005-toolchain-and-dependency-baseline.md) v4):
+
+- **Release workflow (decision 7):** runs on `macos-26` with Xcode 26.4.1 selected, not `macos-15`.
+- **`swift-api-digester`:** ships in Xcode 27.2 (verified locally 2026-11-13); the release workflow uses the one in Xcode 26.4.1.

@@ -35,11 +35,11 @@ Facts verified 2026-11-01.
 | Android NDK | 30.0.16248370 | build | Builds libsodium and the JNI shim | Google, stable | Apache-2.0 and others | n/a | n/a | n/a | Native crypto needs it (ADR 0004) |
 | SKIE | 0.10.16 | build (compiler plugin) | Swift-friendly suspend, Flow, sealed and enum interop | Touchlab, releases follow Kotlin; 0.10.16 adds 2.4.21 | Apache-2.0 | Analytics upload disabled | Adds Swift glue to the framework | None at runtime | Plain Objective-C export loses suspend, Flow and sealed types |
 | Kover | 0.9.11 | build | T3 coverage for common and Android | JetBrains; Beta (E2 hold) | Apache-2.0 | n/a | n/a | n/a | No built-in coverage tool |
-| Spotless + ktlint | 8.10.4 + 1.8.0 | build | Formatting check (`spotlessCheck`) | DiffPlug and Pinterest, active | Apache-2.0 / MIT | n/a | n/a | n/a | No built-in formatter gate |
+| Spotless + ktlint | 8.11.0 + 1.8.0 | build | Formatting check (`spotlessCheck`) | DiffPlug and Pinterest, active | Apache-2.0 / MIT | n/a | n/a | n/a | No built-in formatter gate |
 | detekt | 2.0.0-alpha.6 | build | Static analysis | Active; alpha (E2 hold until 2.0 stable) | Apache-2.0 | n/a | n/a | n/a | 1.23.8 is built against Kotlin 2.0.21; ktlint is formatting only |
-| Dokka | 2.2.0 | build | API reference docs | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for generated API docs |
+| Dokka | 2.3.0 | build | API reference docs | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for generated API docs |
 | vanniktech maven-publish | 0.37.0 | build | Maven Central publishing for KMP | Active | Apache-2.0 | Signing configured at release | n/a | n/a | Plain `maven-publish` lacks Central Portal upload and KMP defaults |
-| Xcode | 16.4 | build (host) | iOS SDK 18.5 and the Swift consumer | Apple | Apple EULA | n/a | n/a | n/a | Hard constraint |
+| Xcode | 27.2 local, 26.4.1 CI | build (host) | iOS SDK and the Swift consumer | Apple | Apple EULA | n/a | n/a | n/a | Required for Apple targets; versions per ADR 0005 v4 |
 
 ## Test only
 
@@ -47,7 +47,7 @@ Facts verified 2026-11-01.
 |---|---|---|---|---|---|---|---|---|---|
 | kotlin-test | 2.4.21 | test | Multiplatform assertions | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
 | kotlinx-coroutines-test | 1.11.0 | test | Virtual time for deterministic tests (T2, T8) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for deterministic coroutine tests |
-| Robolectric | 4.17 | test | Android framework on the JVM, SDK 26 and 37 | Google-backed, active | MIT | n/a | n/a | Large (test only) | Instrumented tests can't run in default CI (T2) |
+| Robolectric | 4.18 | test | Android framework on the JVM, SDK 26 and 37 | Google-backed, active | MIT | n/a | n/a | Large (test only) | Instrumented tests can't run in default CI (T2) |
 | JUnit 4 | 4.13.2 | test | Robolectric test runner | Maintenance mode, stable | EPL-1.0 | n/a | n/a | hamcrest-core | Robolectric needs a JUnit 4 runner |
 | androidx.test core | 1.7.0 | test | `ApplicationProvider` for Robolectric | Google, stable | Apache-2.0 | n/a | n/a | n/a | Standard Robolectric companion |
 | Jazzer (`com.code-intelligence:jazzer`) | 0.30.0 | test (scheduled job) | Coverage-guided fuzzing of decoders (T10, ADR 0017); the standalone driver with bundled macOS and Linux natives | Code Intelligence, active (2026-02 release) | Apache-2.0 | n/a | ~8.9 MB jar (test only) | `jazzer-api` (runtime) | The deterministic mutation tests miss deep paths; kotlinx.fuzz needs JDK 8 and custom repositories; `jazzer-junit` would add JUnit 5 |
@@ -67,7 +67,7 @@ Run in CI and locally; never shipped. Actions are pinned by commit SHA with a ve
 
 ## Reference (test-only Rust, `tools/reference/`, never published)
 
-Pinned by `rust-toolchain.toml` (Rust 1.99.0) and a committed `Cargo.lock`. Purpose: an independent second vector set for ADR 0002 and ADR 0004.
+Pinned by `rust-toolchain.toml` (Rust 1.100.0) and a committed `Cargo.lock`. Purpose: an independent second vector set for ADR 0002 and ADR 0004.
 
 | Crate | Version | License | Need |
 |---|---|---|---|

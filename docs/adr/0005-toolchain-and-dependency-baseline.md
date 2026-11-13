@@ -1,10 +1,10 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 3 (amended 2026-11-08, ADRs 0017 and 0019).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 4 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh).
 
 ## Context
 
-MeshLink is a Kotlin Multiplatform library for Android (minSdk 26) and iOS 15+. Xcode 16.4 is the only Apple toolchain (hard constraint, ticket "Is the device lab ready?"). [ADR 0004](0004-crypto-provider-libsodium.md) adds a libsodium 1.0.22 native build and a test-only Rust reference. E1–E3 require pinned, mutually compatible, stable releases, and every dependency needs a rationale.
+MeshLink is a Kotlin Multiplatform library for Android (minSdk 26) and iOS 15+. Xcode 16.4 was the only Apple toolchain (hard constraint, ticket "Is the device lab ready?"); the 2026-11-13 amendment replaces it with Xcode 27.2 locally and Xcode 26.4.1 in CI. [ADR 0004](0004-crypto-provider-libsodium.md) adds a libsodium 1.0.22 native build and a test-only Rust reference. E1–E3 require pinned, mutually compatible, stable releases, and every dependency needs a rationale.
 
 Two throwaway smoke builds on 2026-11-01 (outside the repository) proved the tuple below.
 
@@ -46,23 +46,23 @@ Facts verified 2026-11-01:
 
 | Component | Version | Note |
 |---|---|---|
-| Kotlin (KGP, compiler, stdlib) | 2.4.21 | Builds with Xcode 16.4 |
+| Kotlin (KGP, compiler, stdlib) | 2.4.21 | Builds with Xcode 16.4 and 27.2 |
 | Gradle | 9.7.1 | Newest patch in the minor that KGP lists |
 | AGP + `com.android.kotlin.multiplatform.library` | 9.3.3 | Newest patch in the minor that KGP lists |
 | Gradle daemon JDK / compile toolchain / test runtime | 25 / 21 / 21 | |
 | compileSdk / minSdk | 37 / 26 | |
-| Xcode / iOS deployment target | 16.4 / 15.0 | |
+| Xcode / iOS deployment target | 27.2 local, 26.4.1 CI / 15.0 | See the 2026-11-13 amendment |
 | Android NDK | 30.0.16248370 | Used for the libsodium build and the JNI shim |
 | kotlinx-coroutines | 1.11.0 | |
 | SKIE | 0.10.16 | |
 | Kover | 0.9.11 | |
-| Spotless + ktlint | 8.10.4 + 1.8.0 | |
+| Spotless + ktlint | 8.11.0 + 1.8.0 | |
 | detekt | 2.0.0-alpha.6 | E2 hold |
-| Dokka | 2.2.0 | |
+| Dokka | 2.3.0 | |
 | vanniktech maven-publish | 0.37.0 | |
-| Robolectric / JUnit 4 / androidx.test core | 4.17 / 4.13.2 / 1.7.0 | Test only |
+| Robolectric / JUnit 4 / androidx.test core | 4.18 / 4.13.2 / 1.7.0 | Test only; 4.18 proven by the scaffold ticket, else 4.17 |
 | libsodium | 1.0.22 | ADR 0004 |
-| Rust (test-only reference) | 1.99.0 | |
+| Rust (test-only reference) | 1.100.0 | |
 
 Version rules:
 
@@ -104,7 +104,7 @@ Version rules:
 
 **Test-only Rust reference** (`tools/reference/`; never published, never linked into an artifact):
 
-- `rust-toolchain.toml` pins Rust 1.99.0, and `Cargo.lock` is committed.
+- `rust-toolchain.toml` pins Rust 1.100.0, and `Cargo.lock` is committed.
 - Crates:
   - rust-hpke 0.15.1, RustCrypto `ml-kem` 0.3.4;
   - `x25519-dalek` and `ed25519-dalek` 3.0.0, `chacha20poly1305` 0.11.0;
@@ -120,7 +120,8 @@ Version rules:
 **CI:**
 
 - GitHub, with GitHub Actions; every action is pinned to a commit SHA with a version comment.
-- macOS jobs run on `macos-15` arm64 with Xcode 16.4 selected explicitly.
+- Required macOS jobs and the release workflow run on `macos-26` arm64 with Xcode 26.4.1 selected explicitly (`/Applications/Xcode_26.4.1.app`). A scheduled, non-required job runs on the `xcode-27` preview image with Xcode 27.2.
+- NDK 30.0.16248370 is installed explicitly with `sdkmanager`, because the runner images don't ship it.
 - The repository has no remote yet. Creating it is an external change and needs explicit approval.
 
 **Publishing:**
@@ -175,3 +176,22 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 
 - **ABI validation:** rechecked 2026-11-08; still Experimental, so the hold stays. Dumps cover JVM and klib, with `explicitApi()` strict.
 - **CI:** a tag-triggered release workflow on `macos-15`, behind an environment that requires manual approval. It covers Maven Central with `automaticRelease`, the attested XCFramework ZIP, a GitHub Release through `gh`, Dokka on Pages, and the `meshlink-swift` update through a GitHub App token. `actions/attest-build-provenance` and `actions/create-github-app-token` gain register rows when the workflow is written.
+
+2026-11-13, toolchain refresh (0.1.0 map ticket "Which toolchain and build checks does the first build start on?"; research on `research/toolchain-refresh`, smoke test in map ticket "Does Kotlin 2.4.21 build with Xcode 27.2, and do its builds run on iOS 15 and 16 phones?"):
+
+- **Facts:**
+  - Kotlin 2.4.21 is still the newest stable. It lists Gradle up to 9.7.0, AGP up to 9.3.1 and Xcode 26.4; Gradle 9.8–9.9 and AGP 9.4–9.5 are outside that range.
+  - Kotlin 2.4.21 with SKIE 0.10.16 and libsodium 1.0.22 builds with Xcode 27.2 for iOS 15.0, without a Kotlin Xcode warning, and the app runs on iOS 15.8.8, 16.7.16, 17.6.1, 18.7.8 and 27.2 with every vector matching.
+  - Xcode 27 debugs only iOS 17+ devices, but libimobiledevice installs, launches and pulls results on iOS 15/16. Apple supports Xcode 16.4 only up to macOS Tahoe 26.1.x.
+  - No generally available runner image has Xcode 27: `xcode-27` is a preview. `macos-26` is generally available and ships Xcode 26.4.1 (image 20261102).
+  - detekt 2.0 is not stable, Kover is still Beta, and KGP's ABI validation is still Experimental.
+- **Hold Kotlin 2.4.21, Gradle 9.7.1 and AGP 9.3.3.** Moving to Kotlin 2.5.x needs a stable release, a KGP compatibility-table entry and a SKIE release that supports it (touchlab/SKIE#213).
+- **Stable updates:** Dokka 2.3.0 (fixes CVEs in its bundled libraries), Spotless 8.11.0, Rust 1.100.0.
+- **Robolectric 4.18**, released the day of this decision: the scaffold ticket proves it on SDK 26 and 37 and checks whether the two JVM flags are still needed; if it fails, the pin returns to 4.17.
+- **Xcode:**
+  - Local builds use Xcode 27.2; Xcode 16.4 is no longer required. iOS 15/16 lab phones use libimobiledevice (`docs/agents/lessons.md`).
+  - Kotlin's Xcode compatibility warning is not suppressed (`kotlin.apple.xcodeCompatibility.nowarn` stays unset).
+  - CI: see the CI section above. Everything moves to Xcode 27 once a generally available macOS 27 image and a Kotlin release that lists Xcode 27 both exist.
+- **Unchanged:** compileSdk 37 (not the 37.x minor SDKs until a 37.x API is needed), NDK 30.0.16248370, and the E2 holds on detekt 2.0.0-alpha.6, Kover 0.9.11 and KGP ABI validation.
+- **Dependency direction** ([ADR 0011](0011-modules-toggles-and-presets.md) decision 2): a check in `build-logic/` with no new dependency.
+- **Rejected:** Gradle 9.9 and AGP 9.5 (outside KGP's range); Xcode 16.4 in CI (no longer matches local builds and is unsupported on macOS 27); every job on the `xcode-27` preview image (not generally available, and Kotlin 2.4.21 doesn't list Xcode 27); modules-graph-assert (a new dependency with partial KMP support).

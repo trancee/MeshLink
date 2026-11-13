@@ -2,7 +2,7 @@
 
 Scope=Kotlin tasks; R/X/D/O from Constitution. Ported from cairn `guidance/kotlin.md` (2026-10-05 snapshot). Adopted pins: [ADR 0005](docs/adr/0005-toolchain-and-dependency-baseline.md) + [dependency register](docs/reference/dependencies.md) (verified 2026-11-01); those outrank versions below.
 
-MeshLink constraints: Xcode 16.4 is the only Apple toolchain (hard constraint; iOS 18.5 SDK). Kotlin `2.4.21` proven with it (ADR 0005); fallback `2.2.20` unneeded. Gradle/AGP minor bump only once KGP's compatibility table lists it; patches allowed after smoke gates. iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
+MeshLink constraints: local Xcode `27.2`, CI Xcode `26.4.1` on `macos-26` (ADR 0005 v4). Kotlin `2.4.21` proven with Xcode 16.4 and 27.2; move to 2.5.x only when stable + KGP table + SKIE support it. Gradle/AGP minor bump only once KGP's compatibility table lists it; patches allowed after smoke gates. iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
 Select latest stable supported by complete Kotlin/Gradle/AGP/JDK/platform tuple; verify official release + compatibility before adoption/upgrade. Resolution != support; suffixless version != stable component. No stable compatible tool => report gap + explicit prerelease acceptance; holds R blocker + removal condition.
 
 ## Build
@@ -26,7 +26,7 @@ Snapshot=2026-10-05, refreshed 2026-11-01 where noted; review aid, not pins (pin
 
 ### Dokka: API docs (Q1/E7/O1)
 
-- [`org.jetbrains.dokka`](https://plugins.gradle.org/plugin/org.jetbrains.dokka): stable `2.2.0`, prerelease `2.3.0-Beta`. New builds=stable DGP v2 (default since `2.1.0`).
+- [`org.jetbrains.dokka`](https://plugins.gradle.org/plugin/org.jetbrains.dokka): stable `2.3.0` (2026-11-05; fixes bundled-library CVEs). New builds=stable DGP v2 (default since `2.1.0`).
 - Tasks: `dokkaGenerate` all formats; `dokkaGeneratePublicationHtml` HTML output for consumers. `dokkaHtml`/`dokkaHtmlMultiModule` legacy v1, not new-build guidance.
 - Apply every documentable subproject; aggregator `dokka(project(":library"))`.
 - Undocumented API release-blocking => `reportUndocumented=true` + publication `failOnWarning=true`; otherwise advisory.
@@ -47,7 +47,7 @@ Snapshot=2026-10-05, refreshed 2026-11-01 where noted; review aid, not pins (pin
 
 ### Spotless: formatting/lint (Q1/E1/E7)
 
-- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.10.4` (2026-11-01) + ktlint `1.8.0`; verify selected Gradle/JDK + formatter compatibility.
+- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.11.0` (2026-11-02) + ktlint `1.8.0`; verify selected Gradle/JDK + formatter compatibility.
 - `spotlessCheck`=read-only CI; `spotlessApply`=developer mutation. One pinned `ktfmt`|`ktlint`; formatting != static analysis.
 - Rollout=isolated repo-wide format commit|`ratchetFrom origin/main`; X `HEAD`.
 - Apply twice => second zero diff; check passes. Exclude generated/build/vendor/byte-contractual fixtures.
