@@ -20,4 +20,3 @@ Decide the Maven Central namespace and groupId (a verified io.github namespace o
 - **Apple:** XCFramework and Swift module `MeshLinkKit`, bundle ID `ch.trancee.meshlink.kit`.
 - **Swift package:** repository `trancee/meshlink-swift`, package `MeshLink`, products `MeshLink` (re-exports `MeshLinkKit`) and `MeshLinkTesting`.
 - No new ADR and no glossary entry: these are names, not domain terms.
-
