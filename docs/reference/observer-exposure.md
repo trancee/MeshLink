@@ -32,4 +32,4 @@ Per message type, what each observer learns in the secured profiles (`classical`
 
 - No anonymity against a global observer (out of scope).
 - Public tags of one certified static key are recognizable for up to about 25 h by whoever learned the certificate.
-- The per-conversation routing cost and the lookup cost are not simulated yet (ticket 32).
+- The per-conversation routing cost and the lookup cost are simulated only ([stage F evidence](../evidence/2026-11-routing-simulation/README.md#stage-f-store-and-forward-conversation-routes-lookups-and-power)); no device has measured them.

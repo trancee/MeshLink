@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 9 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 10 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope).
 
 ## Context
 
@@ -67,8 +67,8 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
     | Receipts requested | from the preset | Per-send options override it; semantics are decided later |
     | Holding for others | from the preset | ADR 0008 limits apply |
     | L2CAP CoC upgrade | on | ADR 0009; Android 8 and 9 stay GATT only |
-    | Extended advertising | off | ADR 0010 |
-    | iOS Live Activity hook | off | Opt-in; the host app owns the activity (ADR 0010) |
+    | Extended advertising | off | ADR 0010; deferred beyond 0.1.0 (see Amendments) |
+    | iOS Live Activity hook | off | Opt-in; the host app owns the activity (ADR 0010); deferred beyond 0.1.0 (see Amendments) |
     | Density | automatic | An app may pin a class (ADR 0008) |
     | Default message lifetime | from the preset | Validation rejects values under 120 s |
 
@@ -151,3 +151,7 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 
 - **Dependency-direction check (decision 2):** a convention plugin in `build-logic/`, with no new dependency, applied to every module. It reads each configuration's `ProjectDependency.path` (including KMP source-set and test configurations) and fails `check` when a module depends on a project outside its allow-list: `:meshlink-core` → none; `:meshlink-crypto-sodium` → `:meshlink-core`; `:meshlink` → both; `:meshlink-testing` → `:meshlink`. One test proves that a forbidden edge fails (T1).
 - **Rejected:** modules-graph-assert (a new dependency and E3 row for four rules; KMP configurations must be listed by hand); dependency-analysis-gradle-plugin, Konsist and ArchUnit (they don't check the Gradle module graph).
+
+2026-11-13, 0.1.0 scope (owner decision, 0.1.0 backlog review):
+
+- **Toggles (decision 10):** the iOS Live Activity hook and the extended-advertising toggle are deferred beyond 0.1.0. 0.1.0 has neither toggle and uses legacy advertising only ([ADR 0010](0010-discovery-and-advertising.md) amendment). Both return, off by default, in the release that implements them.

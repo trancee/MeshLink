@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 5 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 6 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope).
 
 ## Context
 
@@ -42,7 +42,7 @@ Measured:
      - random fill.
 
      Field sizes, derivations and test vectors belong to the wire-format work (protocol spec, C6/C7). The placeholder tested was 8 B tag, 4 B mesh tag, 1 B flags, 3 B random.
-2. **Extended advertising:** optional, off by default. It adds nothing that every phone can receive. Coded PHY is out of v1.
+2. **Extended advertising:** optional, off by default. It adds nothing that every phone can receive. Coded PHY is out of v1. Deferred beyond 0.1.0 (see Amendments).
 3. **Rotation:** every 5 min, with each node on its own phase. One epoch drives the advertisement identifier and the routing tags (amends ADR 0008 decision 6; the routing simulation found 5 min within budget).
    - **Android:** each epoch starts a new `AdvertisingSet` (stop/start on phones without the API), never a data update. The new address and identifier then appear in the same packet. 5 min is shorter than the measured OS interval on Android 10+ phones.
    - **iOS:** the same 5 min period by stop/start. iOS keeps the address, and the app can neither change nor observe it, so rotations on iOS are linkable (decision 7).
@@ -115,3 +115,7 @@ Measured:
 2026-11-09, iOS Power Profiler ([evidence](../evidence/2026-11-energy/README.md#ios-power-profiler-iphone-12-mini-run)):
 
 - **Background timing:** with the screen on and the app sent to the Home screen (iPhone 12 mini, iOS 27.0.1), iOS kept advertising and the filtered scan running and suspended the app about 40 s after backgrounding, the same as after locking. Background scanning and advertising cost no measurable whole-phone power (median about 0, at most about +17 mW), so the background rules need no energy-driven change.
+
+2026-11-13, 0.1.0 scope (owner decision, 0.1.0 backlog review):
+
+- **Extended advertising (decision 2):** deferred beyond 0.1.0. 0.1.0 advertises with legacy advertising only and has no extended-advertising toggle ([ADR 0011](0011-modules-toggles-and-presets.md) amendment). Extended advertising stays optional and off by default when a later release adds it.

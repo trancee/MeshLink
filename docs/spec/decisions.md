@@ -175,7 +175,7 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 
 - **Question:** what does a neighbor list carry, how large can it be, and how do linked peers learn a rotated identifier?
 - **Decision:** own current 8 B identifier, own next 8 B identifier, `u8` count up to 32, 8 B neighbor identifiers. A node sends a neighbor list before each rotation, so linked peers learn its next identifier in advance; only already-linked peers learn it (owner addition, resolving [C-10](#c-10)).
-- **Evidence:** ADR 0016 decision 4 and ADR 0008 amendment (8 B advertisement identifiers, direct neighbors only); v1 parameters "Identifier rotation inflation" (linked peers announce their next identifier). 32 exceeds any realistic link count (3 radios × 20 links is a stress case).
+- **Evidence:** ADR 0016 decision 3 and ADR 0008 amendment (8 B advertisement identifiers, direct neighbors only); v1 parameters "Identifier rotation inflation" (linked peers announce their next identifier). 32 exceeds any realistic link count (3 radios × 20 links is a stress case).
 - **Alternatives:** `u16` count (unneeded).
 
 ### D-25 Catch-up summary
