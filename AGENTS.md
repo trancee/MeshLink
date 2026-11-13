@@ -53,7 +53,9 @@ Failure => incomplete: fix cause + rerun. External prerequisite => finish reacha
 
 - R G1 feature branch; X protected-default direct commit.
 - PR only after O1/O2 reconciliation; if docs unchanged, explain why in PR.
-- Commit/push/open-or-merge PR/publish/external-service change R prior explicit user approval.
+- Every change => PR to `main`, squash merge, Conventional Commit PR title + `.github/pull_request_template.md`; X local merge/direct push to `main` (ADR 0021).
+- `ready-for-agent` ticket => agent O branch/commit/push feature branch/open PR without asking. Otherwise commit/push/open PR R prior explicit user approval.
+- Merge PR/release/publish/ruleset or settings change/external-service change R prior explicit user approval, every time.
 - X discard unrelated work/rewrite history/force-push/destructive cleanup without explicit approval.
 - Approved commit => repo format else Conventional Commits; AI co-author trailer if repo requires.
 - R repo-preferred issue/PR/CI integration tool.
