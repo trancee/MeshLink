@@ -49,6 +49,10 @@ gradlePlugin {
             id = "meshlink.robolectric"
             implementationClass = "ch.trancee.meshlink.buildlogic.RobolectricPlugin"
         }
+        register("libsodium") {
+            id = "meshlink.libsodium"
+            implementationClass = "ch.trancee.meshlink.buildlogic.LibsodiumPlugin"
+        }
         register("kmpLibrary") {
             id = "meshlink.kmp-library"
             implementationClass = "ch.trancee.meshlink.buildlogic.KmpLibraryPlugin"

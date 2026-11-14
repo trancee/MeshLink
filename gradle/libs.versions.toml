@@ -4,6 +4,8 @@ agp = "9.3.3"
 jdk-toolchain = "21"
 android-compileSdk = "37"
 android-minSdk = "26"
+# NDK for libsodium and the JNI shim (ADR 0005); CI installs exactly this version with sdkmanager.
+android-ndk = "30.0.16248370"
 junit4 = "4.13.2"
 kover = "0.9.11"
 detekt = "2.0.0-alpha.6"

@@ -1,5 +1,6 @@
 plugins {
     id("meshlink.kmp-library")
+    id("meshlink.libsodium")
 }
 
 kotlin {

@@ -41,6 +41,25 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64" >> ~/.gradle/gradle.properties
           echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      - name: Install minisign
+        run: sudo apt-get install -y --no-install-recommends minisign
+      # ADR 0005 "CI": install the catalog's NDK explicitly; the image's default NDK is not used.
+      - name: Install the pinned NDK
+        run: |
+          ndk=$(sed -n 's/^android-ndk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
+      - id: libsodium-toolchain
+        run: echo "id=$(cc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+      - &libsodium-cache
+        name: Cache the libsodium build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            meshlink-crypto-sodium/build/libsodium/download
+            meshlink-crypto-sodium/build/libsodium/out
+          key: libsodium-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh', 'gradle/libs.versions.toml') }}
+      - run: ./gradlew buildLibsodiumAndroid buildLibsodiumHostLinux
       - run: ./gradlew check
       - run: ./gradlew dokkaGenerate
 
@@ -67,6 +86,14 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_arm64,JAVA_HOME_25_arm64" >> ~/.gradle/gradle.properties
           echo "JAVA_HOME=$JAVA_HOME_25_arm64" >> "$GITHUB_ENV"
+      - name: Install minisign
+        run: brew install minisign
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+      - id: libsodium-toolchain
+        run: echo "id=$(xcodebuild -version | tr -s '\n ' '-')" >> "$GITHUB_OUTPUT"
+      - *libsodium-cache
+      - run: ./gradlew buildLibsodiumApple buildLibsodiumHostMacos
       - run: ./gradlew iosSimulatorArm64Test
       - run: tools/swiftpm-consumer/test.sh
 
