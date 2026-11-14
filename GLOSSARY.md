@@ -96,6 +96,10 @@ _Avoid_: TTL, hop count (that is the number already crossed), range
 The single protection level (unsecured, classical, or post-quantum) shared by every node of a mesh; nodes with a different profile do not join rather than downgrade.
 _Avoid_: Security level, crypto mode, tier
 
+**CryptoProvider**:
+The one internal boundary through which MeshLink obtains every cryptographic primitive; replacing the provider never changes what goes on the wire.
+_Avoid_: Crypto engine, crypto backend, cipher suite
+
 **Mesh key**:
 A secret shared out of band by the application that a node must hold to join a gated mesh; it grants membership, not individual identity.
 _Avoid_: Network key, password, group key

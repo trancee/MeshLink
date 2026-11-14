@@ -1,6 +1,6 @@
 # Hash, generate identities and draw randomness through a minimal `CryptoProvider`
 
-Status: ready-for-agent
+Status: claimed
 Type: AFK
 Blocked by: 06
 
@@ -18,15 +18,15 @@ Blocked by: 06
 
 ## Acceptance criteria
 
-- [ ] `CryptoProvider` lives in `:meshlink-core` under `ch.trancee.meshlink.internal` and has exactly three capabilities: `blake2b(out length, input, optional key)`, Ed25519 key-pair generation (from a fresh seed and from a given 32 B seed, for vectors), and `randomBytes(n)`. No other primitive is exposed (ADR 0004 "Binding").
-- [ ] The JNI shim and the cinterop definition call only the libsodium functions behind those capabilities. The PR lists them.
-- [ ] Android `.so` files link libsodium statically and export only the JNI entry points through a version script; Apple builds use `-exported_symbols_list`. A CI step runs `nm` on every built binary and fails on any exported `sodium_` or `crypto_` symbol, and on any exported or imported symbol matching `aes`, `aegis` or `ipcrypt`. A test proves each gate fails on a seeded violation.
-- [ ] A CI step fails if native code in any Android ABI or iOS slice exceeds 1 MB. The PR records each size.
-- [ ] Verify that the AGP KMP library plugin packages the shim's `.so` files into the AAR for the three ABIs; if it cannot, stop and report the blocker rather than switch plugins (E1).
-- [ ] Android host tests load the test-only host shim (macOS arm64, Linux x86_64) from ticket 06 and use real libsodium; no fake crypto in these tests.
-- [ ] Common derivation code computes `H`, `trunc_n`, NodeId, MeshIdDigest, epoch and mesh tag. A shared `commonTest` vector runner reads `derivations.json` and passes every `epoch`, `node-id`, `mesh-id-digest` and `mesh-tag` case on the Android host and on `iosSimulatorArm64`. Ed25519 seed-to-public-key matches RFC 8032 section 7.1 TEST 1.
-- [ ] The `iosMain` adapter files are listed in the CI-named thin-adapter file from ADR 0005 "Coverage"; Kover stays at 100% for `commonMain` and `androidMain`.
-- [ ] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass.
+- [x] `CryptoProvider` lives in `:meshlink-core` under `ch.trancee.meshlink.internal` and has exactly three capabilities: `blake2b(out length, input, optional key)`, Ed25519 key-pair generation (from a fresh seed and from a given 32 B seed, for vectors), and `randomBytes(n)`. No other primitive is exposed (ADR 0004 "Binding").
+- [x] The JNI shim and the cinterop definition call only the libsodium functions behind those capabilities. The PR lists them.
+- [x] Android `.so` files link libsodium statically and export only the JNI entry points through a version script; Apple builds use `-exported_symbols_list`. A CI step runs `nm` on every built binary and fails on any exported `sodium_` or `crypto_` symbol, and on any exported or imported symbol matching `aes`, `aegis` or `ipcrypt`. A test proves each gate fails on a seeded violation.
+- [x] A CI step fails if native code in any Android ABI or iOS slice exceeds 1 MB. The PR records each size.
+- [x] Verify that the AGP KMP library plugin packages the shim's `.so` files into the AAR for the three ABIs; if it cannot, stop and report the blocker rather than switch plugins (E1).
+- [x] Android host tests load the test-only host shim (macOS arm64, Linux x86_64) from ticket 06 and use real libsodium; no fake crypto in these tests.
+- [x] Common derivation code computes `H`, `trunc_n`, NodeId, MeshIdDigest, epoch and mesh tag. A shared `commonTest` vector runner reads `derivations.json` and passes every `epoch`, `node-id`, `mesh-id-digest` and `mesh-tag` case on the Android host and on `iosSimulatorArm64`. Ed25519 seed-to-public-key matches RFC 8032 section 7.1 TEST 1.
+- [x] The `iosMain` adapter files are listed in the CI-named thin-adapter file from ADR 0005 "Coverage"; Kover stays at 100% for `commonMain` and `androidMain`.
+- [x] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass.
 
 ## Proof commands
 

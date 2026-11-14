@@ -53,6 +53,10 @@ gradlePlugin {
             id = "meshlink.libsodium"
             implementationClass = "ch.trancee.meshlink.buildlogic.LibsodiumPlugin"
         }
+        register("specVectors") {
+            id = "meshlink.spec-vectors"
+            implementationClass = "ch.trancee.meshlink.buildlogic.SpecVectorsPlugin"
+        }
         register("kmpLibrary") {
             id = "meshlink.kmp-library"
             implementationClass = "ch.trancee.meshlink.buildlogic.KmpLibraryPlugin"

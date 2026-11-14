@@ -4,6 +4,9 @@
 #
 #   build-libsodium.sh toolchain <target>                  prints the toolchain identity for the cache stamp
 #   build-libsodium.sh build <target> <tarball> <output>   writes <output>/include and <output>/lib/libsodium.a
+#   build-libsodium.sh shim <target> <libsodium> <jni-include> <output>
+#                                                         links meshlink_sodium_jni.c and <libsodium>/lib/libsodium.a
+#                                                         into <output>, a shared library exporting only JNI_OnLoad
 #
 # Android runs the unmodified upstream dist-build scripts (-Os, --enable-minimal) and keeps only the
 # static archive. Apple and the hosts configure each slice with the flags upstream's
@@ -15,7 +18,7 @@ IOS_VERSION_MIN=15.0
 MACOS_VERSION_MIN=11.0
 
 usage() {
-  echo "usage: $0 toolchain <target> | build <target> <tarball> <output>" >&2
+  echo "usage: $0 toolchain <target> | build <target> <tarball> <output> | shim <target> <libsodium> <jni-include> <output>" >&2
   exit 2
 }
 
@@ -128,8 +131,51 @@ build() {
   cp "$prefix/lib/libsodium.a" "$output/lib/libsodium.a"
 }
 
+shim() {
+  [ $# -eq 5 ] || usage
+  sodium=$3
+  jni=$4
+  output=$5
+  native=$(cd "$(dirname "$0")" && pwd)
+  mkdir -p "$(dirname "$output")"
+  # Hidden visibility plus an export list leaves JNI_OnLoad as the only exported symbol; libsodium's
+  # own symbols stay local, and unreferenced libsodium objects are dropped.
+  common="-Os -fvisibility=hidden -ffunction-sections -fdata-sections -I$sodium/include $native/meshlink_sodium_jni.c $sodium/lib/libsodium.a"
+  case $target in
+    android-*)
+      android_ndk
+      case $target in
+        android-arm64-v8a) triple=aarch64-linux-android ;;
+        android-armeabi-v7a) triple=armv7a-linux-androideabi ;;
+        android-x86_64) triple=x86_64-linux-android ;;
+      esac
+      clang=$(echo "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/clang)
+      # shellcheck disable=SC2086 # $common is a word list.
+      "$clang" --target="$triple${NDK_PLATFORM#android-}" -shared -fPIC $common \
+        -Wl,--version-script="$native/meshlink_sodium_jni.map" -Wl,--gc-sections -Wl,--exclude-libs,ALL \
+        -Wl,--no-undefined -Wl,-z,max-page-size=16384 -s -o "$output"
+      ;;
+    macos-arm64)
+      # shellcheck disable=SC2086 # $common is a word list.
+      cc -dynamiclib -arch arm64 -mmacosx-version-min=$MACOS_VERSION_MIN -I"$jni" -I"$jni/darwin" $common \
+        -Wl,-exported_symbols_list,"$native/meshlink_sodium_jni.exports" -Wl,-dead_strip -Wl,-x -o "$output"
+      ;;
+    linux-x86_64)
+      # shellcheck disable=SC2086 # $common is a word list.
+      cc -shared -fPIC -I"$jni" -I"$jni/linux" $common \
+        -Wl,--version-script="$native/meshlink_sodium_jni.map" -Wl,--gc-sections -Wl,--exclude-libs,ALL \
+        -Wl,--no-undefined -s -o "$output"
+      ;;
+    *)
+      echo "no JNI shim for target: $target" >&2
+      exit 2
+      ;;
+  esac
+}
+
 case $command in
   toolchain) toolchain ;;
   build) build "$@" ;;
+  shim) shim "$@" ;;
   *) usage ;;
 esac
