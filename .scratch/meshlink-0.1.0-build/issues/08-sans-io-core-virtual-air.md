@@ -1,6 +1,6 @@
 # Run a sans-IO core on `VirtualAir` in virtual time
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 05
 
