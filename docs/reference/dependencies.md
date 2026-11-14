@@ -33,12 +33,12 @@ Facts verified 2026-11-01.
 | Kotlin Gradle plugin | 2.4.21 | build | KMP compilation, XCFramework, built-in ABI validation (E2 hold: Experimental, until it becomes stable) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
 | AGP + `com.android.kotlin.multiplatform.library` | 9.3.3 | build | Android library target in KMP | Google, stable | Apache-2.0 | n/a | n/a | n/a | Required for the Android target |
 | Android NDK | 30.0.16248370 | build | Builds libsodium and the JNI shim | Google, stable | Apache-2.0 and others | n/a | n/a | n/a | Native crypto needs it (ADR 0004) |
-| SKIE | 0.10.16 | build (compiler plugin) | Swift-friendly suspend, Flow, sealed and enum interop | Touchlab, releases follow Kotlin; 0.10.16 adds 2.4.21 | Apache-2.0 | Analytics upload disabled | Adds Swift glue to the framework | None at runtime | Plain Objective-C export loses suspend, Flow and sealed types |
+| SKIE | 0.10.16 | build (compiler plugin) | Swift-friendly suspend, Flow, sealed and enum interop | Touchlab, releases follow Kotlin; 0.10.16 adds 2.4.21 | Apache-2.0 | Analytics upload disabled; `produceDistributableFramework()` (Swift library evolution, required for an XCFramework) | Adds Swift glue to the framework | None at runtime | Plain Objective-C export loses suspend, Flow and sealed types |
 | Kover | 0.9.11 | build | T3 coverage for common and Android | JetBrains; Beta (E2 hold until a stable release) | Apache-2.0 | n/a | n/a | n/a | No built-in coverage tool |
 | Spotless + ktlint | 8.11.0 + 1.8.0 | build | Formatting check (`spotlessCheck`) | DiffPlug and Pinterest, active | Apache-2.0 / MIT | n/a | n/a | n/a | No built-in formatter gate |
 | detekt | 2.0.0-alpha.6 | build | Static analysis | Active; alpha (E2 hold until 2.0 stable) | Apache-2.0 | n/a | n/a | n/a | 1.23.8 is built against Kotlin 2.0.21; ktlint is formatting only |
 | Dokka | 2.3.0 | build | API reference docs | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for generated API docs |
-| vanniktech maven-publish | 0.37.0 | build | Maven Central publishing for KMP | Active | Apache-2.0 | Signing configured at release | n/a | n/a | Plain `maven-publish` lacks Central Portal upload and KMP defaults |
+| vanniktech maven-publish | 0.37.0 | build | Maven Central publishing for KMP; applied as the `.base` plugin by `meshlink.published-library` | Active | Apache-2.0 | Signing configured at release | n/a | n/a | Plain `maven-publish` lacks Central Portal upload and KMP defaults |
 | Xcode | 27.2 local, 26.4.1 CI | build (host) | iOS SDK and the Swift consumer | Apple | Apple EULA | n/a | n/a | n/a | Required for Apple targets; versions per ADR 0005 v4 |
 
 ## Test only
