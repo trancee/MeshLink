@@ -52,6 +52,9 @@ class KmpLibraryPlugin : Plugin<Project> {
             }
             iosArm64()
             iosSimulatorArm64()
+            sourceSets.getByName("commonTest").dependencies {
+                implementation(versions.findLibrary("kotlin-test").get())
+            }
         }
         project.extensions.configure(DetektExtension::class.java) {
             buildUponDefaultConfig.set(true)
@@ -60,7 +63,12 @@ class KmpLibraryPlugin : Plugin<Project> {
                     .file("config/detekt/detekt.yml"),
             )
         }
+        val generated =
+            project.layout.buildDirectory
+                .dir("generated")
+                .map { it.asFile }
         val detektSourceSets = project.tasks.withType(Detekt::class.java).matching { it.name.endsWith("SourceSet") }
+        detektSourceSets.configureEach { exclude { it.file.startsWith(generated.get()) } }
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(detektSourceSets) }
         project.tasks.withType(AbstractTestTask::class.java).configureEach { timeout.set(TEST_TASK_TIMEOUT) }
     }

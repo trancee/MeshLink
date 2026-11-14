@@ -1,6 +1,6 @@
 # 0004: libsodium as the crypto provider; Rust only as a test-only reference
 
-Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 2 (amended 2026-11-03, iPhone SE (2016) benchmark).
+Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 3 (amended 2026-11-03, iPhone SE (2016) benchmark; 2026-11-14, native gates).
 
 ## Context
 
@@ -91,3 +91,11 @@ Facts verified 2026-11-01:
 
 - **Hidden symbols need an explicit export list.** A plain static link does not hide them: the benchmark's `MeshLinkKit` framework exported 228 libsodium symbols. The XCFramework and the Android shared library therefore build with an export allow-list (`-exported_symbols_list` on Apple, a version script on Android) that exports only MeshLink's own API. A CI gate inspects the built binaries with `nm` and fails if any `sodium_` or `crypto_` symbol is exported.
 - **Speed on the slowest supported iPhone (T9):** on the SE 2016 with iOS 15.8, all crypto of one post-quantum link handshake (`XXhfs`) took under 0.8 ms median per side, and a post-quantum first message (`IKhfs` plus HPKE X-Wing, 1 KB) under 0.8 ms per side. ChaCha20-Poly1305 took 1.8 µs for 244 B. The X-Wing and hpke-pq vectors matched on the device. Crypto cost is negligible against the radio budgets of ADR 0008.
+
+2026-11-14, native gates (0.1.0 backlog ticket "Hash, generate identities and draw randomness through a minimal `CryptoProvider`"):
+
+- **What "1 MB" measures.** 1,000,000 bytes, the stricter decimal reading.
+  - Android: the stripped JNI shim per ABI, the whole native payload MeshLink adds to an app. Measured 2026-11-14: arm64-v8a 144,632 B, armeabi-v7a 188,252 B, x86_64 229,008 B.
+  - iOS: the sum of every member's segments (`size`, `dec` column) in each slice's `libsodium.a`. Dead-code stripping keeps a framework's share smaller, so this is an upper bound that doesn't change as `:meshlink` starts calling crypto. Measured 2026-11-14: `ios-arm64` 235,397 B, `ios-arm64-simulator` 247,105 B.
+- **Symbol rule.** A binary fails if it exports a symbol starting with `sodium_`, `crypto_` or `randombytes_` (an optional leading `_` for Mach-O), or exports or imports a symbol matching `aes`, `aegis` or `ipcrypt` at the start or after `_`, ignoring case. `randombytes_` widens the 2026-11-03 rule: it is libsodium API too.
+- **Where the gates run.** `check` runs the Android shim gates on Linux CI with the NDK's `llvm-nm`. The macOS job checks the iOS archives' size and the release `MeshLinkKit` slices' symbols with `xcrun nm`. The framework's export allow-list is `meshlink/MeshLinkKit.exports`: its Objective-C classes and Swift module symbols only.

@@ -1,0 +1,5 @@
+# Constitution T3 and ADR 0005 "Coverage": no CI coverage tool measures Kotlin/Native, so every
+# Kotlin/Native main source file is a thin platform adapter listed here and exercised by on-target
+# tests (iosSimulatorArm64Test). `./gradlew checkThinAdapters` (part of `check`) fails on an
+# unlisted or stale path. Logic belongs in commonMain, where Kover measures it.
+meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumNative.ios.kt

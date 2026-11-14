@@ -10,7 +10,8 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin
 
 /**
  * Configures the root build: the merged Kover report over every module with 100% line and branch
- * rules, the Dokka aggregate over the published modules, Spotless with ktlint, and `checkChangelog`.
+ * rules, the Dokka aggregate over the published modules, Spotless with ktlint, `checkChangelog` and
+ * `checkThinAdapters`.
  */
 class RootPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -51,7 +52,14 @@ class RootPlugin : Plugin<Project> {
                 ktlint(ktlint)
             }
         }
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn("spotlessCheck") }
+        val thinAdapters =
+            project.tasks.register("checkThinAdapters", CheckThinAdapters::class.java) {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails unless config/thin-adapters.txt names exactly the Kotlin/Native main source files."
+                list.set(project.layout.projectDirectory.file("config/thin-adapters.txt"))
+                ThinAdapters.configure(this, project)
+            }
+        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn("spotlessCheck", thinAdapters) }
     }
 
     internal companion object {

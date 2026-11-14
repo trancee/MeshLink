@@ -60,14 +60,17 @@ class LibsodiumPlugin : Plugin<Project> {
                 minisign.set(project.providers.gradleProperty("meshlink.minisign").orElse("minisign"))
                 verified.set(root.map { it.file("verified/$tarballName") })
             }
-        registerBuilds(project, verify, root)
+        val builds = registerBuilds(project, verify, root)
+        project.pluginManager.withPlugin("com.android.kotlin.multiplatform.library") {
+            LibsodiumBindings.register(project, builds)
+        }
     }
 
     private fun registerBuilds(
         project: Project,
         verify: org.gradle.api.tasks.TaskProvider<VerifyLibsodium>,
         root: org.gradle.api.provider.Provider<org.gradle.api.file.Directory>,
-    ) {
+    ): Map<LibsodiumTarget, org.gradle.api.tasks.TaskProvider<BuildLibsodium>> {
         val builds =
             LibsodiumTarget.entries.associateWith { target ->
                 project.tasks.register("buildLibsodium${target.taskSuffix}", BuildLibsodium::class.java) {
@@ -83,7 +86,7 @@ class LibsodiumPlugin : Plugin<Project> {
                         environment.put("NDK_VERSION", ndk)
                         environment.put("NDK_PLATFORM", "android-$minSdk")
                     }
-                    output.set(root.map { it.dir("out/${target.id}") })
+                    output.set(project.layout.buildDirectory.dir("$OUTPUT/${target.id}"))
                 }
             }
         LibsodiumTarget.Family.entries.forEach { family ->
@@ -93,14 +96,16 @@ class LibsodiumPlugin : Plugin<Project> {
                 dependsOn(builds.filterKeys { it.family == family }.values)
             }
         }
+        return builds
     }
 
     private fun Properties.require(key: String): String = getProperty(key) ?: throw GradleException("$PIN_FILE is missing the key '$key'")
 
-    private companion object {
+    internal companion object {
         const val GROUP = "libsodium"
         const val PIN_FILE = "libsodium.properties"
         const val SCRIPT = "native/build-libsodium.sh"
+        const val OUTPUT = "libsodium/out"
     }
 }
 
@@ -109,14 +114,16 @@ internal enum class LibsodiumTarget(
     val id: String,
     val family: Family,
     val testOnly: Boolean = false,
+    /** The JNI shim's file name, for targets that have one. */
+    val shimFile: String? = null,
 ) {
-    ANDROID_ARM64_V8A("android-arm64-v8a", Family.ANDROID),
-    ANDROID_ARMEABI_V7A("android-armeabi-v7a", Family.ANDROID),
-    ANDROID_X86_64("android-x86_64", Family.ANDROID),
+    ANDROID_ARM64_V8A("android-arm64-v8a", Family.ANDROID, shimFile = "arm64-v8a/libmeshlink_sodium.so"),
+    ANDROID_ARMEABI_V7A("android-armeabi-v7a", Family.ANDROID, shimFile = "armeabi-v7a/libmeshlink_sodium.so"),
+    ANDROID_X86_64("android-x86_64", Family.ANDROID, shimFile = "x86_64/libmeshlink_sodium.so"),
     IOS_ARM64("ios-arm64", Family.APPLE),
     IOS_ARM64_SIMULATOR("ios-arm64-simulator", Family.APPLE),
-    MACOS_ARM64("macos-arm64", Family.HOST_MACOS, testOnly = true),
-    LINUX_X86_64("linux-x86_64", Family.HOST_LINUX, testOnly = true),
+    MACOS_ARM64("macos-arm64", Family.HOST_MACOS, testOnly = true, shimFile = "libmeshlink_sodium.dylib"),
+    LINUX_X86_64("linux-x86_64", Family.HOST_LINUX, testOnly = true, shimFile = "libmeshlink_sodium.so"),
     ;
 
     val taskSuffix: String = id.split('-', '_').joinToString("") { part -> part.replaceFirstChar(Char::uppercaseChar) }
