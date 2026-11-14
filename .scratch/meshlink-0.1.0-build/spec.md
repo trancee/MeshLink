@@ -33,7 +33,8 @@ These names are fixed here so every ticket can cite them. The ticket that create
 | `./gradlew iosSimulatorArm64Test` | `commonTest` and `iosTest` on the iOS simulator | 01 |
 | `./gradlew :<module>:testAndroidHostTest --tests '<pattern>'` | One focused host test while iterating; the build has no `jvm()` target (ADR 0017), and ticket 01 verifies the task name | 01 |
 | `./gradlew dokkaGenerate` | API docs build without warnings | 02 |
-| `./gradlew publishToMavenLocal` | Every artifact publishes with its POM | 04 |
+| `./gradlew publishToMavenLocal` | Every artifact publishes with its POM; until ticket 65 only `:meshlink:publishToMavenLocal` passes | 04, 65 |
+| `tools/maven-consumer/test.sh` | A generated KMP consumer of `ch.trancee.meshlink:meshlink` resolves every transitive module from Maven local alone | 65 |
 | `tools/swiftpm-consumer/test.sh` | The XCFramework works from a SwiftPM `binaryTarget`; runs `xcodebuild test` on an iOS simulator, because `swift test` can't link an iOS-only XCFramework on macOS | 04 |
 | `python3 tools/lab/lab.py run --scenario <name> --devices <alias>,<alias> [--profile <p>]` | One device scenario; writes results under `build/lab/` | 16 |
 | `python3 tools/lab/lab.py evidence --run <dir>` | Turns a run into a T9 evidence record in `docs/evidence/` | 16 |
@@ -77,7 +78,7 @@ Exit: an empty but fully gated build. Every required CI check runs on pull reque
 | 01 | [Build the four modules with `build-logic` and the dependency-direction check](issues/01-gradle-scaffold.md) | AFK | |
 | 02 | [Gate the build with Kover, detekt, Spotless, ABI validation and Dokka](issues/02-quality-gates.md) | AFK | 01 |
 | 03 | [Prove Robolectric 4.18 on SDK 26 and 37](issues/03-robolectric-proof.md) | AFK | 01 |
-| 04 | [Publish to Maven local and consume the XCFramework from SwiftPM](issues/04-apple-packaging-proof.md) | AFK | 01 |
+| 04 | [Publish `meshlink` to Maven local and consume the XCFramework from SwiftPM](issues/04-apple-packaging-proof.md) | AFK | 01 |
 | 05 | [Run the build in CI and make its jobs required on `main`](issues/05-ci-required-checks.md) | HITL | 02, 03, 04 |
 
 ### M1 Tracer bullet
@@ -90,6 +91,7 @@ Exit: two `Unsecured` nodes on `VirtualAir` discover each other and exchange one
 | 07 | [Hash, generate identities and draw randomness through a minimal `CryptoProvider`](issues/07-crypto-provider-minimal.md) | AFK | 06 |
 | 08 | [Run a sans-IO core on `VirtualAir` in virtual time](issues/08-sans-io-core-virtual-air.md) | AFK | 05 |
 | 09 | [Create, start, stop and close a node through the public API](issues/09-lifecycle-api.md) | AFK | 07, 08 |
+| 65 | [Prove Maven-local consumer resolution of every artifact](issues/65-maven-consumer-proof.md) | AFK | 04, 07, 08 |
 | 10 | [Discover an `Unsecured` peer on `VirtualAir`](issues/10-discovery-unsecured.md) | AFK | 09 |
 | 11 | [Open an `Unsecured` link with `PLAIN_HELLO`](issues/11-unsecured-link.md) | AFK | 10 |
 | 12 | [Send and receive a direct message between two nodes](issues/12-direct-message-tracer.md) | AFK | 11 |

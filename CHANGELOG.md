@@ -7,3 +7,4 @@ All notable changes to MeshLink are recorded here, in the [Keep a Changelog](htt
 ### Added
 
 - Committed ABI dumps for `meshlink` and `meshlink-testing`. Both modules are still empty, so the dumps are empty. SemVer impact: none.
+- Maven publishing of `meshlink` with a complete POM under The Unlicense, and the `MeshLinkKit` XCFramework for iOS. The `meshlink` klib dump gains its header and still declares nothing public. SemVer impact: none.

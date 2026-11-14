@@ -4,7 +4,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
 ## State (2026-11-14)
 
-- **Phase:** build. `main` holds the Gradle scaffold (four empty modules, `build-logic/`) with its quality gates, and no product code yet.
+- **Phase:** build. `main` holds the Gradle scaffold (four modules, `build-logic/`) with its quality gates, Maven publishing of `meshlink` and the `MeshLinkKit` XCFramework. No product code yet: `:meshlink` holds only the generated internal `BuildInfo`, and the other modules are empty.
 - **Decided:** [ADRs 0001–0021](docs/README.md).
 - **Open:** the [0.1.0 implementation backlog](.scratch/meshlink-0.1.0-build/spec.md) and its tickets.
 - **Prototypes:** throwaway local branches, never merged:
@@ -19,6 +19,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
 - **Toolchain and targets:** [ADR 0005](docs/adr/0005-toolchain-and-dependency-baseline.md). Built so far: Gradle 9.7.1 (wrapper, distribution sha256 pinned), daemon JDK 25 (`gradle/gradle-daemon-jvm.properties`), compile toolchain and test runtime JDK 21, Kotlin 2.4.21, AGP 9.3.3 with `com.android.kotlin.multiplatform.library` (compileSdk 37, minSdk 26), `iosArm64` and `iosSimulatorArm64`. The configuration cache is on.
 - **Toolchain discovery:** JDK auto-download is off and no toolchain repository is configured, so JDK 21 and JDK 25 must be installed locally where Gradle can detect them (for example SDKMAN or `/Library/Java/JavaVirtualMachines`).
+- **License:** The Unlicense ([`LICENSE`](LICENSE)). Dependency licenses are in the dependency register.
 - **Dependencies:** `gradle/libs.versions.toml` is the only version source; every dependency and CI tool is in the [dependency register](docs/reference/dependencies.md).
 - **Modules** ([ADR 0011](docs/adr/0011-modules-toggles-and-presets.md) decision 2). Every module applies the `meshlink.kmp-library` convention plugin, which derives the Android `namespace` from the module path:
 
@@ -30,6 +31,9 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   | `:meshlink-testing` | `ch.trancee.meshlink.testing` | `:meshlink` |
 
   `:meshlink` and `:meshlink-testing` also apply `meshlink.published-library`: they are the published, documented modules inside the ABI promise ([ADR 0019](docs/adr/0019-release-versioning-and-api-compatibility.md)). The root build applies `meshlink.root`.
+
+  `:meshlink` also applies `meshlink.build-info`, which generates the internal `ch.trancee.meshlink.internal.BuildInfo` object holding the library version, and SKIE. It builds the `MeshLinkKit` XCFramework (task `:meshlink:assembleMeshLinkKitReleaseXCFramework`, output `meshlink/build/XCFrameworks/release/`).
+- **Publishing:** `meshlink.published-library` configures vanniktech maven-publish: groupId `ch.trancee.meshlink`, the module name as artifact ID, one version from `meshlink.version` in `gradle.properties` (`0.1.0-SNAPSHOT` until the release PR), a POM under The Unlicense and the Dokka HTML as javadoc JAR. Signing and Maven Central upload are off (tickets 58 and 60). Only `:meshlink` publishes so far; see Limitations.
 
   `checkDependencyDirection`, wired into `check`, fails on any project dependency outside this allow-list, in every configuration including tests (except the aggregate configuration Kotlin 2.4 creates for SwiftPM lock files), and fails closed on a module with no entry.
 - **Gates in `check`** (versions and E2 holds: [ADR 0005](docs/adr/0005-toolchain-and-dependency-baseline.md)):
@@ -59,13 +63,15 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
   | Path | Holds |
   |---|---|
-  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.root`, `meshlink.dependency-direction` and `meshlink.changelog` convention plugins and their TestKit tests |
+  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.build-info`, `meshlink.robolectric`, `meshlink.root`, `meshlink.dependency-direction` and `meshlink.changelog` convention plugins and their TestKit tests |
   | `meshlink-core/`, `meshlink-crypto-sodium/`, `meshlink/`, `meshlink-testing/` | The four Gradle modules; `meshlink/api/` and `meshlink-testing/api/` hold the committed ABI dumps |
   | `config/detekt/` | detekt config on top of the defaults |
   | `CHANGELOG.md` | Keep a Changelog history ([ADR 0019](docs/adr/0019-release-versioning-and-api-compatibility.md) decision 6) |
   | `gradle/` | Version catalog, wrapper and daemon JDK declaration |
   | `docs/` | Diátaxis docs, ADRs and research ([index](docs/README.md)) |
   | `tools/` | Spec vectors and checks, privacy scan, ADR check, lab tools |
+  | `tools/swiftpm-consumer/` | SwiftPM package that consumes the built XCFramework through a local `binaryTarget`, and its `test.sh` |
+  | `LICENSE` | The Unlicense |
   | `.scratch/` | Local issue tracker ([conventions](docs/agents/issue-tracker.md)) |
   | `.github/workflows/` | Docs, privacy and CodeQL checks |
   | `GLOSSARY.md` | Domain terms |
@@ -82,6 +88,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | `build-logic` tests only | `./gradlew -p build-logic test` |
 | Coverage report (HTML; `koverLog` prints the totals) | `./gradlew koverHtmlReport` |
 | Format all Kotlin and Gradle Kotlin files | `./gradlew spotlessApply` |
+| Publish `meshlink` into Maven local (`-Dmaven.repo.local=<dir>` for a throwaway repository) | `./gradlew :meshlink:publishToMavenLocal` |
+| SwiftPM consumer of the XCFramework on an iOS Simulator (macOS only; set `DEVELOPER_DIR` to the Xcode of ADR 0005; `MESHLINK_SIMULATOR_DESTINATION` overrides the destination) | `tools/swiftpm-consumer/test.sh` |
 | Update the ABI dumps after an intended API change | `./gradlew updateKotlinAbi`, then add a `CHANGELOG.md` entry |
 | API reference (HTML in `build/dokka/html/`) | `./gradlew dokkaGenerate` |
 | Markdown lint | `npx -y markdownlint-cli2@0.24.0` |
@@ -103,6 +111,8 @@ The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOT
 | all four | Android (host tests) | Linux, macOS | As above | `koverVerify` (via `check`) | 100% line and branch on `commonMain` and `androidMain` | No coverage for Kotlin/Native source sets |
 | `:meshlink`, `:meshlink-testing` | Android (JVM) and klib | Linux, macOS | As above | `checkKotlinAbi` (via `check`) | Public ABI matches the committed dumps | Experimental KGP feature (E2 hold) |
 | `:meshlink`, `:meshlink-testing` | all | Linux, macOS | As above | `dokkaGenerate` | API reference builds with no warning; undocumented public API fails | None |
+| `:meshlink` | Maven publication | Linux, macOS | As above | `:meshlink:publishToMavenLocal` | Artifacts and a POM with name, description, URL, license, developer and SCM, and project dependencies under `ch.trancee.meshlink` | Its project dependencies don't publish yet, so a consumer can't resolve it (ticket 65) |
+| `:meshlink` | `MeshLinkKit` XCFramework (`iosArm64`, `iosSimulatorArm64`) | macOS only | Xcode 27.2 locally; an iOS Simulator runtime (verified: iOS 18.6, iPhone 16 Pro, destination `platform=iOS Simulator,id=<udid>` picked by the script) | `tools/swiftpm-consumer/test.sh` | A SwiftPM `binaryTarget` links it and the bundle `ch.trancee.meshlink.kit` loads on the simulator | No public API yet to call from Swift (ticket 09) |
 | `build-logic` | JVM | Linux, macOS | JDK 21 and 25 | `test` (via root `check`) | Gradle TestKit runs of the dependency-direction and changelog checks | Fixture builds use a `jvm()` target only; changelog fixtures need `git` |
 
 Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues/06-device-lab-readiness.md)):
@@ -114,4 +124,6 @@ Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues
 ## Limitations
 
 - The build has no CI workflow yet (backlog ticket 05).
+- Maven consumer resolution: `:meshlink-core`, `:meshlink-crypto-sodium` and `:meshlink-testing` have no source, so KGP writes no iOS klib and they can't publish. The `meshlink` POM names the first two, so a consumer can't resolve it yet ([ticket 65](.scratch/meshlink-0.1.0-build/issues/65-maven-consumer-proof.md)).
+- Xcode 27.2 `dsymutil` prints "could not open … stdlib-per-file-cache" warnings while linking Kotlin/Native debug test binaries ([KT-90461](https://youtrack.jetbrains.com/issue/KT-90461)); the build succeeds.
 - Android and iOS radio behavior is proved on hardware only (Constitution T9). The routing simulator results (ADR 0008) are not device evidence.

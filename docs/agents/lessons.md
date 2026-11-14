@@ -145,6 +145,14 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Each SDK's android-all pin needs its own Gradle configuration. All pins share the module `org.robolectric:android-all-instrumented`, so one configuration resolves only the newest version and the older SDK fails with `no artifacts found for DependencyJar{...}`.
 - Robolectric 4.18 on the JDK 21 test toolchain needs neither `--add-exports` nor `--add-opens` (ADR 0005, 2026-11-14 amendment).
 
+## Apple packaging
+
+- Kotlin/Native links no framework, and KGP writes no iOS klib, for a module without Kotlin source: the link task is `NO-SOURCE` and publishing fails in `generateMetadataFileFor<Target>Publication` with `FileNotFoundException`. Never add a placeholder file; give the module real source or wait for the ticket that does (ticket 65).
+- SKIE needs `skie { build { produceDistributableFramework() } }` for an XCFramework. Without it, `xcodebuild -create-xcframework` fails with "No 'swiftinterface' files found within …MeshLinkKit.swiftmodule".
+- SwiftPM names the scheme of a package with tests `<Package>-Package` (check with `xcodebuild -list`). `swift test` can't run the consumer: it runs on macOS, and the XCFramework has only iOS slices.
+- Xcode 27.2 `dsymutil` prints hundreds of "could not open … stdlib-per-file-cache" warnings while linking Kotlin/Native debug test binaries; Xcode 16.4 prints none. Harmless ([KT-90461](https://youtrack.jetbrains.com/issue/KT-90461)).
+- With the configuration cache on (Gradle 9.7.1), a task input set to `providers.gradleProperty(…).orElse(provider { throw … })` failed with the fallback's error although the property was set. Read a required Gradle property eagerly with `orNull ?: throw`.
+
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.

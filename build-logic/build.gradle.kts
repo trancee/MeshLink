@@ -17,6 +17,8 @@ dependencies {
     implementation(libs.detekt.gradle.plugin)
     implementation(libs.spotless.gradle.plugin)
     implementation(libs.dokka.gradle.plugin)
+    implementation(libs.skie.gradle.plugin)
+    implementation(libs.maven.publish.gradle.plugin)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit4)
 }
@@ -34,6 +36,10 @@ gradlePlugin {
         register("publishedLibrary") {
             id = "meshlink.published-library"
             implementationClass = "ch.trancee.meshlink.buildlogic.PublishedLibraryPlugin"
+        }
+        register("buildInfo") {
+            id = "meshlink.build-info"
+            implementationClass = "ch.trancee.meshlink.buildlogic.BuildInfoPlugin"
         }
         register("root") {
             id = "meshlink.root"

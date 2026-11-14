@@ -13,13 +13,17 @@ import java.time.Duration
 
 /**
  * Configures a MeshLink module: the Android KMP library target with host tests, `iosArm64`,
- * `iosSimulatorArm64`, the JDK 21 toolchain, strict explicit API and the dependency-direction check.
+ * `iosSimulatorArm64`, the JDK 21 toolchain, strict explicit API, the dependency-direction check and
+ * the shared group and version of every MeshLink artifact.
  *
  * The Android namespace derives from the module path, so `:meshlink-crypto-sodium` becomes
  * `ch.trancee.meshlink.crypto.sodium` and `:meshlink` becomes `ch.trancee.meshlink`.
  */
 class KmpLibraryPlugin : Plugin<Project> {
     override fun apply(project: Project) {
+        // Shared coordinates, so a published POM names its project dependencies correctly.
+        project.group = MESHLINK_GROUP
+        project.version = project.meshLinkVersion()
         with(project.pluginManager) {
             apply("org.jetbrains.kotlin.multiplatform")
             apply("com.android.kotlin.multiplatform.library")
