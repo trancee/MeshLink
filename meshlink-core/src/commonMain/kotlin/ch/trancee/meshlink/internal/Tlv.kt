@@ -24,12 +24,12 @@ public class Tlv(
 
         /**
          * Decodes the TLVs from [start] to the end of [bytes]. [known] maps each type this context
-         * registers to its fixed length.
+         * registers to its fixed length, or to `null` when its length varies.
          */
         fun decode(
             bytes: ByteArray,
             start: Int,
-            known: Map<Int, Int>,
+            known: Map<Int, Int?>,
         ): Decoded<List<Tlv>> {
             val tlvs = mutableListOf<Tlv>()
             var offset = start
@@ -45,7 +45,7 @@ public class Tlv(
         /** Why [tlvs] break the TLV rules for a context that registers [known], or `null`. */
         fun violation(
             tlvs: List<Tlv>,
-            known: Map<Int, Int>,
+            known: Map<Int, Int?>,
         ): DecodeError? =
             when {
                 tlvs.zipWithNext().any { (a, b) -> a.type >= b.type } -> DecodeError.TLV_ORDER

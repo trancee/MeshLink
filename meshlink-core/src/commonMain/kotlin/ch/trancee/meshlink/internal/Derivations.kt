@@ -39,9 +39,20 @@ public class Derivations(
         epoch: UInt,
     ): ByteArray = hash(Domain.MESH_TAG, u32(epoch), tagKey).copyOf(MESH_TAG_LENGTH)
 
+    /** The `unsecured` routing tag of [nodeId]: `trunc_8(H("unsecured-tag", NodeId ‖ u32(epoch)))`. */
+    public fun unsecuredTag(
+        nodeId: ByteArray,
+        epoch: UInt,
+    ): ByteArray = hash(Domain.UNSECURED_TAG, nodeId + u32(epoch)).copyOf(ROUTING_TAG_LENGTH)
+
+    /** `commitment = trunc_16(H("tombstone", k))` for a message's tombstone secret [k]. */
+    public fun tombstoneCommitment(k: ByteArray): ByteArray = hash(Domain.TOMBSTONE, k).copyOf(COMMITMENT_LENGTH)
+
     public companion object {
         private const val HASH_LENGTH = 32
         private const val MESH_TAG_LENGTH = 4
+        private const val ROUTING_TAG_LENGTH = 8
+        private const val COMMITMENT_LENGTH = 16
         private const val EPOCH_SECONDS = 300
 
         /** The shortest mesh identifier, in UTF-8 bytes (spec "Mesh identifier"). */
@@ -61,13 +72,6 @@ public class Derivations(
             require(unixSeconds in UNIX_SECONDS) { "unix seconds must fit a u32, not $unixSeconds" }
             return (unixSeconds / EPOCH_SECONDS).toUInt()
         }
-
-        private const val BYTE_BITS = 8
-
-        private fun u16(value: Int): ByteArray = byteArrayOf((value shr BYTE_BITS).toByte(), value.toByte())
-
-        private fun u32(value: UInt): ByteArray =
-            ByteArray(UInt.SIZE_BYTES) { (value shr (BYTE_BITS * (UInt.SIZE_BYTES - 1 - it))).toByte() }
     }
 }
 
@@ -78,6 +82,8 @@ public enum class Domain(
     NODE_ID("node-id"),
     MESH_ID("mesh-id"),
     MESH_TAG("mesh-tag"),
+    UNSECURED_TAG("unsecured-tag"),
+    TOMBSTONE("tombstone"),
     ;
 
     /** `DS(purpose) = u8(len(s)) ‖ s`, where `s = "MeshLink/1 " ‖ purpose`. */

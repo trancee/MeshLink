@@ -46,4 +46,16 @@ class DerivationVectorTest {
         assertVectors("mesh-tag", 16..20) { inputs ->
             derivations.meshTag(inputs.getValue("tag_key").hex(), inputs.getValue("epoch").toUInt())
         }
+
+    @Test
+    fun unsecuredTag() =
+        assertVectors("unsecured-tag", 29..31) { inputs ->
+            derivations.unsecuredTag(inputs.getValue("node_id").hex(), inputs.getValue("epoch").toUInt())
+        }
+
+    @Test
+    fun tombstoneCommitment() =
+        assertVectors("tombstone-commitment", 41..43) { inputs ->
+            derivations.tombstoneCommitment(inputs.getValue("k").hex())
+        }
 }

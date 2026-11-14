@@ -19,4 +19,7 @@ public sealed class MeshLinkException(
 
     /** A call on a [MeshLink] node after [MeshLink.close]. */
     public class Closed : MeshLinkException("the MeshLink node is closed")
+
+    /** A second concurrent collector of [MeshLink.messages]; share one collection with `shareIn` instead. */
+    public class AlreadyCollected : MeshLinkException("MeshLink.messages already has a collector")
 }

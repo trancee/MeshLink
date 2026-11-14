@@ -11,6 +11,7 @@ import ch.trancee.meshlink.internal.LinkPolicy
 import ch.trancee.meshlink.internal.Links
 import ch.trancee.meshlink.internal.PeerHandle
 import ch.trancee.meshlink.internal.PlatformPort
+import ch.trancee.meshlink.internal.Post
 import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Scanner
@@ -20,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +64,7 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, config.securityProfile.wireProfile))
     private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
+    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
@@ -72,6 +75,17 @@ public class MeshLink private constructor(
      * out of range.
      */
     public val peers: StateFlow<List<Peer>> = mutablePeers.asStateFlow()
+
+    /**
+     * The messages other nodes sent to this one (ADR 0007 decision 9). They wait in a bounded
+     * inbox until collected: at most 1,024 messages and 1 MiB, of which one sender may hold a
+     * quarter; a message beyond a bound is dropped. The flow completes when the node closes.
+     *
+     * It allows one collector at a time: a collector that starts while another collects gets
+     * [MeshLinkException.AlreadyCollected], the only exception a MeshLink flow throws. Apps that
+     * need several collectors share one with `shareIn`.
+     */
+    public val messages: Flow<ReceivedMessage> = post.inbox.messages
 
     /**
      * Starts the node and returns once it is [MeshState.Running] or [MeshState.Blocked]. A blocked
@@ -88,6 +102,7 @@ public class MeshLink private constructor(
                 if (watcher == null) {
                     mutableState.value = MeshState.Starting
                     nodeId = InstallationIdentity.loadOrCreate(port.identityStore, crypto).nodeId
+                    post.begin(nodeId)
                     watcher = scope.launch { watch() }
                     mutableState.first { it != MeshState.Starting }
                 }
@@ -109,6 +124,7 @@ public class MeshLink private constructor(
                 watcher?.let {
                     mutableState.value = MeshState.Stopping
                     it.cancelAndJoin()
+                    post.end()
                     watcher = null
                     mutableState.value = MeshState.Stopped
                 }
@@ -123,9 +139,45 @@ public class MeshLink private constructor(
     override fun close() {
         if (closed.compareAndSet(expect = false, update = true)) {
             scope.cancel()
+            post.close()
             RadioRegistry.release(port, this)
             mutableState.value = MeshState.Stopped
         }
+    }
+
+    /**
+     * Sends [payload] to [to] (ADR 0007 decision 7). Doesn't suspend: the message is queued, and
+     * [SendResult.Accepted.message] reports its [DeliveryStatus]. A message to a peer without a
+     * link waits as [DeliveryStatus.Held] until one forms or the message expires.
+     *
+     * Until routing arrives, every message travels only over a direct link to [to].
+     *
+     * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
+     * or [MeshState.Blocked]; [RejectionReason.UnknownPeer] if [to] never completed a link with this
+     * node; [RejectionReason.TooLarge] above 899 bytes; and [RejectionReason.QueueFull] while the
+     * payloads not yet written reach 1 MiB, after which the caller awaits [awaitSendCapacity].
+     *
+     * @throws MeshLinkException.Closed if the node is closed.
+     */
+    @Throws(MeshLinkException::class)
+    public fun send(
+        to: NodeId,
+        payload: ByteArray,
+    ): SendResult {
+        ensureOpen()
+        return post.send(to, payload, mutableState.value)
+    }
+
+    /**
+     * Returns once the send queue has room again, or at once if it has. A caller that got
+     * [RejectionReason.QueueFull] awaits this, then sends again; it never retries in a loop.
+     *
+     * @throws MeshLinkException.Closed if the node is closed.
+     */
+    @Throws(MeshLinkException::class, CancellationException::class)
+    public suspend fun awaitSendCapacity() {
+        ensureOpen()
+        post.awaitCapacity()
     }
 
     /** The peers this node found on the air and may link to next; for `meshlink-testing`. */
@@ -170,7 +222,7 @@ public class MeshLink private constructor(
     private suspend fun session() =
         coroutineScope {
             val digest = Derivations(crypto).meshIdDigest(meshId, config.securityProfile.wireProfile)
-            val links = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), nodeId, this, mutablePeers)
+            val links = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), this, mutablePeers, post)
             val linking = launch { scanner.candidates.collect { links.connectTo(it.keys) } }
             scanner.run(links::accept)
             linking.cancel()
