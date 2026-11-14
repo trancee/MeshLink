@@ -1,6 +1,6 @@
 # Discover an `Unsecured` peer on `VirtualAir`
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 09
 
