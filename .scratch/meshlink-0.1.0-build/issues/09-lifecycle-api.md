@@ -1,6 +1,6 @@
 # Create, start, stop and close a node through the public API
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 07, 08
 
