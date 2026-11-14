@@ -24,7 +24,7 @@ Version-controlled project commands/platforms/budgets/artifacts refine policy.
 ## Q: quality
 
 - Q1 Repo formatter+static analysis R pass pre-merge.
-- Q2 X production formatter/compiler/static-analysis suppressions; test-only R local applicability reason.
+- Q2 X production formatter/compiler/static-analysis suppressions; test-only R local applicability reason. Exception: platform-API deprecation suppression only on a function reached solely under an API-level guard below its replacement's level; KDoc R replacement; file R listed+gated.
 - Q3 Names R full+descriptive; domain terms/acronyms O; X invented abbreviations/ambiguous contractions/unexplained single letters except trivial local indices.
 - Q4 Public declarations R explicit visibility+types where supported.
 - Q5 Public interfaces R repo compatibility tracking; every diff R release-impact explanation.
@@ -126,8 +126,9 @@ Pre-merge, all applicable:
 - V5 Ownership D designated review for Constitution/security/release/CI/protocol/schema/persistence paths.
 - V6 Lower convention R narrowest relevant doc; X duplication here.
 
-`version=4.0.1; ratified=2026-04-30; amended=2026-11-01`
+`version=5.0.0; ratified=2026-04-30; amended=2026-11-14`
 Amendment: rationale=AI context compression; impact=wording only, IDs/obligations unchanged; migration=none; approval=user "optimize all the files for AI usage...without losing context".
 Amendment 3.1.0: rationale=MeshLink fork of cairn 3.0.1 (hardware-claim evidence, protocol spec authority, AI-consumable docs); impact=T9 expanded, C10+O8 added, no removals; migration=none (greenfield: no claims/protocol/docs yet); approval=user, ticket "Which constitution amendments should MeshLink adopt?" 2026-10-31.
 Amendment 4.0.0: rationale=no CI tool measures Kotlin/Native coverage (Kover lacks native targets, kotlinx-kover#293; Kotlin 2.4.21 rejects `-Xcoverage`), so 100% T3 is unattainable for iosMain; impact=T3 100% line+branch narrowed to targets with a CI coverage tool, unmeasurable targets limited to thin CI-named adapters with on-target tests (obligation relaxed => MAJOR per V3); migration=none (greenfield: no code yet); approval=user, ticket "What is the toolchain and dependency baseline?" 2026-11-01 (ADR 0005).
 Amendment 4.0.1: rationale=docs spelling standard is US English (ADR 0006) and the `typos` CI gate enforces it; impact=spelling only (British "-ll-" past tense of "label" changed to US "-l-"), obligations unchanged (PATCH per V3); migration=removed the CONSTITUTION.md exclusion from `_typos.toml` (V4); approval=user 2026-11-01.
+Amendment 5.0.0: rationale=Android SDK 37 deprecates every pre-API-37 `connectGatt` overload and the pre-API-33 GATT value calls, which remain the only API on supported Android 8 to 16 (ADR 0009), and `-Werror` with no suppression cannot compile them; impact=Q2 relaxed by one narrow exception (obligation relaxed => MAJOR per V3); migration=V4 gate `checkSuppressions` with `config/legacy-platform-apis.txt`; approval=user, ticket 13 "Deprecated legacy APIs vs Q2" option A 2026-11-14.

@@ -8,6 +8,8 @@ import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -141,6 +143,46 @@ class DiscoveryTest {
             // Assert
             assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure())
             assertNull(virtual.radio.advertisement)
+        }
+
+    @Test
+    fun lateRadioFailureStopsDiscoveryAndIsRecorded() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler))
+            val node = node(platform, "Festival")
+            node.start()
+            runCurrent()
+
+            // Act
+            platform.radio.emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+            runCurrent()
+
+            // Assert
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertNull(platform.radio.advertisement)
+            assertFalse(platform.radio.scanning)
+        }
+
+    @Test
+    fun endOfRadioEventsStopsDiscoveryWithoutAFailure() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override val events: Flow<RadioEvent> = emptyFlow()
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+
+            // Act
+            node.start()
+            runCurrent()
+
+            // Assert
+            assertNull(node.radioFailure())
+            assertNull(virtual.radio.advertisement)
+            assertFalse(virtual.radio.scanning)
         }
 
     @Test

@@ -113,6 +113,10 @@ public final class ch/trancee/meshlink/MeshPlatform$Companion {
 	public final fun of (Lch/trancee/meshlink/internal/PlatformPort;)Lch/trancee/meshlink/MeshPlatform;
 }
 
+public final class ch/trancee/meshlink/MeshPlatform_androidKt {
+	public static final fun android (Lch/trancee/meshlink/MeshPlatform$Companion;Landroid/content/Context;)Lch/trancee/meshlink/MeshPlatform;
+}
+
 public abstract interface class ch/trancee/meshlink/MeshState {
 }
 

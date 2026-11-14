@@ -10,8 +10,8 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin
 
 /**
  * Configures the root build: the merged Kover report over every module with 100% line and branch
- * rules, the Dokka aggregate over the published modules, Spotless with ktlint, `checkChangelog` and
- * `checkThinAdapters`.
+ * rules, the Dokka aggregate over the published modules, Spotless with ktlint, `checkChangelog`,
+ * `checkThinAdapters` and `checkSuppressions`.
  */
 class RootPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -59,7 +59,14 @@ class RootPlugin : Plugin<Project> {
                 list.set(project.layout.projectDirectory.file("config/thin-adapters.txt"))
                 ThinAdapters.configure(this, project)
             }
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn("spotlessCheck", thinAdapters) }
+        val suppressions =
+            project.tasks.register("checkSuppressions", CheckSuppressions::class.java) {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails on production suppressions other than those config/legacy-platform-apis.txt allows."
+                list.set(project.layout.projectDirectory.file("config/legacy-platform-apis.txt"))
+                Suppressions.configure(this, project)
+            }
+        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn("spotlessCheck", thinAdapters, suppressions) }
     }
 
     internal companion object {

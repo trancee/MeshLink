@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 6 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 7 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests).
 
 ## Context
 
@@ -161,3 +161,9 @@ Inputs:
 2026-11-14, system clock (0.1.0 backlog ticket "Discover an `Unsecured` peer on `VirtualAir`"):
 
 - **Production clock (decision 1):** a platform injects `SystemClock` from `:meshlink-core` unless it needs its own: wall time from `kotlin.time.Clock.System`, monotonic time from `TimeSource.Monotonic`. `Clock.kt` is the second `commonMain` file that both detekt rules exempt, as `RandomSource.kt` is for `SeededRandom`. Production code reaches ambient time only through this injected object, so tests still run in virtual time. A platform adapter whose timers must run while the device sleeps supplies a sleep-aware `Clock` instead.
+
+2026-11-14, Android adapter tests (0.1.0 backlog ticket "Scan, advertise and carry links over GATT on Android"):
+
+- **Own shadows (decision 5):** `RadioShadows.kt` in `:meshlink`'s `androidHostTest` shadows the advertiser, the GATT server and client, the remote device and `BluetoothManager.openGattServer`. They script failing registrations, null server opens, busy and refused notifies and writes, write and descriptor statuses, and MTU and connect outcomes, which Robolectric 4.18's own shadows don't.
+- **Main-looper tests (decision 13):** a JUnit `Timeout` rule runs the test on another thread, where Robolectric can't build an activity or idle the main looper. A class that needs either uses `@Test(timeout = …)`, which Robolectric enforces on the test's own thread.
+- **API levels between the two SDKs (decision 5):** the permission table for API 29 and 30 (fine location on 29 and 30, coarse or fine below) is tested by calling it with each API level, not on an SDK 30 runtime. Behavior that needs the framework at those levels stays unproven until device runs (ticket 17).
