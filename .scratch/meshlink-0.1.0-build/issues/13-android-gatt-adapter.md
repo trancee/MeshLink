@@ -1,6 +1,6 @@
 # Scan, advertise and carry links over GATT on Android
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 12
 
