@@ -69,7 +69,9 @@ class KmpLibraryPlugin : Plugin<Project> {
                 .map { it.asFile }
         val detektSourceSets = project.tasks.withType(Detekt::class.java).matching { it.name.endsWith("SourceSet") }
         detektSourceSets.configureEach { exclude { it.file.startsWith(generated.get()) } }
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(detektSourceSets) }
+        // Typed rules such as ForbiddenMethodCall need type resolution, which only the compilation
+        // tasks have; detektMainAndroid analyses commonMain together with androidMain.
+        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(detektSourceSets, "detektMainAndroid") }
         project.tasks.withType(AbstractTestTask::class.java).configureEach { timeout.set(TEST_TASK_TIMEOUT) }
     }
 

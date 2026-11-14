@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 4 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 5 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement).
 
 ## Context
 
@@ -153,3 +153,7 @@ Inputs:
 2026-11-14, test timeouts (0.1.0 backlog ticket "Gate the build with Kover, detekt, Spotless, ABI validation and Dokka"):
 
 - **Timeouts (decision 13):** "every test has a timeout" can't be enforced per test across the toolchain. JUnit 4 has no default per-test timeout, `commonTest` can't use JUnit rules, Kotlin/Native tests have no per-test timeout, and Robolectric runs only on JUnit 4, so a JUnit 5 default timeout wouldn't cover the run that hung. Decision: a 10-minute timeout on every Gradle test task (`meshlink.kmp-library` sets it on every `AbstractTestTask`), plus the framework per-test timeouts named in decision 13. Rejected: JUnit 5 for JVM host tests (new dependencies that still leave Robolectric and iOS uncovered) and a custom check for `Timeout` rules (can't cover `commonTest`).
+
+2026-11-14, sans-IO enforcement (0.1.0 backlog ticket "Run a sans-IO core on `VirtualAir` in virtual time"):
+
+- **Enforcement (decision 1):** detekt's `ForbiddenImport` and `ForbiddenMethodCall`, limited to `commonMain` in [`config/detekt/detekt.yml`](../../config/detekt/detekt.yml), fail `check` on ambient time (`kotlin.time.Clock`, `TimeSource`, `measureTime` and kin) and ambient randomness (`kotlin.random` outside `RandomSource.kt`, `Random.Default`, `shuffled`, `random()`, `Uuid.random`). The method rule needs type resolution, so `check` also runs `detektMainAndroid`, which analyzes `commonMain` with `androidMain`. Platform radio APIs need no rule: `commonMain` can't reach them. The seeded source is `SeededRandom`, which wraps `kotlin.random.Random(seed)`; its sequence is fixed for one Kotlin version, so a replay across a Kotlin upgrade may differ.
