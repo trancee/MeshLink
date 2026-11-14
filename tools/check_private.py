@@ -27,8 +27,9 @@ CHECKS = [
     ("private IPv4 with port", re.compile(r"(?<![\d.§])10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+")),
     ("iOS UDID", re.compile(r"(?<![0-9A-Fa-f])[0-9A-F]{8}-[0-9A-F]{16}(?![0-9A-Fa-f])")),
     ("Apple team ID", re.compile(r'"team"\s*:\s*"[A-Z0-9]{10}"')),
-    # Kotlin labels (`this@Outer.x`) and HAL names (`name@1.0-service`) are not addresses.
-    ("email address", re.compile(r"(?<![A-Za-z0-9._%+-])(?!this@)[A-Za-z0-9._%+-]+@(?!users\.noreply\.github\.com|example\.(?:com|org))[A-Za-z][A-Za-z0-9-]*\.[A-Za-z0-9.-]*[A-Za-z]")),
+    # Kotlin labels (`this@Outer.x`), HAL names (`name@1.0-service`) and klib ABI dump signatures of
+    # extensions (`|name@receiver.Fq.Name(){}`) are not addresses.
+    ("email address", re.compile(r"(?<![A-Za-z0-9._%+|-])(?!this@)[A-Za-z0-9._%+-]+@(?!users\.noreply\.github\.com|example\.(?:com|org))[A-Za-z][A-Za-z0-9-]*\.[A-Za-z0-9.-]*[A-Za-z]")),
     # Android and battery serials: 10-20 uppercase letters and digits, at least one digit and two letters.
     ("serial-like token", re.compile(r"(?<![A-Za-z0-9_./-])(?=[A-Z0-9]*\d)(?=(?:[0-9]*[A-Z]){2})[A-Z0-9]{10,20}(?![A-Za-z0-9_-])")),
     # Captured Bluetooth addresses are uppercase; committed evidence uses lowercase keyed pseudonyms.

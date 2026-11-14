@@ -36,6 +36,10 @@ _Avoid_: User ID, account, device ID
 The 32-byte hash of a node's installation identity key, used by applications to address and recognize nodes; it rarely appears on air, where rotating routing tags stand in for it.
 _Avoid_: Address (that is the BLE address), device ID, fingerprint (in API text)
 
+**Node state**:
+Where a node is in its life: stopped, starting, running, blocked by a missing requirement such as Bluetooth being off, or stopping.
+_Avoid_: Status (messages have a delivery status), connection state (a running node may have no link)
+
 **Preset**:
 A named set of default values for feature toggles and settings, either built in for a reference scenario or defined by the application on top of a built-in one; the application's configuration overrides it. Local to a node, so nodes with different presets can share a mesh.
 _Avoid_: Profile (reserved for security profile), mode, template

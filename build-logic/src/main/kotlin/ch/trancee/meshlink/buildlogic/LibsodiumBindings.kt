@@ -5,11 +5,14 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.attributes.Usage
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
@@ -35,12 +38,17 @@ import javax.inject.Inject
  * - `buildSodiumJni<Target>` links `native/meshlink_sodium_jni.c` with libsodium into a shared
  *   library exporting only `JNI_OnLoad`, for each Android ABI and the two test hosts.
  * - The Android shims become generated `jniLibs`, so the AAR carries them.
- * - `testAndroidHostTest` loads the shim of the machine it runs on through `java.library.path`.
+ * - `testAndroidHostTest` loads the shim of the machine it runs on through `java.library.path`. The
+ *   `sodiumHostJniElements` variant publishes that shim's directory to the host tests of modules
+ *   that run MeshLink code ([SodiumHostJniPlugin]).
  * - Each iOS target gets a `sodium` cinterop over that target's archive. Only a Mac builds Apple
  *   targets, so only a Mac wires the cinterop to the archive's build task.
  */
 internal object LibsodiumBindings {
-    private const val HOST_TEST_TASK = "testAndroidHostTest"
+    const val HOST_TEST_TASK = "testAndroidHostTest"
+
+    /** The `Usage` of the variant that holds the host JNI shim's directory. */
+    const val HOST_JNI_USAGE = "meshlink-sodium-host-jni"
 
     fun register(
         project: Project,
@@ -98,9 +106,15 @@ internal object LibsodiumBindings {
                 }
             } else {
                 jvmArgumentProviders.add(
-                    project.objects.newInstance(LibraryPath::class.java).apply { directory.set(hostShim.flatMap { it.output }) },
+                    project.objects.newInstance(LibraryPath::class.java).apply { directories.from(hostShim.flatMap { it.output }) },
                 )
             }
+        }
+        project.configurations.register("sodiumHostJniElements") {
+            isCanBeConsumed = true
+            isCanBeResolved = false
+            attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, HOST_JNI_USAGE))
+            if (hostShim != null) outgoing.artifact(hostShim.flatMap { it.output })
         }
         registerCinterops(project, builds)
         registerGates(project, builds, shims, version("android-ndk"))
@@ -203,13 +217,14 @@ internal object LibsodiumBindings {
     }
 }
 
-/** Puts [directory] on `java.library.path`, so `System.loadLibrary` finds the host JNI shim. */
+/** Puts [directories] on `java.library.path`, so `System.loadLibrary` finds the host JNI shim. */
 abstract class LibraryPath : CommandLineArgumentProvider {
-    @get:InputDirectory
+    @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val directory: DirectoryProperty
+    abstract val directories: ConfigurableFileCollection
 
-    override fun asArguments(): Iterable<String> = listOf("-Djava.library.path=${directory.get().asFile.absolutePath}")
+    override fun asArguments(): Iterable<String> =
+        listOf("-Djava.library.path=${directories.files.joinToString(File.pathSeparator) { it.absolutePath }}")
 }
 
 /** Runs `native/build-libsodium.sh shim <target>`, writing [shimFile] under [output]. */

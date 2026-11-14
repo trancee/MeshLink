@@ -53,6 +53,10 @@ gradlePlugin {
             id = "meshlink.libsodium"
             implementationClass = "ch.trancee.meshlink.buildlogic.LibsodiumPlugin"
         }
+        register("sodiumHostJni") {
+            id = "meshlink.sodium-host-jni"
+            implementationClass = "ch.trancee.meshlink.buildlogic.SodiumHostJniPlugin"
+        }
         register("specVectors") {
             id = "meshlink.spec-vectors"
             implementationClass = "ch.trancee.meshlink.buildlogic.SpecVectorsPlugin"

@@ -6,3 +6,209 @@
 // - Show declarations: true
 
 // Library unique name: <ch.trancee.meshlink:meshlink>
+open annotation class ch.trancee.meshlink/InternalMeshLinkApi : kotlin/Annotation { // ch.trancee.meshlink/InternalMeshLinkApi|null[0]
+    constructor <init>() // ch.trancee.meshlink/InternalMeshLinkApi.<init>|<init>(){}[0]
+}
+
+final enum class ch.trancee.meshlink/PermissionKind : kotlin/Enum<ch.trancee.meshlink/PermissionKind> { // ch.trancee.meshlink/PermissionKind|null[0]
+    enum entry Bluetooth // ch.trancee.meshlink/PermissionKind.Bluetooth|null[0]
+    enum entry BluetoothAdvertise // ch.trancee.meshlink/PermissionKind.BluetoothAdvertise|null[0]
+    enum entry BluetoothConnect // ch.trancee.meshlink/PermissionKind.BluetoothConnect|null[0]
+    enum entry BluetoothScan // ch.trancee.meshlink/PermissionKind.BluetoothScan|null[0]
+    enum entry Location // ch.trancee.meshlink/PermissionKind.Location|null[0]
+
+    final val entries // ch.trancee.meshlink/PermissionKind.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/PermissionKind> // ch.trancee.meshlink/PermissionKind.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/PermissionKind // ch.trancee.meshlink/PermissionKind.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/PermissionKind> // ch.trancee.meshlink/PermissionKind.values|values#static(){}[0]
+}
+
+abstract interface ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/IdentityStore|null[0]
+    abstract fun loadOrCreate(kotlin/Function0<ch.trancee.meshlink.internal/Ed25519KeyPair>): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/IdentityStore.loadOrCreate|loadOrCreate(kotlin.Function0<ch.trancee.meshlink.internal.Ed25519KeyPair>){}[0]
+}
+
+abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.meshlink.internal/PlatformPort|null[0]
+    abstract val dispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher|{}dispatcher[0]
+        abstract fun <get-dispatcher>(): kotlinx.coroutines/CoroutineDispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher.<get-dispatcher>|<get-dispatcher>(){}[0]
+    abstract val identityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore|{}identityStore[0]
+        abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
+    abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
+        abstract fun <get-requirements>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
+}
+
+sealed interface ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState|null[0]
+    final class Blocked : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Blocked|null[0]
+        constructor <init>(kotlin.collections/Set<ch.trancee.meshlink/Requirement>) // ch.trancee.meshlink/MeshState.Blocked.<init>|<init>(kotlin.collections.Set<ch.trancee.meshlink.Requirement>){}[0]
+
+        final val requirements // ch.trancee.meshlink/MeshState.Blocked.requirements|{}requirements[0]
+            final fun <get-requirements>(): kotlin.collections/Set<ch.trancee.meshlink/Requirement> // ch.trancee.meshlink/MeshState.Blocked.requirements.<get-requirements>|<get-requirements>(){}[0]
+
+        final fun component1(): kotlin.collections/Set<ch.trancee.meshlink/Requirement> // ch.trancee.meshlink/MeshState.Blocked.component1|component1(){}[0]
+        final fun copy(kotlin.collections/Set<ch.trancee.meshlink/Requirement> = ...): ch.trancee.meshlink/MeshState.Blocked // ch.trancee.meshlink/MeshState.Blocked.copy|copy(kotlin.collections.Set<ch.trancee.meshlink.Requirement>){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Blocked.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Blocked.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Blocked.toString|toString(){}[0]
+    }
+
+    final object Running : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Running|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Running.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Running.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Running.toString|toString(){}[0]
+    }
+
+    final object Starting : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Starting|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Starting.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Starting.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Starting.toString|toString(){}[0]
+    }
+
+    final object Stopped : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Stopped|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Stopped.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Stopped.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Stopped.toString|toString(){}[0]
+    }
+
+    final object Stopping : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Stopping|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Stopping.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Stopping.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Stopping.toString|toString(){}[0]
+    }
+}
+
+sealed interface ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement|null[0]
+    final class PermissionDenied : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.PermissionDenied|null[0]
+        constructor <init>(ch.trancee.meshlink/PermissionKind) // ch.trancee.meshlink/Requirement.PermissionDenied.<init>|<init>(ch.trancee.meshlink.PermissionKind){}[0]
+
+        final val kind // ch.trancee.meshlink/Requirement.PermissionDenied.kind|{}kind[0]
+            final fun <get-kind>(): ch.trancee.meshlink/PermissionKind // ch.trancee.meshlink/Requirement.PermissionDenied.kind.<get-kind>|<get-kind>(){}[0]
+
+        final fun component1(): ch.trancee.meshlink/PermissionKind // ch.trancee.meshlink/Requirement.PermissionDenied.component1|component1(){}[0]
+        final fun copy(ch.trancee.meshlink/PermissionKind = ...): ch.trancee.meshlink/Requirement.PermissionDenied // ch.trancee.meshlink/Requirement.PermissionDenied.copy|copy(ch.trancee.meshlink.PermissionKind){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.PermissionDenied.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.PermissionDenied.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.PermissionDenied.toString|toString(){}[0]
+    }
+
+    final object BluetoothOff : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.BluetoothOff|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.BluetoothOff.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.BluetoothOff.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.BluetoothOff.toString|toString(){}[0]
+    }
+
+    final object RadioInUse : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.RadioInUse|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.RadioInUse.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.RadioInUse.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.RadioInUse.toString|toString(){}[0]
+    }
+
+    final object Unsupported : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.Unsupported|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.Unsupported.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.Unsupported.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.Unsupported.toString|toString(){}[0]
+    }
+}
+
+sealed interface ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile|null[0]
+    final object Unsecured : ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile.Unsecured|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/SecurityProfile.Unsecured.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/SecurityProfile.Unsecured.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/SecurityProfile.Unsecured.toString|toString(){}[0]
+    }
+}
+
+final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/InMemoryIdentityStore|null[0]
+    constructor <init>() // ch.trancee.meshlink.internal/InMemoryIdentityStore.<init>|<init>(){}[0]
+
+    final fun loadOrCreate(kotlin/Function0<ch.trancee.meshlink.internal/Ed25519KeyPair>): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/InMemoryIdentityStore.loadOrCreate|loadOrCreate(kotlin.Function0<ch.trancee.meshlink.internal.Ed25519KeyPair>){}[0]
+}
+
+final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
+    final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
+        final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
+    final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
+        final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
+
+    final fun close() // ch.trancee.meshlink/MeshLink.close|close(){}[0]
+    final suspend fun start() // ch.trancee.meshlink/MeshLink.start|start(){}[0]
+    final suspend fun stop() // ch.trancee.meshlink/MeshLink.stop|stop(){}[0]
+
+    final object Companion { // ch.trancee.meshlink/MeshLink.Companion|null[0]
+        final fun create(ch.trancee.meshlink/MeshLinkConfig, ch.trancee.meshlink/MeshPlatform): ch.trancee.meshlink/MeshLink // ch.trancee.meshlink/MeshLink.Companion.create|create(ch.trancee.meshlink.MeshLinkConfig;ch.trancee.meshlink.MeshPlatform){}[0]
+    }
+}
+
+final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLinkConfig|null[0]
+    final val meshId // ch.trancee.meshlink/MeshLinkConfig.meshId|{}meshId[0]
+        final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfig.meshId.<get-meshId>|<get-meshId>(){}[0]
+    final val messageLifetimeSeconds // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds|{}messageLifetimeSeconds[0]
+        final fun <get-messageLifetimeSeconds>(): kotlin/Int // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds.<get-messageLifetimeSeconds>|<get-messageLifetimeSeconds>(){}[0]
+    final val preset // ch.trancee.meshlink/MeshLinkConfig.preset|{}preset[0]
+        final fun <get-preset>(): ch.trancee.meshlink/Preset // ch.trancee.meshlink/MeshLinkConfig.preset.<get-preset>|<get-preset>(){}[0]
+    final val securityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile|{}securityProfile[0]
+        final fun <get-securityProfile>(): ch.trancee.meshlink/SecurityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile.<get-securityProfile>|<get-securityProfile>(){}[0]
+
+    final fun describe(): kotlin/String // ch.trancee.meshlink/MeshLinkConfig.describe|describe(){}[0]
+}
+
+final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/MeshLinkConfigBuilder|null[0]
+    final var meshId // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId|{}meshId[0]
+        final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<get-meshId>|<get-meshId>(){}[0]
+        final fun <set-meshId>(kotlin/String) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<set-meshId>|<set-meshId>(kotlin.String){}[0]
+
+    final fun build(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLinkConfigBuilder.build|build(){}[0]
+}
+
+final class ch.trancee.meshlink/MeshPlatform { // ch.trancee.meshlink/MeshPlatform|null[0]
+    final object Companion { // ch.trancee.meshlink/MeshPlatform.Companion|null[0]
+        final fun of(ch.trancee.meshlink.internal/PlatformPort): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/MeshPlatform.Companion.of|of(ch.trancee.meshlink.internal.PlatformPort){}[0]
+    }
+}
+
+sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.trancee.meshlink/MeshLinkException|null[0]
+    final class Closed : ch.trancee.meshlink/MeshLinkException { // ch.trancee.meshlink/MeshLinkException.Closed|null[0]
+        constructor <init>() // ch.trancee.meshlink/MeshLinkException.Closed.<init>|<init>(){}[0]
+    }
+
+    final class InvalidConfig : ch.trancee.meshlink/MeshLinkException { // ch.trancee.meshlink/MeshLinkException.InvalidConfig|null[0]
+        constructor <init>(kotlin/String, kotlin/String, kotlin/Throwable? = ...) // ch.trancee.meshlink/MeshLinkException.InvalidConfig.<init>|<init>(kotlin.String;kotlin.String;kotlin.Throwable?){}[0]
+
+        final val setting // ch.trancee.meshlink/MeshLinkException.InvalidConfig.setting|{}setting[0]
+            final fun <get-setting>(): kotlin/String // ch.trancee.meshlink/MeshLinkException.InvalidConfig.setting.<get-setting>|<get-setting>(){}[0]
+    }
+}
+
+sealed class ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset|null[0]
+    final object EmergencyBroadcast : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.EmergencyBroadcast|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.EmergencyBroadcast.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.EmergencyBroadcast.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.EmergencyBroadcast.toString|toString(){}[0]
+    }
+
+    final object FieldTeams : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.FieldTeams|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.FieldTeams.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.FieldTeams.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.FieldTeams.toString|toString(){}[0]
+    }
+
+    final object LocalMultiplayer : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.LocalMultiplayer|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.LocalMultiplayer.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.LocalMultiplayer.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.LocalMultiplayer.toString|toString(){}[0]
+    }
+
+    final object OfflineChat : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.OfflineChat|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.OfflineChat.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.OfflineChat.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.OfflineChat.toString|toString(){}[0]
+    }
+
+    final object ProximityDiscovery : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.ProximityDiscovery|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.ProximityDiscovery.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.ProximityDiscovery.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.ProximityDiscovery.toString|toString(){}[0]
+    }
+}
+
+final fun (ch.trancee.meshlink/MeshPlatform.Companion).ch.trancee.meshlink/ios(): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/ios|ios@ch.trancee.meshlink.MeshPlatform.Companion(){}[0]
+final fun ch.trancee.meshlink/meshLinkConfig(ch.trancee.meshlink/Preset, ch.trancee.meshlink/SecurityProfile, kotlin/Function1<ch.trancee.meshlink/MeshLinkConfigBuilder, kotlin/Unit>): ch.trancee.meshlink/MeshLinkConfigBuilder // ch.trancee.meshlink/meshLinkConfig|meshLinkConfig(ch.trancee.meshlink.Preset;ch.trancee.meshlink.SecurityProfile;kotlin.Function1<ch.trancee.meshlink.MeshLinkConfigBuilder,kotlin.Unit>){}[0]

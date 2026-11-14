@@ -27,7 +27,7 @@ public class Derivations(
      */
     public fun meshIdDigest(
         meshId: ByteArray,
-        profile: SecurityProfile,
+        profile: WireProfile,
     ): ByteArray {
         require(meshId.size in MESH_ID_LENGTH) { "mesh identifier must be 1 to 64 bytes, not ${meshId.size}" }
         return hash(Domain.MESH_ID, u16(meshId.size) + meshId + profile.code.toByte())
@@ -43,7 +43,13 @@ public class Derivations(
         private const val HASH_LENGTH = 32
         private const val MESH_TAG_LENGTH = 4
         private const val EPOCH_SECONDS = 300
-        private val MESH_ID_LENGTH = 1..64
+
+        /** The shortest mesh identifier, in UTF-8 bytes (spec "Mesh identifier"). */
+        public const val MESH_ID_MIN_BYTES: Int = 1
+
+        /** The longest mesh identifier, in UTF-8 bytes (spec "Mesh identifier"). */
+        public const val MESH_ID_MAX_BYTES: Int = 64
+        private val MESH_ID_LENGTH = MESH_ID_MIN_BYTES..MESH_ID_MAX_BYTES
         private val UNIX_SECONDS = 0..UInt.MAX_VALUE.toLong()
 
         /**
@@ -79,8 +85,8 @@ public enum class Domain(
         "MeshLink/1 $purpose".encodeToByteArray().let { byteArrayOf(it.size.toByte()) + it }
 }
 
-/** A security profile and its one-byte wire code (spec "Security profiles"). */
-public enum class SecurityProfile(
+/** A security profile's one-byte wire code (spec "Security profiles"). */
+public enum class WireProfile(
     public val code: Int,
 ) {
     UNSECURED(0x00),

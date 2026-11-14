@@ -1,9 +1,13 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.Requirement
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -25,6 +29,9 @@ internal class VirtualAir(
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
 ) {
     private val radios = LinkedHashMap<PeerHandle, VirtualRadio>()
+
+    /** Adds a radio and a platform around it whose nodes do their work on [dispatcher]. */
+    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), dispatcher)
 
     /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu]. */
     fun radio(maxAttMtu: Int = DEFAULT_ATT_MTU): VirtualRadio {
@@ -120,6 +127,10 @@ internal class VirtualRadio(
 
     override val events: Flow<RadioEvent> = eventChannel.receiveAsFlow()
 
+    /** What the radio reports missing, as a [PlatformPort] sees it; see [report]. */
+    private val missing = MutableStateFlow<Set<Requirement>>(emptySet())
+    internal val requirements: StateFlow<Set<Requirement>> = missing
+
     internal var advertisement: ByteArray? = null
         private set
 
@@ -158,6 +169,11 @@ internal class VirtualRadio(
     }
 
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = air.connect(this, peer)
+
+    /** Reports [missing] as the radio's requirements, as a real radio does when Bluetooth turns off. */
+    fun report(missing: Set<Requirement>) {
+        this.missing.value = missing
+    }
 
     internal fun emit(event: RadioEvent) {
         eventChannel.trySend(event)
