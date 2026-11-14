@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.Flow
  * an exception.
  */
 public interface RadioPort {
-    /** What the radio observed, in order: sightings, links that peers opened to it, and disconnects. */
+    /**
+     * What the radio observed, in order: sightings, links that peers opened to it, disconnects, and
+     * advertising, scanning or serving that failed after its start returned [RadioResult.Ok].
+     */
     public val events: Flow<RadioEvent>
 
     /**
@@ -84,6 +87,14 @@ public sealed interface RadioEvent {
     public class Disconnected(
         public val link: RadioLink,
     ) : RadioEvent
+
+    /**
+     * Advertising, scanning or serving the capability record failed for [reason] after its start
+     * returned [RadioResult.Ok], as platforms that answer through a later callback report it.
+     */
+    public class Failed(
+        public val reason: RadioFailure,
+    ) : RadioEvent
 }
 
 /**
@@ -142,4 +153,7 @@ public enum class RadioFailure {
 
     /** The platform has no radio MeshLink can use, so the radio does nothing. */
     UNSUPPORTED,
+
+    /** The platform radio refused or failed the operation, for example out of resources. */
+    RADIO_ERROR,
 }

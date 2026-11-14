@@ -1,0 +1,6 @@
+# Constitution Q2 (5.0.0): production code suppresses nothing, except `@Suppress("DEPRECATION")` on a
+# function that runs only under a platform API-level guard below the level that introduced its
+# replacement, with KDoc naming that replacement. Only the files listed here may hold it.
+# `./gradlew checkSuppressions` (part of `check`) fails on any other production suppression and on a
+# listed file without one.
+meshlink/src/androidMain/kotlin/ch/trancee/meshlink/internal/LegacyGatt.kt

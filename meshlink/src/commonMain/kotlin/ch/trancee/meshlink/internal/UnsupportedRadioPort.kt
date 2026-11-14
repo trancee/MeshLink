@@ -25,7 +25,7 @@ internal class UnsupportedRadioPort(
 }
 
 /** A radio that refuses every operation with [RadioFailure.UNSUPPORTED] and observes nothing. */
-private object UnsupportedRadio : RadioPort {
+internal object UnsupportedRadio : RadioPort {
     private val unsupported = RadioResult.Failed(RadioFailure.UNSUPPORTED)
 
     override val events: Flow<RadioEvent> = emptyFlow()

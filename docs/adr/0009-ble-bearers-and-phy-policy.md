@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 3 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 4 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter).
 
 ## Context
 
@@ -119,3 +119,12 @@ Measured, medians unless noted:
 
 - **CoC failure (decision 1, [C-07](../spec/decisions.md#c-07)):** "without losing the session" means routing and end-to-end state. Link cipher state never moves to another bearer after a failure: losing the CoC channel ends the link, and a GATT reconnect runs a fresh link handshake. Routing state is kept by NodeId, end-to-end sessions are unaffected, and retries recover frames in flight. A planned move to CoC uses the `BEARER_SWITCH` frame ([D-43](../spec/decisions.md#d-43-bearer-switch)).
 - **Flow control (decision 7, [C-09](../spec/decisions.md#c-09)):** pacing is local to the peripheral. There is no credit frame in protocol 1; one could be added later as a non-critical link-local frame type.
+
+2026-11-14, Android adapter (0.1.0 backlog ticket "Scan, advertise and carry links over GATT on Android"):
+
+- **Busy retries (decision 8):** a GATT request the stack reports busy retries every 10 ms, up to 100 attempts (1 s), then fails. On API 26 to 32 a notify or write returns only a Boolean, so a refused request can't be told from a busy one and also retries.
+- **Server open retries (decision 8):** `openGattServer` is retried after 250 ms, 500 ms, 1 s and 2 s. If every attempt returns null, the radio reports `RadioEvent.Failed(RADIO_ERROR)`, which ends discovery until the next start.
+- **Link start and order (decision 1):** the central connects, asks for an ATT MTU of 517, discovers the service, reads the capability record and then enables notifications. A refused or failed MTU exchange keeps the default MTU of 23. On the peripheral, a link begins when the central enables notifications, not when it connects.
+- **Notifications (decision 7):** one notification at a time across the server, each waiting for `onNotificationSent`. Pacing beyond that (credits, CoC preference) is still open.
+- **Late radio failures:** a scan or advertising set that fails after it started reports `RadioEvent.Failed(RADIO_ERROR)` through `RadioPort.events`, and discovery ends as for a refusal. Retries and diagnostics stay with tickets 32 and 54.
+- **Deferred:** connect retries on 133 and 147 (decision 4) to ticket 29, PHY requests (decision 3) and scan restarts to ticket 32, CoC to ticket 31. GATT requests have no timeout yet: an answer the stack never sends holds the link's queue until the link closes.

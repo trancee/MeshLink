@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 
 /**
@@ -21,17 +22,17 @@ internal class Scanner(
     val candidates: StateFlow<Map<PeerHandle, Advertisement>> = mutableCandidates
 
     /**
-     * Why the radio last refused to serve the capability record, advertise or scan, or `null`.
-     * Until real adapters show which failures recur, a refusal ends discovery until the next run;
-     * tickets 13, 32 and 54 decide retries and diagnostics.
+     * Why the radio last refused or failed to serve the capability record, advertise or scan, or
+     * `null`. Until real adapters show which failures recur, a failure ends discovery until the next
+     * run; tickets 32 and 54 decide retries and diagnostics.
      */
     var failure: RadioFailure? = null
         private set
 
     /**
      * Serves the capability record, advertises and scans until cancelled, then stops advertising and
-     * scanning and forgets the candidates. Passes every event other than a sighting to
-     * [onLinkEvent]. Returns early, recording [failure], if the radio refuses any of the three.
+     * scanning and forgets the candidates. Passes every link event to [onLinkEvent]. Returns early,
+     * recording [failure], if the radio refuses any of the three or reports a [RadioEvent.Failed].
      */
     suspend fun run(onLinkEvent: (RadioEvent) -> Unit) {
         try {
@@ -43,13 +44,27 @@ internal class Scanner(
                     ?: radio.startScanning() as? RadioResult.Failed
             failure = refused?.reason
             if (refused == null) {
-                radio.events.collect { if (it is RadioEvent.Sighted) sighted(it.sighting) else onLinkEvent(it) }
+                val failed = radio.events.firstOrNull { dispatch(it, onLinkEvent) } as RadioEvent.Failed?
+                failure = failed?.reason
             }
         } finally {
             radio.stopScanning()
             radio.stopAdvertising()
             mutableCandidates.value = emptyMap()
         }
+    }
+
+    /** Handles [event]; returns whether it is a failure that ends discovery. */
+    private fun dispatch(
+        event: RadioEvent,
+        onLinkEvent: (RadioEvent) -> Unit,
+    ): Boolean {
+        when (event) {
+            is RadioEvent.Sighted -> sighted(event.sighting)
+            is RadioEvent.Connected, is RadioEvent.Disconnected -> onLinkEvent(event)
+            is RadioEvent.Failed -> Unit
+        }
+        return event is RadioEvent.Failed
     }
 
     private fun sighted(sighting: Sighting) {
