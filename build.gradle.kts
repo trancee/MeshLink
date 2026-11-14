@@ -1,5 +1,5 @@
 plugins {
-    base
+    id("meshlink.root")
 }
 
 tasks.named("check") {

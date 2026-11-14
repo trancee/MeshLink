@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 3 (amended 2026-11-13, release device evidence; 2026-11-13, errata).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 4 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts).
 
 ## Context
 
@@ -101,7 +101,8 @@ Inputs:
     - **Scheduled:** Jazzer, the large density meshes, the Rust reference cross-check and a dependency freshness check.
     - **Devices:** manual only (decision 7).
 13. **No flaky tolerance.**
-    - CI never retries a test automatically, and every test has a timeout. One Robolectric SDK 37 run is known to have hung.
+    - CI never retries a test automatically. One Robolectric SDK 37 run is known to have hung.
+    - Every test task has a 10-minute timeout, so a hung test fails CI instead of stalling it. Per-test timeouts come from the framework where it has one: `runTest` (60 s default) in coroutine tests, and a JUnit `Timeout` rule in JVM-only and Robolectric test classes.
     - A flaky test is a bug. It is fixed, or removed with a ticket that tracks restoring it. It is never silently disabled.
 
 ## Alternatives
@@ -148,3 +149,7 @@ Inputs:
 - **Profile name (2026-11-13 release amendment):** the first profile is `unsecured`, not `none` (ADR 0007 decision 5).
 - **Ticket numbers (Risks, Consequences):** "ticket 27" referred to the retired v1 map. The 0.1.0 backlog's release ticket is 64, and its release evidence run is ticket 62.
 - **Vector sets (decision 10):** the list now names the hpke-pq vectors that ADR 0004 makes a conformance gate, and `XXhfspsk3`, which the spec's [tier 2 vectors](../spec/vectors/README.md#tier-2-pending) require.
+
+2026-11-14, test timeouts (0.1.0 backlog ticket "Gate the build with Kover, detekt, Spotless, ABI validation and Dokka"):
+
+- **Timeouts (decision 13):** "every test has a timeout" can't be enforced per test across the toolchain. JUnit 4 has no default per-test timeout, `commonTest` can't use JUnit rules, Kotlin/Native tests have no per-test timeout, and Robolectric runs only on JUnit 4, so a JUnit 5 default timeout wouldn't cover the run that hung. Decision: a 10-minute timeout on every Gradle test task (`meshlink.kmp-library` sets it on every `AbstractTestTask`), plus the framework per-test timeouts named in decision 13. Rejected: JUnit 5 for JVM host tests (new dependencies that still leave Robolectric and iOS uncovered) and a custom check for `Timeout` rules (can't cover `commonTest`).
