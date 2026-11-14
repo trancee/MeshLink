@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # checkChangelog diffs against the merge base with origin/main.
+          fetch-depth: 0
       # MIT basic provider: caches ~/.gradle/caches (dependencies, Robolectric android-all jars) and
       # ~/.gradle/wrapper, keyed by build files, the catalog and the wrapper; validates the wrapper.
       # Only the default branch writes the cache.
