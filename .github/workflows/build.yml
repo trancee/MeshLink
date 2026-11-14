@@ -96,7 +96,7 @@ jobs:
       - run: ./gradlew buildLibsodiumApple buildLibsodiumHostMacos
       - run: ./gradlew iosSimulatorArm64Test
       - run: tools/swiftpm-consumer/test.sh
-      - run: ./gradlew checkSodiumAppleSize :meshlink:checkFrameworkSymbols
+      - run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
 
   xcode-27:
     name: Xcode 27 preview (scheduled, not required)
