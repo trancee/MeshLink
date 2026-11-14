@@ -119,3 +119,17 @@ _Avoid_: Beacon ID, MAC, device address
 **Resolving key**:
 A per-node secret, rotated daily, that a node in a gated mesh gives only to peers inside an authenticated link handshake, so those peers can recognize its advertisement identifiers across rotations.
 _Avoid_: IRK (the BLE bonding key), mesh key
+
+## Testing
+
+**Sans-IO core**:
+The part of MeshLink that holds all protocol behavior but reads no clock, draws no randomness and touches no radio itself; time, randomness and the radio are handed to it.
+_Avoid_: Engine, pure core, business logic
+
+**RadioPort**:
+The boundary through which the sans-IO core uses a Bluetooth radio: advertising, scanning, connecting, the capability characteristic and each link's byte stream, with every failure reported as a value.
+_Avoid_: Radio driver, BLE adapter (that is one implementation), transport
+
+**VirtualAir**:
+A simulated shared air in which many nodes' radios run in one process in virtual time, with seeded latency, so one seed always replays the same run.
+_Avoid_: Mock radio, fake BLE, simulator (that is the routing simulator)

@@ -1,6 +1,6 @@
 # Run a sans-IO core on `VirtualAir` in virtual time
 
-Status: ready-for-agent
+Status: claimed
 Type: AFK
 Blocked by: 05
 
@@ -19,14 +19,14 @@ The protocol core reads no clock, draws no randomness and touches no radio of it
 
 ## Acceptance criteria
 
-- [ ] `:meshlink-core` defines `Clock` (monotonic and wall time), a seeded random source and `RadioPort` in `ch.trancee.meshlink.internal`. Nothing in `commonMain` of any module calls a system clock, `kotlin.random.Random.Default` or a platform radio API; a detekt rule or a test enforces this.
-- [ ] `RadioPort` covers exactly what M1 and M2 need: start and stop advertising a 16 B payload with the mesh service UUID; start and stop scanning, delivering sightings (payload, an opaque peer handle, RSSI); connect as central; serve and read the capability characteristic; an ordered byte stream per connection in both directions, chunked by the negotiated ATT MTU; disconnect events. Each operation reports failure as a value, not an exception.
-- [ ] `VirtualAir` lives in `:meshlink-testing` and needs no dependency beyond the allow-list. It models per-link MTU, latency, ordered delivery and disconnects, all seeded. Loss, link caps and advertising and scan windows are left for the tickets that need them; the PR names those tickets.
-- [ ] A `TestClock` advances with the `TestScope` scheduler, so a test that waits 10 virtual minutes finishes in milliseconds of real time.
-- [ ] Tests in `:meshlink-testing` `commonTest`: two radios see each other's advertisement; a connected pair exchanges a 2 KB stream in order across an MTU of 23 and of 247; a disconnect reaches both sides; running a scenario twice with the same seed yields identical event logs, and a different seed changes the latency order.
-- [ ] Every test has a timeout; none uses real time or sleeps.
-- [ ] The new tests pass on the Android host and on `iosSimulatorArm64`; Kover stays at 100% with `:meshlink-testing` merged.
-- [ ] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass.
+- [x] `:meshlink-core` defines `Clock` (monotonic and wall time), a seeded random source and `RadioPort` in `ch.trancee.meshlink.internal`. Nothing in `commonMain` of any module calls a system clock, `kotlin.random.Random.Default` or a platform radio API; a detekt rule or a test enforces this.
+- [x] `RadioPort` covers exactly what M1 and M2 need: start and stop advertising a 16 B payload with the mesh service UUID; start and stop scanning, delivering sightings (payload, an opaque peer handle, RSSI); connect as central; serve and read the capability characteristic; an ordered byte stream per connection in both directions, chunked by the negotiated ATT MTU; disconnect events. Each operation reports failure as a value, not an exception.
+- [x] `VirtualAir` lives in `:meshlink-testing` and needs no dependency beyond the allow-list. It models per-link MTU, latency, ordered delivery and disconnects, all seeded. Loss, link caps and advertising and scan windows are left for the tickets that need them; the PR names those tickets.
+- [x] A `TestClock` advances with the `TestScope` scheduler, so a test that waits 10 virtual minutes finishes in milliseconds of real time.
+- [x] Tests in `:meshlink-testing` `commonTest`: two radios see each other's advertisement; a connected pair exchanges a 2 KB stream in order across an MTU of 23 and of 247; a disconnect reaches both sides; running a scenario twice with the same seed yields identical event logs, and a different seed changes the latency order.
+- [x] Every test has a timeout; none uses real time or sleeps.
+- [x] The new tests pass on the Android host and on `iosSimulatorArm64`; Kover stays at 100% with `:meshlink-testing` merged.
+- [x] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass.
 
 ## Proof commands
 
