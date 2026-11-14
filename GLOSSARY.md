@@ -120,6 +120,14 @@ _Avoid_: Private mesh, closed group
 The rotating value a node puts in its advertisement; outsiders cannot link it across rotations, so a rotated identifier looks like a new device until a handshake or a resolving key says otherwise.
 _Avoid_: Beacon ID, MAC, device address
 
+**Mesh tag**:
+A short value in every advertisement that changes with time and shows members of one mesh that the advertiser belongs to it, without naming the mesh to anyone else.
+_Avoid_: Mesh ID (that is the name the application chooses), network key
+
+**Link candidate**:
+A peer whose advertisement shows it belongs to the local node's mesh, found by scanning and not yet linked.
+_Avoid_: Neighbor (that is a directly linked peer), contact
+
 **Resolving key**:
 A per-node secret, rotated daily, that a node in a gated mesh gives only to peers inside an authenticated link handshake, so those peers can recognize its advertisement identifiers across rotations.
 _Avoid_: IRK (the BLE bonding key), mesh key

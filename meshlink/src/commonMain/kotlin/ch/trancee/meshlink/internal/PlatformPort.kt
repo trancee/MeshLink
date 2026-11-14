@@ -24,6 +24,12 @@ public interface PlatformPort {
 
     /** Where the installation identity is kept. */
     public val identityStore: IdentityStore
+
+    /** The platform radio; a node uses it only while it holds the port. */
+    public val radio: RadioPort
+
+    /** The platform clocks. */
+    public val clock: Clock
 }
 
 /** Which node holds each platform radio; a node runs only while it holds its radio. */

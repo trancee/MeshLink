@@ -139,4 +139,7 @@ public enum class RadioFailure {
 
     /** The link closed before or during the operation. */
     LINK_CLOSED,
+
+    /** The platform has no radio MeshLink can use, so the radio does nothing. */
+    UNSUPPORTED,
 }

@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 6 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 7 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source).
 
 ## Context
 
@@ -119,3 +119,7 @@ Measured:
 2026-11-13, 0.1.0 scope (owner decision, 0.1.0 backlog review):
 
 - **Extended advertising (decision 2):** deferred beyond 0.1.0. 0.1.0 advertises with legacy advertising only and has no extended-advertising toggle ([ADR 0011](0011-modules-toggles-and-presets.md) amendment). Extended advertising stays optional and off by default when a later release adds it.
+
+2026-11-14, random fill source (0.1.0 backlog ticket "Discover an `Unsecured` peer on `VirtualAir`"):
+
+- **Random fill (decisions 1 and 4):** the random resolvable tag of open meshes and `unsecured`, and the 3 random bytes, come from `CryptoProvider.randomBytes`, not from the seeded `RandomSource` of ADR 0017 decision 1. A seeded non-cryptographic generator would let an observer who saw a few payloads predict the next ones and link a node across rotations. Multi-node tests stay reproducible: no event order depends on these bytes.

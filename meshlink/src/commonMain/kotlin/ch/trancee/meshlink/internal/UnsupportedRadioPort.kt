@@ -3,8 +3,10 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * The port of a platform without a Bluetooth radio MeshLink can use, such as the iOS simulator:
@@ -16,4 +18,27 @@ internal class UnsupportedRadioPort(
     override val requirements: StateFlow<Set<Requirement>> = MutableStateFlow(setOf(Requirement.Unsupported))
 
     override val identityStore: IdentityStore = InMemoryIdentityStore()
+
+    override val radio: RadioPort = UnsupportedRadio
+
+    override val clock: Clock = SystemClock
+}
+
+/** A radio that refuses every operation with [RadioFailure.UNSUPPORTED] and observes nothing. */
+private object UnsupportedRadio : RadioPort {
+    private val unsupported = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+
+    override val events: Flow<RadioEvent> = emptyFlow()
+
+    override fun startAdvertising(payload: ByteArray): RadioResult<Unit> = unsupported
+
+    override fun stopAdvertising() = Unit
+
+    override fun startScanning(): RadioResult<Unit> = unsupported
+
+    override fun stopScanning() = Unit
+
+    override fun serveCapability(record: ByteArray): RadioResult<Unit> = unsupported
+
+    override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = unsupported
 }
