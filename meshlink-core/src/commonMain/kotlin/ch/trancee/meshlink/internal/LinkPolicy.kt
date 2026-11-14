@@ -33,6 +33,9 @@ public class LinkPolicy(
             else -> null
         }
 
+    /** Whether both ends keep this node's central link to [peer] over the peer's ([compareNodeIds]). */
+    public fun keepsOwnCentral(peer: ByteArray): Boolean = compareNodeIds(nodeId, peer) < 0
+
     public companion object {
         /** The protocol version of this implementation (spec `protocol-version`). */
         public const val PROTOCOL_VERSION: Int = 1

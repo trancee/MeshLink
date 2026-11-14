@@ -1,12 +1,15 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.Reachability
+import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.SecurityProfile
+import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,12 +19,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -565,51 +570,184 @@ class UnsecuredLinkTest {
             )
         }
 
-    /** A link whose writes take longer than a test waits. */
+    @Test
+    fun messagesQueuedOnALinkClosedAsDuplicateGoOutOnTheKeptLink() =
+        runTest {
+            // Arrange
+            val air = air()
+            val virtual = air.platform(StandardTestDispatcher(testScheduler))
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override val events =
+                        virtual.radio.events.map { event ->
+                            if (event is RadioEvent.Connected) {
+                                RadioEvent.Connected(SlowLink(event.link) { isMessage(it) })
+                            } else {
+                                event
+                            }
+                        }
+
+                    override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> =
+                        when (val result = virtual.radio.connect(peer)) {
+                            is RadioResult.Ok -> RadioResult.Ok(SlowCentralLink(result.value))
+                            is RadioResult.Failed -> result
+                        }
+                }
+            val node = node(platformWith(virtual, radio)).also { it.start() }
+            connectFake(air, virtual).write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val peer =
+                node.peers.value
+                    .single()
+                    .nodeId
+            val statuses = PAYLOADS.map { assertIs<SendResult.Accepted>(node.send(peer, it)).message.status }
+            runCurrent()
+
+            // Act
+            val outbound = advertiseFake(air, versions = listOf(1))
+            advanceTimeBy(SETTLE_MILLIS)
+            outbound.ends.single().write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            advanceTimeBy(PAYLOADS.size * SLOW_WRITE_MILLIS + SETTLE_MILLIS)
+
+            // Assert
+            val (inboundEnd, outboundEnd) = virtual.radio.ends
+            assertEquals(List(PAYLOADS.size) { DeliveryStatus.Sent }, statuses.map { it.value })
+            assertEquals(listOf(CloseReason.DUPLICATE_LINK), closes(inboundEnd))
+            assertEquals(PAYLOADS.take(1).map { it.toList() }, messages(inboundEnd).map { it.toList() })
+            assertEquals(PAYLOADS.drop(1).map { it.toList() }, messages(outboundEnd).map { it.toList() })
+        }
+
+    @Test
+    fun messageWhoseWriteFailsIsSentOnThePeersNextLink() =
+        runTest {
+            // Arrange
+            val air = air()
+            val virtual = air.platform(StandardTestDispatcher(testScheduler))
+            var failing = true
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override val events =
+                        virtual.radio.events.map { event ->
+                            if (event is RadioEvent.Connected && failing) {
+                                failing = false
+                                RadioEvent.Connected(FailingLink(event.link))
+                            } else {
+                                event
+                            }
+                        }
+                }
+            val node = node(platformWith(virtual, radio)).also { it.start() }
+            val first = connectFake(air, virtual)
+            first.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val status =
+                assertIs<SendResult.Accepted>(
+                    node.send(
+                        node.peers.value
+                            .single()
+                            .nodeId,
+                        PAYLOADS[0],
+                    ),
+                ).message.status
+            advanceTimeBy(SETTLE_MILLIS)
+            val afterFailedWrite = status.value
+
+            // Act
+            first.disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+            connectFake(air, virtual).write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(DeliveryStatus.Queued, afterFailedWrite)
+            assertEquals(DeliveryStatus.Sent, status.value)
+            assertEquals(listOf(PAYLOADS[0].toList()), messages(virtual.radio.ends[1], FAKE_ID).map { it.toList() })
+        }
+
+    @Test
+    fun undecodableMessageAfterTheHelloIsDroppedAndTheLinkStaysOpen() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(alice).also { it.start() }
+            val received = mutableListOf<ReceivedMessage>()
+            backgroundScope.launch { node.messages.collect { received += it } }
+            val fake = connectFake(air, alice)
+            fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Act
+            fake.write(record(byteArrayOf(0x40, 0x01)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(emptyList(), received)
+            assertTrue(
+                alice.radio.ends
+                    .single()
+                    .open,
+            )
+        }
+
+    @Test
+    fun messageBeforeTheHelloIsDroppedAndTheLinkStaysOpen() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(alice).also { it.start() }
+            val received = mutableListOf<ReceivedMessage>()
+            backgroundScope.launch { node.messages.collect { received += it } }
+            val fake = connectFake(air, alice)
+            val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
+            val expiry = (now().epochSeconds + LIFETIME_SECONDS).toUInt()
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], expiry, hopLimit = 1)
+
+            // Act
+            fake.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(emptyList(), received)
+            assertTrue(
+                alice.radio.ends
+                    .single()
+                    .open,
+            )
+        }
+
+    /** A link whose writes, or those [slow] picks, take longer than a test waits. */
     private class SlowLink(
         private val link: RadioLink,
+        private val slow: (ByteArray) -> Boolean = { true },
     ) : RadioLink by link {
         override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
-            delay(SLOW_WRITE_MILLIS)
+            if (slow(bytes)) delay(SLOW_WRITE_MILLIS)
             return link.write(bytes)
         }
     }
 
-    private fun TestScope.air(seed: Long = 1): VirtualAir {
-        val clock = TestClock(testScheduler)
-        return VirtualAir(backgroundScope, clock, SeededRandom(seed))
+    /** A central link whose `MESSAGE` writes take longer than a test waits. */
+    private class SlowCentralLink(
+        private val link: CentralLink,
+    ) : CentralLink by link {
+        override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
+            if (isMessage(bytes)) delay(SLOW_WRITE_MILLIS)
+            return link.write(bytes)
+        }
+    }
+
+    /** A link whose writes all fail as if the bearer had dropped. */
+    private class FailingLink(
+        private val link: RadioLink,
+    ) : RadioLink by link {
+        override suspend fun write(bytes: ByteArray): RadioResult<Unit> = RadioResult.Failed(RadioFailure.LINK_CLOSED)
     }
 
     private fun TestScope.now(): Instant {
         val millis = TestClock.WALL_CLOCK_START_MILLIS + testScheduler.currentTime
         return Instant.fromEpochMilliseconds(millis)
-    }
-
-    private fun node(platform: PlatformPort): MeshLink =
-        MeshLink.create(
-            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = MESH }.build(),
-            MeshPlatform.of(platform),
-        )
-
-    private fun platformWith(
-        virtual: VirtualPlatform,
-        radio: RadioPort,
-    ): PlatformPort =
-        object : PlatformPort by virtual {
-            override val radio: RadioPort = radio
-        }
-
-    private fun nodeId(platform: VirtualPlatform): ByteArray =
-        Derivations(SodiumCryptoProvider).nodeId(platform.identityStore.loadOrCreate { error("no identity") }.publicKey)
-
-    /** A raw radio that connects to [target] as central and waits for the link to open. */
-    private suspend fun TestScope.connectFake(
-        air: VirtualAir,
-        target: VirtualPlatform,
-    ): CentralLink {
-        val link = (air.radio().connect(target.radio.handle) as RadioResult.Ok).value
-        advanceTimeBy(1)
-        return link
     }
 
     /** A raw radio that advertises [MESH] and serves a capability record listing [versions]. */
@@ -634,17 +772,25 @@ class UnsecuredLinkTest {
         return radio
     }
 
-    private fun digest(meshId: String): ByteArray =
-        Derivations(SodiumCryptoProvider).meshIdDigest(meshId.encodeToByteArray(), WireProfile.UNSECURED)
+    /** The link-local frames [end] wrote, skipping routed ones. */
+    private fun frames(end: VirtualLinkEnd): List<LinkFrame> {
+        val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+        return bodies
+            .filter { it[0] != MESSAGE_TYPE }
+            .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
+    }
 
-    private fun record(frame: LinkFrame): ByteArray = LinkRecord.encode(frame.encode())
-
-    private fun record(bytes: ByteArray): ByteArray = LinkRecord.encode(bytes)
-
-    private fun frames(end: VirtualLinkEnd): List<LinkFrame> =
-        assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value.map {
-            assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value
-        }
+    /** The payloads of the `MESSAGE` frames [end] wrote that [receiver] accepts. */
+    private fun TestScope.messages(
+        end: VirtualLinkEnd,
+        receiver: ByteArray = HIGH_ID,
+    ): List<ByteArray> {
+        val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+        val messaging = UnsecuredMessaging(SodiumCryptoProvider, receiver)
+        return bodies
+            .filter { it[0] == MESSAGE_TYPE }
+            .map { assertNotNull(messaging.accept(it, now().epochSeconds)).payload }
+    }
 
     private fun closes(end: VirtualLinkEnd): List<CloseReason> {
         val closes = frames(end).filterIsInstance<LinkFrame.Close>()
@@ -652,14 +798,22 @@ class UnsecuredLinkTest {
     }
 
     private companion object {
-        const val MESH = "Festival"
         const val MILLIS_PER_SECOND = 1_000L
         const val HANDSHAKE_TIMEOUT_MILLIS = 10_000L
         const val RACE_SEEDS = 20L
         const val SLOW_WRITE_MILLIS = 60_000L
+        const val LIFETIME_SECONDS = 1_800
+        const val MESSAGE_TYPE: Byte = 0x40
+        const val RECORD_LENGTH_BYTES = 2
 
-        // Discovery, connect, capability read and both hellos: a handful of air latencies.
-        const val SETTLE_MILLIS = 1_000L
-        val FAKE_ID = ByteArray(32) { 0x7F }
+        // Above any real NodeId, so this node keeps the link it dials to the fake.
+        val HIGH_ID = ByteArray(32) { 0xFF.toByte() }
+
+        // The first goes out on the closing link, the second on the kept one, and the third is
+        // refused by the closing link and moves to the kept one.
+        val PAYLOADS = listOf("first", "second", "third").map { it.encodeToByteArray() }
+
+        /** Whether [record] is a link record holding a `MESSAGE` frame. */
+        fun isMessage(record: ByteArray): Boolean = record[RECORD_LENGTH_BYTES] == MESSAGE_TYPE
     }
 }

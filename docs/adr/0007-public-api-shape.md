@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 9 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 10 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages).
 
 ## Context
 
@@ -182,3 +182,11 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **No `Unreachable` (amends decision 10):** a peer leaves `peers` when its last link closes, whether it sent `CLOSE`, stopped or went out of range. `Reachability` holds only `Direct` until routing adds `Routed(hops)`. Why: `peers` lists the nodes this node can reach now; keeping unreachable entries would grow the list without bound in a busy place, and an app that wants history keeps its own.
 - **Peer shape (decision 10):** `NodeId` and `Peer` are regular classes with internal constructors, not data or value classes (decision 11 rules out value classes). `NodeId` compares by content, prints as lowercase hex and returns a copy of its 32 bytes from `toByteArray()`. `lastSeen` is a `kotlin.time.Instant` from the platform's wall clock, refreshed when the link opens and on every frame received.
 - **Not yet in place:** `proximity` arrives with ticket 32 (RSSI smoothing and buckets); `secured = true` with the secured profiles.
+
+2026-11-14, direct messages (0.1.0 backlog ticket "Send and receive a direct message between two nodes"):
+
+- **No send options yet (amends decision 7):** `send(to, payload)` takes no `options` until the direct-only option changes what a send does (ticket 47) (owner decision). Until routing lands (ticket 37), every message travels only over a direct link to its destination, with `hop_limit` 1. Why: an option with no effect misleads callers, and the build allows no suppression of the unused parameter. Adding a defaulted parameter later keeps Kotlin call sites compiling; the ABI dump records the binary change.
+- **Inbox count (decision 9):** the inbox holds at most 1,024 messages beside its 1 MiB and ¼-per-sender bounds. A message that would cross any bound is dropped before the app sees it; a collected message frees its room.
+- **One collector at a time (decisions 9 and 11):** `messages` is the one Flow that throws, and only `MeshLinkException.AlreadyCollected` to a second collector while another is active. Once the first collector stops, a later one may collect and gets the messages still waiting. The flow completes when the node closes.
+- **Send-queue cap (amendment of 2026-11-03):** `send` returns `Rejected(QueueFull)` only while the unwritten payloads already reach 1 MiB, so the queue may exceed the cap by at most one message. A message frees its bytes once written or finished.
+- **Who may be addressed (amendment of 2026-11-08):** in `unsecured`, a NodeId is known once a link to it completed its hello. A node remembers the 1,024 most recently seen NodeIds across `stop()` and `start()`; any other NodeId, including the node's own, gets `Rejected(UnknownPeer)`. `send` is accepted while the node is `Running` or `Blocked`, returns `Rejected(NotRunning)` otherwise, and throws `Closed` after `close()`.

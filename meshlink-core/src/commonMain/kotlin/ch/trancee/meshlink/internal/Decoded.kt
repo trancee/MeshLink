@@ -13,6 +13,13 @@ public sealed interface Decoded<out T> {
     ) : Decoded<Nothing>
 }
 
+/** [block] applied to a [Decoded.Valid] value; an [Decoded.Invalid] passes through. */
+internal fun <T, R> Decoded<T>.then(block: (T) -> Decoded<R>): Decoded<R> =
+    when (this) {
+        is Decoded.Valid -> block(value)
+        is Decoded.Invalid -> this
+    }
+
 /** Why a decoder rejected its input; [code] is the error name the spec vectors use. */
 public enum class DecodeError(
     public val code: String,
@@ -52,6 +59,12 @@ public enum class DecodeError(
 
     /** A known TLV has the wrong length. */
     TLV_LENGTH("tlv-length"),
+
+    /** A container kind the frame does not allow. */
+    UNKNOWN_KIND("unknown-kind"),
+
+    /** Plaintext padding is not zero, not shorter than 32 B or not aligned, or is present in `unsecured`. */
+    BAD_PADDING("bad-padding"),
 }
 
 /** The big-endian `u16` at [offset]. */
@@ -60,6 +73,26 @@ internal fun ByteArray.u16(offset: Int): Int =
 
 /** [value] as a big-endian `u16`. */
 internal fun u16(value: Int): ByteArray = byteArrayOf((value shr BYTE_BITS).toByte(), value.toByte())
+
+/** The big-endian `u32` at [offset]. */
+internal fun ByteArray.u32(offset: Int): UInt =
+    (0 until UInt.SIZE_BYTES).fold(0u) { value, index -> value shl BYTE_BITS or u8(offset + index).toUInt() }
+
+/** [value] as a big-endian `u32`. */
+internal fun u32(value: UInt): ByteArray {
+    val size = UInt.SIZE_BYTES
+    return ByteArray(size) { (value shr (BYTE_BITS * (size - 1 - it))).toByte() }
+}
+
+/** The big-endian `u64` at [offset]. */
+internal fun ByteArray.u64(offset: Int): ULong =
+    (0 until ULong.SIZE_BYTES).fold(0uL) { value, index -> value shl BYTE_BITS or u8(offset + index).toULong() }
+
+/** [value] as a big-endian `u64`. */
+internal fun u64(value: ULong): ByteArray {
+    val size = ULong.SIZE_BYTES
+    return ByteArray(size) { (value shr (BYTE_BITS * (size - 1 - it))).toByte() }
+}
 
 /** The unsigned byte at [offset]. */
 internal fun ByteArray.u8(offset: Int): Int = this[offset].toInt() and BYTE_MASK

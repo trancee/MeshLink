@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -55,6 +56,12 @@ class LinkPolicyTest {
     fun aHelloClaimingTheNodesOwnIdIsAProtocolError() {
         val own = LinkFrame.PlainHello(1, mesh, self)
         assertEquals(CloseReason.PROTOCOL_ERROR, policy.checkHello(own, selected = null))
+    }
+
+    @Test
+    fun nodeKeepsItsOwnCentralLinkOnlyToAPeerWithAHigherNodeId() {
+        assertTrue(policy.keepsOwnCentral(ByteArray(DIGEST) { 3 }))
+        assertFalse(policy.keepsOwnCentral(ByteArray(DIGEST) { 1 }))
     }
 
     @Test
