@@ -1,6 +1,6 @@
 # Send and receive a direct message between two nodes
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 11
 
