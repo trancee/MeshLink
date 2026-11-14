@@ -1,0 +1,78 @@
+# Build gates (ADR 0005 "CI", ADR 0017 decisions 12 and 13, ADR 0021 decision 6). Actions and runner
+# images are registered in docs/reference/dependencies.md ("CI tools"). No step retries a test.
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 4 * * 2" # weekly Xcode 27 preview job, Tuesday 04:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Gradle check and Dokka (Linux)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # MIT basic provider: caches ~/.gradle/caches (dependencies, Robolectric android-all jars) and
+      # ~/.gradle/wrapper, keyed by build files, the catalog and the wrapper; validates the wrapper.
+      # Only the default branch writes the cache.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+      # Auto-download is off; point Gradle at the image's JDK 21 (toolchain) and JDK 25 (daemon).
+      - name: Use the image's JDKs
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64" >> ~/.gradle/gradle.properties
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      - run: ./gradlew check
+      - run: ./gradlew dokkaGenerate
+
+  macos:
+    name: iOS simulator tests and SwiftPM consumer (macOS)
+    if: github.event_name != 'schedule'
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps: &apple
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Selected Xcode
+        run: |
+          test -d "$DEVELOPER_DIR" || { echo "::error::$DEVELOPER_DIR is not installed"; exit 1; }
+          xcodebuild -version
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+      - name: Use the image's JDKs
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_arm64,JAVA_HOME_25_arm64" >> ~/.gradle/gradle.properties
+          echo "JAVA_HOME=$JAVA_HOME_25_arm64" >> "$GITHUB_ENV"
+      - run: ./gradlew iosSimulatorArm64Test
+      - run: tools/swiftpm-consumer/test.sh
+
+  xcode-27:
+    name: Xcode 27 preview (scheduled, not required)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps: *apple

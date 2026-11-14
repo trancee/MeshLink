@@ -1,6 +1,6 @@
 # Run the build in CI and make its jobs required on `main`
 
-Status: ready-for-human
+Status: claimed
 Type: HITL
 Blocked by: 02, 03, 04
 
@@ -19,7 +19,7 @@ Every pull request runs the Gradle gates on Linux and the iOS simulator tests an
 
 - [ ] A workflow runs on `pull_request` and on pushes to `main`. An `ubuntu-24.04` job runs `./gradlew check` (Android host tests with Robolectric, Kover, detekt, Spotless, ABI, changelog and direction checks) and `./gradlew dokkaGenerate`.
 - [ ] A `macos-26` job selects `/Applications/Xcode_26.4.1.app` explicitly, prints the selected Xcode version, and runs `./gradlew iosSimulatorArm64Test` and `tools/swiftpm-consumer/test.sh`.
-- [ ] NDK 30.0.16248370 is installed explicitly with `sdkmanager` in every job that builds Android native code, and the job fails if it is missing.
+- [x] NDK 30.0.16248370 is installed explicitly with `sdkmanager` in every job that builds Android native code, and the job fails if it is missing. Not applicable yet: no job builds native code. Owner decision 2026-11-14: the criterion moved to ticket 06, which adds the first native build.
 - [ ] A scheduled, non-required job runs the macOS steps on the `xcode-27` preview image with Xcode 27.2 selected explicitly. The ticket verifies the runner label from GitHub's runner-images documentation.
 - [ ] Every action is the latest stable official release, pinned to its full commit SHA with a matching version comment, and each new action has a row in the dependency register's CI tools section.
 - [ ] No step retries a test. Gradle and the Robolectric android-all jars are cached between runs, keyed by the catalog and wrapper.

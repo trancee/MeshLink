@@ -3,9 +3,11 @@
 # iOS Simulator with `xcodebuild test`. `swift test` can't be used: it runs on macOS, and the
 # XCFramework has only iOS slices.
 #
-# Destination: MESHLINK_SIMULATOR_DESTINATION if set, else the first available iPhone on the newest
-# installed iOS Simulator runtime, as `platform=iOS Simulator,id=<udid>`. Verified 2026-11-14 with
-# Xcode 27.2 (DEVELOPER_DIR) and the iOS 18.6 runtime (iPhone 16 Pro).
+# Destination: MESHLINK_SIMULATOR_DESTINATION if set, else the iPhone simulator with the newest iOS
+# version among the scheme's available destinations, as `platform=iOS Simulator,id=<udid>`. Asking
+# `xcodebuild -showdestinations` lets the selected Xcode reject runtimes it can't run, which matters
+# on CI images that install runtimes for several Xcode versions. Verified 2026-11-14 with Xcode 16.4
+# and 27.2 and the iOS 18.6 runtime (iPhone 16 Pro).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -23,20 +25,17 @@ fi
 
 destination="${MESHLINK_SIMULATOR_DESTINATION:-}"
 if [[ -z "$destination" ]]; then
-    udid="$(xcrun simctl list devices available --json | python3 -c '
-import json, sys
-devices = json.load(sys.stdin)["devices"]
-runtimes = sorted(
-    (r for r in devices if ".SimRuntime.iOS-" in r),
-    key=lambda r: [int(p) for p in r.rsplit("iOS-", 1)[1].split("-")],
-    reverse=True,
-)
-for runtime in runtimes:
-    for device in devices[runtime]:
-        if device["name"].startswith("iPhone"):
-            print(device["udid"])
-            sys.exit(0)
-sys.exit("no available iPhone simulator; create one with xcrun simctl create")
+    udid="$(cd "$here" && xcodebuild -showdestinations -scheme MeshLinkKitConsumer-Package | python3 -c '
+import sys
+available = sys.stdin.read().split("Available destinations", 1)[-1].split("Ineligible destinations", 1)[0]
+simulators = []
+for line in available.splitlines():
+    fields = dict(f.split(":", 1) for f in line.strip().strip("{} ").split(", ") if ":" in f)
+    if fields.get("platform") == "iOS Simulator" and "OS" in fields and fields.get("name", "").startswith("iPhone"):
+        simulators.append(([int(p) for p in fields["OS"].split(".")], fields["id"]))
+if not simulators:
+    sys.exit("no available iPhone simulator for the selected Xcode; create one with xcrun simctl create")
+print(max(simulators)[1])
 ')"
     destination="platform=iOS Simulator,id=$udid"
 fi

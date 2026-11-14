@@ -1,0 +1,6 @@
+# actionlint 1.7.12 doesn't know GitHub-hosted preview labels yet. `xcode-27` is GitHub's Xcode 27
+# preview image (actions/runner-images README, issue 14404; verified 2026-11-14), not a self-hosted
+# runner. Remove it here once actionlint lists it.
+self-hosted-runner:
+  labels:
+    - xcode-27

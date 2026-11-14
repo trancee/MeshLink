@@ -73,7 +73,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   | `tools/swiftpm-consumer/` | SwiftPM package that consumes the built XCFramework through a local `binaryTarget`, and its `test.sh` |
   | `LICENSE` | The Unlicense |
   | `.scratch/` | Local issue tracker ([conventions](docs/agents/issue-tracker.md)) |
-  | `.github/workflows/` | Docs, privacy and CodeQL checks |
+  | `.github/workflows/` | Build, docs, privacy and CodeQL checks |
   | `GLOSSARY.md` | Domain terms |
 
 ## Commands
@@ -98,22 +98,34 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Links, including external | `lychee .` (set `GITHUB_TOKEN` to avoid GitHub rate limits) |
 | Workflow lint | `actionlint` |
 
+### CI
+
+[`build.yml`](.github/workflows/build.yml) runs on every pull request and every push to `main`. No step retries a test. Gradle's caches and wrapper are cached by `gradle/actions/setup-gradle` with the MIT `basic` provider: the key hashes the build files, the version catalog and the wrapper properties, and only `main` writes the cache. Both jobs use the image's JDK 21 and 25 through `org.gradle.java.installations.fromEnv`.
+
+| Job | Runner | Steps | Required on `main` |
+|---|---|---|---|
+| Gradle check and Dokka (Linux) | `ubuntu-24.04` | `./gradlew check`, `./gradlew dokkaGenerate` | Yes |
+| iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh` | Yes |
+| Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | As the macOS job | No; weekly and on manual dispatch |
+
+`docs.yml` ("Markdown lint, spelling and ADR headers", "Protocol spec", "Links") and `privacy.yml` ("No private identifiers in any branch history") run alongside. All but "Links" are required ([ADR 0021](docs/adr/0021-change-workflow-and-merge-gates.md) decision 6). `.github/actionlint.yaml` declares the `xcode-27` preview label, which actionlint 1.7.12 doesn't know yet.
+
 ## Proof matrix
 
-The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOTLIN.md` requires. The modules hold no sources yet, so each row proves the build wiring, not product behavior.
+The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOTLIN.md` requires, plus the CI job that is the authoritative proof for each row. The modules hold no sources yet, so each row proves the build wiring, not product behavior.
 
-| Module | Target | Host | Prerequisites | Task | Proof | Limitations |
-|---|---|---|---|---|---|---|
-| all four | Android (host tests) | Linux, macOS | JDK 21 and 25, Android SDK platform 37 | `testAndroidHostTest` (via `check`) | Compilation and JVM host-test runtime | No device |
-| `:meshlink` | Android (host tests, Robolectric) | Linux, macOS | As above; android-all jars resolved by Gradle | `testAndroidHostTest` (via `check`) | Android framework on SDK 26 and 37 with no network at test time | Robolectric shadows, not a real BLE stack (T9) |
-| all four | `iosSimulatorArm64` | macOS only | Xcode per ADR 0005 | `iosSimulatorArm64Test` | Compilation and simulator test runtime | Simulator, not hardware (T9) |
-| all four | `iosArm64` | macOS only | Xcode per ADR 0005 | `compileKotlinIosArm64` | Compilation only | No device run in the build |
-| all four | Android (host tests) | Linux, macOS | As above | `koverVerify` (via `check`) | 100% line and branch on `commonMain` and `androidMain` | No coverage for Kotlin/Native source sets |
-| `:meshlink`, `:meshlink-testing` | Android (JVM) and klib | Linux, macOS | As above | `checkKotlinAbi` (via `check`) | Public ABI matches the committed dumps | Experimental KGP feature (E2 hold) |
-| `:meshlink`, `:meshlink-testing` | all | Linux, macOS | As above | `dokkaGenerate` | API reference builds with no warning; undocumented public API fails | None |
-| `:meshlink` | Maven publication | Linux, macOS | As above | `:meshlink:publishToMavenLocal` | Artifacts and a POM with name, description, URL, license, developer and SCM, and project dependencies under `ch.trancee.meshlink` | Its project dependencies don't publish yet, so a consumer can't resolve it (ticket 65) |
-| `:meshlink` | `MeshLinkKit` XCFramework (`iosArm64`, `iosSimulatorArm64`) | macOS only | Xcode 27.2 locally; an iOS Simulator runtime (verified: iOS 18.6, iPhone 16 Pro, destination `platform=iOS Simulator,id=<udid>` picked by the script) | `tools/swiftpm-consumer/test.sh` | A SwiftPM `binaryTarget` links it and the bundle `ch.trancee.meshlink.kit` loads on the simulator | No public API yet to call from Swift (ticket 09) |
-| `build-logic` | JVM | Linux, macOS | JDK 21 and 25 | `test` (via root `check`) | Gradle TestKit runs of the dependency-direction and changelog checks | Fixture builds use a `jvm()` target only; changelog fixtures need `git` |
+| Module | Target | Host | CI job | Prerequisites | Task | Proof | Limitations |
+|---|---|---|---|---|---|---|---|
+| all four | Android (host tests) | Linux, macOS | Linux (`ubuntu-24.04`) | JDK 21 and 25, Android SDK platform 37 | `testAndroidHostTest` (via `check`) | Compilation and JVM host-test runtime | No device |
+| `:meshlink` | Android (host tests, Robolectric) | Linux, macOS | Linux (`ubuntu-24.04`) | As above; android-all jars resolved by Gradle | `testAndroidHostTest` (via `check`) | Android framework on SDK 26 and 37 with no network at test time | Robolectric shadows, not a real BLE stack (T9) |
+| all four | `iosSimulatorArm64` | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode per ADR 0005 | `iosSimulatorArm64Test` | Compilation and simulator test runtime | Simulator, not hardware (T9) |
+| all four | `iosArm64` | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode per ADR 0005 | `compileKotlinIosArm64` (in CI, through the XCFramework build in `tools/swiftpm-consumer/test.sh`) | Compilation only | No device run in the build |
+| all four | Android (host tests) | Linux, macOS | Linux (`ubuntu-24.04`) | As above | `koverVerify` (via `check`) | 100% line and branch on `commonMain` and `androidMain` | No coverage for Kotlin/Native source sets |
+| `:meshlink`, `:meshlink-testing` | Android (JVM) and klib | Linux, macOS | Linux (`ubuntu-24.04`) | As above | `checkKotlinAbi` (via `check`) | Public ABI matches the committed dumps | Experimental KGP feature (E2 hold) |
+| `:meshlink`, `:meshlink-testing` | all | Linux, macOS | Linux (`ubuntu-24.04`) | As above | `dokkaGenerate` | API reference builds with no warning; undocumented public API fails | None |
+| `:meshlink` | Maven publication | Linux, macOS | None (local only; CI publishing is ticket 65) | As above | `:meshlink:publishToMavenLocal` | Artifacts and a POM with name, description, URL, license, developer and SCM, and project dependencies under `ch.trancee.meshlink` | Its project dependencies don't publish yet, so a consumer can't resolve it (ticket 65) |
+| `:meshlink` | `MeshLinkKit` XCFramework (`iosArm64`, `iosSimulatorArm64`) | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode 27.2 locally, 26.4.1 in CI; an iPhone simulator the selected Xcode accepts, picked by the script from `xcodebuild -showdestinations` (verified locally: iOS 18.6, iPhone 16 Pro) | `tools/swiftpm-consumer/test.sh` | A SwiftPM `binaryTarget` links it and the bundle `ch.trancee.meshlink.kit` loads on the simulator | No public API yet to call from Swift (ticket 09) |
+| `build-logic` | JVM | Linux, macOS | Linux (`ubuntu-24.04`) | JDK 21 and 25 | `test` (via root `check`) | Gradle TestKit runs of the dependency-direction and changelog checks | Fixture builds use a `jvm()` target only; changelog fixtures need `git` |
 
 Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues/06-device-lab-readiness.md)):
 
@@ -123,7 +135,7 @@ Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues
 
 ## Limitations
 
-- The build has no CI workflow yet (backlog ticket 05).
+- CI doesn't run `iosArm64` on a device, the Maven publication, or the Xcode 27 job on pull requests; the Xcode 27 preview job runs weekly and isn't required.
 - Maven consumer resolution: `:meshlink-core`, `:meshlink-crypto-sodium` and `:meshlink-testing` have no source, so KGP writes no iOS klib and they can't publish. The `meshlink` POM names the first two, so a consumer can't resolve it yet ([ticket 65](.scratch/meshlink-0.1.0-build/issues/65-maven-consumer-proof.md)).
 - Xcode 27.2 `dsymutil` prints "could not open … stdlib-per-file-cache" warnings while linking Kotlin/Native debug test binaries ([KT-90461](https://youtrack.jetbrains.com/issue/KT-90461)); the build succeeds.
 - Android and iOS radio behavior is proved on hardware only (Constitution T9). The routing simulator results (ADR 0008) are not device evidence.
