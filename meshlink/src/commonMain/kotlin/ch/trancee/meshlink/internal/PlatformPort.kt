@@ -19,7 +19,7 @@ public interface PlatformPort {
     /** What the radio is missing now; empty when it can run. */
     public val requirements: StateFlow<Set<Requirement>>
 
-    /** Where nodes on this platform do their work. */
+    /** Where nodes on this platform do their work; it runs one task at a time. */
     public val dispatcher: CoroutineDispatcher
 
     /** Where the installation identity is kept. */

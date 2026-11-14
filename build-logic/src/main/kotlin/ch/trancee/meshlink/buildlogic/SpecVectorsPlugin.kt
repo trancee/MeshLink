@@ -23,7 +23,8 @@ import java.io.File
  * A module names the vector files it runs in `specVectors { files.add("advertisement") }`.
  * `generateSpecVectors` turns each into Kotlin source, every value as a string (hex or decimal, as
  * in the file): `derivations.json` into `DerivationVector`s, and each layout file, such as
- * `advertisement.json`, into `LayoutVector`s.
+ * `advertisement.json`, into `LayoutVector`s. Nested `decoded` fields are flattened to dotted
+ * names: a list `versions` becomes `versions.count` plus `versions.0.version` and so on.
  */
 class SpecVectorsPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -84,7 +85,7 @@ abstract class GenerateSpecVectors : DefaultTask() {
             groups(source).flatMap { group ->
                 val derivation = group["derivation"] as String
                 tests(group).map { test ->
-                    val inputs = mapLiteral(test["inputs"] as Map<*, *>, scalarsOnly = false)
+                    val inputs = mapLiteral((test["inputs"] as Map<*, *>).entries.associate { (k, v) -> k to v })
                     "        DerivationVector(${literal(derivation)}, ${test["tcId"]}, $inputs, " +
                         "${literal(test["output"].toString())}),"
                 }
@@ -117,7 +118,7 @@ abstract class GenerateSpecVectors : DefaultTask() {
             groups(source).flatMap { group ->
                 val layout = group["layout"] as String
                 tests(group).map { test ->
-                    val decoded = (test["decoded"] as Map<*, *>?)?.let { mapLiteral(it, scalarsOnly = true) } ?: "null"
+                    val decoded = (test["decoded"] as Map<*, *>?)?.let { mapLiteral(flatten("", it)) } ?: "null"
                     val error = (test["error"] as String?)?.let(::literal) ?: "null"
                     "        LayoutVector(${literal(layout)}, ${test["tcId"]}, ${literal(test["result"] as String)}, " +
                         "${literal(test["encoded"] as String)}, $decoded, $error),"
@@ -170,17 +171,30 @@ abstract class GenerateSpecVectors : DefaultTask() {
 
     private fun tests(group: Map<*, *>): List<Map<*, *>> = (group["tests"] as List<*>).map { it as Map<*, *> }
 
-    // Derivation inputs may be lists, written in Groovy's `[a, b]` form; layout fields must be scalars
-    // until a runner needs more.
-    private fun mapLiteral(
-        map: Map<*, *>,
-        scalarsOnly: Boolean,
-    ): String =
+    // Derivation inputs may be lists, written in Groovy's `[a, b]` form.
+    private fun mapLiteral(map: Map<*, *>): String =
         map.entries.joinToString(", ", "mapOf(", ")") { (name, value) ->
-            require(!scalarsOnly || (value !is Map<*, *> && value !is List<*>)) {
-                "vector field $name must be a scalar: $value"
-            }
             "${literal(name.toString())} to ${literal(value.toString())}"
+        }
+
+    private fun flatten(
+        prefix: String,
+        value: Any?,
+    ): Map<String, Any?> =
+        when (value) {
+            is Map<*, *> -> {
+                value.entries.fold(emptyMap()) { all, (k, v) -> all + flatten("$prefix$k.", v) }
+            }
+
+            is List<*> -> {
+                value.withIndex().fold(mapOf<String, Any?>("${prefix}count" to value.size)) { all, (i, v) ->
+                    all + flatten("$prefix$i.", v)
+                }
+            }
+
+            else -> {
+                mapOf(prefix.removeSuffix(".") to value)
+            }
         }
 
     private fun literal(value: String): String {

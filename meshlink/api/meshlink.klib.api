@@ -80,6 +80,14 @@ sealed interface ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshStat
     }
 }
 
+sealed interface ch.trancee.meshlink/Reachability { // ch.trancee.meshlink/Reachability|null[0]
+    final object Direct : ch.trancee.meshlink/Reachability { // ch.trancee.meshlink/Reachability.Direct|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Reachability.Direct.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Reachability.Direct.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Reachability.Direct.toString|toString(){}[0]
+    }
+}
+
 sealed interface ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement|null[0]
     final class PermissionDenied : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.PermissionDenied|null[0]
         constructor <init>(ch.trancee.meshlink/PermissionKind) // ch.trancee.meshlink/Requirement.PermissionDenied.<init>|<init>(ch.trancee.meshlink.PermissionKind){}[0]
@@ -130,6 +138,8 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
     final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
         final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
+    final val peers // ch.trancee.meshlink/MeshLink.peers|{}peers[0]
+        final fun <get-peers>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/List<ch.trancee.meshlink/Peer>> // ch.trancee.meshlink/MeshLink.peers.<get-peers>|<get-peers>(){}[0]
     final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
 
@@ -169,6 +179,24 @@ final class ch.trancee.meshlink/MeshPlatform { // ch.trancee.meshlink/MeshPlatfo
     final object Companion { // ch.trancee.meshlink/MeshPlatform.Companion|null[0]
         final fun of(ch.trancee.meshlink.internal/PlatformPort): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/MeshPlatform.Companion.of|of(ch.trancee.meshlink.internal.PlatformPort){}[0]
     }
+}
+
+final class ch.trancee.meshlink/NodeId { // ch.trancee.meshlink/NodeId|null[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/NodeId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ch.trancee.meshlink/NodeId.hashCode|hashCode(){}[0]
+    final fun toByteArray(): kotlin/ByteArray // ch.trancee.meshlink/NodeId.toByteArray|toByteArray(){}[0]
+    final fun toString(): kotlin/String // ch.trancee.meshlink/NodeId.toString|toString(){}[0]
+}
+
+final class ch.trancee.meshlink/Peer { // ch.trancee.meshlink/Peer|null[0]
+    final val lastSeen // ch.trancee.meshlink/Peer.lastSeen|{}lastSeen[0]
+        final fun <get-lastSeen>(): kotlin.time/Instant // ch.trancee.meshlink/Peer.lastSeen.<get-lastSeen>|<get-lastSeen>(){}[0]
+    final val nodeId // ch.trancee.meshlink/Peer.nodeId|{}nodeId[0]
+        final fun <get-nodeId>(): ch.trancee.meshlink/NodeId // ch.trancee.meshlink/Peer.nodeId.<get-nodeId>|<get-nodeId>(){}[0]
+    final val reachability // ch.trancee.meshlink/Peer.reachability|{}reachability[0]
+        final fun <get-reachability>(): ch.trancee.meshlink/Reachability // ch.trancee.meshlink/Peer.reachability.<get-reachability>|<get-reachability>(){}[0]
+    final val secured // ch.trancee.meshlink/Peer.secured|{}secured[0]
+        final fun <get-secured>(): kotlin/Boolean // ch.trancee.meshlink/Peer.secured.<get-secured>|<get-secured>(){}[0]
 }
 
 sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.trancee.meshlink/MeshLinkException|null[0]

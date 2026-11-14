@@ -25,6 +25,30 @@ class DependencyDirectionPluginTest {
     }
 
     @Test
+    fun testingModuleTestsMayUseTheCryptoProvider() {
+        // Arrange
+        val build = fixtureBuild(allowedEdges(), testEdges = listOf(":meshlink-testing" to ":meshlink-crypto-sodium"))
+
+        // Act
+        val result = build.build()
+
+        // Assert
+        assertEquals(TaskOutcome.SUCCESS, result.task(":meshlink-testing:checkDependencyDirection")?.outcome)
+    }
+
+    @Test
+    fun testingModuleMainCodeMayNotUseTheCryptoProvider() {
+        // Arrange
+        val build = fixtureBuild(allowedEdges() + (":meshlink-testing" to ":meshlink-crypto-sodium"))
+
+        // Act
+        val result = build.buildAndFail()
+
+        // Assert
+        assertContains(result.output, "Dependency direction violated: :meshlink-testing depends on :meshlink-crypto-sodium")
+    }
+
+    @Test
     fun allowedGraphPassesCheck() {
         // Arrange
         val build = fixtureBuild(allowedEdges())

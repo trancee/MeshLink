@@ -10,4 +10,8 @@ kotlin {
         api(project(":meshlink"))
         api(libs.kotlinx.coroutines.test)
     }
+    // Fake peers derive mesh digests, NodeIds and advertisements with the real provider.
+    sourceSets.commonTest.dependencies {
+        implementation(project(":meshlink-crypto-sodium"))
+    }
 }

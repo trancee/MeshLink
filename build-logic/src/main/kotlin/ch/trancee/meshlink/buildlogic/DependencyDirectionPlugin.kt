@@ -15,8 +15,8 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin
  * Fails `check` when a module declares a project dependency outside the ADR 0011 allow-list.
  *
  * Every configuration is read, so test, KMP source-set and Android configurations are covered,
- * except the plugin-owned aggregates in [SYNTHETIC_CONFIGURATIONS]. A module without an allow-list
- * entry fails closed.
+ * except the plugin-owned aggregates in [SYNTHETIC_CONFIGURATIONS]. Test configurations may also use
+ * the edges in [TEST_ALLOWED]. A module without an allow-list entry fails closed.
  */
 class DependencyDirectionPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -26,16 +26,8 @@ class DependencyDirectionPlugin : Plugin<Project> {
                 group = LifecycleBasePlugin.VERIFICATION_GROUP
                 description = "Checks project dependencies against the module allow-list."
                 modulePath.set(project.path)
-                dependencyPaths.set(
-                    project.provider {
-                        project.configurations
-                            .filterNot { it.name in SYNTHETIC_CONFIGURATIONS }
-                            .flatMap { it.dependencies.withType(ProjectDependency::class.java) }
-                            .map { it.path }
-                            .filter { it != project.path }
-                            .toSet()
-                    },
-                )
+                dependencyPaths.set(project.provider { project.projectDependencies(test = false) })
+                testDependencyPaths.set(project.provider { project.projectDependencies(test = true) })
             }
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(check) }
     }
@@ -55,6 +47,25 @@ class DependencyDirectionPlugin : Plugin<Project> {
                 ":meshlink" to setOf(":meshlink-core", ":meshlink-crypto-sodium"),
                 ":meshlink-testing" to setOf(":meshlink"),
             )
+
+        /**
+         * Extra edges for test configurations only; they never publish. `:meshlink-testing` tests build
+         * fake peers whose mesh digests, NodeIds and advertisements need the real crypto provider.
+         */
+        val TEST_ALLOWED: Map<String, Set<String>> =
+            mapOf(":meshlink-testing" to setOf(":meshlink-crypto-sodium"))
+
+        /** `testImplementation`, `commonTestImplementation`, `androidHostTestApi` and the like. */
+        private fun isTestConfiguration(name: String): Boolean = name.startsWith("test") || "Test" in name
+
+        private fun Project.projectDependencies(test: Boolean): Set<String> =
+            configurations
+                .filterNot { it.name in SYNTHETIC_CONFIGURATIONS }
+                .filter { isTestConfiguration(it.name) == test }
+                .flatMap { it.dependencies.withType(ProjectDependency::class.java) }
+                .map { it.path }
+                .filter { it != path }
+                .toSet()
     }
 }
 
@@ -63,13 +74,19 @@ abstract class CheckDependencyDirection : DefaultTask() {
 
     @get:Input abstract val dependencyPaths: SetProperty<String>
 
+    @get:Input abstract val testDependencyPaths: SetProperty<String>
+
     @TaskAction
     fun check() {
         val module = modulePath.get()
         val allowed =
             DependencyDirectionPlugin.ALLOWED[module]
                 ?: throw GradleException("Dependency direction unknown: $module has no allow-list entry")
-        val violations = dependencyPaths.get().filterNot { it in allowed }.sorted()
+        val testAllowed = allowed + DependencyDirectionPlugin.TEST_ALLOWED[module].orEmpty()
+        val violations =
+            (dependencyPaths.get().filterNot { it in allowed } + testDependencyPaths.get().filterNot { it in testAllowed })
+                .distinct()
+                .sorted()
         if (violations.isNotEmpty()) {
             throw GradleException(
                 violations.joinToString("\n") { "Dependency direction violated: $module depends on $it" },

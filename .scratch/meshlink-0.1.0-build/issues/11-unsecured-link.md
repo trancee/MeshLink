@@ -1,6 +1,6 @@
 # Open an `Unsecured` link with `PLAIN_HELLO`
 
-Status: ready-for-agent
+Status: claimed
 Type: AFK
 Blocked by: 10
 
@@ -19,24 +19,25 @@ For each link candidate, the node acting as GATT central reads the peer's capabi
 
 ## Acceptance criteria
 
-- [ ] The peripheral serves a capability record listing version 1 and the `ADVERTISEMENT` TLV with its current payload; it omits `L2CAP_PSM` (CoC is ticket 31). The codec enforces 1–8 strictly descending versions, the 512 B cap and the TLV rules; all `capability.json` cases pass.
-- [ ] A link-record codec reads and writes `u16` length plus body over the ordered byte stream, independent of write boundaries. A length of 0 or above 1,024 is fatal: the node closes the bearer. All `records.json` cases pass.
-- [ ] `PLAIN_HELLO` (67 B) and `CLOSE` (2 B) codecs pass the listed `link-frames.json` cases. An unknown close reason is treated as `NORMAL`. An unknown link-local frame type is dropped; types 0x00 and 0xC0–0xFF are rejected, as the frame-type registry says.
-- [ ] Each decoder (capability record, link record, `PLAIN_HELLO`, `CLOSE`) has a deterministic mutation test (prefix lengths, over-long inputs, seeded mutations) and never throws.
-- [ ] Version selection: no common version → the central closes the bearer; a hello carrying a version the peripheral does not speak → `CLOSE` `UNSUPPORTED_VERSION`.
-- [ ] A hello with another `mesh_id_digest` → `CLOSE` `WRONG_MESH`, and the sender never appears in `peers`.
-- [ ] Simultaneous links in both directions: both nodes keep the link whose central has the lower NodeId and send `DUPLICATE_LINK` on the other; frames queued on the closed link move to the kept one. Tested with a seeded race on `VirtualAir`.
-- [ ] `peers` emits a `Peer` with the claimed NodeId, `Direct` reachability, `secured = false` and a last-seen time from the injected clock. `proximity` is left out here; [ticket 32](32-phy-advertising-scanning.md) owns it (EWMA smoothing and buckets).
-- [ ] `stop()` sends `CLOSE` `SHUTTING_DOWN` on every link; the peer drops it from `peers` (`Unreachable` or removed, as the ticket decides and documents in KDoc).
-- [ ] Multi-node tests in `:meshlink-testing` `commonTest` cover each case above; `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass; Kover 100%.
+- [x] The peripheral serves a capability record listing version 1 and the `ADVERTISEMENT` TLV with its current payload; it omits `L2CAP_PSM` (CoC is ticket 31). The codec enforces 1–8 strictly descending versions, the 512 B cap and the TLV rules; all `capability.json` cases pass.
+- [x] A link-record codec reads and writes `u16` length plus body over the ordered byte stream, independent of write boundaries. A length of 0 or above 1,024 is fatal: the node closes the bearer. All `records.json` cases pass.
+- [x] `PLAIN_HELLO` (67 B) and `CLOSE` (2 B) codecs pass the listed `link-frames.json` cases. An unknown close reason is treated as `NORMAL`. An unknown link-local frame type is dropped; types 0x00 and 0xC0–0xFF are rejected, as the frame-type registry says.
+- [x] Each decoder (capability record, link record, `PLAIN_HELLO`, `CLOSE`) has a deterministic mutation test (prefix lengths, over-long inputs, seeded mutations) and never throws.
+- [x] Version selection: no common version → the central closes the bearer; a hello carrying a version the peripheral does not speak → `CLOSE` `UNSUPPORTED_VERSION`.
+- [x] A hello with another `mesh_id_digest` → `CLOSE` `WRONG_MESH`, and the sender never appears in `peers`.
+- [x] Simultaneous links in both directions: both nodes keep the link whose central has the lower NodeId and send `DUPLICATE_LINK` on the other; frames queued on the closed link moving to the kept one moved to [ticket 12](12-direct-message-tracer.md), which adds the first outgoing queue. Tested with a seeded race on `VirtualAir`.
+- [x] `peers` emits a `Peer` with the claimed NodeId, `Direct` reachability, `secured = false` and a last-seen time from the injected clock. `proximity` is left out here; [ticket 32](32-phy-advertising-scanning.md) owns it (EWMA smoothing and buckets).
+- [x] `stop()` sends `CLOSE` `SHUTTING_DOWN` on every link; the peer drops it from `peers` (removed, documented in the `peers` KDoc and the ADR 0007 amendment).
+- [x] Multi-node tests in `:meshlink-testing` `commonTest` cover each case above; `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass; Kover 100%.
 
 ## Proof commands
 
 ```sh
-./gradlew :meshlink:testAndroidHostTest --tests '*Link*'
-./gradlew :meshlink-testing:testAndroidHostTest --tests '*UnsecuredLink*'
-./gradlew check
-./gradlew iosSimulatorArm64Test
+./gradlew :meshlink-core:testAndroidHostTest --tests '*Capability*' --tests '*LinkRecord*' --tests '*LinkFrame*' --tests '*LinkPolicy*'
+./gradlew :meshlink:testAndroidHostTest --tests '*NodeId*'
+./gradlew :meshlink-testing:testAndroidHostTest --tests '*UnsecuredLink*' --tests '*Discovery*'
+./gradlew check iosSimulatorArm64Test dokkaGenerate --rerun-tasks
+tools/swiftpm-consumer/test.sh
 ```
 
 ## Docs to update
@@ -47,3 +48,13 @@ For each link candidate, the node acting as GATT central reads the peer's capabi
 ## Devices needed
 
 None.
+
+## Notes
+
+- Owner decisions (2026-11-14): a peer leaves `peers` when its last link closes, and `Reachability` holds only `Direct`; `lastSeen` is refreshed when the link opens and on every received frame; the 10 s handshake timeout also bounds the hello exchange (spec D-44); `NodeId` is a regular class with hex `toString()` and `toByteArray()`. Recorded in the ADR 0007 amendment of 2026-11-14 ("peers").
+- The peripheral echoes the selected version and the central closes with `PROTOCOL_ERROR` on a mismatch (spec D-44).
+- A link that closes on cancellation still disconnects its bearer: the `CLOSE` write and the disconnect sit in `try`/`finally`.
+- Kotlin copies a `finally` block into both the normal and the exceptional exit, so a branch inside it needs both exits covered. Bookkeeping in a `finally` calls one function instead.
+- Owner decision: `:meshlink-testing` test configurations may depend on `:meshlink-crypto-sodium`, so fake peers derive real digests, NodeIds and advertisements; main configurations keep the allow-list (ADR 0011 amendment "test-only edge").
+- `CloseReason.code` is the entry's ordinal: the registry's codes run from 0x00 without gaps, and detekt's `MagicNumber` counts enum arguments.
+- One forced full run failed once in `:meshlink-crypto-sodium:compileIosMainKotlinMetadata` with unresolved `cinterop` references; the task passed alone and in the next two forced full runs.

@@ -5,6 +5,7 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
 	public fun close ()V
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
+	public final fun getPeers ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun linkCandidates ()Ljava/util/Set;
 	public final fun radioFailure ()Lch/trancee/meshlink/internal/RadioFailure;
@@ -98,6 +99,20 @@ public final class ch/trancee/meshlink/MeshState$Stopping : ch/trancee/meshlink/
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/NodeId {
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public final fun toByteArray ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Peer {
+	public final fun getLastSeen ()Lkotlin/time/Instant;
+	public final fun getNodeId ()Lch/trancee/meshlink/NodeId;
+	public final fun getReachability ()Lch/trancee/meshlink/Reachability;
+	public final fun getSecured ()Z
+}
+
 public final class ch/trancee/meshlink/PermissionKind : java/lang/Enum {
 	public static final field Bluetooth Lch/trancee/meshlink/PermissionKind;
 	public static final field BluetoothAdvertise Lch/trancee/meshlink/PermissionKind;
@@ -143,6 +158,16 @@ public final class ch/trancee/meshlink/Preset$OfflineChat : ch/trancee/meshlink/
 
 public final class ch/trancee/meshlink/Preset$ProximityDiscovery : ch/trancee/meshlink/Preset {
 	public static final field INSTANCE Lch/trancee/meshlink/Preset$ProximityDiscovery;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class ch/trancee/meshlink/Reachability {
+}
+
+public final class ch/trancee/meshlink/Reachability$Direct : ch/trancee/meshlink/Reachability {
+	public static final field INSTANCE Lch/trancee/meshlink/Reachability$Direct;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

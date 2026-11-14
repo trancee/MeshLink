@@ -27,6 +27,7 @@ An app calls `send(to, payload, options)` with the direct-only option for a link
 - [ ] M1 exit test in `:meshlink-testing` `commonTest`: two `Unsecured` nodes on `VirtualAir` with real libsodium hashing start, discover each other, link, and node A's direct message reaches node B's `messages` with A's NodeId and the exact payload, while A sees `Queued` then `Sent`. It passes on the Android host and `iosSimulatorArm64` in virtual time.
 - [ ] Routed sends (`hop_limit` above 1) are out of scope (ticket 37); `markRead` and `readReceiptRequested` are ticket 48.
 - [ ] `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `tools/swiftpm-consumer/test.sh` pass; Kover 100%.
+- [ ] Frames still queued on a link closed with `DUPLICATE_LINK` move to the kept link, so none is lost (moved here from ticket 11, which had no outgoing queue).
 
 ## Proof commands
 
