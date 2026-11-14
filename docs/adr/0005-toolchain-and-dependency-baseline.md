@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 5 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 6 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof).
 
 ## Context
 
@@ -60,7 +60,7 @@ Facts verified 2026-11-01:
 | detekt | 2.0.0-alpha.6 | E2 hold |
 | Dokka | 2.3.0 | |
 | vanniktech maven-publish | 0.37.0 | |
-| Robolectric / JUnit 4 / androidx.test core | 4.18 / 4.13.2 / 1.7.0 | Test only; 4.18 proven by the scaffold ticket, else 4.17 |
+| Robolectric / JUnit 4 / androidx.test core | 4.18 / 4.13.2 / 1.7.0 | Test only; 4.18 proven on SDK 26 and 37 (2026-11-14 amendment) |
 | libsodium | 1.0.22 | ADR 0004 |
 | Rust (test-only reference) | 1.100.0 | |
 
@@ -88,7 +88,7 @@ Version rules:
   | Kover 0.9.11 | Beta | A stable release | The root report merges every module's Android host-test run; `koverVerify` is in `check` by default |
 
 - **SKIE:** analytics upload disabled (`skie { analytics { disableUpload.set(true) } }`). The Swift API shape belongs to the public-API ticket.
-- **Robolectric:** `Test` tasks carry the two JVM flags above. Test classes carry a JUnit `Timeout` rule, and every test task has a 10-minute timeout ([ADR 0017](0017-testing-architecture.md) decision 13).
+- **Robolectric:** `Test` tasks carry no extra JVM flags (2026-11-14 amendment). Test classes carry a JUnit `Timeout` rule, and every test task has a 10-minute timeout ([ADR 0017](0017-testing-architecture.md) decision 13).
 - **Native bundle ID:** set explicitly through `binaryOption("bundleId", …)`.
 
 **libsodium build:**
@@ -201,3 +201,10 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **detekt test code:** detekt 2.0.0-alpha.6 exempts test code from 15 rules (for example `MagicNumber`) by directory name, but its list predates AGP 9's `androidHostTest` and the KMP hierarchy (`appleTest`, `nativeTest`). `config/detekt/detekt.yml` widens those excludes to `**/*Test/**`; production source sets keep every rule, and nothing is baselined or suppressed.
 - **ABI dumps:** KGP writes `<module>/api/android/<module>.api` and `<module>/api/<module>.klib.api`. `checkChangelog` treats any `api/**/*.api` change as an ABI change.
 - **Test timeouts:** see the Robolectric line above and the ADR 0017 amendment of the same date.
+
+2026-11-14, Robolectric proof (0.1.0 backlog ticket "Prove Robolectric 4.18 on SDK 26 and 37"):
+
+- **Robolectric 4.18 stays.** `RobolectricHarnessTest` passes on SDK 26 and 37 ten runs in a row, with outbound network blocked by `sandbox-exec` and the `~/.m2` android-all cache moved aside.
+- **android-all pins:** `8.0.0_r4-robolectric-r1-i7` (SDK 26) and `17-robolectric-16653203-i7` (SDK 37), the versions Robolectric 4.18's `DefaultSdkProvider` asks for. The `meshlink.robolectric` plugin resolves each in its own Gradle configuration and passes the jar paths through the `robolectric-deps.properties` system property, which Robolectric reads before any Maven fetch. Without it, the sandboxed run fails with `Failed to fetch maven artifact org.robolectric:android-all-instrumented:8.0.0_r4-robolectric-r1-i7`.
+- **JVM flags dropped:** with both `--add-exports=java.base/jdk.internal.access=ALL-UNNAMED` and `--add-opens=java.base/java.io=ALL-UNNAMED` removed, both SDKs pass and print no warning. The host-test JVM is the JDK 21 toolchain, whether Gradle itself runs on JDK 21 or 25. A flag returns only with a failing run that needs it.
+- **Timeouts:** a JUnit `Timeout` rule fires under Robolectric on both SDKs (a seeded 1 s limit against a 3 s sleep failed with `TestTimedOutException`).

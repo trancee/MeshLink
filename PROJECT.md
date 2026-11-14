@@ -96,7 +96,8 @@ The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOT
 
 | Module | Target | Host | Prerequisites | Task | Proof | Limitations |
 |---|---|---|---|---|---|---|
-| all four | Android (host tests) | Linux, macOS | JDK 21 and 25, Android SDK platform 37 | `testAndroidHostTest` (via `check`) | Compilation and JVM host-test runtime | No device; Robolectric arrives with its ticket |
+| all four | Android (host tests) | Linux, macOS | JDK 21 and 25, Android SDK platform 37 | `testAndroidHostTest` (via `check`) | Compilation and JVM host-test runtime | No device |
+| `:meshlink` | Android (host tests, Robolectric) | Linux, macOS | As above; android-all jars resolved by Gradle | `testAndroidHostTest` (via `check`) | Android framework on SDK 26 and 37 with no network at test time | Robolectric shadows, not a real BLE stack (T9) |
 | all four | `iosSimulatorArm64` | macOS only | Xcode per ADR 0005 | `iosSimulatorArm64Test` | Compilation and simulator test runtime | Simulator, not hardware (T9) |
 | all four | `iosArm64` | macOS only | Xcode per ADR 0005 | `compileKotlinIosArm64` | Compilation only | No device run in the build |
 | all four | Android (host tests) | Linux, macOS | As above | `koverVerify` (via `check`) | 100% line and branch on `commonMain` and `androidMain` | No coverage for Kotlin/Native source sets |

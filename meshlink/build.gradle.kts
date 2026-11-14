@@ -1,5 +1,6 @@
 plugins {
     id("meshlink.published-library")
+    id("meshlink.robolectric")
 }
 
 kotlin {
