@@ -1,6 +1,6 @@
 # Open an `Unsecured` link with `PLAIN_HELLO`
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 10
 
