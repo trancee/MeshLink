@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 4 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 5 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates).
 
 ## Context
 
@@ -85,10 +85,10 @@ Version rules:
   |---|---|---|---|
   | detekt 2.0.0-alpha.6 | Prerelease | detekt 2.0 stable supports the Kotlin version | Per-source-set tasks wired into `check`, because the plain task finds no sources in KMP |
   | KGP built-in `abiValidation` | Experimental | It becomes stable | `@OptIn(ExperimentalAbiValidation::class)`; wired into `check` |
-  | Kover 0.9.11 | Beta | A stable release | |
+  | Kover 0.9.11 | Beta | A stable release | The root report merges every module's Android host-test run; `koverVerify` is in `check` by default |
 
 - **SKIE:** analytics upload disabled (`skie { analytics { disableUpload.set(true) } }`). The Swift API shape belongs to the public-API ticket.
-- **Robolectric:** `Test` tasks carry the two JVM flags above plus a per-test timeout.
+- **Robolectric:** `Test` tasks carry the two JVM flags above. Test classes carry a JUnit `Timeout` rule, and every test task has a 10-minute timeout ([ADR 0017](0017-testing-architecture.md) decision 13).
 - **Native bundle ID:** set explicitly through `binaryOption("bundleId", …)`.
 
 **libsodium build:**
@@ -195,3 +195,9 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Unchanged:** compileSdk 37 (not the 37.x minor SDKs until a 37.x API is needed), NDK 30.0.16248370, and the E2 holds on detekt 2.0.0-alpha.6, Kover 0.9.11 and KGP ABI validation.
 - **Dependency direction** ([ADR 0011](0011-modules-toggles-and-presets.md) decision 2): a check in `build-logic/` with no new dependency.
 - **Rejected:** Gradle 9.9 and AGP 9.5 (outside KGP's range); Xcode 16.4 in CI (no longer matches local builds and is unsupported on macOS 27); every job on the `xcode-27` preview image (not generally available, and Kotlin 2.4.21 doesn't list Xcode 27); modules-graph-assert (a new dependency with partial KMP support).
+
+2026-11-14, quality gates (0.1.0 backlog ticket "Gate the build with Kover, detekt, Spotless, ABI validation and Dokka"):
+
+- **detekt test code:** detekt 2.0.0-alpha.6 exempts test code from 15 rules (for example `MagicNumber`) by directory name, but its list predates AGP 9's `androidHostTest` and the KMP hierarchy (`appleTest`, `nativeTest`). `config/detekt/detekt.yml` widens those excludes to `**/*Test/**`; production source sets keep every rule, and nothing is baselined or suppressed.
+- **ABI dumps:** KGP writes `<module>/api/android/<module>.api` and `<module>/api/<module>.klib.api`. `checkChangelog` treats any `api/**/*.api` change as an ABI change.
+- **Test timeouts:** see the Robolectric line above and the ADR 0017 amendment of the same date.

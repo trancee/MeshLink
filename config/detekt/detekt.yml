@@ -1,0 +1,42 @@
+# Builds on detekt's default config (buildUponDefaultConfig). detekt 2.0.0-alpha.6 excludes test code
+# from these rules by directory name, but its list predates AGP 9 `androidHostTest` and the KMP
+# hierarchy (`appleTest`, `nativeTest`, `iosSimulatorArm64Test`, ...). `**/*Test/**` covers every
+# Kotlin source-set test directory; production source sets keep every rule.
+
+comments:
+  KDocReferencesNonPublicProperty:
+    excludes: ['**/test/**', '**/*Test/**']
+  UndocumentedPublicClass:
+    excludes: ['**/test/**', '**/*Test/**']
+  UndocumentedPublicFunction:
+    excludes: ['**/test/**', '**/*Test/**']
+  UndocumentedPublicProperty:
+    excludes: ['**/test/**', '**/*Test/**']
+complexity:
+  StringLiteralDuplication:
+    excludes: ['**/test/**', '**/*Test/**']
+  TooManyFunctions:
+    excludes: ['**/test/**', '**/*Test/**']
+exceptions:
+  InstanceOfCheckForException:
+    excludes: ['**/test/**', '**/*Test/**']
+  ThrowingExceptionsWithoutMessageOrCause:
+    excludes: ['**/test/**', '**/*Test/**']
+  TooGenericExceptionCaught:
+    excludes: ['**/test/**', '**/*Test/**']
+naming:
+  FunctionNaming:
+    excludes: ['**/test/**', '**/*Test/**']
+performance:
+  ForEachOnRange:
+    excludes: ['**/test/**', '**/*Test/**']
+  SpreadOperator:
+    excludes: ['**/test/**', '**/*Test/**']
+potential-bugs:
+  LateinitUsage:
+    excludes: ['**/test/**', '**/*Test/**']
+  UnsafeCallOnNullableType:
+    excludes: ['**/test/**', '**/*Test/**']
+style:
+  MagicNumber:
+    excludes: ['**/test/**', '**/*Test/**']

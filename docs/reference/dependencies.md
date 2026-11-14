@@ -30,11 +30,11 @@ Facts verified 2026-11-01.
 | Dependency | Version | Scope | Need | Maintenance | License | Security | Size | Transitives | Why stdlib or existing fails |
 |---|---|---|---|---|---|---|---|---|---|
 | Gradle | 9.7.1 | build | Build system that KMP requires; its bundled `kotlin-dsl` plugin and TestKit build and test `build-logic/` | Gradle Inc., stable | Apache-2.0 | Wrapper checksum validated | n/a | n/a | Required by KGP |
-| Kotlin Gradle plugin | 2.4.21 | build | KMP compilation, XCFramework, built-in ABI validation (E2 hold) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
+| Kotlin Gradle plugin | 2.4.21 | build | KMP compilation, XCFramework, built-in ABI validation (E2 hold: Experimental, until it becomes stable) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
 | AGP + `com.android.kotlin.multiplatform.library` | 9.3.3 | build | Android library target in KMP | Google, stable | Apache-2.0 | n/a | n/a | n/a | Required for the Android target |
 | Android NDK | 30.0.16248370 | build | Builds libsodium and the JNI shim | Google, stable | Apache-2.0 and others | n/a | n/a | n/a | Native crypto needs it (ADR 0004) |
 | SKIE | 0.10.16 | build (compiler plugin) | Swift-friendly suspend, Flow, sealed and enum interop | Touchlab, releases follow Kotlin; 0.10.16 adds 2.4.21 | Apache-2.0 | Analytics upload disabled | Adds Swift glue to the framework | None at runtime | Plain Objective-C export loses suspend, Flow and sealed types |
-| Kover | 0.9.11 | build | T3 coverage for common and Android | JetBrains; Beta (E2 hold) | Apache-2.0 | n/a | n/a | n/a | No built-in coverage tool |
+| Kover | 0.9.11 | build | T3 coverage for common and Android | JetBrains; Beta (E2 hold until a stable release) | Apache-2.0 | n/a | n/a | n/a | No built-in coverage tool |
 | Spotless + ktlint | 8.11.0 + 1.8.0 | build | Formatting check (`spotlessCheck`) | DiffPlug and Pinterest, active | Apache-2.0 / MIT | n/a | n/a | n/a | No built-in formatter gate |
 | detekt | 2.0.0-alpha.6 | build | Static analysis | Active; alpha (E2 hold until 2.0 stable) | Apache-2.0 | n/a | n/a | n/a | 1.23.8 is built against Kotlin 2.0.21; ktlint is formatting only |
 | Dokka | 2.3.0 | build | API reference docs | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for generated API docs |

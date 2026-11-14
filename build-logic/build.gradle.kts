@@ -3,12 +3,20 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(libs.versions.jdk.toolchain.get().toInt())
+    jvmToolchain(
+        libs.versions.jdk.toolchain
+            .get()
+            .toInt(),
+    )
 }
 
 dependencies {
     implementation(libs.kotlin.gradle.plugin)
     implementation(libs.android.gradle.plugin)
+    implementation(libs.kover.gradle.plugin)
+    implementation(libs.detekt.gradle.plugin)
+    implementation(libs.spotless.gradle.plugin)
+    implementation(libs.dokka.gradle.plugin)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit4)
 }
@@ -18,6 +26,18 @@ gradlePlugin {
         register("dependencyDirection") {
             id = "meshlink.dependency-direction"
             implementationClass = "ch.trancee.meshlink.buildlogic.DependencyDirectionPlugin"
+        }
+        register("changelog") {
+            id = "meshlink.changelog"
+            implementationClass = "ch.trancee.meshlink.buildlogic.ChangelogPlugin"
+        }
+        register("publishedLibrary") {
+            id = "meshlink.published-library"
+            implementationClass = "ch.trancee.meshlink.buildlogic.PublishedLibraryPlugin"
+        }
+        register("root") {
+            id = "meshlink.root"
+            implementationClass = "ch.trancee.meshlink.buildlogic.RootPlugin"
         }
         register("kmpLibrary") {
             id = "meshlink.kmp-library"

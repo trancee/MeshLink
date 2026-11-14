@@ -1,5 +1,5 @@
 plugins {
-    id("meshlink.kmp-library")
+    id("meshlink.published-library")
 }
 
 kotlin {

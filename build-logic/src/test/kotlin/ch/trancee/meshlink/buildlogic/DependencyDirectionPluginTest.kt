@@ -1,13 +1,13 @@
 package ch.trancee.meshlink.buildlogic
 
-import java.io.File
-import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertEquals
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
 
 class DependencyDirectionPluginTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
@@ -123,14 +123,17 @@ class DependencyDirectionPluginTest {
                 """.trimIndent(),
             )
         }
-        return GradleRunner.create()
+        return GradleRunner
+            .create()
             .withProjectDir(root)
             .withPluginClasspath()
             .withArguments("checkDependencyDirection", "--configuration-cache", "--offline", "--stacktrace")
     }
 
-    private fun moduleDirectory(root: File, module: String): File =
-        root.resolve(module.removePrefix(":")).also { it.mkdirs() }
+    private fun moduleDirectory(
+        root: File,
+        module: String,
+    ): File = root.resolve(module.removePrefix(":")).also { it.mkdirs() }
 
     private companion object {
         val MODULES = listOf(":meshlink-core", ":meshlink-crypto-sodium", ":meshlink", ":meshlink-testing")
