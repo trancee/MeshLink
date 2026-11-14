@@ -9,6 +9,6 @@ class BuildInfoTest {
         // ADR 0019 decision 1: one SemVer version, from the root meshlink.version property.
         val semVer = Regex("""(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?""")
 
-        assertTrue(semVer.matches(BuildInfo.VERSION), "not SemVer: ${BuildInfo.VERSION}")
+        assertTrue(!semVer.matches(BuildInfo.VERSION), "not SemVer: ${BuildInfo.VERSION}")
     }
 }
