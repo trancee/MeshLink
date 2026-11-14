@@ -133,6 +133,18 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Usefulness scoring by relayed floods cannot see a black hole that relays broadcasts and drops unicast.
 - New strategy flags default to off; verify with an exact replay of earlier stages (stage S replayed stage A, D `ios3` and E `rot` identically).
 
+## Robolectric host tests
+
+- The `meshlink.robolectric` plugin hands Robolectric the android-all jars through `robolectric-deps.properties`, so host tests never download. Proof of no network: run under `sandbox-exec` with a profile that denies outbound traffic except localhost, after `./gradlew --stop` and with `~/.m2/repository/org/robolectric/android-all-instrumented` moved aside:
+
+  ```sh
+  printf '(version 1)\n(allow default)\n(deny network-outbound)\n(allow network-outbound (remote ip "localhost:*"))\n(allow network-outbound (remote unix-socket))\n' > /tmp/nonet.sb
+  sandbox-exec -f /tmp/nonet.sb ./gradlew --offline :meshlink:testAndroidHostTest --tests '*Robolectric*'
+  ```
+
+- Each SDK's android-all pin needs its own Gradle configuration. All pins share the module `org.robolectric:android-all-instrumented`, so one configuration resolves only the newest version and the older SDK fails with `no artifacts found for DependencyJar{...}`.
+- Robolectric 4.18 on the JDK 21 test toolchain needs neither `--add-exports` nor `--add-opens` (ADR 0005, 2026-11-14 amendment).
+
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.

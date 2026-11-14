@@ -39,6 +39,10 @@ gradlePlugin {
             id = "meshlink.root"
             implementationClass = "ch.trancee.meshlink.buildlogic.RootPlugin"
         }
+        register("robolectric") {
+            id = "meshlink.robolectric"
+            implementationClass = "ch.trancee.meshlink.buildlogic.RobolectricPlugin"
+        }
         register("kmpLibrary") {
             id = "meshlink.kmp-library"
             implementationClass = "ch.trancee.meshlink.buildlogic.KmpLibraryPlugin"

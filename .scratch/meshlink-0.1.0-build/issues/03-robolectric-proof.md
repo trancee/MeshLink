@@ -1,6 +1,6 @@
 # Prove Robolectric 4.18 on SDK 26 and 37
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 01
 
@@ -16,13 +16,13 @@ Android host tests of `:meshlink` run under Robolectric on SDK 26 and SDK 37 fro
 
 ## Acceptance criteria
 
-- [ ] `:meshlink` has a Robolectric test in its Android host-test source set that gets the `BluetoothManager` from `ApplicationProvider` and asserts it returns a `BluetoothAdapter`. It runs once on SDK 26 and once on SDK 37 (`@Config(sdk = [26, 37])` or an equivalent).
-- [ ] The android-all jars for SDK 26 and 37 are resolved as pinned Gradle dependencies and passed to Robolectric in offline mode. A test run with network access blocked still passes; the PR states how this was checked.
-- [ ] Robolectric 4.18 is tried first. If it fails on either SDK, the catalog returns to 4.17, and the PR and the dependency register record the failure (command, error) as the reason.
-- [ ] The two JVM flags from ADR 0005 (`--add-exports=java.base/jdk.internal.access=ALL-UNNAMED`, `--add-opens=java.base/java.io=ALL-UNNAMED`) are each kept only if removing it breaks a run. The PR records which were needed.
-- [ ] The Robolectric `Test` task has a per-test timeout and no retry.
-- [ ] Ten consecutive runs of the test on both SDKs pass without a hang, shown in the PR.
-- [ ] `./gradlew check` stays green, Kover at 100%.
+- [x] `:meshlink` has a Robolectric test in its Android host-test source set that gets the `BluetoothManager` from `ApplicationProvider` and asserts it returns a `BluetoothAdapter`. It runs once on SDK 26 and once on SDK 37 (`@Config(sdk = [26, 37])` or an equivalent).
+- [x] The android-all jars for SDK 26 and 37 are resolved as pinned Gradle dependencies and passed to Robolectric in offline mode. A test run with network access blocked still passes; the PR states how this was checked.
+- [x] Robolectric 4.18 is tried first. If it fails on either SDK, the catalog returns to 4.17, and the PR and the dependency register record the failure (command, error) as the reason.
+- [x] The two JVM flags from ADR 0005 (`--add-exports=java.base/jdk.internal.access=ALL-UNNAMED`, `--add-opens=java.base/java.io=ALL-UNNAMED`) are each kept only if removing it breaks a run. The PR records which were needed.
+- [x] The Robolectric `Test` task has a per-test timeout and no retry.
+- [x] Ten consecutive runs of the test on both SDKs pass without a hang, shown in the PR.
+- [x] `./gradlew check` stays green, Kover at 100%.
 
 ## Proof commands
 
