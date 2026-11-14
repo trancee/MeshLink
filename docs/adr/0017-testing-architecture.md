@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 5 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 6 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock).
 
 ## Context
 
@@ -157,3 +157,7 @@ Inputs:
 2026-11-14, sans-IO enforcement (0.1.0 backlog ticket "Run a sans-IO core on `VirtualAir` in virtual time"):
 
 - **Enforcement (decision 1):** detekt's `ForbiddenImport` and `ForbiddenMethodCall`, limited to `commonMain` in [`config/detekt/detekt.yml`](../../config/detekt/detekt.yml), fail `check` on ambient time (`kotlin.time.Clock`, `TimeSource`, `measureTime` and kin) and ambient randomness (`kotlin.random` outside `RandomSource.kt`, `Random.Default`, `shuffled`, `random()`, `Uuid.random`). The method rule needs type resolution, so `check` also runs `detektMainAndroid`, which analyzes `commonMain` with `androidMain`. Platform radio APIs need no rule: `commonMain` can't reach them. The seeded source is `SeededRandom`, which wraps `kotlin.random.Random(seed)`; its sequence is fixed for one Kotlin version, so a replay across a Kotlin upgrade may differ.
+
+2026-11-14, system clock (0.1.0 backlog ticket "Discover an `Unsecured` peer on `VirtualAir`"):
+
+- **Production clock (decision 1):** a platform injects `SystemClock` from `:meshlink-core` unless it needs its own: wall time from `kotlin.time.Clock.System`, monotonic time from `TimeSource.Monotonic`. `Clock.kt` is the second `commonMain` file that both detekt rules exempt, as `RandomSource.kt` is for `SeededRandom`. Production code reaches ambient time only through this injected object, so tests still run in virtual time. A platform adapter whose timers must run while the device sleeps supplies a sleep-aware `Clock` instead.

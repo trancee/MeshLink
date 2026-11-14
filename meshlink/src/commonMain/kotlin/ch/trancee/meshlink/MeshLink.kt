@@ -1,10 +1,16 @@
+@file:OptIn(ExperimentalObjCRefinement::class)
+
 package ch.trancee.meshlink
 
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.internal.CryptoProvider
+import ch.trancee.meshlink.internal.Discovery
 import ch.trancee.meshlink.internal.InstallationIdentity
+import ch.trancee.meshlink.internal.PeerHandle
 import ch.trancee.meshlink.internal.PlatformPort
+import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
+import ch.trancee.meshlink.internal.Scanner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -13,13 +19,18 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.experimental.ExperimentalObjCRefinement
+import kotlin.native.HiddenFromObjC
 
 /**
  * A MeshLink node: one member of a Bluetooth Low Energy mesh (ADR 0007 decisions 1 and 2).
@@ -40,6 +51,13 @@ public class MeshLink private constructor(
     // Guards watcher; start and stop run on port.dispatcher.
     private val lifecycle = Mutex()
     private var watcher: Job? = null
+
+    private val scanner =
+        Scanner(
+            port.radio,
+            port.clock,
+            Discovery(crypto, config.meshId.encodeToByteArray(), config.securityProfile.wireProfile),
+        )
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
@@ -99,26 +117,39 @@ public class MeshLink private constructor(
         }
     }
 
+    /** The peers this node found on the air and may link to next; for `meshlink-testing`. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public fun linkCandidates(): Set<PeerHandle> = scanner.candidates.value.keys
+
+    /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public fun radioFailure(): RadioFailure? = scanner.failure
+
     private fun ensureOpen() {
         if (closed.value) throw MeshLinkException.Closed()
     }
 
     /**
-     * Holds the radio when it is free and keeps [state] at running or blocked until cancelled. Each
-     * write expects the state the watcher wrote last, so it never overwrites a concurrent [close].
+     * Holds the radio when it is free and keeps [state] at running or blocked until cancelled, and
+     * discovers peers while running. Each write expects the state the watcher wrote last, so it
+     * never overwrites a concurrent [close].
      */
     private suspend fun watch() {
         var written: MeshState = MeshState.Starting
         try {
             combine(port.requirements, RadioRegistry.holders, ::Pair)
-                .collect { (missing, holders) ->
+                .map { (missing, holders) ->
                     val holder = holders[port]
                     val holding = holder === this || (holder == null && RadioRegistry.tryAcquire(port, this, holders))
                     val blockers = if (holding) missing else missing + Requirement.RadioInUse
                     val next = if (blockers.isEmpty()) MeshState.Running else MeshState.Blocked(blockers)
                     mutableState.compareAndSet(written, next)
                     written = next
-                }
+                    next == MeshState.Running
+                }.distinctUntilChanged()
+                .collectLatest { running -> if (running) scanner.run() }
         } finally {
             RadioRegistry.release(port, this)
         }

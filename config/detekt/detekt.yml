@@ -40,11 +40,12 @@ potential-bugs:
 style:
   MagicNumber:
     excludes: ['**/test/**', '**/*Test/**']
-  # Common code is deterministic: nothing in commonMain reads ambient time or randomness.
+  # Common code is deterministic: nothing in commonMain reads ambient time or randomness, except
+  # SeededRandom in RandomSource.kt and SystemClock in Clock.kt, which platforms inject.
   ForbiddenImport:
     active: true
     includes: ['**/commonMain/**']
-    excludes: ['**/RandomSource.kt']
+    excludes: ['**/RandomSource.kt', '**/Clock.kt']
     forbiddenImports:
       - value: 'kotlin.random.*'
         reason: 'Draw randomness through RandomSource so one seed replays one run (ADR 0017 decision 3).'
@@ -55,6 +56,7 @@ style:
   ForbiddenMethodCall:
     active: true
     includes: ['**/commonMain/**']
+    excludes: ['**/Clock.kt']
     methods:
       - value: 'kotlin.io.print'
         reason: 'print does not allow you to configure the output stream.'

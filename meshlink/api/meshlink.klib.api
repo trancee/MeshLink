@@ -29,10 +29,14 @@ abstract interface ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.me
 }
 
 abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.meshlink.internal/PlatformPort|null[0]
+    abstract val clock // ch.trancee.meshlink.internal/PlatformPort.clock|{}clock[0]
+        abstract fun <get-clock>(): ch.trancee.meshlink.internal/Clock // ch.trancee.meshlink.internal/PlatformPort.clock.<get-clock>|<get-clock>(){}[0]
     abstract val dispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher|{}dispatcher[0]
         abstract fun <get-dispatcher>(): kotlinx.coroutines/CoroutineDispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher.<get-dispatcher>|<get-dispatcher>(){}[0]
     abstract val identityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore|{}identityStore[0]
         abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
+    abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
+        abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
         abstract fun <get-requirements>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
 }
@@ -130,6 +134,8 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
 
     final fun close() // ch.trancee.meshlink/MeshLink.close|close(){}[0]
+    final fun linkCandidates(): kotlin.collections/Set<ch.trancee.meshlink.internal/PeerHandle> // ch.trancee.meshlink/MeshLink.linkCandidates|linkCandidates(){}[0]
+    final fun radioFailure(): ch.trancee.meshlink.internal/RadioFailure? // ch.trancee.meshlink/MeshLink.radioFailure|radioFailure(){}[0]
     final suspend fun start() // ch.trancee.meshlink/MeshLink.start|start(){}[0]
     final suspend fun stop() // ch.trancee.meshlink/MeshLink.stop|stop(){}[0]
 

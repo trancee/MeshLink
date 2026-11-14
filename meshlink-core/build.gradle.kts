@@ -1,5 +1,10 @@
 plugins {
     id("meshlink.kmp-library")
+    id("meshlink.spec-vectors")
+}
+
+specVectors {
+    files.add("advertisement")
 }
 
 kotlin {

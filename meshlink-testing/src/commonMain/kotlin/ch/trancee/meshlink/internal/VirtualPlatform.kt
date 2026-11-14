@@ -7,11 +7,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * A [MeshPlatform] whose radio is [radio] on a [VirtualAir]. Nodes do their work on [dispatcher],
- * which a test sets to a dispatcher of its virtual-time scheduler.
+ * A [MeshPlatform] whose radio is [radio] on a [VirtualAir] and whose clock is the air's. Nodes do
+ * their work on [dispatcher], which a test sets to a dispatcher of its virtual-time scheduler.
  */
 internal class VirtualPlatform(
-    val radio: VirtualRadio,
+    override val radio: VirtualRadio,
+    override val clock: Clock,
     override val dispatcher: CoroutineDispatcher,
 ) : PlatformPort {
     override val requirements: StateFlow<Set<Requirement>> = radio.requirements

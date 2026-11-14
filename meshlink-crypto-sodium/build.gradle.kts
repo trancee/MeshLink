@@ -6,6 +6,10 @@ plugins {
     id("meshlink.spec-vectors")
 }
 
+specVectors {
+    files.add("derivations")
+}
+
 kotlin {
     extensions.configure<KotlinMultiplatformAndroidLibraryExtension> {
         optimization {

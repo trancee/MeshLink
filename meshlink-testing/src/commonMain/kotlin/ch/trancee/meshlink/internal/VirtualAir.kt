@@ -31,7 +31,7 @@ internal class VirtualAir(
     private val radios = LinkedHashMap<PeerHandle, VirtualRadio>()
 
     /** Adds a radio and a platform around it whose nodes do their work on [dispatcher]. */
-    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), dispatcher)
+    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), clock, dispatcher)
 
     /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu]. */
     fun radio(maxAttMtu: Int = DEFAULT_ATT_MTU): VirtualRadio {
@@ -107,7 +107,8 @@ internal class VirtualAir(
     }
 
     companion object {
-        private val DEFAULT_LATENCY_MILLIS: IntRange = 5..30
+        /** The latency range of every delivery unless a test sets another. */
+        val DEFAULT_LATENCY_MILLIS: IntRange = 5..30
         const val DEFAULT_ATT_MTU: Int = 247
         const val RSSI_MIN: Int = -90
         const val RSSI_MAX: Int = -40
