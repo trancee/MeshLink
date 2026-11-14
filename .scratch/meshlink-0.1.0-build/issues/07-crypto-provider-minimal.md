@@ -1,6 +1,6 @@
 # Hash, generate identities and draw randomness through a minimal `CryptoProvider`
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 06
 
