@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 7 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 8 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle).
 
 ## Context
 
@@ -166,3 +166,13 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
   - Peers appear as `PeerRef`, a per-start keyed hash, or `LinkRef` before authentication.
   - Repeats within 10 s are coalesced. The buffer holds 256 events; overflow emits `ML7001`.
   - New: `diagnosticsSnapshot()`, `exportDiagnostics()` (JSON, never uploaded), and the settings `diagnostics.debug` and `diagnostics.platformLog` (both off by default).
+
+2026-11-14, lifecycle (0.1.0 backlog ticket "Create, start, stop and close a node through the public API"):
+
+- **Single instance (amends decision 1):** the rule is one running instance per platform radio, not per process (owner decision).
+  - A second instance started on a platform radio that another running instance holds reports `Blocked(RadioInUse)`, the typed rejection, plus any other missing requirement. It runs by itself once the holder stops or closes.
+  - Any number of instances run in one process on `VirtualAir`, each on its own virtual radio, so multi-node tests need no second process ([ADR 0017](0017-testing-architecture.md) decision 3).
+  - Why: a per-process rule would forbid those tests. The platform radio is the shared resource, so the platform radio is what the rule guards.
+- **Sealed interfaces (decisions 2, 3 and 5):** `MeshState`, `Requirement` and `SecurityProfile` are sealed interfaces, not sealed classes. detekt's `AbstractClassCanBeInterface` reports a sealed class without state, and the build allows no suppressions. In Swift their cases are top-level types: `MeshStateBlocked`, `RequirementUnsupported`, `SecurityProfileUnsecured`. `Preset` keeps state, stays a sealed class, and keeps nested names such as `Preset.OfflineChat`. The overlay's `onEnum` mapping belongs to ticket 55.
+- **Platform (decision 1):** `MeshPlatform` has no public constructor. Apps get it from a platform factory: `MeshPlatform.ios()` on iOS now, the Android factory with the Android radio. `MeshPlatform.of(port)` requires the `InternalMeshLinkApi` opt-in, is hidden from Objective-C, and exists for `meshlink-testing`.
+- **Not yet in place:** the warning diagnostic on an `Unsecured` start (decision 5) arrives with the diagnostics flow (ticket 54). SKIE 0.10.16 with Kotlin 2.4.21 exports `state` to Swift as a plain Kotlin `StateFlow`, not as a Swift `AsyncSequence`; Swift reads `state.value` until the overlay ticket (55) resolves it.

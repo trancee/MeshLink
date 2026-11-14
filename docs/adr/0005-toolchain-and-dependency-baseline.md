@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 7 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 8 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins).
 
 ## Context
 
@@ -86,6 +86,8 @@ Version rules:
   | detekt 2.0.0-alpha.6 | Prerelease | detekt 2.0 stable supports the Kotlin version | Per-source-set tasks wired into `check`, because the plain task finds no sources in KMP |
   | KGP built-in `abiValidation` | Experimental | It becomes stable | `@OptIn(ExperimentalAbiValidation::class)`; wired into `check` |
   | Kover 0.9.11 | Beta | A stable release | The root report merges every module's Android host-test run; `koverVerify` is in `check` by default |
+  | Gradle `ArtifactView.withVariantReselection()` | `@Incubating` | It becomes stable | `meshlink.sodium-host-jni` resolves the JVM host's libsodium JNI shim from `:meshlink-crypto-sodium` for the host tests of the modules that depend on it |
+  | Kotlin `@HiddenFromObjC` | `@ExperimentalObjCRefinement` | It becomes stable | File-level `@OptIn` on the `:meshlink` files that hide internal-API types and functions from the Swift API |
 
 - **SKIE:** analytics upload disabled (`skie { analytics { disableUpload.set(true) } }`). The Swift API shape belongs to the public-API ticket.
 - **Robolectric:** `Test` tasks carry no extra JVM flags (2026-11-14 amendment). Test classes carry a JUnit `Timeout` rule, and every test task has a 10-minute timeout ([ADR 0017](0017-testing-architecture.md) decision 13).
@@ -221,3 +223,7 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Build:** the `meshlink.libsodium` plugin in `build-logic/` reads `libsodium.properties` (version, base URL, sha256, upstream minisign public key: the only pin) and registers `downloadLibsodium`, `verifyLibsodium` (SHA-256, then `minisign -V`; copies the tarball to `verified/` only after both pass) and `buildLibsodium<Target>`, which extracts only the verified copy. `minisign` is a build prerequisite.
 - **Cache, replacing "keyed by the tarball's sha256":** each output directory holds a stamp: the hash of the tarball, the script, the target and the toolchain identity. A matching stamp skips the build, so a restored `actions/cache` directory skips it without Gradle's task history. The CI key adds the job, the toolchain and the hashes of the pin file, the script and the version catalog.
 - **Rejected:** running the full upstream Apple script (15.5 min, `-O3`, fails on Xcode 27); patching it (a fork to maintain); verifying minisign in the JVM with a hand-written BLAKE2b (more crypto code to prove); the Gradle build cache for the outputs (the host toolchain the script finds is not a Gradle input, so a cache hit could return an archive from another compiler; the stamp includes it).
+
+2026-11-14, lifecycle opt-ins (0.1.0 backlog ticket "Create, start, stop and close a node through the public API"):
+
+- **E2 holds:** two rows join the table: Gradle's `@Incubating` `ArtifactView.withVariantReselection()`, which lets the `meshlink.sodium-host-jni` plugin pick the host JNI shim variant from `:meshlink-crypto-sodium`, and Kotlin's `@ExperimentalObjCRefinement` `@HiddenFromObjC`, which keeps internal-API declarations out of the Swift API. Each hold ends when its API is stable.

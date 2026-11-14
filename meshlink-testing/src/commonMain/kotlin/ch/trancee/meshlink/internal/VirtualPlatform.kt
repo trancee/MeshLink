@@ -1,0 +1,23 @@
+package ch.trancee.meshlink.internal
+
+import ch.trancee.meshlink.InternalMeshLinkApi
+import ch.trancee.meshlink.MeshPlatform
+import ch.trancee.meshlink.Requirement
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * A [MeshPlatform] whose radio is [radio] on a [VirtualAir]. Nodes do their work on [dispatcher],
+ * which a test sets to a dispatcher of its virtual-time scheduler.
+ */
+internal class VirtualPlatform(
+    val radio: VirtualRadio,
+    override val dispatcher: CoroutineDispatcher,
+) : PlatformPort {
+    override val requirements: StateFlow<Set<Requirement>> = radio.requirements
+
+    override val identityStore: IdentityStore = InMemoryIdentityStore()
+
+    @OptIn(InternalMeshLinkApi::class)
+    val meshPlatform: MeshPlatform = MeshPlatform.of(this)
+}

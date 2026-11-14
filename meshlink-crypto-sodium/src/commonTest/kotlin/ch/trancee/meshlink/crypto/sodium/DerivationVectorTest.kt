@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.crypto.sodium
 
 import ch.trancee.meshlink.internal.Derivations
-import ch.trancee.meshlink.internal.SecurityProfile
+import ch.trancee.meshlink.internal.WireProfile
 import ch.trancee.meshlink.vectors.DerivationVector
 import ch.trancee.meshlink.vectors.derivationVectors
 import kotlin.test.Test
@@ -37,7 +37,7 @@ class DerivationVectorTest {
     @Test
     fun meshIdDigest() =
         assertVectors("mesh-id-digest", 9..13) { inputs ->
-            val profile = SecurityProfile.entries.single { it.code == inputs.getValue("profile").toInt() }
+            val profile = WireProfile.entries.single { it.code == inputs.getValue("profile").toInt() }
             derivations.meshIdDigest(inputs.getValue("mesh_id_utf8").hex(), profile)
         }
 

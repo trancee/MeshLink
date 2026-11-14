@@ -1,0 +1,208 @@
+public abstract interface annotation class ch/trancee/meshlink/InternalMeshLinkApi : java/lang/annotation/Annotation {
+}
+
+public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
+	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
+	public fun close ()V
+	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
+	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class ch/trancee/meshlink/MeshLink$Companion {
+	public final fun create (Lch/trancee/meshlink/MeshLinkConfig;Lch/trancee/meshlink/MeshPlatform;)Lch/trancee/meshlink/MeshLink;
+}
+
+public final class ch/trancee/meshlink/MeshLinkConfig {
+	public final fun describe ()Ljava/lang/String;
+	public final fun getMeshId ()Ljava/lang/String;
+	public final fun getMessageLifetimeSeconds ()I
+	public final fun getPreset ()Lch/trancee/meshlink/Preset;
+	public final fun getSecurityProfile ()Lch/trancee/meshlink/SecurityProfile;
+}
+
+public final class ch/trancee/meshlink/MeshLinkConfigBuilder {
+	public final fun build ()Lch/trancee/meshlink/MeshLinkConfig;
+	public final fun getMeshId ()Ljava/lang/String;
+	public final fun setMeshId (Ljava/lang/String;)V
+}
+
+public final class ch/trancee/meshlink/MeshLinkConfigKt {
+	public static final fun meshLinkConfig (Lch/trancee/meshlink/Preset;Lch/trancee/meshlink/SecurityProfile;Lkotlin/jvm/functions/Function1;)Lch/trancee/meshlink/MeshLinkConfigBuilder;
+}
+
+public abstract class ch/trancee/meshlink/MeshLinkException : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class ch/trancee/meshlink/MeshLinkException$Closed : ch/trancee/meshlink/MeshLinkException {
+	public fun <init> ()V
+}
+
+public final class ch/trancee/meshlink/MeshLinkException$InvalidConfig : ch/trancee/meshlink/MeshLinkException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getSetting ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/MeshPlatform {
+	public static final field Companion Lch/trancee/meshlink/MeshPlatform$Companion;
+}
+
+public final class ch/trancee/meshlink/MeshPlatform$Companion {
+	public final fun of (Lch/trancee/meshlink/internal/PlatformPort;)Lch/trancee/meshlink/MeshPlatform;
+}
+
+public abstract interface class ch/trancee/meshlink/MeshState {
+}
+
+public final class ch/trancee/meshlink/MeshState$Blocked : ch/trancee/meshlink/MeshState {
+	public fun <init> (Ljava/util/Set;)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun copy (Ljava/util/Set;)Lch/trancee/meshlink/MeshState$Blocked;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/MeshState$Blocked;Ljava/util/Set;ILjava/lang/Object;)Lch/trancee/meshlink/MeshState$Blocked;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRequirements ()Ljava/util/Set;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/MeshState$Running : ch/trancee/meshlink/MeshState {
+	public static final field INSTANCE Lch/trancee/meshlink/MeshState$Running;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/MeshState$Starting : ch/trancee/meshlink/MeshState {
+	public static final field INSTANCE Lch/trancee/meshlink/MeshState$Starting;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/MeshState$Stopped : ch/trancee/meshlink/MeshState {
+	public static final field INSTANCE Lch/trancee/meshlink/MeshState$Stopped;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/MeshState$Stopping : ch/trancee/meshlink/MeshState {
+	public static final field INSTANCE Lch/trancee/meshlink/MeshState$Stopping;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/PermissionKind : java/lang/Enum {
+	public static final field Bluetooth Lch/trancee/meshlink/PermissionKind;
+	public static final field BluetoothAdvertise Lch/trancee/meshlink/PermissionKind;
+	public static final field BluetoothConnect Lch/trancee/meshlink/PermissionKind;
+	public static final field BluetoothScan Lch/trancee/meshlink/PermissionKind;
+	public static final field Location Lch/trancee/meshlink/PermissionKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/PermissionKind;
+	public static fun values ()[Lch/trancee/meshlink/PermissionKind;
+}
+
+public abstract class ch/trancee/meshlink/Preset {
+	public synthetic fun <init> (ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class ch/trancee/meshlink/Preset$EmergencyBroadcast : ch/trancee/meshlink/Preset {
+	public static final field INSTANCE Lch/trancee/meshlink/Preset$EmergencyBroadcast;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Preset$FieldTeams : ch/trancee/meshlink/Preset {
+	public static final field INSTANCE Lch/trancee/meshlink/Preset$FieldTeams;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Preset$LocalMultiplayer : ch/trancee/meshlink/Preset {
+	public static final field INSTANCE Lch/trancee/meshlink/Preset$LocalMultiplayer;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Preset$OfflineChat : ch/trancee/meshlink/Preset {
+	public static final field INSTANCE Lch/trancee/meshlink/Preset$OfflineChat;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Preset$ProximityDiscovery : ch/trancee/meshlink/Preset {
+	public static final field INSTANCE Lch/trancee/meshlink/Preset$ProximityDiscovery;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class ch/trancee/meshlink/Requirement {
+}
+
+public final class ch/trancee/meshlink/Requirement$BluetoothOff : ch/trancee/meshlink/Requirement {
+	public static final field INSTANCE Lch/trancee/meshlink/Requirement$BluetoothOff;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Requirement$PermissionDenied : ch/trancee/meshlink/Requirement {
+	public fun <init> (Lch/trancee/meshlink/PermissionKind;)V
+	public final fun component1 ()Lch/trancee/meshlink/PermissionKind;
+	public final fun copy (Lch/trancee/meshlink/PermissionKind;)Lch/trancee/meshlink/Requirement$PermissionDenied;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/Requirement$PermissionDenied;Lch/trancee/meshlink/PermissionKind;ILjava/lang/Object;)Lch/trancee/meshlink/Requirement$PermissionDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lch/trancee/meshlink/PermissionKind;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Requirement$RadioInUse : ch/trancee/meshlink/Requirement {
+	public static final field INSTANCE Lch/trancee/meshlink/Requirement$RadioInUse;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Requirement$Unsupported : ch/trancee/meshlink/Requirement {
+	public static final field INSTANCE Lch/trancee/meshlink/Requirement$Unsupported;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class ch/trancee/meshlink/SecurityProfile {
+}
+
+public final class ch/trancee/meshlink/SecurityProfile$Unsecured : ch/trancee/meshlink/SecurityProfile {
+	public static final field INSTANCE Lch/trancee/meshlink/SecurityProfile$Unsecured;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class ch/trancee/meshlink/internal/IdentityStore {
+	public abstract fun loadOrCreate (Lkotlin/jvm/functions/Function0;)Lch/trancee/meshlink/internal/Ed25519KeyPair;
+}
+
+public final class ch/trancee/meshlink/internal/InMemoryIdentityStore : ch/trancee/meshlink/internal/IdentityStore {
+	public fun <init> ()V
+	public fun loadOrCreate (Lkotlin/jvm/functions/Function0;)Lch/trancee/meshlink/internal/Ed25519KeyPair;
+}
+
+public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
+	public abstract fun getDispatcher ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getIdentityStore ()Lch/trancee/meshlink/internal/IdentityStore;
+	public abstract fun getRequirements ()Lkotlinx/coroutines/flow/StateFlow;
+}
+

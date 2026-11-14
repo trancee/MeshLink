@@ -1,3 +1,8 @@
+# ADR 0004 (2026-11-14 amendments): the framework exports its Objective-C classes and its own Swift symbols, and
+# nothing else (no libsodium, no Swift standard library re-exports). Its Swift symbols mangle either
+# an MLK Objective-C class, as SKIE's extensions on them do ($sSo11MLKMeshLinkC04MeshB3KitE…, where
+# mangling compresses the module name), or the MeshLinkKit module literally.
 _OBJC_CLASS_$_MLK*
 _OBJC_METACLASS_$_MLK*
-_$s11MeshLinkKit*
+_$s*MLK*
+_$s*11MeshLinkKit*

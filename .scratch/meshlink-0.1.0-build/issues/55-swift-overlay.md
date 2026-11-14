@@ -28,6 +28,10 @@ A Swift app imports the `MeshLink` package and calls MeshLink in idiomatic Swift
 - [ ] `swift/test.sh` runs `xcodebuild test` for the `swift/` package on an iOS Simulator, builds the XCFramework first or fails naming the Gradle task, and exits non-zero on any failure.
 - [ ] Every overlay declaration has a Swift doc comment. `./gradlew check` and `./gradlew iosSimulatorArm64Test` still pass.
 
+## Known input
+
+- Found by ticket 09 (2026-11-14): SKIE 0.10.16 with Kotlin 2.4.21 exports `MeshLink.state` as raw `id<Kotlinx_coroutines_coreStateFlow>`, not `SkieSwiftStateFlow`, so Swift can't iterate it with `for await`. Flow interop is on by default and the SKIE runtime is in the framework; a sealed class element instead of the sealed interface `MeshState` changes nothing. Find the root cause (start at SKIE's `ConvertFlowsPhase`) before building the overlay's state API on it. See `docs/agents/lessons.md`, "Apple packaging".
+
 ## Proof commands
 
 ```sh

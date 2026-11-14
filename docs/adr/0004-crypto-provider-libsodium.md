@@ -1,6 +1,6 @@
 # 0004: libsodium as the crypto provider; Rust only as a test-only reference
 
-Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 3 (amended 2026-11-03, iPhone SE (2016) benchmark; 2026-11-14, native gates).
+Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 4 (amended 2026-11-03, iPhone SE (2016) benchmark; 2026-11-14, native gates; 2026-11-14, Swift export list).
 
 ## Context
 
@@ -100,3 +100,7 @@ Facts verified 2026-11-01:
 - **Symbol rule.** A binary fails if it exports a symbol starting with `sodium_`, `crypto_` or `randombytes_` (an optional leading `_` for Mach-O), or exports or imports a symbol matching `aes`, `aegis` or `ipcrypt` at the start or after `_`, ignoring case. `randombytes_` widens the 2026-11-03 rule: it is libsodium API too.
 - **Where the gates run.** `check` runs the Android shim gates on Linux CI with the NDK's `llvm-nm`. The macOS job checks the iOS archives' size and the release `MeshLinkKit` slices' symbols with `xcrun nm`. The framework's export allow-list is `meshlink/MeshLinkKit.exports`: its Objective-C classes and Swift module symbols only.
 - **Klib ABI dump.** `:meshlink`'s iOS klibs now need the libsodium cinterop, which runs only on a Mac. `meshlink/gradle.properties` sets `kotlin.native.enableKlibsCrossCompilation=false` for that module only, so off-Mac hosts infer the iOS dump from the committed one instead of writing an empty dump. `:meshlink-testing`, whose main code depends on `:meshlink`, sets the same in `meshlink-testing/gradle.properties`. The macOS job runs `checkKotlinAbi` against the real klibs.
+
+2026-11-14, Swift export list (0.1.0 backlog ticket "Create, start, stop and close a node through the public API"):
+
+- **Which Swift symbols are the module's.** A Swift symbol whose mangled name contains an `MLK` class or `MeshLinkKit`. SKIE's Swift extensions on the Objective-C classes mangle with a compressed module name (`$sSo11MLKMeshLinkC04MeshB3KitE5startyyYaKF`), so the earlier `$s11MeshLinkKit` prefix left them out and a Swift app that called `start()` failed to link. The export list now admits `_$s*MLK*` and `_$s*11MeshLinkKit*`. Measured on both release slices: 708 Swift symbols, every other export an `MLK` Objective-C class or metaclass.

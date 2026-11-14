@@ -7,6 +7,7 @@ plugins {
     id("meshlink.published-library")
     id("meshlink.build-info")
     id("meshlink.robolectric")
+    id("meshlink.sodium-host-jni")
     id("co.touchlab.skie")
 }
 
@@ -22,6 +23,9 @@ kotlin {
     sourceSets.commonMain.dependencies {
         api(project(":meshlink-core"))
         implementation(project(":meshlink-crypto-sodium"))
+    }
+    sourceSets.commonTest.dependencies {
+        implementation(libs.kotlinx.coroutines.test)
     }
     // ADR 0011, 2026-11-13 amendment "coordinates and names": Swift module MeshLinkKit, bundle ID ch.trancee.meshlink.kit.
     val meshLinkKit = XCFramework("MeshLinkKit")
