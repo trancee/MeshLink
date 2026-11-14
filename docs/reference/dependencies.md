@@ -29,7 +29,7 @@ Facts verified 2026-11-01.
 
 | Dependency | Version | Scope | Need | Maintenance | License | Security | Size | Transitives | Why stdlib or existing fails |
 |---|---|---|---|---|---|---|---|---|---|
-| Gradle | 9.7.1 | build | Build system that KMP requires | Gradle Inc., stable | Apache-2.0 | Wrapper checksum validated | n/a | n/a | Required by KGP |
+| Gradle | 9.7.1 | build | Build system that KMP requires; its bundled `kotlin-dsl` plugin and TestKit build and test `build-logic/` | Gradle Inc., stable | Apache-2.0 | Wrapper checksum validated | n/a | n/a | Required by KGP |
 | Kotlin Gradle plugin | 2.4.21 | build | KMP compilation, XCFramework, built-in ABI validation (E2 hold) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
 | AGP + `com.android.kotlin.multiplatform.library` | 9.3.3 | build | Android library target in KMP | Google, stable | Apache-2.0 | n/a | n/a | n/a | Required for the Android target |
 | Android NDK | 30.0.16248370 | build | Builds libsodium and the JNI shim | Google, stable | Apache-2.0 and others | n/a | n/a | n/a | Native crypto needs it (ADR 0004) |
@@ -45,10 +45,10 @@ Facts verified 2026-11-01.
 
 | Dependency | Version | Scope | Need | Maintenance | License | Security | Size | Transitives | Why stdlib or existing fails |
 |---|---|---|---|---|---|---|---|---|---|
-| kotlin-test | 2.4.21 | test | Multiplatform assertions | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
+| kotlin-test (with `kotlin-test-junit` for `build-logic/`) | 2.4.21 | test | Multiplatform assertions; the JUnit 4 binding runs the `build-logic/` TestKit tests | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required |
 | kotlinx-coroutines-test | 1.11.0 | test | Virtual time for deterministic tests (T2, T8) | JetBrains, stable | Apache-2.0 | n/a | n/a | n/a | Required for deterministic coroutine tests |
 | Robolectric | 4.18 | test | Android framework on the JVM, SDK 26 and 37 | Google-backed, active | MIT | n/a | n/a | Large (test only) | Instrumented tests can't run in default CI (T2) |
-| JUnit 4 | 4.13.2 | test | Robolectric test runner | Maintenance mode, stable | EPL-1.0 | n/a | n/a | hamcrest-core | Robolectric needs a JUnit 4 runner |
+| JUnit 4 | 4.13.2 | test | Robolectric test runner; `TemporaryFolder` in the `build-logic/` TestKit tests | Maintenance mode, stable | EPL-1.0 | n/a | n/a | hamcrest-core | Robolectric needs a JUnit 4 runner |
 | androidx.test core | 1.7.0 | test | `ApplicationProvider` for Robolectric | Google, stable | Apache-2.0 | n/a | n/a | n/a | Standard Robolectric companion |
 | Jazzer (`com.code-intelligence:jazzer`) | 0.30.0 | test (scheduled job) | Coverage-guided fuzzing of decoders (T10, ADR 0017); the standalone driver with bundled macOS and Linux natives | Code Intelligence, active (2026-02 release) | Apache-2.0 | n/a | ~8.9 MB jar (test only) | `jazzer-api` (runtime) | The deterministic mutation tests miss deep paths; kotlinx.fuzz needs JDK 8 and custom repositories; `jazzer-junit` would add JUnit 5 |
 | libsodium host build | 1.0.22 | test (host native) | Real crypto and the JNI shim in JVM host tests (ADR 0017) | As the runtime row | ISC | Same tarball, sha256 and minisign check | n/a (never published) | none | Fake crypto would leave the shim and vectors untested on the only Kover-measured target |
