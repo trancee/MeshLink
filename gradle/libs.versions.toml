@@ -1,0 +1,13 @@
+[versions]
+kotlin = "2.4.21"
+agp = "9.3.3"
+jdk-toolchain = "21"
+android-compileSdk = "37"
+android-minSdk = "26"
+junit4 = "4.13.2"
+
+[libraries]
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+junit4 = { module = "junit:junit", version.ref = "junit4" }

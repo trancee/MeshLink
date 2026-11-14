@@ -1,6 +1,6 @@
 # Build the four modules with `build-logic` and the dependency-direction check
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Behavior
@@ -17,16 +17,16 @@ The repository gains its first Gradle build: four empty Kotlin Multiplatform mod
 
 ## Acceptance criteria
 
-- [ ] `settings.gradle.kts` includes `:meshlink-core`, `:meshlink-crypto-sodium`, `:meshlink` and `:meshlink-testing`, and includes `build-logic/` as an included build.
-- [ ] The Gradle wrapper pins 9.7.1; the daemon JDK is declared as 25, separately from the JDK 21 compile toolchain and test runtime.
-- [ ] `gradle/libs.versions.toml` is the only version source and holds exactly the ADR 0005 pins that this ticket uses. Later tools are added by the tickets that wire them.
-- [ ] A convention plugin configures every module with the Android library target (compileSdk 37, minSdk 26), `iosArm64` and `iosSimulatorArm64`, typed `compilerOptions {}` and `explicitApi()` strict. The Android `namespace` of `:meshlink` is `ch.trancee.meshlink`; the other modules get unique namespaces under it.
-- [ ] Host tests run: every module enables Android-KMP library host tests with `withHostTest {}`, so `commonTest` runs on the JVM.
-- [ ] The direction check is a convention plugin in `build-logic/` with no new dependency. It reads `ProjectDependency.path` from every configuration, including KMP source-set and test configurations, and is wired into `check`. Allow-list: `:meshlink-core` → none; `:meshlink-crypto-sodium` → `:meshlink-core`; `:meshlink` → both; `:meshlink-testing` → `:meshlink`.
-- [ ] A Gradle TestKit test in `build-logic/` proves that a forbidden edge (for example `:meshlink-core` → `:meshlink`) fails `check` with a message naming both modules, and that the allowed graph passes (T1: the test is red before the check exists). Root `check` runs the `build-logic` tests.
-- [ ] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass on a clean checkout with the configuration cache on.
-- [ ] Focused test command: the spine fixes it as `./gradlew :<module>:testAndroidHostTest --tests '<pattern>'` (Android-KMP library plugin host tests; there is no `jvm()` target, ADR 0017). Verify the exact task name that `withHostTest {}` creates and that `--tests` filters it. If the name differs, update the spine's proof-command table and every ticket that cites it in this PR (spine rename rule, O1).
-- [ ] `PROJECT.md` and `docs/reference/dependencies.md` agree with the build (see below).
+- [x] `settings.gradle.kts` includes `:meshlink-core`, `:meshlink-crypto-sodium`, `:meshlink` and `:meshlink-testing`, and includes `build-logic/` as an included build.
+- [x] The Gradle wrapper pins 9.7.1; the daemon JDK is declared as 25, separately from the JDK 21 compile toolchain and test runtime.
+- [x] `gradle/libs.versions.toml` is the only version source and holds exactly the ADR 0005 pins that this ticket uses. Later tools are added by the tickets that wire them.
+- [x] A convention plugin configures every module with the Android library target (compileSdk 37, minSdk 26), `iosArm64` and `iosSimulatorArm64`, typed `compilerOptions {}` and `explicitApi()` strict. The Android `namespace` of `:meshlink` is `ch.trancee.meshlink`; the other modules get unique namespaces under it.
+- [x] Host tests run: every module enables Android-KMP library host tests with `withHostTest {}`, so `commonTest` runs on the JVM.
+- [x] The direction check is a convention plugin in `build-logic/` with no new dependency. It reads `ProjectDependency.path` from every configuration, including KMP source-set and test configurations, and is wired into `check`. Allow-list: `:meshlink-core` → none; `:meshlink-crypto-sodium` → `:meshlink-core`; `:meshlink` → both; `:meshlink-testing` → `:meshlink`.
+- [x] A Gradle TestKit test in `build-logic/` proves that a forbidden edge (for example `:meshlink-core` → `:meshlink`) fails `check` with a message naming both modules, and that the allowed graph passes (T1: the test is red before the check exists). Root `check` runs the `build-logic` tests.
+- [x] `./gradlew check` and `./gradlew iosSimulatorArm64Test` pass on a clean checkout with the configuration cache on.
+- [x] Focused test command: the spine fixes it as `./gradlew :<module>:testAndroidHostTest --tests '<pattern>'` (Android-KMP library plugin host tests; there is no `jvm()` target, ADR 0017). Verify the exact task name that `withHostTest {}` creates and that `--tests` filters it. If the name differs, update the spine's proof-command table and every ticket that cites it in this PR (spine rename rule, O1).
+- [x] `PROJECT.md` and `docs/reference/dependencies.md` agree with the build (see below).
 
 ## Proof commands
 
