@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 8 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 9 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers).
 
 ## Context
 
@@ -176,3 +176,9 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Sealed interfaces (decisions 2, 3 and 5):** `MeshState`, `Requirement` and `SecurityProfile` are sealed interfaces, not sealed classes. detekt's `AbstractClassCanBeInterface` reports a sealed class without state, and the build allows no suppressions. In Swift their cases are top-level types: `MeshStateBlocked`, `RequirementUnsupported`, `SecurityProfileUnsecured`. `Preset` keeps state, stays a sealed class, and keeps nested names such as `Preset.OfflineChat`. The overlay's `onEnum` mapping belongs to ticket 55.
 - **Platform (decision 1):** `MeshPlatform` has no public constructor. Apps get it from a platform factory: `MeshPlatform.ios()` on iOS now, the Android factory with the Android radio. `MeshPlatform.of(port)` requires the `InternalMeshLinkApi` opt-in, is hidden from Objective-C, and exists for `meshlink-testing`.
 - **Not yet in place:** the warning diagnostic on an `Unsecured` start (decision 5) arrives with the diagnostics flow (ticket 54). SKIE 0.10.16 with Kotlin 2.4.21 exports `state` to Swift as a plain Kotlin `StateFlow`, not as a Swift `AsyncSequence`; Swift reads `state.value` until the overlay ticket (55) resolves it.
+
+2026-11-14, peers (0.1.0 backlog ticket "Open an `Unsecured` link with `PLAIN_HELLO`"):
+
+- **No `Unreachable` (amends decision 10):** a peer leaves `peers` when its last link closes, whether it sent `CLOSE`, stopped or went out of range. `Reachability` holds only `Direct` until routing adds `Routed(hops)`. Why: `peers` lists the nodes this node can reach now; keeping unreachable entries would grow the list without bound in a busy place, and an app that wants history keeps its own.
+- **Peer shape (decision 10):** `NodeId` and `Peer` are regular classes with internal constructors, not data or value classes (decision 11 rules out value classes). `NodeId` compares by content, prints as lowercase hex and returns a copy of its 32 bytes from `toByteArray()`. `lastSeen` is a `kotlin.time.Instant` from the platform's wall clock, refreshed when the link opens and on every frame received.
+- **Not yet in place:** `proximity` arrives with ticket 32 (RSSI smoothing and buckets); `secured = true` with the secured profiles.

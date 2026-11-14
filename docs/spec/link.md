@@ -169,6 +169,12 @@ Vectors: `handshake-payload.json` (framing only; certificate bytes are placehold
 
 Total: 67 B. A node that receives a different `mesh_id_digest` sends `CLOSE` with `WRONG_MESH`.
 
+([D-44].)
+
+- The peripheral answers with the version the central selected. A central that receives another version sends `CLOSE` with `PROTOCOL_ERROR`.
+- A node that receives its own NodeId, or a second `PLAIN_HELLO` on one link, sends `CLOSE` with `PROTOCOL_ERROR`.
+- `handshake-timeout` also bounds the hello exchange: a link with no accepted `PLAIN_HELLO` `handshake-timeout` after the bearer opened is closed.
+
 ## Keep one link per neighbor
 
 (ADR 0009 decision 5; [D-22].)

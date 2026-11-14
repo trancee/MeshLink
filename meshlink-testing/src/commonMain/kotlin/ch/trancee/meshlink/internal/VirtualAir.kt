@@ -141,6 +141,11 @@ internal class VirtualRadio(
     internal var capability: ByteArray? = null
         private set
 
+    private val mutableEnds = mutableListOf<VirtualLinkEnd>()
+
+    /** This radio's end of every link it took part in, open or closed, in the order they opened. */
+    internal val ends: List<VirtualLinkEnd> get() = mutableEnds.toList()
+
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)
         val copy = payload.copyOf()
@@ -179,6 +184,10 @@ internal class VirtualRadio(
     internal fun emit(event: RadioEvent) {
         eventChannel.trySend(event)
     }
+
+    internal fun track(end: VirtualLinkEnd) {
+        mutableEnds += end
+    }
 }
 
 /** One GATT link between two radios, holding both of its ends. */
@@ -207,6 +216,17 @@ internal open class VirtualLinkEnd(
     protected var closed: Boolean = false
         private set
 
+    /** Whether the link is still open at this end. */
+    val open: Boolean get() = !closed
+
+    /** Every byte this end wrote, in order. */
+    var written: ByteArray = ByteArray(0)
+        private set
+
+    init {
+        local.track(this)
+    }
+
     override val peer: PeerHandle get() = remote.handle
 
     override val attMtu: Int get() = connection.attMtu
@@ -215,6 +235,7 @@ internal open class VirtualLinkEnd(
 
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
+        written += bytes
         val target = connection.oppositeOf(this)
         val chunkMax = attMtu - RadioPort.ATT_HEADER
         var start = 0

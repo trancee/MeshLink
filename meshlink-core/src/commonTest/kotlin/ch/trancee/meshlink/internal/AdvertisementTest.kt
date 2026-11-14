@@ -67,18 +67,7 @@ class AdvertisementTest {
 
     @Test
     fun decoderSurvivesEveryPrefixOverlongInputsAndSeededMutations() {
-        val valid = advertisementVectors.first().encoded.hex()
-        val random = SeededRandom(MUTATION_SEED)
-        val inputs =
-            (0..valid.size).map { valid.copyOf(it) } +
-                (1..OVERLONG_EXTRA).map { valid + ByteArray(it) } +
-                (1..MUTATIONS).map {
-                    valid.copyOf().also { bytes ->
-                        repeat(random.nextInt(1, MAX_FLIPS + 1)) {
-                            bytes[random.nextInt(0, bytes.size)] = random.nextInt(0, BYTE_VALUES).toByte()
-                        }
-                    }
-                }
+        val inputs = mutationInputs(advertisementVectors.first().encoded.hex())
 
         // Reserved flag bits survive decoding, so every valid result re-encodes to its input.
         inputs.forEach { input ->
@@ -87,13 +76,5 @@ class AdvertisementTest {
                 is Decoded.Invalid -> Unit
             }
         }
-    }
-
-    private companion object {
-        const val MUTATION_SEED = 0x4D455348L
-        const val OVERLONG_EXTRA = 64
-        const val MUTATIONS = 10_000
-        const val MAX_FLIPS = 4
-        const val BYTE_VALUES = 256
     }
 }

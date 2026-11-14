@@ -4,7 +4,7 @@ plugins {
 }
 
 specVectors {
-    files.add("advertisement")
+    files.addAll("advertisement", "capability", "records", "link-frames")
 }
 
 kotlin {

@@ -311,6 +311,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** ADR 0009 decisions 1 and 6.
 - **Alternatives:** keep both bearers open and duplicate traffic (airtime); resume the session on GATT (needs resumption, rejected by ADR 0002).
 
+### D-44 Unsecured hello rules
+
+- **Question:** which `PLAIN_HELLO` answers end an `unsecured` link, and what bounds the exchange?
+- **Decision:** the peripheral echoes the selected version; a mismatch, the receiver's own NodeId or a second hello closes with `PROTOCOL_ERROR`. `handshake-timeout` (10 s, [D-20](#d-20-handshake-denial-of-service-bounds)) also bounds the hello exchange.
+- **Evidence:** ADR 0012 decisions 6 and 12; the secured handshake already fixes `version` across its messages and closes on a step out of order. Found while implementing 0.1.0 ticket 11.
+- **Alternatives:** let the peripheral answer with its own highest version (the central's choice would no longer bind both sides); no timeout for `unsecured` (a silent peer would hold a link slot forever).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

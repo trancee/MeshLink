@@ -103,6 +103,27 @@ class DiscoveryTest {
         }
 
     @Test
+    fun failureToServeTheCapabilityRecordStopsDiscoveryAndIsRecorded() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override fun serveCapability(record: ByteArray) = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+
+            // Act
+            node.start()
+            runCurrent()
+
+            // Assert
+            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure())
+            assertNull(virtual.radio.advertisement)
+            assertFalse(virtual.radio.scanning)
+        }
+
+    @Test
     fun failureToScanStopsDiscoveryAndIsRecorded() =
         runTest {
             // Arrange

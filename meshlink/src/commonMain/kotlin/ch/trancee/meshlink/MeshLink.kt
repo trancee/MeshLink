@@ -4,8 +4,11 @@ package ch.trancee.meshlink
 
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.internal.CryptoProvider
+import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.Discovery
 import ch.trancee.meshlink.internal.InstallationIdentity
+import ch.trancee.meshlink.internal.LinkPolicy
+import ch.trancee.meshlink.internal.Links
 import ch.trancee.meshlink.internal.PeerHandle
 import ch.trancee.meshlink.internal.PlatformPort
 import ch.trancee.meshlink.internal.RadioFailure
@@ -16,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,15 +56,22 @@ public class MeshLink private constructor(
     private val lifecycle = Mutex()
     private var watcher: Job? = null
 
-    private val scanner =
-        Scanner(
-            port.radio,
-            port.clock,
-            Discovery(crypto, config.meshId.encodeToByteArray(), config.securityProfile.wireProfile),
-        )
+    // Set by the first start, before the watcher runs; read only by sessions.
+    private var nodeId = ByteArray(0)
+
+    private val meshId = config.meshId.encodeToByteArray()
+    private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, config.securityProfile.wireProfile))
+    private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
+
+    /**
+     * The peers this node has a link to, ordered by NodeId; empty while the node is not running. A
+     * peer leaves the list when its last link closes, whether it closed the link, stopped, or went
+     * out of range.
+     */
+    public val peers: StateFlow<List<Peer>> = mutablePeers.asStateFlow()
 
     /**
      * Starts the node and returns once it is [MeshState.Running] or [MeshState.Blocked]. A blocked
@@ -76,7 +87,7 @@ public class MeshLink private constructor(
             lifecycle.withLock {
                 if (watcher == null) {
                     mutableState.value = MeshState.Starting
-                    InstallationIdentity.loadOrCreate(port.identityStore, crypto)
+                    nodeId = InstallationIdentity.loadOrCreate(port.identityStore, crypto).nodeId
                     watcher = scope.launch { watch() }
                     mutableState.first { it != MeshState.Starting }
                 }
@@ -133,7 +144,7 @@ public class MeshLink private constructor(
 
     /**
      * Holds the radio when it is free and keeps [state] at running or blocked until cancelled, and
-     * discovers peers while running. Each write expects the state the watcher wrote last, so it
+     * discovers and links to peers while running. Each write expects the state the watcher wrote last, so it
      * never overwrites a concurrent [close].
      */
     private suspend fun watch() {
@@ -149,11 +160,21 @@ public class MeshLink private constructor(
                     written = next
                     next == MeshState.Running
                 }.distinctUntilChanged()
-                .collectLatest { running -> if (running) scanner.run() }
+                .collectLatest { running -> if (running) session() }
         } finally {
             RadioRegistry.release(port, this)
         }
     }
+
+    /** Discovers peers and links to them until cancelled or the radio refuses discovery. */
+    private suspend fun session() =
+        coroutineScope {
+            val digest = Derivations(crypto).meshIdDigest(meshId, config.securityProfile.wireProfile)
+            val links = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), nodeId, this, mutablePeers)
+            val linking = launch { scanner.candidates.collect { links.connectTo(it.keys) } }
+            scanner.run(links::accept)
+            linking.cancel()
+        }
 
     /** Creates nodes. */
     public companion object {
