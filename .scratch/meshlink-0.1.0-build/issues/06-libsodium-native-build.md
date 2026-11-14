@@ -1,6 +1,6 @@
 # Build libsodium from verified source for the host, Android and iOS
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 05
 

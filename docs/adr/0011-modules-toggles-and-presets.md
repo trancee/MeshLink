@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 10 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 11 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope; 2026-11-14, libsodium size).
 
 ## Context
 
@@ -155,3 +155,9 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-13, 0.1.0 scope (owner decision, 0.1.0 backlog review):
 
 - **Toggles (decision 10):** the iOS Live Activity hook and the extended-advertising toggle are deferred beyond 0.1.0. 0.1.0 has neither toggle and uses legacy advertising only ([ADR 0010](0010-discovery-and-advertising.md) amendment). Both return, off by default, in the release that implements them.
+
+2026-11-14, libsodium size (0.1.0 backlog ticket "Build libsodium from verified source for the host, Android and iOS"; [ADR 0005](0005-toolchain-and-dependency-baseline.md), same-date amendment):
+
+- **Risk "Size without crypto" answered:** libsodium 1.0.22 (`-Os`, `--enable-minimal`) adds, linked with every primitive MeshLink uses (ML-KEM-768, X-Wing, X25519, Ed25519, ChaCha20-Poly1305 IETF, HKDF-SHA256, SHA-256, BLAKE2b, `randombytes_buf`) and stripped: 189 KB to an arm64-v8a shared object, 302 KB on armeabi-v7a, 284 KB on x86_64, and 150 KB to an `ios-arm64` app (150 KB on the simulator). Each is under ADR 0004's limit of about 1 MB per Android ABI.
+- **Decision 2 holds:** an unsecured-only app pays at most about 0.3 MB per Android ABI and 0.15 MB on iOS, so a crypto-free artifact stays deferred until an app asks for it.
+- **Method:** a probe C file calling those functions, linked with `-Os` and `--gc-sections` (`-dead_strip` on Apple), stripped, minus the same link with an empty function.

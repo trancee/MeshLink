@@ -4,7 +4,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
 ## State (2026-11-14)
 
-- **Phase:** build. `main` holds the Gradle scaffold (four modules, `build-logic/`) with its quality gates, Maven publishing of `meshlink` and the `MeshLinkKit` XCFramework. No product code yet: `:meshlink` holds only the generated internal `BuildInfo`, and the other modules are empty.
+- **Phase:** build. `main` holds the Gradle scaffold (four modules, `build-logic/`) with its quality gates, Maven publishing of `meshlink` and the `MeshLinkKit` XCFramework. No product code yet: `:meshlink` holds only the generated internal `BuildInfo`, and the other modules are empty. `:meshlink-crypto-sodium` builds static libsodium 1.0.22 for every target from the verified upstream tarball; nothing links it yet (ticket 07).
 - **Decided:** [ADRs 0001–0021](docs/README.md).
 - **Open:** the [0.1.0 implementation backlog](.scratch/meshlink-0.1.0-build/spec.md) and its tickets.
 - **Prototypes:** throwaway local branches, never merged:
@@ -97,6 +97,12 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Links, repository only | `lychee --offline .` |
 | Links, including external | `lychee .` (set `GITHUB_TOKEN` to avoid GitHub rate limits) |
 | Workflow lint | `actionlint` |
+| libsodium for Android (3 ABIs; needs the catalog's NDK under `$ANDROID_HOME` or `$ANDROID_SDK_ROOT`, and `minisign`) | `./gradlew buildLibsodiumAndroid` |
+| libsodium for iOS (`ios-arm64`, `ios-arm64-simulator`; macOS only, uses the selected Xcode) | `./gradlew buildLibsodiumApple` |
+| libsodium for the test host (test-only) | `./gradlew buildLibsodiumHostMacos` or `./gradlew buildLibsodiumHostLinux` |
+| Download and verify the libsodium tarball only | `./gradlew verifyLibsodium` |
+
+The libsodium tasks write `meshlink-crypto-sodium/build/libsodium/out/<target>/{include,lib/libsodium.a}`. Prerequisites: `minisign` (`brew install minisign` or `apt-get install minisign`), NDK 30.0.16248370 (`sdkmanager 'ndk;30.0.16248370'`) for Android, Xcode for Apple, and `make` with a C compiler for the hosts. Verified 2026-11-14 on an M1 with Xcode 16.4 and NDK 30.0.16248370 (Android 3 ABIs in about 90 s, iOS and macOS slices about 25 s each), and for Linux x86_64 in an `ubuntu:24.04` container with GCC 13.3.
 
 ### CI
 
@@ -104,8 +110,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 
 | Job | Runner | Steps | Required on `main` |
 |---|---|---|---|
-| Gradle check and Dokka (Linux) | `ubuntu-24.04` | `./gradlew check`, `./gradlew dokkaGenerate` | Yes |
-| iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh` | Yes |
+| Gradle check and Dokka (Linux) | `ubuntu-24.04` | Install `minisign` (`apt`) and the catalog's NDK (`sdkmanager`), restore the libsodium cache, `./gradlew buildLibsodiumAndroid buildLibsodiumHostLinux`, `./gradlew check`, `./gradlew dokkaGenerate` | Yes |
+| iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, install `minisign` (Homebrew), restore the libsodium cache, `./gradlew buildLibsodiumApple buildLibsodiumHostMacos`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh` | Yes |
 | Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | As the macOS job | No; weekly and on manual dispatch |
 
 Measured on PR 12 (2026-11-14), with no Gradle cache, because pull requests only read the cache that `main` writes: Linux 4 min 14 s; macOS 9 min 13 s and 11 min 53 s (about 5.5 min each for `iosSimulatorArm64Test` and `test.sh`). Both stay under ADR 0017's 15 min limit. The basic provider doesn't cache `~/.konan`, so every macOS run downloads the Kotlin/Native LLVM bundle.
@@ -127,7 +133,10 @@ The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOT
 | `:meshlink`, `:meshlink-testing` | all | Linux, macOS | Linux (`ubuntu-24.04`) | As above | `dokkaGenerate` | API reference builds with no warning; undocumented public API fails | None |
 | `:meshlink` | Maven publication | Linux, macOS | None (local only; CI publishing is ticket 65) | As above | `:meshlink:publishToMavenLocal` | Artifacts and a POM with name, description, URL, license, developer and SCM, and project dependencies under `ch.trancee.meshlink` | Its project dependencies don't publish yet, so a consumer can't resolve it (ticket 65) |
 | `:meshlink` | `MeshLinkKit` XCFramework (`iosArm64`, `iosSimulatorArm64`) | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode 27.2 locally, 26.4.1 in CI; an iPhone simulator the selected Xcode accepts, picked by the script from `xcodebuild -showdestinations` (verified locally: iOS 18.6, iPhone 16 Pro) | `tools/swiftpm-consumer/test.sh` | A SwiftPM `binaryTarget` links it and the bundle `ch.trancee.meshlink.kit` loads on the simulator | No public API yet to call from Swift (ticket 09) |
-| `build-logic` | JVM | Linux, macOS | Linux (`ubuntu-24.04`) | JDK 21 and 25 | `test` (via root `check`) | Gradle TestKit runs of the dependency-direction and changelog checks | Fixture builds use a `jvm()` target only; changelog fixtures need `git` |
+| `build-logic` | JVM | Linux, macOS | Linux (`ubuntu-24.04`) | JDK 21 and 25; `git`; `minisign` | `test` (via root `check`) | Gradle TestKit runs of the dependency-direction and changelog checks, and of `verifyLibsodium` (a flipped byte fails the SHA-256 check, another key's signature fails the minisign check, a missing `minisign` fails closed) | Fixture builds use a `jvm()` target only; the libsodium fixture is a signed 346-byte tarball, not the release |
+| `:meshlink-crypto-sodium` | libsodium static archives: Android arm64-v8a, armeabi-v7a, x86_64 | Linux, macOS | Linux (`ubuntu-24.04`) | `minisign`, NDK 30.0.16248370 | `buildLibsodiumAndroid` | Verified tarball, unmodified upstream scripts, static ELF objects per ABI | Nothing links them yet (ticket 07) |
+| `:meshlink-crypto-sodium` | libsodium static archives: `ios-arm64`, `ios-arm64-simulator` | macOS only | macOS (`macos-26`, Xcode 26.4.1) | `minisign`, Xcode | `buildLibsodiumApple` | Verified tarball; `lipo -info` arm64 with platform iOS or iOS Simulator, minimum 15.0 | As above |
+| `:meshlink-crypto-sodium` | libsodium host archives (test-only): macOS arm64, Linux x86_64 | macOS / Linux | macOS / Linux job | `minisign`, `make`, a C compiler | `buildLibsodiumHostMacos`, `buildLibsodiumHostLinux` | Verified tarball, static archive for the JVM host | Never published |
 
 Device hosts, recorded for that matrix ([device lab](.scratch/meshlink-v1/issues/06-device-lab-readiness.md)):
 

@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 6 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 7 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build).
 
 ## Context
 
@@ -208,3 +208,16 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **android-all pins:** `8.0.0_r4-robolectric-r1-i7` (SDK 26) and `17-robolectric-16653203-i7` (SDK 37), the versions Robolectric 4.18's `DefaultSdkProvider` asks for. The `meshlink.robolectric` plugin resolves each in its own Gradle configuration and passes the jar paths through the `robolectric-deps.properties` system property, which Robolectric reads before any Maven fetch. Without it, the sandboxed run fails with `Failed to fetch maven artifact org.robolectric:android-all-instrumented:8.0.0_r4-robolectric-r1-i7`.
 - **JVM flags dropped:** with both `--add-exports=java.base/jdk.internal.access=ALL-UNNAMED` and `--add-opens=java.base/java.io=ALL-UNNAMED` removed, both SDKs pass and print no warning. The host-test JVM is the JDK 21 toolchain, whether Gradle itself runs on JDK 21 or 25. A flag returns only with a failing run that needs it.
 - **Timeouts:** a JUnit `Timeout` rule fires under Robolectric on both SDKs (a seeded 1 s limit against a 3 s sleep failed with `TestTimedOutException`).
+
+2026-11-14, libsodium build (0.1.0 backlog ticket "Build libsodium from verified source for the host, Android and iOS"):
+
+- **Facts:**
+  - Upstream's `apple-xcframework.sh` has no switch to build only iOS. It builds every Apple platform at a hardcoded `-O3`, took 15.5 min on an M1 with Xcode 16.4, and fails on Xcode 27.2 with `ld: -arch armv7k is no longer supported` (32-bit watchOS).
+  - The Android `dist-build` scripts already use `-Os` and `--enable-minimal`; all three ABIs build in about 90 s with NDK 30.0.16248370.
+  - minisign signatures on libsodium releases are prehashed (BLAKE2b-512, then Ed25519). The JDK has no BLAKE2b; Ubuntu 24.04's `minisign` 0.11 and Homebrew's 0.12 both verify the 1.0.22 tarball.
+  - `ubuntu-24.04` ships NDK 30.0.16248370, but not as the default; `macos-26` doesn't ship it. The "CI" line above, "the runner images don't ship it", is out of date; the explicit install stays.
+- **Android:** the upstream scripts run unmodified (`NDK_PLATFORM=android-26`, NDK from the catalog's `android-ndk`); only `libsodium.a` and the headers are kept, never the `.so`.
+- **Apple and hosts, replacing "unmodified `dist-build`" and "the iOS XCFramework build runs in full":** `meshlink-crypto-sodium/native/build-libsodium.sh` configures each slice with the flags upstream's `apple-xcframework.sh` uses, except `-Os` for `-O3`: `-arch arm64 -isysroot <sdk>`, `--host=aarch64-apple-darwin23 --enable-minimal --disable-shared`, with `-mios-version-min=15.0` (`ios-arm64`), `-mios-simulator-version-min=15.0` (`ios-arm64-simulator`) and `-mmacosx-version-min=11.0` (host `macos-arm64`). The Linux x86_64 host uses `CFLAGS=-Os ./configure --enable-minimal --disable-shared --with-pic`, because the host JNI shim links it into a shared object.
+- **Build:** the `meshlink.libsodium` plugin in `build-logic/` reads `libsodium.properties` (version, base URL, sha256, upstream minisign public key: the only pin) and registers `downloadLibsodium`, `verifyLibsodium` (SHA-256, then `minisign -V`; copies the tarball to `verified/` only after both pass) and `buildLibsodium<Target>`, which extracts only the verified copy. `minisign` is a build prerequisite.
+- **Cache, replacing "keyed by the tarball's sha256":** each output directory holds a stamp: the hash of the tarball, the script, the target and the toolchain identity. A matching stamp skips the build, so a restored `actions/cache` directory skips it without Gradle's task history. The CI key adds the job, the toolchain and the hashes of the pin file, the script and the version catalog.
+- **Rejected:** running the full upstream Apple script (15.5 min, `-O3`, fails on Xcode 27); patching it (a fork to maintain); verifying minisign in the JVM with a hand-written BLAKE2b (more crypto code to prove); the Gradle build cache for the outputs (the host toolchain the script finds is not a Gradle input, so a cache hit could return an archive from another compiler; the stamp includes it).
