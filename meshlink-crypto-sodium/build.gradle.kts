@@ -1,10 +1,13 @@
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 
 plugins {
-    id("meshlink.kmp-library")
+    id("meshlink.internal-library")
     id("meshlink.libsodium")
     id("meshlink.spec-vectors")
 }
+
+description =
+    "Internal MeshLink libsodium binding with no API guarantee, outside the SemVer promise; depend on ch.trancee.meshlink:meshlink."
 
 specVectors {
     files.add("derivations")

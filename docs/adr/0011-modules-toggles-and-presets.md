@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 12 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope; 2026-11-14, libsodium size; 2026-11-14, test-only edge).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 13 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope; 2026-11-14, libsodium size; 2026-11-14, test-only edge; 2026-11-15, dependency-only internal artifacts).
 
 ## Context
 
@@ -166,3 +166,9 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 
 - **Dependency-direction check (decision 2):** test configurations of `:meshlink-testing` may also depend on `:meshlink-crypto-sodium`. Its multi-node tests build fake peers whose mesh digests, NodeIds and advertisements need the real crypto provider. Main configurations keep the allow-list above, and test configurations never publish, so consumers see no new edge. TestKit cases prove the edge passes in tests and fails in main code.
 - **Rejected:** `@InternalMeshLinkApi` crypto helpers in `:meshlink` (public ABI used only by tests); fakes that learn values from real helper nodes (more complex, brittle tests).
+
+2026-11-15, dependency-only internal artifacts (owner decision 2026-11-13; 0.1.0 backlog ticket "Prove Maven-local consumer resolution of every artifact"):
+
+- **Published artifacts (decision 1):** `meshlink-core` and `meshlink-crypto-sodium` are also published to Maven, with the same groupId and version, because the `meshlink` POM and Gradle module metadata name them and a consumer can't resolve `meshlink` without them. They are dependency-only internal artifacts: no API guarantee, outside the ABI and SemVer promise of [ADR 0019](0019-release-versioning-and-api-compatibility.md), with an empty javadoc JAR and no ABI dump or Dokka. Their POM descriptions say so. Consumers depend on `ch.trancee.meshlink:meshlink` only.
+- **Decision 2 reconciled:** "not published on their own" now means that they are never a consumer's entry point, not that they are absent from Maven. The `meshlink.internal-library` convention plugin in `build-logic/` applies the shared Maven publishing to them.
+- **Proof:** `tools/maven-consumer/test.sh` publishes every module into a temporary repository, checks each POM, and fails unless a generated Kotlin Multiplatform consumer that depends only on `meshlink` resolves `meshlink-core` and `meshlink-crypto-sodium` on Android and both iOS targets. CI runs it in the macOS job.
