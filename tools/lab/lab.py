@@ -221,6 +221,35 @@ def summary(results):
     return "\n".join(lines), passed
 
 
+def first(rows, event, **fields):
+    return next((row for row in rows if row.get("event") == event
+                 and all(row.get(k) == v for k, v in fields.items())), None)
+
+
+def timings(rows):
+    """Connect, send-to-Sent and link-to-received times in ms, each on this phone's own clock."""
+    def between(a, b):
+        return b["t_ms"] - a["t_ms"] if a and b else None
+    link = first(rows, "link")
+    return {
+        "connect_ms": between(first(rows, "start"), link),
+        "send_to_sent_ms": between(first(rows, "send"), first(rows, "status", status="Sent")),
+        "link_to_received_ms": between(link, first(rows, "received")),
+    }
+
+
+def identities(runs):
+    """Maps each phone to the NodeIds its partner recorded for it, in run order; `runs` hold two phones each."""
+    ids = {}
+    for results in runs:
+        for alias, partner in zip(results, reversed(list(results))):
+            link = first(results[partner], "link")
+            seen = ids.setdefault(alias, [])
+            if link and link["peer_node"] not in seen:
+                seen.append(link["peer_node"])
+    return ids
+
+
 # ---------------------------------------------------------------- git
 
 def git(*args):
@@ -420,40 +449,74 @@ def run(lab, devices, roles, scenario, profile, duration_s, run_id, build):
     return passed
 
 
-def evidence(run_dir, name, key, today):
-    """Writes `docs/evidence/<date>-<name>/` from a run folder: a README with every T9 field and the raw files."""
-    meta = json.loads((run_dir / "run.json").read_text())
-    folder = EVIDENCE / f"{today}-{name or meta['run']}"
+def evidence(run_dirs, name, key, today):
+    """Writes `docs/evidence/<date>-<name>/` from run folders: a README with every T9 field and the raw files."""
+    if len(run_dirs) > 1 and not name:
+        raise LabError("a record covering several runs needs --name")
+    metas = [json.loads((run_dir / "run.json").read_text()) for run_dir in run_dirs]
+    folder = EVIDENCE / f"{today}-{name or metas[0]['run']}"
     if folder.exists():
         raise LabError(f"{folder} exists")
-    raw = folder / "raw"
-    raw.mkdir(parents=True)
-    results = {}
-    for path in sorted(run_dir.glob("*.jsonl")):
-        text = pseudonymize(key, path.read_text())
-        results[path.stem] = [json.loads(line) for line in text.splitlines() if line.startswith("{")]
-        data = text.encode()
-        if len(data) > GZIP_ABOVE_BYTES:
-            (raw / f"{path.name}.gz").write_bytes(gzip.compress(data, mtime=0))
-        else:
-            (raw / path.name).write_bytes(data)
-    shutil.copyfile(run_dir / "run.json", raw / "run.json")
-    text, passed = summary(results)
-    devices = meta["devices"]
-    platforms = sorted({device["platform"] for device in devices.values()})
-    pairs = " and ".join(platforms) if len(platforms) > 1 else f"{platforms[0]} only"
-    rows = "\n".join(
-        f"| `{alias}` | {device['model']} | {device['os']} | `{' '.join(device['args'])}` |"
-        for alias, device in devices.items()
-    )
-    files = "\n".join(f"- [`raw/{path.name}`](raw/{path.name})" for path in sorted(raw.iterdir()))
-    readme = f"""# Lab run `{meta['run']}`: `{meta['scenario']}`
+    runs, sections, rows, devices, pairs, passed = [], [], [], {}, [], True
+    for run_dir, meta in zip(run_dirs, metas):
+        raw = folder / "raw" / meta["run"]
+        raw.mkdir(parents=True)
+        results = {}
+        for path in sorted(run_dir.glob("*.jsonl")):
+            text = pseudonymize(key, path.read_text())
+            results[path.stem] = [json.loads(line) for line in text.splitlines() if line.startswith("{")]
+            data = text.encode()
+            if len(data) > GZIP_ABOVE_BYTES:
+                (raw / f"{path.name}.gz").write_bytes(gzip.compress(data, mtime=0))
+            else:
+                (raw / path.name).write_bytes(data)
+        shutil.copyfile(run_dir / "run.json", raw / "run.json")
+        runs.append(results)
+        text, run_passed = summary(results)
+        passed &= run_passed
+        devices.update(meta["devices"])
+        pair = "-".join(sorted(device["platform"] for device in meta["devices"].values()))
+        if pair not in pairs:
+            pairs.append(pair)
+        for alias, records_ in results.items():
+            link = first(records_, "link")
+            timing = timings(records_)
+            cells = " | ".join("–" if value is None else str(value) for value in timing.values())
+            rows.append(f"| `{meta['run']}` | `{alias}` | {link.get('role') if link else '–'} "
+                        f"| {outcome(records_)[0]} | {cells} |")
+        files = "\n".join(f"- [`raw/{meta['run']}/{path.name}`](raw/{meta['run']}/{path.name})"
+                          for path in sorted(raw.iterdir()))
+        args = "\n".join(f"- `{alias}`: `{' '.join(device['args'])}`" for alias, device in meta["devices"].items())
+        sections.append(f"""### `{meta['run']}`
 
 - **Date:** {meta['date']}
 - **Commit:** `{meta['commit']}`
 - **Method:** `{meta['method']}`; iOS apps built with {meta['xcode']}
-- **Platform pairs:** {pairs}
 - **Profile:** `{meta['profile']}`, {meta['duration_s']} s per phone
+
+Launch arguments:
+
+{args}
+
+```text
+{text}
+```
+
+Raw results:
+
+{files}
+""")
+    device_rows = "\n".join(f"| `{alias}` | {device['model']} | {device['os']} |" for alias, device in devices.items())
+    id_rows = "\n".join(f"| `{alias}` | {', '.join(f'`{i}`' for i in ids)} | {'same' if len(ids) == 1 else 'changed'} |"
+                         for alias, ids in identities(runs).items())
+    run_rows = "\n".join(rows)
+    commits = ", ".join(sorted({f"`{meta['commit']}`" for meta in metas}))
+    readme = f"""# Lab record `{name or metas[0]['run']}`: `{metas[0]['scenario']}`
+
+- **Date:** {metas[0]['date']}
+- **Commit:** {commits}
+- **Platform pairs:** {' and '.join(pairs)}
+- **Runs:** {len(metas)}
 - **Result:** {'pass' if passed else 'fail'}
 
 Observed on real phones by the lab apps in `labapp/`. Bluetooth addresses are keyed pseudonyms that keep
@@ -461,20 +524,31 @@ the 2 address-type bits; the key stays on the lab Mac.
 
 ## Devices
 
-| Alias | Model | OS | Launch arguments |
-|---|---|---|---|
-{rows}
+| Alias | Model | OS |
+|---|---|---|
+{device_rows}
 
-## Results
+## Runs
 
-```text
-{text}
-```
+Times are in ms, each on the phone's own monotonic clock: connect is app start to first link, send to
+`Sent` is on the sender, link to received is on the receiver and includes the peer's own link and send.
+The phones' clocks are not synchronized, so one-way latency is not measured.
 
-## Raw results
+| Run | Phone | Role | Result | Connect | Send to `Sent` | Link to received |
+|---|---|---|---|---|---|---|
+{run_rows}
 
-{files}
-"""
+## Identity across relaunches
+
+Each run relaunches both apps. A phone's NodeId is the one its partner recorded on linking.
+
+| Phone | NodeIds seen | Across runs |
+|---|---|---|
+{id_rows}
+
+## Run details
+
+{chr(10).join(sections)}"""
     (folder / "README.md").write_text(readme)
     return folder
 
@@ -525,8 +599,9 @@ def parser():
     r.add_argument("--run-id", help="defaults to <scenario>-<date>-<time>")
     r.add_argument("--no-build", action="store_true", help="install the apps already built in this worktree")
     e = sub.add_parser("evidence", help="write a T9 record under docs/evidence/ from a run folder")
-    e.add_argument("--run", required=True, type=Path, help="build/lab/<run>")
-    e.add_argument("--name", help="evidence folder name after the date; defaults to the run id")
+    e.add_argument("--run", required=True, type=Path, action="append",
+                   help="build/lab/<run>; repeat it to cover several runs in one record")
+    e.add_argument("--name", help="evidence folder name after the date; defaults to the run id of a single run")
     g = sub.add_parser("grant", help="accept the iOS Bluetooth alert through the UI-test runner")
     g.add_argument("--devices", required=True, type=split_list)
     s = sub.add_parser("stop", help="stop the lab app")

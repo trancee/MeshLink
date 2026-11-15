@@ -115,7 +115,7 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Thin-adapter list (also in `check`) | `./gradlew checkThinAdapters` |
 | Lab tools' unit tests (also in `docs.yml`) | `python3 -m unittest discover -s tools/lab/tests` |
 | One device scenario on two lab phones, from a dedicated clean worktree; `--profile` is `unsecured` (default), `classical` (needs ticket 24) or `post-quantum` (needs ticket 25) | `python3 tools/lab/lab.py run --scenario direct-message --devices <alias>,<alias> --profile unsecured` |
-| Turn a run into a T9 evidence record | `python3 tools/lab/lab.py evidence --run build/lab/<run>` |
+| Turn runs into one T9 evidence record (repeat `--run`; several runs need `--name`) | `python3 tools/lab/lab.py evidence --run build/lab/<run> [--name <name>]` |
 
 The lab commands need the local configuration in `~/.config/meshlink-lab/` and the host tools listed in [`tools/lab/README.md`](tools/lab/README.md); `lab.py` refuses the main checkout and a dirty tree.
 
