@@ -1,6 +1,6 @@
 # Run every vector set from one runner in `commonTest`
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 18
 
