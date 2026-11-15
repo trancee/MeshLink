@@ -8,7 +8,7 @@ Blocked by: 17
 
 The owner decides how MeshLink treats an Android phone whose adapter reports `isMultipleAdvertisementSupported` false, and the docs, the support tiers and the device-proof tickets follow that decision. Today such a phone is `Blocked(Unsupported)`: MeshLink never starts there.
 
-Found in ticket 17: the Huawei P10 lite (Android 8.0) reports the flag false. In AOSP 8.0 that means fewer than 5 advertising instances (`MIN_ADVT_INSTANCES_FOR_MA`). An experiment build that skipped the check linked to the Pixel 6 as central and exchanged the message, but as peripheral no phone linked to it and a Mac scanner never saw its MESH advertisement, while the Pixel 6 was seen at once ([evidence](../../../docs/evidence/2026-11-15-radio-tracer/README.md#notes), [lessons](../../../docs/agents/lessons.md#device-lab)). The owner substituted the Mi Note 3 in ticket 17.
+Found in ticket 17: the Huawei P10 lite (Android 8.0) reports the flag false. In AOSP 8.0 that means fewer than 5 advertising instances (`MIN_ADVT_INSTANCES_FOR_MA`). An experiment build that skipped the check linked to the Pixel 6 as central and exchanged the message, but as peripheral no phone linked to it and a Mac scanner never saw its MESH advertisement, while the Pixel 6 was seen at once. The owner confirms a hardware and firmware limit: the Kirin 658's Bluetooth 4.1 controller supports only the central role, and no setting, developer option or update enables advertising ([evidence](../../../docs/evidence/2026-11-15-radio-tracer/README.md#notes), [lessons](../../../docs/agents/lessons.md#device-lab)). The owner substituted the Mi Note 3 in ticket 17.
 
 Options to put to the owner, with what each costs:
 
@@ -43,4 +43,4 @@ lychee --offline .
 
 ## Devices needed
 
-None for the decision; `p10lite` and `pixel6` if the owner wants the experiment repeated.
+None for the decision; `p10lite` and `pixel6` for the device proof if central-only nodes are accepted.

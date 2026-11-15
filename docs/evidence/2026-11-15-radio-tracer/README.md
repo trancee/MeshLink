@@ -71,7 +71,8 @@ python3 tools/lab/lab.py run --scenario direct-message --devices se2016,ip12mini
 **Substitute phone.** The ticket's Android pair was `p10lite` (Android 8.0) ↔ `pixel6`. The P10 lite reports
 `isMultipleAdvertisementSupported` false, so MeshLink starts as `Unsupported` there (run `rt-aa-1`). An
 experiment build that skipped the check linked as central, but as peripheral no phone linked and a Mac
-scanner never saw its advertisement, so the check stays. The owner substituted the Mi Note 3 (Android 9),
+scanner never saw its advertisement, so the check stays. The owner confirms a hardware and firmware limit: the
+Kirin 658's Bluetooth 4.1 controller supports only the central role, and no setting or update changes that. The owner substituted the Mi Note 3 (Android 9),
 the oldest Android in the lab that advertises; whether phones like the P10 lite may join as central-only
 nodes is a separate decision.
 
