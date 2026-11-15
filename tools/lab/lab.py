@@ -409,6 +409,18 @@ class Lab:
 
 # ---------------------------------------------------------------- commands
 
+def method(scenario, aliases, profile, roles, run_id, build):
+    """The `lab.py run` command line that reproduces a run."""
+    parts = ["python3 tools/lab/lab.py run", f"--scenario {scenario}", f"--devices {','.join(aliases)}",
+             f"--profile {profile}"]
+    if roles:
+        parts.append(f"--roles {','.join(roles)}")
+    parts.append(f"--run-id {run_id}")
+    if not build:
+        parts.append("--no-build")
+    return " ".join(parts)
+
+
 def run(lab, devices, roles, scenario, profile, duration_s, run_id, build):
     """Runs one scenario on `devices`; returns whether every phone passed."""
     commit = require_worktree()
@@ -429,8 +441,9 @@ def run(lab, devices, roles, scenario, profile, duration_s, run_id, build):
         "duration_s": duration_s,
         "commit": commit,
         "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "method": f"python3 tools/lab/lab.py run --scenario {scenario} --devices {','.join(aliases)} --profile {profile}",
-        "xcode": command(["xcodebuild", "-version"], quiet=True).stdout.splitlines()[0],
+        "method": method(scenario, aliases, profile, roles, run_id, build),
+        "xcode": command(["xcodebuild", "-version"], quiet=True).stdout.splitlines()[0]
+        if any(device["platform"] == "ios" for device in devices) else None,
         "devices": {
             device["alias"]: {"platform": device["platform"], **lab.describe(device), "args": launches[device["alias"]]}
             for device in devices
@@ -495,11 +508,13 @@ def evidence(run_dirs, name, key, today):
         files = "\n".join(f"- [`raw/{meta['run']}/{path.name}`](raw/{meta['run']}/{path.name})"
                           for path in sorted(raw.iterdir()))
         args = "\n".join(f"- `{alias}`: `{' '.join(device['args'])}`" for alias, device in meta["devices"].items())
+        ios = any(device["platform"] == "ios" for device in meta["devices"].values())
+        xcode = f"; iOS apps built with {meta['xcode']}" if ios and meta.get("xcode") else ""
         sections.append(f"""### `{meta['run']}`
 
 - **Date:** {meta['date']}
 - **Commit:** `{meta['commit']}`
-- **Method:** `{meta['method']}`; iOS apps built with {meta['xcode']}
+- **Method:** `{meta['method']}`{xcode}
 - **Profile:** `{meta['profile']}`, {meta['duration_s']} s per phone
 
 Launch arguments:

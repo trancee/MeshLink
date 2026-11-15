@@ -295,6 +295,21 @@ IP15 = {"platform": "ios", "model": "iPhone15,4", "os": "iOS 17.6.1"}
 SE2016 = {"platform": "ios", "model": "iPhone8,4", "os": "iOS 15.8"}
 
 
+class MethodTest(unittest.TestCase):
+    def test_the_method_repeats_the_command_line_that_was_run(self):
+        method = lab.method("direct-message", ["xcover4", "ip12mini"], "unsecured", ["central", "peripheral"],
+                            "rt-1", build=False)
+
+        self.assertEqual("python3 tools/lab/lab.py run --scenario direct-message --devices xcover4,ip12mini "
+                         "--profile unsecured --roles central,peripheral --run-id rt-1 --no-build", method)
+
+    def test_defaults_stay_off_the_method(self):
+        method = lab.method("direct-message", ["a", "b"], "unsecured", None, "rt-1", build=True)
+
+        self.assertEqual("python3 tools/lab/lab.py run --scenario direct-message --devices a,b "
+                         "--profile unsecured --run-id rt-1", method)
+
+
 class EvidenceTest(unittest.TestCase):
     def test_evidence_records_every_t9_field_and_pseudonymized_raw_files(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -339,6 +354,17 @@ class EvidenceTest(unittest.TestCase):
                           "| `ip15` | `node-i` | same |", "| `se2016` | `node-s` | same |",
                           "raw/r-2/se2016.jsonl", "**Result:** pass"):
                 self.assertIn(field, readme)
+
+    def test_an_android_only_run_names_no_xcode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            run_dir, _ = write_run(Path(folder), "r-1", {"pixel6": PIXEL6, "pixel6b": PIXEL6})
+            for alias in ("pixel6", "pixel6b"):
+                (run_dir / f"{alias}.jsonl").write_text('{"t_ms":9,"event":"done","result":"pass","failures":[]}\n')
+
+            with mock.patch.object(lab, "EVIDENCE", Path(folder) / "evidence"):
+                record = lab.evidence([run_dir], "android", KEY, "2026-11-20")
+
+            self.assertNotIn("Xcode", (record / "README.md").read_text())
 
     def test_one_record_needs_a_name_when_it_covers_several_runs(self):
         with tempfile.TemporaryDirectory() as folder:
