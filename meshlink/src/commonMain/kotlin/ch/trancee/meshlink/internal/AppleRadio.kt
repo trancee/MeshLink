@@ -95,7 +95,10 @@ internal object AppleGatt {
     /** The MESH service UUID `0x4D455348` in its 32-bit form, as it is advertised and scanned for. */
     val SERVICE_SHORT: ByteArray = "4d455348".hexToByteArray()
 
-    /** The MESH service UUID in its 128-bit form, which CoreBluetooth may report instead. */
+    /**
+     * The MESH service UUID in its 128-bit form: the published GATT service (GATT allows only 16- or
+     * 128-bit service UUIDs, and `CBMutableService` asserts on 4 B), and what CoreBluetooth may report.
+     */
     val SERVICE_FULL: ByteArray = "4d45534800001000800000805f9b34fb".hexToByteArray()
 
     /** The capability characteristic: read, no encryption. */

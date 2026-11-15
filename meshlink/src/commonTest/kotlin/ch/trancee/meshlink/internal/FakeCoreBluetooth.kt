@@ -53,6 +53,8 @@ internal class FakeCoreBluetooth : CoreBluetooth {
     }
 
     override fun addService(service: GattService) {
+        // `CBMutableService` asserts `UUID.data.length == 2 || UUID.data.length == 16`.
+        check(service.uuid.size == 2 || service.uuid.size == 16) { "CBMutableService rejects ${service.uuid.size} B UUIDs" }
         this.service = service
         calls += "addService ${service.uuid.toHexString()}"
     }

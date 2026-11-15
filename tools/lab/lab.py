@@ -479,6 +479,17 @@ the 2 address-type bits; the key stays on the lab Mac.
     return folder
 
 
+def grant_report(output):
+    """Picks the lines worth printing from xcodebuild output: grant steps, errors and the failure summary."""
+    report, summary = [], False
+    for line in output.splitlines():
+        text = line.strip()
+        summary = (summary and bool(text)) or text == "Testing failed:"
+        if summary or "LAB-GRANT" in text or "error:" in text or text.startswith("** TEST"):
+            report.append(text[:300])
+    return report
+
+
 def grant(lab, device):
     """Runs the UI-test runner that accepts the Bluetooth alert by exact button label."""
     if device["platform"] != "ios":
@@ -497,9 +508,8 @@ def grant(lab, device):
                       "-destination", f"id={device['udid']}", "-allowProvisioningUpdates"],
                      timeout=600, check=False, env=env)
     output = result.stdout + result.stderr
-    for line in output.splitlines():
-        if "LAB-GRANT" in line or "error:" in line:
-            print("  " + line.strip()[:300])
+    for line in grant_report(output):
+        print("  " + line)
     return result.returncode == 0 and "** TEST EXECUTE SUCCEEDED **" in output
 
 

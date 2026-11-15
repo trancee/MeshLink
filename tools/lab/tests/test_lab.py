@@ -198,6 +198,31 @@ class ResultTest(unittest.TestCase):
         self.assertEqual(("fail", ["x"]), lab.outcome([{"event": "done", "result": "fail", "failures": ["x"]}]))
 
 
+class GrantTest(unittest.TestCase):
+    def test_the_report_keeps_grant_lines_errors_and_the_failure_summary(self):
+        # Arrange
+        output = "\n".join([
+            "noise",
+            "LAB-GRANT tapped Allow",
+            "Testing failed:",
+            "\tLabGrantUITests-Runner encountered an error (Lost connection to testmanagerd)",
+            "",
+            "** TEST EXECUTE FAILED **",
+            "more noise",
+        ])
+
+        # Act
+        report = lab.grant_report(output)
+
+        # Assert
+        self.assertEqual([
+            "LAB-GRANT tapped Allow",
+            "Testing failed:",
+            "LabGrantUITests-Runner encountered an error (Lost connection to testmanagerd)",
+            "** TEST EXECUTE FAILED **",
+        ], report)
+
+
 class EvidenceTest(unittest.TestCase):
     def test_evidence_records_every_t9_field_and_pseudonymized_raw_files(self):
         with tempfile.TemporaryDirectory() as folder:

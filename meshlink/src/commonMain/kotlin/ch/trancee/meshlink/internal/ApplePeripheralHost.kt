@@ -39,7 +39,7 @@ internal class ApplePeripheralHost(
             published = true
             bluetooth.addService(
                 GattService(
-                    uuid = AppleGatt.SERVICE_SHORT,
+                    uuid = AppleGatt.SERVICE_FULL,
                     capability = AppleGatt.CAPABILITY,
                     toPeripheral = AppleGatt.TO_PERIPHERAL,
                     toCentral = AppleGatt.TO_CENTRAL,

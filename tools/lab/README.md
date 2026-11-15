@@ -54,6 +54,8 @@ chmod 600 ~/.config/meshlink-lab/pseudonym.key
 | `python3 tools/lab/lab.py stop --devices pixel6,ip15` | Stops the lab app. |
 | `python3 -m unittest discover -s tools/lab/tests` | The lab tools' unit tests; CI runs them in the docs job. |
 
+`grant` needs the iPhone unlocked with Settings > Developer > Enable UI Automation on. It prints the grant steps and, on failure, xcodebuild's `Testing failed:` summary. A tapped "Don't Allow" survives reinstalling; uninstall the app (`xcrun devicectl device uninstall app --device <udid> <bundle>`) to see the alert again.
+
 `run` options: `--roles central,peripheral` restricts each phone's link role in order (default `any`), `--duration` sets the seconds each phone runs (5–3600, default 60), `--run-id` names the run, and `--no-build` reinstalls the apps already built in this worktree.
 
 ### Profiles
