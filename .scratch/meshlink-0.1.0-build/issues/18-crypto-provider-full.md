@@ -32,13 +32,13 @@ No source sets zeroization or extra constant-time rules beyond libsodium's own. 
 
 ## Acceptance criteria
 
-- [ ] `CryptoProvider` in `:meshlink-core` declares each primitive above, and `:meshlink-crypto-sodium` implements it on Android, the host and iOS.
-- [ ] The X-Wing `0x647a` vectors from draft-ietf-hpke-pq-05 Appendix A.5 pass on the host and the iOS simulator. A failure is reported to the owner, not patched around (ADR 0004).
-- [ ] Known-answer tests cover each new primitive with at least one published vector (RFC 7748, RFC 8032, RFC 8439, RFC 5869, FIPS 203). Ticket 19 later moves them into the one runner.
-- [ ] T10: X25519 with an all-zero or low-order public key returns an error; Ed25519 verify rejects a flipped signature bit, a wrong key and a wrong message; AEAD decrypt rejects a flipped tag, ciphertext or associated-data bit; ML-KEM-768 and X-Wing decapsulation of a tampered ciphertext yield a key different from the sender's; wrong-length keys, nonces and ciphertexts are rejected before any native call.
-- [ ] Deterministic key generation and encapsulation give identical output for identical seeds on the host and the iOS simulator.
-- [ ] The native code stays at most 1 MB per ABI. The `nm` export gate still finds no `sodium_` or `crypto_` symbol, and the ticket-07 AES symbol check still passes.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] `CryptoProvider` in `:meshlink-core` declares each primitive above, and `:meshlink-crypto-sodium` implements it on Android, the host and iOS.
+- [x] The X-Wing `0x647a` vectors from draft-ietf-hpke-pq-05 Appendix A.5 pass on the host and the iOS simulator. A failure is reported to the owner, not patched around (ADR 0004).
+- [x] Known-answer tests cover each new primitive with at least one published vector (RFC 7748, RFC 8032, RFC 8439, RFC 5869, FIPS 203). Ticket 19 later moves them into the one runner.
+- [x] T10: X25519 with an all-zero or low-order public key returns an error; Ed25519 verify rejects a flipped signature bit, a wrong key and a wrong message; AEAD decrypt rejects a flipped tag, ciphertext or associated-data bit; ML-KEM-768 and X-Wing decapsulation of a tampered ciphertext yield a key different from the sender's; wrong-length keys, nonces and ciphertexts are rejected before any native call.
+- [x] Deterministic key generation and encapsulation give identical output for identical seeds on the host and the iOS simulator.
+- [x] The native code stays at most 1 MB per ABI. The `nm` export gate still finds no `sodium_` or `crypto_` symbol, and the ticket-07 AES symbol check still passes.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
