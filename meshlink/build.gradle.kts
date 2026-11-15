@@ -43,9 +43,13 @@ kotlin {
 
 // iosArm64Main holds only internal thin adapters, so it adds nothing to the docs. Dokka 2.3.0 still
 // resolves the KDoc QueueDispatcher inherits from CoroutineDispatcher, whose links don't resolve
-// from this source set, and failOnWarning fails on them.
+// from this source set, and failOnWarning fails on them. IosKeychain.kt is an internal thin adapter
+// too; a Linux host has no iOS platform libraries, so Dokka can't resolve its Core Foundation types.
 dokka {
     dokkaSourceSets.named("iosArm64Main") { suppress.set(true) }
+    dokkaSourceSets.configureEach {
+        suppressedFiles.from("src/iosMain/kotlin/ch/trancee/meshlink/internal/IosKeychain.kt")
+    }
 }
 
 // ADR 0004 "Binding": the release XCFramework's slices export no libsodium symbol and touch no AES,
