@@ -23,7 +23,7 @@ An agent runs one device scenario with `python3 tools/lab/lab.py run --scenario 
 - [x] `lab.py evidence` writes `docs/evidence/<date>-<name>/README.md` with every T9 field (devices with OS versions, platform pairs, commit, method, raw results, date) and the raw files, gzipped where large. Addresses become lowercase HMAC-SHA256 pseudonyms keeping the 2 address-type bits, keyed by a local secret that is never committed.
 - [x] Only lab aliases appear in committed files; `python3 tools/check_private.py` passes on the result.
 - [x] `lab.py` has standard-library `unittest` tests under `tools/lab/tests/` for alias resolution, argument building, the three `--profile` values and pseudonymization. They run with `python3 -m unittest discover -s tools/lab/tests`, which this ticket adds to the spine's proof-command table, and in CI beside the docs checks.
-- [ ] One smoke run of `direct-message` on `pixel6,ip15` completes and its summary is attached to the PR; full proof is ticket 17. Faults found go to ticket 61.
+- [x] One smoke run of `direct-message` on `pixel6,ip15` completes and its summary is attached to the PR; full proof is ticket 17. Faults found go to ticket 61.
 
 ## Proof commands
 
@@ -54,3 +54,6 @@ npx --yes markdownlint-cli2@0.24.1
 - **Android lint:** the lab app is the first application module, so `check` now runs Android lint on its sources. Its lint tasks ran each library's `lintAnalyze*` tasks, which read the generated spec vectors without a task dependency; `meshlink.spec-vectors` now declares it.
 - **`MeshLink` function count:** the hook is two properties, not two functions, so `MeshLink` stays under detekt's `TooManyFunctions` limit without a suppression; `InternalMeshLinkApi` now also targets properties.
 - **libsodium under Xcode 27.2:** the first smoke-run build found that libsodium's Android configure used the host `ar`, which leaves empty archives under Xcode 27.2. `build-libsodium.sh` now pins the NDK's `llvm-*` binutils and checks that the archive defines `sodium_init` before writing the stamp (ADR 0005, 2026-11-15 lab apps).
+- **iOS GATT service UUID:** the second smoke run aborted the iOS app when it published the GATT service. `CBMutableService` accepts only 16- and 128-bit UUIDs, and MeshLink passed the 32-bit MESH form, against the spec's "128-bit MESH UUID". The peripheral now publishes the 128-bit form, and the fake CoreBluetooth enforces the rule (lessons, "Device lab").
+- **Grant runner on iOS 17.6.1:** the phone's `testmanagerd` crashed on automatic screen capture, so the scheme turns it off. `lab.py grant` now prints xcodebuild's failure summary.
+- **Smoke run (2026-11-15):** `direct-message` on `pixel6,ip15`, `unsecured`, 60 s at `486b39f`, Xcode 16.4: pixel6 pass (central), ip15 pass (peripheral), result pass. All three faults were fixed in this ticket, so none went to ticket 61.
