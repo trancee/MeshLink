@@ -1,0 +1,10 @@
+{"t_ms":6,"event":"start","scenario":"direct-message","run":"rt-aa-5","role":"central","peer":"pixel6","mesh":"lab-rt-aa-5","profile":"unsecured","duration_s":60}
+{"t_ms":39,"event":"state","state":"Stopped","role":null}
+{"t_ms":39,"event":"state","state":"Starting","role":null}
+{"t_ms":106,"event":"state","state":"Running","role":null}
+{"t_ms":2621,"event":"link","peer_node":"4568b8b286e5f544","role":"central"}
+{"t_ms":2626,"event":"send","to":"4568b8b286e5f544","bytes":81,"sha256":"f6cddc1beb744de04fd259282267041251577c53cee925f5954e7fdca7b5f740","role":"central"}
+{"t_ms":2632,"event":"received","from":"4568b8b286e5f544","bytes":82,"sha256":"d00da57eebf221b47b326805d02f43fa309bf73f5ab98bfb31cd2103b34975e5","intact":true,"role":"central"}
+{"t_ms":2635,"event":"status","status":"Queued","role":"central"}
+{"t_ms":2641,"event":"status","status":"Sent","role":"central"}
+{"t_ms":60216,"event":"done","result":"pass","failures":[]}

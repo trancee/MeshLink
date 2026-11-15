@@ -129,6 +129,15 @@ class ArgumentTest(unittest.TestCase):
         self.assertEqual(60, args.duration)
 
 
+class PermissionTest(unittest.TestCase):
+    def test_android_12_and_later_get_the_nearby_devices_permissions(self):
+        self.assertEqual(("BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE"), lab.android_permissions(31))
+
+    def test_android_8_to_11_get_fine_location(self):
+        self.assertEqual(("ACCESS_FINE_LOCATION",), lab.android_permissions(26))
+        self.assertEqual(("ACCESS_FINE_LOCATION",), lab.android_permissions(30))
+
+
 class ProfileTest(unittest.TestCase):
     def test_all_three_lab_profiles_reach_the_apps(self):
         for profile in ("unsecured", "classical", "post-quantum"):
@@ -223,40 +232,147 @@ class GrantTest(unittest.TestCase):
         ], report)
 
 
+def phone_records(peer_node, start=0):
+    """One passing direct-message phone: linked at +100 ms, Sent at +130 ms, received at +180 ms."""
+    return [
+        {"t_ms": start, "event": "start"},
+        {"t_ms": start + 100, "event": "link", "peer_node": peer_node, "role": "central"},
+        {"t_ms": start + 110, "event": "send", "role": "central"},
+        {"t_ms": start + 120, "event": "status", "status": "Held", "role": "central"},
+        {"t_ms": start + 130, "event": "status", "status": "Sent", "role": "central"},
+        {"t_ms": start + 180, "event": "received", "intact": True, "role": "central"},
+        {"t_ms": start + 900, "event": "done", "result": "pass", "failures": []},
+    ]
+
+
+class TimingTest(unittest.TestCase):
+    def test_timings_measure_from_start_send_and_link_on_one_clock(self):
+        # Act
+        timing = lab.timings(phone_records("b", start=5))
+
+        # Assert
+        self.assertEqual({"connect_ms": 100, "send_to_sent_ms": 20, "link_to_received_ms": 80}, timing)
+
+    def test_a_missing_event_leaves_its_timing_empty(self):
+        # Act
+        timing = lab.timings([{"t_ms": 0, "event": "start"}, {"t_ms": 9, "event": "done"}])
+
+        # Assert
+        self.assertEqual({"connect_ms": None, "send_to_sent_ms": None, "link_to_received_ms": None}, timing)
+
+
+class IdentityTest(unittest.TestCase):
+    def test_each_phone_gets_the_node_ids_its_peers_recorded_across_runs(self):
+        # Arrange
+        runs = [
+            {"a": phone_records("node-b"), "b": phone_records("node-a")},
+            {"a": phone_records("node-b"), "b": phone_records("node-a2")},
+        ]
+
+        # Act
+        ids = lab.identities(runs)
+
+        # Assert
+        self.assertEqual({"a": ["node-a", "node-a2"], "b": ["node-b"]}, ids)
+
+
+def write_run(directory, run_id, devices):
+    run_dir = directory / run_id
+    run_dir.mkdir()
+    meta = {
+        "run": run_id, "scenario": "direct-message", "profile": "unsecured", "duration_s": 60,
+        "commit": "0123456789abcdef", "date": "2026-11-20T10:00:00+01:00",
+        "method": f"python3 tools/lab/lab.py run --scenario direct-message --devices {','.join(devices)} --profile unsecured",
+        "xcode": "Xcode 26.1",
+        "devices": {alias: dict(device, args=[f"run={run_id}"]) for alias, device in devices.items()},
+    }
+    (run_dir / "run.json").write_text(json.dumps(meta))
+    return run_dir, meta
+
+
+PIXEL6 = {"platform": "android", "model": "Pixel 6", "os": "Android 17 (API 37)"}
+IP15 = {"platform": "ios", "model": "iPhone15,4", "os": "iOS 17.6.1"}
+SE2016 = {"platform": "ios", "model": "iPhone8,4", "os": "iOS 15.8"}
+
+
+class MethodTest(unittest.TestCase):
+    def test_the_method_repeats_the_command_line_that_was_run(self):
+        method = lab.method("direct-message", ["xcover4", "ip12mini"], "unsecured", ["central", "peripheral"],
+                            "rt-1", build=False)
+
+        self.assertEqual("python3 tools/lab/lab.py run --scenario direct-message --devices xcover4,ip12mini "
+                         "--profile unsecured --roles central,peripheral --run-id rt-1 --no-build", method)
+
+    def test_defaults_stay_off_the_method(self):
+        method = lab.method("direct-message", ["a", "b"], "unsecured", None, "rt-1", build=True)
+
+        self.assertEqual("python3 tools/lab/lab.py run --scenario direct-message --devices a,b "
+                         "--profile unsecured --run-id rt-1", method)
+
+
 class EvidenceTest(unittest.TestCase):
     def test_evidence_records_every_t9_field_and_pseudonymized_raw_files(self):
         with tempfile.TemporaryDirectory() as folder:
-            run_dir, docs = Path(folder) / "run", Path(folder) / "evidence"
-            run_dir.mkdir()
-            meta = {
-                "run": "r-1", "scenario": "direct-message", "profile": "unsecured", "duration_s": 60,
-                "commit": "0123456789abcdef", "date": "2026-11-20T10:00:00+01:00",
-                "method": "python3 tools/lab/lab.py run --scenario direct-message --devices pixel6,ip15 --profile unsecured",
-                "xcode": "Xcode 26.1",
-                "devices": {
-                    "pixel6": {"platform": "android", "model": "Pixel 6", "os": "Android 17 (API 37)", "args": ["run=r-1"]},
-                    "ip15": {"platform": "ios", "model": "iPhone15,4", "os": "iOS 17.6.1", "args": ["run=r-1"]},
-                },
-            }
-            (run_dir / "run.json").write_text(json.dumps(meta))
+            run_dir, meta = write_run(Path(folder), "r-1", {"pixel6": PIXEL6, "ip15": IP15})
+            docs = Path(folder) / "evidence"
             done = '{"t_ms":9,"event":"done","result":"pass","failures":[]}\n'
             (run_dir / "pixel6.jsonl").write_text('{"t_ms":1,"event":"scan","address":"' + STATIC_ADDRESS + '"}\n' + done)
             (run_dir / "ip15.jsonl").write_text('{"t_ms":1,"event":"pad","x":"' + "y" * 70_000 + '"}\n' + done)
 
             with mock.patch.object(lab, "EVIDENCE", docs):
-                record = lab.evidence(run_dir, "smoke", KEY, "2026-11-20")
+                record = lab.evidence([run_dir], "smoke", KEY, "2026-11-20")
 
             readme = (record / "README.md").read_text()
             self.assertEqual(docs / "2026-11-20-smoke", record)
-            for field in ("2026-11-20T10:00:00+01:00", "0123456789abcdef", meta["method"], "android and ios",
-                          "Pixel 6", "Android 17 (API 37)", "iPhone15,4", "iOS 17.6.1", "raw/pixel6.jsonl",
+            for field in ("2026-11-20T10:00:00+01:00", "0123456789abcdef", meta["method"], "android-ios",
+                          "Pixel 6", "Android 17 (API 37)", "iPhone15,4", "iOS 17.6.1", "raw/r-1/pixel6.jsonl",
                           "result: pass"):
                 self.assertIn(field, readme)
-            raw = (record / "raw" / "pixel6.jsonl").read_text()
+            raw = (record / "raw" / "r-1" / "pixel6.jsonl").read_text()
             self.assertNotIn(STATIC_ADDRESS, raw)
             self.assertIn(lab.pseudonym(KEY, STATIC_ADDRESS), raw)
-            self.assertIn("result", gzip.decompress((record / "raw" / "ip15.jsonl.gz").read_bytes()).decode())
-            self.assertFalse((record / "raw" / "ip15.jsonl").exists())
+            self.assertIn("result", gzip.decompress((record / "raw" / "r-1" / "ip15.jsonl.gz").read_bytes()).decode())
+            self.assertFalse((record / "raw" / "r-1" / "ip15.jsonl").exists())
+
+    def test_one_record_covers_several_runs_with_timings_roles_and_identities(self):
+        with tempfile.TemporaryDirectory() as folder:
+            docs = Path(folder) / "evidence"
+            runs = []
+            for run_id, devices, ids in (("r-1", {"pixel6": PIXEL6, "ip15": IP15}, ("node-i", "node-p")),
+                                         ("r-2", {"se2016": SE2016, "ip15": IP15}, ("node-i", "node-s"))):
+                run_dir, _ = write_run(Path(folder), run_id, devices)
+                for alias, peer_node in zip(devices, ids):
+                    lines = "\n".join(json.dumps(r) for r in phone_records(peer_node))
+                    (run_dir / f"{alias}.jsonl").write_text(lines + "\n")
+                runs.append(run_dir)
+
+            with mock.patch.object(lab, "EVIDENCE", docs):
+                record = lab.evidence(runs, "radio-tracer", KEY, "2026-11-20")
+
+            readme = (record / "README.md").read_text()
+            for field in ("android-ios and ios-ios", "| `r-1` | `pixel6` | central | pass | 100 | 20 | 80 |",
+                          "| `ip15` | `node-i` | same |", "| `se2016` | `node-s` | same |",
+                          "raw/r-2/se2016.jsonl", "**Result:** pass"):
+                self.assertIn(field, readme)
+
+    def test_an_android_only_run_names_no_xcode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            run_dir, _ = write_run(Path(folder), "r-1", {"pixel6": PIXEL6, "pixel6b": PIXEL6})
+            for alias in ("pixel6", "pixel6b"):
+                (run_dir / f"{alias}.jsonl").write_text('{"t_ms":9,"event":"done","result":"pass","failures":[]}\n')
+
+            with mock.patch.object(lab, "EVIDENCE", Path(folder) / "evidence"):
+                record = lab.evidence([run_dir], "android", KEY, "2026-11-20")
+
+            self.assertNotIn("Xcode", (record / "README.md").read_text())
+
+    def test_one_record_needs_a_name_when_it_covers_several_runs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first, _ = write_run(Path(folder), "r-1", {"pixel6": PIXEL6, "ip15": IP15})
+            second, _ = write_run(Path(folder), "r-2", {"pixel6": PIXEL6, "ip15": IP15})
+
+            with self.assertRaisesRegex(lab.LabError, "--name"):
+                lab.evidence([first, second], None, KEY, "2026-11-20")
 
 
 if __name__ == "__main__":

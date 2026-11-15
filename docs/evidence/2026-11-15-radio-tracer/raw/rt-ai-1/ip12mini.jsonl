@@ -1,0 +1,9 @@
+{"t_ms":0,"event":"start","scenario":"direct-message","run":"rt-ai-1","role":"peripheral","peer":"xcover4","mesh":"lab-rt-ai-1","profile":"unsecured","duration_s":60}
+{"t_ms":1,"event":"state","state":"Stopped","role":null}
+{"t_ms":1,"event":"state","state":"Starting","role":null}
+{"t_ms":27,"event":"state","state":"Running","role":null}
+{"t_ms":7674,"event":"link","peer_node":"edde26466d025397","role":"peripheral"}
+{"t_ms":7676,"event":"send","to":"edde26466d025397","bytes":82,"sha256":"c6737c0b016bead9fbe203f90105f5f8920c2d74f7cd1e669ab3290caa06f8a7","role":"peripheral"}
+{"t_ms":7678,"event":"status","status":"Sent","role":"peripheral"}
+{"t_ms":7806,"event":"received","from":"edde26466d025397","bytes":83,"sha256":"a2fc56d76deecfe9e7e3876856f673fdb6be0c3e08cf52f8c42ae8798779cb30","intact":true,"role":"peripheral"}
+{"t_ms":60059,"event":"done","result":"pass","failures":[]}

@@ -136,7 +136,8 @@ Exit: links rotate, fragment, flow-control, rekey and upgrade to L2CAP CoC where
 | 30 | [Rekey long-lived links](issues/30-rekey.md) | AFK | 28 |
 | 31 | [Upgrade links to L2CAP CoC with GATT fallback](issues/31-coc-bearer-switch.md) | AFK | 17, 29 |
 | 32 | [Apply the PHY policy, advertising and scanning rules](issues/32-phy-advertising-scanning.md) | AFK | 17, 27 |
-| 33 | [Prove the link layer on real phone pairs](issues/33-link-device-proof.md) | HITL | 30, 31, 32 |
+| 66 | [Decide whether phones that can't advertise join as central-only nodes](issues/66-central-only-nodes.md) | HITL | 17 |
+| 33 | [Prove the link layer on real phone pairs](issues/33-link-device-proof.md) | HITL | 30, 31, 32, 66 |
 | 34 | [Fuzz every decoder on a schedule with Jazzer](issues/34-jazzer-fuzzing.md) | AFK | 28 |
 
 ### M5 Routing

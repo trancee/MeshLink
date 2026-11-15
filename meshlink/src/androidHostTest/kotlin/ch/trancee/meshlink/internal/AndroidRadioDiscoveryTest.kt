@@ -72,7 +72,7 @@ class AndroidRadioDiscoveryTest {
             assertEquals(BluetoothDevice.PHY_LE_1M, started.parameters.primaryPhy)
             assertEquals(BluetoothDevice.PHY_LE_1M, started.parameters.secondaryPhy)
             val payloadUuid = ParcelUuid(MeshGatt.uuidOf(payload))
-            assertEquals(listOf(MeshGatt.SERVICE_PARCEL, payloadUuid), started.data.serviceUuids)
+            assertEquals(listOf(MeshGatt.MESH_PARCEL, payloadUuid), started.data.serviceUuids)
             assertEquals(false, started.data.includeDeviceName)
             assertEquals(false, started.data.includeTxPowerLevel)
             assertNull(started.scanResponse)
@@ -172,7 +172,7 @@ class AndroidRadioDiscoveryTest {
             assertIs<RadioResult.Ok<Unit>>(first)
             assertIs<RadioResult.Ok<Unit>>(second)
             val scan = shadowOf(adapter.bluetoothLeScanner).activeScans.single()
-            assertEquals(listOf(MeshGatt.SERVICE_PARCEL), scan.scanFilters().map { it.serviceUuid })
+            assertEquals(listOf(MeshGatt.MESH_PARCEL), scan.scanFilters().map { it.serviceUuid })
             assertEquals(ScanSettings.SCAN_MODE_BALANCED, scan.scanSettings()?.scanMode)
         }
 

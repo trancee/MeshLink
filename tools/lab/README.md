@@ -48,8 +48,8 @@ chmod 600 ~/.config/meshlink-lab/pseudonym.key
 
 | Command | Does |
 |---|---|
-| `python3 tools/lab/lab.py run --scenario direct-message --devices pixel6,ip15 --profile unsecured` | Builds both lab apps, installs them, launches each with its launch arguments, waits for both `done` records, pulls the results into `build/lab/<run>/` with `run.json` (commit, method, devices with model and OS) and prints the summary. Exit 0 on pass, 2 on fail, 1 if it can't run. |
-| `python3 tools/lab/lab.py evidence --run build/lab/<run> [--name <name>]` | Writes `docs/evidence/<date>-<name>/README.md` with every T9 field and copies the raw files, gzipped above 64 KiB, with Bluetooth addresses pseudonymized. |
+| `python3 tools/lab/lab.py run --scenario direct-message --devices pixel6,ip15 --profile unsecured` | Builds both lab apps, installs them, launches each with its launch arguments, waits for both `done` records, pulls the results into `build/lab/<run>/` with `run.json` (commit, the full command line as method, the Xcode version when an iPhone takes part, devices with model and OS) and prints the summary. Exit 0 on pass, 2 on fail, 1 if it can't run. |
+| `python3 tools/lab/lab.py evidence --run build/lab/<run> [--run build/lab/<run> …] [--name <name>]` | Writes `docs/evidence/<date>-<name>/README.md` with every T9 field: per run and phone the role, result, connect time, send to `Sent` and link to received (each on the phone's own clock), and each phone's NodeId across relaunches. Copies the raw files to `raw/<run>/`, gzipped above 64 KiB, with Bluetooth addresses pseudonymized. Several runs need `--name`. |
 | `python3 tools/lab/lab.py grant --devices ip15` | Runs the UI-test runner that accepts the iOS Bluetooth alert by exact button label. |
 | `python3 tools/lab/lab.py stop --devices pixel6,ip15` | Stops the lab app. |
 | `python3 -m unittest discover -s tools/lab/tests` | The lab tools' unit tests; CI runs them in the docs job. |

@@ -112,12 +112,13 @@ Vectors: `derivations.json`, derivation `resolvable-tag`.
 
 (ADR 0009 decision 1; ADR 0010 decision 5; [D-13].)
 
-Every link starts on GATT. The peripheral exposes one primary service with the 128-bit MESH UUID and three characteristics:
+Every link starts on GATT. The peripheral exposes one primary service and three characteristics. The service UUID is not the advertised MESH UUID: it is off the Bluetooth Base UUID, so no stack can shorten it to the 32-bit form that ATT forbids ([D-13]).
 
 <!-- data: constants.json -->
 
 | Name | Value | Decision |
 |---|---|---|
+| mesh-gatt-service-uuid | 4D455348-4D4C-4E4B-8000-000000000000 | D-13 |
 | capability-characteristic-uuid | 4D455348-4D4C-4E4B-8001-000000000001 | D-13 |
 | central-to-peripheral-characteristic-uuid | 4D455348-4D4C-4E4B-8001-000000000002 | D-13 |
 | peripheral-to-central-characteristic-uuid | 4D455348-4D4C-4E4B-8001-000000000003 | D-13 |

@@ -1,0 +1,40 @@
+{
+  "run": "rt-ai-1",
+  "scenario": "direct-message",
+  "profile": "unsecured",
+  "duration_s": 60,
+  "commit": "882b7331a55e32e614136be9e36843927aa67889",
+  "date": "2026-11-15T18:50:02+01:00",
+  "method": "python3 tools/lab/lab.py run --scenario direct-message --devices xcover4,ip12mini --profile unsecured",
+  "xcode": "Xcode 27.2",
+  "devices": {
+    "xcover4": {
+      "platform": "android",
+      "model": "SM-G390F",
+      "os": "Android 9 (API 28)",
+      "args": [
+        "scenario=direct-message",
+        "role=central",
+        "peer=ip12mini",
+        "mesh=lab-rt-ai-1",
+        "profile=unsecured",
+        "run=rt-ai-1",
+        "duration=60"
+      ]
+    },
+    "ip12mini": {
+      "platform": "ios",
+      "model": "iPhone13,1",
+      "os": "iOS 27.2",
+      "args": [
+        "scenario=direct-message",
+        "role=peripheral",
+        "peer=xcover4",
+        "mesh=lab-rt-ai-1",
+        "profile=unsecured",
+        "run=rt-ai-1",
+        "duration=60"
+      ]
+    }
+  }
+}

@@ -21,6 +21,12 @@
       "source": "ADR 0010 decision 1"
     },
     {
+      "name": "mesh-gatt-service-uuid",
+      "value": "4D455348-4D4C-4E4B-8000-000000000000",
+      "decision": "D-13",
+      "source": "ADR 0010 amendment 2026-11-15"
+    },
+    {
       "name": "capability-characteristic-uuid",
       "value": "4D455348-4D4C-4E4B-8001-000000000001",
       "decision": "D-13",

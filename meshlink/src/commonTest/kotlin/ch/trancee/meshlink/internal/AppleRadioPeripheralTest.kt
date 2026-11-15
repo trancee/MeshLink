@@ -55,7 +55,7 @@ class AppleRadioPeripheralTest {
 
         // Assert
         assertIs<RadioResult.Ok<Unit>>(result)
-        assertEquals(listOf("addService 4d45534800001000800000805f9b34fb"), bluetooth.calls)
+        assertEquals(listOf("addService 4d4553484d4c4e4b8000000000000000"), bluetooth.calls)
         val service = bluetooth.service!!
         assertContentEquals(AppleGatt.CAPABILITY, service.capability)
         assertContentEquals(AppleGatt.TO_PERIPHERAL, service.toPeripheral)

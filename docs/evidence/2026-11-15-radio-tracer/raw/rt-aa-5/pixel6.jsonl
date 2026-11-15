@@ -1,0 +1,10 @@
+{"t_ms":1,"event":"start","scenario":"direct-message","run":"rt-aa-5","role":"peripheral","peer":"minote3","mesh":"lab-rt-aa-5","profile":"unsecured","duration_s":60}
+{"t_ms":15,"event":"state","state":"Stopped","role":null}
+{"t_ms":15,"event":"state","state":"Starting","role":null}
+{"t_ms":90,"event":"state","state":"Running","role":null}
+{"t_ms":3388,"event":"link","peer_node":"97b00e76b462b464","role":"peripheral"}
+{"t_ms":3390,"event":"send","to":"97b00e76b462b464","bytes":82,"sha256":"d00da57eebf221b47b326805d02f43fa309bf73f5ab98bfb31cd2103b34975e5","role":"peripheral"}
+{"t_ms":3391,"event":"status","status":"Queued","role":"peripheral"}
+{"t_ms":3394,"event":"status","status":"Sent","role":"peripheral"}
+{"t_ms":3475,"event":"received","from":"97b00e76b462b464","bytes":81,"sha256":"f6cddc1beb744de04fd259282267041251577c53cee925f5954e7fdca7b5f740","intact":true,"role":"peripheral"}
+{"t_ms":60173,"event":"done","result":"pass","failures":[]}

@@ -1,0 +1,9 @@
+{"t_ms":1,"event":"start","scenario":"direct-message","run":"rt-aa-6","role":"central","peer":"minote3","mesh":"lab-rt-aa-6","profile":"unsecured","duration_s":60}
+{"t_ms":16,"event":"state","state":"Starting","role":null}
+{"t_ms":105,"event":"state","state":"Running","role":null}
+{"t_ms":2484,"event":"link","peer_node":"97b00e76b462b464","role":"central"}
+{"t_ms":2489,"event":"send","to":"97b00e76b462b464","bytes":82,"sha256":"7000cd8e4af9f29a6dc5f412d4bbd7701c58650c484d269da93de02fb8236e75","role":"central"}
+{"t_ms":2491,"event":"status","status":"Queued","role":"central"}
+{"t_ms":2498,"event":"status","status":"Sent","role":"central"}
+{"t_ms":2569,"event":"received","from":"97b00e76b462b464","bytes":81,"sha256":"7c5d4cc00d927c44f896fb3ac359ca56ae2e3d6e64ddf41b9101d61dc55bbfe9","intact":true,"role":"central"}
+{"t_ms":60157,"event":"done","result":"pass","failures":[]}

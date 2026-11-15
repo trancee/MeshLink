@@ -36,7 +36,7 @@ internal class BleAdvertiser(
         val data =
             AdvertiseData
                 .Builder()
-                .addServiceUuid(MeshGatt.SERVICE_PARCEL)
+                .addServiceUuid(MeshGatt.MESH_PARCEL)
                 .addServiceUuid(ParcelUuid(MeshGatt.uuidOf(payload)))
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)

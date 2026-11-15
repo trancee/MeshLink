@@ -262,10 +262,11 @@ class AndroidRadioCentralTest {
             val services =
                 listOf(
                     BluetoothGattService(UUID.randomUUID(), BluetoothGattService.SERVICE_TYPE_PRIMARY),
-                    meshServiceWithout(MeshGatt.CAPABILITY),
-                    meshServiceWithout(MeshGatt.TO_PERIPHERAL),
-                    meshServiceWithout(MeshGatt.TO_CENTRAL),
-                    meshServiceWithout(MeshGatt.CCCD),
+                    meshService(uuid = MeshGatt.MESH),
+                    meshService(missing = MeshGatt.CAPABILITY),
+                    meshService(missing = MeshGatt.TO_PERIPHERAL),
+                    meshService(missing = MeshGatt.TO_CENTRAL),
+                    meshService(missing = MeshGatt.CCCD),
                 )
 
             // Act
@@ -509,10 +510,13 @@ class AndroidRadioCentralTest {
         }
     }
 
-    /** The MeshLink service without the characteristic or descriptor [missing]. */
-    private fun meshServiceWithout(missing: UUID): BluetoothGattService {
+    /** The MeshLink service under [uuid], without the characteristic or descriptor [missing]. */
+    private fun meshService(
+        uuid: UUID = MeshGatt.SERVICE,
+        missing: UUID? = null,
+    ): BluetoothGattService {
         val complete = MeshGatt.service()
-        val service = BluetoothGattService(MeshGatt.SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        val service = BluetoothGattService(uuid, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         complete.characteristics.filter { it.uuid != missing }.forEach { original ->
             val copy = BluetoothGattCharacteristic(original.uuid, original.properties, original.permissions)
             original.descriptors.filter { it.uuid != missing }.forEach {
