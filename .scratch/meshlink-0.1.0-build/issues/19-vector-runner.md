@@ -18,6 +18,13 @@ External sets are vendored into the repository so tests never need the network (
 
 cacophony runs from ticket 22, and the hpke-pq vectors from ticket 45, through this same runner.
 
+## Outcome
+
+- The runner lives in `:meshlink-crypto-sodium` `commonTest`, not `:meshlink-core` (owner decision): its derivation and crypto handlers need the real `CryptoProvider`. ADR 0017 (2026-11-15, vector runner) records it.
+- Wycheproof at `65ca4947`, which has every ML-KEM-768 file; X-Wing runs from hpke-pq `test-vectors.json` (`draft-ietf-hpke-pq-05`), which supersedes the hand-copied A.5 vectors.
+- Wycheproof's two ML-KEM `InvalidDecapsulationKey` tests are not applicable (owner decision): MeshLink decapsulates only with keys it generated.
+- `lychee --offline .` passes on the vendored files; `typos` excludes their data with a stated reason.
+
 ## Spec and ADR references
 
 - [ADR 0017](../../../docs/adr/0017-testing-architecture.md) decisions 4 (real crypto on the host), 10 (one vector runner and its sets) and 12 (CI tiers).
@@ -27,15 +34,15 @@ cacophony runs from ticket 22, and the hpke-pq vectors from ticket 45, through t
 
 ## Acceptance criteria
 
-- [ ] One runner class in `commonTest` loads each JSON file, dispatches each test group to a handler, and fails with the file, group and test ID on a mismatch.
-- [ ] A test with no handler fails the run, so a file cannot be skipped silently. A file is listed as pending only by an explicit list that names the owning ticket.
-- [ ] Every tier 1 file whose code exists passes, with its `valid`, `invalid` and `acceptable` counts reported.
-- [ ] Wycheproof X25519, Ed25519, ChaCha20-Poly1305, HKDF-SHA-256 and ML-KEM-768 files pass at the pinned commit. If the pinned commit has no ML-KEM-768 file, the ticket records that and reports it to the owner.
-- [ ] The X-Wing A.5 vectors pass through the runner.
-- [ ] The runner runs in both `./gradlew check` and `./gradlew iosSimulatorArm64Test`, with no network access.
-- [ ] T10: a test that corrupts one expected byte in a copy of each set proves the runner fails.
-- [ ] Each vendored set has a register row with source URL, commit, SHA-256 and license. `typos` and `lychee` either pass on the vendored files or exclude them with a stated reason.
-- [ ] `./gradlew check` passes with Kover at 100%.
+- [x] One runner class in `commonTest` loads each JSON file, dispatches each test group to a handler, and fails with the file, group and test ID on a mismatch.
+- [x] A test with no handler fails the run, so a file cannot be skipped silently. A file is listed as pending only by an explicit list that names the owning ticket.
+- [x] Every tier 1 file whose code exists passes, with its `valid`, `invalid` and `acceptable` counts reported.
+- [x] Wycheproof X25519, Ed25519, ChaCha20-Poly1305, HKDF-SHA-256 and ML-KEM-768 files pass at the pinned commit. If the pinned commit has no ML-KEM-768 file, the ticket records that and reports it to the owner.
+- [x] The X-Wing A.5 vectors pass through the runner.
+- [x] The runner runs in both `./gradlew check` and `./gradlew iosSimulatorArm64Test`, with no network access.
+- [x] T10: a test that corrupts one expected byte in a copy of each set proves the runner fails.
+- [x] Each vendored set has a register row with source URL, commit, SHA-256 and license. `typos` and `lychee` either pass on the vendored files or exclude them with a stated reason.
+- [x] `./gradlew check` passes with Kover at 100%.
 
 ## Proof commands
 

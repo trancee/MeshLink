@@ -40,8 +40,8 @@ DEVICE_FIELD = re.compile(r'"(serial|udid|ecid)"\s*:\s*"([^"]*)"|<key>(Serial|Se
 ALIAS = re.compile(r"(?=[a-z0-9-]*[g-z])[a-z0-9][a-z0-9-]*(?::\d+)?")
 # Placeholders that document a pattern rather than leak a value.
 ALLOWED = {"<udid>", "<serial>"}
-# Public model numbers, firmware builds and API names that look like serials.
-ALLOWED_TOKENS = {"23053RN02A", "G390FXXU6CTG3", "CBL2CAPPSM", "MJWSD06MMC"}
+# Public model numbers, firmware builds, API names and file names that look like serials.
+ALLOWED_TOKENS = {"23053RN02A", "G390FXXU6CTG3", "CBL2CAPPSM", "MJWSD06MMC", "SHA256SUMS"}
 
 
 def load_inventory(path):

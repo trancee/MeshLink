@@ -20,6 +20,10 @@ All notable changes to MeshLink are recorded here, in the [Keep a Changelog](htt
 - Lab apps and tools, never published: `labapp/` holds the scenarios (`direct-message` first) and the Android and iOS host apps; `tools/lab/lab.py` builds, installs and launches them on two lab phones, pulls their JSON Lines results and writes T9 evidence records with pseudonymized Bluetooth addresses. For the lab apps only, `MeshLink.restrictedLinkRole` and `linkRoles` with the new `LinkRole` are `@InternalMeshLinkApi`, which can now mark properties, and hidden from Objective-C; this changes the `meshlink` ABI dumps. SemVer impact: none (the additions require the internal opt-in).
 - The internal `CryptoProvider` now has every primitive the `Classical` and `PostQuantum` profiles need: X25519, Ed25519 sign and verify, ChaCha20-Poly1305 (IETF), SHA-256, HKDF-SHA-256, ML-KEM-768 and X-Wing, each key generation and encapsulation also from a seed, with peer-caused refusals as a typed `CryptoResult`. `meshlink-crypto-sodium` binds them on Android and iOS. SemVer impact: none (internal API).
 
+### Changed
+
+- Every protocol vector file and the vendored Wycheproof and hpke-pq sets now run through one vector runner in `meshlink-crypto-sodium`'s tests, on the JVM and the iOS simulator; a vector without a handler fails the build unless it is listed as pending with its ticket. Test-only. SemVer impact: none.
+
 ### Fixed
 
 - `MeshLinkKit` exported none of SKIE's Swift extensions on its Objective-C classes, because their mangled names compress the module name, so a Swift app calling `start()` failed to link. SemVer impact: none.

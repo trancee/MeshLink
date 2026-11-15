@@ -173,6 +173,14 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - detekt's `TooManyFunctions` counts top-level functions per file, and members per object, class or interface. Split by cohesive family (as `SodiumCryptoProvider` delegates to `SodiumHashing`, `SodiumClassical`, `SodiumKems`), never suppress (Q2).
 - Default methods in an interface compile to `$DefaultImpls` bridges that no test executes, so Kover drops below 100 % even when every implementation is covered. Keep interface members abstract (ADR 0004, 2026-11-15 amendment).
 
+## Vector runner
+
+- Code: `meshlink-crypto-sodium/src/commonTest/kotlin/ch/trancee/meshlink/vectors/` (runner, handlers, sets, skips), `build-logic/.../SpecVectorsPlugin.kt` (embedding and checksums), `third_party/vectors/` (vendored sets).
+- Verified: `./gradlew :meshlink-crypto-sodium:testAndroidHostTest --tests '*VectorRunnerTest'` prints each file's counts.
+- A KDoc that contains `/*`, such as a `*.json` glob after a slash, opens a nested Kotlin comment and breaks compilation of the whole file.
+- To corrupt a layout vector in a T10 test, flip its last byte: the first byte is the frame type, which selects the handler, so flipping it moves the test into a skip.
+- libsodium's ML-KEM-768 decapsulation doesn't run the FIPS 203 decapsulation-key hash check; Wycheproof's `InvalidDecapsulationKey` tests pass through it.
+
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.
