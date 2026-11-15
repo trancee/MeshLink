@@ -39,6 +39,7 @@ import kotlin.test.assertTrue
 @Config(
     sdk = [26, 37],
     shadows = [
+        ShadowMeshAdapter::class,
         ShadowMeshAdvertiser::class,
         ShadowMeshManager::class,
         ShadowMeshGattServer::class,
@@ -57,7 +58,6 @@ class AndroidRadioRequirementsTest {
         resetRadioShadows()
         shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE, true)
         shadowOf(adapter).setEnabled(true)
-        shadowOf(adapter).setIsMultipleAdvertisementSupported(true)
     }
 
     @Test(timeout = TIMEOUT_MILLIS)
@@ -140,7 +140,7 @@ class AndroidRadioRequirementsTest {
         // Arrange
         grantAll()
         shadowOf(adapter).setEnabled(false)
-        shadowOf(adapter).setIsMultipleAdvertisementSupported(false)
+        ShadowMeshAdapter.withoutAdvertiser = true
 
         // Act
         val missing = AndroidRequirements(app, adapter).requirements.value
@@ -150,7 +150,20 @@ class AndroidRadioRequirementsTest {
     }
 
     @Test(timeout = TIMEOUT_MILLIS)
-    fun anAdapterThatCannotAdvertiseIsUnsupported() {
+    fun anAdapterWithoutAnAdvertiserIsUnsupported() {
+        // Arrange
+        grantAll()
+        ShadowMeshAdapter.withoutAdvertiser = true
+
+        // Act
+        val missing = AndroidRequirements(app, adapter).requirements.value
+
+        // Assert
+        assertEquals(setOf(Requirement.Unsupported), missing)
+    }
+
+    @Test(timeout = TIMEOUT_MILLIS)
+    fun anAdapterWithOneAdvertisingInstanceMissesNothing() {
         // Arrange
         grantAll()
         shadowOf(adapter).setIsMultipleAdvertisementSupported(false)
@@ -159,7 +172,7 @@ class AndroidRadioRequirementsTest {
         val missing = AndroidRequirements(app, adapter).requirements.value
 
         // Assert
-        assertEquals(setOf(Requirement.Unsupported), missing)
+        assertEquals(emptySet(), missing)
     }
 
     @Test(timeout = TIMEOUT_MILLIS)
