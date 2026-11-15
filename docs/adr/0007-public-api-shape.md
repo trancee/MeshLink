@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 10 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 11 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter).
 
 ## Context
 
@@ -190,3 +190,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **One collector at a time (decisions 9 and 11):** `messages` is the one Flow that throws, and only `MeshLinkException.AlreadyCollected` to a second collector while another is active. Once the first collector stops, a later one may collect and gets the messages still waiting. The flow completes when the node closes.
 - **Send-queue cap (amendment of 2026-11-03):** `send` returns `Rejected(QueueFull)` only while the unwritten payloads already reach 1 MiB, so the queue may exceed the cap by at most one message. A message frees its bytes once written or finished.
 - **Who may be addressed (amendment of 2026-11-08):** in `unsecured`, a NodeId is known once a link to it completed its hello. A node remembers the 1,024 most recently seen NodeIds across `stop()` and `start()`; any other NodeId, including the node's own, gets `Rejected(UnknownPeer)`. `send` is accepted while the node is `Running` or `Blocked`, returns `Rejected(NotRunning)` otherwise, and throws `Closed` after `close()`.
+
+2026-11-15, iOS adapter (0.1.0 backlog ticket "Scan, advertise and carry links over GATT on iOS"):
+
+- **Bluetooth prompt on iOS (amends decision 3):** iOS shows its Bluetooth prompt when an app first creates a `CBCentralManager` or `CBPeripheralManager`. MeshLink creates both at the first `start()`, never at `create()`, so the prompt can appear then (owner decision). An app that wants it at another moment calls `start()` then, and needs `NSBluetoothAlwaysUsageDescription` in its `Info.plist`. While authorization is not determined, the node reports `Blocked(PermissionDenied(Bluetooth))`. Until both managers report a known state, it stays `Starting`.
+- **Simulator (decision 3):** the `iosSimulatorArm64` build never touches CoreBluetooth and reports `Blocked(Unsupported)`; the choice is made at compile time, not by asking the radio.

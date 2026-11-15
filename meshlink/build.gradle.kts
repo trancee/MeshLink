@@ -41,6 +41,13 @@ kotlin {
     }
 }
 
+// iosArm64Main holds only internal thin adapters, so it adds nothing to the docs. Dokka 2.3.0 still
+// resolves the KDoc QueueDispatcher inherits from CoroutineDispatcher, whose links don't resolve
+// from this source set, and failOnWarning fails on them.
+dokka {
+    dokkaSourceSets.named("iosArm64Main") { suppress.set(true) }
+}
+
 // ADR 0004 "Binding": the release XCFramework's slices export no libsodium symbol and touch no AES,
 // AEGIS or IPCrypt symbol. Needs xcrun, so the macOS CI job runs it by name.
 tasks.register<ch.trancee.meshlink.buildlogic.CheckNativeSymbols>("checkFrameworkSymbols") {

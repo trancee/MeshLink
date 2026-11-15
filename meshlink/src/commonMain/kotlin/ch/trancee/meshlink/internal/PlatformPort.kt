@@ -4,6 +4,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -16,8 +17,11 @@ import kotlin.native.HiddenFromObjC
  */
 @HiddenFromObjC
 public interface PlatformPort {
-    /** What the radio is missing now; empty when it can run. */
-    public val requirements: StateFlow<Set<Requirement>>
+    /**
+     * What the radio is missing, each time it changes; empty when it can run. It emits nothing until
+     * the radio knows, and a node stays [ch.trancee.meshlink.MeshState.Starting] until then.
+     */
+    public val requirements: Flow<Set<Requirement>>
 
     /** Where nodes on this platform do their work; it runs one task at a time. */
     public val dispatcher: CoroutineDispatcher

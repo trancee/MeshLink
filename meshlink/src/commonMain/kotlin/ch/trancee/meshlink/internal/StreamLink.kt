@@ -2,8 +2,8 @@ package ch.trancee.meshlink.internal
 
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * A GATT link's ordered byte stream, either end: [write] cuts the bytes into chunks of at most
@@ -14,10 +14,10 @@ internal abstract class StreamLink(
     override val peer: PeerHandle,
 ) : RadioLink {
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
-    private val closing = AtomicBoolean(false)
+    private val closing = MutableStateFlow(false)
 
     /** Whether the link has closed. */
-    val isClosed: Boolean get() = closing.get()
+    val isClosed: Boolean get() = closing.value
 
     override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()
 

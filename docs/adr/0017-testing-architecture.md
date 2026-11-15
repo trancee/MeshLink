@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 7 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 8 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests).
 
 ## Context
 
@@ -167,3 +167,9 @@ Inputs:
 - **Own shadows (decision 5):** `RadioShadows.kt` in `:meshlink`'s `androidHostTest` shadows the advertiser, the GATT server and client, the remote device and `BluetoothManager.openGattServer`. They script failing registrations, null server opens, busy and refused notifies and writes, write and descriptor statuses, and MTU and connect outcomes, which Robolectric 4.18's own shadows don't.
 - **Main-looper tests (decision 13):** a JUnit `Timeout` rule runs the test on another thread, where Robolectric can't build an activity or idle the main looper. A class that needs either uses `@Test(timeout = …)`, which Robolectric enforces on the test's own thread.
 - **API levels between the two SDKs (decision 5):** the permission table for API 29 and 30 (fine location on 29 and 30, coarse or fine below) is tested by calling it with each API level, not on an SDK 30 runtime. Behavior that needs the framework at those levels stays unproven until device runs (ticket 17).
+
+2026-11-15, iOS adapter tests (0.1.0 backlog ticket "Scan, advertise and carry links over GATT on iOS"):
+
+- **Where the logic lives (decision 6):** the iOS adapter logic sits in `:meshlink` `commonMain` behind the internal `CoreBluetooth` port, and its fakes are in `commonTest`, not `iosTest` (owner decision). Why: Kover measures only JVM and Android tests, so logic in `commonMain` falls under the 100% gate, and the same tests still run on the simulator. The port mirrors CoreBluetooth: one call interface each for the central manager, a remote peripheral and the peripheral manager, and one callback sink per delegate.
+- **Thin layer (decision 6):** `iosArm64Main` holds only the CoreBluetooth calls and delegates, the serial-queue dispatcher and the platform factory; `config/thin-adapters.txt` lists every file, and `checkThinAdapters` fails `check` unless that list names exactly the Kotlin/Native main source files.
+- **Requirements flow:** `PlatformPort.requirements` is a `Flow`, not a `StateFlow`. A radio that can't tell yet emits nothing, so `start()` waits in `Starting`, and collecting the flow is what creates the CoreBluetooth managers.

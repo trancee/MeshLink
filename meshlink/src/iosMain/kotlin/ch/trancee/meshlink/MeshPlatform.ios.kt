@@ -1,15 +1,16 @@
 package ch.trancee.meshlink
 
-import ch.trancee.meshlink.internal.UnsupportedRadioPort
+import ch.trancee.meshlink.internal.iosPort
 
-private val iosPlatform = MeshPlatform(UnsupportedRadioPort())
+private val iosPlatform = MeshPlatform(iosPort())
 
 /**
  * The platform of this iOS installation. Nodes on it share its one Bluetooth radio, so one of them
  * runs at a time.
  *
- * The iOS simulator has no Bluetooth: nodes there stay [MeshState.Blocked] by
- * [Requirement.Unsupported] (ADR 0005). Until the Core Bluetooth radio lands, a device reports the
- * same.
+ * On a device the radio is CoreBluetooth: the host app declares `NSBluetoothAlwaysUsageDescription`
+ * in its `Info.plist`, and iOS asks the user for Bluetooth when a node first starts, never on
+ * [MeshLink.create] or here. The iOS simulator has no Bluetooth: nodes there stay
+ * [MeshState.Blocked] by [Requirement.Unsupported] (ADR 0005).
  */
 public fun MeshPlatform.Companion.ios(): MeshPlatform = iosPlatform

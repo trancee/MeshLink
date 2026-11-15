@@ -169,6 +169,27 @@ class MeshLinkLifecycleTest {
         }
 
     @Test
+    fun startWaitsUntilTheRadioKnowsWhatItMisses() =
+        runTest {
+            // Arrange
+            val platform = platform()
+            val node = node(platform)
+            platform.radio.reportUnknown()
+
+            // Act
+            val starting = launch { node.start() }
+            runCurrent()
+            val unknown = node.state.value
+            platform.radio.report(emptySet())
+            starting.join()
+
+            // Assert
+            assertEquals(MeshState.Starting, unknown)
+            assertEquals(MeshState.Running, node.state.value)
+            node.close()
+        }
+
+    @Test
     fun nodeWaitingForTheRadioStillReportsTheRadioRequirements() =
         runTest {
             // Arrange

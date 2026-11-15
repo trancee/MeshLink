@@ -61,7 +61,7 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
     abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
-        abstract fun <get-requirements>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
+        abstract fun <get-requirements>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
 }
 
 sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus|null[0]
