@@ -21,3 +21,4 @@ All notable changes to MeshLink are recorded here, in the [Keep a Changelog](htt
 ### Fixed
 
 - `MeshLinkKit` exported none of SKIE's Swift extensions on its Objective-C classes, because their mangled names compress the module name, so a Swift app calling `start()` failed to link. SemVer impact: none.
+- A Mi Note 3 serving the MeshLink GATT service sent its 32-bit MESH UUID in ATT, which ATT forbids, so centrals found no service. The GATT service is now served and looked up under `4D455348-4D4C-4E4B-8000-000000000000`, a 128-bit UUID off the Bluetooth Base UUID that no stack can shorten; advertising and scan filters still use the 32-bit MESH UUID. Nodes from before this change can't open links to nodes after it. SemVer impact: none (no release carried the old service UUID).
