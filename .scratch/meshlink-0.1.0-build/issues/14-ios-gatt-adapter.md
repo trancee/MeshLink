@@ -1,6 +1,6 @@
 # Scan, advertise and carry links over GATT on iOS
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 12
 
