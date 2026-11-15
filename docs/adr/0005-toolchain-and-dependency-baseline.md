@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 8 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 9 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps).
 
 ## Context
 
@@ -227,3 +227,11 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 2026-11-14, lifecycle opt-ins (0.1.0 backlog ticket "Create, start, stop and close a node through the public API"):
 
 - **E2 holds:** two rows join the table: Gradle's `@Incubating` `ArtifactView.withVariantReselection()`, which lets the `meshlink.sodium-host-jni` plugin pick the host JNI shim variant from `:meshlink-crypto-sodium`, and Kotlin's `@ExperimentalObjCRefinement` `@HiddenFromObjC`, which keeps internal-API declarations out of the Swift API. Each hold ends when its API is stable.
+
+2026-11-15, lab apps (0.1.0 backlog ticket "Drive the lab apps from `tools/lab/`"):
+
+- **Lab-only dependencies:** the Android lab app (`:labapp-android`) uses Jetpack Compose through the Compose BOM 2026.09.00 (`ui` 1.12.1, `material3` 1.4.0), `activity-compose` 1.13.0 and Kotlin's Compose compiler plugin, versioned with Kotlin. They are the newest stable releases on 2026-11-15 and appear only in `labapp/`; `DependencyDirectionPlugin` lets `:labapp-shared` depend on `:meshlink` and `:labapp-android` on `:labapp-shared`, so no published module can reach them. The [dependency register](../reference/dependencies.md#lab-apps-never-published) lists them with the lab host tools.
+- **Lab host tools:** XcodeGen 2.46.0 generates the iOS lab project from `labapp/ios/project.yml`; libimobiledevice 1.4.0 and ideviceinstaller 1.2.0 drive iOS 15 and 16 phones; adb from platform-tools drives Android phones. `tools/lab/lab.py` uses the Python standard library only.
+- **Android lint:** AGP's `check` lints the lab app, the first application module, with `checkDependencies = false`, so only its own sources are gated; the library modules stay outside Android lint. Its lint tasks also run each library's `lintAnalyze*` tasks, so `meshlink.spec-vectors` makes them depend on `generateSpecVectors`, whose output they read.
+- **libsodium archiver, refining the libsodium build's "Android" line:** the upstream Android scripts still run unmodified, but `build-libsodium.sh` now sets `AR`, `RANLIB`, `NM` and `STRIP` to the NDK's `llvm-*` tools. The NDK ships no target-prefixed `ar`, so configure fell back to the host `ar` and `ranlib`. Under Xcode 27.2, these dropped every ELF member and left a 96-byte archive, which the stamp then kept. The script now also fails any build whose archive doesn't define `sodium_init`, before writing the stamp.
+- **Rejected:** Android Views for the lab app (ADR 0017 names Compose); a checked-in Xcode project (generated files churn and hide the settings that matter); SwiftUI dependencies beyond the SDK.

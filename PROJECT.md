@@ -21,7 +21,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 - **Toolchain discovery:** JDK auto-download is off and no toolchain repository is configured, so JDK 21 and JDK 25 must be installed locally where Gradle can detect them (for example SDKMAN or `/Library/Java/JavaVirtualMachines`).
 - **License:** The Unlicense ([`LICENSE`](LICENSE)). Dependency licenses are in the dependency register.
 - **Dependencies:** `gradle/libs.versions.toml` is the only version source; every dependency and CI tool is in the [dependency register](docs/reference/dependencies.md).
-- **Modules** ([ADR 0011](docs/adr/0011-modules-toggles-and-presets.md) decision 2). Every module applies the `meshlink.kmp-library` convention plugin, which derives the Android `namespace` from the module path:
+- **Modules** ([ADR 0011](docs/adr/0011-modules-toggles-and-presets.md) decision 2). Every library module applies the `meshlink.kmp-library` convention plugin, which derives the Android `namespace` from the module path; the unpublished lab apps follow it:
 
   | Module | Android namespace | May depend on |
   |---|---|---|
@@ -29,6 +29,8 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   | `:meshlink-crypto-sodium` | `ch.trancee.meshlink.crypto.sodium` | `:meshlink-core` |
   | `:meshlink` | `ch.trancee.meshlink` | `:meshlink-core`, `:meshlink-crypto-sodium` |
   | `:meshlink-testing` | `ch.trancee.meshlink.testing` | `:meshlink` |
+  | `:labapp-shared` (lab only) | `ch.trancee.labapp.shared` | `:meshlink` |
+  | `:labapp-android` (lab only, `meshlink.lab-app`) | `ch.trancee.lab.host` | `:labapp-shared` |
 
   `:meshlink` and `:meshlink-testing` also apply `meshlink.published-library`: they are the published, documented modules inside the ABI promise ([ADR 0019](docs/adr/0019-release-versioning-and-api-compatibility.md)). The root build applies `meshlink.root`.
 
@@ -67,14 +69,15 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
   | Path | Holds |
   |---|---|
-  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.build-info`, `meshlink.robolectric`, `meshlink.root`, `meshlink.dependency-direction`, `meshlink.changelog`, `meshlink.libsodium`, `meshlink.sodium-host-jni` and `meshlink.spec-vectors` convention plugins, the native gate tasks, and their tests |
-  | `meshlink-core/`, `meshlink-crypto-sodium/`, `meshlink/`, `meshlink-testing/` | The four Gradle modules; `meshlink/api/` and `meshlink-testing/api/` hold the committed ABI dumps |
+  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.build-info`, `meshlink.robolectric`, `meshlink.root`, `meshlink.dependency-direction`, `meshlink.changelog`, `meshlink.libsodium`, `meshlink.sodium-host-jni`, `meshlink.lab-app` and `meshlink.spec-vectors` convention plugins, the native gate tasks, and their tests |
+  | `meshlink-core/`, `meshlink-crypto-sodium/`, `meshlink/`, `meshlink-testing/` | The four library modules; `meshlink/api/` and `meshlink-testing/api/` hold the committed ABI dumps |
+  | `labapp/` | The unpublished lab apps: `shared/` (`:labapp-shared`, the scenarios and the `LabKit` framework), `android/` (`:labapp-android`, Compose) and `ios/` (XcodeGen SwiftUI shell); [ADR 0017](docs/adr/0017-testing-architecture.md), 2026-11-15 lab tools amendment |
   | `config/detekt/` | detekt config on top of the defaults |
   | `config/thin-adapters.txt` | The Kotlin/Native main source files, all thin adapters (Constitution T3) |
   | `CHANGELOG.md` | Keep a Changelog history ([ADR 0019](docs/adr/0019-release-versioning-and-api-compatibility.md) decision 6) |
   | `gradle/` | Version catalog, wrapper and daemon JDK declaration |
   | `docs/` | Diátaxis docs, ADRs and research ([index](docs/README.md)) |
-  | `tools/` | Spec vectors and checks, privacy scan, ADR check, lab tools |
+  | `tools/` | Spec vectors and checks, privacy scan, ADR check, lab tools (`tools/lab/`, [README](tools/lab/README.md)) |
   | `tools/swiftpm-consumer/` | SwiftPM package that consumes the built XCFramework through a local `binaryTarget`, and its `test.sh` |
   | `LICENSE` | The Unlicense |
   | `.scratch/` | Local issue tracker ([conventions](docs/agents/issue-tracker.md)) |
@@ -110,6 +113,11 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Android shim symbol and size gates (also in `check`) | `./gradlew checkSodiumJniSymbols checkSodiumJniSize` |
 | iOS gates: libsodium archive size per slice, and `MeshLinkKit` symbols (macOS only) | `./gradlew checkSodiumAppleSize :meshlink:checkFrameworkSymbols` |
 | Thin-adapter list (also in `check`) | `./gradlew checkThinAdapters` |
+| Lab tools' unit tests (also in `docs.yml`) | `python3 -m unittest discover -s tools/lab/tests` |
+| One device scenario on two lab phones, from a dedicated clean worktree; `--profile` is `unsecured` (default), `classical` (needs ticket 24) or `post-quantum` (needs ticket 25) | `python3 tools/lab/lab.py run --scenario direct-message --devices <alias>,<alias> --profile unsecured` |
+| Turn a run into a T9 evidence record | `python3 tools/lab/lab.py evidence --run build/lab/<run>` |
+
+The lab commands need the local configuration in `~/.config/meshlink-lab/` and the host tools listed in [`tools/lab/README.md`](tools/lab/README.md); `lab.py` refuses the main checkout and a dirty tree.
 
 The libsodium tasks write `meshlink-crypto-sodium/build/libsodium/out/<target>/{include,lib/libsodium.a}`. Prerequisites: `minisign` (`brew install minisign` or `apt-get install minisign`), NDK 30.0.16248370 (`sdkmanager 'ndk;30.0.16248370'`) for Android, Xcode for Apple, and `make` with a C compiler for the hosts. Verified 2026-11-14 on an M1 with Xcode 16.4 and NDK 30.0.16248370 (Android 3 ABIs in about 90 s, iOS and macOS slices about 25 s each), and for Linux x86_64 in an `ubuntu:24.04` container with GCC 13.3.
 
@@ -139,6 +147,7 @@ The `{module,target,host,prerequisites,task,proof,limitations}` matrix that `KOT
 | `:meshlink` | Android (host tests, Robolectric) | Linux, macOS | Linux (`ubuntu-24.04`) | As above; android-all jars resolved by Gradle | `testAndroidHostTest` (via `check`) | Android framework on SDK 26 and 37 with no network at test time; the Android radio (`AndroidRadio*Test`, `GattExchangeTest`): advertising and scan parameters, the GATT service, server open retries, central connect settings per SDK, MTU, discovery, capability read, subscribe, chunked writes and notifications, busy retries, disconnects and Bluetooth off, the permission table per API level, requirements refreshed by the Bluetooth broadcast and on activity resume, and the cached `MeshPlatform.android` | Robolectric's shadows plus MeshLink's own (`RadioShadows.kt`), not a real BLE stack (T9); API 29 and 30 permissions tested as a table only; real radios in ticket 17 |
 | `:meshlink` | Android (host tests) and `iosSimulatorArm64` | Linux, macOS (iOS on macOS only) | Linux (`ubuntu-24.04`) via `check`; macOS (`macos-26`, Xcode 26.4.1) | As above | `testAndroidHostTest` (via `check`), `iosSimulatorArm64Test` | The iOS radio logic in `commonMain` (`AppleRadio*Test`, `ApplePlatformPortTest`) against `FakeCoreBluetooth`: requirements from both manager states and the authorization, the managers created on first collection only, advertising and scanning, the GATT service published once and again after the peripheral manager stops, the central's connect, discovery, capability read, subscribe and paced writes, the 30 s connect timeout, the peripheral's links by subscription, control-read reuse and paced notifications, disconnects and Bluetooth off | A fake of the internal Core Bluetooth port, not Core Bluetooth (T9); the calls in `iosArm64Main` are compiled only, listed in `config/thin-adapters.txt`, and proved on iPhones in ticket 17 |
 | `:meshlink` | Android (host tests) and `iosSimulatorArm64` | Linux, macOS (iOS on macOS only) | Linux (`ubuntu-24.04`) via `check`; macOS (`macos-26`, Xcode 26.4.1) | As above | `testAndroidHostTest` (via `check`), `iosSimulatorArm64Test` | The persistent installation identity: `PersistentIdentityStore` and `KeychainSlot` in `commonMain` (create only when nothing is stored, reload the same seed, never replace an unreadable one, wipe what was read); `KeystoreSlot` under Robolectric on SDK 26 and 37 against a fake `AndroidKeyStore` provider (the AES-256-GCM key spec, StrongBox and its fallback, the sealed blob in `noBackupFilesDir`, and T10 cases: corrupt, truncated or other-version blobs, a missing key, an unreachable Keystore, an unreadable file, failed key generation, writes and deletes); `MeshLinkIdentityTest` on `VirtualAir` (`Blocked(IdentityUnavailable)`, retry on `start()`, `resetIdentity()`); `IosKeychainTest` on the simulator (item attributes, the copy query, the added seed zeroed afterwards, and each call well formed: `errSecNotAvailable`, not `errSecParam`) | A fake JCA provider, not Android Keystore; the simulator test host has no Keychain, so storing and reading a real item is proved on phones in ticket 17 |
+| `:labapp-shared`, `:labapp-android` | Android (host tests), `iosSimulatorArm64`, `iosArm64` | Linux, macOS (iOS on macOS only) | Linux (`ubuntu-24.04`) via `check`; macOS (`macos-26`, Xcode 26.4.1) | As above | `check` (host tests, detekt, Spotless), `iosSimulatorArm64Test` | Launch-argument parsing, the JSON Lines recorder on a test time source and the self-checking payload (`LabArgsTest`, `RecorderTest`, `PayloadTest`); the Android app builds | Not in Kover, ABI or Dokka; the scenarios and the iOS app run only on phones (`tools/lab/lab.py`, T9) |
 | all four | `iosSimulatorArm64` | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode per ADR 0005 | `iosSimulatorArm64Test` | Compilation and simulator test runtime | Simulator, not hardware (T9) |
 | all four | `iosArm64` | macOS only | macOS (`macos-26`, Xcode 26.4.1) | Xcode per ADR 0005 | `compileKotlinIosArm64` (in CI, through the XCFramework build in `tools/swiftpm-consumer/test.sh`) | Compilation only | No device run in the build |
 | all four | Android (host tests) | Linux, macOS | Linux (`ubuntu-24.04`) | As above | `koverVerify` (via `check`) | 100% line and branch on `commonMain` and `androidMain` | No coverage for Kotlin/Native source sets |

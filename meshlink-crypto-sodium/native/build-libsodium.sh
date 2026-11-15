@@ -43,6 +43,10 @@ android_ndk() {
     exit 1
   fi
   export ANDROID_NDK_HOME="$ndk"
+  # The NDK ships only unprefixed llvm-* binutils, so configure would fall back to the host ar and
+  # ranlib; Xcode 27's drop every ELF member and leave an empty archive.
+  bin=$(echo "$ndk"/toolchains/llvm/prebuilt/*/bin)
+  export AR="$bin/llvm-ar" RANLIB="$bin/llvm-ranlib" NM="$bin/llvm-nm" STRIP="$bin/llvm-strip"
 }
 
 apple_sdk() {
@@ -126,6 +130,11 @@ build() {
       exit 2
       ;;
   esac
+  # The stamp makes a bad archive permanent, so prove the archive holds libsodium before stamping it.
+  if ! "${NM:-nm}" "$prefix/lib/libsodium.a" 2>/dev/null | grep -q ' T _*sodium_init$'; then
+    echo "$prefix/lib/libsodium.a does not define sodium_init; check the archiver configure chose" >&2
+    exit 1
+  fi
   mkdir -p "$output/lib"
   cp -R "$prefix/include" "$output/include"
   cp "$prefix/lib/libsodium.a" "$output/lib/libsodium.a"

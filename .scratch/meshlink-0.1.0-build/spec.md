@@ -36,7 +36,7 @@ These names are fixed here so every ticket can cite them. The ticket that create
 | `./gradlew publishToMavenLocal` | Every artifact publishes with its POM; until ticket 65 only `:meshlink:publishToMavenLocal` passes | 04, 65 |
 | `tools/maven-consumer/test.sh` | A generated KMP consumer of `ch.trancee.meshlink:meshlink` resolves every transitive module from Maven local alone | 65 |
 | `tools/swiftpm-consumer/test.sh` | The XCFramework works from a SwiftPM `binaryTarget`; runs `xcodebuild test` on an iOS simulator, because `swift test` can't link an iOS-only XCFramework on macOS | 04 |
-| `python3 tools/lab/lab.py run --scenario <name> --devices <alias>,<alias> [--profile <p>]` | One device scenario; writes results under `build/lab/` | 16 |
+| `python3 tools/lab/lab.py run --scenario <name> --devices <alias>,<alias> [--profile unsecured\|classical\|post-quantum]` | One device scenario; writes results under `build/lab/`. `classical` needs ticket 24, `post-quantum` ticket 25 | 16 |
 | `python3 tools/lab/lab.py evidence --run <dir>` | Turns a run into a T9 evidence record in `docs/evidence/` | 16 |
 | `python3 -m unittest discover -s tools/lab/tests` | The lab tools' own unit tests | 16 |
 | `cargo test --manifest-path tools/reference/Cargo.toml` | The Rust reference cross-checks the tier 2 vectors | 20 |

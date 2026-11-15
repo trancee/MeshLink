@@ -8,6 +8,7 @@ import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.Discovery
 import ch.trancee.meshlink.internal.InstallationIdentity
 import ch.trancee.meshlink.internal.LinkPolicy
+import ch.trancee.meshlink.internal.LinkRole
 import ch.trancee.meshlink.internal.Links
 import ch.trancee.meshlink.internal.PeerHandle
 import ch.trancee.meshlink.internal.PlatformPort
@@ -64,6 +65,7 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, config.securityProfile.wireProfile))
     private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
+    private val links = MutableStateFlow<Links?>(null)
     private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
@@ -209,6 +211,24 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public fun linkCandidates(): Set<PeerHandle> = scanner.candidates.value.keys
 
+    /**
+     * The only role this node takes on the links it opens from its next start, or `null` for either:
+     * a central neither serves nor advertises, a peripheral doesn't scan. For the lab apps
+     * (ADR 0017 decision 7); two nodes restricted to one role never link.
+     */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public var restrictedLinkRole: LinkRole? = null
+
+    /** This node's role on each of its current links, by peer; for the lab apps. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public val linkRoles: Map<NodeId, LinkRole>
+        get() {
+            val session = links.value
+            return if (session == null) emptyMap() else session.roles.value
+        }
+
     /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -251,13 +271,19 @@ public class MeshLink private constructor(
     }
 
     /** Discovers peers and links to them until cancelled or the radio refuses discovery. */
+    @OptIn(InternalMeshLinkApi::class)
     private suspend fun session() =
         coroutineScope {
             val digest = Derivations(crypto).meshIdDigest(meshId, config.securityProfile.wireProfile)
-            val links = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), this, mutablePeers, post)
-            val linking = launch { scanner.candidates.collect { links.connectTo(it.keys) } }
-            scanner.run(links::accept)
-            linking.cancel()
+            val session = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), this, mutablePeers, post)
+            links.value = session
+            try {
+                val linking = launch { scanner.candidates.collect { session.connectTo(it.keys) } }
+                scanner.run(restrictedLinkRole, session::accept)
+                linking.cancel()
+            } finally {
+                links.value = null
+            }
         }
 
     /** Creates nodes. */

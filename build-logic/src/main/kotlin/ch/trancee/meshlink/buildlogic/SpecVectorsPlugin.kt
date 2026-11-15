@@ -44,6 +44,11 @@ class SpecVectorsPlugin : Plugin<Project> {
                 sourceSets.named("commonTest") { kotlin.srcDir(generate.flatMap { it.outputDirectory }) }
             }
         }
+        // AGP's lint tasks read the test sources but don't inherit the source directory's task
+        // dependency; an app that depends on this module (the lab app) runs them.
+        project.tasks
+            .matching { it.name.startsWith("lintAnalyze") || it.name.endsWith("LintModel") }
+            .configureEach { dependsOn(generate) }
     }
 }
 

@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 12 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 13 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles).
 
 ## Context
 
@@ -200,3 +200,7 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **`IdentityUnavailable` (amends decision 3):** `Requirement.IdentityUnavailable` means the stored installation identity could not be read, or a new one could not be created or saved (ADR 0003 amendment of 2026-11-15). When present it is the only requirement. It is the exception to "leaves `Blocked` by itself": the node waits, without radio work, for the app to call `start()` again, which reads the store again, or `resetIdentity()`. While it is blocked on its identity, `send` returns `Rejected(NotRunning)` (owner decision).
 - **`resetIdentity()` (amends decision 2):** `suspend fun resetIdentity(): Boolean` deletes the platform's stored identity, so the next `start()` creates one with a new NodeId, which peers see as a key change. It is the only way out of an unreadable identity; MeshLink never replaces one on its own. It is allowed while the node is `Stopped` or `Blocked`, stops a `Blocked` node first, and leaves the node `Stopped`; in any other state it throws the declared `MeshLinkException.InvalidState(state)`, and after `close()` it throws `Closed` (owner decisions). It returns `false` if the platform refused to delete the identity. Other nodes on the same platform keep the old identity until they restart.
+
+2026-11-15, lab link roles (0.1.0 backlog ticket "Drive the lab apps from `tools/lab/`"):
+
+- **Link-role hook (internal API):** `var restrictedLinkRole: LinkRole?` and `val linkRoles: Map<NodeId, LinkRole>` on `MeshLink` need the `InternalMeshLinkApi` opt-in, which now marks properties too, and are hidden from Objective-C, like `MeshPlatform.of(port)`. Only the lab app uses them, to run a scenario in a chosen role and record the role each link took. A node restricted to `CENTRAL` neither advertises nor serves its capability record; one restricted to `PERIPHERAL` doesn't scan; `null` lifts the restriction. A restriction takes effect at the next `start()` (owner decision). The roles map is empty while the node isn't running and drops a peer when its link closes.

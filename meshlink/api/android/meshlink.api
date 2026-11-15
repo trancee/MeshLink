@@ -55,13 +55,16 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun awaitSendCapacity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun close ()V
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
+	public final fun getLinkRoles ()Ljava/util/Map;
 	public final fun getMessages ()Lkotlinx/coroutines/flow/Flow;
 	public final fun getPeers ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getRestrictedLinkRole ()Lch/trancee/meshlink/internal/LinkRole;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun linkCandidates ()Ljava/util/Set;
 	public final fun radioFailure ()Lch/trancee/meshlink/internal/RadioFailure;
 	public final fun resetIdentity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send (Lch/trancee/meshlink/NodeId;[B)Lch/trancee/meshlink/SendResult;
+	public final fun setRestrictedLinkRole (Lch/trancee/meshlink/internal/LinkRole;)V
 	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
@@ -338,6 +341,14 @@ public final class ch/trancee/meshlink/internal/InMemoryIdentityStore : ch/tranc
 	public fun <init> ()V
 	public fun delete ()Z
 	public fun loadOrCreate (Lch/trancee/meshlink/internal/CryptoProvider;)Lch/trancee/meshlink/internal/Ed25519KeyPair;
+}
+
+public final class ch/trancee/meshlink/internal/LinkRole : java/lang/Enum {
+	public static final field CENTRAL Lch/trancee/meshlink/internal/LinkRole;
+	public static final field PERIPHERAL Lch/trancee/meshlink/internal/LinkRole;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/internal/LinkRole;
+	public static fun values ()[Lch/trancee/meshlink/internal/LinkRole;
 }
 
 public abstract interface class ch/trancee/meshlink/internal/PlatformPort {

@@ -11,6 +11,8 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,6 +38,11 @@ internal class Links(
     private val peers: MutableStateFlow<List<Peer>>,
     private val mail: Mail,
 ) {
+    private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
+
+    /** This node's role on each kept link; for the lab apps. */
+    val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
+
     private val table = mutableMapOf<NodeId, Link>()
     private val busy = mutableMapOf<PeerHandle, Int>()
 
@@ -204,6 +211,8 @@ internal class Links(
     private fun publish() {
         if (opening == 0) kept.clear()
         val listed = table.map { (id, conn) -> conn.toPeer(id) } + kept.values
+        mutableRoles.value =
+            table.mapValues { (_, conn) -> if (conn.central) LinkRole.CENTRAL else LinkRole.PERIPHERAL }
         peers.value = listed.sortedBy { it.nodeId.toString() }
     }
 
