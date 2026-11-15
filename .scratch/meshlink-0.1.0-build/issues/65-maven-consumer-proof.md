@@ -1,6 +1,6 @@
 # Prove Maven-local consumer resolution of every artifact
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 04, 07, 08
 
