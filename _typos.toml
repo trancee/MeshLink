@@ -21,3 +21,7 @@ extend-exclude = [
 udid = "udid"
 # Huawei model code (nova 9, NAM-LX9).
 NAM = "NAM"
+
+[default.extend-identifiers]
+# Apple's Core Bluetooth constant, spelled this way in the SDK.
+CBAttributePermissionsWriteable = "CBAttributePermissionsWriteable"

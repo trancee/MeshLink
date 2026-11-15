@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 4 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 5 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter).
 
 ## Context
 
@@ -128,3 +128,12 @@ Measured, medians unless noted:
 - **Notifications (decision 7):** one notification at a time across the server, each waiting for `onNotificationSent`. Pacing beyond that (credits, CoC preference) is still open.
 - **Late radio failures:** a scan or advertising set that fails after it started reports `RadioEvent.Failed(RADIO_ERROR)` through `RadioPort.events`, and discovery ends as for a refusal. Retries and diagnostics stay with tickets 32 and 54.
 - **Deferred:** connect retries on 133 and 147 (decision 4) to ticket 29, PHY requests (decision 3) and scan restarts to ticket 32, CoC to ticket 31. GATT requests have no timeout yet: an answer the stack never sends holds the link's queue until the link closes.
+
+2026-11-15, iOS adapter (0.1.0 backlog ticket "Scan, advertise and carry links over GATT on iOS"):
+
+- **Connect timeout (decision 4):** a CoreBluetooth connection attempt never times out by itself, so the iOS central cancels it after 30 s and fails the connect with `PEER_UNREACHABLE`, about when Android's stack gives up with status 147 (owner decision). Retries stay with ticket 29.
+- **Link start and order (decision 1):** the iOS central connects, discovers the service and its three characteristics, reads the capability record and then enables notifications. CoreBluetooth negotiates the ATT MTU by itself. A link's ATT MTU is `maximumWriteValueLength(for: .withoutResponse)` plus 3 as central, and `maximumUpdateValueLength` plus 3 as peripheral.
+- **Control-read reuse (decision 8):** on the iOS peripheral, a link begins when a central subscribes to the peripheral-to-central characteristic and ends when it unsubscribes, which CoreBluetooth also reports when the central disconnects. A capability read at offset 0 from a subscribed central closes that central's link and opens a new one.
+- **A peripheral can't disconnect (decision 8):** `CBPeripheralManager` has no call that ends a central's connection. Closing a peripheral-side link on iOS drops it from MeshLink only; the connection lasts until the central leaves.
+- **Pacing (decision 7):** central writes wait while `canSendWriteWithoutResponse` is false, until `peripheralIsReady(toSendWriteWithoutResponse:)`. Notifications wait while `updateValue` returns false, until `peripheralManagerIsReady(toUpdateSubscribers:)`.
+- **Deferred:** background advertising and scanning rules and state restoration to ticket 32, the 3-link cap (decision 6) to ticket 29, CoC to ticket 31.

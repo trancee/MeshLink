@@ -128,9 +128,9 @@ internal class VirtualRadio(
 
     override val events: Flow<RadioEvent> = eventChannel.receiveAsFlow()
 
-    /** What the radio reports missing, as a [PlatformPort] sees it; see [report]. */
-    private val missing = MutableStateFlow<Set<Requirement>>(emptySet())
-    internal val requirements: StateFlow<Set<Requirement>> = missing
+    /** What the radio reports missing, or `null` while it doesn't know yet; see [report] and [reportUnknown]. */
+    private val missing = MutableStateFlow<Set<Requirement>?>(emptySet())
+    internal val requirements: StateFlow<Set<Requirement>?> = missing
 
     internal var advertisement: ByteArray? = null
         private set
@@ -179,6 +179,11 @@ internal class VirtualRadio(
     /** Reports [missing] as the radio's requirements, as a real radio does when Bluetooth turns off. */
     fun report(missing: Set<Requirement>) {
         this.missing.value = missing
+    }
+
+    /** Reports nothing until the next [report], as a real radio does before its first state callback. */
+    fun reportUnknown() {
+        missing.value = null
     }
 
     internal fun emit(event: RadioEvent) {
