@@ -129,6 +129,15 @@ class ArgumentTest(unittest.TestCase):
         self.assertEqual(60, args.duration)
 
 
+class PermissionTest(unittest.TestCase):
+    def test_android_12_and_later_get_the_nearby_devices_permissions(self):
+        self.assertEqual(("BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE"), lab.android_permissions(31))
+
+    def test_android_8_to_11_get_fine_location(self):
+        self.assertEqual(("ACCESS_FINE_LOCATION",), lab.android_permissions(26))
+        self.assertEqual(("ACCESS_FINE_LOCATION",), lab.android_permissions(30))
+
+
 class ProfileTest(unittest.TestCase):
     def test_all_three_lab_profiles_reach_the_apps(self):
         for profile in ("unsecured", "classical", "post-quantum"):

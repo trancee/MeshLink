@@ -42,7 +42,7 @@ SCENARIOS = ("direct-message",)
 PROFILES = ("unsecured", "classical", "post-quantum")
 ROLES = ("any", "central", "peripheral")
 TOOLS = ("devicectl", "imd")
-ANDROID_PERMISSIONS = ("BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE")
+NEARBY_DEVICES_API = 31
 RUN_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 MAC = re.compile(r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:])")
 DURATION_S = range(5, 3601)
@@ -221,6 +221,13 @@ def summary(results):
     return "\n".join(lines), passed
 
 
+def android_permissions(api):
+    """The runtime permissions MeshLink's manifest asks for on this API level: Nearby devices from 12, else location."""
+    if api >= NEARBY_DEVICES_API:
+        return ("BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE")
+    return ("ACCESS_FINE_LOCATION",)
+
+
 def first(rows, event, **fields):
     return next((row for row in rows if row.get("event") == event
                  and all(row.get(k) == v for k, v in fields.items())), None)
@@ -313,7 +320,8 @@ class Lab:
     def install(self, device):
         if device["platform"] == "android":
             self.adb(device, "install", "-r", "-g", str(APK), timeout=300)
-            for permission in ANDROID_PERMISSIONS:
+            api = int(self.adb(device, "shell", "getprop", "ro.build.version.sdk", quiet=True).stdout.strip())
+            for permission in android_permissions(api):
                 self.adb(device, "shell", "pm", "grant", ANDROID_PACKAGE, f"android.permission.{permission}", quiet=True)
             return
         app = self.products(device) / "Release-iphoneos/LabHost.app"
