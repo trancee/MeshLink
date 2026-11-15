@@ -15,7 +15,7 @@ import kotlin.native.HiddenFromObjC
     level = RequiresOptIn.Level.ERROR,
 )
 @Retention(AnnotationRetention.BINARY)
-@Target(AnnotationTarget.FUNCTION)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY)
 public annotation class InternalMeshLinkApi
 
 /**

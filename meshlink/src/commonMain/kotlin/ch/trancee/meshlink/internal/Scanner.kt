@@ -33,15 +33,22 @@ internal class Scanner(
      * Serves the capability record, advertises and scans until cancelled, then stops advertising and
      * scanning and forgets the candidates. Passes every link event to [onLinkEvent]. Returns early,
      * recording [failure], if the radio refuses any of the three or reports a [RadioEvent.Failed].
+     * Restricted to [role], it neither serves nor advertises as [LinkRole.CENTRAL] and doesn't scan as
+     * [LinkRole.PERIPHERAL].
      */
-    suspend fun run(onLinkEvent: (RadioEvent) -> Unit) {
+    suspend fun run(
+        role: LinkRole?,
+        onLinkEvent: (RadioEvent) -> Unit,
+    ) {
         try {
             val payload = discovery.advertisement(epoch())
             val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload)
+            val peripheral = role != LinkRole.CENTRAL
+            val central = role != LinkRole.PERIPHERAL
             val refused =
-                radio.serveCapability(capability.encode()) as? RadioResult.Failed
-                    ?: radio.startAdvertising(payload) as? RadioResult.Failed
-                    ?: radio.startScanning() as? RadioResult.Failed
+                (if (peripheral) radio.serveCapability(capability.encode()) else null) as? RadioResult.Failed
+                    ?: (if (peripheral) radio.startAdvertising(payload) else null) as? RadioResult.Failed
+                    ?: (if (central) radio.startScanning() else null) as? RadioResult.Failed
             failure = refused?.reason
             if (refused == null) {
                 val failed = radio.events.firstOrNull { dispatch(it, onLinkEvent) } as RadioEvent.Failed?

@@ -46,6 +46,9 @@ class DependencyDirectionPlugin : Plugin<Project> {
                 ":meshlink-crypto-sodium" to setOf(":meshlink-core"),
                 ":meshlink" to setOf(":meshlink-core", ":meshlink-crypto-sodium"),
                 ":meshlink-testing" to setOf(":meshlink"),
+                // The lab apps (ADR 0017 decision 7) drive the library like an app; nothing depends on them.
+                ":labapp-shared" to setOf(":meshlink"),
+                ":labapp-android" to setOf(":labapp-shared"),
             )
 
         /**

@@ -10,6 +10,17 @@ open annotation class ch.trancee.meshlink/InternalMeshLinkApi : kotlin/Annotatio
     constructor <init>() // ch.trancee.meshlink/InternalMeshLinkApi.<init>|<init>(){}[0]
 }
 
+final enum class ch.trancee.meshlink.internal/LinkRole : kotlin/Enum<ch.trancee.meshlink.internal/LinkRole> { // ch.trancee.meshlink.internal/LinkRole|null[0]
+    enum entry CENTRAL // ch.trancee.meshlink.internal/LinkRole.CENTRAL|null[0]
+    enum entry PERIPHERAL // ch.trancee.meshlink.internal/LinkRole.PERIPHERAL|null[0]
+
+    final val entries // ch.trancee.meshlink.internal/LinkRole.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink.internal/LinkRole.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink.internal/LinkRole // ch.trancee.meshlink.internal/LinkRole.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink.internal/LinkRole.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink/FailureReason : kotlin/Enum<ch.trancee.meshlink/FailureReason> { // ch.trancee.meshlink/FailureReason|null[0]
     enum entry Stopped // ch.trancee.meshlink/FailureReason.Stopped|null[0]
 
@@ -228,12 +239,18 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
     final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
         final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
+    final val linkRoles // ch.trancee.meshlink/MeshLink.linkRoles|{}linkRoles[0]
+        final fun <get-linkRoles>(): kotlin.collections/Map<ch.trancee.meshlink/NodeId, ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink/MeshLink.linkRoles.<get-linkRoles>|<get-linkRoles>(){}[0]
     final val messages // ch.trancee.meshlink/MeshLink.messages|{}messages[0]
         final fun <get-messages>(): kotlinx.coroutines.flow/Flow<ch.trancee.meshlink/ReceivedMessage> // ch.trancee.meshlink/MeshLink.messages.<get-messages>|<get-messages>(){}[0]
     final val peers // ch.trancee.meshlink/MeshLink.peers|{}peers[0]
         final fun <get-peers>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/List<ch.trancee.meshlink/Peer>> // ch.trancee.meshlink/MeshLink.peers.<get-peers>|<get-peers>(){}[0]
     final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
+
+    final var restrictedLinkRole // ch.trancee.meshlink/MeshLink.restrictedLinkRole|{}restrictedLinkRole[0]
+        final fun <get-restrictedLinkRole>(): ch.trancee.meshlink.internal/LinkRole? // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<get-restrictedLinkRole>|<get-restrictedLinkRole>(){}[0]
+        final fun <set-restrictedLinkRole>(ch.trancee.meshlink.internal/LinkRole?) // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<set-restrictedLinkRole>|<set-restrictedLinkRole>(ch.trancee.meshlink.internal.LinkRole?){}[0]
 
     final fun close() // ch.trancee.meshlink/MeshLink.close|close(){}[0]
     final fun linkCandidates(): kotlin.collections/Set<ch.trancee.meshlink.internal/PeerHandle> // ch.trancee.meshlink/MeshLink.linkCandidates|linkCandidates(){}[0]

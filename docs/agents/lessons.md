@@ -6,7 +6,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 
 **Concept:** radio behavior counts only when measured on real phones (Constitution T9); simulators never count. The lab is a set of Android phones on a remote adb server and iPhones on the Mac. The inventory is in `../android-devices/devices.md`, outside the repository.
 
-**Code map:** `prototypes/bearer-bakeoff/` on throwaway branch `prototype/bearer-bakeoff`. `host/bakeoff.py` builds, installs, launches and pulls results. `host/matrix.py` runs whole phases, and `host/summarize.py` summarizes them.
+**Code map:** `tools/lab/lab.py` builds the lab apps in `labapp/`, installs and launches them, pulls results into `build/lab/<run>/` and writes evidence records; its [README](../../tools/lab/README.md) has the local config format and the commands. The scenarios are Kotlin in `labapp/shared/`. The bake-off that proved these commands is `prototypes/bearer-bakeoff/` on throwaway branch `prototype/bearer-bakeoff`.
 
 **Verified commands** (2026-11-01):
 

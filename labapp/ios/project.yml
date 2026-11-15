@@ -1,0 +1,52 @@
+# XcodeGen spec for the iOS lab host (ADR 0017 decision 7). `tools/lab/lab.py` generates the project,
+# links the LabKit framework from `:labapp-shared` and signs it per device team.
+name: LabHost
+options:
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    LAB_BUNDLE_ID: ch.trancee.lab.host
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    TARGETED_DEVICE_FAMILY: "1"
+    FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework
+    OTHER_LDFLAGS: ["-framework", "LabKit"]
+    ARCHS: arm64
+targets:
+  LabHost:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
+    scheme:
+      testTargets: [LabGrantUITests]
+    info:
+      path: build/Info.plist
+      properties:
+        CFBundleDisplayName: MeshLink Lab
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSBluetoothAlwaysUsageDescription: The MeshLink lab app links test phones over Bluetooth to measure the mesh.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+  # Accepts the Bluetooth permission alert by exact button label only; see GrantBluetoothTests.swift.
+  LabGrantUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: LabHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID).grant
+        TEST_TARGET_NAME: LabHost
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: []
+        FRAMEWORK_SEARCH_PATHS: []

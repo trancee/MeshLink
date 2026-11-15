@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.dokka.gradle.plugin)
     implementation(libs.skie.gradle.plugin)
     implementation(libs.maven.publish.gradle.plugin)
+    implementation(libs.compose.compiler.gradle.plugin)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit4)
 }
@@ -60,6 +61,10 @@ gradlePlugin {
         register("specVectors") {
             id = "meshlink.spec-vectors"
             implementationClass = "ch.trancee.meshlink.buildlogic.SpecVectorsPlugin"
+        }
+        register("labApp") {
+            id = "meshlink.lab-app"
+            implementationClass = "ch.trancee.meshlink.buildlogic.LabAppPlugin"
         }
         register("kmpLibrary") {
             id = "meshlink.kmp-library"

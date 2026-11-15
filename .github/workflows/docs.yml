@@ -34,6 +34,8 @@ jobs:
       # The runner image's python3; the tool uses the standard library only.
       - name: ADR versions match their amendments
         run: python3 tools/check_adrs.py
+      - name: Lab tools unit tests
+        run: python3 -m unittest discover -s tools/lab/tests
 
   spec:
     name: Protocol spec
