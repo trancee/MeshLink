@@ -67,7 +67,7 @@ jobs:
     name: iOS simulator tests and SwiftPM consumer (macOS)
     if: github.event_name != 'schedule'
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
     steps: &apple
@@ -96,6 +96,18 @@ jobs:
       - run: ./gradlew buildLibsodiumApple buildLibsodiumHostMacos
       - run: ./gradlew iosSimulatorArm64Test
       - run: tools/swiftpm-consumer/test.sh
+      # Ticket 65: publishing needs the iOS klibs (macOS only) and the Android libsodium build (NDK).
+      # Only the required job runs it; the Xcode 27 runner's Android SDK is not verified.
+      - name: Install the pinned NDK
+        if: github.job == 'macos'
+        run: |
+          ndk=$(sed -n 's/^android-ndk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
+      - if: github.job == 'macos'
+        run: ./gradlew buildLibsodiumAndroid
+      - if: github.job == 'macos'
+        run: tools/maven-consumer/test.sh
       - run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
 
   xcode-27:

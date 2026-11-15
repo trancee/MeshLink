@@ -38,6 +38,10 @@ gradlePlugin {
             id = "meshlink.published-library"
             implementationClass = "ch.trancee.meshlink.buildlogic.PublishedLibraryPlugin"
         }
+        register("internalLibrary") {
+            id = "meshlink.internal-library"
+            implementationClass = "ch.trancee.meshlink.buildlogic.InternalLibraryPlugin"
+        }
         register("buildInfo") {
             id = "meshlink.build-info"
             implementationClass = "ch.trancee.meshlink.buildlogic.BuildInfoPlugin"
