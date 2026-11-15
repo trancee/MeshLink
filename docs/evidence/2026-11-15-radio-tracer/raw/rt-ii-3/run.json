@@ -1,0 +1,40 @@
+{
+  "run": "rt-ii-3",
+  "scenario": "direct-message",
+  "profile": "unsecured",
+  "duration_s": 60,
+  "commit": "882b7331a55e32e614136be9e36843927aa67889",
+  "date": "2026-11-15T18:55:10+01:00",
+  "method": "python3 tools/lab/lab.py run --scenario direct-message --devices se2016,ip12mini --profile unsecured",
+  "xcode": "Xcode 27.2",
+  "devices": {
+    "se2016": {
+      "platform": "ios",
+      "model": "iPhone8,4",
+      "os": "iOS 15.8.8",
+      "args": [
+        "scenario=direct-message",
+        "role=peripheral",
+        "peer=ip12mini",
+        "mesh=lab-rt-ii-3",
+        "profile=unsecured",
+        "run=rt-ii-3",
+        "duration=60"
+      ]
+    },
+    "ip12mini": {
+      "platform": "ios",
+      "model": "iPhone13,1",
+      "os": "iOS 27.2",
+      "args": [
+        "scenario=direct-message",
+        "role=central",
+        "peer=se2016",
+        "mesh=lab-rt-ii-3",
+        "profile=unsecured",
+        "run=rt-ii-3",
+        "duration=60"
+      ]
+    }
+  }
+}

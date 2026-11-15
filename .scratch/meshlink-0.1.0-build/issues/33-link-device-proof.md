@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Type: HITL
-Blocked by: 30, 31, 32
+Blocked by: 30, 31, 32, 66
 
 ## Behavior
 

@@ -1,0 +1,10 @@
+{"t_ms":19,"event":"start","scenario":"direct-message","run":"rt-ai-2","role":"peripheral","peer":"ip12mini","mesh":"lab-rt-ai-2","profile":"unsecured","duration_s":60}
+{"t_ms":127,"event":"state","state":"Stopped","role":null}
+{"t_ms":129,"event":"state","state":"Starting","role":null}
+{"t_ms":212,"event":"state","state":"Running","role":null}
+{"t_ms":2164,"event":"link","peer_node":"dd64e167f1f78232","role":"peripheral"}
+{"t_ms":2177,"event":"send","to":"dd64e167f1f78232","bytes":83,"sha256":"bd9afbb5f3126dcb127cec5e88877a76733e44462cc01575acec72ed9ad78c3a","role":"peripheral"}
+{"t_ms":2193,"event":"status","status":"Queued","role":"peripheral"}
+{"t_ms":2200,"event":"received","from":"dd64e167f1f78232","bytes":82,"sha256":"e436f26e4ba744bfb05be592e4a36de5e545efb66058b99d5b6146b139f5bc20","intact":true,"role":"peripheral"}
+{"t_ms":2223,"event":"status","status":"Sent","role":"peripheral"}
+{"t_ms":60373,"event":"done","result":"pass","failures":[]}

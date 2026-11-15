@@ -1,0 +1,9 @@
+{"t_ms":0,"event":"start","scenario":"direct-message","run":"rt-ii-2","role":"central","peer":"ip12mini","mesh":"lab-rt-ii-2","profile":"unsecured","duration_s":60}
+{"t_ms":16,"event":"state","state":"Stopped","role":null}
+{"t_ms":18,"event":"state","state":"Starting","role":null}
+{"t_ms":77,"event":"state","state":"Running","role":null}
+{"t_ms":1657,"event":"link","peer_node":"dd64e167f1f78232","role":"central"}
+{"t_ms":1658,"event":"send","to":"dd64e167f1f78232","bytes":83,"sha256":"3127a812ea9d0ae3e8dbdc635357693a2f36a863af4f8f1bfb556013c95bd3ef","role":"central"}
+{"t_ms":1662,"event":"status","status":"Sent","role":"central"}
+{"t_ms":1690,"event":"received","from":"dd64e167f1f78232","bytes":81,"sha256":"f08ea23f3732d57a1340844b3114dea904188ef77083e3716a4dea0acce76339","intact":true,"role":"central"}
+{"t_ms":60100,"event":"done","result":"pass","failures":[]}
