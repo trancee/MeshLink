@@ -22,4 +22,10 @@ public sealed class MeshLinkException(
 
     /** A second concurrent collector of [MeshLink.messages]; share one collection with `shareIn` instead. */
     public class AlreadyCollected : MeshLinkException("MeshLink.messages already has a collector")
+
+    /** A call that the node's lifecycle [state] doesn't allow, such as [MeshLink.resetIdentity] while running. */
+    public class InvalidState(
+        /** The node's state at the call. */
+        public val state: MeshState,
+    ) : MeshLinkException("not allowed while the MeshLink node is $state")
 }

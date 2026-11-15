@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The Android platform: the Bluetooth LE radio of [context]'s app, or a radio that refuses every
- * operation on a device without Bluetooth. The identity stays in memory until ticket 15 persists it.
+ * operation on a device without Bluetooth. The identity's seed persists in [KeystoreSlot], sealed by an
+ * Android Keystore key.
  */
 internal class AndroidPlatformPort(
     context: Context,
@@ -26,7 +27,7 @@ internal class AndroidPlatformPort(
 
     override val requirements: StateFlow<Set<Requirement>> = checks.requirements
 
-    override val identityStore: IdentityStore = InMemoryIdentityStore()
+    override val identityStore: IdentityStore = PersistentIdentityStore(KeystoreSlot.of(app))
 
     override val radio: RadioPort = androidRadio ?: UnsupportedRadio
 

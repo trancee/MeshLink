@@ -7,6 +7,7 @@ import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
+import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SendResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,7 +79,7 @@ internal class Post(
     ): SendResult {
         val reason =
             when {
-                state != MeshState.Running && state !is MeshState.Blocked -> RejectionReason.NotRunning
+                !accepting(state) -> RejectionReason.NotRunning
                 to !in known -> RejectionReason.UnknownPeer
                 payload.size > UnsecuredMessaging.PAYLOAD_MAX -> RejectionReason.TooLarge
                 !capacity.reserve(payload.size) -> RejectionReason.QueueFull
@@ -94,6 +95,11 @@ internal class Post(
         }
         return SendResult.Accepted(OutgoingMessage(to, status.asStateFlow()))
     }
+
+    // A node blocked on its identity has no run: start couldn't begin one.
+    private fun accepting(state: MeshState): Boolean =
+        state == MeshState.Running ||
+            (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)
 
     /** Returns once the send queue is below its cap. */
     suspend fun awaitCapacity() {

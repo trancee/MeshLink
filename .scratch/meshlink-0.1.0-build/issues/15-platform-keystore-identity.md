@@ -1,6 +1,6 @@
 # Keep the installation identity in the platform keystore
 
-Status: ready-for-agent
+Status: claimed
 Type: AFK
 Blocked by: 12
 
@@ -25,14 +25,14 @@ These are owner decisions (2026-11-13). Android Keystore and the Secure Enclave 
 
 ## Acceptance criteria
 
-- [ ] A dated ADR 0003 amendment (version bump) records the storage design above: Android Keystore AES-256-GCM wrapping key (non-exportable, no user authentication, StrongBox when available), no-backup storage, the iOS Keychain item attributes, backup exclusion, and "unreadable means blocked, never replaced". It merges in this PR before or with the code (O3).
-- [ ] A dated ADR 0007 amendment (version bump) adds the `IdentityUnavailable` requirement to decision 3 and the explicit `resetIdentity()` call: it is the only way out of `IdentityUnavailable` (the exception to "leaves `Blocked` by itself"), it deletes the stored item and creates a new identity, and it is allowed only while the node is stopped or blocked, with a declared `MeshLinkException` otherwise.
-- [ ] `androidMain` and `iosMain` implementations of the identity store port follow the amendment; the seed and private key never appear in logs, exceptions or diagnostics (S1), and plaintext seed buffers are wiped after use where the platform allows it.
-- [ ] Android stores the file under no-backup storage and the Keychain item is non-synchronizable with the `ThisDeviceOnly` accessibility class; tests assert the attributes passed to the platform calls.
-- [ ] Tests: create, restart and reload yields the same NodeId; `resetIdentity()` yields a new NodeId.
-- [ ] T10 cases, each giving `Blocked(IdentityUnavailable)`, the stored item unchanged, and no new identity until `resetIdentity()` (S4, S5): a corrupt or truncated ciphertext blob; a ciphertext whose Keystore key is missing (deleted or invalidated); a restore where the stored blob is present but its Keystore key is not (the backup case if the exclusion ever fails). On iOS: a Keychain item that cannot be parsed. A first start with no stored item at all creates an identity normally.
-- [ ] Android tests run under Robolectric on SDK 26 and 37 with Kover 100%; iOS tests run on the simulator, with the thin Keychain calls listed in the CI-named file.
-- [ ] `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `python3 tools/check_adrs.py` pass.
+- [x] A dated ADR 0003 amendment (version bump) records the storage design above: Android Keystore AES-256-GCM wrapping key (non-exportable, no user authentication, StrongBox when available), no-backup storage, the iOS Keychain item attributes, backup exclusion, and "unreadable means blocked, never replaced". It merges in this PR before or with the code (O3).
+- [x] A dated ADR 0007 amendment (version bump) adds the `IdentityUnavailable` requirement to decision 3 and the explicit `resetIdentity()` call: it is the only way out of `IdentityUnavailable` (the exception to "leaves `Blocked` by itself"), it deletes the stored item and creates a new identity, and it is allowed only while the node is stopped or blocked, with a declared `MeshLinkException` otherwise.
+- [x] `androidMain` and `iosMain` implementations of the identity store port follow the amendment; the seed and private key never appear in logs, exceptions or diagnostics (S1), and plaintext seed buffers are wiped after use where the platform allows it.
+- [x] Android stores the file under no-backup storage and the Keychain item is non-synchronizable with the `ThisDeviceOnly` accessibility class; tests assert the attributes passed to the platform calls.
+- [x] Tests: create, restart and reload yields the same NodeId; `resetIdentity()` yields a new NodeId.
+- [x] T10 cases, each giving `Blocked(IdentityUnavailable)`, the stored item unchanged, and no new identity until `resetIdentity()` (S4, S5): a corrupt or truncated ciphertext blob; a ciphertext whose Keystore key is missing (deleted or invalidated); a restore where the stored blob is present but its Keystore key is not (the backup case if the exclusion ever fails). On iOS: a Keychain item that cannot be parsed. A first start with no stored item at all creates an identity normally.
+- [x] Android tests run under Robolectric on SDK 26 and 37 with Kover 100%; iOS tests run on the simulator, with the thin Keychain calls listed in the CI-named file.
+- [x] `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `python3 tools/check_adrs.py` pass.
 
 ## Proof commands
 
@@ -54,3 +54,15 @@ python3 tools/check_adrs.py
 ## Devices needed
 
 None for this ticket. Restart survival on phones is checked in ticket 17.
+
+## Notes
+
+- **Logic in `commonMain` (owner decision):** `PersistentIdentityStore` holds every rule (create only when the slot is absent, restore only a 32 B seed, wipe what was read, never overwrite) over the internal `SeedSlot` port; `KeychainSlot` maps `OSStatus` values over the internal `Keychain` port. The platform layers are `KeystoreSlot` (`androidMain`, Kover-measured) and the thin `IosKeychain` (listed in `config/thin-adapters.txt`).
+- **`iosAdaptersMain` (owner decision):** `IosKeychain` and `IosKeychainTest` live in an `iosAdapters` group of the default hierarchy template, between `iosMain` and both iOS targets, so the simulator tests reach the adapter. Linux CI's Dokka couldn't resolve its cinterop types in `iosMain` (21 warnings; `suppressedFiles` still analyzes the file) and `iosMain` holds public API, so Dokka suppresses `iosAdaptersMain` and the two target source sets that depend on it.
+- **Fakes (owner decision):** Robolectric has no `AndroidKeyStore` JCA provider (`NoSuchProviderException` on SDK 26 and 37), so `FakeAndroidKeyStore` registers one under that name, backed by the JDK's AES-GCM, recording each `KeyGenParameterSpec`. A simulator test host has no Keychain: every `SecItem` call returns `errSecNotAvailable` (-25291), so `IosKeychainTest` asserts that status, which a malformed query would turn into `errSecParam` (-50), plus the dictionaries themselves.
+- **Failures (owner decision):** a failure to create or save, or a transient read failure, is `Blocked(IdentityUnavailable)` too, and every `start()` reads again. The store never overwrites.
+- **`resetIdentity()` (owner decision):** allowed while `Stopped` or `Blocked`, ends `Stopped`, else `InvalidState`. ADR 0007 amendment of 2026-11-15.
+- **Simulator and testing port (owner decision):** keep `InMemoryIdentityStore`.
+- **Delete of a missing Keystore alias:** AOSP's `AndroidKeyStoreSpi.engineDeleteEntry` ignores `KEY_NOT_FOUND` (Keystore2), and the legacy `Credentials.deleteAllTypesForAlias` treats it as deleted, so `erase()` calls `deleteEntry` without `containsAlias`.
+- **Test order:** most tests went red first. The ones that passed before their code were proven by mutation: 16 mutants on `KeystoreSlot`, 8 on `KeychainSlot`, 6 on the `MeshLink` wiring and 7 on `IosKeychain`, each killed except two on `IosKeychain` (passing the item to `SecItemAdd` without the seed, or to `SecItemCopyMatching` without the return-data keys), which the simulator can't tell apart. Ticket 17 proves them on iPhones.
+- **Robolectric and JNI:** Robolectric loads each SDK in its own class loader, and a JNI library loads into one only, so the Android platform test uses a fixed-key `CryptoProvider` rather than libsodium.

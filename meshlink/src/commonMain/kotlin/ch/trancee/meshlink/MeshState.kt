@@ -17,6 +17,8 @@ public sealed interface MeshState {
     /**
      * Started, but the radio can't work until every requirement in [requirements] is met. The node
      * moves to [Running] by itself once they are; the app never needs to call [MeshLink.start] again.
+     * The exception is [Requirement.IdentityUnavailable], always the only requirement when present:
+     * the node retries it on the next [MeshLink.start].
      */
     public data class Blocked(
         /** What is missing; never empty. */
@@ -46,6 +48,16 @@ public sealed interface Requirement {
 
     /** Another MeshLink node in this app holds the radio. */
     public data object RadioInUse : Requirement
+
+    /**
+     * The installation identity can't be read, or a new one can't be stored (ADR 0003): for
+     * example, on iOS before the first unlock after a restart, or after Android lost the Keystore
+     * key that encrypts it. The node uses no radio, and doesn't retry by itself: the next
+     * [MeshLink.start] tries again. MeshLink never replaces a stored identity on its own; if it
+     * stays unreadable, [MeshLink.resetIdentity] deletes it so the next start creates a new one,
+     * with a new [NodeId].
+     */
+    public data object IdentityUnavailable : Requirement
 }
 
 /** A permission the radio needs, for [Requirement.PermissionDenied]. */

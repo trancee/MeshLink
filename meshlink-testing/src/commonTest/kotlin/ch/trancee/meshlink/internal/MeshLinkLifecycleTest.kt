@@ -230,21 +230,18 @@ class MeshLinkLifecycleTest {
             // Arrange
             val platform = platform()
             val node = node(platform)
-            assertFailsWith<NoIdentity>("the store starts empty") {
-                platform.identityStore.loadOrCreate { throw NoIdentity() }
-            }
+            val store = platform.identityStore
+            assertFailsWith<IllegalStateException>("the store starts empty") { store.loadOrCreate(NoNewKeyPairs) }
 
             // Act
             node.start()
-            val created = platform.identityStore.loadOrCreate { throw NoIdentity() }
+            val created = platform.identityStore.loadOrCreate(NoNewKeyPairs)
             node.stop()
             node.start()
 
             // Assert
-            assertSame(created, platform.identityStore.loadOrCreate { throw NoIdentity() })
+            assertSame(created, platform.identityStore.loadOrCreate(NoNewKeyPairs))
         }
-
-    private class NoIdentity : Exception()
 
     private fun TestScope.air(): VirtualAir = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1))
 

@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
@@ -20,6 +21,12 @@ tasks.withType<KotlinNativeLink>().configureEach {
 }
 
 kotlin {
+    // iosAdaptersMain holds the iOS thin adapters that both iOS targets share, so the simulator tests
+    // in iosAdaptersTest reach them; Dokka suppresses it (below).
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common { group("ios") { group("iosAdapters") { withIos() } } }
+    }
     sourceSets.commonMain.dependencies {
         api(project(":meshlink-core"))
         implementation(project(":meshlink-crypto-sodium"))
@@ -41,11 +48,14 @@ kotlin {
     }
 }
 
-// iosArm64Main holds only internal thin adapters, so it adds nothing to the docs. Dokka 2.3.0 still
-// resolves the KDoc QueueDispatcher inherits from CoroutineDispatcher, whose links don't resolve
-// from this source set, and failOnWarning fails on them.
+// iosAdaptersMain and the two iOS target source sets hold only internal thin adapters, so they add
+// nothing to the docs. Dokka 2.3.0 still resolves the KDoc QueueDispatcher inherits from
+// CoroutineDispatcher, whose links don't resolve from iosArm64Main, and on a Linux host, which has no
+// iOS platform libraries, it can't resolve the cinterop types in iosAdaptersMain; failOnWarning fails
+// on both. Dokka needs the source sets that depend on a suppressed one suppressed too.
 dokka {
-    dokkaSourceSets.named("iosArm64Main") { suppress.set(true) }
+    val adapters = setOf("iosAdaptersMain", "iosArm64Main", "iosSimulatorArm64Main")
+    dokkaSourceSets.configureEach { if (name in adapters) suppress.set(true) }
 }
 
 // ADR 0004 "Binding": the release XCFramework's slices export no libsodium symbol and touch no AES,

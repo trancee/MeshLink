@@ -48,7 +48,8 @@ final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.me
 }
 
 abstract interface ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/IdentityStore|null[0]
-    abstract fun loadOrCreate(kotlin/Function0<ch.trancee.meshlink.internal/Ed25519KeyPair>): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/IdentityStore.loadOrCreate|loadOrCreate(kotlin.Function0<ch.trancee.meshlink.internal.Ed25519KeyPair>){}[0]
+    abstract fun delete(): kotlin/Boolean // ch.trancee.meshlink.internal/IdentityStore.delete|delete(){}[0]
+    abstract fun loadOrCreate(ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink.internal/Ed25519KeyPair? // ch.trancee.meshlink.internal/IdentityStore.loadOrCreate|loadOrCreate(ch.trancee.meshlink.internal.CryptoProvider){}[0]
 }
 
 abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.meshlink.internal/PlatformPort|null[0]
@@ -170,6 +171,12 @@ sealed interface ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requir
         final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.BluetoothOff.toString|toString(){}[0]
     }
 
+    final object IdentityUnavailable : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.IdentityUnavailable|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.IdentityUnavailable.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.IdentityUnavailable.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Requirement.IdentityUnavailable.toString|toString(){}[0]
+    }
+
     final object RadioInUse : ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requirement.RadioInUse|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Requirement.RadioInUse.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Requirement.RadioInUse.hashCode|hashCode(){}[0]
@@ -214,7 +221,8 @@ sealed interface ch.trancee.meshlink/SendResult { // ch.trancee.meshlink/SendRes
 final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/InMemoryIdentityStore|null[0]
     constructor <init>() // ch.trancee.meshlink.internal/InMemoryIdentityStore.<init>|<init>(){}[0]
 
-    final fun loadOrCreate(kotlin/Function0<ch.trancee.meshlink.internal/Ed25519KeyPair>): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/InMemoryIdentityStore.loadOrCreate|loadOrCreate(kotlin.Function0<ch.trancee.meshlink.internal.Ed25519KeyPair>){}[0]
+    final fun delete(): kotlin/Boolean // ch.trancee.meshlink.internal/InMemoryIdentityStore.delete|delete(){}[0]
+    final fun loadOrCreate(ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/InMemoryIdentityStore.loadOrCreate|loadOrCreate(ch.trancee.meshlink.internal.CryptoProvider){}[0]
 }
 
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
@@ -232,6 +240,7 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
     final fun radioFailure(): ch.trancee.meshlink.internal/RadioFailure? // ch.trancee.meshlink/MeshLink.radioFailure|radioFailure(){}[0]
     final fun send(ch.trancee.meshlink/NodeId, kotlin/ByteArray): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.send|send(ch.trancee.meshlink.NodeId;kotlin.ByteArray){}[0]
     final suspend fun awaitSendCapacity() // ch.trancee.meshlink/MeshLink.awaitSendCapacity|awaitSendCapacity(){}[0]
+    final suspend fun resetIdentity(): kotlin/Boolean // ch.trancee.meshlink/MeshLink.resetIdentity|resetIdentity(){}[0]
     final suspend fun start() // ch.trancee.meshlink/MeshLink.start|start(){}[0]
     final suspend fun stop() // ch.trancee.meshlink/MeshLink.stop|stop(){}[0]
 
@@ -313,6 +322,13 @@ sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.tr
 
         final val setting // ch.trancee.meshlink/MeshLinkException.InvalidConfig.setting|{}setting[0]
             final fun <get-setting>(): kotlin/String // ch.trancee.meshlink/MeshLinkException.InvalidConfig.setting.<get-setting>|<get-setting>(){}[0]
+    }
+
+    final class InvalidState : ch.trancee.meshlink/MeshLinkException { // ch.trancee.meshlink/MeshLinkException.InvalidState|null[0]
+        constructor <init>(ch.trancee.meshlink/MeshState) // ch.trancee.meshlink/MeshLinkException.InvalidState.<init>|<init>(ch.trancee.meshlink.MeshState){}[0]
+
+        final val state // ch.trancee.meshlink/MeshLinkException.InvalidState.state|{}state[0]
+            final fun <get-state>(): ch.trancee.meshlink/MeshState // ch.trancee.meshlink/MeshLinkException.InvalidState.state.<get-state>|<get-state>(){}[0]
     }
 }
 
