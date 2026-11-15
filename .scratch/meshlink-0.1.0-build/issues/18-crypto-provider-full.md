@@ -1,6 +1,6 @@
 # Complete `CryptoProvider` with every profile's primitives
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 07
 
