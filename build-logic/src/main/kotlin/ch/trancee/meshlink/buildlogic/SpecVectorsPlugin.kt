@@ -1,12 +1,11 @@
 package ch.trancee.meshlink.buildlogic
 
-import groovy.json.JsonSlurper
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
@@ -15,28 +14,27 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import java.io.File
+import java.security.MessageDigest
 
 /**
- * Makes the protocol test vectors in `docs/spec/vectors/` available to `commonTest`, so one vector
- * runner serves the Android host and the iOS simulator without file access at test time.
+ * Embeds JSON vector files in `commonTest`, so one vector runner serves the Android host and the iOS
+ * simulator without file access at test time.
  *
- * A module names the vector files it runs in `specVectors { files.add("advertisement") }`.
- * `generateSpecVectors` turns each into Kotlin source, every value as a string (hex or decimal, as
- * in the file): `derivations.json` into `DerivationVector`s, and each layout file, such as
- * `advertisement.json`, into `LayoutVector`s. Nested `decoded` fields are flattened to dotted
- * names: a list `versions` becomes `versions.count` plus `versions.0.version` and so on.
+ * A module lists the files in `specVectors { files.from(…); vendored.from(…) }`. `generateSpecVectors`
+ * writes each file's JSON, without whitespace outside strings, as string constants, and a map
+ * `vectorFiles` from `<directory>/<file>` (such as `vectors/advertisement.json`) to its text. A
+ * vendored file must match its line in the `SHA256SUMS` file next to it.
  */
 class SpecVectorsPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val extension = project.extensions.create("specVectors", SpecVectorsExtension::class.java)
-        val vectorDirectory =
-            project.rootProject.layout.projectDirectory
-                .dir("docs/spec/vectors")
         val generate =
             project.tasks.register("generateSpecVectors", GenerateSpecVectors::class.java) {
                 group = "verification"
-                description = "Generates commonTest Kotlin source from the vector files in docs/spec/vectors/."
-                vectors.from(extension.files.map { names -> names.map { vectorDirectory.file("$it.json") } })
+                description = "Embeds the JSON vector files in commonTest Kotlin source."
+                files.from(extension.files)
+                vendored.from(extension.vendored)
+                checksums.from(extension.vendored.elements.map { all -> all.map { File(it.asFile.parentFile, SUMS) } })
                 outputDirectory.set(project.layout.buildDirectory.dir("generated/meshlink/vectors/commonTest/kotlin"))
             }
         project.pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
@@ -50,21 +48,38 @@ class SpecVectorsPlugin : Plugin<Project> {
             .matching { it.name.startsWith("lintAnalyze") || it.name.endsWith("LintModel") }
             .configureEach { dependsOn(generate) }
     }
+
+    internal companion object {
+        const val SUMS = "SHA256SUMS"
+    }
 }
 
-/** Which vector files of `docs/spec/vectors/` a module's `commonTest` runs. */
+/** Which JSON vector files a module's `commonTest` embeds. */
 abstract class SpecVectorsExtension {
-    /** Vector file names without `.json`, such as `derivations` or `advertisement`. */
-    abstract val files: ListProperty<String>
+    /** Files kept in this repository: the published vectors in `docs/spec/vectors`. */
+    abstract val files: ConfigurableFileCollection
+
+    /** Files copied from elsewhere; each must match the `SHA256SUMS` file in its directory. */
+    abstract val vendored: ConfigurableFileCollection
 }
 
-/** Writes one Kotlin file per vector file, plus the `LayoutVector` type if any layout file is listed. */
+/** Writes one Kotlin object per vector file and the `vectorFiles` map. */
 @CacheableTask
 abstract class GenerateSpecVectors : DefaultTask() {
-    /** The vector files. */
+    /** The repository's own vector files. */
     @get:InputFiles
-    @get:PathSensitive(PathSensitivity.NAME_ONLY)
-    abstract val vectors: ConfigurableFileCollection
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val files: ConfigurableFileCollection
+
+    /** The vendored vector files. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val vendored: ConfigurableFileCollection
+
+    /** The `SHA256SUMS` file of each vendored file's directory. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val checksums: ConfigurableFileCollection
 
     /** The Kotlin source root the generated files go in. */
     @get:OutputDirectory
@@ -72,140 +87,102 @@ abstract class GenerateSpecVectors : DefaultTask() {
 
     @TaskAction
     fun generate() {
+        vendored.files.forEach(::verifyChecksum)
+        val sources = (files.files + vendored.files).sortedBy(::vectorName)
+        val duplicates = sources.groupBy(::vectorName).filterValues { it.size > 1 }.keys
+        if (duplicates.isNotEmpty()) throw GradleException("Vector file names must be unique: $duplicates")
         val directory = outputDirectory.get().dir("ch/trancee/meshlink/vectors").asFile
         directory.deleteRecursively()
         directory.mkdirs()
-        val files = vectors.files.sortedBy { it.name }
-        files.forEach { file ->
-            if (file.name == "derivations.json") writeDerivations(file, directory) else writeLayout(file, directory)
-        }
-        if (files.any { it.name != "derivations.json" }) writeLayoutType(directory)
-    }
-
-    private fun writeDerivations(
-        source: File,
-        directory: File,
-    ) {
-        val lines =
-            groups(source).flatMap { group ->
-                val derivation = group["derivation"] as String
-                tests(group).map { test ->
-                    val inputs = mapLiteral((test["inputs"] as Map<*, *>).entries.associate { (k, v) -> k to v })
-                    "        DerivationVector(${literal(derivation)}, ${test["tcId"]}, $inputs, " +
-                        "${literal(test["output"].toString())}),"
-                }
-            }
-        File(directory, "DerivationVectors.kt").writeText(
+        sources.forEachIndexed { index, source -> writeFile(source, "VectorFile$index", directory) }
+        File(directory, "VectorFiles.kt").writeText(
             buildString {
-                header(source)
-                appendLine("/** One derivation test: [inputs] as hex or decimal strings, [output] as hex. */")
-                appendLine("internal data class DerivationVector(")
-                appendLine("    val derivation: String,")
-                appendLine("    val tcId: Int,")
-                appendLine("    val inputs: Map<String, String>,")
-                appendLine("    val output: String,")
-                appendLine(")")
-                appendLine()
-                appendLine("/** Every test in derivations.json, in file order. */")
-                appendLine("internal val derivationVectors: List<DerivationVector> =")
-                appendLine("    listOf(")
-                lines.forEach(::appendLine)
-                appendLine("    )")
-            },
-        )
-    }
-
-    private fun writeLayout(
-        source: File,
-        directory: File,
-    ) {
-        val lines =
-            groups(source).flatMap { group ->
-                val layout = group["layout"] as String
-                tests(group).map { test ->
-                    val decoded = (test["decoded"] as Map<*, *>?)?.let { mapLiteral(flatten("", it)) } ?: "null"
-                    val error = (test["error"] as String?)?.let(::literal) ?: "null"
-                    "        LayoutVector(${literal(layout)}, ${test["tcId"]}, ${literal(test["result"] as String)}, " +
-                        "${literal(test["encoded"] as String)}, $decoded, $error),"
-                }
-            }
-        val name = source.nameWithoutExtension.split('-').joinToString("") { it.replaceFirstChar(Char::uppercase) }
-        File(directory, "${name}Vectors.kt").writeText(
-            buildString {
-                header(source)
-                appendLine("/** Every test in ${source.name}, in file order. */")
-                appendLine("internal val ${name.replaceFirstChar(Char::lowercase)}Vectors: List<LayoutVector> =")
-                appendLine("    listOf(")
-                lines.forEach(::appendLine)
-                appendLine("    )")
-            },
-        )
-    }
-
-    private fun writeLayoutType(directory: File) {
-        File(directory, "LayoutVector.kt").writeText(
-            buildString {
-                appendLine("// Generated by generateSpecVectors. Do not edit.")
+                appendLine(HEADER)
                 appendLine("package ch.trancee.meshlink.vectors")
                 appendLine()
-                appendLine("/**")
-                appendLine(" * One codec test: [encoded] as hex; [result] is `valid`, `acceptable` or `invalid`. A")
-                appendLine(" * decodable test has [decoded] fields as hex or decimal strings; an invalid one has [error].")
-                appendLine(" */")
-                appendLine("internal data class LayoutVector(")
-                appendLine("    val layout: String,")
-                appendLine("    val tcId: Int,")
-                appendLine("    val result: String,")
-                appendLine("    val encoded: String,")
-                appendLine("    val decoded: Map<String, String>?,")
-                appendLine("    val error: String?,")
-                appendLine(")")
+                appendLine("/** Each embedded vector file's JSON, by `<directory>/<file>`. */")
+                appendLine("internal val vectorFiles: Map<String, () -> String> =")
+                appendLine("    mapOf(")
+                sources.forEachIndexed { index, source ->
+                    appendLine("        ${literal(vectorName(source))} to VectorFile$index::text,")
+                }
+                appendLine("    )")
             },
         )
     }
 
-    private fun StringBuilder.header(source: File) {
-        appendLine("// Generated by generateSpecVectors from docs/spec/vectors/${source.name}.")
-        appendLine("// Do not edit; change the vector file and rebuild.")
-        appendLine("package ch.trancee.meshlink.vectors")
-        appendLine()
+    private fun verifyChecksum(file: File) {
+        val sums = File(file.parentFile, SpecVectorsPlugin.SUMS)
+        if (!sums.isFile) throw GradleException("Vendored vector file without ${sums.path}: ${file.path}")
+        val expected =
+            sums
+                .readLines()
+                .map { it.split(Regex("\\s+"), limit = 2) }
+                .firstOrNull { it.size == 2 && it[1].removePrefix("*") == file.name }
+                ?.first()
+                ?: throw GradleException("${sums.path} has no line for ${file.name}")
+        val actual = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (actual != expected) {
+            throw GradleException("${file.path}: SHA-256 $actual differs from $expected in ${sums.path}")
+        }
     }
 
-    private fun groups(source: File): List<Map<*, *>> =
-        ((JsonSlurper().parse(source) as Map<*, *>)["testGroups"] as List<*>).map { it as Map<*, *> }
+    private fun writeFile(
+        source: File,
+        name: String,
+        directory: File,
+    ) {
+        val chunks = minify(source.readText()).chunked(CHUNK)
+        File(directory, "$name.kt").writeText(
+            buildString {
+                appendLine(HEADER)
+                appendLine("package ch.trancee.meshlink.vectors")
+                appendLine()
+                appendLine("/** ${vectorName(source)}, without whitespace outside strings. */")
+                appendLine("internal object $name {")
+                appendLine("    fun text(): String =")
+                appendLine("        arrayOf(")
+                chunks.forEach { appendLine("            ${literal(it)},") }
+                appendLine("        ).joinToString(\"\")")
+                appendLine("}")
+            },
+        )
+    }
 
-    private fun tests(group: Map<*, *>): List<Map<*, *>> = (group["tests"] as List<*>).map { it as Map<*, *> }
+    private fun vectorName(file: File): String = "${file.parentFile.name}/${file.name}"
 
-    // Derivation inputs may be lists, written in Groovy's `[a, b]` form.
-    private fun mapLiteral(map: Map<*, *>): String =
-        map.entries.joinToString(", ", "mapOf(", ")") { (name, value) ->
-            "${literal(name.toString())} to ${literal(value.toString())}"
+    /** Drops whitespace outside JSON strings; the text stays equivalent JSON. */
+    private fun minify(json: String): String =
+        buildString {
+            var inString = false
+            var escaped = false
+            json.forEach { char ->
+                when {
+                    escaped -> escaped = false
+                    inString && char == '\\' -> escaped = true
+                    char == '"' -> inString = !inString
+                }
+                if (inString || char == '"' || !char.isWhitespace()) append(char)
+            }
         }
 
-    private fun flatten(
-        prefix: String,
-        value: Any?,
-    ): Map<String, Any?> =
-        when (value) {
-            is Map<*, *> -> {
-                value.entries.fold(emptyMap()) { all, (k, v) -> all + flatten("$prefix$k.", v) }
-            }
-
-            is List<*> -> {
-                value.withIndex().fold(mapOf<String, Any?>("${prefix}count" to value.size)) { all, (i, v) ->
-                    all + flatten("$prefix$i.", v)
+    private fun literal(value: String): String =
+        buildString {
+            append('"')
+            value.forEach { char ->
+                when {
+                    char == '\\' || char == '"' || char == '$' -> append('\\').append(char)
+                    char in ' '..'~' -> append(char)
+                    else -> append("\\u%04x".format(char.code))
                 }
             }
-
-            else -> {
-                mapOf(prefix.removeSuffix(".") to value)
-            }
+            append('"')
         }
 
-    private fun literal(value: String): String {
-        require(value.all { it in ' '..'~' && it != '"' && it != '\\' && it != '$' }) {
-            "vector strings must be printable ASCII without quotes, backslashes or dollar signs: $value"
-        }
-        return "\"$value\""
+    private companion object {
+        const val HEADER = "// Generated by generateSpecVectors. Do not edit; change the vector file and rebuild."
+
+        // Each chunk stays below the JVM's 65,535-byte constant limit even if every character takes 3 bytes.
+        const val CHUNK = 16_384
     }
 }

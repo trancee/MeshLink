@@ -10,7 +10,13 @@ description =
     "Internal MeshLink libsodium binding with no API guarantee, outside the SemVer promise; depend on ch.trancee.meshlink:meshlink."
 
 specVectors {
-    files.add("derivations")
+    files.from(
+        rootProject.fileTree("docs/spec/vectors") {
+            include("*.json")
+            exclude("*.schema.json")
+        },
+    )
+    vendored.from(rootProject.fileTree("third_party/vectors") { include("**/*.json") })
 }
 
 kotlin {

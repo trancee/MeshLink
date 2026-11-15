@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 9 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 10 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner).
 
 ## Context
 
@@ -180,3 +180,10 @@ Inputs:
 - **Results:** each phone writes `<run>.jsonl` in its app container: one JSON object per record, starting with `t_ms` (monotonic, injected by the platform shell, because `commonMain` reads no ambient time) and `event`, and carrying the role the node linked in. A run ends with a `done` record whose `result` is `pass` or `fail`.
 - **Lab configuration:** aliases resolve through `~/.config/meshlink-lab/devices.json`, which `MESHLINK_LAB_CONFIG` can relocate; the pseudonym key sits beside it in `pseudonym.key`. Neither is ever committed (owner decision). `tools/lab/README.md` gives the format.
 - **Profile names (2026-11-13 errata):** already `unsecured`, `classical` and `post-quantum`; until tickets 24 and 25, the lab apps stop a `classical` or `post-quantum` run with a message naming the ticket.
+
+2026-11-15, vector runner (0.1.0 backlog ticket "Run every vector set from one runner in `commonTest`"):
+
+- **Location (decision 10):** the runner lives in `:meshlink-crypto-sodium` `commonTest`, not `:meshlink-core` (owner decision). Derivation, Wycheproof and hpke-pq handlers need the real `CryptoProvider`, which `:meshlink-core` can't depend on, and one runner must own every set. The core codec tests keep only focused cases.
+- **Embedding:** the `meshlink.spec-vectors` plugin embeds each JSON file unchanged as minified text chunks in generated test sources, and a test-only JSON reader parses them at run time (owner decision), so `commonTest` reads no files on either target and no JSON library is added. The typed `LayoutVector` and `DerivationVector` generation is deleted.
+- **Vendored sets:** external sets sit unchanged in `third_party/vectors/<set>/` with `SOURCE.md` and `SHA256SUMS`; the build fails when a checksum differs (owner decision). hpke-pq `test-vectors.json` (`draft-ietf-hpke-pq-05`) replaces the hand-copied X-Wing A.5 vectors of ticket 18; its other KEMs are recorded as not applicable (ADR 0004).
+- **No silent gaps:** a test without a handler fails the run unless a skip names the owning ticket or the reason MeshLink never runs it; a skip that matches no test, or overlaps a handler, also fails. Wycheproof's two ML-KEM-768 `InvalidDecapsulationKey` tests are not applicable: MeshLink decapsulates only with keys it generated, and the FIPS 203 section 7.3 input check is for supplied keys (owner decision).

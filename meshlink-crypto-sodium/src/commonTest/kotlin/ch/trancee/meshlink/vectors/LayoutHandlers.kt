@@ -1,0 +1,159 @@
+package ch.trancee.meshlink.vectors
+
+import ch.trancee.meshlink.crypto.sodium.hex
+import ch.trancee.meshlink.internal.Advertisement
+import ch.trancee.meshlink.internal.CapabilityRecord
+import ch.trancee.meshlink.internal.Container
+import ch.trancee.meshlink.internal.Content
+import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.LinkFrame
+import ch.trancee.meshlink.internal.LinkRecord
+import ch.trancee.meshlink.internal.MessageContent
+import ch.trancee.meshlink.internal.MessageFrame
+import ch.trancee.meshlink.internal.ReceiptContent
+import ch.trancee.meshlink.internal.RecordReader
+import ch.trancee.meshlink.internal.WireProfile
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.fail
+
+/**
+ * A handler for a layout file (`encoded` with `decoded` or `error`). A test with `decoded` must
+ * decode to those fields; a `valid` one must also re-encode to `encoded`, and every decoder input
+ * derived from it ([mutationInputs]) that decodes must re-encode to itself. A test with `error`
+ * must fail with that error code.
+ */
+private fun <T> layout(
+    decode: (VectorCase, ByteArray) -> Decoded<T>,
+    encode: (VectorCase, T) -> ByteArray,
+    fuzz: (ByteArray) -> Unit = {},
+    assertFields: (Json, T) -> Unit,
+): Handler =
+    Handler("encoded") { case ->
+        val encoded = case.hex("encoded")
+        val result = decode(case, encoded)
+        if (case.test.has("decoded")) {
+            if (result !is Decoded.Valid) fail("decoded to ${(result as Decoded.Invalid).error.code}")
+            val value = result.value
+            assertFields(case.test["decoded"], value)
+            if (case.result == "valid") {
+                assertEquals(case.test["encoded"].string, encode(case, value).hex(), "re-encoded")
+                mutationInputs(encoded).forEach { input ->
+                    when (val mutated = decode(case, input)) {
+                        is Decoded.Valid -> assertContentEquals(input, encode(case, mutated.value), input.hex())
+                        is Decoded.Invalid -> Unit
+                    }
+                    fuzz(input)
+                }
+            }
+        } else {
+            assertEquals(case.test["error"].string, assertIs<Decoded.Invalid>(result).error.code)
+        }
+    }
+
+private fun Json.code(): Int = string.removePrefix("0x").toInt(HEX)
+
+internal val advertisement: Handler =
+    layout({ _, bytes -> Advertisement.decode(bytes) }, { _, value -> value.encode() }) { decoded, value ->
+        assertEquals(decoded["layout_version"].int, Advertisement.LAYOUT_VERSION, "layout_version")
+        assertEquals(decoded["flags"].int, value.flags, "flags")
+        assertEquals(decoded["mesh_tag"].string, value.meshTag.hex(), "mesh_tag")
+        assertEquals(decoded["resolvable_tag"].string, value.resolvableTag.hex(), "resolvable_tag")
+        assertEquals(decoded["random"].string, value.random.hex(), "random")
+    }
+
+internal val capability: Handler =
+    layout({ _, bytes -> CapabilityRecord.decode(bytes) }, { _, value -> value.encode() }) { decoded, value ->
+        assertEquals(decoded["versions"].list.map { it["version"].int }, value.versions, "versions")
+        assertEquals(
+            decoded["extensions"].list.map { it["type"].code() to it["value"].string },
+            value.extensions.map { it.type to it.value.hex() },
+            "extensions",
+        )
+    }
+
+/** Every decoder input also runs through a [RecordReader] in [READER_CHUNK]-byte writes. */
+internal val record: Handler =
+    layout(
+        { _, bytes -> LinkRecord.decode(bytes) },
+        { _, body -> LinkRecord.encode(body) },
+        { input ->
+            val reader = RecordReader()
+            input.toList().chunked(READER_CHUNK).forEach { reader.read(it.toByteArray()) }
+        },
+    ) { decoded, body -> assertEquals(decoded["body"].string, body.hex(), "body") }
+
+/** The link-local frames whose codec exists: PLAIN_HELLO, CLOSE, and the frames it refuses by type. */
+internal val linkFrame: Handler =
+    layout({ _, bytes -> LinkFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        when (frame) {
+            is LinkFrame.PlainHello -> {
+                assertEquals(decoded["type"].code(), PLAIN_HELLO, "type")
+                assertEquals(decoded["version"].int, frame.version, "version")
+                assertEquals(decoded["profile"].int, WireProfile.UNSECURED.code, "profile")
+                assertEquals(decoded["mesh_id_digest"].string, frame.meshIdDigest.hex(), "mesh_id_digest")
+                assertEquals(decoded["node_id"].string, frame.nodeId.hex(), "node_id")
+            }
+
+            is LinkFrame.Close -> {
+                assertEquals(decoded["type"].code(), CLOSE, "type")
+                assertEquals(decoded["reason"].int, frame.code, "reason")
+            }
+        }
+    }
+
+internal val messageFrame: Handler =
+    layout({ _, bytes -> MessageFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), MessageFrame.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
+        assertEquals(decoded["commitment"].string, frame.commitment.hex(), "commitment")
+        val container = decoded["container"]
+        assertEquals(container["kind"].code(), frame.container.kind, "container.kind")
+        when (val actual = frame.container) {
+            is Container.IkInitiator -> {
+                assertEquals(container["noise_message"].string, actual.noiseMessage.hex(), "container.noise_message")
+            }
+
+            is Container.Transport -> {
+                assertEquals(container["nonce"].uLong, actual.nonce, "container.nonce")
+                assertEquals(container["ciphertext"].string, actual.ciphertext.hex(), "container.ciphertext")
+            }
+
+            is Container.Unsecured -> {
+                assertEquals(container["sender_node_id"].string, actual.senderNodeId.hex(), "container.sender_node_id")
+                assertEquals(container["plaintext"].string, actual.plaintext.hex(), "container.plaintext")
+            }
+        }
+    }
+
+/** `inner-plaintext.json`: [message] for the `inner-message` groups, else receipts; `secured` per group. */
+internal fun innerContent(message: Boolean): Handler =
+    layout<Content>(
+        { case, bytes ->
+            val secured = case.group["secured"].bool
+            if (message) MessageContent.decode(bytes, secured) else ReceiptContent.decode(bytes, secured)
+        },
+        { case, content -> content.encode(case.group["secured"].bool) },
+    ) { decoded, content ->
+        assertEquals(decoded["message_id"].string, content.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, content.expiry, "expiry")
+        assertEquals(
+            decoded["extensions"].list.map { it["type"].code() to it["value"].string },
+            content.extensions.map { it.type to it.value.hex() },
+            "extensions",
+        )
+        if (content is MessageContent) {
+            assertEquals(decoded["k"].string, content.k.hex(), "k")
+            assertEquals(decoded["payload"].string, content.payload.hex(), "payload")
+        }
+    }
+
+private const val HEX = 16
+private const val READER_CHUNK = 5
+private const val PLAIN_HELLO = 0x03
+private const val CLOSE = 0x04

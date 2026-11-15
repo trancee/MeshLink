@@ -86,6 +86,15 @@ Used only by `labapp/` and `tools/lab/` ([ADR 0005](../adr/0005-toolchain-and-de
 | libimobiledevice + ideviceinstaller | 1.4.0 + 1.2.0 | host tool (Homebrew) | Installs, launches and reads results on iOS 15 and 16 phones, which `devicectl` can't drive | Active | LGPL-2.1 + GPL-2.0 (run as programs, never linked) | `devicectl` needs iOS 17 |
 | adb (Android SDK platform-tools) | 37.0.1 | host tool | Installs, launches and reads results on Android phones | Google, stable | Apache-2.0 | Required for Android devices |
 
+## Vendored test vectors
+
+Data, not code: unchanged copies under `third_party/vectors/`, embedded only into `:meshlink-crypto-sodium` test sources and never published. `generateSpecVectors` fails if a file's SHA-256 differs from its `SHA256SUMS` line. The [vectors README](../spec/vectors/README.md#vector-runner) describes the runner.
+
+| Set | Source | Pin | Files and SHA-256 | License | Need |
+|---|---|---|---|---|---|
+| Wycheproof | <https://github.com/C2SP/wycheproof> `testvectors_v1/` | commit `65ca494727a52944c204441c860b039e6786b99b` | `x25519_test.json` `35c3f523…be7d`, `ed25519_test.json` `ea80ffeb…74b3`, `chacha20_poly1305_test.json` `fe61d25f…d53d`, `hkdf_sha256_test.json` `bb2b462a…5f1e`, `mlkem_768_test.json` `c59c067a…1e90`, `mlkem_768_encaps_test.json` `9d4381f9…b713`, `mlkem_768_keygen_seed_test.json` `fde5abe2…ebe4`, `mlkem_768_semi_expanded_decaps_test.json` `e4438ab7…060a` (full values in `SHA256SUMS`) | Apache-2.0 (`LICENSE` vendored) | Edge cases for every primitive (ADR 0002, ADR 0004) |
+| hpke-pq | <https://github.com/hpkewg/hpke-pq> `test-vectors.json` | tag `draft-ietf-hpke-pq-05`, commit `6433c8fce0b8b749dfc86c1095081a88698ccfab` | `test-vectors.json` `35c59f4a…613c` | IETF contribution, BCP 78 and the IETF Trust Legal Provisions; code components Revised BSD | X-Wing (KEM `0x647a`) known answers; replaces the hand-copied A.5 vectors of ticket 18 |
+
 ## Reference (test-only Rust, `tools/reference/`, never published)
 
 Pinned by `rust-toolchain.toml` (Rust 1.100.0) and a committed `Cargo.lock`. Purpose: an independent second vector set for ADR 0002 and ADR 0004.

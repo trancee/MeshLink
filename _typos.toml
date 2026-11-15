@@ -14,6 +14,9 @@ extend-exclude = [
   "docs/evidence/**/summary/**",
   # Generated protocol test vectors: hex strings, not prose.
   "docs/spec/vectors/*.json",
+  # Vendored third-party vectors: unchanged upstream data (hex, base64), checked by SHA256SUMS.
+  "third_party/vectors/**/*.json",
+  "third_party/vectors/**/SHA256SUMS",
 ]
 
 [default.extend-words]

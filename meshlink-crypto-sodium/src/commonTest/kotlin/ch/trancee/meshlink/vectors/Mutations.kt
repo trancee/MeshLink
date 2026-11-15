@@ -1,4 +1,6 @@
-package ch.trancee.meshlink.internal
+package ch.trancee.meshlink.vectors
+
+import ch.trancee.meshlink.internal.SeededRandom
 
 /**
  * Deterministic decoder inputs derived from [valid] (ADR 0017 decision 9): every prefix, [OVERLONG_EXTRA]

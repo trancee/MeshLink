@@ -70,6 +70,25 @@ The format follows Wycheproof. Each file has a JSON Schema next to it (`*.schema
 | `tlv-length` | Known TLV with the wrong fixed length |
 | `bad-padding` | Secured plaintext padding not zero, too long or misaligned; or padding in `unsecured` |
 
+## Vector runner
+
+One runner executes every tier 1 file and every vendored external set: `VectorRunner` in `:meshlink-crypto-sodium` `commonTest` (package `ch.trancee.meshlink.vectors`). It runs in the Android host tests (`./gradlew check`) and on the iOS simulator (`./gradlew iosSimulatorArm64Test`), with no network access. It lives in the crypto module, not in `:meshlink-core`, because derivation and Wycheproof handlers need the real `CryptoProvider` (ADR 0017 decision 10).
+
+- **Embedding.** The `meshlink.spec-vectors` build plugin copies each JSON file into generated test sources as minified text chunks. A vendored file must match its line in the `SHA256SUMS` next to it, or the build fails.
+- **Dispatch.** `VectorSets.kt` gives each file a `VectorSet`: a key function, such as the group's `layout` or `derivation`, a frame's first byte or a Wycheproof group `type`, and one handler per key. A handler checks one test against its `result`.
+- **No silent gaps.** The run fails if a file has no set, if `numberOfTests` is wrong, if a test has neither a handler nor a skip, or if a skip or handler matches no test. A mismatch fails with `<file> group <key> tcId <n>`.
+- **Skips.** `vectorSkips` lists every key with no handler yet. `Skip.Pending` names the ticket that lands the code; `Skip.NotApplicable` states why MeshLink never runs those tests, such as HPKE KEMs other than X-Wing.
+- **Report.** `everyVectorFilePasses` prints the `valid`, `invalid`, `acceptable` and skipped counts of each file.
+
+To add a codec or derivation: write its handler in `LayoutHandlers.kt` or `CryptoHandlers.kt`, add it to the file's set, and delete the matching `Skip.Pending`. The run fails while the skip and the handler both exist.
+
+To add a file: a tier 1 file is picked up from this directory automatically and needs a set. An external set goes under `third_party/vectors/<set>/` with unchanged files, its license, a `SHA256SUMS` and a `SOURCE.md`, plus a row in the [dependency register](../../reference/dependencies.md#vendored-test-vectors).
+
+| Set | Directory | Covers |
+|---|---|---|
+| Wycheproof | [`third_party/vectors/wycheproof`](../../../third_party/vectors/wycheproof/SOURCE.md) | X25519, Ed25519, ChaCha20-Poly1305, HKDF-SHA-256, ML-KEM-768 (key generation, encapsulation, decapsulation) |
+| hpke-pq | [`third_party/vectors/hpke-pq`](../../../third_party/vectors/hpke-pq/SOURCE.md) | X-Wing, KEM `0x647a`: key derivation, encapsulation, decapsulation |
+
 ## Tier 2: pending
 
 These vectors need X25519, Ed25519, AEAD, ML-KEM, X-Wing, HPKE or Noise. Status for each: **pending — two implementations (Kotlin + Rust reference, ADR 0002/0004)**. They are required before library 1.0.0 (ADR 0019 decision 4).
