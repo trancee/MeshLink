@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Type: HITL
-Blocked by: 30, 31, 32, 66
+Blocked by: 30, 31, 32
 
 ## Behavior
 
@@ -25,7 +25,7 @@ Pairs, one per platform pairing plus the oldest Android:
 | `pixel6` + `nothing2` | Android↔Android, CoC, 2M |
 | `pixel6` + `ip15` | Android↔iOS, CoC |
 | `ip15` + `ip12mini` | iOS↔iOS, CoC |
-| `p10lite` + `pixel6` | Android 8: GATT only, 1M, no PHY commands |
+| `p10lite` + `pixel6` | Android 8: GATT only, 1M, no PHY commands; `p10lite` central, since Android 8 can't advertise MESH ([ADR 0010](../../../docs/adr/0010-discovery-and-advertising.md) amendment "single advertising instance") |
 | `ip15` + `p10lite` | `link-credit`: bake-off failure pair |
 | `se2016` + `pixel6` | `link-credit`: bake-off failure pair |
 
@@ -58,8 +58,8 @@ python3 tools/lab/lab.py run --scenario link-rotation --devices pixel6,ip15 --pr
 python3 tools/lab/lab.py run --scenario link-fragments --devices pixel6,nothing2 --profile classical
 python3 tools/lab/lab.py run --scenario link-rekey --devices ip15,ip12mini --profile classical
 python3 tools/lab/lab.py run --scenario link-coc --devices pixel6,ip15 --profile classical
-python3 tools/lab/lab.py run --scenario link-phy --devices p10lite,pixel6 --profile classical
-python3 tools/lab/lab.py run --scenario link-credit --devices ip15,p10lite --profile classical
+python3 tools/lab/lab.py run --scenario link-phy --devices p10lite,pixel6 --roles central,peripheral --profile classical
+python3 tools/lab/lab.py run --scenario link-credit --devices ip15,p10lite --roles peripheral,central --profile classical
 python3 tools/lab/lab.py run --scenario link-credit --devices se2016,pixel6 --profile classical
 python3 tools/lab/lab.py run --scenario link-proximity --devices pixel6,ip15 --profile classical
 python3 tools/lab/lab.py run --scenario link-proximity --devices pixel6,nothing2 --profile classical
