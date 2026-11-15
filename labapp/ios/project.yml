@@ -22,8 +22,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(LAB_BUNDLE_ID)
-    scheme:
-      testTargets: [LabGrantUITests]
     info:
       path: build/Info.plist
       properties:
@@ -50,3 +48,14 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         OTHER_LDFLAGS: []
         FRAMEWORK_SEARCH_PATHS: []
+schemes:
+  LabHost:
+    build:
+      targets:
+        LabHost: all
+        LabGrantUITests: [test]
+    test:
+      targets: [LabGrantUITests]
+      # Automatic screen recording makes testmanagerd crash on iOS 17.6.1 (`-[FigScreenCaptureConfiguration
+      # setDisplayID:]: unrecognized selector`) before any test runs; the grant runner needs no attachments.
+      captureScreenshotsAutomatically: false
