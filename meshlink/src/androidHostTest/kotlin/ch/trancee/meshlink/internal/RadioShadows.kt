@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -20,10 +21,14 @@ import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.annotation.RealObject
 import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowBluetoothAdapter
 import org.robolectric.shadows.ShadowBluetoothDevice
 import org.robolectric.shadows.ShadowBluetoothGatt
 import org.robolectric.shadows.ShadowBluetoothGattServer
 import org.robolectric.shadows.ShadowBluetoothManager
+import org.robolectric.util.reflector.Direct
+import org.robolectric.util.reflector.ForType
+import org.robolectric.util.reflector.Reflector.reflector
 import java.util.concurrent.Executor
 
 // Robolectric's own Bluetooth shadows leave out the calls below or answer them with fixed
@@ -32,11 +37,39 @@ import java.util.concurrent.Executor
 
 /** Clears every radio shadow's recorded calls and scripted answers. */
 fun resetRadioShadows() {
+    ShadowMeshAdapter.clear()
     ShadowMeshAdvertiser.clear()
     ShadowMeshManager.clear()
     ShadowMeshGattServer.clear()
     ShadowMeshDevice.clear()
     ShadowMeshGatt.clear()
+}
+
+/**
+ * Withholds the advertiser while Bluetooth is on, as a stack without LE advertising may; the
+ * platform getter recreates a cleared advertiser, so only a shadow can.
+ */
+@Implements(BluetoothAdapter::class)
+class ShadowMeshAdapter : ShadowBluetoothAdapter() {
+    @RealObject private lateinit var adapter: BluetoothAdapter
+
+    @Implementation
+    fun getBluetoothLeAdvertiser(): BluetoothLeAdvertiser? =
+        if (withoutAdvertiser) null else reflector(AdapterReflector::class.java, adapter).getBluetoothLeAdvertiser()
+
+    @ForType(BluetoothAdapter::class)
+    private interface AdapterReflector {
+        @Direct
+        fun getBluetoothLeAdvertiser(): BluetoothLeAdvertiser?
+    }
+
+    companion object {
+        var withoutAdvertiser = false
+
+        fun clear() {
+            withoutAdvertiser = false
+        }
+    }
 }
 
 /** Records advertising sets instead of starting them. */

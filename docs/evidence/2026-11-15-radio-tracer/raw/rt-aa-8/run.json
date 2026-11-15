@@ -1,0 +1,40 @@
+{
+  "run": "rt-aa-8",
+  "scenario": "direct-message",
+  "profile": "unsecured",
+  "duration_s": 60,
+  "commit": "5ccbea16ac6b1233658315b7910a63edc5c4c7f0",
+  "date": "2026-11-15T20:06:02+01:00",
+  "method": "python3 tools/lab/lab.py run --scenario direct-message --devices p10lite,pixel6 --profile unsecured --roles central,peripheral --run-id rt-aa-8",
+  "xcode": null,
+  "devices": {
+    "p10lite": {
+      "platform": "android",
+      "model": "WAS-LX1A",
+      "os": "Android 8.0.0 (API 26)",
+      "args": [
+        "scenario=direct-message",
+        "role=central",
+        "peer=pixel6",
+        "mesh=lab-rt-aa-8",
+        "profile=unsecured",
+        "run=rt-aa-8",
+        "duration=60"
+      ]
+    },
+    "pixel6": {
+      "platform": "android",
+      "model": "Pixel 6",
+      "os": "Android 17 (API 37)",
+      "args": [
+        "scenario=direct-message",
+        "role=peripheral",
+        "peer=p10lite",
+        "mesh=lab-rt-aa-8",
+        "profile=unsecured",
+        "run=rt-aa-8",
+        "duration=60"
+      ]
+    }
+  }
+}

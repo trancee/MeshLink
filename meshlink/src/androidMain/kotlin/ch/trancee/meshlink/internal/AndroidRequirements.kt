@@ -18,9 +18,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * What the Android radio is missing (ADR 0007 decision 3): no Bluetooth LE or no multiple
- * advertisement support ([Requirement.Unsupported]), a runtime permission the API level needs, or
- * Bluetooth turned off. Location services being off is not detected.
+ * What the Android radio is missing (ADR 0007 decision 3): no Bluetooth LE or no LE advertiser
+ * while Bluetooth is on ([Requirement.Unsupported]), a runtime permission the API level needs, or
+ * Bluetooth turned off. Location services being off is not detected. A phone with a single
+ * advertising instance reports no multiple advertisement support yet advertises, so that flag is
+ * not checked; an advertising start that fails surfaces as a radio failure.
  */
 internal class AndroidRequirements(
     private val context: Context,
@@ -47,7 +49,7 @@ internal class AndroidRequirements(
             denied.keys.mapTo(this, Requirement::PermissionDenied)
             when {
                 !adapter.isEnabled -> add(Requirement.BluetoothOff)
-                !adapter.isMultipleAdvertisementSupported -> add(Requirement.Unsupported)
+                adapter.bluetoothLeAdvertiser == null -> add(Requirement.Unsupported)
             }
         }
 
