@@ -61,7 +61,11 @@ class AppleRadioCentralTest {
 
             // Assert
             assertEquals(
-                listOf("connect A", "discoverServices A 4d4553484d4c4e4b8000000000000000", "discoverCharacteristics A 3"),
+                listOf(
+                    "connect A",
+                    "discoverServices A 4d4553484d4c4e4b8000000000000000",
+                    "discoverCharacteristics A 3",
+                ),
                 bluetooth.calls,
             )
             assertEquals(peer, link.peer)
