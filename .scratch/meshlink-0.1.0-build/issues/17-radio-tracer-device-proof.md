@@ -1,6 +1,6 @@
 # Prove the radio tracer on real phone pairs
 
-Status: ready-for-human
+Status: done
 Type: HITL
 Blocked by: 16
 
