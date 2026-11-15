@@ -45,7 +45,12 @@ internal fun platformWith(
 
 /** The NodeId of the node that started on [platform]. */
 internal fun nodeId(platform: VirtualPlatform): ByteArray =
-    Derivations(SodiumCryptoProvider).nodeId(platform.identityStore.loadOrCreate { error("no identity") }.publicKey)
+    Derivations(SodiumCryptoProvider).nodeId(platform.identityStore.loadOrCreate(NoNewKeyPairs)!!.publicKey)
+
+/** A [CryptoProvider] that fails when asked for a new key pair: for reading an identity that must exist. */
+internal object NoNewKeyPairs : CryptoProvider by SodiumCryptoProvider {
+    override fun ed25519KeyPair(): Ed25519KeyPair = error("no identity")
+}
 
 /** A raw radio that connects to [target] as central and waits for the link to open. */
 @OptIn(ExperimentalCoroutinesApi::class)

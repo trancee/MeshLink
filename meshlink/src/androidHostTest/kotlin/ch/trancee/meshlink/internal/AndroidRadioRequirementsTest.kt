@@ -27,9 +27,11 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowBluetoothAdapter
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -266,9 +268,26 @@ class AndroidRadioRequirementsTest {
 
         // Assert
         assertIs<AndroidRadio>(platform.radio)
-        assertIs<InMemoryIdentityStore>(platform.identityStore)
         assertSame(SystemClock, platform.clock)
         assertEquals(emptySet(), platform.requirements.value)
+    }
+
+    @Test(timeout = TIMEOUT_MILLIS)
+    fun thePlatformKeepsItsIdentityInTheNoBackupDirectory() {
+        // Arrange
+        FakeAndroidKeyStore.install()
+        try {
+            val platform = AndroidPlatformPort(app)
+
+            // Act
+            val identity = platform.identityStore.loadOrCreate(FixedKeyPairs)
+
+            // Assert
+            assertNotNull(identity)
+            assertTrue(File(app.noBackupFilesDir, "ch.trancee.meshlink.identity").isFile)
+        } finally {
+            FakeAndroidKeyStore.uninstall()
+        }
     }
 
     @Test(timeout = TIMEOUT_MILLIS)
@@ -355,4 +374,21 @@ class AndroidRadioRequirementsTest {
         override fun getSystemService(name: String): Any? =
             if (!bluetooth && name == BLUETOOTH_SERVICE) null else super.getSystemService(name)
     }
+}
+
+// Robolectric loads each SDK in its own class loader, and a JNI library loads into one only.
+private object FixedKeyPairs : CryptoProvider {
+    override fun blake2b(
+        outLength: Int,
+        input: ByteArray,
+        key: ByteArray?,
+    ): ByteArray = error("unused")
+
+    override fun ed25519KeyPair(): Ed25519KeyPair = Ed25519KeyPair(ByteArray(SEED_SIZE) { 1 }, ByteArray(SEED_SIZE))
+
+    override fun ed25519KeyPair(seed: ByteArray): Ed25519KeyPair = error("unused")
+
+    override fun randomBytes(count: Int): ByteArray = error("unused")
+
+    private const val SEED_SIZE = 32
 }

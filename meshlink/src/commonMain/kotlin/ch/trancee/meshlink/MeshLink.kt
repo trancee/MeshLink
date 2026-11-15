@@ -89,22 +89,28 @@ public class MeshLink private constructor(
 
     /**
      * Starts the node and returns once it is [MeshState.Running] or [MeshState.Blocked]. A blocked
-     * node moves to running by itself. Does nothing if the node is already started. On the first
-     * start on a platform, creates the installation identity.
+     * node moves to running by itself, unless it is blocked on [Requirement.IdentityUnavailable].
+     * Does nothing if the node is already started, except that a node blocked on its identity tries
+     * to load it again. On the first start on a platform, creates the installation identity.
      *
      * @throws MeshLinkException.Closed if the node is closed.
      */
     @Throws(MeshLinkException::class, CancellationException::class)
     public suspend fun start() {
-        ensureOpen()
+        ensureOpen(closed)
         withContext(port.dispatcher) {
             lifecycle.withLock {
                 if (watcher == null) {
                     mutableState.value = MeshState.Starting
-                    nodeId = InstallationIdentity.loadOrCreate(port.identityStore, crypto).nodeId
-                    post.begin(nodeId)
-                    watcher = scope.launch { watch() }
-                    mutableState.first { it != MeshState.Starting }
+                    val identity = InstallationIdentity.loadOrCreate(port.identityStore, crypto)
+                    if (identity == null) {
+                        mutableState.compareAndSet(MeshState.Starting, IDENTITY_UNAVAILABLE)
+                    } else {
+                        nodeId = identity.nodeId
+                        post.begin(nodeId)
+                        watcher = scope.launch { watch() }
+                        mutableState.first { it != MeshState.Starting }
+                    }
                 }
             }
         }
@@ -118,16 +124,33 @@ public class MeshLink private constructor(
      */
     @Throws(MeshLinkException::class, CancellationException::class)
     public suspend fun stop() {
-        ensureOpen()
-        withContext(port.dispatcher) {
+        ensureOpen(closed)
+        withContext(port.dispatcher) { lifecycle.withLock { halt() } }
+    }
+
+    /**
+     * Deletes this platform's installation identity, so the next [start] creates a new one with a
+     * new [NodeId] (ADR 0003). The way out of [Requirement.IdentityUnavailable]: MeshLink never
+     * replaces a stored identity on its own. A [MeshState.Blocked] node stops first; other nodes on
+     * the platform keep the old identity until they restart.
+     *
+     * Returns `false` if the platform refused to delete the identity.
+     *
+     * @throws MeshLinkException.InvalidState if the node is neither [MeshState.Stopped] nor
+     *   [MeshState.Blocked].
+     * @throws MeshLinkException.Closed if the node is closed.
+     */
+    @Throws(MeshLinkException::class, CancellationException::class)
+    public suspend fun resetIdentity(): Boolean {
+        ensureOpen(closed)
+        return withContext(port.dispatcher) {
             lifecycle.withLock {
-                watcher?.let {
-                    mutableState.value = MeshState.Stopping
-                    it.cancelAndJoin()
-                    post.end()
-                    watcher = null
-                    mutableState.value = MeshState.Stopped
+                val current = mutableState.value
+                if (current != MeshState.Stopped && current !is MeshState.Blocked) {
+                    throw MeshLinkException.InvalidState(current)
                 }
+                halt()
+                port.identityStore.delete()
             }
         }
     }
@@ -153,9 +176,10 @@ public class MeshLink private constructor(
      * Until routing arrives, every message travels only over a direct link to [to].
      *
      * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
-     * or [MeshState.Blocked]; [RejectionReason.UnknownPeer] if [to] never completed a link with this
-     * node; [RejectionReason.TooLarge] above 899 bytes; and [RejectionReason.QueueFull] while the
-     * payloads not yet written reach 1 MiB, after which the caller awaits [awaitSendCapacity].
+     * or [MeshState.Blocked] on anything but [Requirement.IdentityUnavailable];
+     * [RejectionReason.UnknownPeer] if [to] never completed a link with this node;
+     * [RejectionReason.TooLarge] above 899 bytes; and [RejectionReason.QueueFull] while the payloads
+     * not yet written reach 1 MiB, after which the caller awaits [awaitSendCapacity].
      *
      * @throws MeshLinkException.Closed if the node is closed.
      */
@@ -164,7 +188,7 @@ public class MeshLink private constructor(
         to: NodeId,
         payload: ByteArray,
     ): SendResult {
-        ensureOpen()
+        ensureOpen(closed)
         return post.send(to, payload, mutableState.value)
     }
 
@@ -176,7 +200,7 @@ public class MeshLink private constructor(
      */
     @Throws(MeshLinkException::class, CancellationException::class)
     public suspend fun awaitSendCapacity() {
-        ensureOpen()
+        ensureOpen(closed)
         post.awaitCapacity()
     }
 
@@ -190,8 +214,16 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public fun radioFailure(): RadioFailure? = scanner.failure
 
-    private fun ensureOpen() {
-        if (closed.value) throw MeshLinkException.Closed()
+    /** Stops a started node; the caller holds [lifecycle]. A node blocked on its identity has no watcher. */
+    private suspend fun halt() {
+        if (watcher == null && mutableState.value !is MeshState.Blocked) return
+        mutableState.value = MeshState.Stopping
+        watcher?.let {
+            it.cancelAndJoin()
+            post.end()
+        }
+        watcher = null
+        mutableState.value = MeshState.Stopped
     }
 
     /**
@@ -230,10 +262,16 @@ public class MeshLink private constructor(
 
     /** Creates nodes. */
     public companion object {
+        private val IDENTITY_UNAVAILABLE = MeshState.Blocked(setOf(Requirement.IdentityUnavailable))
+
         /** Creates a stopped node with [config] on [platform]. Doesn't touch the radio. */
         public fun create(
             config: MeshLinkConfig,
             platform: MeshPlatform,
         ): MeshLink = MeshLink(config, platform.port, SodiumCryptoProvider)
     }
+}
+
+private fun ensureOpen(closed: StateFlow<Boolean>) {
+    if (closed.value) throw MeshLinkException.Closed()
 }

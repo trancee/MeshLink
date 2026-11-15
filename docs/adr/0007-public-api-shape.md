@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 11 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 12 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage).
 
 ## Context
 
@@ -195,3 +195,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **Bluetooth prompt on iOS (amends decision 3):** iOS shows its Bluetooth prompt when an app first creates a `CBCentralManager` or `CBPeripheralManager`. MeshLink creates both at the first `start()`, never at `create()`, so the prompt can appear then (owner decision). An app that wants it at another moment calls `start()` then, and needs `NSBluetoothAlwaysUsageDescription` in its `Info.plist`. While authorization is not determined, the node reports `Blocked(PermissionDenied(Bluetooth))`. Until both managers report a known state, it stays `Starting`.
 - **Simulator (decision 3):** the `iosSimulatorArm64` build never touches CoreBluetooth and reports `Blocked(Unsupported)`; the choice is made at compile time, not by asking the radio.
+
+2026-11-15, identity storage (0.1.0 backlog ticket "Keep the installation identity in the platform keystore"):
+
+- **`IdentityUnavailable` (amends decision 3):** `Requirement.IdentityUnavailable` means the stored installation identity could not be read, or a new one could not be created or saved (ADR 0003 amendment of 2026-11-15). When present it is the only requirement. It is the exception to "leaves `Blocked` by itself": the node waits, without radio work, for the app to call `start()` again, which reads the store again, or `resetIdentity()`. While it is blocked on its identity, `send` returns `Rejected(NotRunning)` (owner decision).
+- **`resetIdentity()` (amends decision 2):** `suspend fun resetIdentity(): Boolean` deletes the platform's stored identity, so the next `start()` creates one with a new NodeId, which peers see as a key change. It is the only way out of an unreadable identity; MeshLink never replaces one on its own. It is allowed while the node is `Stopped` or `Blocked`, stops a `Blocked` node first, and leaves the node `Stopped`; in any other state it throws the declared `MeshLinkException.InvalidState(state)`, and after `close()` it throws `Closed` (owner decisions). It returns `false` if the platform refused to delete the identity. Other nodes on the same platform keep the old identity until they restart.
