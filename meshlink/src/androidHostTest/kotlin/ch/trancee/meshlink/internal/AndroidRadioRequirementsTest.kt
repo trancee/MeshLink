@@ -391,17 +391,98 @@ class AndroidRadioRequirementsTest {
 
 // Robolectric loads each SDK in its own class loader, and a JNI library loads into one only.
 private object FixedKeyPairs : CryptoProvider {
+    override fun ed25519KeyPair(): Ed25519KeyPair = Ed25519KeyPair(ByteArray(SEED_SIZE) { 1 }, ByteArray(SEED_SIZE))
+
     override fun blake2b(
         outLength: Int,
         input: ByteArray,
         key: ByteArray?,
-    ): ByteArray = error("unused")
+    ): ByteArray = unused()
 
-    override fun ed25519KeyPair(): Ed25519KeyPair = Ed25519KeyPair(ByteArray(SEED_SIZE) { 1 }, ByteArray(SEED_SIZE))
+    override fun sha256(input: ByteArray): ByteArray = unused()
 
-    override fun ed25519KeyPair(seed: ByteArray): Ed25519KeyPair = error("unused")
+    override fun hkdfSha256Extract(
+        salt: ByteArray,
+        ikm: ByteArray,
+    ): ByteArray = unused()
 
-    override fun randomBytes(count: Int): ByteArray = error("unused")
+    override fun hkdfSha256Expand(
+        prk: ByteArray,
+        info: ByteArray,
+        length: Int,
+    ): ByteArray = unused()
+
+    override fun ed25519KeyPair(seed: ByteArray): Ed25519KeyPair = unused()
+
+    override fun ed25519Sign(
+        seed: ByteArray,
+        message: ByteArray,
+    ): ByteArray = unused()
+
+    override fun ed25519Verify(
+        publicKey: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean = unused()
+
+    override fun x25519KeyPair(): KeyPair = unused()
+
+    override fun x25519KeyPair(seed: ByteArray): KeyPair = unused()
+
+    override fun x25519(
+        secretKey: ByteArray,
+        publicKey: ByteArray,
+    ): CryptoResult<ByteArray> = unused()
+
+    override fun chaCha20Poly1305Seal(
+        key: ByteArray,
+        nonce: ByteArray,
+        plaintext: ByteArray,
+        associatedData: ByteArray,
+    ): ByteArray = unused()
+
+    override fun chaCha20Poly1305Open(
+        key: ByteArray,
+        nonce: ByteArray,
+        ciphertext: ByteArray,
+        associatedData: ByteArray,
+    ): CryptoResult<ByteArray> = unused()
+
+    override fun mlKem768KeyPair(): KeyPair = unused()
+
+    override fun mlKem768KeyPair(seed: ByteArray): KeyPair = unused()
+
+    override fun mlKem768Encapsulate(publicKey: ByteArray): CryptoResult<KemEncapsulation> = unused()
+
+    override fun mlKem768Encapsulate(
+        publicKey: ByteArray,
+        seed: ByteArray,
+    ): CryptoResult<KemEncapsulation> = unused()
+
+    override fun mlKem768Decapsulate(
+        secretKey: ByteArray,
+        ciphertext: ByteArray,
+    ): ByteArray = unused()
+
+    override fun xWingKeyPair(): KeyPair = unused()
+
+    override fun xWingKeyPair(seed: ByteArray): KeyPair = unused()
+
+    override fun xWingEncapsulate(publicKey: ByteArray): CryptoResult<KemEncapsulation> = unused()
+
+    override fun xWingEncapsulate(
+        publicKey: ByteArray,
+        seed: ByteArray,
+    ): CryptoResult<KemEncapsulation> = unused()
+
+    override fun xWingDecapsulate(
+        secretKey: ByteArray,
+        ciphertext: ByteArray,
+    ): CryptoResult<ByteArray> = unused()
+
+    override fun randomBytes(count: Int): ByteArray = unused()
+
+    private fun unused(): Nothing = error("unused")
 
     private const val SEED_SIZE = 32
 }

@@ -1,6 +1,6 @@
-# libsodium for iosMain (ADR 0004 "Binding"). Only the headers of the functions SodiumNative calls are
+# libsodium for iosMain (ADR 0004 "Binding"). Only the headers of the functions the iosMain actuals call are
 # bound; the build adds the include and library paths of the target's static libsodium.
 package = ch.trancee.meshlink.crypto.sodium.cinterop
-headers = sodium/core.h sodium/crypto_generichash_blake2b.h sodium/crypto_sign_ed25519.h sodium/randombytes.h sodium/utils.h
-headerFilter = sodium/core.h sodium/crypto_generichash_blake2b.h sodium/crypto_sign_ed25519.h sodium/randombytes.h sodium/utils.h
+headers = sodium/core.h sodium/crypto_aead_chacha20poly1305.h sodium/crypto_generichash_blake2b.h sodium/crypto_hash_sha256.h sodium/crypto_kdf_hkdf_sha256.h sodium/crypto_kem_mlkem768.h sodium/crypto_kem_xwing.h sodium/crypto_scalarmult_curve25519.h sodium/crypto_sign_ed25519.h sodium/randombytes.h sodium/utils.h
+headerFilter = sodium/core.h sodium/crypto_aead_chacha20poly1305.h sodium/crypto_generichash_blake2b.h sodium/crypto_hash_sha256.h sodium/crypto_kdf_hkdf_sha256.h sodium/crypto_kem_mlkem768.h sodium/crypto_kem_xwing.h sodium/crypto_scalarmult_curve25519.h sodium/crypto_sign_ed25519.h sodium/randombytes.h sodium/utils.h
 staticLibraries = libsodium.a

@@ -2,7 +2,10 @@
 # Kotlin/Native main source file is a thin platform adapter listed here and exercised by on-target
 # tests (iosSimulatorArm64Test). `./gradlew checkThinAdapters` (part of `check`) fails on an
 # unlisted or stale path. Logic belongs in commonMain, where Kover measures it.
-meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumNative.ios.kt
+meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/Sodium.ios.kt
+meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumClassical.ios.kt
+meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumHashing.ios.kt
+meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumKems.ios.kt
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/MeshPlatform.ios.kt
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/internal/IosPort.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosPort.iosArm64.kt

@@ -1,6 +1,6 @@
 # 0004: libsodium as the crypto provider; Rust only as a test-only reference
 
-Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 4 (amended 2026-11-03, iPhone SE (2016) benchmark; 2026-11-14, native gates; 2026-11-14, Swift export list).
+Status: accepted (2026-11-01; ticket "Which crypto provider is approved, and is Rust part of it?"). Version: 5 (amended 2026-11-03, iPhone SE (2016) benchmark; 2026-11-14, native gates; 2026-11-14, Swift export list; 2026-11-15, full binding).
 
 ## Context
 
@@ -104,3 +104,11 @@ Facts verified 2026-11-01:
 2026-11-14, Swift export list (0.1.0 backlog ticket "Create, start, stop and close a node through the public API"):
 
 - **Which Swift symbols are the module's.** A Swift symbol whose mangled name contains an `MLK` class or `MeshLinkKit`. SKIE's Swift extensions on the Objective-C classes mangle with a compressed module name (`$sSo11MLKMeshLinkC04MeshB3KitE5startyyYaKF`), so the earlier `$s11MeshLinkKit` prefix left them out and a Swift app that called `start()` failed to link. The export list now admits `_$s*MLK*` and `_$s*11MeshLinkKit*`. Measured on both release slices: 708 Swift symbols, every other export an `MLK` Objective-C class or metaclass.
+
+2026-11-15, full binding (0.1.0 backlog ticket "Complete `CryptoProvider` with every profile's primitives"):
+
+- **Bound functions.** The shim and the iOS cinterop now bind X25519 (`crypto_scalarmult`), Ed25519 detached sign and verify and seeded key pairs, IETF ChaCha20-Poly1305, SHA-256, HKDF-SHA-256 extract and expand, ML-KEM-768 and X-Wing key generation, encapsulation and decapsulation, each also from a seed. Nothing else in libsodium is reachable from Kotlin.
+- **Typed failures.** A wrong-length key, nonce, seed or ciphertext throws `IllegalArgumentException` before any native call: that is a caller bug. A refusal caused by peer data returns `CryptoResult.Failed`: `INVALID_PUBLIC_KEY` for a low-order X25519 key or an ML-KEM public key that fails its modulus check, `INVALID_CIPHERTEXT` for an X-Wing ciphertext whose X25519 share has low order, and `AUTHENTICATION_FAILED` for an AEAD tag that doesn't verify or a ciphertext shorter than the tag. A tampered ML-KEM or X-Wing ciphertext otherwise decapsulates by implicit rejection to a key different from the sender's. An Ed25519 signature that isn't 64 bytes verifies as `false`.
+- **X-Wing vector scope.** The draft-ietf-hpke-pq-05 Appendix A.5.1 test covers only the KEM fields (seeds, keys, ciphertext, shared secret); the HPKE fields wait for the HPKE ticket. ML-KEM vectors come from ACVP-Server commit `975de31eb83d87039ec88934fdc47d8c312b892d`.
+- **One binding object per family.** `CryptoProvider` extends `Hashing`, `Signatures`, `KeyAgreement`, `Aead`, `KeyEncapsulation` and `RandomBytes`, and `SodiumCryptoProvider` delegates each to one internal object with its own `expect`/`actual` files and, on Android, its own JNI class (`SodiumHashingJni`, `SodiumClassicalJni`, `SodiumKemsJni`, `SodiumRandomJni`) registered in `JNI_OnLoad` and kept by the consumer R8 rules. This keeps every file, object and interface within detekt's `TooManyFunctions` limit without a suppression. The interfaces declare no default methods: Kotlin compiles them to `DefaultImpls` bridges that no test executes, which breaks Kover's 100 %.
+- **Measured size, 2026-11-15.** Android shim: arm64-v8a 201,672 B, armeabi-v7a 311,888 B, x86_64 295,520 B. iOS `libsodium.a`: unchanged at `ios-arm64` 235,397 B and `ios-arm64-simulator` 247,105 B. All stay below 1,000,000 B.

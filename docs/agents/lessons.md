@@ -166,6 +166,13 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Xcode 27.2's `ar` and `ranlib` silently drop ELF members. libsodium's Android configure picks them up unless `AR` and `RANLIB` name the NDK's `llvm-*` tools (`build-libsodium.sh` sets them). The symptom is `ld.lld: undefined symbol: sodium_init` in `buildSodiumJniAndroid*`. The build stamp ignores the host archiver and `--rerun-tasks` doesn't bypass the stamp, so an archive built under Xcode 16.4 hides the fault. To force a rebuild, delete `build/libsodium/out/<target>/.meshlink-libsodium-stamp` (2026-11-15).
 - With the configuration cache on (Gradle 9.7.1), a task input set to `providers.gradleProperty(…).orElse(provider { throw … })` failed with the fallback's error although the property was set. Read a required Gradle property eagerly with `orNull ?: throw`.
 
+## Kotlin quality gates
+
+- Plain `./gradlew detekt` analyzes no Kotlin Multiplatform source set and passes vacuously. Only `check` runs the per-source-set tasks (`detektCommonTestSourceSet`, `detektAndroidMainSourceSet`, `detektIosMainSourceSet`, …); prove detekt with `check` (2026-11-15).
+- ktlint (Spotless, no `.editorconfig`) allows 140 characters and rejoins wrapped lines up to that length, which detekt's `MaxLineLength` 120 then rejects; it also turns block bodies back into expression bodies. Shorten identifiers or extract locals instead of wrapping by hand.
+- detekt's `TooManyFunctions` counts top-level functions per file, and members per object, class or interface. Split by cohesive family (as `SodiumCryptoProvider` delegates to `SodiumHashing`, `SodiumClassical`, `SodiumKems`), never suppress (Q2).
+- Default methods in an interface compile to `$DefaultImpls` bridges that no test executes, so Kover drops below 100 % even when every implementation is covered. Keep interface members abstract (ADR 0004, 2026-11-15 amendment).
+
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.
