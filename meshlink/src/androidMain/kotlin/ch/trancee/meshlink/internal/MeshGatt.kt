@@ -10,8 +10,14 @@ import java.util.UUID
 
 /** The MeshLink GATT service and advertisement UUIDs (spec `docs/spec/discovery.md`, D-12 and D-13). */
 internal object MeshGatt {
-    /** The MESH service UUID, `0x4D455348` in its 128-bit form; advertised and served. */
-    val SERVICE: UUID = UUID.fromString("4D455348-0000-1000-8000-00805F9B34FB")
+    /** The MESH service UUID, `0x4D455348` in its 128-bit form; advertised and scanned for. */
+    val MESH: UUID = UUID.fromString("4D455348-0000-1000-8000-00805F9B34FB")
+
+    /**
+     * The served GATT service. It is off the Bluetooth Base UUID so no stack can shorten it: a vendor
+     * stack that sends [MESH] in its 32-bit form, which ATT forbids, hides the service from every central.
+     */
+    val SERVICE: UUID = UUID.fromString("4D455348-4D4C-4E4B-8000-000000000000")
 
     /** The capability characteristic: read, no encryption. */
     val CAPABILITY: UUID = UUID.fromString("4D455348-4D4C-4E4B-8001-000000000001")
@@ -31,8 +37,8 @@ internal object MeshGatt {
     /** The ATT MTU a central asks for: the largest Android accepts. */
     const val REQUESTED_ATT_MTU: Int = 517
 
-    /** [SERVICE] as the advertisement carries it. */
-    val SERVICE_PARCEL: ParcelUuid = ParcelUuid(SERVICE)
+    /** [MESH] as the advertisement carries it. */
+    val MESH_PARCEL: ParcelUuid = ParcelUuid(MESH)
 
     /** The service a peripheral serves: [CAPABILITY], [TO_PERIPHERAL] and [TO_CENTRAL] with its CCCD. */
     fun service(): BluetoothGattService =

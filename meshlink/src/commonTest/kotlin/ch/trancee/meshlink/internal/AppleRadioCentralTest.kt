@@ -39,7 +39,7 @@ class AppleRadioCentralTest {
 
     private fun TestScope.connecting(): Deferred<RadioResult<CentralLink>> = start { radio.connect(peer) }
 
-    private fun discover(services: List<ByteArray>? = listOf(AppleGatt.SERVICE_SHORT)) {
+    private fun discover(services: List<ByteArray>? = listOf(AppleGatt.SERVICE)) {
         bluetooth.events.connected(peripheral)
         bluetooth.events.servicesDiscovered(peripheral, services)
     }
@@ -61,7 +61,7 @@ class AppleRadioCentralTest {
 
             // Assert
             assertEquals(
-                listOf("connect A", "discoverServices A 4d455348", "discoverCharacteristics A 3"),
+                listOf("connect A", "discoverServices A 4d4553484d4c4e4b8000000000000000", "discoverCharacteristics A 3"),
                 bluetooth.calls,
             )
             assertEquals(peer, link.peer)
@@ -69,17 +69,16 @@ class AppleRadioCentralTest {
         }
 
     @Test
-    fun theServiceMayBeReportedInItsFullForm() =
+    fun aPeerThatServesOnlyTheAdvertisedUuidLacksTheCapability() =
         runTest {
             // Arrange
             val connecting = connecting()
 
             // Act
-            discover(listOf(AppleGatt.SERVICE_FULL))
-            bluetooth.events.characteristicsDiscovered(peripheral, characteristics)
+            discover(listOf(AppleGatt.MESH_SHORT, AppleGatt.MESH_FULL))
 
             // Assert
-            assertIs<RadioResult.Ok<CentralLink>>(connecting.await())
+            assertEquals(RadioFailure.CAPABILITY_MISSING, failure(connecting.await()))
         }
 
     @Test
@@ -378,9 +377,9 @@ class AppleRadioCentralTest {
             linked()
 
             // Act
-            bluetooth.events.servicesInvalidated(peripheral, listOf(AppleGatt.TO_CENTRAL))
+            bluetooth.events.servicesInvalidated(peripheral, listOf(AppleGatt.TO_CENTRAL, AppleGatt.MESH_SHORT))
             val kept = seen.isEmpty()
-            bluetooth.events.servicesInvalidated(peripheral, listOf(AppleGatt.SERVICE_SHORT))
+            bluetooth.events.servicesInvalidated(peripheral, listOf(AppleGatt.SERVICE))
 
             // Assert
             assertTrue(kept)
@@ -428,7 +427,7 @@ class AppleRadioCentralTest {
             bluetooth.events.subscribeAnswered(stranger, ok = true)
             bluetooth.events.subscribeAnswered(stranger, ok = false)
             bluetooth.events.readyToWrite(stranger)
-            bluetooth.events.servicesInvalidated(stranger, listOf(AppleGatt.SERVICE_SHORT))
+            bluetooth.events.servicesInvalidated(stranger, listOf(AppleGatt.SERVICE))
             bluetooth.events.disconnected(stranger)
 
             // Assert

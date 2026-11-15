@@ -103,11 +103,11 @@ internal class AppleCentralLink(
     private suspend fun establish(): RadioFailure? {
         val connected =
             withTimeoutOrNull(CONNECT_TIMEOUT_MILLIS) { request { bluetooth.connect(peripheral) } }
-        val services = connected?.let { request { bluetooth.discoverServices(peripheral, AppleGatt.SERVICE_SHORT) } }
-        val service = services?.uuids.orEmpty().any { it.isMeshService() }
+        val services = connected?.let { request { bluetooth.discoverServices(peripheral, AppleGatt.SERVICE) } }
+        val service = services?.uuids.orEmpty().any { it.contentEquals(AppleGatt.SERVICE) }
         val characteristics =
             if (service) {
-                request { bluetooth.discoverCharacteristics(peripheral, AppleGatt.SERVICE_SHORT, CHARACTERISTICS) }
+                request { bluetooth.discoverCharacteristics(peripheral, AppleGatt.SERVICE, CHARACTERISTICS) }
             } else {
                 null
             }
@@ -151,7 +151,7 @@ internal class AppleCentralLink(
 
 private val CHARACTERISTICS = listOf(AppleGatt.CAPABILITY, AppleGatt.TO_PERIPHERAL, AppleGatt.TO_CENTRAL)
 
-/** Whether these `CBUUID.data` bytes are the MESH service, in its 32-bit or 128-bit form. */
-internal fun ByteArray.isMeshService(): Boolean = MESH_SERVICE.any { contentEquals(it) }
+/** Whether these advertised `CBUUID.data` bytes are the MESH UUID, in its 32-bit or 128-bit form. */
+internal fun ByteArray.isMesh(): Boolean = MESH_UUIDS.any { contentEquals(it) }
 
-private val MESH_SERVICE = listOf(AppleGatt.SERVICE_SHORT, AppleGatt.SERVICE_FULL)
+private val MESH_UUIDS = listOf(AppleGatt.MESH_SHORT, AppleGatt.MESH_FULL)

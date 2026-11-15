@@ -45,8 +45,8 @@ internal class BleScanner(
             result: ScanResult,
         ) {
             val uuids = result.scanRecord?.serviceUuids.orEmpty()
-            val payload = uuids.firstOrNull { it != MeshGatt.SERVICE_PARCEL }
-            if (current === this && payload != null && MeshGatt.SERVICE_PARCEL in uuids) {
+            val payload = uuids.firstOrNull { it != MeshGatt.MESH_PARCEL }
+            if (current === this && payload != null && MeshGatt.MESH_PARCEL in uuids) {
                 val sighting = Sighting(MeshGatt.payloadOf(payload.uuid), AndroidPeer(result.device), result.rssi)
                 emit(RadioEvent.Sighted(sighting))
             }
@@ -58,7 +58,7 @@ internal class BleScanner(
     }
 }
 
-private val FILTERS: List<ScanFilter> = listOf(ScanFilter.Builder().setServiceUuid(MeshGatt.SERVICE_PARCEL).build())
+private val FILTERS: List<ScanFilter> = listOf(ScanFilter.Builder().setServiceUuid(MeshGatt.MESH_PARCEL).build())
 
 /** Balanced until ticket 32 sets the per-class scan schedule (ADR 0008 decision 3). */
 private val SETTINGS: ScanSettings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build()

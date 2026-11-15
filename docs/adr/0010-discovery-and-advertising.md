@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 7 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 8 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof).
 
 ## Context
 
@@ -123,3 +123,8 @@ Measured:
 2026-11-14, random fill source (0.1.0 backlog ticket "Discover an `Unsecured` peer on `VirtualAir`"):
 
 - **Random fill (decisions 1 and 4):** the random resolvable tag of open meshes and `unsecured`, and the 3 random bytes, come from `CryptoProvider.randomBytes`, not from the seeded `RandomSource` of ADR 0017 decision 1. A seeded non-cryptographic generator would let an observer who saw a few payloads predict the next ones and link a node across rotations. Multi-node tests stay reproducible: no event order depends on these bytes.
+
+2026-11-15, radio tracer device proof (ticket 17, [lessons](../agents/lessons.md#device-lab)):
+
+- **GATT service UUID (decisions 1 and 5):** the GATT service is served under `4D455348-4D4C-4E4B-8000-000000000000` ([D-13](../spec/decisions.md#d-13-gatt-service-and-characteristic-uuids-and-properties)), not the advertised MESH UUID. Advertising, scan filters and advertisement matching keep the 32-bit `0x4D455348`. As a peripheral the Xiaomi Mi Note 3 (Android 9) sent the Base-UUID service in its 32-bit form in the ATT Read By Group Type response, which ATT forbids; the Pixel 6 central logged `DO NOT ALLOW 32 BITS UUID IN ATT PDU`, dropped the service and closed with `CAPABILITY_MISSING` (2 of 2 runs). AOSP 9–11 widens such UUIDs to 128 bits, so the defect is the vendor stack's. A UUID off the Base UUID cannot be shortened by any stack. Service and characteristics now share the `4D455348-4D4C-4E4B-80xx` family.
+- **Risk "Coverage":** the Huawei P10 lite (Android 8.0) cannot advertise MESH; it reports `isMultipleAdvertisementSupported` false and was not seen on air when advertising was forced. It stays `Unsupported` and was replaced by the Mi Note 3 in the proof; whether such phones may join as central-only nodes is a separate decision.

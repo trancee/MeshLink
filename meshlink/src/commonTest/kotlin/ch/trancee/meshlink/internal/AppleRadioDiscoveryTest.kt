@@ -95,7 +95,7 @@ class AppleRadioDiscoveryTest {
             radio.startScanning()
 
             // Act
-            bluetooth.events.discovered(FakePeripheral("A"), listOf(AppleGatt.SERVICE_SHORT, payload), rssi = -60)
+            bluetooth.events.discovered(FakePeripheral("A"), listOf(AppleGatt.MESH_SHORT, payload), rssi = -60)
 
             // Assert
             val sighting = assertIs<RadioEvent.Sighted>(seen.single()).sighting
@@ -112,7 +112,7 @@ class AppleRadioDiscoveryTest {
             radio.startScanning()
 
             // Act
-            bluetooth.events.discovered(other, listOf(AppleGatt.SERVICE_FULL, payload), rssi = -60)
+            bluetooth.events.discovered(other, listOf(AppleGatt.MESH_FULL, payload), rssi = -60)
 
             // Assert
             assertContentEquals(payload, assertIs<RadioEvent.Sighted>(seen.single()).sighting.payload)
@@ -126,8 +126,8 @@ class AppleRadioDiscoveryTest {
             radio.startScanning()
 
             // Act
-            bluetooth.events.discovered(other, listOf(AppleGatt.SERVICE_SHORT), rssi = -60)
-            bluetooth.events.discovered(other, listOf(AppleGatt.SERVICE_FULL), rssi = -60)
+            bluetooth.events.discovered(other, listOf(AppleGatt.MESH_SHORT), rssi = -60)
+            bluetooth.events.discovered(other, listOf(AppleGatt.MESH_FULL), rssi = -60)
 
             // Assert
             assertEquals(emptyList(), seen)

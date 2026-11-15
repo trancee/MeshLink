@@ -69,7 +69,7 @@ internal class AppleRadio(
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)
         bluetooth.stopAdvertising()
-        bluetooth.advertise(listOf(AppleGatt.SERVICE_SHORT, payload.copyOf()))
+        bluetooth.advertise(listOf(AppleGatt.MESH_SHORT, payload.copyOf()))
         host.advertising = true
         return RadioResult.Ok(Unit)
     }
@@ -93,13 +93,16 @@ private val DENIED = Requirement.PermissionDenied(PermissionKind.Bluetooth)
 /** The MeshLink GATT service and advertisement UUIDs as `CBUUID.data` (spec D-12 and D-13). */
 internal object AppleGatt {
     /** The MESH service UUID `0x4D455348` in its 32-bit form, as it is advertised and scanned for. */
-    val SERVICE_SHORT: ByteArray = "4d455348".hexToByteArray()
+    val MESH_SHORT: ByteArray = "4d455348".hexToByteArray()
+
+    /** The MESH service UUID in its 128-bit form, as CoreBluetooth may report it in an advertisement. */
+    val MESH_FULL: ByteArray = "4d45534800001000800000805f9b34fb".hexToByteArray()
 
     /**
-     * The MESH service UUID in its 128-bit form: the published GATT service (GATT allows only 16- or
-     * 128-bit service UUIDs, and `CBMutableService` asserts on 4 B), and what CoreBluetooth may report.
+     * The served GATT service. It is off the Bluetooth Base UUID so no stack can shorten it: a vendor
+     * stack that sends the MESH UUID in its 32-bit form, which ATT forbids, hides the service from every central.
      */
-    val SERVICE_FULL: ByteArray = "4d45534800001000800000805f9b34fb".hexToByteArray()
+    val SERVICE: ByteArray = "4d4553484d4c4e4b8000000000000000".hexToByteArray()
 
     /** The capability characteristic: read, no encryption. */
     val CAPABILITY: ByteArray = "4d4553484d4c4e4b8001000000000001".hexToByteArray()

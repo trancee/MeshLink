@@ -22,7 +22,7 @@ internal class AppleCentral(
 
     /** Scans for the MESH service, reporting duplicates; ticket 32 owns duty cycles and background scans. */
     fun startScanning(): RadioResult<Unit> {
-        bluetooth.scan(AppleGatt.SERVICE_SHORT)
+        bluetooth.scan(AppleGatt.MESH_SHORT)
         scanning = true
         return RadioResult.Ok(Unit)
     }
@@ -62,7 +62,7 @@ internal class AppleCentral(
         services: List<ByteArray>,
         rssi: Int,
     ) {
-        val payload = services.firstOrNull { it.size == RadioPort.ADVERTISEMENT_LENGTH && !it.isMeshService() }
+        val payload = services.firstOrNull { it.size == RadioPort.ADVERTISEMENT_LENGTH && !it.isMesh() }
         if (scanning && payload != null) emit(RadioEvent.Sighted(Sighting(payload, ApplePeer(peripheral), rssi)))
     }
 
@@ -136,6 +136,6 @@ internal class AppleLinkEvents(
         peripheral: CbPeripheral,
         services: List<ByteArray>,
     ) {
-        if (services.any { it.isMeshService() }) links[peripheral.id]?.disconnect()
+        if (services.any { it.contentEquals(AppleGatt.SERVICE) }) links[peripheral.id]?.disconnect()
     }
 }

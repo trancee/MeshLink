@@ -94,12 +94,12 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** ADR 0012 decision 10 (16 B, only byte 0 bit-packed); ADR 0009 decisions 1 and 3 (CoC and 2M are peer-choice hints).
 - **Alternatives:** little-endian Bluetooth byte order (platforms differ in what they expose; string order is what both platform APIs print).
 
-### D-13 GATT characteristic UUIDs and properties
+### D-13 GATT service and characteristic UUIDs and properties
 
-- **Question:** which UUIDs and properties do the three characteristics use?
-- **Decision:** `4D455348-4D4C-4E4B-8001-00000000000{1,2,3}`: capability (read), central to peripheral (write without response), peripheral to central (notify).
-- **Evidence:** ADR 0009 decision 1 and ADR 0010 decision 5 (capability read before handshake). "MESH" "ML" "NK" in ASCII keeps them recognizable.
-- **Alternatives:** one characteristic with write and notify (mixes directions); indications (slower, acknowledged at ATT).
+- **Question:** which UUIDs do the GATT service and its three characteristics use, and with which properties?
+- **Decision:** service `4D455348-4D4C-4E4B-8000-000000000000`; characteristics `4D455348-4D4C-4E4B-8001-00000000000{1,2,3}`: capability (read), central to peripheral (write without response), peripheral to central (notify). None lies on the Bluetooth Base UUID, which only the advertised MESH UUID uses.
+- **Evidence:** ADR 0009 decision 1 and ADR 0010 decision 5 (capability read before handshake). "MESH" "ML" "NK" in ASCII keeps them recognizable. The service moved off the Base UUID after the Xiaomi Mi Note 3 (Android 9) sent the Base-UUID service as a 32-bit UUID, which ATT forbids, so no central found it (ADR 0010 amendment 2026-11-15).
+- **Alternatives:** one characteristic with write and notify (mixes directions); indications (slower, acknowledged at ATT); serving the advertised MESH UUID as the service (a vendor stack shortened it on the wire).
 
 ### D-14 Capability record
 
