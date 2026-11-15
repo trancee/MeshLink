@@ -1,6 +1,6 @@
 # Keep the installation identity in the platform keystore
 
-Status: claimed
+Status: done
 Type: AFK
 Blocked by: 12
 
