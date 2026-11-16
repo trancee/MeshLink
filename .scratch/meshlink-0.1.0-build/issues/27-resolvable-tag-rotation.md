@@ -1,6 +1,6 @@
 # Rotate advertisements and recognize rotated peers
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 24
 
