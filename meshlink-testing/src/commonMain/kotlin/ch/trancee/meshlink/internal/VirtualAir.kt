@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -20,8 +21,13 @@ import kotlin.math.min
  * stream chunk arrives after a latency drawn from [random] within [latencyMillis], so one seed
  * always yields one event order.
  *
- * It models no loss, link caps or advertising and scan windows yet. Coroutines run in [scope], which
- * a test passes as `backgroundScope` so they end with the test.
+ * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
+ * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
+ * the address it was opened to. It models no loss, link caps or advertising and scan windows yet.
+ *
+ * Coroutines run in [scope], which a test passes as `backgroundScope` so they end with the test.
+ * When [scope] ends, every radio reports Bluetooth off, so the nodes on the air stop their sessions
+ * and periodic timers and the test scheduler can go idle.
  */
 internal class VirtualAir(
     private val scope: CoroutineScope,
@@ -29,15 +35,21 @@ internal class VirtualAir(
     private val random: RandomSource,
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
 ) {
-    private val radios = LinkedHashMap<PeerHandle, VirtualRadio>()
+    private val radios = mutableListOf<VirtualRadio>()
+
+    init {
+        scope.coroutineContext.job.invokeOnCompletion {
+            radios.forEach { radio -> radio.report(setOf(Requirement.BluetoothOff)) }
+        }
+    }
 
     /** Adds a radio and a platform around it whose nodes do their work on [dispatcher]. */
-    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), clock, dispatcher)
+    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), clock, random, dispatcher)
 
     /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu]. */
     fun radio(maxAttMtu: Int = DEFAULT_ATT_MTU): VirtualRadio {
-        val radio = VirtualRadio(this, VirtualPeer(), maxAttMtu)
-        radios[radio.handle] = radio
+        val radio = VirtualRadio(this, maxAttMtu)
+        radios += radio
         return radio
     }
 
@@ -45,15 +57,17 @@ internal class VirtualAir(
 
     internal fun pipe(): Pipe = Pipe()
 
+    internal fun wallClockMillis(): Long = clock.wallClockMillis()
+
     internal fun announce(
         advertiser: VirtualRadio,
         payload: ByteArray,
     ) {
-        radios.values.forEach { if (it !== advertiser && it.scanning) sight(it, advertiser, payload) }
+        radios.forEach { if (it !== advertiser && it.scanning) sight(it, advertiser, payload) }
     }
 
     internal fun listen(scanner: VirtualRadio) {
-        radios.values.forEach { other ->
+        radios.forEach { other ->
             val payload = other.advertisement
             if (other !== scanner && payload != null) sight(scanner, other, payload)
         }
@@ -63,7 +77,7 @@ internal class VirtualAir(
         central: VirtualRadio,
         peer: PeerHandle,
     ): RadioResult<CentralLink> {
-        val peripheral = radios[peer]
+        val peripheral = radios.firstOrNull { it.handle === peer }
         if (peripheral == null || peripheral === central || peripheral.advertisement == null) {
             return RadioResult.Failed(RadioFailure.PEER_UNREACHABLE)
         }
@@ -116,15 +130,18 @@ internal class VirtualAir(
     }
 }
 
-/** A radio's identity on the [VirtualAir]; compared by reference. */
+/** A radio's address on the [VirtualAir]; compared by reference. */
 internal class VirtualPeer : PeerHandle
 
 /** One node's radio on a [VirtualAir]. */
 internal class VirtualRadio(
     private val air: VirtualAir,
-    val handle: VirtualPeer,
     val maxAttMtu: Int,
 ) : RadioPort {
+    /** The radio's current address; each [startAdvertising] replaces it. */
+    var handle: VirtualPeer = VirtualPeer()
+        private set
+
     private val eventChannel = Channel<RadioEvent>(Channel.UNLIMITED)
 
     override val events: Flow<RadioEvent> = eventChannel.receiveAsFlow()
@@ -142,6 +159,11 @@ internal class VirtualRadio(
     internal var capability: ByteArray? = null
         private set
 
+    private val mutableAdvertisements = mutableListOf<Pair<Long, ByteArray>>()
+
+    /** Every payload this radio started advertising, with the wall-clock milliseconds it started at. */
+    internal val advertisements: List<Pair<Long, ByteArray>> get() = mutableAdvertisements.toList()
+
     private val mutableEnds = mutableListOf<VirtualLinkEnd>()
 
     /** This radio's end of every link it took part in, open or closed, in the order they opened. */
@@ -150,7 +172,9 @@ internal class VirtualRadio(
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)
         val copy = payload.copyOf()
+        handle = VirtualPeer()
         advertisement = copy
+        mutableAdvertisements += air.wallClockMillis() to copy
         air.announce(this, copy)
         return RadioResult.Ok(Unit)
     }
@@ -236,7 +260,7 @@ internal open class VirtualLinkEnd(
         local.track(this)
     }
 
-    override val peer: PeerHandle get() = remote.handle
+    override val peer: PeerHandle = remote.handle
 
     override val attMtu: Int get() = connection.attMtu
 

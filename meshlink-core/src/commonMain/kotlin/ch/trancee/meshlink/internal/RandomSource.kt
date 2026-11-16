@@ -27,3 +27,14 @@ public class SeededRandom(
         until: Int,
     ): Int = random.nextInt(from, until)
 }
+
+/**
+ * The operating system's non-cryptographic randomness, from `kotlin.random.Random.Default`, which
+ * platforms inject in production. Tests inject a [SeededRandom] instead.
+ */
+public object SystemRandom : RandomSource {
+    override fun nextInt(
+        from: Int,
+        until: Int,
+    ): Int = Random.nextInt(from, until)
+}

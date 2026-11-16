@@ -456,7 +456,7 @@ class UnsecuredLinkTest {
 
             // Act
             second.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
-            advanceTimeBy(SETTLE_MILLIS)
+            advanceTimeBy(SETTLE_MILLIS + DRAIN_MILLIS)
 
             // Assert
             val ends = alice.radio.ends
@@ -518,6 +518,71 @@ class UnsecuredLinkTest {
             // Assert
             assertEquals(1, keptWhileOpening)
             assertEquals(emptyList(), node.peers.value)
+        }
+
+    @Test
+    fun messageThePeerWroteBeforeItsCloseOnALinkClosedAsDuplicateIsDelivered() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(alice).also { it.start() }
+            val received = mutableListOf<ReceivedMessage>()
+            backgroundScope.launch { node.messages.collect { received += it } }
+            val inbound = connectFake(air, alice)
+            inbound.write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val outbound = advertiseFake(air, versions = listOf(1))
+            advanceTimeBy(SETTLE_MILLIS)
+            outbound.ends.single().write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val inboundEnd = alice.radio.ends.first()
+            val drainingAfterClose = inboundEnd.open
+            val sender = UnsecuredMessaging(SodiumCryptoProvider, HIGH_ID)
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt(), 1)
+
+            // Act
+            inbound.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            (0..Reassembly.SLOTS).forEach { stream ->
+                inbound.write(record(LinkFrame.Fragment(stream, 0, false, byteArrayOf(MESSAGE_TYPE))))
+            }
+            inbound.write(record(LinkFrame.Close(CloseReason.DUPLICATE_LINK)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            val afterHello = frames(inboundEnd).drop(1)
+
+            // Assert
+            assertEquals(listOf(CloseReason.DUPLICATE_LINK), afterHello.map { assertIs<LinkFrame.Close>(it).reason })
+            assertTrue(drainingAfterClose)
+            assertEquals(listOf(PAYLOADS[0].toList()), received.map { it.payload.toList() })
+            assertEquals(listOf(false, true), alice.radio.ends.map { it.open })
+        }
+
+    @Test
+    fun linkClosedAsDuplicateDisconnectsWhenThePeersCloseDoesNotArriveInTenSeconds() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            connectFake(air, alice).write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val outbound = advertiseFake(air, versions = listOf(1))
+            advanceTimeBy(SETTLE_MILLIS)
+            outbound.ends.single().write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            // The CLOSE goes out within SETTLE_MILLIS of the hello, so the drain ends within that window too.
+            advanceTimeBy(SETTLE_MILLIS)
+            val inboundEnd = alice.radio.ends.first()
+
+            // Act
+            advanceTimeBy(DRAIN_MILLIS - SETTLE_MILLIS - 1)
+            val openBeforeDeadline = inboundEnd.open
+            advanceTimeBy(SETTLE_MILLIS + 2)
+
+            // Assert
+            assertEquals(listOf(CloseReason.DUPLICATE_LINK), closes(inboundEnd))
+            assertTrue(openBeforeDeadline)
+            assertFalse(inboundEnd.open)
         }
 
     @Test
@@ -802,6 +867,7 @@ class UnsecuredLinkTest {
         const val HANDSHAKE_TIMEOUT_MILLIS = 10_000L
         const val RACE_SEEDS = 20L
         const val SLOW_WRITE_MILLIS = 60_000L
+        const val DRAIN_MILLIS = 10_000L
         const val LIFETIME_SECONDS = 1_800
         const val MESSAGE_TYPE: Byte = 0x40
         const val RECORD_LENGTH_BYTES = 2

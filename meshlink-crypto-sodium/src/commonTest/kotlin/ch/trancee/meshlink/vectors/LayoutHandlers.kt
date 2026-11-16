@@ -108,7 +108,7 @@ internal val record: Handler =
         },
     ) { decoded, body -> assertEquals(decoded["body"].string, body.hex(), "body") }
 
-/** The link-local frames whose codec exists: HANDSHAKE, PLAIN_HELLO, CLOSE, and the frames it refuses by type. */
+/** The link-local frames whose codec exists, and the frames it refuses by type. */
 internal val linkFrame: Handler =
     layout({ _, bytes -> LinkFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
         when (frame) {
@@ -143,6 +143,12 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["type"].code(), BUSY, "type")
                 assertEquals(decoded["stream_id"].int, frame.streamId, "stream_id")
                 assertEquals(decoded["reason"].int, frame.code, "reason")
+            }
+
+            is LinkFrame.ResolvingKeyUpdate -> {
+                assertEquals(decoded["type"].code(), RESOLVING_KEY_UPDATE, "type")
+                assertEquals(decoded["resolving_key"].string, frame.next.key.hex(), "resolving_key")
+                assertEquals(decoded["not_after"].uInt, frame.next.notAfter, "not_after")
             }
         }
     }
@@ -204,4 +210,5 @@ private const val HANDSHAKE = 0x02
 private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04
 private const val BUSY = 0x06
+private const val RESOLVING_KEY_UPDATE = 0x0E
 private const val LAST_BIT = 0x8000

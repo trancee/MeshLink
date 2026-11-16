@@ -409,6 +409,7 @@ public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
 	public abstract fun getDispatcher ()Lkotlinx/coroutines/CoroutineDispatcher;
 	public abstract fun getIdentityStore ()Lch/trancee/meshlink/internal/IdentityStore;
 	public abstract fun getRadio ()Lch/trancee/meshlink/internal/RadioPort;
+	public abstract fun getRandom ()Lch/trancee/meshlink/internal/RandomSource;
 	public abstract fun getRequirements ()Lkotlinx/coroutines/flow/Flow;
 }
 

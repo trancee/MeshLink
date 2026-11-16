@@ -196,6 +196,35 @@ class DiscoveryTest {
             assertNull(node.radioFailure())
         }
 
+    @Test
+    fun refusedRotationStopsDiscoveryAndIsRecorded() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            var advertised = 0
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override fun startAdvertising(payload: ByteArray) =
+                        if (advertised++ == 0) {
+                            virtual.radio.startAdvertising(payload)
+                        } else {
+                            RadioResult.Failed(RadioFailure.RADIO_ERROR)
+                        }
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+            node.start()
+            runCurrent()
+            val firstFailure = node.radioFailure()
+
+            // Act
+            advanceTimeBy(EPOCH_MILLIS + 1)
+
+            // Assert
+            assertNull(firstFailure)
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertFalse(virtual.radio.scanning)
+        }
+
     private fun TestScope.air(): VirtualAir = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1))
 
     private fun platformWith(
@@ -218,5 +247,6 @@ class DiscoveryTest {
     private companion object {
         // VirtualAir models no scan windows yet: a sighting arrives within one maximum air latency.
         val FIRST_SCAN_WINDOW_MILLIS: Long = VirtualAir.DEFAULT_LATENCY_MILLIS.last + 1L
+        const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * 1_000L
     }
 }

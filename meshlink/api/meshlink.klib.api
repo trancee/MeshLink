@@ -97,6 +97,8 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
     abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
+    abstract val random // ch.trancee.meshlink.internal/PlatformPort.random|{}random[0]
+        abstract fun <get-random>(): ch.trancee.meshlink.internal/RandomSource // ch.trancee.meshlink.internal/PlatformPort.random.<get-random>|<get-random>(){}[0]
     abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
         abstract fun <get-requirements>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
 }

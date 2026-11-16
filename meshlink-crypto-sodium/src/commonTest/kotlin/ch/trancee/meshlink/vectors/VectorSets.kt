@@ -70,6 +70,7 @@ internal val vectorSets: List<VectorSet> =
                 "mesh-psk" to meshPsk,
                 "link-prologue" to linkPrologue,
                 "unsecured-tag" to unsecuredTag,
+                "resolvable-tag" to resolvableTag,
                 "tombstone-commitment" to tombstoneCommitment,
                 "certificate-signing-input" to certificateSigningInput,
             ),
@@ -85,7 +86,7 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "vectors/link-frames.json",
-            listOf("0x01", "0x02", "0x03", "0x04", "0x06", "0x00", "0x3f", "0xc0", "0xff", "empty")
+            listOf("0x01", "0x02", "0x03", "0x04", "0x06", "0x0e", "0x00", "0x3f", "0xc0", "0xff", "empty")
                 .associateWith { linkFrame },
             key = frameKey,
         ),
@@ -133,7 +134,6 @@ private fun pending(
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
     pending("hpke-seal.json", 45, "HpkeSeal") +
-        pending("derivations.json", 27, "resolvable-tag") +
         pending("derivations.json", 45, "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", 45, "hpke-info") +
         pending("derivations.json", 44, "lookup-tag", "lookup-reply-key") +
@@ -142,7 +142,6 @@ internal val vectorSkips: List<Skip> =
         pending("link-frames.json", 35, "0x07", "0x08", "0x09") +
         pending("link-frames.json", 41, "0x0a") +
         pending("link-frames.json", 40, "0x0b", "0x0c", "0x0d") +
-        pending("link-frames.json", 27, "0x0e") +
         pending("link-frames.json", 31, "0x0f") +
         pending("routed-frames.json", 47, "0x41") +
         pending("routed-frames.json", 48, "0x42") +

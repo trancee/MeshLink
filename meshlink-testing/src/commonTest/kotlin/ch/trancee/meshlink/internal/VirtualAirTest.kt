@@ -61,6 +61,36 @@ class VirtualAirTest {
         }
 
     @Test
+    fun eachAdvertisementGetsAFreshAddressAndIsLogged() =
+        runTest {
+            val air = air()
+            val a = air.radio()
+            val b = air.radio()
+            a.startScanning().ok()
+
+            b.startAdvertising(PAYLOAD_B).ok()
+            val first =
+                a.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.peer
+            val link = a.connect(first).ok()
+            b.startAdvertising(PAYLOAD_A).ok()
+            val second =
+                a.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.peer
+
+            assertNotEquals(first, second)
+            assertSame(second, b.handle)
+            assertSame(first, link.peer)
+            assertEquals(RadioFailure.PEER_UNREACHABLE, a.connect(first).failure())
+            a.connect(second).ok()
+            assertEquals(2, b.advertisements.size)
+            assertContentEquals(PAYLOAD_A, b.advertisements.last().second)
+            assertTrue(b.advertisements.first().first < b.advertisements.last().first)
+        }
+
+    @Test
     fun streamOf2KbArrivesInOrderAtMtu23() = streamArrivesInOrder(mtu = 23)
 
     @Test

@@ -6,7 +6,8 @@ package ch.trancee.meshlink.internal
  * from its own dispatcher.
  *
  * `tag_key` is the MeshIdDigest of an open mesh, or `KDF(mesh_key, MeshIdDigest, "mesh-tag-key")`
- * of a gated one ([meshKey]). The resolvable tag is random.
+ * of a gated one ([meshKey]). The resolvable tag is the resolving key's for the epoch when a gated
+ * node passes one, and random otherwise.
  */
 public class Discovery(
     private val crypto: CryptoProvider,
@@ -24,17 +25,26 @@ public class Discovery(
     private var window: List<ByteArray> = emptyList()
 
     /**
-     * A fresh advertisement payload for [epoch]: the mesh tag of [epoch], then a resolvable tag and
-     * random fill drawn from the crypto provider, so an observer can't link two epochs' payloads.
-     * Flags are zero until links can upgrade. It becomes the payload [accept] treats as this node's.
+     * A fresh advertisement payload for [epoch]: the mesh tag of [epoch], then the resolvable tag of
+     * [resolvingKey] for [epoch], or random bytes without one, and random fill drawn from the crypto
+     * provider, so an observer can't link two epochs' payloads. Flags are zero until links can
+     * upgrade. It becomes the payload [accept] treats as this node's.
      */
-    public fun advertisement(epoch: UInt): ByteArray {
+    public fun advertisement(
+        epoch: UInt,
+        resolvingKey: ByteArray? = null,
+    ): ByteArray {
         val fill = crypto.randomBytes(Advertisement.RESOLVABLE_TAG_LENGTH + Advertisement.RANDOM_LENGTH)
         own =
             Advertisement(
                 flags = 0,
                 meshTag = derivations.meshTag(tagKey, epoch),
-                resolvableTag = fill.copyOf(Advertisement.RESOLVABLE_TAG_LENGTH),
+                resolvableTag =
+                    if (resolvingKey == null) {
+                        fill.copyOf(Advertisement.RESOLVABLE_TAG_LENGTH)
+                    } else {
+                        derivations.resolvableTag(resolvingKey, epoch)
+                    },
                 random = fill.copyOfRange(Advertisement.RESOLVABLE_TAG_LENGTH, fill.size),
             ).encode()
         return own.copyOf()

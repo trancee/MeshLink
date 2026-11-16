@@ -554,6 +554,20 @@
       "unit": "s",
       "decision": "D-41",
       "source": "ADR 0010 decision 3"
+    },
+    {
+      "name": "resolving-key-peers",
+      "value": 1024,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0010 decision 4"
+    },
+    {
+      "name": "duplicate-drain-timeout",
+      "value": 10000,
+      "unit": "ms",
+      "decision": "D-22",
+      "source": "ADR 0009 decision 5"
     }
   ]
 }

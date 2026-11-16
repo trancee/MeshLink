@@ -64,6 +64,7 @@ class LinkFrameTest {
             LinkFrame.Handshake(1, 1, ByteArray(LinkFrame.Handshake.NOISE_MESSAGE_MAX + 1))
         }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Close(256) }
+        assertFailsWith<IllegalArgumentException> { ResolvingKey(ByteArray(ResolvingKey.KEY_LENGTH - 1), 0u) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Fragment(-1, 0, false, ByteArray(1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Fragment(256, 0, false, ByteArray(1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Fragment(0, -1, false, ByteArray(1)) }

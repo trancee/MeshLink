@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class PostQuantumLinkTest : SecuredLinkTest(SecurityProfile.PostQuantum, WireProfile.POST_QUANTUM) {
     @Test
     fun anXXhfsHandshakeSendsEachMessageAsFragmentsOfAtMost4096Bytes() =
-        listOf(null to listOf(OPEN_1, OPEN_2, OPEN_3), MESH_KEY to listOf(GATED_1, OPEN_2, OPEN_3))
+        listOf(null to listOf(OPEN_1, OPEN_2, OPEN_3), MESH_KEY to listOf(GATED_1, GATED_2, GATED_3))
             .forEach { (meshKey, sizes) ->
                 runTest {
                     // Arrange
@@ -53,8 +53,10 @@ class PostQuantumLinkTest : SecuredLinkTest(SecurityProfile.PostQuantum, WirePro
         const val OPEN_3 = 1_421
 
         // `psk3` keys the cipher from `e` on, which tags message 1's `e1` and payload; messages 2
-        // and 3 are already encrypted after `ee`, so they keep their open-mesh sizes.
+        // and 3 are already encrypted after `ee`, and add the 39 B RESOLVING_KEY TLV to the payload.
         const val GATED_1 = 1_248
+        const val GATED_2 = 2_596
+        const val GATED_3 = 1_460
         const val RECORDS_1 = 2
         const val RECORDS_2 = 3
         const val RECORDS_3 = 2

@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 10 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 11 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness).
 
 ## Context
 
@@ -187,3 +187,7 @@ Inputs:
 - **Embedding:** the `meshlink.spec-vectors` plugin embeds each JSON file unchanged as minified text chunks in generated test sources, and a test-only JSON reader parses them at run time (owner decision), so `commonTest` reads no files on either target and no JSON library is added. The typed `LayoutVector` and `DerivationVector` generation is deleted.
 - **Vendored sets:** external sets sit unchanged in `third_party/vectors/<set>/` with `SOURCE.md` and `SHA256SUMS`; the build fails when a checksum differs (owner decision). hpke-pq `test-vectors.json` (`draft-ietf-hpke-pq-05`) replaces the hand-copied X-Wing A.5 vectors of ticket 18; its other KEMs are recorded as not applicable (ADR 0004).
 - **No silent gaps:** a test without a handler fails the run unless a skip names the owning ticket or the reason MeshLink never runs it; a skip that matches no test, or overlaps a handler, also fails. Wycheproof's two ML-KEM-768 `InvalidDecapsulationKey` tests are not applicable: MeshLink decapsulates only with keys it generated, and the FIPS 203 section 7.3 input check is for supplied keys (owner decision).
+
+2026-11-16, production randomness (0.1.0 backlog ticket "Rotate advertisements and recognize rotated peers"):
+
+- **Production randomness (decision 1):** a platform injects `SystemRandom` from `:meshlink-core` through `PlatformPort.random`, as it injects `SystemClock`. It wraps `kotlin.random.Random.Default` for non-cryptographic draws such as a node's rotation phase; key material still comes from `CryptoProvider`. `RandomSource.kt` now holds both `SeededRandom` and `SystemRandom`, and both detekt rules exempt it. A `VirtualPlatform` injects its air's `SeededRandom`, so one seed still replays one run.

@@ -43,6 +43,7 @@ internal class Links(
 ) {
     private val policy = admission.policy
     private val handshakes = admission.handshakes
+    private val keys = handshakes?.keys
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
 
@@ -66,6 +67,11 @@ internal class Links(
     /** Accepts the link a peer opened in [event]; other events need nothing here. */
     fun accept(event: RadioEvent) {
         if (event is RadioEvent.Connected) track(event.link.peer) { serve(event.link, null, policy.versions) }
+    }
+
+    /** Sends this node's [next] resolving key on every kept link (spec "Resolving key update"). */
+    suspend fun announce(next: ResolvingKey) {
+        table.values.toList().forEach { it.send(LinkFrame.ResolvingKeyUpdate(next)) }
     }
 
     private fun track(
@@ -133,10 +139,10 @@ internal class Links(
                 else -> handshake(conn, conn.secure.start(selected))
             }
             val reader = RecordReader()
-            link.incoming.takeWhile { !conn.closing }.collect { chunk ->
+            link.incoming.takeWhile { conn.reading }.collect { chunk ->
                 when (val records = reader.read(chunk)) {
                     is Decoded.Invalid -> conn.close(null)
-                    is Decoded.Valid -> records.value.forEach { if (!conn.closing) inbound.receive(conn, it) }
+                    is Decoded.Valid -> records.value.forEach { if (conn.reading) inbound.receive(conn, it) }
                 }
                 if (conn.peer != null) timer.cancel()
             }
@@ -245,6 +251,12 @@ internal class Links(
                     conn.refused(frame.streamId)
                 }
 
+                // Only a gated mesh's secured links learn keys; any other drops the frame
+                // (spec "Resolving key update").
+                frame is LinkFrame.ResolvingKeyUpdate -> {
+                    conn.peer?.let { keys?.learn(it, frame.next, clock.wallClockMillis()) }
+                }
+
                 frame is LinkFrame.PlainHello && conn.peer == null -> {
                     val reason = policy.checkHello(frame, conn.selected)
                     if (reason != null) return conn.close(reason)
@@ -272,7 +284,9 @@ internal class Links(
             is HandshakeStep.Complete -> {
                 step.reply?.let { conn.send(it) }
                 conn.transport = step.transport
-                step.peer?.let { open(conn, it) } ?: conn.close(CloseReason.HANDSHAKE_FAILED)
+                val peer = step.peer ?: return conn.close(CloseReason.HANDSHAKE_FAILED)
+                open(conn, peer)
+                keys?.next?.let { conn.send(LinkFrame.ResolvingKeyUpdate(it)) }
             }
 
             HandshakeStep.Failed -> {
@@ -303,8 +317,15 @@ internal class Links(
             conn.chosen.complete(id)
         }
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
+        // The loser drains until the peer's CLOSE, at most DRAIN_TIMEOUT_MILLIS (spec "Duplicate links").
         val loser = if (keepNew) other else conn
-        loser?.let { scope.launch(start = CoroutineStart.UNDISPATCHED) { it.close(CloseReason.DUPLICATE_LINK) } }
+        loser?.let {
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                it.close(CloseReason.DUPLICATE_LINK)
+                delay(DRAIN_TIMEOUT_MILLIS)
+                it.close(null)
+            }
+        }
     }
 
     private fun release(conn: Link) {
@@ -348,8 +369,13 @@ internal class Links(
         var transport: NoiseTransport? = null
         var lastSeen: Instant = Instant.fromEpochMilliseconds(0)
         var received: CloseReason? = null
-        var closing = false
-            private set
+        private var closing = false
+
+        // Closed as a duplicate: still reading the peer's frames until its CLOSE or the timeout.
+        private var draining = false
+
+        /** Whether the peer's frames are still read: until this link closes, or ends its drain. */
+        val reading: Boolean get() = !closing || draining
 
         /** Completes with the peer's NodeId once this is the peer's kept link. */
         val chosen = CompletableDeferred<NodeId>()
@@ -370,6 +396,8 @@ internal class Links(
         suspend fun send(frame: LinkFrame) {
             val bytes = frame.encode()
             writing.withLock {
+                // Nothing follows a CLOSE, not even a reply to a frame read while draining.
+                if (closing && frame !is LinkFrame.Close) return@withLock
                 if (bytes.size <= LinkRecord.BODY_MAX) {
                     link.write(seal(bytes))
                 } else {
@@ -468,10 +496,25 @@ internal class Links(
             }
         }
 
-        /** Sends `CLOSE` with [reason] unless it is `null`, then disconnects; once only. */
+        /**
+         * Sends `CLOSE` with [reason] unless it is `null`, then disconnects; once only. A
+         * `DUPLICATE_LINK` close drains instead: it disconnects at the next close, which the peer's
+         * `CLOSE`, a fatal frame or the drain timeout makes.
+         */
         suspend fun close(reason: CloseReason?) {
-            if (closing) return
+            if (closing) {
+                if (draining) {
+                    draining = false
+                    link.disconnect()
+                }
+                return
+            }
             closing = true
+            if (reason == CloseReason.DUPLICATE_LINK) {
+                draining = true
+                send(LinkFrame.Close(reason))
+                return
+            }
             try {
                 reason?.let { send(LinkFrame.Close(it)) }
             } finally {
@@ -496,6 +539,9 @@ internal class Links(
     companion object {
         /** How long a link may take to exchange hellos before the node closes the bearer (spec `handshake-timeout`). */
         const val HANDSHAKE_TIMEOUT_MILLIS: Long = 10_000
+
+        /** How long a link closed as a duplicate waits for the peer's `CLOSE` (spec `duplicate-drain-timeout`). */
+        const val DRAIN_TIMEOUT_MILLIS: Long = 10_000
 
         /**
          * The first routed frame type: unicast `0x40`–`0x7F` and flood `0x80`–`0xBF` (spec

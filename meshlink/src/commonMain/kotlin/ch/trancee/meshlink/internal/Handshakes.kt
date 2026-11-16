@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
  * Not thread-safe; the node calls it on its serial dispatcher.
  *
  * [credentials] are this run's static key and certificate; [meshKey] gates the mesh with `XXpsk3`.
+ * A gated mesh also passes its resolving [keys]: each payload carries this node's current key, and
+ * each verified peer's key is learned (spec "Handshake payload"). An open mesh sends none and
+ * ignores the peer's.
  */
 internal class Handshakes(
     private val crypto: CryptoProvider,
@@ -16,9 +19,10 @@ internal class Handshakes(
     private val credentials: LinkCredentials,
     meshKey: ByteArray?,
     private val diagnostics: MutableSharedFlow<LinkDiagnostic>,
+    val keys: ResolvingKeys?,
 ) {
     private val psk = meshKey?.let { Derivations(crypto).meshPsk(it, credentials.meshIdDigest) }
-    private val payload = HandshakePayload.of(credentials.certificate.encode()).encode()
+    private val certificate = credentials.certificate.encode()
     private var halfOpen = 0
 
     // When each remote address last started a handshake this node answered, monotonic milliseconds.
@@ -45,8 +49,8 @@ internal class Handshakes(
         return NoiseHandshake(crypto, pattern, role, prologue, NoiseKeys(credentials.static, psk))
     }
 
-    /** This node's payload for message 2 or 3: its certificate. */
-    fun payload(): ByteArray = payload.copyOf()
+    /** This node's payload for message 2 or 3: its current resolving key in a gated mesh, and its certificate. */
+    fun payload(): ByteArray = HandshakePayload.of(certificate, keys?.own(clock.wallClockMillis())).encode()
 
     /**
      * Counts a new handshake as half-open, or returns the bound it breaks. A responder passes the
@@ -76,21 +80,28 @@ internal class Handshakes(
     /**
      * The NodeId the peer's message [payload] proves, or `null` if it has no valid certificate for
      * this mesh's profile whose `x25519_key` is the Noise [remoteStatic] key (spec "Handshake payload").
+     * In a gated mesh, learns the proven peer's resolving key if the payload carries a valid one.
      */
     fun verify(
         payload: ByteArray,
         remoteStatic: ByteArray,
     ): NodeId? {
+        val decoded = (HandshakePayload.decode(payload) as? Decoded.Valid)?.value
         val certificate =
-            (HandshakePayload.decode(payload) as? Decoded.Valid)
-                ?.let { it.value.certificate }
+            decoded
+                ?.certificate
                 ?.let { IdentityCertificate.decode(it) as? Decoded.Valid }
                 ?.value
-        return certificate?.let {
-            val nodeId = Derivations(crypto).nodeId(it.ed25519Key)
-            val check = IdentityCertificate.validate(crypto, it.encode(), credentials.profile, nodeId, clock)
-            NodeId(nodeId).takeIf { _ -> check is CertificateCheck.Valid && it.x25519Key.contentEquals(remoteStatic) }
-        }
+        val peer =
+            certificate?.let {
+                val nodeId = Derivations(crypto).nodeId(it.ed25519Key)
+                val check = IdentityCertificate.validate(crypto, it.encode(), credentials.profile, nodeId, clock)
+                NodeId(nodeId).takeIf { _ ->
+                    check is CertificateCheck.Valid && it.x25519Key.contentEquals(remoteStatic)
+                }
+            }
+        peer?.let { id -> decoded.resolvingKey?.let { keys?.learn(id, it, clock.wallClockMillis()) } }
+        return peer
     }
 
     fun report(diagnostic: LinkDiagnostic) {
