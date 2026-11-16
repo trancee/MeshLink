@@ -1,6 +1,6 @@
 # Open `PostQuantum` links
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 23, 24, 28
 
