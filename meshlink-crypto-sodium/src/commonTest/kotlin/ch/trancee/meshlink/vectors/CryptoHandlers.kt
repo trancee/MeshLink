@@ -9,7 +9,9 @@ import ch.trancee.meshlink.internal.CertificateCheck
 import ch.trancee.meshlink.internal.CryptoFailure
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
+import ch.trancee.meshlink.internal.Decoded
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.NoiseHandshake
 import ch.trancee.meshlink.internal.NoiseKeys
@@ -23,6 +25,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlin.time.Duration.Companion.seconds
@@ -304,7 +307,9 @@ internal val noise: Handler =
  * `handshake-xx.json` and `handshake-hfs.json` (tier 2): each side replays its handshake from its
  * keys and, for `XXhfs`, its KEM input. A writer's message must equal the delivered one except at
  * `tampered_step`; the reader of `rejected_step` must fail and every earlier read must succeed. A
- * valid run must reach the handshake hash on both sides and reproduce each transport message.
+ * valid run must reach the handshake hash on both sides, carry in messages 2 and 3 certificates of
+ * the pattern's profile that prove each side's node id and bind its static key, and reproduce each
+ * transport message.
  */
 internal val noiseHandshake: Handler =
     Handler("handshake_hash") { case ->
@@ -345,6 +350,18 @@ internal val noiseHandshake: Handler =
             val (sending, receiving) = initiator.split().value() to responder.split().value()
             assertEquals(case.test["handshake_hash"].string, sending.handshakeHash.hex())
             assertEquals(case.test["handshake_hash"].string, receiving.handshakeHash.hex())
+            val profile = if (pattern.name.startsWith("XX_HFS")) WireProfile.POST_QUANTUM else WireProfile.CLASSICAL
+            listOf(2 to "responder", 3 to "initiator").forEach { (step, name) ->
+                val decoded = HandshakePayload.decode(payloads[step - 1].hex())
+                val payload = assertIs<Decoded.Valid<HandshakePayload>>(decoded)
+                val clock = FixedClock.atSeconds(case.test["now"].long)
+                val nodeId = case.test["${name}_node_id"].string.hex()
+                val bytes = assertNotNull(payload.value.certificate, "certificate $step")
+                val check = IdentityCertificate.validate(crypto, bytes, profile, nodeId, clock)
+                val certificate = assertIs<CertificateCheck.Valid>(check, "certificate $step").certificate
+                val static = crypto.x25519KeyPair(case.test[name]["static_private"].string.hex()).publicKey
+                assertContentEquals(static, certificate.x25519Key, "static key $step")
+            }
             case.test["transport"].list.forEach { message ->
                 val fromInitiator = message["direction"].string == "initiator-to-responder"
                 val (writer, reader) = if (fromInitiator) sending to receiving else receiving to sending

@@ -361,8 +361,29 @@ internal class Links(
         private val streams = mutableMapOf<Int, Outgoing>()
         private var nextStream = 0
 
+        /**
+         * Writes control [frame] as one record, or as `FRAGMENT`s of a new stream if it is longer
+         * than a record body. Only `PostQuantum` handshake messages are, and they travel in
+         * cleartext (message 3 is written before the link is secured), so a fragment carries the
+         * whole cleartext body.
+         */
         suspend fun send(frame: LinkFrame) {
-            writing.withLock { link.write(seal(frame.encode())) }
+            val bytes = frame.encode()
+            writing.withLock {
+                if (bytes.size <= LinkRecord.BODY_MAX) {
+                    link.write(seal(bytes))
+                } else {
+                    val dataMax = LinkRecord.BODY_MAX - LinkFrame.Fragment.HEADER
+                    LinkFrame.Fragment.split(stream(), bytes, dataMax).forEach { link.write(seal(it.encode())) }
+                }
+            }
+        }
+
+        /** The next stream id; ids are taken in turn, so open streams' ids stay unique. */
+        private fun stream(): Int {
+            val id = nextStream
+            nextStream = (id + 1) and BYTE_MASK
+            return id
         }
 
         /**
@@ -415,8 +436,7 @@ internal class Links(
             if (frame.size <= plainMax) return record(frame)
             val now = clock.monotonicMillis()
             streams.values.removeAll { now - it.startedMillis >= Reassembly.IDLE_TIMEOUT_MILLIS }
-            val id = nextStream
-            nextStream = (id + 1) and BYTE_MASK
+            val id = stream()
             val stream = Outgoing(letter.settle, now)
             streams[id] = stream
             var written = Written.SENT

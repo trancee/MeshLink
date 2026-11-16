@@ -256,6 +256,12 @@ sealed interface ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/Se
         final fun toString(): kotlin/String // ch.trancee.meshlink/SecurityProfile.Classical.toString|toString(){}[0]
     }
 
+    final object PostQuantum : ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile.PostQuantum|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/SecurityProfile.PostQuantum.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/SecurityProfile.PostQuantum.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/SecurityProfile.PostQuantum.toString|toString(){}[0]
+    }
+
     final object Unsecured : ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile.Unsecured|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/SecurityProfile.Unsecured.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/SecurityProfile.Unsecured.hashCode|hashCode(){}[0]

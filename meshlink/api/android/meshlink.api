@@ -318,6 +318,13 @@ public final class ch/trancee/meshlink/SecurityProfile$Classical : ch/trancee/me
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/SecurityProfile$PostQuantum : ch/trancee/meshlink/SecurityProfile {
+	public static final field INSTANCE Lch/trancee/meshlink/SecurityProfile$PostQuantum;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/SecurityProfile$Unsecured : ch/trancee/meshlink/SecurityProfile {
 	public static final field INSTANCE Lch/trancee/meshlink/SecurityProfile$Unsecured;
 	public fun equals (Ljava/lang/Object;)Z

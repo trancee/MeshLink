@@ -21,6 +21,14 @@ public sealed interface SecurityProfile {
      * quantum computer that records traffic today.
      */
     public data object Classical : SecurityProfile
+
+    /**
+     * [Classical] hardened against a future quantum computer that records traffic today: each link
+     * runs a Noise `XXhfs` handshake (`XXhfs+psk3` with a mesh key), which adds an ML-KEM-768
+     * exchange to X25519, and each identity certificate also binds an X-Wing key. A link handshake
+     * sends about 5 KB, so it takes several records each way.
+     */
+    public data object PostQuantum : SecurityProfile
 }
 
 /** The profile's one-byte code on the wire (spec "Security profiles"). */
@@ -29,4 +37,5 @@ internal val SecurityProfile.wireProfile: WireProfile
         when (this) {
             SecurityProfile.Unsecured -> WireProfile.UNSECURED
             SecurityProfile.Classical -> WireProfile.CLASSICAL
+            SecurityProfile.PostQuantum -> WireProfile.POST_QUANTUM
         }
