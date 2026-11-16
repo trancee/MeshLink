@@ -284,6 +284,64 @@ internal val noise: Handler =
         }
     }
 
+/**
+ * `handshake-hfs.json` (tier 2): each side replays its handshake from its keys and KEM input. A
+ * writer's message must equal the delivered one except at `tampered_step`; the reader of
+ * `rejected_step` must fail and every earlier read must succeed. A valid run must reach the
+ * handshake hash on both sides and reproduce each transport message.
+ */
+internal val noiseHandshake: Handler =
+    Handler("handshake_hash") { case ->
+        val pattern = NoisePattern.entries.single { it.protocolName == case.group["protocol"].string }
+        val (initiator, responder) =
+            listOf(NoiseRole.INITIATOR to "initiator", NoiseRole.RESPONDER to "responder").map { (role, name) ->
+                val side = case.test[name]
+                val optional = { field: String -> if (side.has(field)) side[field].string.hex() else null }
+                val keys =
+                    NoiseKeys(
+                        crypto.x25519KeyPair(side["static_private"].string.hex()),
+                        optional("psk"),
+                        crypto.x25519KeyPair(side["ephemeral_private"].string.hex()),
+                        optional("kem_keygen_seed")?.let(crypto::mlKem768KeyPair),
+                        optional("kem_encaps_seed"),
+                    )
+                NoiseHandshake(crypto, pattern, role, side["prologue"].string.hex(), keys)
+            }
+        val tampered = if (case.test.has("tampered_step")) case.test["tampered_step"].int else 0
+        val rejected = if (case.test.has("rejected_step")) case.test["rejected_step"].int else 0
+        val messages = case.test["messages"].list.map { it.string }
+        val payloads = case.test["payloads"].list.map { it.string }
+        val reads =
+            messages.indices.takeWhile { index ->
+                val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
+                val written = writer.writeMessage(payloads[index].hex()).value().hex()
+                if (index + 1 != tampered) assertEquals(messages[index], written, "message ${index + 1}")
+                val read = reader.readMessage(messages[index].hex())
+                if (index + 1 == rejected) {
+                    assertIs<NoiseResult.Failed>(read, "message ${index + 1}")
+                } else {
+                    assertEquals(payloads[index], read.value().hex(), "payload ${index + 1}")
+                }
+                index + 1 != rejected
+            }
+        if (case.result == "valid") {
+            assertEquals(messages.size, reads.size)
+            val (sending, receiving) = initiator.split().value() to responder.split().value()
+            assertEquals(case.test["handshake_hash"].string, sending.handshakeHash.hex())
+            assertEquals(case.test["handshake_hash"].string, receiving.handshakeHash.hex())
+            case.test["transport"].list.forEach { message ->
+                val fromInitiator = message["direction"].string == "initiator-to-responder"
+                val (writer, reader) = if (fromInitiator) sending to receiving else receiving to sending
+                val plaintext = message["plaintext"].string
+                assertEquals(message["ciphertext"].string, writer.encrypt(plaintext.hex()).value().hex())
+                assertEquals(plaintext, reader.decrypt(message["ciphertext"].string.hex()).value().hex())
+            }
+        } else {
+            assertEquals("handshake-failed", case.test["error"].string)
+            assertEquals(rejected - 1, reads.size)
+        }
+    }
+
 private fun <T> NoiseResult<T>.value(): T = assertIs<NoiseResult.Ok<T>>(this).value
 
 private const val HANDSHAKE_MESSAGES = 3

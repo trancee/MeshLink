@@ -2,6 +2,8 @@ package ch.trancee.meshlink.crypto.sodium
 
 import ch.trancee.meshlink.internal.CipherState
 import ch.trancee.meshlink.internal.CryptoProvider
+import ch.trancee.meshlink.internal.CryptoResult
+import ch.trancee.meshlink.internal.KemEncapsulation
 import ch.trancee.meshlink.internal.KeyPair
 import ch.trancee.meshlink.internal.NoiseFailure
 import ch.trancee.meshlink.internal.NoiseHandshake
@@ -29,26 +31,44 @@ class NoiseTest {
     /** A key pair whose public key is the low-order point u = 1: every X25519 result with it is zero. */
     private val lowOrder = KeyPair(ByteArray(KEY_LENGTH) { 1 }, ByteArray(KEY_LENGTH).also { it[0] = 1 })
 
-    private fun keyPair(random: SeededRandom): KeyPair =
-        crypto.x25519KeyPair(ByteArray(KEY_LENGTH) { random.nextInt(0, BYTE_VALUES).toByte() })
+    private fun bytes(
+        random: SeededRandom,
+        count: Int,
+    ): ByteArray = ByteArray(count) { random.nextInt(0, BYTE_VALUES).toByte() }
 
-    /** Both sides of [pattern]; ephemerals come from [seed] if it is not `null`. */
+    private fun keyPair(random: SeededRandom): KeyPair = crypto.x25519KeyPair(bytes(random, KEY_LENGTH))
+
+    /**
+     * Both sides of [pattern]; ephemerals and KEM inputs come from [seed] if it is not `null`, and
+     * from the provider otherwise.
+     */
     private fun sides(
         pattern: NoisePattern,
         seed: Long? = 1,
         initiatorPsk: ByteArray = psk,
         initiatorKeys: (SeededRandom?) -> KeyPair? = { it?.let(::keyPair) },
         responderStatic: KeyPair? = null,
+        provider: CryptoProvider = crypto,
     ): Pair<NoiseHandshake, NoiseHandshake> {
         val random = seed?.let(::SeededRandom)
         val statics = SeededRandom(0)
-        val usedPsk = pattern == NoisePattern.XX_PSK3
+        val usedPsk = pattern in PSK_PATTERNS
         val initiator =
-            NoiseKeys(keyPair(statics), initiatorPsk.takeIf { usedPsk }, initiatorKeys(random))
+            NoiseKeys(
+                keyPair(statics),
+                initiatorPsk.takeIf { usedPsk },
+                initiatorKeys(random),
+                kemKeyPair = random?.let { crypto.mlKem768KeyPair(bytes(it, KEM_SEED_LENGTH)) },
+            )
         val responder =
-            NoiseKeys(responderStatic ?: keyPair(statics), psk.takeIf { usedPsk }, random?.let(::keyPair))
-        return NoiseHandshake(crypto, pattern, NoiseRole.INITIATOR, prologue, initiator) to
-            NoiseHandshake(crypto, pattern, NoiseRole.RESPONDER, prologue, responder)
+            NoiseKeys(
+                responderStatic ?: keyPair(statics),
+                psk.takeIf { usedPsk },
+                random?.let(::keyPair),
+                encapsulationSeed = random?.let { bytes(it, ENCAPSULATION_SEED_LENGTH) },
+            )
+        return NoiseHandshake(provider, pattern, NoiseRole.INITIATOR, prologue, initiator) to
+            NoiseHandshake(provider, pattern, NoiseRole.RESPONDER, prologue, responder)
     }
 
     /** The three handshake messages, with [tamper] applied to each before the reader sees it. */
@@ -113,7 +133,7 @@ class NoiseTest {
             assertEquals(HASH_LENGTH, sending.handshakeHash.size)
             assertContentEquals(keyPair(SeededRandom(0)).publicKey, receiving.remoteStatic)
             assertEquals(messages.map { it.hex() }, repeated.map { it.hex() })
-            assertEquals(listOf(LENGTH_1[pattern], LENGTH_2, LENGTH_3), messages.map { it.size })
+            assertEquals(LENGTHS[pattern], messages.map { it.size }, pattern.protocolName)
             sending.exchange(receiving)
             receiving.exchange(sending)
         }
@@ -131,15 +151,44 @@ class NoiseTest {
     }
 
     @Test
-    fun freshEphemeralsComeFromTheProvider() {
-        val (initiator, responder) = sides(NoisePattern.XX, seed = null)
-        handshake(initiator, responder)
-        val (one, two) = sides(NoisePattern.XX, seed = null)
-        handshake(one, two)
+    fun freshEphemeralsAndKemInputsComeFromTheProvider() {
+        listOf(NoisePattern.XX, NoisePattern.XX_HFS).forEach { pattern ->
+            val (initiator, responder) = sides(pattern, seed = null)
+            handshake(initiator, responder)
+            val (one, two) = sides(pattern, seed = null)
+            handshake(one, two)
 
-        val hash = initiator.split().ok().handshakeHash
-        assertFalse(hash.contentEquals(one.split().ok().handshakeHash))
-        assertContentEquals(hash, responder.split().ok().handshakeHash)
+            val hash = initiator.split().ok().handshakeHash
+            assertFalse(hash.contentEquals(one.split().ok().handshakeHash))
+            assertContentEquals(hash, responder.split().ok().handshakeHash)
+        }
+    }
+
+    /**
+     * Measured sizes with the 1,357 B post-quantum certificate payload of `handshake-hfs.json`.
+     * Message 1 is `e` (32) and `e1` (the 1,184 B KEM key), plus a tag on each of `e1` and the empty
+     * payload once the psk pattern mixes `e` into the key. Message 2 is `e`, `ekem1` (1,088 + 16),
+     * `s` (32 + 16) and the payload (+ 16); message 3 is `s` and the payload.
+     */
+    @Test
+    fun postQuantumMessagesFitTheHandshakeLimit() {
+        val certificatePayload = ByteArray(PQ_PAYLOAD_LENGTH)
+        val expected =
+            mapOf(
+                NoisePattern.XX_HFS to listOf(1_216, 2_557, 1_421),
+                NoisePattern.XX_HFS_PSK3 to listOf(1_248, 2_557, 1_421),
+            )
+        expected.forEach { (pattern, lengths) ->
+            val (initiator, responder) = sides(pattern)
+            val messages =
+                listOf(ByteArray(0), certificatePayload, certificatePayload).mapIndexed { index, payload ->
+                    val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
+                    writer.writeMessage(payload).ok().also { reader.readMessage(it).ok() }
+                }
+
+            assertEquals(lengths, messages.map { it.size }, pattern.protocolName)
+            assertTrue(messages.all { it.size <= HANDSHAKE_MESSAGE_MAX })
+        }
     }
 
     @Test
@@ -201,12 +250,14 @@ class NoiseTest {
 
     @Test
     fun aWrongPskFailsTheThirdMessage() {
-        val sides = sides(NoisePattern.XX_PSK3, initiatorPsk = psk.flipped(0))
-        val (initiator, responder) = sides
+        PSK_PATTERNS.forEach { pattern ->
+            val sides = sides(pattern, initiatorPsk = psk.flipped(0))
+            val (initiator, responder) = sides
 
-        assertEquals(NoiseFailure.AUTHENTICATION_FAILED, failure(NoisePattern.XX_PSK3, sides) { _, bytes -> bytes })
-        assertFalse(responder.isComplete)
-        assertTrue(initiator.isComplete)
+            assertEquals(NoiseFailure.AUTHENTICATION_FAILED, failure(pattern, sides) { _, bytes -> bytes })
+            assertFalse(responder.isComplete)
+            assertTrue(initiator.isComplete)
+        }
     }
 
     @Test
@@ -227,6 +278,61 @@ class NoiseTest {
         assertEquals(NoiseFailure.MESSAGE_TOO_SHORT, shortEphemeral)
         val shortStatic = failure(NoisePattern.XX, tamper = at(1) { it.copyOf(STATIC_END - 1) })
         assertEquals(NoiseFailure.MESSAGE_TOO_SHORT, shortStatic)
+    }
+
+    /** The first failure of an `XXhfs` handshake over [counting] whose messages pass through [tamper]. */
+    private fun hfsFailure(
+        counting: CountingKem,
+        tamper: (Int, ByteArray) -> ByteArray,
+    ): NoiseFailure = failure(NoisePattern.XX_HFS, sides(NoisePattern.XX_HFS, provider = counting), tamper)
+
+    @Test
+    fun kemFieldsTooShortFailBeforeAnyKemCall() {
+        val counting = CountingKem(crypto)
+        val shortKey = hfsFailure(counting, at(0) { it.copyOf(KEM_KEY_END - 1) })
+        assertEquals(NoiseFailure.MESSAGE_TOO_SHORT, shortKey)
+        assertEquals(0, counting.encapsulations)
+
+        val shortCiphertext =
+            hfsFailure(counting, at(1) { it.copyOf(KEM_CIPHERTEXT_END - 1) })
+        assertEquals(NoiseFailure.MESSAGE_TOO_SHORT, shortCiphertext)
+        assertEquals(0, counting.decapsulations)
+    }
+
+    @Test
+    fun aChangedOrResizedKemCiphertextFailsBeforeDecapsulation() {
+        val changes =
+            listOf<(ByteArray) -> ByteArray>(
+                { it.flipped(KEY_LENGTH) },
+                { it.flipped(KEM_CIPHERTEXT_END - 1) },
+                { it.copyOf(KEY_LENGTH + 1) + it.copyOfRange(KEY_LENGTH, it.size) },
+                { it.copyOf(KEY_LENGTH) + it.copyOfRange(KEY_LENGTH + 1, it.size) },
+            )
+        changes.forEach { change ->
+            val counting = CountingKem(crypto)
+            val failure = hfsFailure(counting, at(1, change))
+
+            assertEquals(NoiseFailure.AUTHENTICATION_FAILED, failure)
+            assertEquals(1, counting.encapsulations)
+            assertEquals(0, counting.decapsulations)
+        }
+    }
+
+    @Test
+    fun aKemKeyFailingTheModulusCheckFailsTheResponder() {
+        // Coefficient 0xFFF exceeds q = 3329, so FIPS 203's modulus check refuses the key.
+        val invalid =
+            failure(
+                NoisePattern.XX_HFS,
+                tamper =
+                    at(0) {
+                        it.copyOf().also { m ->
+                            m[KEY_LENGTH] = -1
+                            m[KEY_LENGTH + 1] = -1
+                        }
+                    },
+            )
+        assertEquals(NoiseFailure.INVALID_PUBLIC_KEY, invalid)
     }
 
     @Test
@@ -297,6 +403,9 @@ class NoiseTest {
 
         assertFailsWith<IllegalArgumentException> { NoiseKeys(static, ByteArray(PSK_LENGTH + 1)) }
         assertFailsWith<IllegalArgumentException> {
+            NoiseKeys(static, encapsulationSeed = ByteArray(ENCAPSULATION_SEED_LENGTH + 1))
+        }
+        assertFailsWith<IllegalArgumentException> {
             NoiseHandshake(crypto, NoisePattern.XX, NoiseRole.INITIATOR, prologue, NoiseKeys(static, psk))
         }
         assertFailsWith<IllegalArgumentException> {
@@ -314,10 +423,44 @@ class NoiseTest {
         const val MESSAGE_COUNT = 3
         const val MESSAGE_LENGTH = 64
         const val STATIC_END = 32 + 48
-        const val LENGTH_2 = 32 + 48 + 3 + 16
-        const val LENGTH_3 = 48 + 5 + 16
-        val LENGTH_1 = mapOf(NoisePattern.XX to 32 + 3, NoisePattern.XX_PSK3 to 32 + 3 + 16)
+        const val KEM_SEED_LENGTH = 64
+        const val ENCAPSULATION_SEED_LENGTH = 32
+        const val KEM_KEY_END = 32 + 1_184
+        const val KEM_CIPHERTEXT_END = 32 + 1_088 + 16
+        const val PQ_PAYLOAD_LENGTH = 1_357
+        const val HANDSHAKE_MESSAGE_MAX = 4_096
+        val PSK_PATTERNS = setOf(NoisePattern.XX_PSK3, NoisePattern.XX_HFS_PSK3)
+        private val CLASSICAL_2_3 = listOf(32 + 48 + 3 + 16, 48 + 5 + 16)
+        private val HFS_2_3 = listOf(32 + 1_088 + 16 + 48 + 3 + 16, 48 + 5 + 16)
+        val LENGTHS =
+            mapOf(
+                NoisePattern.XX to listOf(32 + 3) + CLASSICAL_2_3,
+                NoisePattern.XX_PSK3 to listOf(32 + 3 + 16) + CLASSICAL_2_3,
+                NoisePattern.XX_HFS to listOf(32 + 1_184 + 3) + HFS_2_3,
+                NoisePattern.XX_HFS_PSK3 to listOf(32 + 1_184 + 16 + 3 + 16) + HFS_2_3,
+            )
     }
+}
+
+/** [crypto] counting its ML-KEM encapsulations and decapsulations. */
+private class CountingKem(
+    private val crypto: CryptoProvider,
+) : CryptoProvider by crypto {
+    var encapsulations = 0
+    var decapsulations = 0
+
+    override fun mlKem768Encapsulate(publicKey: ByteArray): CryptoResult<KemEncapsulation> =
+        crypto.mlKem768Encapsulate(publicKey).also { encapsulations++ }
+
+    override fun mlKem768Encapsulate(
+        publicKey: ByteArray,
+        seed: ByteArray,
+    ): CryptoResult<KemEncapsulation> = crypto.mlKem768Encapsulate(publicKey, seed).also { encapsulations++ }
+
+    override fun mlKem768Decapsulate(
+        secretKey: ByteArray,
+        ciphertext: ByteArray,
+    ): ByteArray = crypto.mlKem768Decapsulate(secretKey, ciphertext).also { decapsulations++ }
 }
 
 private fun <T> NoiseResult<T>.ok(): T = assertIs<NoiseResult.Ok<T>>(this).value
