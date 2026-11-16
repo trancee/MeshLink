@@ -1,6 +1,6 @@
 # Fragment link records and answer busy
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 24
 
