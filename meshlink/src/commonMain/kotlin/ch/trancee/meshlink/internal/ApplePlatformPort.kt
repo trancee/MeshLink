@@ -26,4 +26,6 @@ internal class ApplePlatformPort(
     override val radio: RadioPort = apple
 
     override val clock: Clock = SystemClock
+
+    override val random: RandomSource = SystemRandom
 }

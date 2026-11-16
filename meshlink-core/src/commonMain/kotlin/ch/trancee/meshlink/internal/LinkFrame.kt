@@ -232,6 +232,26 @@ public sealed interface LinkFrame {
         }
     }
 
+    /**
+     * `RESOLVING_KEY_UPDATE` (spec "Resolving key update", D-41): the sender's next resolving key
+     * [next] with the Unix second it expires.
+     */
+    public class ResolvingKeyUpdate(
+        public val next: ResolvingKey,
+    ) : LinkFrame {
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + next.encode()
+
+        internal companion object {
+            const val TYPE = 0x0E
+
+            fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+                when (val key = ResolvingKey.decode(bytes.copyOfRange(1, bytes.size))) {
+                    is Decoded.Valid -> Decoded.Valid(ResolvingKeyUpdate(key.value))
+                    is Decoded.Invalid -> key
+                }
+        }
+    }
+
     public companion object {
         private const val RESERVED_FROM = 0xC0
 
@@ -246,6 +266,7 @@ public sealed interface LinkFrame {
                 type == PlainHello.TYPE -> PlainHello.decode(bytes)
                 type == Close.TYPE -> Close.decode(bytes)
                 type == Busy.TYPE -> Busy.decode(bytes)
+                type == ResolvingKeyUpdate.TYPE -> ResolvingKeyUpdate.decode(bytes)
                 else -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
             }
         }

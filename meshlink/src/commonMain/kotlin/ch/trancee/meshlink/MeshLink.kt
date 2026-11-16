@@ -19,6 +19,8 @@ import ch.trancee.meshlink.internal.PlatformPort
 import ch.trancee.meshlink.internal.Post
 import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
+import ch.trancee.meshlink.internal.Recognition
+import ch.trancee.meshlink.internal.ResolvingKeys
 import ch.trancee.meshlink.internal.Scanner
 import ch.trancee.meshlink.internal.WireProfile
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +76,7 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
-    private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, profile, meshKey))
+    private val scanner = Scanner(port.radio, port.clock, port.random, Discovery(crypto, meshId, profile, meshKey))
     private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
     private val links = MutableStateFlow<Links?>(null)
     private val secured = profile != WireProfile.UNSECURED
@@ -295,7 +298,8 @@ public class MeshLink private constructor(
             val handshakes =
                 if (secured) {
                     val credentials = LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest)
-                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics)
+                    val keys = meshKey?.let { ResolvingKeys(crypto, port.clock.wallClockMillis()) }
+                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics, keys)
                 } else {
                     null
                 }
@@ -304,8 +308,19 @@ public class MeshLink private constructor(
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it.keys) } }
-                scanner.run(restrictedLinkRole, session::accept)
+                val keys = handshakes?.keys
+                // Announces each next resolving key a lead before use (spec "Resolving key update").
+                val announcing =
+                    launch {
+                        while (keys != null) {
+                            delay(keys.nextAnnouncementMillis() - port.clock.wallClockMillis())
+                            session.announce(keys.announce(port.clock.wallClockMillis()))
+                        }
+                    }
+                val recognition = keys?.let { Recognition(it) { id -> id in session.roles.value } }
+                scanner.run(restrictedLinkRole, recognition, session::accept)
                 linking.cancel()
+                announcing.cancel()
             } finally {
                 links.value = null
             }

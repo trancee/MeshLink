@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 
 /**
- * A [MeshPlatform] whose radio is [radio] on a [VirtualAir] and whose clock is the air's. Nodes do
- * their work on [dispatcher], which a test sets to a dispatcher of its virtual-time scheduler.
+ * A [MeshPlatform] whose radio is [radio] on a [VirtualAir] and whose clock and randomness are the
+ * air's. Nodes do their work on [dispatcher], which a test sets to a dispatcher of its virtual-time
+ * scheduler.
  */
 internal class VirtualPlatform(
     override val radio: VirtualRadio,
     override val clock: Clock,
+    override val random: RandomSource,
     override val dispatcher: CoroutineDispatcher,
 ) : PlatformPort {
     override val requirements: Flow<Set<Requirement>> = radio.requirements.filterNotNull()

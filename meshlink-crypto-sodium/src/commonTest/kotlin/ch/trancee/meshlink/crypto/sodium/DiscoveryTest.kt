@@ -39,6 +39,23 @@ class DiscoveryTest {
     }
 
     @Test
+    fun aResolvingKeyMakesTheResolvableTagOfTheEpoch() {
+        // Arrange
+        val gated = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY)
+        val resolvingKey = ByteArray(32) { 0x22 }
+
+        // Act
+        val first = Advertisement.decode(gated.advertisement(EPOCH, resolvingKey)) as Decoded.Valid
+        val second = Advertisement.decode(gated.advertisement(EPOCH, resolvingKey)) as Decoded.Valid
+
+        // Assert
+        val tag = Derivations(SodiumCryptoProvider).resolvableTag(resolvingKey, EPOCH)
+        assertContentEquals(tag, first.value.resolvableTag)
+        assertContentEquals(tag, second.value.resolvableTag)
+        assertFalse(first.value.random.contentEquals(second.value.random))
+    }
+
+    @Test
     fun aGatedMeshKeepsOnlyMembersWithTheSameMeshKey() {
         val gated = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY)
         val sameKey = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY.copyOf())

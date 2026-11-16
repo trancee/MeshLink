@@ -33,6 +33,8 @@ internal class AndroidPlatformPort(
 
     override val clock: Clock = SystemClock
 
+    override val random: RandomSource = SystemRandom
+
     init {
         RequirementsWatcher(checks, androidRadio).register(app)
     }

@@ -34,6 +34,9 @@ public interface PlatformPort {
 
     /** The platform clocks. */
     public val clock: Clock
+
+    /** The platform's non-cryptographic randomness, such as [SystemRandom]. */
+    public val random: RandomSource
 }
 
 /** Which node holds each platform radio; a node runs only while it holds its radio. */

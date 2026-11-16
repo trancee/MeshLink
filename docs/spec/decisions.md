@@ -160,9 +160,9 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 ### D-22 Duplicate links and close reasons
 
 - **Question:** which link survives when two exist, and what close reasons exist?
-- **Decision:** keep the link whose central has the lower NodeId. Reasons `0x00`–`0x07` as in [data/codes.json](data/codes.json); unknown means `NORMAL`.
+- **Decision:** keep the link whose central has the lower NodeId; the losing link stops writing after its `CLOSE` and keeps reading until the peer's `CLOSE` or `duplicate-drain-timeout` (10,000 ms), so frames the peer already wrote on it are delivered. Reasons `0x00`–`0x07` as in [data/codes.json](data/codes.json); unknown means `NORMAL`.
 - **Evidence:** ADR 0009 decision 4 (one link per neighbor); ADR 0020 (typed diagnostics).
-- **Alternatives:** keep the older link (both sides may disagree on "older").
+- **Alternatives:** keep the older link (both sides may disagree on "older"); disconnect the losing link at once (drops frames the peer wrote before it saw the duplicate, while its sender already reported them sent).
 
 ### D-23 Busy reply
 

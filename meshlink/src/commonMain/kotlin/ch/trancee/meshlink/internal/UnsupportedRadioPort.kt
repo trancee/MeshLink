@@ -22,6 +22,8 @@ internal class UnsupportedRadioPort(
     override val radio: RadioPort = UnsupportedRadio
 
     override val clock: Clock = SystemClock
+
+    override val random: RandomSource = SystemRandom
 }
 
 /** A radio that refuses every operation with [RadioFailure.UNSUPPORTED] and observes nothing. */

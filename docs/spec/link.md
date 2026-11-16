@@ -181,6 +181,14 @@ Total: 67 B. A node that receives a different `mesh_id_digest` sends `CLOSE` wit
 
 Two nodes may connect to each other in both directions at once. When a node has two completed links to the same NodeId, it keeps the link whose central has the lower NodeId (bytewise comparison) and sends `CLOSE` with `DUPLICATE_LINK` on the other. Both sides reach the same result without coordination. Frames already received on the closed link are processed normally; frames still queued on it are moved to the kept link.
 
+The losing link drains: after its `CLOSE` it writes nothing more, but keeps reading and processing the peer's frames until the peer's `CLOSE` arrives, the bearer drops, or `duplicate-drain-timeout` passes; then it disconnects. A peer may have written frames on that link before it saw the duplicate, and the drain delivers them instead of dropping them.
+
+<!-- data: limits.json -->
+
+| Name | Value | Unit | Decision |
+|---|---|---|---|
+| duplicate-drain-timeout | 10,000 | ms | D-22 |
+
 ## Fragments
 
 (ADR 0012 decision 4; ADR 0015 decisions 3 and 5; [D-19].)
@@ -389,7 +397,7 @@ Maximum: 7,127 B, so `CATCH_UP` is always a small frame.
 
 Total: 37 B. Gated meshes only, on encrypted links.
 
-A node sends its next resolving key on every link at least `resolving-key-lead` before it starts using it, and to new links in the handshake once it has one. A receiver stores it with its `not_after` and starts precomputing its tags. An open-mesh node ignores this frame.
+A node sends its next resolving key on every link at least `resolving-key-lead` before it starts using it, and, once it has one, to each new link as the first encrypted frame after the handshake. A receiver stores it with its `not_after` and starts precomputing its tags ([discovery.md](discovery.md#resolvable-tag)). A receiver drops the frame without storing anything on a cleartext link, in an open mesh, or when `not_after` has passed. A frame of the wrong length closes the link with `PROTOCOL_ERROR`, like any malformed frame.
 
 ## Link-local frame summary
 

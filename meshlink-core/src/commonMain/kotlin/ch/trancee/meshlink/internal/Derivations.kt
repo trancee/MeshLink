@@ -63,6 +63,12 @@ public class Derivations(
         epoch: UInt,
     ): ByteArray = hash(Domain.MESH_TAG, u32(epoch), tagKey).copyOf(MESH_TAG_LENGTH)
 
+    /** A gated mesh's resolvable tag: `trunc_8(H("resolvable-tag", u32(epoch); key = resolving_key))` (D-07). */
+    public fun resolvableTag(
+        resolvingKey: ByteArray,
+        epoch: UInt,
+    ): ByteArray = hash(Domain.RESOLVABLE_TAG, u32(epoch), resolvingKey).copyOf(ROUTING_TAG_LENGTH)
+
     /** The `unsecured` routing tag of [nodeId]: `trunc_8(H("unsecured-tag", NodeId ‖ u32(epoch)))`. */
     public fun unsecuredTag(
         nodeId: ByteArray,
@@ -77,7 +83,9 @@ public class Derivations(
         private const val MESH_TAG_LENGTH = 4
         private const val ROUTING_TAG_LENGTH = 8
         private const val COMMITMENT_LENGTH = 16
-        private const val EPOCH_SECONDS = 300
+
+        /** The length of an epoch, in seconds (D-02). */
+        public const val EPOCH_SECONDS: Int = 300
 
         /** The shortest mesh identifier, in UTF-8 bytes (spec "Mesh identifier"). */
         public const val MESH_ID_MIN_BYTES: Int = 1
@@ -126,6 +134,7 @@ public enum class Domain(
     MESH_TAG_KEY("mesh-tag-key"),
     MESH_PSK("mesh-psk"),
     LINK_PROLOGUE("link-prologue"),
+    RESOLVABLE_TAG("resolvable-tag"),
     UNSECURED_TAG("unsecured-tag"),
     TOMBSTONE("tombstone"),
     CERTIFICATE("certificate"),

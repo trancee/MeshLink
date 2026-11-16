@@ -97,7 +97,7 @@ In a gated mesh each node holds a 32 B random resolving key, replaced daily. It 
 resolvable_tag = trunc_8(H("resolvable-tag", u32(epoch); key = resolving_key))
 ```
 
-Peers precompute the tags for epochs e − 1, e and e + 1 of every resolving key they hold, so a sighting resolves by table lookup. A peer deletes a resolving key at its `not_after`. Open meshes and `unsecured` put 8 random bytes here, fresh each epoch.
+Peers precompute the tags for epochs e − 1, e and e + 1 of every resolving key they hold, so a sighting resolves by table lookup. A peer deletes a resolving key at its `not_after`. It holds at most two keys per node, those with the latest `not_after`, for at most `resolving-key-peers` nodes, and forgets the node whose key it learned least recently. A node advertises with its next key from one epoch before its current key's `not_after`, so no payload with the old key is still on air after peers delete it. A sighting that resolves to a node this node has a link to is not a link candidate. Open meshes and `unsecured` put 8 random bytes here, fresh each epoch.
 
 <!-- data: limits.json -->
 
@@ -105,6 +105,7 @@ Peers precompute the tags for epochs e − 1, e and e + 1 of every resolving key
 |---|---|---|---|
 | resolving-key-lifetime | 86,400 | s | - |
 | resolving-key-lead | 3,600 | s | D-41 |
+| resolving-key-peers | 1,024 | entries | - |
 
 Vectors: `derivations.json`, derivation `resolvable-tag`.
 

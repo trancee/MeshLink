@@ -57,6 +57,9 @@ internal val meshTag: Handler =
 internal val unsecuredTag: Handler =
     derivation { derivations.unsecuredTag(it["node_id"].string.hex(), it["epoch"].uInt) }
 
+internal val resolvableTag: Handler =
+    derivation { derivations.resolvableTag(it["resolving_key"].string.hex(), it["epoch"].uInt) }
+
 internal val meshTagKey: Handler =
     derivation { derivations.meshTagKey(it["mesh_key"].string.hex(), it["mesh_id_digest"].string.hex()) }
 
