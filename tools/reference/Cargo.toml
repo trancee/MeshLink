@@ -1,0 +1,19 @@
+[package]
+name = "meshlink-reference"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100.0"
+publish = false
+license = "Unlicense"
+description = "Test-only Rust reference that generates MeshLink tier 2 vectors. Never published or linked into an artifact."
+
+# Exact pins: ADR 0005 "Test-only Rust reference" and docs/reference/dependencies.md.
+[dependencies]
+blake2 = "=0.11.0"
+ed25519-dalek = "=3.0.0"
+hkdf = "=0.13.0"
+hpke = { version = "=0.15.1", default-features = false, features = ["alloc", "chacha", "hkdfsha2", "mlkem", "x25519"] }
+ml-kem = "=0.3.4"
+sha2 = "=0.11.1"
+snow = { git = "https://github.com/mcginty/snow", rev = "dc18c06c28fbdeaa6ffae7347e650c805e9b932e", default-features = false, features = ["default-resolver", "std", "use-chacha20poly1305", "use-sha2", "use-curve25519", "use-getrandom", "hfs", "use-ml-kem"] }
+x25519-dalek = "=3.0.0"

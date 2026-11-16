@@ -318,6 +318,133 @@ def codec(group):
     return CODECS[lay]
 
 
+# Tier 2 files come from the Rust reference (tools/reference). The crypto itself is proven by
+# regenerating them there and by the Kotlin runner; this checks every rule the stdlib can recompute.
+
+LAYOUT_ERRORS = ("unknown-version", "unknown-kind", "truncated", "trailing-bytes")
+SKEW = 30  # ADR 0008 clock skew, identity.md Validation rules 5 and 6.
+KEM_PUBLIC, KEM_CIPHERTEXT, TAG, X25519 = 1184, 1088, 16, 32
+XWING_ENC = 1120
+
+
+def constant(name):
+    return next(e["value"] for e in entries("constants.json") if e["name"] == name)
+
+
+def tier2_certificate(g, t, where):
+    cert, now = b(t["certificate"]), t["now"]
+    try:
+        fields = m.decode_certificate(cert)
+        err = "unknown-kind" if fields["profile"] != g["profile"] else None
+    except m.DecodeError as e:
+        fields, err = None, e.code
+    if err is None:
+        nb, na = fields["not_before"], fields["not_after"]
+        checks = [(m.node_id(b(fields["ed25519_key"])).hex() != t["node_id"], "node-id-mismatch"),
+                  (now >= na + SKEW, "expired"), (now + SKEW < nb, "not-yet-valid")]
+        err = next((code for broken, code in checks if broken), None)
+        # A bad signature comes first; only Ed25519 can confirm it.
+        if t.get("error") == "bad-signature":
+            err = "bad-signature"
+    if t.get("error") != err or t["result"] != ("invalid" if err else "valid"):
+        fail("%s: expected %s, file says %s" % (where, err, t.get("error")))
+    if ("signing_input" in t) == (err in LAYOUT_ERRORS):
+        fail("%s: signing_input belongs to exactly the well-formed certificates" % where)
+    elif "signing_input" in t and t["signing_input"] != m.certificate_signing_input(cert[:-64]).hex():
+        fail("%s: signing_input mismatch" % where)
+
+
+def tier2_prologue(side, where):
+    pro = b(side["prologue"])
+    head = m.ds("link-prologue")
+    n = pro[len(head)] if len(pro) > len(head) else 0
+    versions = list(pro[len(head) + 1:len(head) + 1 + n])
+    rest = pro[len(head) + 1 + n:]
+    if not pro.startswith(head) or len(rest) != 34 or m.link_prologue(versions, rest[0], rest[1], rest[2:]) != pro:
+        fail("%s: prologue does not re-encode" % where)
+    elif rest[1] != 0x02:
+        fail("%s: prologue profile must be post-quantum" % where)
+    return pro
+
+
+def tier2_payload(data, gated, node_id, now, where):
+    try:
+        tlvs = m.decode_handshake_payload(data)["tlvs"]
+    except m.DecodeError as e:
+        return fail("%s: payload %s" % (where, e.code))
+    if [x["type"] for x in tlvs] != (["0x02", "0x81"] if gated else ["0x81"]):
+        return fail("%s: payload TLVs %s" % (where, [x["type"] for x in tlvs]))
+    cert = m.decode_certificate(b(tlvs[-1]["value"]))
+    if cert["profile"] != "0x02" or m.node_id(b(cert["ed25519_key"])).hex() != node_id:
+        fail("%s: payload certificate is not the post-quantum certificate of %s" % (where, node_id))
+    if not cert["not_before"] - SKEW <= now < cert["not_after"] + SKEW:
+        fail("%s: payload certificate not valid at now" % where)
+
+
+def tier2_handshake(g, t, where):
+    gated = g["gated"]
+    if g["protocol"] != constant("noise-xxhfspsk3" if gated else "noise-xxhfs"):
+        fail("%s: protocol %s for gated=%s" % (where, g["protocol"], gated))
+    i, r = t["initiator"], t["responder"]
+    prologues = [tier2_prologue(side, where) for side in (i, r)]
+    for side in (i, r):
+        if ("psk" in side) != gated or ("mesh_key" in side) != gated:
+            fail("%s: psk and mesh_key belong to gated meshes only" % where)
+        elif gated and m.mesh_psk(b(side["mesh_key"]), b(side["prologue"])[-32:]).hex() != side["psk"]:
+            fail("%s: psk mismatch" % where)
+    payloads = [b(x) for x in t["payloads"]]
+    if payloads[0]:
+        fail("%s: message 1 payload must be empty" % where)
+    tier2_payload(payloads[1], gated, t["responder_node_id"], t["now"], where)
+    tier2_payload(payloads[2], gated, t["initiator_node_id"], t["now"], where)
+    # With a psk, the "e" token also calls MixKey (Noise 9.2), so e1 and the message 1 payload are encrypted.
+    sizes = [X25519 + KEM_PUBLIC + len(payloads[0]) + (2 * TAG if gated else 0),
+             X25519 + (KEM_CIPHERTEXT + TAG) + (X25519 + TAG) + len(payloads[1]) + TAG,
+             (X25519 + TAG) + len(payloads[2]) + TAG]
+    messages = [b(x) for x in t["messages"]]
+    if [len(x) for x in messages] != sizes[:len(messages)]:
+        fail("%s: message sizes %s, expected %s" % (where, [len(x) for x in messages], sizes[:len(messages)]))
+    causes = []
+    if "tampered_step" in t:
+        causes.append(("tampered", t["tampered_step"]))
+    if prologues[0] != prologues[1]:
+        causes.append(("prologue", 2))
+    if gated and i["psk"] != r["psk"]:
+        causes.append(("psk", 3))
+    if t["result"] == "valid":
+        if causes or len(messages) != 3 or "rejected_step" in t:
+            fail("%s: a valid handshake has three messages and nothing to reject" % where)
+        elif [x["direction"] for x in t["transport"]] != ["initiator-to-responder", "responder-to-initiator"] or any(
+                len(b(x["ciphertext"])) != len(b(x["plaintext"])) + TAG for x in t["transport"]):
+            fail("%s: transport messages" % where)
+        return
+    step = t.get("rejected_step")
+    if t.get("error") != "handshake-failed" or len(causes) != 1 or step != len(messages) or "transport" in t:
+        return fail("%s: an invalid handshake has one cause and ends at rejected_step" % where)
+    cause, earliest = causes[0]
+    if step < earliest or (cause != "tampered" and step != earliest):
+        fail("%s: %s cannot be rejected at message %s" % (where, cause, step))
+
+
+def tier2_seal(g, t, where):
+    expect = {"mode": constant("hpke-mode"), "kem_id": constant("hpke-kem"), "kdf_id": constant("hpke-kdf"),
+              "aead_id": constant("hpke-aead")}
+    if any(g[k] != int(v, 16) for k, v in expect.items()):
+        fail("%s: HPKE suite differs from constants.json" % where)
+    if m.hpke_info(b(t["sender_static_key"]), b(t["recipient_node_id"])).hex() != t["info"]:
+        fail("%s: info mismatch" % where)
+    pt, payload = b(t["plaintext"]), b(t["payload"])
+    if len(pt) % m.L("padding-block"):
+        fail("%s: plaintext is not padded" % where)
+    if t["result"] == "valid" and len(payload) != XWING_ENC + len(pt) + TAG:
+        fail("%s: payload is %d B, expected enc + plaintext + tag" % (where, len(payload)))
+    if t["result"] == "invalid" and t.get("error") != "open-failed":
+        fail("%s: an invalid seal fails with open-failed" % where)
+
+
+TIER2 = {"CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal}
+
+
 def check_vectors():
     total = 0
     for p in vector_files():
@@ -329,6 +456,13 @@ def check_vectors():
                 n += 1
                 ids.append(t["tcId"])
                 where = "%s tcId %d" % (os.path.basename(p), t["tcId"])
+                if doc.get("tier") == 2:
+                    check = TIER2.get(g.get("type"))
+                    if check is None:
+                        fail("%s: unknown tier 2 group type %s" % (where, g.get("type")))
+                    else:
+                        check(g, t, where)
+                    continue
                 if "derivation" in g:
                     fn = DERIVE.get(g["derivation"])
                     if fn is None:

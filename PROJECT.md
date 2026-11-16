@@ -107,6 +107,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Links, repository only | `lychee --offline .` |
 | Links, including external | `lychee .` (set `GITHUB_TOKEN` to avoid GitHub rate limits) |
 | Workflow lint | `actionlint` |
+| Tier 2 vectors: the Rust reference's tests, including the committed-file staleness check (needs rustup; installs Rust 1.100.0 from `tools/reference/rust-toolchain.toml`) | `cargo test --manifest-path tools/reference/Cargo.toml` |
+| Regenerate the tier 2 vector files and schemas | `cargo run --manifest-path tools/reference/Cargo.toml` |
 | libsodium for Android (3 ABIs; needs the catalog's NDK under `$ANDROID_HOME` or `$ANDROID_SDK_ROOT`, and `minisign`) | `./gradlew buildLibsodiumAndroid` |
 | libsodium for iOS (`ios-arm64`, `ios-arm64-simulator`; macOS only, uses the selected Xcode) | `./gradlew buildLibsodiumApple` |
 | libsodium for the test host (test-only) | `./gradlew buildLibsodiumHostMacos` or `./gradlew buildLibsodiumHostLinux` |
@@ -134,6 +136,7 @@ The `buildSodiumJni<Target>` tasks link `meshlink-crypto-sodium/native/meshlink_
 | Gradle check and Dokka (Linux) | `ubuntu-24.04` | Install `minisign` (`apt`) and the catalog's NDK (`sdkmanager`), restore the libsodium cache, `./gradlew buildLibsodiumAndroid buildLibsodiumHostLinux`, `./gradlew check`, `./gradlew dokkaGenerate` | Yes |
 | iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, install `minisign` (Homebrew), restore the libsodium cache, `./gradlew buildLibsodiumApple buildLibsodiumHostMacos`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh`, install the pinned NDK, `./gradlew buildLibsodiumAndroid`, `tools/maven-consumer/test.sh`, `./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols` | Yes |
 | Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | As the macOS job, without the NDK install and the Maven consumer | No; weekly and on manual dispatch |
+| Reference vectors (`reference-vectors.yml`, scheduled, not required) | `ubuntu-24.04` | `rustup toolchain install`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, `cargo run --locked`, diff `docs/spec/vectors/` | No; weekly and on manual dispatch |
 
 Measured on PR 12 (2026-11-14), with no Gradle cache, because pull requests only read the cache that `main` writes: Linux 4 min 14 s; macOS 9 min 13 s and 11 min 53 s (about 5.5 min each for `iosSimulatorArm64Test` and `test.sh`). Both stay under ADR 0017's 15 min limit. The basic provider doesn't cache `~/.konan`, so every macOS run downloads the Kotlin/Native LLVM bundle.
 

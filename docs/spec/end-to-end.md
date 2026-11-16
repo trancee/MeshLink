@@ -13,7 +13,7 @@ The end-to-end layer protects unicast messages and receipts between origin and d
 | Name | Value | Decision |
 |---|---|---|
 | noise-ik | Noise_IK_25519_ChaChaPoly_SHA256 | - |
-| noise-ikhfs | Noise_IKhfs_25519+ML-KEM-768_ChaChaPoly_SHA256 | - |
+| noise-ikhfs | Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256 | D-45 |
 
 - The sender of the first message of a session is the initiator; its peer is the responder. The initiator's pre-message `s` is the responder's certified `x25519_key`.
 - Both sides use this prologue:

@@ -8,8 +8,8 @@ Blocked by: 20, 22
 
 The Noise code from ticket 22 gains the `hfs` extension with ML-KEM-768, for the post-quantum link layer:
 
-- `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`;
-- `Noise_XXhfspsk3_25519+ML-KEM-768_ChaChaPoly_SHA256`.
+- `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`;
+- `Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256`.
 
 The `hfs` patterns are byte-compatible at the Noise layer with the libp2p proposal and the Noise HFS specification: same protocol name, same `e1`/`ekem1` token placement, same mixing order. If the two diverge, the Noise HFS specification wins.
 

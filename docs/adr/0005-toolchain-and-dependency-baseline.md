@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 9 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 10 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference).
 
 ## Context
 
@@ -235,3 +235,12 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Android lint:** AGP's `check` lints the lab app, the first application module, with `checkDependencies = false`, so only its own sources are gated; the library modules stay outside Android lint. Its lint tasks also run each library's `lintAnalyze*` tasks, so `meshlink.spec-vectors` makes them depend on `generateSpecVectors`, whose output they read.
 - **libsodium archiver, refining the libsodium build's "Android" line:** the upstream Android scripts still run unmodified, but `build-libsodium.sh` now sets `AR`, `RANLIB`, `NM` and `STRIP` to the NDK's `llvm-*` tools. The NDK ships no target-prefixed `ar`, so configure fell back to the host `ar` and `ranlib`. Under Xcode 27.2, these dropped every ELF member and left a 96-byte archive, which the stamp then kept. The script now also fails any build whose archive doesn't define `sodium_init`, before writing the stamp.
 - **Rejected:** Android Views for the lab app (ADR 0017 names Compose); a checked-in Xcode project (generated files churn and hide the settings that matter); SwiftUI dependencies beyond the SDK.
+
+2026-11-16, Rust reference (0.1.0 backlog ticket "Cross-check tier 2 vectors with the Rust reference"):
+
+- **Added crate:** `blake2` 0.11.0 (MIT OR Apache-2.0), because MeshLink's `H` is BLAKE2b-256 and the reference recomputes certificate NodeIds, mesh digests and psks.
+- **Features:** rust-hpke 0.15.1 with `default-features = false` and `alloc`, `chacha`, `hkdfsha2`, `mlkem` and `x25519`; its `XWing` KEM needs both `mlkem` and `x25519`. `ml-kem` 0.3.4 with default features: `DecapsulationKey::from_seed` and `EncapsulationKey::encapsulate_deterministic` are public without a feature (its `hazmat` feature only shows them in the docs).
+- **`chacha20poly1305` 0.11.0, refining the crate list:** it stays pinned in `Cargo.lock`, but through hpke's `chacha` feature, not as a direct dependency; no reference code calls it directly.
+- **Duplicates:** snow at the pinned commit brings `chacha20poly1305` 0.10.1, `blake2` 0.10.6 and `curve25519-dalek` 4.1.3 beside the 0.11.0, 0.11.0 and 5.0.0 the other crates use. Both copies are test-only; the duplicates go when snow moves to the newer RustCrypto releases.
+- **CI, refining "Scheduled: … the Rust reference cross-check":** `.github/workflows/reference-vectors.yml` runs weekly and on demand: `rustup toolchain install` from `rust-toolchain.toml`, then `cargo clippy -- -D warnings`, `cargo test`, `cargo run`, and a diff of `docs/spec/vectors/`. It is not a required check.
+- **Rejected:** a fork of snow with a seedable ML-KEM (the crate supplies its own KEM through snow's resolver instead, see the [vectors README](../spec/vectors/README.md#tier-2-published)); vendoring snow (a pinned git commit is reproducible through `Cargo.lock`).
