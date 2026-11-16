@@ -37,7 +37,11 @@ internal class Handshakes(
         selected: Int,
     ): NoiseHandshake {
         val prologue = Derivations.linkPrologue(versions, selected, credentials.profile, credentials.meshIdDigest)
-        val pattern = if (psk == null) NoisePattern.XX else NoisePattern.XX_PSK3
+        val pattern =
+            when (credentials.profile) {
+                WireProfile.POST_QUANTUM -> if (psk == null) NoisePattern.XX_HFS else NoisePattern.XX_HFS_PSK3
+                else -> if (psk == null) NoisePattern.XX else NoisePattern.XX_PSK3
+            }
         return NoiseHandshake(crypto, pattern, role, prologue, NoiseKeys(credentials.static, psk))
     }
 
@@ -104,7 +108,9 @@ internal class Handshakes(
 
 /**
  * A node's link credentials for one run: a fresh X25519 [static] key and the [certificate] that
- * binds it to the installation identity, for the mesh of [meshIdDigest] in [profile].
+ * binds it to the installation identity, for the mesh of [meshIdDigest] in [profile]. In
+ * `PostQuantum` the certificate also binds a fresh X-Wing key, whose secret key is not kept until
+ * end-to-end messages use it.
  */
 internal class LinkCredentials(
     val profile: WireProfile,
@@ -122,7 +128,8 @@ internal class LinkCredentials(
             meshIdDigest: ByteArray,
         ): LinkCredentials {
             val static = crypto.x25519KeyPair()
-            val certificate = IdentityCertificate.issue(crypto, clock, identity, StaticKeys(static.publicKey, null))
+            val xWing = if (profile == WireProfile.POST_QUANTUM) crypto.xWingKeyPair().publicKey else null
+            val certificate = IdentityCertificate.issue(crypto, clock, identity, StaticKeys(static.publicKey, xWing))
             return LinkCredentials(profile, meshIdDigest, static, certificate)
         }
     }

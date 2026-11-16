@@ -26,17 +26,33 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 
+/**
+ * Link behavior both secured profiles share (spec "Link handshake"), run once per profile by
+ * [ClassicalLinkTest] and [PostQuantumLinkTest]. [wire] is [profile]'s byte on the wire.
+ */
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
-class ClassicalLinkTest {
+abstract class SecuredLinkTest(
+    private val profile: SecurityProfile,
+    internal val wire: WireProfile,
+) {
+    private val postQuantum = wire == WireProfile.POST_QUANTUM
+
+    // The other secured profile, whose nodes must never link with this one's.
+    private val otherProfile = if (postQuantum) SecurityProfile.Classical else SecurityProfile.PostQuantum
+    private val otherWire = if (postQuantum) WireProfile.CLASSICAL else WireProfile.POST_QUANTUM
+
+    // Message 1 is the ephemeral key, followed in `XXhfs` by the ML-KEM-768 key `e1`.
+    private val message1Bytes = if (postQuantum) KEY_BYTES + KEM_PUBLIC_KEY_BYTES else KEY_BYTES
+
     @Test
-    fun classicalNodesOfAnOpenOrAGatedMeshLinkAsSecuredPeers() =
+    fun nodesOfAnOpenOrAGatedMeshLinkAsSecuredPeers() =
         listOf(null, MESH_KEY).forEach { meshKey ->
             runTest {
                 // Arrange
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
                 val bob = air.platform(StandardTestDispatcher(testScheduler))
-                val nodes = listOf(classicalNode(alice, meshKey), classicalNode(bob, meshKey))
+                val nodes = listOf(securedNode(alice, meshKey), securedNode(bob, meshKey))
 
                 // Act
                 nodes.forEach { it.start() }
@@ -56,13 +72,14 @@ class ClassicalLinkTest {
         runTest {
             // Arrange
             val air = air()
-            val platforms = List(4) { air.platform(StandardTestDispatcher(testScheduler)) }
+            val platforms = List(5) { air.platform(StandardTestDispatcher(testScheduler)) }
             val nodes =
                 listOf(
                     node(platforms[0]),
-                    classicalNode(platforms[1], null),
-                    classicalNode(platforms[2], MESH_KEY),
-                    classicalNode(platforms[3], ByteArray(MESH_KEY_BYTES) { 0x22 }),
+                    securedNode(platforms[1], null, otherProfile),
+                    securedNode(platforms[2], null),
+                    securedNode(platforms[3], MESH_KEY),
+                    securedNode(platforms[4], ByteArray(MESH_KEY_BYTES) { 0x22 }),
                 )
 
             // Act
@@ -80,7 +97,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val fake = FakePeer(TestClock(testScheduler))
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
@@ -91,7 +108,7 @@ class ClassicalLinkTest {
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val sealed = bodies(end).drop(1).single()
+            val sealed = written(end, 1).second.single()
             assertFalse(sealed.contentEquals(LinkFrame.Close(CloseReason.SHUTTING_DOWN).encode()))
             assertContentEquals(LinkFrame.Close(CloseReason.SHUTTING_DOWN).encode(), open(transport, sealed))
         }
@@ -102,7 +119,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val fake = FakePeer(TestClock(testScheduler))
             val noise = fake.noise(NoiseRole.INITIATOR)
             val link = connectFake(air, alice)
@@ -111,7 +128,7 @@ class ClassicalLinkTest {
             // Act
             fragments(0, LinkFrame.Handshake(1, 1, ok(noise.writeMessage(EMPTY))).encode()).forEach { link.write(it) }
             advanceTimeBy(SETTLE_MILLIS)
-            ok(noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage))
+            ok(noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage))
             val message3 = LinkFrame.Handshake(1, THIRD, ok(noise.writeMessage(fake.payload))).encode()
             fragments(1, message3).forEach { link.write(it) }
             advanceTimeBy(SETTLE_MILLIS)
@@ -124,18 +141,18 @@ class ClassicalLinkTest {
 
             // Assert
             assertEquals(listOf(true), secured)
-            assertEquals(1, bodies(end).size)
+            assertEquals(emptyList(), written(end, 1).second)
             assertFalse(end.open)
             assertEquals(emptyList(), node.peers.value)
         }
 
     @Test
-    fun aClassicalPeerIsListedByTheNodeIdItsCertificateProves() =
+    fun aPeerIsListedByTheNodeIdItsCertificateProves() =
         runTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, MESH_KEY).also { it.start() }
+            val node = securedNode(alice, MESH_KEY).also { it.start() }
             val fake = FakePeer(TestClock(testScheduler), MESH_KEY)
             val link = connectFake(air, alice)
 
@@ -149,12 +166,12 @@ class ClassicalLinkTest {
         }
 
     @Test
-    fun aSendOverAClassicalLinkStaysQueuedAndReceivedMessagesAreDropped() =
+    fun aSendOverASecuredLinkStaysQueuedAndReceivedMessagesAreDropped() =
         runTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val received = mutableListOf<ReceivedMessage>()
             backgroundScope.launch { node.messages.collect { received += it } }
             val fake = FakePeer(TestClock(testScheduler))
@@ -176,7 +193,7 @@ class ClassicalLinkTest {
             // Assert
             assertEquals(DeliveryStatus.Queued, assertIs<SendResult.Accepted>(result).message.status.value)
             assertEquals(emptyList(), received)
-            assertEquals(1, bodies(end).size)
+            assertEquals(emptyList(), written(end, 1).second)
             assertTrue(end.open)
         }
 
@@ -184,15 +201,16 @@ class ClassicalLinkTest {
     fun aMeshKeyOrPrologueMismatchFailsToDecrypt() =
         listOf<(TestClock) -> FakePeer>(
             { FakePeer(it, ByteArray(MESH_KEY_BYTES) { 0x22 }) },
-            { FakePeer(it, MESH_KEY, digest = classicalDigest("Elsewhere")) },
+            { FakePeer(it, MESH_KEY, digest = digestOf("Elsewhere")) },
             { FakePeer(it, MESH_KEY, digest = digest(MESH)) },
             { FakePeer(it, MESH_KEY, versions = listOf(1, 2)) },
+            { FakePeer(it, MESH_KEY, digest = digestOf(MESH, otherWire), wire = otherWire) },
         ).forEach { peer ->
             runTest {
                 // Arrange
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
-                val node = classicalNode(alice, MESH_KEY).also { it.start() }
+                val node = securedNode(alice, MESH_KEY).also { it.start() }
                 val diagnostics = diagnostics(node)
                 val fake = peer(TestClock(testScheduler))
                 val link = connectFake(air, alice)
@@ -204,7 +222,7 @@ class ClassicalLinkTest {
                 advanceTimeBy(SETTLE_MILLIS)
                 // In XXpsk3 message 1 already authenticates the prologue, so the node may fail there.
                 if (end.open) {
-                    val read = noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage)
+                    val read = noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage)
                     val message3 = if (read is NoiseResult.Ok) ok(noise.writeMessage(fake.payload)) else GARBAGE
                     link.write(handshake(THIRD, message3))
                     advanceTimeBy(SETTLE_MILLIS)
@@ -223,17 +241,17 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val radio = advertiseClassical(air)
-            val node = classicalNode(alice, null)
+            val radio = advertise(air)
+            val node = securedNode(alice, null)
             val diagnostics = diagnostics(node)
-            val fake = FakePeer(TestClock(testScheduler), digest = classicalDigest("Elsewhere"))
+            val fake = FakePeer(TestClock(testScheduler), digest = digestOf("Elsewhere"))
             node.start()
             advanceTimeBy(SETTLE_MILLIS)
             val end = alice.radio.ends.single()
             val noise = fake.noise(NoiseRole.RESPONDER)
 
             // Act
-            noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage)
+            noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage)
             radio.ends.single().write(handshake(SECOND, ok(noise.writeMessage(fake.payload))))
             advanceTimeBy(SETTLE_MILLIS)
 
@@ -248,8 +266,8 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val radio = advertiseClassical(air)
-            val node = classicalNode(alice, null)
+            val radio = advertise(air)
+            val node = securedNode(alice, null)
             val diagnostics = diagnostics(node)
             val fake = FakePeer(TestClock(testScheduler))
             node.start()
@@ -258,12 +276,13 @@ class ClassicalLinkTest {
             val noise = fake.noise(NoiseRole.RESPONDER)
 
             // Act
-            noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage)
+            noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage)
             radio.ends.single().write(handshake(SECOND, ok(noise.writeMessage(EMPTY))))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val (message3, close) = bodies(end).drop(1)
+            val (frames, rest) = written(end, 2)
+            val (message3, close) = frames[1] to rest.single()
             assertEquals(THIRD, handshakeIn(message3).step)
             ok(noise.readMessage(handshakeIn(message3).noiseMessage))
             val transport = ok(noise.split())
@@ -292,12 +311,16 @@ class ClassicalLinkTest {
                     "another static key" to { peer ->
                         peer.payloadFor(TestClock(testScheduler), VALIDITY, SodiumCryptoProvider.x25519KeyPair())
                     },
-                )
+                    "the other profile's layout" to { peer ->
+                        val xWing = if (postQuantum) null else SodiumCryptoProvider.xWingKeyPair().publicKey
+                        peer.payloadFor(TestClock(testScheduler), VALIDITY, xWing = xWing)
+                    },
+                ) + xWingPayloads()
             payloads.forEach { (case, payload) ->
                 // Arrange
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
-                val node = classicalNode(alice, null).also { it.start() }
+                val node = securedNode(alice, null).also { it.start() }
                 val diagnostics = diagnostics(node)
                 val fake = FakePeer(TestClock(testScheduler))
                 fake.payload = payload(fake)
@@ -308,7 +331,7 @@ class ClassicalLinkTest {
                 val transport = initiate(fake, link, end)
 
                 // Assert
-                val close = open(transport, bodies(end).drop(1).single())
+                val close = open(transport, written(end, 1).second.single())
                 assertContentEquals(LinkFrame.Close(CloseReason.HANDSHAKE_FAILED).encode(), close, case)
                 assertEquals(listOf("ML4001 CERTIFICATE"), diagnostics.map { it.label() }, case)
                 assertEquals(emptyList(), node.peers.value, case)
@@ -326,12 +349,17 @@ class ClassicalLinkTest {
                     "unknown type" to Pair({ listOf(record(byteArrayOf(0x3F, 0x01))) }, "PROTOCOL"),
                     "step 2 first" to Pair({ listOf(handshake(SECOND, GARBAGE)) }, "PROTOCOL"),
                     "unspoken version" to Pair({ listOf(handshake(1, GARBAGE, version = 2)) }, "PROTOCOL"),
-                    "zero ephemeral" to Pair({ listOf(handshake(1, ByteArray(KEY_BYTES))) }, "DECRYPT"),
+                    "zero ephemeral" to Pair({ listOf(handshake(1, ByteArray(message1Bytes))) }, "DECRYPT"),
                     "repeated step 2" to Pair({ listOf(message1(it), handshake(SECOND, GARBAGE)) }, "PROTOCOL"),
                     "changed version" to
                         Pair({ listOf(message1(it), handshake(THIRD, GARBAGE, version = 2)) }, "PROTOCOL"),
                     "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "DECRYPT"),
                     "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "PROTOCOL"),
+                    "fragmented hello" to
+                        Pair(
+                            { fragments(0, LinkFrame.PlainHello(1, digest(MESH), FAKE_ID).encode()) },
+                            "PROTOCOL",
+                        ),
                     "nested fragment" to
                         Pair({ listOf(record(LinkFrame.Fragment(0, 0, false, byteArrayOf(0x01, 0x00)))) }, "PROTOCOL"),
                     "fragments above a handshake frame" to
@@ -344,7 +372,7 @@ class ClassicalLinkTest {
                 // Arrange
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
-                val node = classicalNode(alice, null).also { it.start() }
+                val node = securedNode(alice, null).also { it.start() }
                 val diagnostics = diagnostics(node)
                 val noise = FakePeer(TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
                 val link = connectFake(air, alice)
@@ -370,7 +398,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val diagnostics = diagnostics(node)
             val noise = FakePeer(TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
             val link = connectFake(air, alice)
@@ -384,7 +412,7 @@ class ClassicalLinkTest {
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            assertEquals(SECOND, handshakeIn(bodies(end).single()).step)
+            assertEquals(SECOND, handshakeIn(clearFrames(end).single()).step)
             assertEquals(listOf("ML4002 PER_BEARER"), diagnostics.map { it.label() })
             assertFalse(end.open)
         }
@@ -395,7 +423,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val diagnostics = diagnostics(node)
             repeat(HALF_OPEN_GLOBAL) {
                 val noise = FakePeer(TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
@@ -407,7 +435,7 @@ class ClassicalLinkTest {
             // Act
             connectFake(air, alice).write(handshake(1, ok(noise.writeMessage(EMPTY))))
             advanceTimeBy(SETTLE_MILLIS)
-            advertiseClassical(air)
+            advertise(air)
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
@@ -424,7 +452,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val diagnostics = diagnostics(node)
             val noise = FakePeer(TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
             val link = connectFake(air, alice)
@@ -439,7 +467,7 @@ class ClassicalLinkTest {
             // Assert
             assertTrue(openBefore)
             assertFalse(end.open)
-            assertEquals(SECOND, handshakeIn(bodies(end).single()).step)
+            assertEquals(SECOND, handshakeIn(clearFrames(end).single()).step)
             assertEquals(listOf("ML4001 TIMEOUT"), diagnostics.map { it.label() })
         }
 
@@ -449,7 +477,7 @@ class ClassicalLinkTest {
             // Arrange
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = classicalNode(alice, null).also { it.start() }
+            val node = securedNode(alice, null).also { it.start() }
             val diagnostics = diagnostics(node)
             val neighbor = air.radio()
             val first = connect(neighbor, alice)
@@ -478,7 +506,7 @@ class ClassicalLinkTest {
                 // Arrange
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
-                val node = classicalNode(alice, null).also { it.start() }
+                val node = securedNode(alice, null).also { it.start() }
                 val link = connectFake(air, alice)
                 val end = alice.radio.ends.single()
                 val transport = initiate(FakePeer(TestClock(testScheduler)), link, end)
@@ -490,7 +518,7 @@ class ClassicalLinkTest {
                 advanceTimeBy(SETTLE_MILLIS)
 
                 // Assert
-                val replies = bodies(end).drop(1).map { open(transport, it).toList() }
+                val replies = written(end, 1).second.map { open(transport, it).toList() }
                 val protocolError = LinkFrame.Close(CloseReason.PROTOCOL_ERROR).encode().toList()
                 val expected = if (handshakeFrame) listOf(protocolError) else emptyList()
                 assertEquals(expected, replies)
@@ -519,44 +547,54 @@ class ClassicalLinkTest {
         }
 
     /**
-     * A scripted `Classical` peer of [MESH]: its own identity and static key, the prologue bound to
-     * [digest] and [versions], and gated with [meshKey] if set.
+     * A scripted peer of [MESH] in profile [wire]: its own identity, static key and, in
+     * `PostQuantum`, X-Wing key; the prologue bound to [digest] and [versions]; gated with
+     * [meshKey] if set.
      */
-    private class FakePeer(
+    protected inner class FakePeer(
         clock: Clock,
         private val meshKey: ByteArray? = null,
-        private val digest: ByteArray = classicalDigest(MESH),
+        private val digest: ByteArray = digestOf(MESH),
         private val versions: List<Int> = listOf(1),
+        private val wire: WireProfile = this@SecuredLinkTest.wire,
     ) {
         private val identity = SodiumCryptoProvider.ed25519KeyPair()
         private val static = SodiumCryptoProvider.x25519KeyPair()
+        private val xWingKey =
+            if (wire == WireProfile.POST_QUANTUM) SodiumCryptoProvider.xWingKeyPair().publicKey else null
 
         val nodeId: ByteArray = Derivations(SodiumCryptoProvider).nodeId(identity.publicKey)
-        val certificate: ByteArray = issue(clock, static, VALIDITY).encode()
+        val certificate: ByteArray = issue(clock, static, VALIDITY, xWingKey).encode()
 
         /** The payload of this peer's message 2 or 3. */
         var payload: ByteArray = HandshakePayload.of(certificate).encode()
 
         fun noise(role: NoiseRole): NoiseHandshake {
             val psk = meshKey?.let { Derivations(SodiumCryptoProvider).meshPsk(it, digest) }
-            val pattern = if (psk == null) NoisePattern.XX else NoisePattern.XX_PSK3
-            val prologue = Derivations.linkPrologue(versions, 1, WireProfile.CLASSICAL, digest)
+            val pattern =
+                when {
+                    wire == WireProfile.CLASSICAL -> if (psk == null) NoisePattern.XX else NoisePattern.XX_PSK3
+                    else -> if (psk == null) NoisePattern.XX_HFS else NoisePattern.XX_HFS_PSK3
+                }
+            val prologue = Derivations.linkPrologue(versions, 1, wire, digest)
             return NoiseHandshake(SodiumCryptoProvider, pattern, role, prologue, NoiseKeys(static, psk))
         }
 
-        /** A payload whose certificate [clock] issued for [validity], binding [key]. */
+        /** A payload whose certificate [clock] issued for [validity], binding [key] and [xWing]. */
         fun payloadFor(
             clock: Clock,
             validity: Duration,
             key: KeyPair = static,
-        ): ByteArray = HandshakePayload.of(issue(clock, key, validity).encode()).encode()
+            xWing: ByteArray? = xWingKey,
+        ): ByteArray = HandshakePayload.of(issue(clock, key, validity, xWing).encode()).encode()
 
         private fun issue(
             clock: Clock,
             key: KeyPair,
             validity: Duration,
+            xWing: ByteArray?,
         ): IdentityCertificate {
-            val keys = StaticKeys(key.publicKey, null)
+            val keys = StaticKeys(key.publicKey, xWing)
             return IdentityCertificate.issue(SodiumCryptoProvider, clock, identity, keys, validity)
         }
     }
@@ -570,16 +608,16 @@ class ClassicalLinkTest {
         val noise = fake.noise(NoiseRole.INITIATOR)
         link.write(handshake(1, ok(noise.writeMessage(EMPTY))))
         advanceTimeBy(SETTLE_MILLIS)
-        ok(noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage))
+        ok(noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage))
         link.write(handshake(THIRD, ok(noise.writeMessage(fake.payload))))
         advanceTimeBy(SETTLE_MILLIS)
         return ok(noise.split())
     }
 
-    /** A raw radio that advertises a `Classical` [MESH] and serves a capability record for version 1. */
-    private fun advertiseClassical(air: VirtualAir): VirtualRadio {
+    /** A raw radio that advertises [MESH] in this profile and serves a capability record for version 1. */
+    private fun advertise(air: VirtualAir): VirtualRadio {
         val radio = air.radio()
-        val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), WireProfile.CLASSICAL)
+        val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), wire)
         radio.serveCapability(CapabilityRecord.of(listOf(1), ByteArray(RadioPort.ADVERTISEMENT_LENGTH)).encode())
         val epoch = Derivations.epoch(TestClock.WALL_CLOCK_START_MILLIS / MILLIS_PER_SECOND)
         radio.startAdvertising(discovery.advertisement(epoch))
@@ -616,8 +654,36 @@ class ClassicalLinkTest {
             is LinkDiagnostic.HandshakeLimitDropped -> "$code $limit"
         }
 
-    private fun bodies(end: VirtualLinkEnd): List<ByteArray> =
+    internal fun bodies(end: VirtualLinkEnd): List<ByteArray> =
         assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+
+    /**
+     * The first [clear] frames [end] wrote in cleartext, each reassembled from its `FRAGMENT`s,
+     * and the record bodies after them, which may be encrypted.
+     */
+    internal fun written(
+        end: VirtualLinkEnd,
+        clear: Int = Int.MAX_VALUE,
+    ): Pair<List<ByteArray>, List<ByteArray>> {
+        val bodies = bodies(end)
+        val frames = mutableListOf<ByteArray>()
+        val streams = mutableMapOf<Int, ByteArray>()
+        var used = 0
+        while (frames.size < clear && used < bodies.size) {
+            val body = bodies[used++]
+            val fragment = (LinkFrame.decode(body) as? Decoded.Valid)?.value as? LinkFrame.Fragment
+            val data = fragment?.let { streams.getOrElse(it.streamId) { EMPTY } + it.data }
+            when {
+                fragment == null -> frames += body
+                fragment.last -> frames += data!!.also { streams -= fragment.streamId }
+                else -> streams[fragment.streamId] = data!!
+            }
+        }
+        return frames to bodies.drop(used)
+    }
+
+    /** Every frame [end] wrote, all in cleartext. */
+    internal fun clearFrames(end: VirtualLinkEnd): List<ByteArray> = written(end).first
 
     /** The cleartext `CLOSE` reasons [end] wrote. */
     private fun clearCloses(end: VirtualLinkEnd): List<CloseReason> =
@@ -625,14 +691,20 @@ class ClassicalLinkTest {
             .mapNotNull { (LinkFrame.decode(it) as? Decoded.Valid)?.value as? LinkFrame.Close }
             .map { it.reason }
 
-    private fun handshakeIn(body: ByteArray): LinkFrame.Handshake =
+    internal fun handshakeIn(body: ByteArray): LinkFrame.Handshake =
         assertIs<LinkFrame.Handshake>(assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(body)).value)
 
+    /** A `HANDSHAKE` frame as one record, or as records of `FRAGMENT`s if longer than a record body. */
     private fun handshake(
         step: Int,
         message: ByteArray,
         version: Int = 1,
-    ): ByteArray = record(LinkFrame.Handshake(version, step, message))
+    ): ByteArray {
+        val frame = LinkFrame.Handshake(version, step, message).encode()
+        val dataMax = LinkRecord.BODY_MAX - LinkFrame.Fragment.HEADER
+        val records = if (frame.size <= LinkRecord.BODY_MAX) listOf(record(frame)) else fragments(0, frame, dataMax)
+        return records.reduce(ByteArray::plus)
+    }
 
     /** [frame] as records of `FRAGMENT`s of stream [id], each carrying at most [dataMax] bytes. */
     private fun fragments(
@@ -651,11 +723,47 @@ class ClassicalLinkTest {
         body: ByteArray,
     ): ByteArray = ok(transport.decrypt(body))
 
-    private fun <T> ok(result: NoiseResult<T>): T = assertIs<NoiseResult.Ok<T>>(result).value
+    internal fun <T> ok(result: NoiseResult<T>): T = assertIs<NoiseResult.Ok<T>>(result).value
+
+    /** `PostQuantum` only: a certificate with a byte of its X-Wing key flipped after signing. */
+    private fun xWingPayloads(): Map<String, (FakePeer) -> ByteArray> =
+        if (postQuantum) {
+            mapOf(
+                "flipped X-Wing byte" to { peer ->
+                    val certificate = peer.certificate.copyOf()
+                    certificate[X_WING_OFFSET] = (certificate[X_WING_OFFSET].toInt() xor 1).toByte()
+                    HandshakePayload.of(certificate).encode()
+                },
+            )
+        } else {
+            emptyMap()
+        }
+
+    /** A stopped node of [MESH] in [profile], gated with [meshKey] if set. */
+    internal fun securedNode(
+        platform: PlatformPort,
+        meshKey: ByteArray?,
+        profile: SecurityProfile = this.profile,
+    ): MeshLink =
+        MeshLink.create(
+            meshLinkConfig(Preset.OfflineChat, profile) {
+                meshId = MESH
+                this.meshKey = meshKey
+            }.build(),
+            MeshPlatform.of(platform),
+        )
+
+    /** The digest of [meshId] in [wire]. */
+    internal fun digestOf(
+        meshId: String,
+        wire: WireProfile = this.wire,
+    ): ByteArray = Derivations(SodiumCryptoProvider).meshIdDigest(meshId.encodeToByteArray(), wire)
 
     private companion object {
         const val MESH_KEY_BYTES = 32
         const val KEY_BYTES = 32
+        const val KEM_PUBLIC_KEY_BYTES = 1_184
+        const val X_WING_OFFSET = 66
         const val SECOND = 2
         const val THIRD = 3
         const val HALF_OPEN_GLOBAL = 8
@@ -673,21 +781,7 @@ class ClassicalLinkTest {
         val MESH_KEY = ByteArray(MESH_KEY_BYTES) { 0x11 }
         val EMPTY = ByteArray(0)
         val GARBAGE = ByteArray(48) { 0x5A }
-
-        /** A stopped `Classical` node of [MESH], gated with [meshKey] if set. */
-        fun classicalNode(
-            platform: PlatformPort,
-            meshKey: ByteArray?,
-        ): MeshLink =
-            MeshLink.create(
-                meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
-                    meshId = MESH
-                    this.meshKey = meshKey
-                }.build(),
-                MeshPlatform.of(platform),
-            )
-
-        fun classicalDigest(meshId: String): ByteArray =
-            Derivations(SodiumCryptoProvider).meshIdDigest(meshId.encodeToByteArray(), WireProfile.CLASSICAL)
     }
 }
+
+class ClassicalLinkTest : SecuredLinkTest(SecurityProfile.Classical, WireProfile.CLASSICAL)
