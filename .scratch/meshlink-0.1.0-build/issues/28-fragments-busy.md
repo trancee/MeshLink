@@ -25,15 +25,15 @@ Large messages and their size classes come with ticket 50.
 
 ## Acceptance criteria
 
-- [ ] The `FRAGMENT` and `BUSY` cases in `link-frames.json` and every `records.json` case pass in the one runner. Each decoder has a deterministic mutation test: every prefix length, over-long inputs and a fixed number of seeded mutations.
-- [ ] A seeded `VirtualAir` test sends direct messages of 1 and 2 records in each profile (secured profiles send messages from ticket 45 on; until then, fragment link-level frames there), and a link-level test sends frames up to `frame-max` with interleaved streams. Every frame arrives intact.
-- [ ] T10: each fatal fragment error and each fatal record error closes the bearer and frees all its reassembly memory.
-- [ ] T10: a fifth stream on one link and a second large stream get `BUSY REASSEMBLY_SLOTS`. Exhausting the node budget across links gets `BUSY LARGE_BUDGET`. Neither closes the link.
-- [ ] A test shows a stream idle for 10 s is discarded and its `stream_id` is free again.
-- [ ] A test shows a sender that receives `BUSY`, including one with an unknown reason, stops the stream and retries the frame later.
-- [ ] A test shows a sender never fragments a frame that fits one record and never nests `FRAGMENT` frames.
-- [ ] T10 (D-20, from ticket 24): a `HANDSHAKE` whose reassembled Noise message exceeds `handshake-message-max` (4,096 B) fails the handshake with `CLOSE` `HANDSHAKE_FAILED` and `ML4001`.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `FRAGMENT` and `BUSY` cases in `link-frames.json` and every `records.json` case pass in the one runner. Each decoder has a deterministic mutation test: every prefix length, over-long inputs and a fixed number of seeded mutations.
+- [x] A seeded `VirtualAir` test sends direct messages of 1 and 2 records in each profile (secured profiles send messages from ticket 45 on; until then, fragment link-level frames there), and a link-level test sends frames up to `frame-max` with interleaved streams. Every frame arrives intact.
+- [x] T10: each fatal fragment error and each fatal record error closes the bearer and frees all its reassembly memory.
+- [x] T10: a fifth stream on one link and a second large stream get `BUSY REASSEMBLY_SLOTS`. Exhausting the node budget across links gets `BUSY LARGE_BUDGET`. Neither closes the link.
+- [x] A test shows a stream idle for 10 s is discarded and its `stream_id` is free again.
+- [x] A test shows a sender that receives `BUSY`, including one with an unknown reason, stops the stream and retries the frame later.
+- [x] A test shows a sender never fragments a frame that fits one record and never nests `FRAGMENT` frames.
+- [x] T10 (D-20, from ticket 24): a `HANDSHAKE` whose reassembled Noise message exceeds `handshake-message-max` (4,096 B) fails the handshake with `CLOSE` `HANDSHAKE_FAILED` and `ML4001`.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -49,3 +49,16 @@ Large messages and their size classes come with ticket 50.
 ## Devices needed
 
 None. `VirtualAir` only. Ticket 33 proves fragments under load on phones.
+
+## Outcome
+
+- **Codec:** `LinkFrame.Fragment` (with `split`), `LinkFrame.Busy` and `BusyReason` in `meshlink-core`; an unknown reason reads as `REASSEMBLY_SLOTS`. The `0x01` and `0x06` vector cases now run in the one runner, with its mutation inputs. A number above 32,767 cannot be encoded: the index has 15 bits for the number and bit 15 for "last".
+- **Reassembly:** `Reassembly` per link and `ReassemblyBudget` per node (`meshlink-core`). Fatal: a first fragment that is not number 0, a skipped number, a fragment after the last, a stream that starts with a `FRAGMENT` frame, a frame above the limit, and every fragment or `BUSY` that fails to decode. Each closes with `CLOSE PROTOCOL_ERROR`, and `release` returns the link's large-stream bytes to the budget. The budget discards idle streams on every link before it refuses a charge.
+- **Handshake:** while a secured handshake runs, a link reassembles at most a `HANDSHAKE` frame's 4,099 B. A fatal fragment, a longer stream or a `BUSY` fails the handshake with `HANDSHAKE_FAILED` and `ML4001 PROTOCOL`.
+- **Sender:** a message frame longer than a record body goes out as one stream; the link's single message pump keeps one stream in flight, so stream ids are taken in turn. Each record takes the write lock on its own, so a `CLOSE` can pass between fragments. `BUSY` during the stream stops it; `BUSY` after it settles the message again as not sent. A stream is remembered for 10 s.
+- **Structure:** the receive path (`receive`, `dispatch`, `reassemble`, `frame`) moved into `Links.Inbound`, an inner class, to keep `Links` within detekt's function limit; behavior is unchanged.
+- **Retry:** "its normal retry applies" is the existing outbox re-queue at the front of the peer's queue; the doubling route retry comes with tickets 37 and 47. Status stays `Sent` (or `Held` once unlinked) while the message waits again.
+- **Payload cap:** the `Unsecured` cap rose from 899 B to `unicast-payload-small-max` (4,096 B), so `send` reaches 1 to 5 records; large messages remain ticket 50.
+- **Not in this ticket:** control frames are never fragmented yet: none exceeds a record until ticket 25's post-quantum handshake, which adds it. Secured links carry no messages until ticket 45, so the sender's fragment size for sealed records (1,004 B) is left to ticket 45 rather than kept as untested code.
+- **Tests:** `FragmentLinkTest` (9), new cases in `ClassicalLinkTest`, `LinkFrameTest` and `ReassemblyTest` (11). `VirtualLinkEnd.paced` makes a write wait for delivery, so a test can answer `BUSY` mid-stream; ignoring `BUSY` during a write fails that test.
+- **Spec gaps:** none found.

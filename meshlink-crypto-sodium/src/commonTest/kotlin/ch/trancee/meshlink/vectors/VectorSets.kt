@@ -85,7 +85,8 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "vectors/link-frames.json",
-            listOf("0x02", "0x03", "0x04", "0x00", "0x3f", "0xc0", "0xff", "empty").associateWith { linkFrame },
+            listOf("0x01", "0x02", "0x03", "0x04", "0x06", "0x00", "0x3f", "0xc0", "0xff", "empty")
+                .associateWith { linkFrame },
             key = frameKey,
         ),
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
@@ -137,7 +138,6 @@ internal val vectorSkips: List<Skip> =
         pending("derivations.json", 45, "hpke-info") +
         pending("derivations.json", 44, "lookup-tag", "lookup-reply-key") +
         pending("derivations.json", 39, "broadcast-signing-input") +
-        pending("link-frames.json", 28, "0x01", "0x06") +
         pending("link-frames.json", 30, "0x05") +
         pending("link-frames.json", 35, "0x07", "0x08", "0x09") +
         pending("link-frames.json", 41, "0x0a") +

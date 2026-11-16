@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.Requirement
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -228,6 +229,9 @@ internal open class VirtualLinkEnd(
     var written: ByteArray = ByteArray(0)
         private set
 
+    /** Whether [write] returns only once the peer received the bytes, as a write with flow control does. */
+    var paced: Boolean = false
+
     init {
         local.track(this)
     }
@@ -243,12 +247,18 @@ internal open class VirtualLinkEnd(
         written += bytes
         val target = connection.oppositeOf(this)
         val chunkMax = attMtu - RadioPort.ATT_HEADER
+        val received = CompletableDeferred<Unit>()
         var start = 0
         while (start < bytes.size) {
             val chunk = bytes.copyOfRange(start, min(start + chunkMax, bytes.size))
-            pipe.send { target.inbox.trySend(chunk) }
+            val last = start + chunkMax >= bytes.size
+            pipe.send {
+                target.inbox.trySend(chunk)
+                if (last) received.complete(Unit)
+            }
             start += chunkMax
         }
+        if (paced) received.await()
         return RadioResult.Ok(Unit)
     }
 
