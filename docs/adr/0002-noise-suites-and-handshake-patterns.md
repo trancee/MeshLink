@@ -1,6 +1,6 @@
 # 0002: Noise suites and handshake patterns per security profile
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 3 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec).
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 4 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec; 2026-11-16, protocol names).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -60,3 +60,8 @@ None: greenfield. A suite change is a new protocol version with new vectors (C6,
 
 - **Post-quantum seal overhead ([C-06](../spec/decisions.md#c-06)):** the nested HPKE X-Wing seal adds 1,136 B, not 1,120 B: the 1,120 B X-Wing encapsulation plus the 16 B HPKE AEAD tag. `IKhfs` adds its ML-KEM fields on top of `IK`.
 - **Numbers left to the spec:** rekey every 3,600 s or 65,536 records ([D-21](../spec/decisions.md#d-21-rekey-schedule)); end-to-end sessions last 6 h or 4,096 frames per direction with an explicit 64-bit nonce and a 1,024-nonce replay window ([D-33](../spec/decisions.md#d-33-end-to-end-session-limits)); handshake bounds of 4,096 B per Noise message, one handshake per bearer, 8 at once, a 10 s timeout and one new handshake per remote address per 2 s ([D-20](../spec/decisions.md#d-20-handshake-denial-of-service-bounds)); HPKE base mode with KEM 0x647A, HKDF-SHA256 and ChaCha20Poly1305 ([D-35](../spec/decisions.md#d-35-hpke-parameters)).
+
+2026-11-16, protocol names ([D-45](../spec/decisions.md#d-45-noise-hfs-protocol-names), ticket 20):
+
+- **Context:** the 2026-11-01 amendment quoted the libp2p name as `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`. Noise revision 34 §8.2 allows only alphanumerics and `/` in an algorithm name; libp2p [#727](https://github.com/libp2p/specs/pull/727) and the pinned snow commit `dc18c06` both use `MLKEM768`. Noise §8.1 joins a second pattern modifier with `+`, so `XXhfspsk3` is not a valid Noise name, and snow rejects it.
+- **Decision:** the `hfs` protocol names use `MLKEM768`, and the gated pattern is `XXhfs+psk3`: `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`, `Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256` and `Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256`. `XXhfspsk3` elsewhere in the ADRs is shorthand for that pattern. The libp2p alignment holds: the open-mesh protocol name string is the same.

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hpke-seal.schema.json",
+  "title": "MeshLink protocol 1 test vectors: hpke-seal.json",
+  "type": "object",
+  "required": [
+    "tier",
+    "algorithm",
+    "schema",
+    "generatorVersion",
+    "numberOfTests",
+    "notes",
+    "testGroups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "tier": {
+      "const": 2
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "hpke-seal.schema.json"
+    },
+    "generatorVersion": {
+      "type": "string"
+    },
+    "numberOfTests": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "notes": {
+      "type": "object"
+    },
+    "testGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "mode",
+          "kem_id",
+          "kdf_id",
+          "aead_id",
+          "tests"
+        ],
+        "properties": {
+          "type": {
+            "const": "HpkeSeal"
+          },
+          "mode": {
+            "const": 0
+          },
+          "kem_id": {
+            "const": 25722
+          },
+          "kdf_id": {
+            "const": 1
+          },
+          "aead_id": {
+            "const": 3
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "tcId",
+                "comment",
+                "flags",
+                "result",
+                "recipient_ikm",
+                "recipient_public_key",
+                "encapsulation_randomness",
+                "sender_static_key",
+                "recipient_node_id",
+                "info",
+                "plaintext",
+                "payload"
+              ],
+              "properties": {
+                "tcId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "enum": [
+                    "valid",
+                    "invalid"
+                  ]
+                },
+                "recipient_ikm": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "recipient_public_key": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{2432}$"
+                },
+                "encapsulation_randomness": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{128}$"
+                },
+                "sender_static_key": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "recipient_node_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "info": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "plaintext": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "payload": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

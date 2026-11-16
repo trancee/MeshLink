@@ -58,14 +58,14 @@
     },
     {
       "name": "noise-xxhfs",
-      "value": "Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256",
-      "decision": "-",
+      "value": "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256",
+      "decision": "D-45",
       "source": "ADR 0002 decision"
     },
     {
       "name": "noise-xxhfspsk3",
-      "value": "Noise_XXhfspsk3_25519+ML-KEM-768_ChaChaPoly_SHA256",
-      "decision": "-",
+      "value": "Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256",
+      "decision": "D-45",
       "source": "ADR 0002 decision"
     },
     {
@@ -76,8 +76,8 @@
     },
     {
       "name": "noise-ikhfs",
-      "value": "Noise_IKhfs_25519+ML-KEM-768_ChaChaPoly_SHA256",
-      "decision": "-",
+      "value": "Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256",
+      "decision": "D-45",
       "source": "ADR 0002 decision"
     },
     {

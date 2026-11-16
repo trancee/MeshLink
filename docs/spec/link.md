@@ -58,15 +58,15 @@ The central reads the capability record, picks the highest version both sides li
 |---|---|---|
 | noise-xx | Noise_XX_25519_ChaChaPoly_SHA256 | - |
 | noise-xxpsk3 | Noise_XXpsk3_25519_ChaChaPoly_SHA256 | - |
-| noise-xxhfs | Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256 | - |
-| noise-xxhfspsk3 | Noise_XXhfspsk3_25519+ML-KEM-768_ChaChaPoly_SHA256 | - |
+| noise-xxhfs | Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256 | D-45 |
+| noise-xxhfspsk3 | Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256 | D-45 |
 
 | Profile | Open mesh | Gated mesh |
 |---|---|---|
 | classical | `XX` | `XXpsk3` |
-| post-quantum | `XXhfs` | `XXhfspsk3` |
+| post-quantum | `XXhfs` | `XXhfs+psk3` |
 
-- The `hfs` patterns are byte-compatible at the Noise layer with the libp2p proposal and the Noise HFS specification (ADR 0002 amendment): same protocol name, same `e1`/`ekem1` token placement, same mixing order. If they diverge, the Noise HFS specification wins.
+- The `hfs` patterns are byte-compatible at the Noise layer with the libp2p proposal and the Noise HFS specification (ADR 0002 amendment): same protocol name, same `e1`/`ekem1` token placement, same mixing order. If they diverge, the Noise HFS specification wins. The KEM name is `MLKEM768`, because Noise §8.2 allows only alphanumerics and `/` in an algorithm name. A second pattern modifier follows a `+`, so the gated pattern is `XXhfs+psk3` (Noise §8.1); ADRs call it `XXhfspsk3` ([D-45]).
 - A fresh handshake runs on every new link connection. There is no resumption.
 
 ### Pre-shared key

@@ -105,7 +105,8 @@ Pinned by `rust-toolchain.toml` (Rust 1.100.0) and a committed `Cargo.lock`. Pur
 | ml-kem | 0.3.4 | Apache-2.0 OR MIT | ML-KEM-768 reference |
 | x25519-dalek | 3.0.0 | BSD-3-Clause | X25519 reference |
 | ed25519-dalek | 3.0.0 | BSD-3-Clause | Ed25519 / identity-certificate reference |
-| chacha20poly1305 | 0.11.0 | Apache-2.0 OR MIT | AEAD reference |
+| chacha20poly1305 | 0.11.0 | Apache-2.0 OR MIT | AEAD reference, through hpke's `chacha` feature; not a direct dependency (ADR 0005, 2026-11-16 amendment) |
 | sha2 | 0.11.1 | MIT OR Apache-2.0 | SHA-256 reference |
 | hkdf | 0.13.0 | MIT OR Apache-2.0 | HKDF reference |
-| snow | git `dc18c06c28fbdeaa6ffae7347e650c805e9b932e` (snow#210) | Apache-2.0 OR MIT | Independent Noise `XXhfs` with ML-KEM-768. Moves to a crates.io release once #210 merges |
+| blake2 | 0.11.0 | MIT OR Apache-2.0 | BLAKE2b-256 for `H` and `DS` derivations (tier 1 rule); the Python generator uses `hashlib` |
+| snow | git `dc18c06c28fbdeaa6ffae7347e650c805e9b932e` (snow#210) | Apache-2.0 OR MIT | Independent Noise `XXhfs` with ML-KEM-768. Moves to a crates.io release once #210 merges. It brings its own `chacha20poly1305` 0.10.1, `blake2` 0.10.6 and `curve25519-dalek` 4.1.3, so `Cargo.lock` holds two versions of each |

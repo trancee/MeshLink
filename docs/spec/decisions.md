@@ -318,6 +318,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** ADR 0012 decisions 6 and 12; the secured handshake already fixes `version` across its messages and closes on a step out of order. Found while implementing 0.1.0 ticket 11.
 - **Alternatives:** let the peripheral answer with its own highest version (the central's choice would no longer bind both sides); no timeout for `unsecured` (a silent peer would hold a link slot forever).
 
+### D-45 Noise `hfs` protocol names
+
+- **Question:** how do the `hfs` protocol names spell ML-KEM-768 and the gated pattern?
+- **Decision:** `MLKEM768`, and `XXhfs+psk3` for the gated pattern: `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`, `Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256` and `Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256`. ADR prose keeps the shorthand `XXhfspsk3` for the pattern. The owner accepted `MLKEM768` on 2026-11-16; the `+` follows from the same rule of following the Noise naming.
+- **Evidence:** Noise revision 34 §8.2: "Each algorithm name must consist solely of alphanumeric characters and the forward-slash character". The pinned snow commit `dc18c06` parses `MLKEM768` and rejects `ML-KEM-768` (snow commit `858dc27`, "Rename the KEM name to MLKEM768 for Noise 8.2"). libp2p [specs#727](https://github.com/libp2p/specs/pull/727) uses `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`. Noise revision 34 §8.1: "The first modifier added onto a base pattern is simply appended. [...] Additional modifiers are separated with a plus sign", as in `XXfallback+psk0`; modifiers whose order doesn't matter are sorted alphabetically. snow `dc18c06` splits modifiers on `+` and rejects `XXhfspsk3` (`UnsupportedModifier`). The protocol name is hashed into `h`, so the spelling changes every transcript byte. Found while implementing 0.1.0 ticket 20.
+- **Alternatives:** keep `ML-KEM-768` or `XXhfspsk3` (each violates the Noise naming rules and needs a patched snow to generate reference vectors; `ML-KEM-768` also diverges from libp2p).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

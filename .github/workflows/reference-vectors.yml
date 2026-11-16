@@ -1,0 +1,36 @@
+# Tier 2 vector regeneration (ticket 20; ADR 0005 "Test-only Rust reference" and "CI").
+# Scheduled and not a required check: it builds the test-only Rust reference, runs its
+# tests, regenerates every tier 2 file and fails if any committed byte differs.
+name: Reference vectors
+
+on:
+  schedule:
+    - cron: "29 3 * * 3" # weekly, Wednesday 03:29 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-vectors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate tier 2 vectors (scheduled, not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: tools/reference
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo run --locked
+      - name: Committed files match the generator
+        run: git diff --exit-code -- ../../docs/spec/vectors && test -z "$(git status --porcelain -- ../../docs/spec/vectors)"

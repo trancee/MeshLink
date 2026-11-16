@@ -181,6 +181,16 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - To corrupt a layout vector in a T10 test, flip its last byte: the first byte is the frame type, which selects the handler, so flipping it moves the test into a skip.
 - libsodium's ML-KEM-768 decapsulation doesn't run the FIPS 203 decapsulation-key hash check; Wycheproof's `InvalidDecapsulationKey` tests pass through it.
 
+## Rust reference
+
+- Code: `tools/reference/` (test-only crate, Rust 1.100.0 from its `rust-toolchain.toml`); writes the tier 2 files in `docs/spec/vectors/`.
+- Verified: `cargo test --manifest-path tools/reference/Cargo.toml` (13 tests, including the committed-file staleness check); `cargo run --manifest-path tools/reference/Cargo.toml` regenerates.
+- snow names the KEM by its Noise name, `MLKEM768`; `ML-KEM-768` fails to parse. A second Noise modifier needs a `+`: snow rejects `XXhfspsk3` with `UnsupportedModifier`; the name is `XXhfs+psk3` (Noise rev 34 section 8.1). ADR prose keeps `XXhfspsk3` as shorthand (D-45).
+- snow's built-in ML-KEM draws from system randomness, and its resolver asks for the KEM once per `HandshakeState`. For fixed transcripts, resolve your own `Kem` that generates from a seed and encapsulates from a fixed message; `fixed_ephemeral_key_for_testing_only` covers only the X25519 ephemeral.
+- With a psk, Noise's `e` token also calls `MixKey` (section 9.2), so message 1 of `XXhfs+psk3` carries two tags more than `XXhfs` (1248 B against 1216 B).
+- rust-hpke's `XWing` needs both its `mlkem` and `x25519` features. In ml-kem 0.3.4, `hazmat` only un-hides docs; the seeded functions are public without it.
+- Default clippy rejects a 4-tuple of test inputs (`type_complexity`) and functions with more than 7 arguments; bundle them into a struct instead of an `#[allow]`.
+
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.
