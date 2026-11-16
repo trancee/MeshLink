@@ -325,6 +325,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** Noise revision 34 §8.2: "Each algorithm name must consist solely of alphanumeric characters and the forward-slash character". The pinned snow commit `dc18c06` parses `MLKEM768` and rejects `ML-KEM-768` (snow commit `858dc27`, "Rename the KEM name to MLKEM768 for Noise 8.2"). libp2p [specs#727](https://github.com/libp2p/specs/pull/727) uses `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`. Noise revision 34 §8.1: "The first modifier added onto a base pattern is simply appended. [...] Additional modifiers are separated with a plus sign", as in `XXfallback+psk0`; modifiers whose order doesn't matter are sorted alphabetically. snow `dc18c06` splits modifiers on `+` and rejects `XXhfspsk3` (`UnsupportedModifier`). The protocol name is hashed into `h`, so the spelling changes every transcript byte. Found while implementing 0.1.0 ticket 20.
 - **Alternatives:** keep `ML-KEM-768` or `XXhfspsk3` (each violates the Noise naming rules and needs a patched snow to generate reference vectors; `ML-KEM-768` also diverges from libp2p).
 
+### D-46 Certificate validity edges
+
+- **Question:** does the 30 s clock skew apply to both certificate edges, to every use or only to sealing, and is `not_after + 30 s` itself accepted?
+- **Decision:** both edges and every use. A certificate is usable while `not_before − 30 s ≤ now < not_after + 30 s`. The owner decided the skew on both edges on 2026-11-13 and the half-open end on 2026-11-16.
+- **Evidence:** `not_after` is an exclusive bound (rule 5 was `now < not_after`), and ADR 0008 tolerates ±30 s of skew. The static private keys are deleted at `not_after + 3,630 s` (ADR 0014 decision 9); a message sealed at the last accepted second, `not_after + 29 s`, expires at most 1 h later, before deletion. The [threat model](../explanation/threat-model.md#certificate-validity-edges) finds no profile guarantee changed. The tier 2 vectors in `certificate-signatures.json` test `not_before − 30`, `− 31`, `not_after + 29` and `+ 30`. Found while implementing 0.1.0 ticket 21.
+- **Alternatives:** skew only for sealing (a peer with a slightly fast clock would drop a link to a certificate it may still seal to); an inclusive end at `not_after + 30 s` (a message sealed then expires at the instant its key is deleted, and the bound would no longer read as one half-open interval).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

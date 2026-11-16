@@ -82,8 +82,10 @@ A receiver MUST reject a certificate unless all of these hold:
 2. `0 < not_after − not_before ≤ 86,400`.
 3. The signature verifies under `ed25519_key`.
 4. `H("node-id", ed25519_key)` equals the NodeId the certificate is used for (link peer, `IK` sender, lookup target).
-5. For sealing a new message: `now < not_after`, allowing the 30 s clock skew of ADR 0008. A sender MUST NOT seal to an expired certificate (ADR 0014 decision 10).
+5. `now < not_after + 30 s`, allowing the `clock-skew` of ADR 0008. A sender MUST NOT seal to an expired certificate (ADR 0014 decision 10).
 6. `now ≥ not_before − 30 s`.
+
+The 30 s skew applies on both edges, for sealing a new message and for every other use: a certificate is usable from `not_before − 30 s` up to, but not including, `not_after + 30 s` [D-46].
 
 Vectors: `certificate.json` (layout only; signatures are placeholders) and `derivations.json`, derivation `certificate-signing-input`. Signature vectors are tier 2.
 

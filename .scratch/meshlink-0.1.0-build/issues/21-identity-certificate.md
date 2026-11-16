@@ -34,15 +34,15 @@ The `Unsecured` profile issues no certificate. Lookup, caching and key rotation 
 
 ## Acceptance criteria
 
-- [ ] First, before any code: `docs/explanation/threat-model.md` gains an analysis of the extended edges (sealing up to `not_after + 30 s`, use from `not_before − 30 s`): what an attacker with a just-expired or not-yet-valid certificate gains, against which profile guarantee. If a profile guarantee changes, an ADR 0001 amendment records it. If the analysis finds a weakened guarantee, the agent stops and asks the owner (AGENTS.md ASK) and writes no implementation until answered.
-- [ ] Spec change, following [Status and change control](../../../docs/spec/README.md#status-and-change-control): identity.md "Validation" gains one sentence stating that the 30 s skew applies on both edges for sealing and use (usable from `not_before − 30 s` through `not_after + 30 s`); a new D-xx entry in `docs/spec/decisions.md` records it with its evidence and alternatives; any affected data JSON is updated and vectors are regenerated with `python3 tools/spec/gen_vectors.py`; `python3 tools/spec/check_spec.py` passes.
-- [ ] The certificate codec passes every `certificate.json` tier 1 test in the one runner, for both layouts.
-- [ ] Issuing and validation pass the Rust-generated tier 2 certificate vectors from ticket 20 byte for byte, and the runner no longer lists them as pending.
-- [ ] The `certificate-signing-input` group in `derivations.json` passes.
-- [ ] The decoder has a deterministic mutation test (ADR 0017 decision 9).
-- [ ] T10: each validation rule has a failing case: wrong version, a profile other than the mesh's, short and long input, `not_after ≤ not_before`, a window of 86,401 s, a flipped signature bit, a signature by another key, a NodeId mismatch, sealing 31 s after `not_after`, and use 31 s before `not_before`. Each returns a typed failure and changes no state.
-- [ ] Skew edges pass: use exactly 30 s before `not_before` and sealing up to 30 s after `not_after` are accepted; 31 s on either side is rejected.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] First, before any code: `docs/explanation/threat-model.md` gains an analysis of the extended edges (sealing up to `not_after + 30 s`, use from `not_before − 30 s`): what an attacker with a just-expired or not-yet-valid certificate gains, against which profile guarantee. If a profile guarantee changes, an ADR 0001 amendment records it. If the analysis finds a weakened guarantee, the agent stops and asks the owner (AGENTS.md ASK) and writes no implementation until answered.
+- [x] Spec change, following [Status and change control](../../../docs/spec/README.md#status-and-change-control): identity.md "Validation" gains one sentence stating that the 30 s skew applies on both edges for sealing and use (usable from `not_before − 30 s` through `not_after + 30 s`); a new D-xx entry in `docs/spec/decisions.md` records it with its evidence and alternatives; any affected data JSON is updated and vectors are regenerated with `python3 tools/spec/gen_vectors.py`; `python3 tools/spec/check_spec.py` passes.
+- [x] The certificate codec passes every `certificate.json` tier 1 test in the one runner, for both layouts.
+- [x] Issuing and validation pass the Rust-generated tier 2 certificate vectors from ticket 20 byte for byte, and the runner no longer lists them as pending.
+- [x] The `certificate-signing-input` group in `derivations.json` passes.
+- [x] The decoder has a deterministic mutation test (ADR 0017 decision 9).
+- [x] T10: each validation rule has a failing case: wrong version, a profile other than the mesh's, short and long input, `not_after ≤ not_before`, a window of 86,401 s, a flipped signature bit, a signature by another key, a NodeId mismatch, sealing 31 s after `not_after`, and use 31 s before `not_before`. Each returns a typed failure and changes no state.
+- [x] Skew edges pass: use exactly 30 s before `not_before` and sealing up to 30 s after `not_after` are accepted; 31 s on either side is rejected.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -65,3 +65,10 @@ python3 tools/check_adrs.py
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Threat model first:** [Certificate validity edges](../../../docs/explanation/threat-model.md#certificate-validity-edges) finds no profile guarantee changed, so ADR 0001 is unchanged.
+- **End edge (owner, 2026-11-16, option A):** the window is half-open, `not_before − 30 s ≤ now < not_after + 30 s`, for sealing and every other use. "Through `not_after + 30 s`" above therefore means up to but excluding it: `not_after + 29 s` is accepted and `not_after + 30 s` is expired, as the tier 2 vectors from ticket 20 already test. identity.md rule 5 and [D-46](../../../docs/spec/decisions.md#d-46-certificate-validity-edges) record it; no vector changed.
+- **Code:** `IdentityCertificate` (`issue`, `decode`, `encode`, `signingInput`, `validate`), `CertificateCheck` and `CertificateRejection` in `meshlink-core`; `Domain.CERTIFICATE`. Validation mirrors `tools/reference/src/certificate.rs`: a profile byte other than the mesh's is `unknown-kind` before any length check.
+- **Tests:** handlers for `certificate.json` (with the shared mutation inputs), `certificate-signing-input` and `certificate-signatures.json` (signatures reproduced from `ed25519_seed`, valid certificates reissued byte for byte); `IdentityCertificateTest` for issuing limits, skew edges, sub-second clocks and typed failures that leave the input unchanged.

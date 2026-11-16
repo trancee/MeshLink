@@ -1,19 +1,26 @@
 package ch.trancee.meshlink.vectors
 
+import ch.trancee.meshlink.crypto.sodium.FixedClock
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.crypto.sodium.assertFailed
 import ch.trancee.meshlink.crypto.sodium.hex
 import ch.trancee.meshlink.crypto.sodium.ok
+import ch.trancee.meshlink.internal.CertificateCheck
 import ch.trancee.meshlink.internal.CryptoFailure
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.IdentityCertificate
+import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.WireProfile
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.test.fail
+import kotlin.time.Duration.Companion.seconds
 
 private val crypto: CryptoProvider = SodiumCryptoProvider
 private val derivations = Derivations(crypto)
@@ -43,6 +50,52 @@ internal val unsecuredTag: Handler =
     derivation { derivations.unsecuredTag(it["node_id"].string.hex(), it["epoch"].uInt) }
 
 internal val tombstoneCommitment: Handler = derivation { derivations.tombstoneCommitment(it["k"].string.hex()) }
+
+internal val certificateSigningInput: Handler =
+    derivation { IdentityCertificate.signingInput(it["certificate_without_signature"].string.hex()) }
+
+/**
+ * `certificate-signatures.json` (tier 2): validation at `now` must give the test's result or error.
+ * A test with the signer's `ed25519_seed` must reproduce the signature byte for byte, and a valid
+ * one must be reissued byte for byte from its keys by a clock at `not_before`.
+ */
+internal val certificateVerify: Handler =
+    Handler("certificate") { case ->
+        val bytes = case.hex("certificate")
+        val profile =
+            WireProfile.entries.single {
+                it.code ==
+                    case.group["profile"]
+                        .string
+                        .removePrefix("0x")
+                        .toInt(HEX)
+            }
+        val clock = FixedClock.atSeconds(case.test["now"].long)
+        val check = IdentityCertificate.validate(crypto, bytes, profile, case.hex("node_id"), clock)
+        val body = bytes.copyOf(maxOf(0, bytes.size - SIGNATURE_LENGTH))
+        if (case.test.has("signing_input")) {
+            val signingInput = IdentityCertificate.signingInput(body).hex()
+            assertEquals(case.test["signing_input"].string, signingInput, "signing_input")
+        }
+        if (case.test.has("ed25519_seed")) {
+            val signature = crypto.ed25519Sign(case.hex("ed25519_seed"), IdentityCertificate.signingInput(body))
+            assertEquals(bytes.copyOfRange(body.size, bytes.size).hex(), signature.hex(), "signature")
+        }
+        if (case.result == "valid") {
+            val certificate = assertIs<CertificateCheck.Valid>(check).certificate
+            val reissued =
+                IdentityCertificate.issue(
+                    crypto,
+                    FixedClock.atSeconds(certificate.notBefore.toLong()),
+                    crypto.ed25519KeyPair(case.hex("ed25519_seed")),
+                    StaticKeys(certificate.x25519Key, certificate.xWingKey),
+                    (certificate.notAfter - certificate.notBefore).toLong().seconds,
+                )
+            assertContentEquals(bytes, reissued.encode(), "reissued")
+        } else {
+            assertEquals(case.test["error"].string, assertIs<CertificateCheck.Invalid>(check).code)
+        }
+    }
 
 /** Wycheproof `XdhComp`: an all-zero shared secret is refused as a low-order public key, never returned. */
 internal val x25519: Handler =
@@ -174,3 +227,6 @@ internal val xWing: Handler =
     }
 
 private const val ML_KEM_PUBLIC_KEY = 1184
+
+private const val SIGNATURE_LENGTH = 64
+private const val HEX = 16
