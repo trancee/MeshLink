@@ -1,6 +1,6 @@
 # Open `Classical` links with a certified handshake
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 12, 21, 22
 
