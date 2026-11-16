@@ -94,6 +94,18 @@ Links and interactive end-to-end sessions use ephemeral keys, so a key stolen la
 
 A stolen installation key lets A7 impersonate that node and read store-and-forward messages addressed to it until the app performs an identity reset. Peers then see a key change, which MeshLink always reports as a typed event and never accepts silently. There is no revocation protocol in v1, because a stolen key could forge revocations as well. Keys at rest are protected by the platform keystore (Android Keystore; iOS Keychain, this device only).
 
+### Certificate validity edges
+
+A certificate is valid from `not_before` up to, but not including, `not_after`, at most 24 h. To tolerate the 30 s clock skew of [ADR 0008](../adr/0008-routing-topology-and-density-adaptation.md), a receiver accepts it, for sealing and for every other use, from `not_before − 30 s` until just before `not_after + 30 s` ([identity.md, Validation](../spec/identity.md#validation)). The analysis below (ticket 21) asks what each extended edge gives an attacker. It finds that no profile guarantee changes, so [ADR 0001](../adr/0001-threat-model-and-profile-guarantees.md) is not amended.
+
+- **Sealing after expiry (A7):** a sender may seal a first or held message to a certificate up to 29 s after `not_after`. The message lives at most 1 h, so it expires before `not_after + 3,630 s`, when the recipient deletes the matching static private keys ([ADR 0014](../adr/0014-store-and-forward.md) decision 9). The forward-secrecy bound above stays at about 25 h; the edge adds no message that outlives its key.
+- **Using a just-expired certificate (A2, A3):** a certificate binds static keys; it is not a credential. Replaying one in a link handshake or an `IK` message still requires the static private key, which Noise authenticates. An attacker who stole only an old static key can use it for at most 30 s longer, 0.03% of the 24 h for which that key was already exposed.
+- **Using a not-yet-valid certificate:** only the holder of the identity key can sign a certificate, and that holder chooses `not_before`. Accepting it 30 s early lets no one do anything the signer could not already do with an earlier `not_before`.
+- **Tracking (A5):** public tags derive from certified static keys. A holder of the certificate recognizes them for as long as the recipient accepts messages under those keys: the validity plus 1 h and 30 s, still about 25 h.
+- **Clocks off by more than 30 s:** such a peer's certificates are rejected, and its own checks reject others'. That costs availability, not security.
+
+`unsecured` issues no certificates, so none of this applies to it.
+
 ### Replay
 
 Link frames use AEAD with counter nonces, so replays are rejected. End-to-end messages and broadcasts carry a message ID and are de-duplicated per origin for their lifetime, and expired messages are rejected. This assumes device clocks agree within a tolerance that the wire-format and store-and-forward work fixes; the de-duplication state is bounded by the message lifetime.

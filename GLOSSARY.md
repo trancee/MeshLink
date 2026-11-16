@@ -104,6 +104,10 @@ _Avoid_: Security level, crypto mode, tier
 The one internal boundary through which MeshLink obtains every cryptographic primitive; replacing the provider never changes what goes on the wire.
 _Avoid_: Crypto engine, crypto backend, cipher suite
 
+**Identity certificate**:
+A node's own signed statement, valid for at most a day, binding its installation identity key to the static keys peers use to reach it; a secured profile needs one, and nobody but the node itself issues it.
+_Avoid_: X.509 certificate, CA, credential
+
 **Mesh key**:
 A secret shared out of band by the application that a node must hold to join a gated mesh; it grants membership, not individual identity.
 _Avoid_: Network key, password, group key

@@ -6,6 +6,7 @@ import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Container
 import ch.trancee.meshlink.internal.Content
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
 import ch.trancee.meshlink.internal.LinkRecord
 import ch.trancee.meshlink.internal.MessageContent
@@ -71,6 +72,19 @@ internal val capability: Handler =
             value.extensions.map { it.type to it.value.hex() },
             "extensions",
         )
+    }
+
+internal val certificate: Handler =
+    layout({ _, bytes -> IdentityCertificate.decode(bytes) }, { _, value -> value.encode() }) { decoded, value ->
+        assertEquals(decoded["version"].int, IdentityCertificate.VERSION, "version")
+        assertEquals(decoded["profile"].code(), value.profile.code, "profile")
+        assertEquals(decoded["ed25519_key"].string, value.ed25519Key.hex(), "ed25519_key")
+        assertEquals(decoded["x25519_key"].string, value.x25519Key.hex(), "x25519_key")
+        val xWingKey = if (decoded.has("xwing_key")) decoded["xwing_key"].string else null
+        assertEquals(xWingKey, value.xWingKey?.hex(), "xwing_key")
+        assertEquals(decoded["not_before"].uInt, value.notBefore, "not_before")
+        assertEquals(decoded["not_after"].uInt, value.notAfter, "not_after")
+        assertEquals(decoded["signature"].string, value.signature.hex(), "signature")
     }
 
 /** Every decoder input also runs through a [RecordReader] in [READER_CHUNK]-byte writes. */

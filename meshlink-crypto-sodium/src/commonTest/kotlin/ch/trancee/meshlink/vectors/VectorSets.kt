@@ -27,8 +27,12 @@ internal val vectorSets: List<VectorSet> =
     listOf(
         VectorSet("vectors/advertisement.json", mapOf("advertisement" to advertisement), key = layoutKey),
         VectorSet("vectors/capability.json", mapOf("capability" to capability), key = layoutKey),
-        VectorSet("vectors/certificate.json", emptyMap(), key = layoutKey),
-        VectorSet("vectors/certificate-signatures.json", emptyMap(), key = groupType),
+        VectorSet("vectors/certificate.json", mapOf("certificate" to certificate), key = layoutKey),
+        VectorSet(
+            "vectors/certificate-signatures.json",
+            mapOf("CertificateVerify" to certificateVerify),
+            key = groupType,
+        ),
         VectorSet(
             "vectors/derivations.json",
             mapOf(
@@ -38,6 +42,7 @@ internal val vectorSets: List<VectorSet> =
                 "mesh-tag" to meshTag,
                 "unsecured-tag" to unsecuredTag,
                 "tombstone-commitment" to tombstoneCommitment,
+                "certificate-signing-input" to certificateSigningInput,
             ),
         ) { group, _ -> group["derivation"].string },
         VectorSet("vectors/handshake-hfs.json", emptyMap(), key = groupType),
@@ -90,9 +95,7 @@ private fun pending(
 
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("certificate.json", 21, "certificate") +
-        pending("certificate-signatures.json", 21, "CertificateVerify") +
-        pending("handshake-hfs.json", 23, "NoiseHandshake") +
+    pending("handshake-hfs.json", 23, "NoiseHandshake") +
         pending("hpke-seal.json", 45, "HpkeSeal") +
         pending("handshake-payload.json", 24, "handshake-payload") +
         pending("derivations.json", 24, "mesh-tag-key", "mesh-psk", "link-prologue") +
@@ -100,7 +103,6 @@ internal val vectorSkips: List<Skip> =
         pending("derivations.json", 45, "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", 45, "hpke-info") +
         pending("derivations.json", 44, "lookup-tag", "lookup-reply-key") +
-        pending("derivations.json", 21, "certificate-signing-input") +
         pending("derivations.json", 39, "broadcast-signing-input") +
         pending("link-frames.json", 28, "0x01", "0x06") +
         pending("link-frames.json", 24, "0x02") +
