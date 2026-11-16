@@ -24,13 +24,13 @@ Ephemerals come from the injected `Random`, or from fixed keys in tests. The sta
 
 ## Acceptance criteria
 
-- [ ] The cacophony vectors for `Noise_XX_25519_ChaChaPoly_SHA256` and `Noise_XXpsk3_25519_ChaChaPoly_SHA256` pass in the one runner from ticket 19, including the transport messages after `Split`. The cacophony set is vendored with its commit and SHA-256 in the register.
-- [ ] A seeded test runs both suites end to end and checks that both sides derive the same handshake hash and cipher states.
-- [ ] `Rekey()` matches the Noise definition: a test compares it to `ENCRYPT(k, maxnonce, zerolen, zeros)` truncated to 32 bytes.
-- [ ] T10: a flipped bit in any handshake message, a wrong psk, a truncated message, an extra trailing byte, a message out of order, and a reused transport nonce each fail with a typed error and leave no usable cipher state.
-- [ ] T10: a peer static key that gives an all-zero X25519 result fails the handshake.
-- [ ] The handshake state rejects any call after it fails or completes.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] The cacophony vectors for `Noise_XX_25519_ChaChaPoly_SHA256` and `Noise_XXpsk3_25519_ChaChaPoly_SHA256` pass in the one runner from ticket 19, including the transport messages after `Split`. The cacophony set is vendored with its commit and SHA-256 in the register.
+- [x] A seeded test runs both suites end to end and checks that both sides derive the same handshake hash and cipher states.
+- [x] `Rekey()` matches the Noise definition: a test compares it to `ENCRYPT(k, maxnonce, zerolen, zeros)` truncated to 32 bytes.
+- [x] T10: a flipped bit in any handshake message, a wrong psk, a truncated message, an extra trailing byte, a message out of order, and a reused transport nonce each fail with a typed error and leave no usable cipher state.
+- [x] T10: a peer static key that gives an all-zero X25519 result fails the handshake.
+- [x] The handshake state rejects any call after it fails or completes.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -47,3 +47,11 @@ Ephemerals come from the injected `Random`, or from fixed keys in tests. The sta
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Ephemerals:** a production handshake draws its ephemeral from `CryptoProvider.x25519KeyPair()`, not from the injected `RandomSource`: ADR 0017 decision 1 keeps key material out of the non-cryptographic source. Tests pass fixed ephemerals through `NoiseKeys`; the seeded test derives them from `SeededRandom`.
+- **Code:** `Noise.kt` in `meshlink-core`: `NoisePattern` (`XX`, `XX_PSK3`), `NoiseRole`, `NoiseKeys`, `NoiseHandshake`, `NoiseTransport`, `CipherState`, `NoiseResult` and `NoiseFailure`. Every failure closes the handshake or transport and erases its keys; later calls fail with `CLOSED`, as does any call after `split()`.
+- **Delayed detection:** `XX` message 1 carries its payload in clear, so a changed message 1 surfaces when the initiator reads message 2 (`AUTHENTICATION_FAILED`). The tests accept that point; ticket 24's payload checks don't change it.
+- **Vectors:** cacophony `8ee9d41e34a1a596cfa3ab12aa4069ff87dc1247` vendored unchanged under `third_party/vectors/cacophony/`; the runner checks both MeshLink patterns (2 valid), keeps `IK` pending for ticket 46 and marks the suite's other 56 patterns and the 15 other suites not applicable (942 skipped).
+- **Tests:** `NoiseTest` for both suites end to end, `Rekey()` against its definition, the reserved nonce, every flipped bit of every handshake message, a wrong psk, truncation, a trailing byte, out-of-order calls, a replayed transport message, and low-order peer static and ephemeral keys.

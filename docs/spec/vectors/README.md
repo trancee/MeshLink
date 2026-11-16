@@ -96,6 +96,7 @@ To add a file: a tier 1 file is picked up from this directory automatically and 
 |---|---|---|
 | Wycheproof | [`third_party/vectors/wycheproof`](../../../third_party/vectors/wycheproof/SOURCE.md) | X25519, Ed25519, ChaCha20-Poly1305, HKDF-SHA-256, ML-KEM-768 (key generation, encapsulation, decapsulation) |
 | hpke-pq | [`third_party/vectors/hpke-pq`](../../../third_party/vectors/hpke-pq/SOURCE.md) | X-Wing, KEM `0x647a`: key derivation, encapsulation, decapsulation |
+| cacophony | [`third_party/vectors/cacophony`](../../../third_party/vectors/cacophony/SOURCE.md) | Noise `XX` and `XXpsk3` in `25519_ChaChaPoly_SHA256`: every handshake and transport message and the handshake hash, from both roles. `IK` is pending until ticket 46; the other patterns and suites are not applicable |
 
 ## Tier 2: published
 
@@ -125,7 +126,7 @@ These sets are not generated yet. Status for each: **pending — two implementat
 | Vector set | Covers |
 |---|---|
 | Signed broadcasts | Ed25519 over the broadcast signing input; hop-limit changes keep the signature valid |
-| `XX` and `XXpsk3` link handshakes | Full transcripts with the MeshLink prologue and payload TLVs, cross-checked with cacophony |
+| `XX` and `XXpsk3` link handshakes | Full transcripts with the MeshLink prologue and payload TLVs. The cacophony cross-check of both patterns already passes in Kotlin |
 | Link transport and rekey | Record encryption, `REKEY` and nonce continuity across `BEARER_SWITCH` |
 | `IK` and `IKhfs` sessions | Message 1 with plaintext, message 2 in a receipt, transport frames with explicit nonces and replay rejection |
 | Sealed lookup replies | X25519, HKDF and ChaCha20-Poly1305 seal of a certificate; all-zero shared secret rejected |

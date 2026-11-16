@@ -16,7 +16,7 @@ specVectors {
             exclude("*.schema.json")
         },
     )
-    vendored.from(rootProject.fileTree("third_party/vectors") { include("**/*.json") })
+    vendored.from(rootProject.fileTree("third_party/vectors") { include("**/*.json", "cacophony/cacophony.txt") })
 }
 
 kotlin {

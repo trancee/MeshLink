@@ -14,6 +14,32 @@ private fun hpkeCases(document: Json): List<RawCase> =
 private val kemId: (Json, Json) -> String =
     { _, test -> "kem 0x" + test["kem_id"].int.toString(HEX).padStart(KEM_ID_DIGITS, '0') }
 
+private val NOISE_PROTOCOLS = listOf("XX", "XXpsk3", "IK").map { "Noise_${it}_$NOISE_SUITE" }
+private val NOISE_OTHER_SUITES =
+    listOf("25519", "448").flatMap { dh ->
+        listOf("AESGCM", "ChaChaPoly").flatMap { cipher ->
+            listOf("BLAKE2b", "BLAKE2s", "SHA256", "SHA512").map { "${dh}_${cipher}_$it" }
+        }
+    } - NOISE_SUITE
+
+/** `cacophony/cacophony.txt` is `{"vectors":[…]}`; each entry is a test, numbered from 1. */
+private fun cacophonyCases(document: Json): List<RawCase> =
+    document["vectors"].list.mapIndexed { index, entry -> RawCase(entry, entry, index + 1, "valid") }
+
+/**
+ * A cacophony vector of MeshLink's suite dispatches on its protocol name if MeshLink runs the pattern;
+ * the other patterns of that suite share one key, and every other suite has its own.
+ */
+private val noiseKey: (Json, Json) -> String = { _, test ->
+    val name = test["protocol_name"].string
+    val suite = name.split('_', limit = 3)[2]
+    when {
+        suite != NOISE_SUITE -> "Noise_*_$suite"
+        name in NOISE_PROTOCOLS -> name
+        else -> OTHER_NOISE_PATTERNS
+    }
+}
+
 /** Wycheproof files and the tier 2 files from `tools/reference` dispatch on the group's `type`. */
 private val groupType: (Json, Json) -> String = { group, _ -> group["type"].string }
 
@@ -60,6 +86,12 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
         VectorSet("vectors/routed-frames.json", mapOf("0x40" to messageFrame), key = frameKey),
+        VectorSet(
+            "cacophony/cacophony.txt",
+            NOISE_PROTOCOLS.take(2).associateWith { noise },
+            cases = ::cacophonyCases,
+            key = noiseKey,
+        ),
         VectorSet("hpke-pq/test-vectors.json", mapOf("kem 0x647a" to xWing), cases = ::hpkeCases, key = kemId),
         VectorSet(
             "wycheproof/chacha20_poly1305_test.json",
@@ -125,6 +157,11 @@ internal val vectorSkips: List<Skip> =
                 "MeshLink's only HPKE KEM is X-Wing, 0x647a (ADR 0004)",
             )
         } +
+        Skip.Pending(CACOPHONY, NOISE_PROTOCOLS[2], 46) +
+        Skip.NotApplicable(CACOPHONY, OTHER_NOISE_PATTERNS, "MeshLink runs only XX, XXpsk3 and IK (ADR 0002)") +
+        NOISE_OTHER_SUITES.map {
+            Skip.NotApplicable(CACOPHONY, "Noise_*_$it", "MeshLink's only Noise suite is $NOISE_SUITE (ADR 0002)")
+        } +
         Skip.NotApplicable(
             "wycheproof/mlkem_768_semi_expanded_decaps_test.json",
             INVALID_DK,
@@ -132,6 +169,9 @@ internal val vectorSkips: List<Skip> =
                 "the FIPS 203 section 7.3 key check is for supplied keys",
         )
 
+private const val CACOPHONY = "cacophony/cacophony.txt"
+private const val NOISE_SUITE = "25519_ChaChaPoly_SHA256"
+private const val OTHER_NOISE_PATTERNS = "Noise_*_25519_ChaChaPoly_SHA256, other patterns"
 private const val HEX = 16
 private const val INVALID_DK = "InvalidDecapsulationKey"
 private const val KEM_ID_DIGITS = 4
