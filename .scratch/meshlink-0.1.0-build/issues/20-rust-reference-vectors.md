@@ -1,6 +1,6 @@
 # Cross-check tier 2 vectors with the Rust reference
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 19
 
