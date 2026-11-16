@@ -11,6 +11,11 @@ import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.IdentityCertificate
+import ch.trancee.meshlink.internal.NoiseHandshake
+import ch.trancee.meshlink.internal.NoiseKeys
+import ch.trancee.meshlink.internal.NoisePattern
+import ch.trancee.meshlink.internal.NoiseResult
+import ch.trancee.meshlink.internal.NoiseRole
 import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.WireProfile
 import kotlin.test.assertContentEquals
@@ -230,3 +235,55 @@ private const val ML_KEM_PUBLIC_KEY = 1184
 
 private const val SIGNATURE_LENGTH = 64
 private const val HEX = 16
+
+/**
+ * cacophony: each role replays the vector with its prologue, psk, static and ephemeral keys. Every
+ * message, handshake and transport alike, must match the vector's ciphertext and decrypt to its
+ * payload; both sides must reach its handshake hash.
+ */
+internal val noise: Handler =
+    Handler("handshake_hash") { case ->
+        val pattern = NoisePattern.entries.single { it.protocolName == case.test["protocol_name"].string }
+        val (initiator, responder) =
+            listOf(NoiseRole.INITIATOR to "init", NoiseRole.RESPONDER to "resp").map { (role, side) ->
+                val psk =
+                    if (case.test.has("${side}_psks")) {
+                        case.test["${side}_psks"]
+                            .list
+                            .single()
+                            .string
+                            .hex()
+                    } else {
+                        null
+                    }
+                val keys =
+                    NoiseKeys(
+                        crypto.x25519KeyPair(case.hex("${side}_static")),
+                        psk,
+                        crypto.x25519KeyPair(case.hex("${side}_ephemeral")),
+                    )
+                NoiseHandshake(crypto, pattern, role, case.hex("${side}_prologue"), keys)
+            }
+        val messages = case.test["messages"].list
+        messages.take(HANDSHAKE_MESSAGES).forEachIndexed { index, message ->
+            val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
+            val payload = message["payload"].string
+            val ciphertext = writer.writeMessage(payload.hex()).value().hex()
+            assertEquals(message["ciphertext"].string, ciphertext, "message $index")
+            assertEquals(payload, reader.readMessage(message["ciphertext"].string.hex()).value().hex())
+        }
+        val (sending, receiving) = initiator.split().value() to responder.split().value()
+        assertEquals(case.test["handshake_hash"].string, sending.handshakeHash.hex())
+        assertEquals(case.test["handshake_hash"].string, receiving.handshakeHash.hex())
+        messages.drop(HANDSHAKE_MESSAGES).forEachIndexed { offset, message ->
+            val (writer, reader) = if (offset % 2 == 1) sending to receiving else receiving to sending
+            val payload = message["payload"].string
+            val ciphertext = writer.encrypt(payload.hex()).value().hex()
+            assertEquals(message["ciphertext"].string, ciphertext, "message ${offset + HANDSHAKE_MESSAGES}")
+            assertEquals(payload, reader.decrypt(ciphertext.hex()).value().hex())
+        }
+    }
+
+private fun <T> NoiseResult<T>.value(): T = assertIs<NoiseResult.Ok<T>>(this).value
+
+private const val HANDSHAKE_MESSAGES = 3
