@@ -71,7 +71,7 @@ internal val vectorSets: List<VectorSet> =
                 "certificate-signing-input" to certificateSigningInput,
             ),
         ) { group, _ -> group["derivation"].string },
-        VectorSet("vectors/handshake-hfs.json", emptyMap(), key = groupType),
+        VectorSet("vectors/handshake-hfs.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
         VectorSet("vectors/handshake-payload.json", emptyMap(), key = layoutKey),
         VectorSet("vectors/hpke-seal.json", emptyMap(), key = groupType),
         VectorSet(
@@ -127,8 +127,7 @@ private fun pending(
 
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("handshake-hfs.json", 23, "NoiseHandshake") +
-        pending("hpke-seal.json", 45, "HpkeSeal") +
+    pending("hpke-seal.json", 45, "HpkeSeal") +
         pending("handshake-payload.json", 24, "handshake-payload") +
         pending("derivations.json", 24, "mesh-tag-key", "mesh-psk", "link-prologue") +
         pending("derivations.json", 27, "resolvable-tag") +

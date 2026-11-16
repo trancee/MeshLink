@@ -3,7 +3,8 @@ package ch.trancee.meshlink.internal
 /**
  * The Noise Protocol Framework (revision 34) for MeshLink's link handshakes, written once over
  * [CryptoProvider] (ADR 0002, ADR 0004): DH 25519, cipher ChaChaPoly, hash SHA-256, and `HKDF` as
- * HKDF-SHA-256 with empty `info`. The state machine knows nothing of links, frames or the radio.
+ * HKDF-SHA-256 with empty `info`. The `hfs` patterns add ML-KEM-768 as the Noise HFS specification
+ * (revision 1) defines it. The state machine knows nothing of links, frames or the radio.
  */
 public enum class NoisePattern(
     /** The Noise protocol name, which the handshake hashes first. */
@@ -15,12 +16,18 @@ public enum class NoisePattern(
 
     /** `XXpsk3`: the gated mesh's, with the mesh psk mixed in after `se` of message 3. */
     XX_PSK3("Noise_XXpsk3_25519_ChaChaPoly_SHA256", xx(NoiseToken.PSK)),
+
+    /** `XXhfs`: the open mesh's in the `PostQuantum` profile, with `e1` after `e` and `ekem1` after `ee`. */
+    XX_HFS("Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256", xxHfs()),
+
+    /** `XXhfs+psk3`: the gated mesh's in the `PostQuantum` profile. */
+    XX_HFS_PSK3("Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256", xxHfs(NoiseToken.PSK)),
     ;
 
     internal val usesPsk: Boolean get() = messages.any { NoiseToken.PSK in it }
 }
 
-internal enum class NoiseToken { E, S, EE, ES, SE, PSK }
+internal enum class NoiseToken { E, S, EE, ES, SE, PSK, E1, EKEM1 }
 
 private fun xx(vararg last: NoiseToken): List<List<NoiseToken>> =
     listOf(
@@ -29,22 +36,39 @@ private fun xx(vararg last: NoiseToken): List<List<NoiseToken>> =
         listOf(NoiseToken.S, NoiseToken.SE, *last),
     )
 
+private fun xxHfs(vararg last: NoiseToken): List<List<NoiseToken>> =
+    listOf(
+        listOf(NoiseToken.E, NoiseToken.E1),
+        listOf(NoiseToken.E, NoiseToken.EE, NoiseToken.EKEM1, NoiseToken.S, NoiseToken.ES),
+        listOf(NoiseToken.S, NoiseToken.SE, *last),
+    )
+
 /** Which side of a handshake this node is; the initiator writes the first message. */
 public enum class NoiseRole { INITIATOR, RESPONDER }
 
 /**
- * One side's keys: its X25519 [static] key pair, the 32-byte [psk] if the pattern has one, and the
- * [ephemeral] key pair; `null` draws a fresh one from the provider. Only tests fix the ephemeral.
+ * One side's keys: its X25519 [static] key pair, the 32-byte [psk] if the pattern has one, the
+ * [ephemeral] key pair, and for the `hfs` patterns the initiator's ML-KEM-768 [kemKeyPair] and the
+ * responder's 32-byte [encapsulationSeed]. Each `null` input is drawn fresh from the provider; only
+ * tests fix them.
  */
 public class NoiseKeys(
     internal val static: KeyPair,
     psk: ByteArray? = null,
     internal val ephemeral: KeyPair? = null,
+    internal val kemKeyPair: KeyPair? = null,
+    encapsulationSeed: ByteArray? = null,
 ) {
     internal val psk: ByteArray? = psk?.copyOf()
+    internal val encapsulationSeed: ByteArray? = encapsulationSeed?.copyOf()
 
     init {
         psk?.let { require(it.size == KEY_LENGTH) { "A Noise psk is $KEY_LENGTH bytes" } }
+        encapsulationSeed?.let {
+            require(it.size == ENCAPSULATION_SEED_LENGTH) {
+                "An ML-KEM encapsulation seed is $ENCAPSULATION_SEED_LENGTH bytes"
+            }
+        }
     }
 }
 
@@ -69,7 +93,7 @@ public enum class NoiseFailure {
     /** A ciphertext's tag didn't verify: a changed, truncated, extended, replayed or wrong-psk message. */
     AUTHENTICATION_FAILED,
 
-    /** A peer's public key gives an all-zero X25519 result. */
+    /** A peer's public key gives an all-zero X25519 result, or its ML-KEM key fails the modulus check. */
     INVALID_PUBLIC_KEY,
 
     /** The call doesn't fit the pattern: writing on the peer's turn, reading on ours, or splitting early. */
@@ -159,6 +183,9 @@ private class SymmetricState(
     private var chainingKey: ByteArray
     private var cipher: CipherState? = null
 
+    /** Whether a key is mixed in, so `EncryptAndHash` encrypts. */
+    val hasKey: Boolean get() = cipher != null
+
     init {
         val name = protocolName.encodeToByteArray()
         hash = if (name.size <= HASH_LENGTH) name.copyOf(HASH_LENGTH) else crypto.sha256(name)
@@ -236,9 +263,12 @@ public class NoiseHandshake(
     private val static = keys.static
     private val ephemeral = keys.ephemeral ?: crypto.x25519KeyPair()
     private val psk = keys.psk ?: EMPTY
+    private val kem by lazy { keys.kemKeyPair ?: crypto.mlKem768KeyPair() }
+    private val encapsulationSeed = keys.encapsulationSeed
     private val symmetric = SymmetricState(crypto, pattern.protocolName)
     private var remoteEphemeral = EMPTY
     private var remoteStatic = EMPTY
+    private var remoteKem = EMPTY
     private var index = 0
     private var closed = false
 
@@ -267,7 +297,7 @@ public class NoiseHandshake(
     /** The payload of the peer's next handshake [message]. */
     public fun readMessage(message: ByteArray): NoiseResult<ByteArray> =
         turn(writing = false) {
-            val reader = Reader(message)
+            val reader = Reader(message, symmetric)
             val failure = pattern.messages[index].firstNotNullOfOrNull { read(it, reader) }
             val payload = if (failure == null) symmetric.decryptAndHash(reader.rest()) else null
             when {
@@ -330,10 +360,40 @@ public class NoiseHandshake(
                 null
             }
 
+            NoiseToken.E1 -> {
+                parts += symmetric.encryptAndHash(kem.publicKey)
+                null
+            }
+
+            NoiseToken.EKEM1 -> {
+                encapsulate(parts)
+            }
+
             else -> {
                 mix(token)
             }
         }
+
+    /** `ekem1`: encapsulate to the peer's `e1`, send the ciphertext with `EncryptAndHash`, then `MixKey` the secret. */
+    private fun encapsulate(parts: MutableList<ByteArray>): NoiseFailure? {
+        val result =
+            if (encapsulationSeed == null) {
+                crypto.mlKem768Encapsulate(remoteKem)
+            } else {
+                crypto.mlKem768Encapsulate(remoteKem, encapsulationSeed)
+            }
+        return when (result) {
+            is CryptoResult.Ok -> {
+                parts += symmetric.encryptAndHash(result.value.ciphertext)
+                symmetric.mixKey(result.value.sharedSecret)
+                null
+            }
+
+            is CryptoResult.Failed -> {
+                NoiseFailure.INVALID_PUBLIC_KEY
+            }
+        }
+    }
 
     private fun read(
         token: NoiseToken,
@@ -351,14 +411,17 @@ public class NoiseHandshake(
             }
 
             NoiseToken.S -> {
-                // Every supported pattern sends `s` after a DH, so it is always encrypted.
-                val encrypted = reader.take(KEY_LENGTH + TAG_LENGTH)
-                val key = encrypted?.let(symmetric::decryptAndHash)
-                remoteStatic = key ?: EMPTY
-                when {
-                    encrypted == null -> NoiseFailure.MESSAGE_TOO_SHORT
-                    key == null -> NoiseFailure.AUTHENTICATION_FAILED
-                    else -> null
+                reader.takeHashed(KEY_LENGTH) { remoteStatic = it }
+            }
+
+            NoiseToken.E1 -> {
+                reader.takeHashed(KEM_PUBLIC_KEY_LENGTH) { remoteKem = it }
+            }
+
+            NoiseToken.EKEM1 -> {
+                // The tag is checked before decapsulation, so a changed ciphertext never reaches the KEM.
+                reader.takeHashed(KEM_CIPHERTEXT_LENGTH) {
+                    symmetric.mixKey(crypto.mlKem768Decapsulate(kem.secretKey, it))
                 }
             }
 
@@ -418,6 +481,7 @@ public class NoiseHandshake(
 
     private class Reader(
         private val message: ByteArray,
+        private val symmetric: SymmetricState,
     ) {
         private var at = 0
 
@@ -427,6 +491,20 @@ public class NoiseHandshake(
         }
 
         fun rest(): ByteArray = message.copyOfRange(at, message.size)
+
+        /** A [length]-byte field sent with `EncryptAndHash`, so with a tag once a key is mixed in, passed to [use]. */
+        fun takeHashed(
+            length: Int,
+            use: (ByteArray) -> Unit,
+        ): NoiseFailure? {
+            val field = take(length + if (symmetric.hasKey) TAG_LENGTH else 0)
+            val plaintext = field?.let(symmetric::decryptAndHash)
+            return when {
+                field == null -> NoiseFailure.MESSAGE_TOO_SHORT
+                plaintext == null -> NoiseFailure.AUTHENTICATION_FAILED
+                else -> null.also { use(plaintext) }
+            }
+        }
     }
 }
 
@@ -476,5 +554,8 @@ private const val NONCE_LENGTH = 12
 private const val NONCE_PREFIX = 4
 private const val MAX_NONCE = ULong.MAX_VALUE
 private const val THREE_OUTPUTS = 3
+private const val KEM_PUBLIC_KEY_LENGTH = 1_184
+private const val KEM_CIPHERTEXT_LENGTH = 1_088
+private const val ENCAPSULATION_SEED_LENGTH = 32
 private val AUTHENTICATION_FAILED = NoiseResult.Failed(NoiseFailure.AUTHENTICATION_FAILED)
 private val EMPTY = ByteArray(0)
