@@ -6,6 +6,7 @@ import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Container
 import ch.trancee.meshlink.internal.Content
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
 import ch.trancee.meshlink.internal.LinkRecord
@@ -87,6 +88,15 @@ internal val certificate: Handler =
         assertEquals(decoded["signature"].string, value.signature.hex(), "signature")
     }
 
+internal val handshakePayload: Handler =
+    layout({ _, bytes -> HandshakePayload.decode(bytes) }, { _, value -> value.encode() }) { decoded, value ->
+        assertEquals(
+            decoded["tlvs"].list.map { it["type"].code() to it["value"].string },
+            value.tlvs.map { it.type to it.value.hex() },
+            "tlvs",
+        )
+    }
+
 /** Every decoder input also runs through a [RecordReader] in [READER_CHUNK]-byte writes. */
 internal val record: Handler =
     layout(
@@ -98,10 +108,17 @@ internal val record: Handler =
         },
     ) { decoded, body -> assertEquals(decoded["body"].string, body.hex(), "body") }
 
-/** The link-local frames whose codec exists: PLAIN_HELLO, CLOSE, and the frames it refuses by type. */
+/** The link-local frames whose codec exists: HANDSHAKE, PLAIN_HELLO, CLOSE, and the frames it refuses by type. */
 internal val linkFrame: Handler =
     layout({ _, bytes -> LinkFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
         when (frame) {
+            is LinkFrame.Handshake -> {
+                assertEquals(decoded["type"].code(), HANDSHAKE, "type")
+                assertEquals(decoded["version"].int, frame.version, "version")
+                assertEquals(decoded["step"].int, frame.step, "step")
+                assertEquals(decoded["noise_message"].string, frame.noiseMessage.hex(), "noise_message")
+            }
+
             is LinkFrame.PlainHello -> {
                 assertEquals(decoded["type"].code(), PLAIN_HELLO, "type")
                 assertEquals(decoded["version"].int, frame.version, "version")
@@ -169,5 +186,6 @@ internal fun innerContent(message: Boolean): Handler =
 
 private const val HEX = 16
 private const val READER_CHUNK = 5
+private const val HANDSHAKE = 0x02
 private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04

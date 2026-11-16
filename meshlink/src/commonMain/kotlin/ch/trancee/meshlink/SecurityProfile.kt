@@ -13,6 +13,14 @@ public sealed interface SecurityProfile {
      * traffic. For tests, demos and content that is public anyway.
      */
     public data object Unsecured : SecurityProfile
+
+    /**
+     * Authenticated, encrypted links with classical cryptography: each link runs a Noise `XX`
+     * handshake (`XXpsk3` with a mesh key) over X25519, ChaCha20-Poly1305 and SHA-256, and each
+     * peer proves its NodeId with an Ed25519 identity certificate. Not resistant to a future
+     * quantum computer that records traffic today.
+     */
+    public data object Classical : SecurityProfile
 }
 
 /** The profile's one-byte code on the wire (spec "Security profiles"). */
@@ -20,4 +28,5 @@ internal val SecurityProfile.wireProfile: WireProfile
     get() =
         when (this) {
             SecurityProfile.Unsecured -> WireProfile.UNSECURED
+            SecurityProfile.Classical -> WireProfile.CLASSICAL
         }

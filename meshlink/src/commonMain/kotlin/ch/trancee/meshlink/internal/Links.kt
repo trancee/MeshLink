@@ -22,10 +22,12 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Instant
 
 /**
- * A running node's `unsecured` links (spec "Version selection", "Unsecured link", "Keep one link
- * per neighbor", "Close"): opens a link to each candidate as central, accepts the links peers open,
- * keeps one link per NodeId and lists every linked peer in [peers]. Each kept link writes the
- * messages [mail] has for its peer and hands it the routed frames it receives.
+ * A running node's links (spec "Version selection", "Unsecured link", "Link handshake", "Keep one
+ * link per neighbor", "Close"): opens a link to each candidate as central, accepts the links peers
+ * open, keeps one link per NodeId and lists every linked peer in [peers]. A link opens with
+ * `PLAIN_HELLO`s in `unsecured`, or with a Noise handshake and encrypted records once
+ * [LinkAdmission.handshakes] is set. Each kept link writes the messages [mail] has for its peer and
+ * hands it the routed frames it receives.
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
@@ -33,11 +35,14 @@ import kotlin.time.Instant
 internal class Links(
     private val radio: RadioPort,
     private val clock: Clock,
-    private val policy: LinkPolicy,
+    admission: LinkAdmission,
     private val scope: CoroutineScope,
     private val peers: MutableStateFlow<List<Peer>>,
     private val mail: Mail,
 ) {
+    private val policy = admission.policy
+    private val handshakes = admission.handshakes
+
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
 
     /** This node's role on each kept link; for the lab apps. */
@@ -57,7 +62,7 @@ internal class Links(
 
     /** Accepts the link a peer opened in [event]; other events need nothing here. */
     fun accept(event: RadioEvent) {
-        if (event is RadioEvent.Connected) track(event.link.peer) { serve(event.link, selected = null) }
+        if (event is RadioEvent.Connected) track(event.link.peer) { serve(event.link, null, policy.versions) }
     }
 
     private fun track(
@@ -80,33 +85,50 @@ internal class Links(
                 is RadioResult.Ok -> connected.value
                 is RadioResult.Failed -> return
             }
-        var version: Int? = null
+        // The selected version and the record's versions, which a secured handshake binds.
+        var selection: Pair<Int, List<Int>>? = null
         try {
-            version =
+            selection =
                 (link.readCapability() as? RadioResult.Ok)
                     ?.let { CapabilityRecord.decode(it.value) as? Decoded.Valid }
-                    ?.let { policy.selectVersion(it.value) }
+                    ?.let { record -> policy.selectVersion(record.value)?.let { it to record.value.versions } }
         } finally {
-            if (version == null) link.disconnect()
+            if (selection == null) link.disconnect()
         }
-        version?.let { serve(link, it) }
+        selection?.let { (version, versions) -> serve(link, version, versions) }
     }
 
-    /** Runs [link] until it closes: as central once it chose [selected], as peripheral if `null`. */
+    /**
+     * Runs [link] until it closes: as central once it chose [selected] from the peripheral's
+     * capability record [versions], as peripheral if [selected] is `null`.
+     */
     private suspend fun serve(
         link: RadioLink,
         selected: Int?,
+        versions: List<Int>,
     ) = coroutineScope {
-        val conn = Link(link, selected)
+        val conn = Link(link, selected, handshakes?.link(link.peer, versions))
         opening++
         val timer =
             launch {
                 delay(HANDSHAKE_TIMEOUT_MILLIS)
+                conn.pending?.timedOut()
                 conn.close(null)
             }
-        val pump = launch { pump(conn) }
+        // Writes mail's messages for the peer once this is its kept link. A refused write means the
+        // link is closing or broken; serve cancels the pump when it ends.
+        val pump =
+            launch {
+                val id = conn.chosen.await()
+                while (conn.deliver(mail.next(id))) continue
+                awaitCancellation()
+            }
         try {
-            selected?.let { conn.send(policy.hello(it)) }
+            when {
+                selected == null -> Unit
+                conn.secure == null -> conn.send(policy.hello(selected))
+                else -> handshake(conn, conn.secure.start(selected))
+            }
             val reader = RecordReader()
             link.incoming.takeWhile { !conn.closing }.collect { chunk ->
                 when (val records = reader.read(chunk)) {
@@ -125,52 +147,94 @@ internal class Links(
         }
     }
 
+    /** Handles one record [body]: a fatal one, one that fails to decrypt, closes the bearer. */
     private suspend fun receive(
         conn: Link,
         body: ByteArray,
     ) {
+        val plain = conn.unseal(body)
         conn.peer?.let { conn.lastSeen = clock.now() }
-        if (conn.peer != null && (body[0].toInt() and BYTE_MASK) in ROUTED_TYPES) {
-            mail.received(body)
-        } else {
-            when (val decoded = LinkFrame.decode(body)) {
-                is Decoded.Invalid -> {
-                    if (decoded.error != DecodeError.UNKNOWN_TYPE) conn.close(CloseReason.PROTOCOL_ERROR)
-                }
+        val pending = conn.pending
+        when {
+            plain == null -> {
+                conn.close(null)
+            }
 
-                is Decoded.Valid -> {
-                    frame(conn, decoded.value)
+            conn.peer != null && (plain[0].toInt() and BYTE_MASK) in ROUTED_TYPES -> {
+                mail.received(plain)
+            }
+
+            else -> {
+                val decoded = LinkFrame.decode(plain)
+                when {
+                    decoded is Decoded.Valid -> {
+                        frame(conn, decoded.value)
+                    }
+
+                    // Before its handshake completes, a secured link accepts only HANDSHAKE and CLOSE.
+                    pending != null -> {
+                        handshake(conn, pending.receive(null))
+                    }
+
+                    (decoded as Decoded.Invalid).error != DecodeError.UNKNOWN_TYPE -> {
+                        conn.close(CloseReason.PROTOCOL_ERROR)
+                    }
                 }
             }
         }
         if (table[conn.peer] === conn) publish()
     }
 
-    /** Writes [mail]'s messages for the peer once [conn] is its kept link, until cancelled. */
-    private suspend fun pump(conn: Link) {
-        val id = conn.chosen.await()
-        while (true) {
-            // A refused write means the link is closing or broken; serve cancels the pump when it ends.
-            if (!conn.deliver(mail.next(id))) awaitCancellation()
-        }
-    }
-
     private suspend fun frame(
         conn: Link,
         frame: LinkFrame,
     ) {
-        when (frame) {
-            is LinkFrame.Close -> {
+        val pending = conn.pending
+        when {
+            frame is LinkFrame.Close -> {
                 conn.received = frame.reason
                 conn.close(null)
             }
 
-            is LinkFrame.PlainHello -> {
-                val reason =
-                    if (conn.peer == null) policy.checkHello(frame, conn.selected) else CloseReason.PROTOCOL_ERROR
+            pending != null -> {
+                handshake(conn, pending.receive(frame))
+            }
+
+            frame is LinkFrame.PlainHello && conn.peer == null -> {
+                val reason = policy.checkHello(frame, conn.selected)
                 if (reason != null) return conn.close(reason)
                 if (conn.selected == null) conn.send(policy.hello(frame.version))
                 open(conn, NodeId(frame.nodeId))
+            }
+
+            else -> {
+                conn.close(CloseReason.PROTOCOL_ERROR)
+            }
+        }
+    }
+
+    /** Does what a secured handshake [step] on [conn] asks. */
+    private suspend fun handshake(
+        conn: Link,
+        step: HandshakeStep,
+    ) {
+        when (step) {
+            is HandshakeStep.Send -> {
+                conn.send(step.frame)
+            }
+
+            is HandshakeStep.Complete -> {
+                step.reply?.let { conn.send(it) }
+                conn.transport = step.transport
+                step.peer?.let { open(conn, it) } ?: conn.close(CloseReason.HANDSHAKE_FAILED)
+            }
+
+            HandshakeStep.Failed -> {
+                conn.close(CloseReason.HANDSHAKE_FAILED)
+            }
+
+            HandshakeStep.Dropped -> {
+                conn.close(null)
             }
         }
     }
@@ -198,6 +262,7 @@ internal class Links(
     }
 
     private fun release(conn: Link) {
+        conn.secure?.end()
         val id = conn.peer
         if (id == null) opening--
         if (id != null && table[id] === conn) {
@@ -221,9 +286,17 @@ internal class Links(
         val link: RadioLink,
         /** The version this node chose as central, or `null` as peripheral. */
         val selected: Int?,
+        /** The link's handshake in a secured profile, or `null` in `unsecured`. */
+        val secure: LinkHandshake?,
     ) {
         val central: Boolean get() = selected != null
         var peer: NodeId? = null
+
+        /** The handshake while it runs: until the peer is known, once the link is secured. */
+        val pending: LinkHandshake? get() = secure?.takeIf { peer == null }
+
+        /** Encrypts and decrypts every record once the handshake completes. */
+        var transport: NoiseTransport? = null
         var lastSeen: Instant = Instant.fromEpochMilliseconds(0)
         var received: CloseReason? = null
         var closing = false
@@ -236,7 +309,24 @@ internal class Links(
         private val writing = Mutex()
 
         suspend fun send(frame: LinkFrame) {
-            writing.withLock { link.write(LinkRecord.encode(frame.encode())) }
+            writing.withLock { link.write(seal(frame.encode())) }
+        }
+
+        /**
+         * [frame] as a record, encrypted once secured. Only the writer calls it, holding [writing],
+         * so nonces follow the record order.
+         */
+        private fun seal(frame: ByteArray): ByteArray {
+            // A sending cipher state fails only after 2^64 - 1 records.
+            val cipher = transport
+            val body = if (cipher == null) frame else (cipher.encrypt(frame) as NoiseResult.Ok).value
+            return LinkRecord.encode(body)
+        }
+
+        /** The frame in record [body], or `null` if it fails to decrypt. */
+        fun unseal(body: ByteArray): ByteArray? {
+            val transport = transport ?: return body
+            return (transport.decrypt(body) as? NoiseResult.Ok)?.value
         }
 
         /**
@@ -247,7 +337,7 @@ internal class Links(
             var sent = false
             try {
                 withContext(NonCancellable) {
-                    writing.withLock { if (!closing) sent = link.write(letter.record) is RadioResult.Ok }
+                    writing.withLock { if (!closing) sent = link.write(seal(letter.frame)) is RadioResult.Ok }
                 }
             } finally {
                 letter.settle(sent)
@@ -266,7 +356,7 @@ internal class Links(
             }
         }
 
-        fun toPeer(id: NodeId): Peer = Peer(id, Reachability.Direct, secured = false, lastSeen)
+        fun toPeer(id: NodeId): Peer = Peer(id, Reachability.Direct, secured = secure != null, lastSeen)
     }
 
     companion object {
@@ -278,6 +368,12 @@ internal class Links(
         private const val BYTE_MASK = 0xFF
     }
 }
+
+/** How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile. */
+internal class LinkAdmission(
+    val policy: LinkPolicy,
+    val handshakes: Handshakes?,
+)
 
 private fun Clock.now(): Instant = Instant.fromEpochMilliseconds(wallClockMillis())
 

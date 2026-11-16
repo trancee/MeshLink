@@ -5,15 +5,20 @@ package ch.trancee.meshlink.internal
  * builds its advertisements and recognizes other members' ones. Not thread-safe; a node calls it
  * from its own dispatcher.
  *
- * This version covers open meshes: `tag_key` is the MeshIdDigest, and the resolvable tag is random.
+ * `tag_key` is the MeshIdDigest of an open mesh, or `KDF(mesh_key, MeshIdDigest, "mesh-tag-key")`
+ * of a gated one ([meshKey]). The resolvable tag is random.
  */
 public class Discovery(
     private val crypto: CryptoProvider,
     meshId: ByteArray,
     profile: WireProfile,
+    meshKey: ByteArray? = null,
 ) {
     private val derivations = Derivations(crypto)
-    private val tagKey = derivations.meshIdDigest(meshId, profile)
+    private val tagKey =
+        derivations.meshIdDigest(meshId, profile).let { digest ->
+            if (meshKey == null) digest else derivations.meshTagKey(meshKey, digest)
+        }
     private var own = ByteArray(0)
     private var windowEpoch: UInt? = null
     private var window: List<ByteArray> = emptyList()

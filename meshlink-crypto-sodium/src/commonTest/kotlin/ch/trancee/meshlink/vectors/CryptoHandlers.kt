@@ -54,6 +54,22 @@ internal val meshTag: Handler =
 internal val unsecuredTag: Handler =
     derivation { derivations.unsecuredTag(it["node_id"].string.hex(), it["epoch"].uInt) }
 
+internal val meshTagKey: Handler =
+    derivation { derivations.meshTagKey(it["mesh_key"].string.hex(), it["mesh_id_digest"].string.hex()) }
+
+internal val meshPsk: Handler =
+    derivation { derivations.meshPsk(it["mesh_key"].string.hex(), it["mesh_id_digest"].string.hex()) }
+
+internal val linkPrologue: Handler =
+    derivation { inputs ->
+        Derivations.linkPrologue(
+            inputs["versions"].list.map { it.int },
+            inputs["selected"].int,
+            WireProfile.entries.single { it.code == inputs["profile"].int },
+            inputs["mesh_id_digest"].string.hex(),
+        )
+    }
+
 internal val tombstoneCommitment: Handler = derivation { derivations.tombstoneCommitment(it["k"].string.hex()) }
 
 internal val certificateSigningInput: Handler =
@@ -285,10 +301,10 @@ internal val noise: Handler =
     }
 
 /**
- * `handshake-hfs.json` (tier 2): each side replays its handshake from its keys and KEM input. A
- * writer's message must equal the delivered one except at `tampered_step`; the reader of
- * `rejected_step` must fail and every earlier read must succeed. A valid run must reach the
- * handshake hash on both sides and reproduce each transport message.
+ * `handshake-xx.json` and `handshake-hfs.json` (tier 2): each side replays its handshake from its
+ * keys and, for `XXhfs`, its KEM input. A writer's message must equal the delivered one except at
+ * `tampered_step`; the reader of `rejected_step` must fail and every earlier read must succeed. A
+ * valid run must reach the handshake hash on both sides and reproduce each transport message.
  */
 internal val noiseHandshake: Handler =
     Handler("handshake_hash") { case ->

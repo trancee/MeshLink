@@ -66,13 +66,17 @@ internal val vectorSets: List<VectorSet> =
                 "node-id" to nodeId,
                 "mesh-id-digest" to meshIdDigest,
                 "mesh-tag" to meshTag,
+                "mesh-tag-key" to meshTagKey,
+                "mesh-psk" to meshPsk,
+                "link-prologue" to linkPrologue,
                 "unsecured-tag" to unsecuredTag,
                 "tombstone-commitment" to tombstoneCommitment,
                 "certificate-signing-input" to certificateSigningInput,
             ),
         ) { group, _ -> group["derivation"].string },
         VectorSet("vectors/handshake-hfs.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
-        VectorSet("vectors/handshake-payload.json", emptyMap(), key = layoutKey),
+        VectorSet("vectors/handshake-payload.json", mapOf("handshake-payload" to handshakePayload), key = layoutKey),
+        VectorSet("vectors/handshake-xx.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
         VectorSet("vectors/hpke-seal.json", emptyMap(), key = groupType),
         VectorSet(
             "vectors/inner-plaintext.json",
@@ -81,7 +85,7 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "vectors/link-frames.json",
-            listOf("0x03", "0x04", "0x00", "0x3f", "0xc0", "0xff", "empty").associateWith { linkFrame },
+            listOf("0x02", "0x03", "0x04", "0x00", "0x3f", "0xc0", "0xff", "empty").associateWith { linkFrame },
             key = frameKey,
         ),
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
@@ -128,15 +132,12 @@ private fun pending(
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
     pending("hpke-seal.json", 45, "HpkeSeal") +
-        pending("handshake-payload.json", 24, "handshake-payload") +
-        pending("derivations.json", 24, "mesh-tag-key", "mesh-psk", "link-prologue") +
         pending("derivations.json", 27, "resolvable-tag") +
         pending("derivations.json", 45, "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", 45, "hpke-info") +
         pending("derivations.json", 44, "lookup-tag", "lookup-reply-key") +
         pending("derivations.json", 39, "broadcast-signing-input") +
         pending("link-frames.json", 28, "0x01", "0x06") +
-        pending("link-frames.json", 24, "0x02") +
         pending("link-frames.json", 30, "0x05") +
         pending("link-frames.json", 35, "0x07", "0x08", "0x09") +
         pending("link-frames.json", 41, "0x0a") +

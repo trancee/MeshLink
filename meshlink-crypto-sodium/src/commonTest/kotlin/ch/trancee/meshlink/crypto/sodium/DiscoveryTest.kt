@@ -20,7 +20,36 @@ class DiscoveryTest {
     private fun discovery(
         meshId: ByteArray = this.meshId,
         profile: WireProfile = WireProfile.UNSECURED,
-    ) = Discovery(SodiumCryptoProvider, meshId, profile)
+        meshKey: ByteArray? = null,
+    ) = Discovery(SodiumCryptoProvider, meshId, profile, meshKey)
+
+    @Test
+    fun aGatedMeshTagsWithTheMeshTagKey() {
+        // Arrange
+        val derivations = Derivations(SodiumCryptoProvider)
+        val tagKey = derivations.meshTagKey(MESH_KEY, derivations.meshIdDigest(meshId, WireProfile.CLASSICAL))
+        val gated = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY)
+
+        // Act
+        val payload = gated.advertisement(EPOCH)
+
+        // Assert
+        val advertisement = (Advertisement.decode(payload) as Decoded.Valid).value
+        assertContentEquals(derivations.meshTag(tagKey, EPOCH), advertisement.meshTag)
+    }
+
+    @Test
+    fun aGatedMeshKeepsOnlyMembersWithTheSameMeshKey() {
+        val gated = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY)
+        val sameKey = discovery(profile = WireProfile.CLASSICAL, meshKey = MESH_KEY.copyOf())
+        val otherKey = discovery(profile = WireProfile.CLASSICAL, meshKey = ByteArray(MESH_KEY.size))
+        val open = discovery(profile = WireProfile.CLASSICAL)
+
+        assertNotNull(gated.accept(sameKey.advertisement(EPOCH), EPOCH))
+        assertNull(gated.accept(otherKey.advertisement(EPOCH), EPOCH))
+        assertNull(gated.accept(open.advertisement(EPOCH), EPOCH))
+        assertNull(open.accept(gated.advertisement(EPOCH), EPOCH))
+    }
 
     @Test
     fun unsecuredAdvertisementCarriesTheMeshTagOfTheUnsecuredMeshIdDigestAndNoFlags() {
@@ -100,5 +129,6 @@ class DiscoveryTest {
     private companion object {
         val EPOCH: UInt = Derivations.epoch(1_767_225_600)
         const val RANDOMLESS_LENGTH = 13
+        val MESH_KEY = ByteArray(32) { (it + 1).toByte() }
     }
 }

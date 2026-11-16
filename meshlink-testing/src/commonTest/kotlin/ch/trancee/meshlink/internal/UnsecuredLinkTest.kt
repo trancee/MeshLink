@@ -266,7 +266,7 @@ class UnsecuredLinkTest {
 
             // Act
             advanceTimeBy(SETTLE_MILLIS)
-            fake.write(LinkRecord.encode(byteArrayOf(0x02, 0x01)))
+            fake.write(LinkRecord.encode(byteArrayOf(0x01, 0x01)))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert

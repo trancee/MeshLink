@@ -1,4 +1,4 @@
-//! Noise `XXhfs` and `XXhfs+psk3` link handshakes (`docs/spec/link.md`, "Handshake").
+//! Noise `XX`, `XXpsk3`, `XXhfs` and `XXhfs+psk3` link handshakes (`docs/spec/link.md`, "Handshake").
 //!
 //! snow's own ML-KEM-768 draws from the system random generator, so its transcripts can't be
 //! reproduced. [`FixedKem`] runs the same FIPS 203 algorithms from fixed inputs instead: key
@@ -95,8 +95,8 @@ impl Kem for FixedKem {
     }
 }
 
-/// snow's default resolver with [`FixedKem`] as the KEM.
-struct FixedResolver(KemInput);
+/// snow's default resolver with [`FixedKem`] as the KEM, or no KEM for a pattern without one.
+struct FixedResolver(Option<KemInput>);
 
 impl CryptoResolver for FixedResolver {
     fn resolve_rng(&self) -> Option<Box<dyn Random>> {
@@ -116,9 +116,10 @@ impl CryptoResolver for FixedResolver {
     }
 
     fn resolve_kem(&self, choice: &KemChoice) -> Option<Box<dyn Kem>> {
+        let input = self.0?;
         matches!(choice, KemChoice::MlKem768).then(|| {
             Box::new(FixedKem {
-                input: self.0,
+                input,
                 decapsulation_key: None,
                 public_key: Vec::new(),
             }) as Box<dyn Kem>
@@ -130,7 +131,7 @@ impl CryptoResolver for FixedResolver {
 pub struct Side {
     pub static_private: [u8; 32],
     pub ephemeral_private: [u8; 32],
-    pub kem: KemInput,
+    pub kem: Option<KemInput>,
     pub prologue: Vec<u8>,
     pub psk: Option<[u8; 32]>,
 }
@@ -263,7 +264,7 @@ mod tests {
         Side {
             static_private: seed(label),
             ephemeral_private: seed(&format!("{label} e")),
-            kem,
+            kem: Some(kem),
             prologue: b"p".to_vec(),
             psk: None,
         }

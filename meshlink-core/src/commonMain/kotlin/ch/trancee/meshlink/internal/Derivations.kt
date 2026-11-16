@@ -17,6 +17,30 @@ public class Derivations(
         key: ByteArray? = null,
     ): ByteArray = crypto.blake2b(HASH_LENGTH, domain.encoded + input, key)
 
+    /**
+     * `KDF(ikm, salt, purpose, context, L)`: HKDF-SHA-256 with `info = DS(purpose) ‖ context`; an
+     * empty [salt] means 32 zero bytes.
+     */
+    public fun kdf(
+        ikm: ByteArray,
+        salt: ByteArray,
+        domain: Domain,
+        context: ByteArray = ByteArray(0),
+        length: Int = HASH_LENGTH,
+    ): ByteArray = crypto.hkdfSha256Expand(crypto.hkdfSha256Extract(salt, ikm), domain.encoded + context, length)
+
+    /** A gated mesh's tag key: `KDF(mesh_key, MeshIdDigest, "mesh-tag-key", "", 32)` (D-05). */
+    public fun meshTagKey(
+        meshKey: ByteArray,
+        meshIdDigest: ByteArray,
+    ): ByteArray = kdf(meshKey, meshIdDigest, Domain.MESH_TAG_KEY)
+
+    /** A gated mesh's `XXpsk3` psk: `KDF(mesh_key, MeshIdDigest, "mesh-psk", "", 32)` (D-06). */
+    public fun meshPsk(
+        meshKey: ByteArray,
+        meshIdDigest: ByteArray,
+    ): ByteArray = kdf(meshKey, meshIdDigest, Domain.MESH_PSK)
+
     /** `NodeId = H("node-id", ed25519_public_key)`. */
     public fun nodeId(ed25519PublicKey: ByteArray): ByteArray = hash(Domain.NODE_ID, ed25519PublicKey)
 
@@ -64,6 +88,23 @@ public class Derivations(
         private val UNIX_SECONDS = 0..UInt.MAX_VALUE.toLong()
 
         /**
+         * The link handshake prologue (D-15):
+         * `DS("link-prologue") ‖ u8(n) ‖ versions ‖ u8(selected) ‖ u8(profile) ‖ MeshIdDigest`, with
+         * [versions] as the peripheral's capability record lists them.
+         */
+        public fun linkPrologue(
+            versions: List<Int>,
+            selected: Int,
+            profile: WireProfile,
+            meshIdDigest: ByteArray,
+        ): ByteArray =
+            Domain.LINK_PROLOGUE.encoded +
+                byteArrayOf(versions.size.toByte()) +
+                ByteArray(versions.size) { versions[it].toByte() } +
+                byteArrayOf(selected.toByte(), profile.code.toByte()) +
+                meshIdDigest
+
+        /**
          * The epoch number of [unixSeconds]: `floor(unix_seconds / 300)`.
          *
          * @param unixSeconds 0 to 2^32 − 1, the protocol's `u32` time range.
@@ -82,6 +123,9 @@ public enum class Domain(
     NODE_ID("node-id"),
     MESH_ID("mesh-id"),
     MESH_TAG("mesh-tag"),
+    MESH_TAG_KEY("mesh-tag-key"),
+    MESH_PSK("mesh-psk"),
+    LINK_PROLOGUE("link-prologue"),
     UNSECURED_TAG("unsecured-tag"),
     TOMBSTONE("tombstone"),
     CERTIFICATE("certificate"),

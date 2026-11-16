@@ -1,0 +1,288 @@
+{
+  "$schema": "./handshake-xx.schema.json",
+  "tier": 2,
+  "algorithm": "MeshLink/1 classical link handshake (Noise XX, XXpsk3)",
+  "schema": "handshake-xx.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 7,
+  "notes": {
+    "ReferenceKeys": "Keys and ephemerals come from fixed labels in tools/reference. Private keys are the raw 32 B X25519 inputs.",
+    "Replay": "Each side writes its message from its inputs and the payload. messages are the bytes as delivered: a writer's own output equals them except at tampered_step. The reader of rejected_step must fail the handshake; every earlier message must succeed.",
+    "Tampered": "One bit flipped in transit at tampered_step.",
+    "Prologue": "The two sides hold different prologues, so message 2 fails.",
+    "Psk": "The two sides hold different mesh keys, so message 3 fails."
+  },
+  "testGroups": [
+    {
+      "type": "NoiseHandshake",
+      "protocol": "Noise_XX_25519_ChaChaPoly_SHA256",
+      "gated": false,
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "open mesh, classical profile",
+          "flags": [],
+          "result": "valid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "81008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "81008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d59227748764",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee531032c24ccc011c54e1b9869ac832433c7cf33040f3a9d48d03b7e8ad873aee43f6c33a7a61bf8886512e3c021cf90d94baac4f1f49cb24a05fda67dbf73cb9022b9581d44605f2f455be48dcf3d63a8adc05490ddce12dbfd5ecbf42a1fdf6d9aa32837b87dafbb92b6982a935efd983d04eb490b864a437c7337693d2f8e7304813df7b24ea724d169a2784cf7e93dd3faefd7df167f2632251f0d52b17518eb35bef51615ddae0c1e38fd9d5340c5c7381dec431530a8ff3d679a5f64458cc9b3016ef9579558230be936be73a",
+            "50c995863d5911f341d1a944b8a92106e382378b50b96f090d2a108f1b045432dfc33f8a86252e01f496b82c92d87a231ac587b305ff13aad51f8f4fb5cb9cdd2c6cf462f99e121a56998c568e2f26f0df58b1162963c1393c5652c127b4a8a3cb8c8cb75c49410d693696ccaa0983dd4766725d6d9944cb9792b535ce442a7c1e9cfd24c41e7a690aa9895b99d30bebf07097b4f95a27d99cd0b1a951811267244d9f4b9aaebe31cd086aa80ca91ca16fa6a8e724501a18f8021ca8cf8e59df918fff4965ade657bf67be4265"
+          ],
+          "handshake_hash": "0bac2704a44a2813f369beee35194651d8fa85dd42914faabf0267def74c92a9",
+          "transport": [
+            {
+              "direction": "initiator-to-responder",
+              "plaintext": "70696e67",
+              "ciphertext": "aadc5d94225ad7520223671a83dea8082a233d84"
+            },
+            {
+              "direction": "responder-to-initiator",
+              "plaintext": "706f6e67",
+              "ciphertext": "82cfe5a3cdee9ebd11c115c675f6e18643609e54"
+            }
+          ]
+        },
+        {
+          "tcId": 2,
+          "comment": "e changed in message 1",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "81008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "81008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c659b9b0871cf1c199b726eb9b82c49b2d59227748764",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee5310d3d08f218bb639916e8452531f0d79959918c8bcd82647b1991b6686d06095071aa992f71eadb42d14cb414aebd0073c83a7f9e8e317ebeb5e654b609e3595a0a1d68713d3e3a41d1f68e0bd99c06c4e13c5032223c8bdbcc48b5dc2b10c393e22dba5cc966d74b33f3f2b8ed8dba22adc69c471e113e5117e732b5e17054c2b584fb08ad97dea89796c7749d4ac262200ae49588d26b51f272ca2a6becc6e1ad85142f9b7f0861e73b6299920526e624093bb95eea6dbca0c4d1a24101ab53b729402630d151a228c0ce158c5"
+          ],
+          "tampered_step": 1,
+          "rejected_step": 2,
+          "error": "handshake-failed"
+        },
+        {
+          "tcId": 3,
+          "comment": "encrypted static key changed in message 2",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "81008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "81008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d59227748764",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee531032c24ccc011c54e1b9869bc832433c7cf33040f3a9d48d03b7e8ad873aee43f6c33a7a61bf8886512e3c021cf90d94baac4f1f49cb24a05fda67dbf73cb9022b9581d44605f2f455be48dcf3d63a8adc05490ddce12dbfd5ecbf42a1fdf6d9aa32837b87dafbb92b6982a935efd983d04eb490b864a437c7337693d2f8e7304813df7b24ea724d169a2784cf7e93dd3faefd7df167f2632251f0d52b17518eb35bef51615ddae0c1e38fd9d5340c5c7381dec431530a8ff3d679a5f64458cc9b3016ef9579558230be936be73a"
+          ],
+          "tampered_step": 2,
+          "rejected_step": 2,
+          "error": "handshake-failed"
+        },
+        {
+          "tcId": 4,
+          "comment": "encrypted static key changed in message 3",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "81008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "81008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d59227748764",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee531032c24ccc011c54e1b9869ac832433c7cf33040f3a9d48d03b7e8ad873aee43f6c33a7a61bf8886512e3c021cf90d94baac4f1f49cb24a05fda67dbf73cb9022b9581d44605f2f455be48dcf3d63a8adc05490ddce12dbfd5ecbf42a1fdf6d9aa32837b87dafbb92b6982a935efd983d04eb490b864a437c7337693d2f8e7304813df7b24ea724d169a2784cf7e93dd3faefd7df167f2632251f0d52b17518eb35bef51615ddae0c1e38fd9d5340c5c7381dec431530a8ff3d679a5f64458cc9b3016ef9579558230be936be73a",
+            "50c995863d5911f341d1a844b8a92106e382378b50b96f090d2a108f1b045432dfc33f8a86252e01f496b82c92d87a231ac587b305ff13aad51f8f4fb5cb9cdd2c6cf462f99e121a56998c568e2f26f0df58b1162963c1393c5652c127b4a8a3cb8c8cb75c49410d693696ccaa0983dd4766725d6d9944cb9792b535ce442a7c1e9cfd24c41e7a690aa9895b99d30bebf07097b4f95a27d99cd0b1a951811267244d9f4b9aaebe31cd086aa80ca91ca16fa6a8e724501a18f8021ca8cf8e59df918fff4965ade657bf67be4265"
+          ],
+          "tampered_step": 3,
+          "rejected_step": 3,
+          "error": "handshake-failed"
+        },
+        {
+          "tcId": 5,
+          "comment": "responder read a different capability record",
+          "flags": [
+            "Prologue"
+          ],
+          "result": "invalid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f6775650201020101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "81008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "81008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d59227748764",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee531032c24ccc011c54e1b9869ac832433c7cf33040f3a9d48d03b7e8ad873aee43f67f6cd33aa5afb2c870bae4bb8bfa36f6ac4f1f49cb24a05fda67dbf73cb9022b9581d44605f2f455be48dcf3d63a8adc05490ddce12dbfd5ecbf42a1fdf6d9aa32837b87dafbb92b6982a935efd983d04eb490b864a437c7337693d2f8e7304813df7b24ea724d169a2784cf7e93dd3faefd7df167f2632251f0d52b17518eb35bef51615ddae0c1e38fd9d5340c5c7381dec431530a8ff3d679a5f644aa325671f399d76991db6af9eb5cba6e"
+          ],
+          "rejected_step": 2,
+          "error": "handshake-failed"
+        }
+      ]
+    },
+    {
+      "type": "NoiseHandshake",
+      "protocol": "Noise_XXpsk3_25519_ChaChaPoly_SHA256",
+      "gated": true,
+      "tests": [
+        {
+          "tcId": 6,
+          "comment": "gated mesh, classical profile",
+          "flags": [],
+          "result": "valid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64",
+            "mesh_key": "90af9d544c4cbcd21faeea61ad839b175b8640808156c6875a422f53bb5ab7f5",
+            "psk": "f49ab10f24712694365174ff7c5543ac57b1cc1b6f411a6d69fdf6541165cb6c"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64",
+            "mesh_key": "90af9d544c4cbcd21faeea61ad839b175b8640808156c6875a422f53bb5ab7f5",
+            "psk": "f49ab10f24712694365174ff7c5543ac57b1cc1b6f411a6d69fdf6541165cb6c"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "020024b1ff92686479eeffbf4182143099792f2eb628d35984ff85f0611e337d6ef5db6b383e0081008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "020024511b90cb28642b9a6d47bd0a539440048cb9ba1e7c50db43f66041f6e204e9606b383e0081008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d592277487640f00783e5018c8ab8f68c267221ee2a5",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee5310937c3f4c3100bfbc6f2ce9da4c68bed3ed6f31defc84c7c123440f1247a231809bc889015d25ce03274a8fbc3e795c929a8491e4e96ac03564fc772c81f9a13622df2a83f195cad9255c5a6cfd16e46cff62a45be87079f754ebe7000a613d502a1b3a3d0650ca3f91db64ec691dcf5e8683608091e258deb1315713bf4cf9ce428ba4488200fc209af4cdd5cc3e361578a37aadc2677c4e5a7be05416068219f48c69dc0712acba3fe72872c7566fbf469ca2d58bc6306f8dbb7a92c060fac18ffa7af8408d43c5354d2b20f8f6109a5c6400f4d9c6410d175fd5e1fec157ffd2dcfbea5dfd7ed0e060c9274fabf7cac6d15c00",
+            "e2c544ec76cfc8d748df5b5b626f7de3b8305ad70a407f5d94488e68e3128eb513e9910896bf66415728903ecaed0c388a0b0d1ab86c2700e9f27ff9f132514cd07c9d13092a89367ac39b6669342b1f1378e1024d011cfcf35d01c128730e5190cf39e2311c4b5cd4c38f98c79b8594a56d59848a8102757f3f705caf4f9fddcdb6ae8d26e7c025b6bed8540dc9a7beb44643c41389efc24c9746ee37111c7c7cdd7848ef6dad7de7c9513692a183a43292483a4d980c8f0f7065ce003948db223318ffd6cacd52e13db7bdaaba22b80fa7367b614ca6309de0ff689820703ea165c4cc37ef4c8fa5743eee705f284b53c622c5"
+          ],
+          "handshake_hash": "3dfe5decb4fb18044f04c0eda6a86b1a7203bb83b05d96243511996376da639f",
+          "transport": [
+            {
+              "direction": "initiator-to-responder",
+              "plaintext": "70696e67",
+              "ciphertext": "8088a645ac24c020935677415898d3792254c9da"
+            },
+            {
+              "direction": "responder-to-initiator",
+              "plaintext": "706f6e67",
+              "ciphertext": "7b40153eb0880896b00670493b793dad6a72a43e"
+            }
+          ]
+        },
+        {
+          "tcId": 7,
+          "comment": "responder has another mesh key",
+          "flags": [
+            "Psk"
+          ],
+          "result": "invalid",
+          "now": 1798765200,
+          "initiator": {
+            "static_private": "ad369c342a107d243067814923c55e4c0fa897d5b2147d3207998bf3657c55bc",
+            "ephemeral_private": "2d0d71cf45d9b8d0c2c0b6dab35d78f3a0aaa6aee599a8948ddbc331065f0197",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64",
+            "mesh_key": "90af9d544c4cbcd21faeea61ad839b175b8640808156c6875a422f53bb5ab7f5",
+            "psk": "f49ab10f24712694365174ff7c5543ac57b1cc1b6f411a6d69fdf6541165cb6c"
+          },
+          "responder": {
+            "static_private": "4e6c4800849160d4f2720035f83bed4e4a9b9d031079087abad27c7ee0251644",
+            "ephemeral_private": "56a4e8bb5b1c2cd0ea159fdcd6bba50a9a10ebbe94d69c4a4e0cffd0a8b53fd8",
+            "prologue": "184d6573684c696e6b2f31206c696e6b2d70726f6c6f67756501010101ed1799258e471c34f7d6fc3ad30c97b0934ae8909a99ff6742121ce2ac4c7d64",
+            "mesh_key": "868cd1ce5f1ad9600e101387aa5952f1b52d9417698a3e81850c9d939691e246",
+            "psk": "d67607a9eccc087f10ae0a9bfd2bb6c45b7c58c5ea58bb75f2d874560cab100b"
+          },
+          "initiator_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "responder_node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "payloads": [
+            "",
+            "020024b1ff92686479eeffbf4182143099792f2eb628d35984ff85f0611e337d6ef5db6b383e0081008a01011420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001ca4f24ea9a0af39bf6ab48ee0e4c2043ad27d13df76abae63fcdbf26a7082cb5a6b36ec806b383e00c3dbaf6a23c061dd543b7a682da7913d1bc9016241d278ec3027c9e6e1a4ec85e069e058a27803cc85d4731ac4208c15aaf0c29f2c762110f84c72965f17d603",
+            "020024511b90cb28642b9a6d47bd0a539440048cb9ba1e7c50db43f66041f6e204e9606b383e0081008a01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a"
+          ],
+          "messages": [
+            "a694ccd652b980d0562c649b9b0871cf1c199b726eb9b82c49b2d592277487640f00783e5018c8ab8f68c267221ee2a5",
+            "0966c990b55926caf4d492d71afd1322be6ec151fd7b0f68133fb74756ee5310937c3f4c3100bfbc6f2ce9da4c68bed3ed6f31defc84c7c123440f1247a231809bc889015d25ce03274a8fbc3e795c929a8491e4e96ac03564fc772c81f9a13622df2a83f195cad9255c5a6cfd16e46cff62a45be87079f754ebe7000a613d502a1b3a3d0650ca3f91db64ec691dcf5e8683608091e258deb1315713bf4cf9ce428ba4488200fc209af4cdd5cc3e361578a37aadc2677c4e5a7be05416068219f48c69dc0712acba3fe72872c7566fbf469ca2d58bc6306f8dbb7a92c060fac18ffa7af8408d43c5354d2b20f8f6109a5c6400f4d9c6410d175fd5e1fec157ffd2dcfbea5dfd7ed0e060c9274fabf7cac6d15c00",
+            "e2c544ec76cfc8d748df5b5b626f7de3b8305ad70a407f5d94488e68e3128eb513e9910896bf66415728903ecaed0c388a0b0d1ab86c2700e9f27ff9f132514cd07c9d13092a89367ac39b6669342b1f1378e1024d011cfcf35d01c128730e5190cf39e2311c4b5cd4c38f98c79b8594a56d59848a8102757f3f705caf4f9fddcdb6ae8d26e7c025b6bed8540dc9a7beb44643c41389efc24c9746ee37111c7c7cdd7848ef6dad7de7c9513692a183a43292483a4d980c8f0f7065ce003948db223318ffd6cacd52e13db7bdaaba22b80fa7367b614ca6309de0ff689820703ea165c4cc37ef4c8fa5743eee705f284b53c622c5"
+          ],
+          "rejected_step": 3,
+          "error": "handshake-failed"
+        }
+      ]
+    }
+  ]
+}

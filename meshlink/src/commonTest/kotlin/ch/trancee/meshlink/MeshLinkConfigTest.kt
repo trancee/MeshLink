@@ -1,8 +1,10 @@
 package ch.trancee.meshlink
 
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 class MeshLinkConfigTest {
     private fun configWith(meshId: String): MeshLinkConfig =
@@ -80,9 +82,69 @@ class MeshLinkConfigTest {
             preset = OfflineChat
             securityProfile = Unsecured
             meshId = "Festival"
+            meshKey = none
             messageLifetimeSeconds = 1800
             """.trimIndent(),
             description,
         )
+    }
+
+    @Test
+    fun aClassicalMeshTakesAThirtyTwoByteMeshKeyAndDescribeRedactsIt() {
+        // Arrange
+        val key = ByteArray(MESH_KEY) { it.toByte() }
+
+        // Act
+        val config =
+            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
+                meshId = "Rescue"
+                meshKey = key
+            }.build()
+        key.fill(0)
+
+        // Assert
+        assertContentEquals(ByteArray(MESH_KEY) { it.toByte() }, config.meshKey)
+        assertEquals("meshKey = <redacted>", config.describe().lines()[3])
+    }
+
+    @Test
+    fun aMeshWithoutAMeshKeyIsOpen() {
+        // Act
+        val config = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) { meshId = "Rescue" }.build()
+
+        // Assert
+        assertNull(config.meshKey)
+        assertEquals("meshKey = none", config.describe().lines()[3])
+    }
+
+    @Test
+    fun aMeshKeyThatIsNotThirtyTwoBytesIsRejected() {
+        listOf(0, MESH_KEY - 1, MESH_KEY + 1).forEach { size ->
+            val failure =
+                assertFailsWith<MeshLinkException.InvalidConfig> {
+                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
+                        meshId = "Rescue"
+                        meshKey = ByteArray(size)
+                    }.build()
+                }
+            assertEquals("meshKey", failure.setting)
+        }
+    }
+
+    @Test
+    fun anUnsecuredMeshRejectsAMeshKey() {
+        val failure =
+            assertFailsWith<MeshLinkException.InvalidConfig> {
+                meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                    meshId = "Rescue"
+                    meshKey = ByteArray(MESH_KEY)
+                }.build()
+            }
+
+        assertEquals("meshKey", failure.setting)
+    }
+
+    private companion object {
+        const val MESH_KEY = 32
     }
 }

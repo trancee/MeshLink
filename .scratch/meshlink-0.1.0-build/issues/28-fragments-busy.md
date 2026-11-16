@@ -26,12 +26,13 @@ Large messages and their size classes come with ticket 50.
 ## Acceptance criteria
 
 - [ ] The `FRAGMENT` and `BUSY` cases in `link-frames.json` and every `records.json` case pass in the one runner. Each decoder has a deterministic mutation test: every prefix length, over-long inputs and a fixed number of seeded mutations.
-- [ ] A seeded `VirtualAir` test sends direct messages of 1 and 2 records in each profile, and a link-level test sends frames up to `frame-max` with interleaved streams. Every frame arrives intact.
+- [ ] A seeded `VirtualAir` test sends direct messages of 1 and 2 records in each profile (secured profiles send messages from ticket 45 on; until then, fragment link-level frames there), and a link-level test sends frames up to `frame-max` with interleaved streams. Every frame arrives intact.
 - [ ] T10: each fatal fragment error and each fatal record error closes the bearer and frees all its reassembly memory.
 - [ ] T10: a fifth stream on one link and a second large stream get `BUSY REASSEMBLY_SLOTS`. Exhausting the node budget across links gets `BUSY LARGE_BUDGET`. Neither closes the link.
 - [ ] A test shows a stream idle for 10 s is discarded and its `stream_id` is free again.
 - [ ] A test shows a sender that receives `BUSY`, including one with an unknown reason, stops the stream and retries the frame later.
 - [ ] A test shows a sender never fragments a frame that fits one record and never nests `FRAGMENT` frames.
+- [ ] T10 (D-20, from ticket 24): a `HANDSHAKE` whose reassembled Noise message exceeds `handshake-message-max` (4,096 B) fails the handshake with `CLOSE` `HANDSHAKE_FAILED` and `ML4001`.
 - [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
