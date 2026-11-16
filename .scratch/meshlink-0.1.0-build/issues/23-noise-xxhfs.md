@@ -1,6 +1,6 @@
 # Complete Noise `XXhfs` and `XXhfspsk3` handshakes
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 20, 22
 
