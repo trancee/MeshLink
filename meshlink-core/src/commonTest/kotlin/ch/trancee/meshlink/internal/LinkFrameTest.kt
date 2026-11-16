@@ -15,14 +15,14 @@ class LinkFrameTest {
 
     @Test
     fun typesThisDecoderDoesNotHandleAreUnknownAndAnEmptyFrameIsTruncated() {
-        listOf("0100", "0200", "40", "80", "bf").forEach {
+        listOf("0100", "40", "80", "bf").forEach {
             assertEquals(DecodeError.UNKNOWN_TYPE, (LinkFrame.decode(it.hex()) as Decoded.Invalid).error, it)
         }
         assertEquals(DecodeError.TRUNCATED, (LinkFrame.decode(ByteArray(0)) as Decoded.Invalid).error)
     }
 
     @Test
-    fun helloRejectsVersionZeroAndWrongFieldSizes() {
+    fun framesRejectOutOfRangeFields() {
         val hello = LinkFrame.PlainHello(1, ByteArray(DIGEST), ByteArray(DIGEST)).encode()
         hello[1] = 0
 
@@ -32,6 +32,14 @@ class LinkFrameTest {
         assertFailsWith<IllegalArgumentException> { LinkFrame.PlainHello(1, ByteArray(DIGEST - 1), ByteArray(DIGEST)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.PlainHello(1, ByteArray(DIGEST), ByteArray(DIGEST + 1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Close(-1) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(0, 1, ByteArray(1)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(256, 1, ByteArray(1)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(1, 0, ByteArray(1)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(1, 4, ByteArray(1)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(1, 1, ByteArray(0)) }
+        assertFailsWith<IllegalArgumentException> {
+            LinkFrame.Handshake(1, 1, ByteArray(LinkFrame.Handshake.NOISE_MESSAGE_MAX + 1))
+        }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Close(256) }
     }
 

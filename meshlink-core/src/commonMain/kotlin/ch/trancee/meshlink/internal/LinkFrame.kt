@@ -10,6 +10,51 @@ public sealed interface LinkFrame {
     public fun encode(): ByteArray
 
     /**
+     * `HANDSHAKE` (spec "HANDSHAKE frame"): the selected protocol [version], the Noise message's
+     * [step] (1 to 3) and the [noiseMessage] itself, 1 to [NOISE_MESSAGE_MAX] bytes.
+     */
+    public class Handshake(
+        public val version: Int,
+        public val step: Int,
+        public val noiseMessage: ByteArray,
+    ) : LinkFrame {
+        init {
+            require(version in 1..BYTE_MASK) { "version must be in 1..255, not $version" }
+            require(step in STEPS) { "step must be in 1..3, not $step" }
+            require(noiseMessage.size in MESSAGE_LENGTH) { "noise_message must be 1 to $NOISE_MESSAGE_MAX bytes" }
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte(), version.toByte(), step.toByte()) + noiseMessage
+
+        public companion object {
+            /** The largest Noise message a `HANDSHAKE` frame carries, in bytes (D-20). */
+            public const val NOISE_MESSAGE_MAX: Int = 4_096
+            internal const val TYPE = 0x02
+            private const val VERSION = 1
+            private const val STEP = 2
+            private const val MESSAGE = 3
+            private val STEPS = 1..3
+            private val MESSAGE_LENGTH = 1..NOISE_MESSAGE_MAX
+
+            internal fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+                when {
+                    bytes.size < MESSAGE -> {
+                        Decoded.Invalid(DecodeError.TRUNCATED)
+                    }
+
+                    bytes.u8(VERSION) == 0 || bytes.u8(STEP) !in STEPS || bytes.size - MESSAGE !in MESSAGE_LENGTH -> {
+                        Decoded.Invalid(DecodeError.OUT_OF_RANGE)
+                    }
+
+                    else -> {
+                        val message = bytes.copyOfRange(MESSAGE, bytes.size)
+                        Decoded.Valid(Handshake(bytes.u8(VERSION), bytes.u8(STEP), message))
+                    }
+                }
+        }
+    }
+
+    /**
      * `PLAIN_HELLO` (spec "Unsecured link"): the sender's selected protocol [version], its mesh
      * identifier digest and its claimed NodeId. The profile byte is always `unsecured`.
      */
@@ -95,6 +140,7 @@ public sealed interface LinkFrame {
             return when {
                 type < 0 -> Decoded.Invalid(DecodeError.TRUNCATED)
                 type == 0 || type >= RESERVED_FROM -> Decoded.Invalid(DecodeError.RESERVED_TYPE)
+                type == Handshake.TYPE -> Handshake.decode(bytes)
                 type == PlainHello.TYPE -> PlainHello.decode(bytes)
                 type == Close.TYPE -> Close.decode(bytes)
                 else -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)

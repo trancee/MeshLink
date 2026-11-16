@@ -13,6 +13,8 @@ const NOT_BEFORE: u32 = 1_798_761_600;
 const NOT_AFTER: u32 = NOT_BEFORE + VALIDITY_MAX;
 const NOW: u32 = NOT_BEFORE + 3_600;
 const MESH_ID: &str = "reference-mesh";
+const XX: &str = "Noise_XX_25519_ChaChaPoly_SHA256";
+const XXPSK3: &str = "Noise_XXpsk3_25519_ChaChaPoly_SHA256";
 const XXHFS: &str = "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256";
 const XXHFSPSK3: &str = "Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256";
 const RESOLVING_KEY: u8 = 0x02;
@@ -34,7 +36,7 @@ impl Document {
 
 #[must_use]
 pub fn all() -> Vec<Document> {
-    vec![certificate_signatures(), handshake_hfs(), hpke_seal()]
+    vec![certificate_signatures(), handshake_xx(), handshake_hfs(), hpke_seal()]
 }
 
 struct Test {
@@ -429,6 +431,7 @@ fn handshake_hfs() -> Document {
     let wrong_key = seed("another mesh key");
     let setup = |protocol, responder_prologue, mesh_keys| Setup {
         protocol,
+        profile: POST_QUANTUM,
         alice: &alice,
         bob: &bob,
         prologues: (&prologue, responder_prologue),
@@ -492,18 +495,119 @@ fn handshake_hfs() -> Document {
             ],
         },
     ];
-    let side = |kem: (&str, usize)| {
-        s_object(
-            &["static_private", "ephemeral_private", kem.0, "prologue"],
-            vec![
-                ("static_private", s_hex_of(32)),
-                ("ephemeral_private", s_hex_of(32)),
-                (kem.0, s_hex_of(kem.1)),
-                ("prologue", s_hex()),
-                ("mesh_key", s_hex_of(32)),
-                ("psk", s_hex_of(32)),
-            ],
+    handshake_document(
+        "handshake-hfs.json",
+        "MeshLink/1 post-quantum link handshake (Noise XXhfs, XXhfs+psk3)",
+        "Keys, ephemerals and KEM inputs come from fixed labels in tools/reference. Private keys are the raw 32 B X25519 inputs. kem_keygen_seed is the FIPS 203 ML-KEM.KeyGen_internal seed d ‖ z; kem_encaps_seed is the ML-KEM.Encaps_internal message m.",
+        groups,
+        [XXHFS, XXHFSPSK3],
+        Some([("kem_keygen_seed", 64), ("kem_encaps_seed", 32)]),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// XX and XXpsk3 handshakes (ticket 24)
+// ---------------------------------------------------------------------------
+
+fn handshake_xx() -> Document {
+    let alice = Identity::new("alice");
+    let bob = Identity::new("bob");
+    let digest = mesh_id_digest(MESH_ID, CLASSICAL);
+    let prologue = link_prologue(&[1], 1, CLASSICAL, &digest);
+    let other_prologue = link_prologue(&[1, 2], 1, CLASSICAL, &digest);
+    let mesh_key = seed("mesh key");
+    let wrong_key = seed("another mesh key");
+    let setup = |protocol, responder_prologue, mesh_keys| Setup {
+        protocol,
+        profile: CLASSICAL,
+        alice: &alice,
+        bob: &bob,
+        prologues: (&prologue, responder_prologue),
+        mesh_keys,
+    };
+    let open = |tamper, responder_prologue, comment: &str, flags: &[&'static str]| {
+        handshake_test(setup(XX, responder_prologue, None), tamper, comment, flags)
+    };
+    let gated = |tamper, responder_key, comment: &str, flags: &[&'static str]| {
+        handshake_test(
+            setup(XXPSK3, &prologue, Some((&mesh_key, responder_key))),
+            tamper,
+            comment,
+            flags,
         )
+    };
+    let groups = vec![
+        Group {
+            attributes: vec![
+                ("type", text("NoiseHandshake")),
+                ("protocol", text(XX)),
+                ("gated", Value::Bool(false)),
+            ],
+            tests: vec![
+                open(None, &prologue, "open mesh, classical profile", &[]),
+                open(Some((1, 10)), &prologue, "e changed in message 1", &["Tampered"]),
+                open(
+                    Some((2, 32 + 10)),
+                    &prologue,
+                    "encrypted static key changed in message 2",
+                    &["Tampered"],
+                ),
+                open(
+                    Some((3, 10)),
+                    &prologue,
+                    "encrypted static key changed in message 3",
+                    &["Tampered"],
+                ),
+                open(
+                    None,
+                    &other_prologue,
+                    "responder read a different capability record",
+                    &["Prologue"],
+                ),
+            ],
+        },
+        Group {
+            attributes: vec![
+                ("type", text("NoiseHandshake")),
+                ("protocol", text(XXPSK3)),
+                ("gated", Value::Bool(true)),
+            ],
+            tests: vec![
+                gated(None, &mesh_key, "gated mesh, classical profile", &[]),
+                gated(None, &wrong_key, "responder has another mesh key", &["Psk"]),
+            ],
+        },
+    ];
+    handshake_document(
+        "handshake-xx.json",
+        "MeshLink/1 classical link handshake (Noise XX, XXpsk3)",
+        "Keys and ephemerals come from fixed labels in tools/reference. Private keys are the raw 32 B X25519 inputs.",
+        groups,
+        [XX, XXPSK3],
+        None,
+    )
+}
+
+/// A link handshake file: `protocols` are the open and the gated pattern; `kems` name the
+/// initiator's and the responder's fixed KEM input and its length, if the pattern has a KEM.
+fn handshake_document(
+    name: &'static str,
+    algorithm: &str,
+    reference_keys: &str,
+    groups: Vec<Group>,
+    protocols: [&str; 2],
+    kems: Option<[(&'static str, usize); 2]>,
+) -> Document {
+    let side = |kem: Option<(&'static str, usize)>| {
+        let mut required = vec!["static_private", "ephemeral_private"];
+        let mut properties = vec![("static_private", s_hex_of(32)), ("ephemeral_private", s_hex_of(32))];
+        if let Some((field, length)) = kem {
+            required.push(field);
+            properties.push((field, s_hex_of(length)));
+        }
+        required.push("prologue");
+        properties.extend([("prologue", s_hex()), ("mesh_key", s_hex_of(32)), ("psk", s_hex_of(32))]);
+        s_object(&required, properties)
     };
     let transport = s_object(
         &["direction", "plaintext", "ciphertext"],
@@ -517,13 +621,10 @@ fn handshake_hfs() -> Document {
         ],
     );
     document(
-        "handshake-hfs.json",
-        "MeshLink/1 post-quantum link handshake (Noise XXhfs, XXhfs+psk3)",
+        name,
+        algorithm,
         &[
-            (
-                "ReferenceKeys",
-                "Keys, ephemerals and KEM inputs come from fixed labels in tools/reference. Private keys are the raw 32 B X25519 inputs. kem_keygen_seed is the FIPS 203 ML-KEM.KeyGen_internal seed d ‖ z; kem_encaps_seed is the ML-KEM.Encaps_internal message m.",
-            ),
+            ("ReferenceKeys", reference_keys),
             (
                 "Replay",
                 "Each side writes its message from its inputs and the payload. messages are the bytes as delivered: a writer's own output equals them except at tampered_step. The reader of rejected_step must fail the handshake; every earlier message must succeed.",
@@ -538,8 +639,8 @@ fn handshake_hfs() -> Document {
         groups,
         vec![
             ("now", s_integer(0)),
-            ("initiator", side(("kem_keygen_seed", 64))),
-            ("responder", side(("kem_encaps_seed", 32))),
+            ("initiator", side(kems.map(|k| k[0]))),
+            ("responder", side(kems.map(|k| k[1]))),
             ("initiator_node_id", s_hex_of(32)),
             ("responder_node_id", s_hex_of(32)),
             ("payloads", s_list(s_hex(), 3)),
@@ -551,7 +652,7 @@ fn handshake_hfs() -> Document {
         ],
         vec![
             ("type", s_const(text("NoiseHandshake"))),
-            ("protocol", s_enum(&[XXHFS, XXHFSPSK3])),
+            ("protocol", s_enum(&protocols)),
             ("gated", s_type("boolean")),
         ],
     )
@@ -561,6 +662,7 @@ fn handshake_hfs() -> Document {
 #[derive(Clone, Copy)]
 struct Setup<'a> {
     protocol: &'static str,
+    profile: u8,
     alice: &'a Identity,
     bob: &'a Identity,
     prologues: (&'a [u8], &'a [u8]),
@@ -570,6 +672,7 @@ struct Setup<'a> {
 fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, flags: &[&'static str]) -> Test {
     let Setup {
         protocol,
+        profile,
         alice,
         bob,
         prologues,
@@ -583,14 +686,15 @@ fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, f
             value.extend_from_slice(&NOT_AFTER.to_be_bytes());
             out.extend(tlv(RESOLVING_KEY, &value));
         }
-        out.extend(tlv(CERTIFICATE, &who.certificate(POST_QUANTUM, NOT_BEFORE, NOT_AFTER)));
+        out.extend(tlv(CERTIFICATE, &who.certificate(profile, NOT_BEFORE, NOT_AFTER)));
         out
     };
     let payloads = [Vec::new(), payload(bob, "bob"), payload(alice, "alice")];
+    let post_quantum = profile == POST_QUANTUM;
     let make = |who: &Identity, label: &str, kem: KemInput, prologue: &[u8], mesh_key: Option<&[u8; 32]>| Side {
         static_private: who.x25519_private,
         ephemeral_private: seed(&format!("{label} handshake ephemeral")),
-        kem,
+        kem: post_quantum.then_some(kem),
         prologue: prologue.to_vec(),
         psk: mesh_key.map(|key| mesh_psk(key, &prologue[prologue.len() - 32..])),
     };
@@ -613,9 +717,11 @@ fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, f
         let mut pairs = vec![
             ("static_private", hex(&side.static_private)),
             ("ephemeral_private", hex(&side.ephemeral_private)),
-            (kem_name, hex(&side.kem.bytes())),
-            ("prologue", hex(&side.prologue)),
         ];
+        if let Some(kem) = side.kem {
+            pairs.push((kem_name, hex(&kem.bytes())));
+        }
+        pairs.push(("prologue", hex(&side.prologue)));
         if let (Some(key), Some(psk)) = (mesh_key, side.psk) {
             pairs.push(("mesh_key", hex(key)));
             pairs.push(("psk", hex(&psk)));

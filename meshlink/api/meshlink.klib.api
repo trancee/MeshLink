@@ -10,6 +10,31 @@ open annotation class ch.trancee.meshlink/InternalMeshLinkApi : kotlin/Annotatio
     constructor <init>() // ch.trancee.meshlink/InternalMeshLinkApi.<init>|<init>(){}[0]
 }
 
+final enum class ch.trancee.meshlink.internal/HandshakeFailure : kotlin/Enum<ch.trancee.meshlink.internal/HandshakeFailure> { // ch.trancee.meshlink.internal/HandshakeFailure|null[0]
+    enum entry CERTIFICATE // ch.trancee.meshlink.internal/HandshakeFailure.CERTIFICATE|null[0]
+    enum entry DECRYPT // ch.trancee.meshlink.internal/HandshakeFailure.DECRYPT|null[0]
+    enum entry PROTOCOL // ch.trancee.meshlink.internal/HandshakeFailure.PROTOCOL|null[0]
+    enum entry TIMEOUT // ch.trancee.meshlink.internal/HandshakeFailure.TIMEOUT|null[0]
+
+    final val entries // ch.trancee.meshlink.internal/HandshakeFailure.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink.internal/HandshakeFailure> // ch.trancee.meshlink.internal/HandshakeFailure.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink.internal/HandshakeFailure // ch.trancee.meshlink.internal/HandshakeFailure.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink.internal/HandshakeFailure> // ch.trancee.meshlink.internal/HandshakeFailure.values|values#static(){}[0]
+}
+
+final enum class ch.trancee.meshlink.internal/HandshakeLimit : kotlin/Enum<ch.trancee.meshlink.internal/HandshakeLimit> { // ch.trancee.meshlink.internal/HandshakeLimit|null[0]
+    enum entry GLOBAL // ch.trancee.meshlink.internal/HandshakeLimit.GLOBAL|null[0]
+    enum entry NEIGHBOR_INTERVAL // ch.trancee.meshlink.internal/HandshakeLimit.NEIGHBOR_INTERVAL|null[0]
+    enum entry PER_BEARER // ch.trancee.meshlink.internal/HandshakeLimit.PER_BEARER|null[0]
+
+    final val entries // ch.trancee.meshlink.internal/HandshakeLimit.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink.internal/HandshakeLimit> // ch.trancee.meshlink.internal/HandshakeLimit.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink.internal/HandshakeLimit // ch.trancee.meshlink.internal/HandshakeLimit.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink.internal/HandshakeLimit> // ch.trancee.meshlink.internal/HandshakeLimit.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink.internal/LinkRole : kotlin/Enum<ch.trancee.meshlink.internal/LinkRole> { // ch.trancee.meshlink.internal/LinkRole|null[0]
     enum entry CENTRAL // ch.trancee.meshlink.internal/LinkRole.CENTRAL|null[0]
     enum entry PERIPHERAL // ch.trancee.meshlink.internal/LinkRole.PERIPHERAL|null[0]
@@ -74,6 +99,29 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
         abstract fun <get-requirements>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
+}
+
+sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic|null[0]
+    abstract val code // ch.trancee.meshlink.internal/LinkDiagnostic.code|{}code[0]
+        abstract fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.code.<get-code>|<get-code>(){}[0]
+
+    final class HandshakeFailed : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed|null[0]
+        constructor <init>(ch.trancee.meshlink.internal/HandshakeFailure) // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.<init>|<init>(ch.trancee.meshlink.internal.HandshakeFailure){}[0]
+
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.code.<get-code>|<get-code>(){}[0]
+        final val reason // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink.internal/HandshakeFailure // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.reason.<get-reason>|<get-reason>(){}[0]
+    }
+
+    final class HandshakeLimitDropped : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped|null[0]
+        constructor <init>(ch.trancee.meshlink.internal/HandshakeLimit) // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.<init>|<init>(ch.trancee.meshlink.internal.HandshakeLimit){}[0]
+
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.code.<get-code>|<get-code>(){}[0]
+        final val limit // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.limit|{}limit[0]
+            final fun <get-limit>(): ch.trancee.meshlink.internal/HandshakeLimit // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.limit.<get-limit>|<get-limit>(){}[0]
+    }
 }
 
 sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus|null[0]
@@ -202,6 +250,12 @@ sealed interface ch.trancee.meshlink/Requirement { // ch.trancee.meshlink/Requir
 }
 
 sealed interface ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile|null[0]
+    final object Classical : ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile.Classical|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/SecurityProfile.Classical.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/SecurityProfile.Classical.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/SecurityProfile.Classical.toString|toString(){}[0]
+    }
+
     final object Unsecured : ch.trancee.meshlink/SecurityProfile { // ch.trancee.meshlink/SecurityProfile.Unsecured|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/SecurityProfile.Unsecured.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/SecurityProfile.Unsecured.hashCode|hashCode(){}[0]
@@ -239,6 +293,8 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
     final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
         final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
+    final val linkDiagnostics // ch.trancee.meshlink/MeshLink.linkDiagnostics|{}linkDiagnostics[0]
+        final fun <get-linkDiagnostics>(): kotlinx.coroutines.flow/SharedFlow<ch.trancee.meshlink.internal/LinkDiagnostic> // ch.trancee.meshlink/MeshLink.linkDiagnostics.<get-linkDiagnostics>|<get-linkDiagnostics>(){}[0]
     final val linkRoles // ch.trancee.meshlink/MeshLink.linkRoles|{}linkRoles[0]
         final fun <get-linkRoles>(): kotlin.collections/Map<ch.trancee.meshlink/NodeId, ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink/MeshLink.linkRoles.<get-linkRoles>|<get-linkRoles>(){}[0]
     final val messages // ch.trancee.meshlink/MeshLink.messages|{}messages[0]
@@ -269,6 +325,8 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
 final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLinkConfig|null[0]
     final val meshId // ch.trancee.meshlink/MeshLinkConfig.meshId|{}meshId[0]
         final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfig.meshId.<get-meshId>|<get-meshId>(){}[0]
+    final val meshKey // ch.trancee.meshlink/MeshLinkConfig.meshKey|{}meshKey[0]
+        final fun <get-meshKey>(): kotlin/ByteArray? // ch.trancee.meshlink/MeshLinkConfig.meshKey.<get-meshKey>|<get-meshKey>(){}[0]
     final val messageLifetimeSeconds // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds|{}messageLifetimeSeconds[0]
         final fun <get-messageLifetimeSeconds>(): kotlin/Int // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds.<get-messageLifetimeSeconds>|<get-messageLifetimeSeconds>(){}[0]
     final val preset // ch.trancee.meshlink/MeshLinkConfig.preset|{}preset[0]
@@ -283,6 +341,9 @@ final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/M
     final var meshId // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId|{}meshId[0]
         final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<get-meshId>|<get-meshId>(){}[0]
         final fun <set-meshId>(kotlin/String) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<set-meshId>|<set-meshId>(kotlin.String){}[0]
+    final var meshKey // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey|{}meshKey[0]
+        final fun <get-meshKey>(): kotlin/ByteArray? // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<get-meshKey>|<get-meshKey>(){}[0]
+        final fun <set-meshKey>(kotlin/ByteArray?) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<set-meshKey>|<set-meshKey>(kotlin.ByteArray?){}[0]
 
     final fun build(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLinkConfigBuilder.build|build(){}[0]
 }

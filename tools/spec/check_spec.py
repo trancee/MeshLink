@@ -354,7 +354,7 @@ def tier2_certificate(g, t, where):
         fail("%s: signing_input mismatch" % where)
 
 
-def tier2_prologue(side, where):
+def tier2_prologue(side, profile, where):
     pro = b(side["prologue"])
     head = m.ds("link-prologue")
     n = pro[len(head)] if len(pro) > len(head) else 0
@@ -362,12 +362,12 @@ def tier2_prologue(side, where):
     rest = pro[len(head) + 1 + n:]
     if not pro.startswith(head) or len(rest) != 34 or m.link_prologue(versions, rest[0], rest[1], rest[2:]) != pro:
         fail("%s: prologue does not re-encode" % where)
-    elif rest[1] != 0x02:
-        fail("%s: prologue profile must be post-quantum" % where)
+    elif rest[1] != profile:
+        fail("%s: prologue profile must be 0x%02x" % (where, profile))
     return pro
 
 
-def tier2_payload(data, gated, node_id, now, where):
+def tier2_payload(data, gated, profile, node_id, now, where):
     try:
         tlvs = m.decode_handshake_payload(data)["tlvs"]
     except m.DecodeError as e:
@@ -375,18 +375,27 @@ def tier2_payload(data, gated, node_id, now, where):
     if [x["type"] for x in tlvs] != (["0x02", "0x81"] if gated else ["0x81"]):
         return fail("%s: payload TLVs %s" % (where, [x["type"] for x in tlvs]))
     cert = m.decode_certificate(b(tlvs[-1]["value"]))
-    if cert["profile"] != "0x02" or m.node_id(b(cert["ed25519_key"])).hex() != node_id:
-        fail("%s: payload certificate is not the post-quantum certificate of %s" % (where, node_id))
+    if cert["profile"] != "0x%02x" % profile or m.node_id(b(cert["ed25519_key"])).hex() != node_id:
+        fail("%s: payload certificate is not the profile 0x%02x certificate of %s" % (where, profile, node_id))
     if not cert["not_before"] - SKEW <= now < cert["not_after"] + SKEW:
         fail("%s: payload certificate not valid at now" % where)
 
 
+# Each link pattern: its profile byte, whether it has a KEM, and whether it takes the mesh psk.
+PATTERNS = {"noise-xx": (0x01, False, False), "noise-xxpsk3": (0x01, False, True),
+            "noise-xxhfs": (0x02, True, False), "noise-xxhfspsk3": (0x02, True, True)}
+
+
 def tier2_handshake(g, t, where):
     gated = g["gated"]
-    if g["protocol"] != constant("noise-xxhfspsk3" if gated else "noise-xxhfs"):
-        fail("%s: protocol %s for gated=%s" % (where, g["protocol"], gated))
+    pattern = next((v for k, v in PATTERNS.items() if constant(k) == g["protocol"]), None)
+    if pattern is None or pattern[2] != gated:
+        return fail("%s: protocol %s for gated=%s" % (where, g["protocol"], gated))
+    profile, kem = pattern[0], pattern[1]
     i, r = t["initiator"], t["responder"]
-    prologues = [tier2_prologue(side, where) for side in (i, r)]
+    if ("kem_keygen_seed" in i, "kem_encaps_seed" in r) != (kem, kem):
+        fail("%s: KEM inputs belong to KEM patterns only" % where)
+    prologues = [tier2_prologue(side, profile, where) for side in (i, r)]
     for side in (i, r):
         if ("psk" in side) != gated or ("mesh_key" in side) != gated:
             fail("%s: psk and mesh_key belong to gated meshes only" % where)
@@ -395,11 +404,12 @@ def tier2_handshake(g, t, where):
     payloads = [b(x) for x in t["payloads"]]
     if payloads[0]:
         fail("%s: message 1 payload must be empty" % where)
-    tier2_payload(payloads[1], gated, t["responder_node_id"], t["now"], where)
-    tier2_payload(payloads[2], gated, t["initiator_node_id"], t["now"], where)
+    tier2_payload(payloads[1], gated, profile, t["responder_node_id"], t["now"], where)
+    tier2_payload(payloads[2], gated, profile, t["initiator_node_id"], t["now"], where)
     # With a psk, the "e" token also calls MixKey (Noise 9.2), so e1 and the message 1 payload are encrypted.
-    sizes = [X25519 + KEM_PUBLIC + len(payloads[0]) + (2 * TAG if gated else 0),
-             X25519 + (KEM_CIPHERTEXT + TAG) + (X25519 + TAG) + len(payloads[1]) + TAG,
+    e1, ekem1 = (KEM_PUBLIC + (TAG if gated else 0), KEM_CIPHERTEXT + TAG) if kem else (0, 0)
+    sizes = [X25519 + e1 + len(payloads[0]) + (TAG if gated else 0),
+             X25519 + ekem1 + (X25519 + TAG) + len(payloads[1]) + TAG,
              (X25519 + TAG) + len(payloads[2]) + TAG]
     messages = [b(x) for x in t["messages"]]
     if [len(x) for x in messages] != sizes[:len(messages)]:

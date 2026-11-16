@@ -6,7 +6,11 @@ import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.Discovery
+import ch.trancee.meshlink.internal.Handshakes
 import ch.trancee.meshlink.internal.InstallationIdentity
+import ch.trancee.meshlink.internal.LinkAdmission
+import ch.trancee.meshlink.internal.LinkCredentials
+import ch.trancee.meshlink.internal.LinkDiagnostic
 import ch.trancee.meshlink.internal.LinkPolicy
 import ch.trancee.meshlink.internal.LinkRole
 import ch.trancee.meshlink.internal.Links
@@ -16,6 +20,7 @@ import ch.trancee.meshlink.internal.Post
 import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Scanner
+import ch.trancee.meshlink.internal.WireProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -23,8 +28,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -59,14 +67,18 @@ public class MeshLink private constructor(
     private val lifecycle = Mutex()
     private var watcher: Job? = null
 
-    // Set by the first start, before the watcher runs; read only by sessions.
-    private var nodeId = ByteArray(0)
+    // Set by each start that loads it, before the watcher runs; read only by sessions.
+    private lateinit var identity: InstallationIdentity
 
     private val meshId = config.meshId.encodeToByteArray()
-    private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, config.securityProfile.wireProfile))
+    private val profile = config.securityProfile.wireProfile
+    private val meshKey = config.meshKey
+    private val scanner = Scanner(port.radio, port.clock, Discovery(crypto, meshId, profile, meshKey))
     private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
     private val links = MutableStateFlow<Links?>(null)
-    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds)
+    private val secured = profile != WireProfile.UNSECURED
+    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, secured)
+    private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
@@ -104,12 +116,12 @@ public class MeshLink private constructor(
             lifecycle.withLock {
                 if (watcher == null) {
                     mutableState.value = MeshState.Starting
-                    val identity = InstallationIdentity.loadOrCreate(port.identityStore, crypto)
-                    if (identity == null) {
+                    val loaded = InstallationIdentity.loadOrCreate(port.identityStore, crypto)
+                    if (loaded == null) {
                         mutableState.compareAndSet(MeshState.Starting, IDENTITY_UNAVAILABLE)
                     } else {
-                        nodeId = identity.nodeId
-                        post.begin(nodeId)
+                        identity = loaded
+                        post.begin(loaded.nodeId)
                         watcher = scope.launch { watch() }
                         mutableState.first { it != MeshState.Starting }
                     }
@@ -229,6 +241,11 @@ public class MeshLink private constructor(
             return if (session == null) emptyMap() else session.roles.value
         }
 
+    /** Typed events about link handshakes (ADR 0020); for `meshlink-testing` until the diagnostics catalog. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public val linkDiagnostics: SharedFlow<LinkDiagnostic> = diagnostics.asSharedFlow()
+
     /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -274,8 +291,16 @@ public class MeshLink private constructor(
     @OptIn(InternalMeshLinkApi::class)
     private suspend fun session() =
         coroutineScope {
-            val digest = Derivations(crypto).meshIdDigest(meshId, config.securityProfile.wireProfile)
-            val session = Links(port.radio, port.clock, LinkPolicy(digest, nodeId), this, mutablePeers, post)
+            val digest = Derivations(crypto).meshIdDigest(meshId, profile)
+            val handshakes =
+                if (secured) {
+                    val credentials = LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest)
+                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics)
+                } else {
+                    null
+                }
+            val admission = LinkAdmission(LinkPolicy(digest, identity.nodeId), handshakes)
+            val session = Links(port.radio, port.clock, admission, this, mutablePeers, post)
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it.keys) } }
@@ -289,6 +314,7 @@ public class MeshLink private constructor(
     /** Creates nodes. */
     public companion object {
         private val IDENTITY_UNAVAILABLE = MeshState.Blocked(setOf(Requirement.IdentityUnavailable))
+        private const val DIAGNOSTICS_BUFFER = 64
 
         /** Creates a stopped node with [config] on [platform]. Doesn't touch the radio. */
         public fun create(

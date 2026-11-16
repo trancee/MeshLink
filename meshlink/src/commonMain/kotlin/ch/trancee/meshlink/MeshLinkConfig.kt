@@ -28,12 +28,24 @@ public class MeshLinkConfigBuilder internal constructor(
     public var meshId: String = ""
 
     /**
+     * The secret of a gated mesh: exactly 32 bytes, or `null` (the default) for an open mesh. Only
+     * nodes with the same key can link (Noise `psk3`) or recognize each other's advertisements. Not
+     * allowed with [SecurityProfile.Unsecured]. [build] copies it.
+     */
+    public var meshKey: ByteArray? = null
+
+    /**
      * Validates the settings and returns the immutable config.
      *
      * @throws MeshLinkException.InvalidConfig if a setting is invalid.
      */
     @Throws(MeshLinkException::class)
     public fun build(): MeshLinkConfig {
+        checkMeshId()
+        return MeshLinkConfig(preset, securityProfile, meshId, checkedMeshKey())
+    }
+
+    private fun checkMeshId() {
         val bytes =
             try {
                 meshId.encodeToByteArray(throwOnInvalidSequence = true)
@@ -47,7 +59,22 @@ public class MeshLinkConfigBuilder internal constructor(
                     "not ${bytes.size}",
             )
         }
-        return MeshLinkConfig(preset, securityProfile, meshId)
+    }
+
+    /** A copy of [meshKey], which the caller may still change. */
+    private fun checkedMeshKey(): ByteArray? {
+        val key = meshKey?.copyOf()
+        if (key != null && securityProfile == SecurityProfile.Unsecured) {
+            throw MeshLinkException.InvalidConfig("meshKey", "meshKey needs a secured profile, not Unsecured")
+        }
+        if (key != null && key.size != MESH_KEY_BYTES) {
+            throw MeshLinkException.InvalidConfig("meshKey", "meshKey must be $MESH_KEY_BYTES bytes, not ${key.size}")
+        }
+        return key
+    }
+
+    private companion object {
+        const val MESH_KEY_BYTES = 32
     }
 }
 
@@ -59,7 +86,11 @@ public class MeshLinkConfig internal constructor(
     public val securityProfile: SecurityProfile,
     /** The name of the mesh; see [MeshLinkConfigBuilder.meshId]. */
     public val meshId: String,
+    private val key: ByteArray?,
 ) {
+    /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
+    public val meshKey: ByteArray? get() = key?.copyOf()
+
     /** How long a message this node sends stays deliverable, in seconds; from [preset]. */
     public val messageLifetimeSeconds: Int = preset.messageLifetimeSeconds
 
@@ -69,6 +100,7 @@ public class MeshLinkConfig internal constructor(
             "preset = $preset",
             "securityProfile = $securityProfile",
             "meshId = \"$meshId\"",
+            "meshKey = ${if (key == null) "none" else "<redacted>"}",
             "messageLifetimeSeconds = $messageLifetimeSeconds",
         ).joinToString("\n")
 }

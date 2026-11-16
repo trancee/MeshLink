@@ -10,6 +10,7 @@ import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SendResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -22,22 +23,25 @@ internal interface Mail {
     /** The last link to [peer] closed. */
     fun unlinked(peer: NodeId)
 
-    /** The next message for [peer] as a link record, waiting for one. */
+    /** The next message for [peer], waiting for one. */
     suspend fun next(peer: NodeId): Letter
 
     /** A routed frame arrived on a link whose hello completed. */
     fun received(frame: ByteArray)
 }
 
-/** A message ready to write: its link [record], and [settle] to report whether the write succeeded. */
+/** A message ready to write: its routed [frame], and [settle] to report whether the write succeeded. */
 internal class Letter(
-    val record: ByteArray,
+    val frame: ByteArray,
     val settle: (sent: Boolean) -> Unit,
 )
 
 /**
  * A node's direct messages in the `unsecured` profile: validates and queues sends, and accepts
  * received `MESSAGE` frames into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013).
+ *
+ * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own containers
+ * come later: it queues sends without writing them and drops every routed frame it receives.
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -46,6 +50,7 @@ internal class Post(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val lifetimeSeconds: Int,
+    private val secured: Boolean,
 ) : Mail {
     private val known = KnownPeers()
     private val capacity = Capacity()
@@ -116,12 +121,14 @@ internal class Post(
     }
 
     override suspend fun next(peer: NodeId): Letter {
+        if (secured) awaitCancellation()
         val entry = outbox.next(peer)
         val epoch = Derivations.epoch(clock.wallClockMillis() / MILLIS_PER_SECOND)
-        return Letter(LinkRecord.encode(codec.frame(entry.draft, epoch))) { outbox.settle(entry, it) }
+        return Letter(codec.frame(entry.draft, epoch)) { outbox.settle(entry, it) }
     }
 
     override fun received(frame: ByteArray) {
+        if (secured) return
         codec.accept(frame, clock.wallClockMillis() / MILLIS_PER_SECOND)?.let {
             inbox.offer(ReceivedMessage(NodeId(it.sender), it.payload))
         }
