@@ -131,6 +131,19 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["type"].code(), CLOSE, "type")
                 assertEquals(decoded["reason"].int, frame.code, "reason")
             }
+
+            is LinkFrame.Fragment -> {
+                assertEquals(decoded["type"].code(), FRAGMENT, "type")
+                assertEquals(decoded["stream_id"].int, frame.streamId, "stream_id")
+                assertEquals(decoded["index"].int, frame.number or if (frame.last) LAST_BIT else 0, "index")
+                assertEquals(decoded["data"].string, frame.data.hex(), "data")
+            }
+
+            is LinkFrame.Busy -> {
+                assertEquals(decoded["type"].code(), BUSY, "type")
+                assertEquals(decoded["stream_id"].int, frame.streamId, "stream_id")
+                assertEquals(decoded["reason"].int, frame.code, "reason")
+            }
         }
     }
 
@@ -186,6 +199,9 @@ internal fun innerContent(message: Boolean): Handler =
 
 private const val HEX = 16
 private const val READER_CHUNK = 5
+private const val FRAGMENT = 0x01
 private const val HANDSHAKE = 0x02
 private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04
+private const val BUSY = 0x06
+private const val LAST_BIT = 0x8000

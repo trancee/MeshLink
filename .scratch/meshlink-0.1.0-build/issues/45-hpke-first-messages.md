@@ -18,6 +18,8 @@ In `Classical` and `PostQuantum`, `send(to, payload)` to any peer, direct or rou
 - **Status:** `Queued`, `Sent`, `Expired`. `Delivered` comes with ticket 47.
 - **`peers`:** a secured remote node shows `Routed(hops)` only while a valid certificate and a route exist.
 
+- **From ticket 28:** `Links.Link.write` fragments a message frame at the cleartext record body (1,024 B). Once secured links carry messages, size it at the sealed body (1,008 B, so 1,004 B of fragment data) and add a test that a sealed message frame between 1,009 and 1,024 B goes out as `FRAGMENT`s.
+
 ## Spec and ADR references
 
 - [end-to-end.md](../../../docs/spec/end-to-end.md): [Patterns](../../../docs/spec/end-to-end.md#patterns), [Containers](../../../docs/spec/end-to-end.md#containers), [Plaintext](../../../docs/spec/end-to-end.md#plaintext), [Plaintext extensions](../../../docs/spec/end-to-end.md#plaintext-extensions), [First messages](../../../docs/spec/end-to-end.md#first-messages), [Conversation tags](../../../docs/spec/end-to-end.md#conversation-tags).

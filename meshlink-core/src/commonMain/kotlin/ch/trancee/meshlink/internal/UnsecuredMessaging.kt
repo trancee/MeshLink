@@ -19,7 +19,7 @@ public class UnsecuredMessaging(
      * A new message from this node to [destination] with a fresh random `message_id` and tombstone
      * secret `k`.
      *
-     * @param payload at most [PAYLOAD_MAX] bytes, so the frame fits one record body.
+     * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
      * @param hopLimit 1 for a direct-only send.
      */
@@ -102,10 +102,10 @@ public class UnsecuredMessaging(
 
     public companion object {
         /**
-         * The largest payload, in bytes: a record body of [LinkRecord.BODY_MAX] less the frame's
-         * overhead (header, commitment, container prefix, content length and fixed content fields).
+         * The largest payload, in bytes: `unicast-payload-small-max` (spec "Size classes"). A frame
+         * longer than a record body travels as `FRAGMENT`s.
          */
-        public const val PAYLOAD_MAX: Int = 899
+        public const val PAYLOAD_MAX: Int = 4_096
 
         /** `clock-skew`: how far, in seconds, a receiver trusts another node's clock (spec "Routing headers"). */
         public const val CLOCK_SKEW_SECONDS: Int = 30

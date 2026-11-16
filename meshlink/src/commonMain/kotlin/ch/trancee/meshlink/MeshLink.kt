@@ -192,7 +192,7 @@ public class MeshLink private constructor(
      * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
      * or [MeshState.Blocked] on anything but [Requirement.IdentityUnavailable];
      * [RejectionReason.UnknownPeer] if [to] never completed a link with this node;
-     * [RejectionReason.TooLarge] above 899 bytes; and [RejectionReason.QueueFull] while the payloads
+     * [RejectionReason.TooLarge] above 4,096 bytes; and [RejectionReason.QueueFull] while the payloads
      * not yet written reach 1 MiB, after which the caller awaits [awaitSendCapacity].
      *
      * @throws MeshLinkException.Closed if the node is closed.

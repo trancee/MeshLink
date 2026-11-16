@@ -104,7 +104,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun payloadAbove899BytesIsRejectedAsTooLarge() =
+    fun payloadAbove4096BytesIsRejectedAsTooLarge() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -386,12 +386,12 @@ class DirectMessageTest {
 
     private companion object {
         val PAYLOAD = "hello, Bob".encodeToByteArray()
-        const val PAYLOAD_MAX = 899
+        const val PAYLOAD_MAX = 4_096
         const val MILLIS_PER_SECOND = 1_000L
         const val LIFETIME_SECONDS = 1_800L
         const val SKEW_SECONDS = 30L
 
-        // 899-byte payloads until the waiting bytes reach 1 MiB: the 1,167th crosses it.
-        const val FULL_QUEUE_COUNT = 1_167
+        // 4,096-byte payloads until the waiting bytes reach 1 MiB: the 256th reaches it.
+        const val FULL_QUEUE_COUNT = 256
     }
 }

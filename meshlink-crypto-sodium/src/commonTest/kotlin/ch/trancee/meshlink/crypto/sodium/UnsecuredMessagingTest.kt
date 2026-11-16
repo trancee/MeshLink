@@ -6,6 +6,7 @@ import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.LinkRecord
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
+import ch.trancee.meshlink.internal.Reassembly
 import ch.trancee.meshlink.internal.UnicastHeader
 import ch.trancee.meshlink.internal.UnsecuredMessaging
 import kotlin.test.Test
@@ -16,6 +17,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class UnsecuredMessagingTest {
     private val derivations = Derivations(SodiumCryptoProvider)
@@ -72,10 +74,11 @@ class UnsecuredMessagingTest {
     }
 
     @Test
-    fun theLargestPayloadFillsOneRecordBodyAndALargerOneIsRefused() {
+    fun theLargestPayloadMakesASmallFrameAndALargerOneIsRefused() {
         val draft = sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX), EXPIRY, hopLimit = 1)
 
-        assertEquals(LinkRecord.BODY_MAX, sender.frame(draft, epoch).size)
+        val size = sender.frame(draft, epoch).size
+        assertTrue(size > LinkRecord.BODY_MAX && size <= Reassembly.FRAME_SMALL_MAX, "$size")
         assertFailsWith<IllegalArgumentException> {
             sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX + 1), EXPIRY, hopLimit = 1)
         }

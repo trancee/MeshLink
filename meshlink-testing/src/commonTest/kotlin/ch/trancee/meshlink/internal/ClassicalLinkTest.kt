@@ -97,6 +97,39 @@ class ClassicalLinkTest {
         }
 
     @Test
+    fun fragmentedHandshakeMessagesAndEncryptedFragmentsReassemble() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = classicalNode(alice, null).also { it.start() }
+            val fake = FakePeer(TestClock(testScheduler))
+            val noise = fake.noise(NoiseRole.INITIATOR)
+            val link = connectFake(air, alice)
+            val end = alice.radio.ends.single()
+
+            // Act
+            fragments(0, LinkFrame.Handshake(1, 1, ok(noise.writeMessage(EMPTY))).encode()).forEach { link.write(it) }
+            advanceTimeBy(SETTLE_MILLIS)
+            ok(noise.readMessage(handshakeIn(bodies(end).single()).noiseMessage))
+            val message3 = LinkFrame.Handshake(1, THIRD, ok(noise.writeMessage(fake.payload))).encode()
+            fragments(1, message3).forEach { link.write(it) }
+            advanceTimeBy(SETTLE_MILLIS)
+            val secured = node.peers.value.map { it.secured }
+            val transport = ok(noise.split())
+            LinkFrame.Fragment
+                .split(2, LinkFrame.Close(CloseReason.SHUTTING_DOWN).encode(), 1)
+                .forEach { link.write(seal(transport, it.encode())) }
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(true), secured)
+            assertEquals(1, bodies(end).size)
+            assertFalse(end.open)
+            assertEquals(emptyList(), node.peers.value)
+        }
+
+    @Test
     fun aClassicalPeerIsListedByTheNodeIdItsCertificateProves() =
         runTest {
             // Arrange
@@ -290,7 +323,7 @@ class ClassicalLinkTest {
             val cases =
                 mapOf<String, Pair<(NoiseHandshake) -> List<ByteArray>, String>>(
                     "hello" to Pair({ listOf(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID))) }, "PROTOCOL"),
-                    "unknown type" to Pair({ listOf(record(byteArrayOf(0x01, 0x01))) }, "PROTOCOL"),
+                    "unknown type" to Pair({ listOf(record(byteArrayOf(0x3F, 0x01))) }, "PROTOCOL"),
                     "step 2 first" to Pair({ listOf(handshake(SECOND, GARBAGE)) }, "PROTOCOL"),
                     "unspoken version" to Pair({ listOf(handshake(1, GARBAGE, version = 2)) }, "PROTOCOL"),
                     "zero ephemeral" to Pair({ listOf(handshake(1, ByteArray(KEY_BYTES))) }, "DECRYPT"),
@@ -298,6 +331,14 @@ class ClassicalLinkTest {
                     "changed version" to
                         Pair({ listOf(message1(it), handshake(THIRD, GARBAGE, version = 2)) }, "PROTOCOL"),
                     "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "DECRYPT"),
+                    "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "PROTOCOL"),
+                    "nested fragment" to
+                        Pair({ listOf(record(LinkFrame.Fragment(0, 0, false, byteArrayOf(0x01, 0x00)))) }, "PROTOCOL"),
+                    "fragments above a handshake frame" to
+                        Pair(
+                            { fragments(0, ByteArray(LinkFrame.Handshake.FRAME_MAX + 1) { 0x02 }, DATA_MAX) },
+                            "PROTOCOL",
+                        ),
                 )
             cases.forEach { (case, script) ->
                 // Arrange
@@ -593,6 +634,13 @@ class ClassicalLinkTest {
         version: Int = 1,
     ): ByteArray = record(LinkFrame.Handshake(version, step, message))
 
+    /** [frame] as records of `FRAGMENT`s of stream [id], each carrying at most [dataMax] bytes. */
+    private fun fragments(
+        id: Int,
+        frame: ByteArray,
+        dataMax: Int = FRAGMENT_DATA,
+    ): List<ByteArray> = LinkFrame.Fragment.split(id, frame, dataMax).map { record(it) }
+
     private fun seal(
         transport: NoiseTransport,
         frame: ByteArray,
@@ -619,6 +667,8 @@ class ClassicalLinkTest {
         const val CERTIFICATE = 0x81
         const val UNKNOWN_CRITICAL = 0x8F
         const val UNKNOWN = 0x0F
+        const val FRAGMENT_DATA = 20
+        const val DATA_MAX = LinkFrame.Fragment.DATA_MAX
         val VALIDITY = 24.hours
         val MESH_KEY = ByteArray(MESH_KEY_BYTES) { 0x11 }
         val EMPTY = ByteArray(0)

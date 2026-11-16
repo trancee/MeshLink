@@ -27,7 +27,8 @@ import kotlin.time.Instant
  * open, keeps one link per NodeId and lists every linked peer in [peers]. A link opens with
  * `PLAIN_HELLO`s in `unsecured`, or with a Noise handshake and encrypted records once
  * [LinkAdmission.handshakes] is set. Each kept link writes the messages [mail] has for its peer and
- * hands it the routed frames it receives.
+ * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
+ * every link reassembles within the node's shared large-stream [budget] (spec "Fragments").
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
@@ -48,6 +49,8 @@ internal class Links(
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
 
+    private val budget = ReassemblyBudget()
+    private val inbound = Inbound()
     private val table = mutableMapOf<NodeId, Link>()
     private val busy = mutableMapOf<PeerHandle, Int>()
 
@@ -107,7 +110,7 @@ internal class Links(
         selected: Int?,
         versions: List<Int>,
     ) = coroutineScope {
-        val conn = Link(link, selected, handshakes?.link(link.peer, versions))
+        val conn = Link(link, selected, handshakes?.link(link.peer, versions), Reassembly(budget, clock), clock)
         opening++
         val timer =
             launch {
@@ -133,7 +136,7 @@ internal class Links(
             link.incoming.takeWhile { !conn.closing }.collect { chunk ->
                 when (val records = reader.read(chunk)) {
                     is Decoded.Invalid -> conn.close(null)
-                    is Decoded.Valid -> records.value.forEach { if (!conn.closing) receive(conn, it) }
+                    is Decoded.Valid -> records.value.forEach { if (!conn.closing) inbound.receive(conn, it) }
                 }
                 if (conn.peer != null) timer.cancel()
             }
@@ -147,68 +150,111 @@ internal class Links(
         }
     }
 
-    /** Handles one record [body]: a fatal one, one that fails to decrypt, closes the bearer. */
-    private suspend fun receive(
-        conn: Link,
-        body: ByteArray,
-    ) {
-        val plain = conn.unseal(body)
-        conn.peer?.let { conn.lastSeen = clock.now() }
-        val pending = conn.pending
-        when {
-            plain == null -> {
-                conn.close(null)
+    /** Reads a link's records: whole frames, reassembled streams and what each asks of [Links]. */
+    private inner class Inbound {
+        /** Handles one record [body]: a fatal one, one that fails to decrypt, closes the bearer. */
+        suspend fun receive(
+            conn: Link,
+            body: ByteArray,
+        ) {
+            val plain = conn.unseal(body)
+            conn.peer?.let { conn.lastSeen = clock.now() }
+            if (plain == null) conn.close(null) else dispatch(conn, plain)
+            if (table[conn.peer] === conn) publish()
+        }
+
+        /** Handles one whole frame: a record's, or a reassembled stream's. */
+        private suspend fun dispatch(
+            conn: Link,
+            plain: ByteArray,
+        ) {
+            val decoded = LinkFrame.decode(plain)
+            val pending = conn.pending
+            when {
+                decoded is Decoded.Valid -> {
+                    frame(conn, decoded.value)
+                }
+
+                // Before its handshake completes, a secured link accepts only HANDSHAKE, its fragments and CLOSE.
+                pending != null -> {
+                    handshake(conn, pending.receive(null))
+                }
+
+                (decoded as Decoded.Invalid).error != DecodeError.UNKNOWN_TYPE -> {
+                    conn.close(CloseReason.PROTOCOL_ERROR)
+                }
+
+                conn.peer != null && (plain[0].toInt() and BYTE_MASK) >= ROUTED_FIRST -> {
+                    mail.received(plain)
+                }
             }
+        }
 
-            conn.peer != null && (plain[0].toInt() and BYTE_MASK) in ROUTED_TYPES -> {
-                mail.received(plain)
-            }
+        /**
+         * Adds [fragment] to its stream: a whole frame is dispatched, a refused stream answered with
+         * `BUSY`. A fatal error fails a running handshake, which reassembles at most one `HANDSHAKE`
+         * frame's bytes, and otherwise closes the link with `PROTOCOL_ERROR`.
+         */
+        private suspend fun reassemble(
+            conn: Link,
+            fragment: LinkFrame.Fragment,
+        ) {
+            val pending = conn.pending
+            val limit = if (pending == null) Reassembly.FRAME_MAX else LinkFrame.Handshake.FRAME_MAX
+            when (val result = conn.reassembly.accept(fragment, limit)) {
+                Reassembled.Waiting -> {}
 
-            else -> {
-                val decoded = LinkFrame.decode(plain)
-                when {
-                    decoded is Decoded.Valid -> {
-                        frame(conn, decoded.value)
-                    }
+                is Reassembled.Complete -> {
+                    dispatch(conn, result.frame)
+                }
 
-                    // Before its handshake completes, a secured link accepts only HANDSHAKE and CLOSE.
-                    pending != null -> {
-                        handshake(conn, pending.receive(null))
-                    }
+                is Reassembled.Refused -> {
+                    conn.send(result.busy)
+                }
 
-                    (decoded as Decoded.Invalid).error != DecodeError.UNKNOWN_TYPE -> {
+                Reassembled.Fatal -> {
+                    if (pending == null) {
                         conn.close(CloseReason.PROTOCOL_ERROR)
+                    } else {
+                        handshake(conn, pending.receive(null))
                     }
                 }
             }
         }
-        if (table[conn.peer] === conn) publish()
-    }
 
-    private suspend fun frame(
-        conn: Link,
-        frame: LinkFrame,
-    ) {
-        val pending = conn.pending
-        when {
-            frame is LinkFrame.Close -> {
-                conn.received = frame.reason
-                conn.close(null)
-            }
+        private suspend fun frame(
+            conn: Link,
+            frame: LinkFrame,
+        ) {
+            val pending = conn.pending
+            when {
+                frame is LinkFrame.Close -> {
+                    conn.received = frame.reason
+                    conn.close(null)
+                }
 
-            pending != null -> {
-                handshake(conn, pending.receive(frame))
-            }
+                frame is LinkFrame.Fragment -> {
+                    reassemble(conn, frame)
+                }
 
-            frame is LinkFrame.PlainHello && conn.peer == null -> {
-                val reason = policy.checkHello(frame, conn.selected)
-                if (reason != null) return conn.close(reason)
-                if (conn.selected == null) conn.send(policy.hello(frame.version))
-                open(conn, NodeId(frame.nodeId))
-            }
+                pending != null -> {
+                    handshake(conn, pending.receive(frame))
+                }
 
-            else -> {
-                conn.close(CloseReason.PROTOCOL_ERROR)
+                frame is LinkFrame.Busy -> {
+                    conn.refused(frame.streamId)
+                }
+
+                frame is LinkFrame.PlainHello && conn.peer == null -> {
+                    val reason = policy.checkHello(frame, conn.selected)
+                    if (reason != null) return conn.close(reason)
+                    if (conn.selected == null) conn.send(policy.hello(frame.version))
+                    open(conn, NodeId(frame.nodeId))
+                }
+
+                else -> {
+                    conn.close(CloseReason.PROTOCOL_ERROR)
+                }
             }
         }
     }
@@ -263,6 +309,7 @@ internal class Links(
 
     private fun release(conn: Link) {
         conn.secure?.end()
+        conn.reassembly.clear()
         val id = conn.peer
         if (id == null) opening--
         if (id != null && table[id] === conn) {
@@ -288,6 +335,8 @@ internal class Links(
         val selected: Int?,
         /** The link's handshake in a secured profile, or `null` in `unsecured`. */
         val secure: LinkHandshake?,
+        val reassembly: Reassembly,
+        private val clock: Clock,
     ) {
         val central: Boolean get() = selected != null
         var peer: NodeId? = null
@@ -305,8 +354,12 @@ internal class Links(
         /** Completes with the peer's NodeId once this is the peer's kept link. */
         val chosen = CompletableDeferred<NodeId>()
 
-        // Keeps each record whole on the bearer: a message and a CLOSE never interleave.
+        // Keeps each record whole on the bearer: a message's records and a CLOSE never interleave.
         private val writing = Mutex()
+
+        // This link's recent outgoing streams by stream_id, for a BUSY that answers one.
+        private val streams = mutableMapOf<Int, Outgoing>()
+        private var nextStream = 0
 
         suspend fun send(frame: LinkFrame) {
             writing.withLock { link.write(seal(frame.encode())) }
@@ -330,19 +383,69 @@ internal class Links(
         }
 
         /**
-         * Writes [letter]'s record unless the link is closing, and settles it. Not cancellable once
-         * started, so a record is never cut short and a written one is always settled as sent.
+         * Writes [letter]'s frame unless the link is closing, and settles it: sent once every record
+         * is written, not sent if a write fails or the peer answers `BUSY`. Not cancellable once
+         * started, so a record is never cut short and a written frame is always settled. Returns
+         * whether the link can take the next frame.
          */
         suspend fun deliver(letter: Letter): Boolean {
+            var written = Written.FAILED
             var sent = false
             try {
                 withContext(NonCancellable) {
-                    writing.withLock { if (!closing) sent = link.write(seal(letter.frame)) is RadioResult.Ok }
+                    written = write(letter)
+                    sent = written == Written.SENT
                 }
             } finally {
                 letter.settle(sent)
             }
-            return sent
+            return written != Written.FAILED
+        }
+
+        /**
+         * One record if the frame fits, else `FRAGMENT`s of a new stream. Only the link's message
+         * pump calls it, so one stream at a time is in flight and stream ids taken in turn are
+         * unique among open streams. Each record takes [writing] apart, so a `CLOSE` can pass.
+         * Messages travel only on `unsecured` links until secured messaging, which sizes fragments
+         * for sealed records, so a record body carries the whole [LinkRecord.BODY_MAX].
+         */
+        private suspend fun write(letter: Letter): Written {
+            val frame = letter.frame
+            val plainMax = LinkRecord.BODY_MAX
+            if (frame.size <= plainMax) return record(frame)
+            val now = clock.monotonicMillis()
+            streams.values.removeAll { now - it.startedMillis >= Reassembly.IDLE_TIMEOUT_MILLIS }
+            val id = nextStream
+            nextStream = (id + 1) and BYTE_MASK
+            val stream = Outgoing(letter.settle, now)
+            streams[id] = stream
+            var written = Written.SENT
+            for (piece in LinkFrame.Fragment.split(id, frame, plainMax - LinkFrame.Fragment.HEADER)) {
+                written = if (stream.refused) Written.REFUSED else record(piece.encode())
+                if (written != Written.SENT) break
+            }
+            stream.writing = false
+            if (written != Written.SENT) streams -= id
+            return written
+        }
+
+        private suspend fun record(frame: ByteArray): Written =
+            writing.withLock {
+                if (!closing && link.write(seal(frame)) is RadioResult.Ok) Written.SENT else Written.FAILED
+            }
+
+        /**
+         * The peer refused stream [id] with `BUSY`: one still being written stops; one already
+         * written is settled again as not sent, so the outbox retries its message.
+         */
+        fun refused(id: Int) {
+            val stream = streams[id] ?: return
+            if (stream.writing) {
+                stream.refused = true
+            } else {
+                streams -= id
+                stream.settle(false)
+            }
         }
 
         /** Sends `CLOSE` with [reason] unless it is `null`, then disconnects; once only. */
@@ -359,12 +462,26 @@ internal class Links(
         fun toPeer(id: NodeId): Peer = Peer(id, Reachability.Direct, secured = secure != null, lastSeen)
     }
 
+    /** A stream this link sent, started at [startedMillis] monotonic time, and its message's [settle]. */
+    private class Outgoing(
+        val settle: (sent: Boolean) -> Unit,
+        val startedMillis: Long,
+    ) {
+        var writing = true
+        var refused = false
+    }
+
+    private enum class Written { SENT, REFUSED, FAILED }
+
     companion object {
         /** How long a link may take to exchange hellos before the node closes the bearer (spec `handshake-timeout`). */
         const val HANDSHAKE_TIMEOUT_MILLIS: Long = 10_000
 
-        /** Routed frame types: unicast `0x40`–`0x7F` and flood `0x80`–`0xBF` (spec "Routing"). */
-        private val ROUTED_TYPES: IntRange = 0x40..0xBF
+        /**
+         * The first routed frame type: unicast `0x40`–`0x7F` and flood `0x80`–`0xBF` (spec
+         * "Routing"); `0xC0` and above are reserved and close the link before this check.
+         */
+        private const val ROUTED_FIRST = 0x40
         private const val BYTE_MASK = 0xFF
     }
 }
