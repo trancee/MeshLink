@@ -35,6 +35,17 @@ public sealed interface LinkDiagnostic {
         override val code: String = "ML3004"
     }
 
+    /**
+     * `ML3007`: an open link dropped a link-local frame of [type] it doesn't handle: an unknown
+     * type, or a `REKEY` on an `Unsecured` link (D-48). The link stays open.
+     */
+    public class UnknownLinkFrameDropped(
+        /** The frame's type byte, `0x00`–`0x3F`. */
+        public val type: Int,
+    ) : LinkDiagnostic {
+        override val code: String = "ML3007"
+    }
+
     /** `ML4001`: a link's handshake failed, and the link closed. */
     public class HandshakeFailed(
         /** What failed. */

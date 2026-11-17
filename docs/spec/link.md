@@ -300,6 +300,10 @@ Total: 1 B. Encrypted links only.
 
 - After sending the record that carries `REKEY`, the sender calls Noise `Rekey()` on its sending cipher state. After processing that record, the receiver calls `Rekey()` on its receiving cipher state. Each direction rekeys independently.
 - A sender MUST rekey a direction after `rekey-interval` or after `rekey-records` records in that direction, whichever comes first. A receiver MUST close the link with `PROTOCOL_ERROR` if a direction exceeds twice `rekey-records` without a rekey.
+- The interval runs on the sender's monotonic clock from the handshake's completion or the direction's last `REKEY`. When it ends, the sender sends `REKEY` as its next record, whether or not it has other frames to send.
+- One key encrypts at most `rekey-records` records, its `REKEY` included: when one record is left, the sender sends `REKEY` before its next frame. The receiver closes the link at the record after twice `rekey-records`, the 131,073rd under one key, without decrypting it.
+- A `REKEY` before the handshake completes fails the handshake, as any frame other than the next handshake message does. A record encrypted with the old key after a `REKEY` fails to decrypt and closes the bearer ([Link records](#link-records)).
+- An `unsecured` receiver drops a `REKEY` frame as it drops a link-local frame of unknown type: it records diagnostic ML3007 `UnknownLinkFrameDropped` and keeps the link open ([D-48]).
 
 <!-- data: limits.json -->
 

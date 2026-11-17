@@ -452,7 +452,40 @@ def tier2_seal(g, t, where):
         fail("%s: an invalid seal fails with open-failed" % where)
 
 
-TIER2 = {"CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal}
+def tier2_link(g, t, where):
+    pattern = next((v for k, v in PATTERNS.items() if constant(k) == g["protocol"]), None)
+    if pattern is None or pattern[2]:
+        return fail("%s: protocol %s is not an open link pattern" % (where, g["protocol"]))
+    profile, kem = pattern[0], pattern[1]
+    i, r = g["initiator"], g["responder"]
+    if ("kem_keygen_seed" in i, "kem_encaps_seed" in r) != (kem, kem):
+        fail("%s: KEM inputs belong to KEM patterns only" % where)
+    if tier2_prologue(i, profile, where) != tier2_prologue(r, profile, where):
+        fail("%s: both sides hold the same prologue" % where)
+    rekey = bytes([int(next(e["code"] for e in entries("frame-types.json") if e["name"] == "REKEY"), 16)])
+    lo, hi = m.L("record-body-min"), m.L("record-body-max")
+    for name in ("initiator", "responder"):
+        frames, stream, at = [b(x) for x in t[name + "_frames"]], b(t[name + "_stream"]), 0
+        for frame in frames:
+            length = int.from_bytes(stream[at:at + 2], "big")
+            if length != len(frame) + TAG or not lo <= length <= hi:
+                fail("%s: %s record %d is %d B, expected frame + tag" % (where, name, frames.index(frame) + 1, length))
+            at += 2 + length
+        if at != len(stream):
+            fail("%s: %s stream is not exactly its frames' records" % (where, name))
+        if t["result"] == "valid" and frames and frames.count(rekey) != 1:
+            fail("%s: a valid %s stream carries one REKEY" % (where, name))
+    sent = [b(x) for x in t["initiator_frames"]]
+    step = t.get("rejected_record")
+    if t["result"] == "valid":
+        if step is not None or "error" in t:
+            fail("%s: a valid stream has nothing to reject" % where)
+    elif t.get("error") != "decrypt-failed" or step != len(sent) or rekey not in sent[:-1] or t["responder_frames"]:
+        fail("%s: an invalid stream ends at rejected_record, after a REKEY, and the responder sends nothing" % where)
+
+
+TIER2 = {"CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
+         "LinkTransport": tier2_link}
 
 
 def check_vectors():

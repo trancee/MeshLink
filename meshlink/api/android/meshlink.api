@@ -409,6 +409,12 @@ public final class ch/trancee/meshlink/internal/LinkDiagnostic$LinkCapReached : 
 	public fun getCode ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/internal/LinkDiagnostic$UnknownLinkFrameDropped : ch/trancee/meshlink/internal/LinkDiagnostic {
+	public fun <init> (I)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getType ()I
+}
+
 public final class ch/trancee/meshlink/internal/LinkRole : java/lang/Enum {
 	public static final field CENTRAL Lch/trancee/meshlink/internal/LinkRole;
 	public static final field PERIPHERAL Lch/trancee/meshlink/internal/LinkRole;

@@ -13,11 +13,14 @@ import ch.trancee.meshlink.internal.Decoded
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
+import ch.trancee.meshlink.internal.LinkCipher
+import ch.trancee.meshlink.internal.LinkRecord
 import ch.trancee.meshlink.internal.NoiseHandshake
 import ch.trancee.meshlink.internal.NoiseKeys
 import ch.trancee.meshlink.internal.NoisePattern
 import ch.trancee.meshlink.internal.NoiseResult
 import ch.trancee.meshlink.internal.NoiseRole
+import ch.trancee.meshlink.internal.RecordReader
 import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.WireProfile
 import kotlin.test.assertContentEquals
@@ -26,6 +29,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlin.time.Duration.Companion.seconds
@@ -317,20 +321,7 @@ internal val noise: Handler =
 internal val noiseHandshake: Handler =
     Handler("handshake_hash") { case ->
         val pattern = NoisePattern.entries.single { it.protocolName == case.group["protocol"].string }
-        val (initiator, responder) =
-            listOf(NoiseRole.INITIATOR to "initiator", NoiseRole.RESPONDER to "responder").map { (role, name) ->
-                val side = case.test[name]
-                val optional = { field: String -> if (side.has(field)) side[field].string.hex() else null }
-                val keys =
-                    NoiseKeys(
-                        crypto.x25519KeyPair(side["static_private"].string.hex()),
-                        optional("psk"),
-                        crypto.x25519KeyPair(side["ephemeral_private"].string.hex()),
-                        optional("kem_keygen_seed")?.let(crypto::mlKem768KeyPair),
-                        optional("kem_encaps_seed"),
-                    )
-                NoiseHandshake(crypto, pattern, role, side["prologue"].string.hex(), keys)
-            }
+        val (initiator, responder) = handshakeSides(pattern, case.test)
         val tampered = if (case.test.has("tampered_step")) case.test["tampered_step"].int else 0
         val rejected = if (case.test.has("rejected_step")) case.test["rejected_step"].int else 0
         val messages = case.test["messages"].list.map { it.string }
@@ -377,6 +368,65 @@ internal val noiseHandshake: Handler =
             assertEquals(rejected - 1, reads.size)
         }
     }
+
+/**
+ * `link-transport.json` (tier 2): both sides run the group's handshake, then each seals its frames
+ * through a [LinkCipher]. A writer's records must equal its stream except at `rejected_record`. The
+ * reader cuts the stream with a [RecordReader] and must open every record to its frame, rekeying
+ * after `REKEY`, up to `rejected_record`, which must fail.
+ */
+internal val linkTransport: Handler =
+    Handler("initiator_stream") { case ->
+        val pattern = NoisePattern.entries.single { it.protocolName == case.group["protocol"].string }
+        val (initiator, responder) = handshakeSides(pattern, case.group)
+        case.group["payloads"].list.forEachIndexed { index, payload ->
+            val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
+            reader.readMessage(writer.writeMessage(payload.string.hex()).value()).value()
+        }
+        val transports = listOf(initiator, responder).map { it.split().value() }
+        transports.forEach { assertEquals(case.group["handshake_hash"].string, it.handshakeHash.hex()) }
+        val (sending, receiving) = transports.map { LinkCipher(it, FixedClock(0)) }
+        val rejected = if (case.test.has("rejected_record")) case.test["rejected_record"].int else 0
+        val directions = listOf(Triple("initiator", sending, receiving), Triple("responder", receiving, sending))
+        directions.forEach { (name, writer, reader) ->
+            val frames = case.test["${name}_frames"].list.map { it.string }
+            val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(case.hex("${name}_stream"))).value
+            assertEquals(frames.size, bodies.size, "$name records")
+            frames.zip(bodies).forEachIndexed { index, (frame, body) ->
+                val record = index + 1
+                val written = writer.seal(frame.hex()).hex()
+                if (record != rejected) assertEquals(LinkRecord.encode(body).hex(), written, "$name record $record")
+                val opened = reader.open(body)
+                if (name == "initiator" && record == rejected) {
+                    assertSame(LinkCipher.Opened.Failed, opened, "$name record $record")
+                } else {
+                    assertEquals(frame, assertIs<LinkCipher.Opened.Frame>(opened).bytes.hex(), "$name record $record")
+                }
+            }
+        }
+        assertEquals(if (case.result == "valid") null else "decrypt-failed", case.test.optional("error"))
+    }
+
+/** The initiator and responder of [pattern], from the keys in [sides]' `initiator` and `responder`. */
+private fun handshakeSides(
+    pattern: NoisePattern,
+    sides: Json,
+): List<NoiseHandshake> =
+    listOf(NoiseRole.INITIATOR to "initiator", NoiseRole.RESPONDER to "responder").map { (role, name) ->
+        val side = sides[name]
+        val optional = { field: String -> if (side.has(field)) side[field].string.hex() else null }
+        val keys =
+            NoiseKeys(
+                crypto.x25519KeyPair(side["static_private"].string.hex()),
+                optional("psk"),
+                crypto.x25519KeyPair(side["ephemeral_private"].string.hex()),
+                optional("kem_keygen_seed")?.let(crypto::mlKem768KeyPair),
+                optional("kem_encaps_seed"),
+            )
+        NoiseHandshake(crypto, pattern, role, side["prologue"].string.hex(), keys)
+    }
+
+private fun Json.optional(field: String): String? = if (has(field)) this[field].string else null
 
 private fun <T> NoiseResult<T>.value(): T = assertIs<NoiseResult.Ok<T>>(this).value
 

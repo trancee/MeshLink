@@ -44,6 +44,7 @@ internal class Links(
     private val policy = admission.policy
     private val handshakes = admission.handshakes
     private val keys = handshakes?.keys
+    private val report = admission.report
     private val limits = LinkLimits(radio, admission.report)
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
@@ -168,6 +169,8 @@ internal class Links(
                 while (conn.deliver(mail.next(id))) continue
                 awaitCancellation()
             }
+        // Rekeys the sending direction on time once the link is secured (spec "Rekey").
+        val rekeys = launch { conn.rekeyOnTime() }
         try {
             when {
                 selected == null -> Unit
@@ -191,6 +194,7 @@ internal class Links(
         } finally {
             timer.cancel()
             pump.cancel()
+            rekeys.cancel()
             release(conn)
         }
         conn
@@ -198,14 +202,21 @@ internal class Links(
 
     /** Reads a link's records: whole frames, reassembled streams and what each asks of [Links]. */
     private inner class Inbound {
-        /** Handles one record [body]: a fatal one, one that fails to decrypt, closes the bearer. */
+        /**
+         * Handles one record [body]: a fatal one, or one that fails to decrypt, closes the bearer; a
+         * peer overdue its rekey is closed with `PROTOCOL_ERROR`.
+         */
         suspend fun receive(
             conn: Link,
             body: ByteArray,
         ) {
-            val plain = conn.unseal(body)
+            val opened = conn.cipher.let { if (it == null) LinkCipher.Opened.Frame(body) else it.open(body) }
             conn.peer?.let { conn.lastSeen = clock.now() }
-            if (plain == null) conn.close(null) else dispatch(conn, plain)
+            when (opened) {
+                is LinkCipher.Opened.Frame -> dispatch(conn, opened.bytes)
+                LinkCipher.Opened.Failed -> conn.close(null)
+                LinkCipher.Opened.Overdue -> conn.close(CloseReason.PROTOCOL_ERROR)
+            }
             if (table[conn.peer] === conn) publish()
         }
 
@@ -230,7 +241,12 @@ internal class Links(
                     conn.close(CloseReason.PROTOCOL_ERROR)
                 }
 
-                conn.peer != null && (plain[0].toInt() and BYTE_MASK) >= ROUTED_FIRST -> {
+                // An unknown link-local frame is dropped; a routed one is mail's once the link is open.
+                (plain[0].toInt() and BYTE_MASK) < ROUTED_FIRST -> {
+                    report(LinkDiagnostic.UnknownLinkFrameDropped(plain[0].toInt() and BYTE_MASK))
+                }
+
+                conn.peer != null -> {
                     mail.received(plain)
                 }
             }
@@ -310,8 +326,22 @@ internal class Links(
                 }
 
                 else -> {
-                    conn.close(CloseReason.PROTOCOL_ERROR)
+                    unexpected(conn, frame)
                 }
+            }
+        }
+
+        /**
+         * A frame [frame] has no rule for. A `REKEY` was already applied by the cipher, and an
+         * `Unsecured` link drops it as an unknown link-local frame (D-48); anything else closes the link.
+         */
+        private suspend fun unexpected(
+            conn: Link,
+            frame: LinkFrame,
+        ) {
+            when {
+                frame != LinkFrame.Rekey -> conn.close(CloseReason.PROTOCOL_ERROR)
+                conn.cipher == null -> report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
             }
         }
     }
@@ -328,7 +358,7 @@ internal class Links(
 
             is HandshakeStep.Complete -> {
                 step.reply?.let { conn.send(it) }
-                conn.transport = step.transport
+                conn.secured(LinkCipher(step.transport, clock))
                 val peer = step.peer ?: return conn.close(CloseReason.HANDSHAKE_FAILED)
                 open(conn, peer)
                 keys?.next?.let { post(conn, LinkFrame.ResolvingKeyUpdate(it)) }
@@ -414,7 +444,9 @@ internal class Links(
         val pending: LinkHandshake? get() = secure?.takeIf { peer == null }
 
         /** Encrypts and decrypts every record once the handshake completes. */
-        var transport: NoiseTransport? = null
+        var cipher: LinkCipher? = null
+            private set
+        private val keyed = CompletableDeferred<LinkCipher>()
         var lastSeen: Instant = Instant.fromEpochMilliseconds(0)
         var received: CloseReason? = null
         private var closing = false
@@ -465,6 +497,25 @@ internal class Links(
             }
         }
 
+        /** Encrypts every later record with [cipher]: the handshake completed. */
+        fun secured(cipher: LinkCipher) {
+            this.cipher = cipher
+            keyed.complete(cipher)
+        }
+
+        /**
+         * Once secured, sends `REKEY` each time the sending key is due until the link closes. A
+         * `REKEY` the cipher inserts at its record limit moves the due time on. A started `REKEY`
+         * is written whole.
+         */
+        suspend fun rekeyOnTime() {
+            val cipher = keyed.await()
+            while (!closing) {
+                val wait = cipher.rekeyDueMillis - clock.monotonicMillis()
+                if (wait > 0) delay(wait) else withContext(NonCancellable) { send(LinkFrame.Rekey) }
+            }
+        }
+
         /** The next stream id; ids are taken in turn, so open streams' ids stay unique. */
         private fun stream(): Int {
             val id = nextStream
@@ -473,20 +524,13 @@ internal class Links(
         }
 
         /**
-         * [frame] as a record, encrypted once secured. Only the writer calls it, holding [writing],
-         * so nonces follow the record order.
+         * [frame] as a record, encrypted once secured, and then after a `REKEY` record when the
+         * sending key has one record left. Only the writer calls it, holding [writing], so nonces
+         * follow the record order.
          */
         private fun seal(frame: ByteArray): ByteArray {
-            // A sending cipher state fails only after 2^64 - 1 records.
-            val cipher = transport
-            val body = if (cipher == null) frame else (cipher.encrypt(frame) as NoiseResult.Ok).value
-            return LinkRecord.encode(body)
-        }
-
-        /** The frame in record [body], or `null` if it fails to decrypt. */
-        fun unseal(body: ByteArray): ByteArray? {
-            val transport = transport ?: return body
-            return (transport.decrypt(body) as? NoiseResult.Ok)?.value
+            val secured = cipher ?: return LinkRecord.encode(frame)
+            return secured.seal(frame)
         }
 
         /**

@@ -2,6 +2,9 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlin.test.assertIs
@@ -45,6 +48,9 @@ internal class FakePeer(
 
     /** The node's message 2 payload in the last handshake [initiate] ran. */
     var received: ByteArray = EMPTY
+
+    /** How many chunks the node had written when [initiate] granted it the credit window. */
+    var grantedAtChunk: Int = 0
 
     fun noise(role: NoiseRole): NoiseHandshake {
         val psk = meshKey?.let { Derivations(SodiumCryptoProvider).meshPsk(it, digest) }
@@ -92,9 +98,27 @@ internal suspend fun TestScope.initiate(
     fake.received = ok(noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage))
     link.write(handshake(3, ok(noise.writeMessage(fake.payload))))
     val transport = ok(noise.split())
+    fake.grantedAtChunk = end.chunks
     link.write(seal(transport, LinkFrame.Credit(CREDIT_WINDOW).encode()))
     advanceTimeBy(SETTLE_MILLIS)
     return transport
+}
+
+/**
+ * Makes [fake], linked to a node by [initiate] on [link], keep granting credits as a MeshLink central
+ * does: half the window again after every half-window of chunks the node writes. Consumes [link]'s incoming stream.
+ */
+internal fun TestScope.keepGranting(
+    fake: FakePeer,
+    link: RadioLink,
+    transport: NoiseTransport,
+) {
+    val from = fake.grantedAtChunk
+    backgroundScope.launch {
+        link.incoming.drop(from).collectIndexed { index, _ ->
+            if ((index + 1) % CREDIT_HALF == 0) link.write(seal(transport, LinkFrame.Credit(CREDIT_HALF).encode()))
+        }
+    }
 }
 
 internal fun bodies(end: VirtualLinkEnd): List<ByteArray> {

@@ -202,6 +202,20 @@ public sealed interface LinkFrame {
         }
     }
 
+    /**
+     * `REKEY` (spec "Rekey", D-21): the sender called Noise `Rekey()` on its sending cipher state
+     * after this record, so the receiver rekeys its receiving one after processing it.
+     */
+    public data object Rekey : LinkFrame {
+        internal const val TYPE = 0x05
+        private const val LENGTH = 1
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte())
+
+        internal fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+            if (bytes.size == LENGTH) Decoded.Valid(Rekey) else Decoded.Invalid(DecodeError.TRAILING_BYTES)
+    }
+
     /** `BUSY` (spec "Busy"): the receiver refused stream [streamId]. [code] is kept as received. */
     public class Busy(
         public val streamId: Int,
@@ -292,6 +306,7 @@ public sealed interface LinkFrame {
                 type == Handshake.TYPE -> Handshake.decode(bytes)
                 type == PlainHello.TYPE -> PlainHello.decode(bytes)
                 type == Close.TYPE -> Close.decode(bytes)
+                type == Rekey.TYPE -> Rekey.decode(bytes)
                 type == Busy.TYPE -> Busy.decode(bytes)
                 type == ResolvingKeyUpdate.TYPE -> ResolvingKeyUpdate.decode(bytes)
                 type == Credit.TYPE -> Credit.decode(bytes)

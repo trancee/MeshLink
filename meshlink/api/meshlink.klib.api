@@ -144,6 +144,15 @@ sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.mes
         final val code // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.code|{}code[0]
             final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.code.<get-code>|<get-code>(){}[0]
     }
+
+    final class UnknownLinkFrameDropped : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped|null[0]
+        constructor <init>(kotlin/Int) // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.<init>|<init>(kotlin.Int){}[0]
+
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.code.<get-code>|<get-code>(){}[0]
+        final val type // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.type|{}type[0]
+            final fun <get-type>(): kotlin/Int // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.type.<get-type>|<get-type>(){}[0]
+    }
 }
 
 sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus|null[0]

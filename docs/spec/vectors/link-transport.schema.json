@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "link-transport.schema.json",
+  "title": "MeshLink protocol 1 test vectors: link-transport.json",
+  "type": "object",
+  "required": [
+    "tier",
+    "algorithm",
+    "schema",
+    "generatorVersion",
+    "numberOfTests",
+    "notes",
+    "testGroups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "tier": {
+      "const": 2
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "link-transport.schema.json"
+    },
+    "generatorVersion": {
+      "type": "string"
+    },
+    "numberOfTests": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "notes": {
+      "type": "object"
+    },
+    "testGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "protocol",
+          "initiator",
+          "responder",
+          "payloads",
+          "handshake_hash",
+          "tests"
+        ],
+        "properties": {
+          "type": {
+            "const": "LinkTransport"
+          },
+          "protocol": {
+            "enum": [
+              "Noise_XX_25519_ChaChaPoly_SHA256",
+              "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256"
+            ]
+          },
+          "initiator": {
+            "type": "object",
+            "required": [
+              "static_private",
+              "ephemeral_private",
+              "prologue"
+            ],
+            "properties": {
+              "static_private": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "ephemeral_private": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kem_keygen_seed": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{128}$"
+              },
+              "prologue": {
+                "type": "string",
+                "pattern": "^([0-9a-f]{2})*$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "responder": {
+            "type": "object",
+            "required": [
+              "static_private",
+              "ephemeral_private",
+              "prologue"
+            ],
+            "properties": {
+              "static_private": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "ephemeral_private": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kem_encaps_seed": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "prologue": {
+                "type": "string",
+                "pattern": "^([0-9a-f]{2})*$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "payloads": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            }
+          },
+          "handshake_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "tcId",
+                "comment",
+                "flags",
+                "result",
+                "initiator_frames",
+                "initiator_stream",
+                "responder_frames",
+                "responder_stream"
+              ],
+              "properties": {
+                "tcId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "enum": [
+                    "valid",
+                    "invalid"
+                  ]
+                },
+                "initiator_frames": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^([0-9a-f]{2})*$"
+                  }
+                },
+                "initiator_stream": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "responder_frames": {
+                  "type": "array",
+                  "minItems": 0,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^([0-9a-f]{2})*$"
+                  }
+                },
+                "responder_stream": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "rejected_record": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

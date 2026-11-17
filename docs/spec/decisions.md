@@ -339,6 +339,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** library rule R14: an Android peripheral's notify burst made it drop an iOS central's GAP name read response, and iOS closed the link 30 s later; `onNotificationSent` means queued, not sent, so the only working signal was an application-level credit from the central. A credit per record would not bound the queue: a 1,024 B record is 52 notifications at ATT MTU 23.
 - **Alternatives:** local pacing only (C-09; failed on R14's evidence); a credit per record (unbounded notifications per credit); per-message acknowledgments (more airtime, and they pace messages, not notifications).
 
+### D-48 `REKEY` on an `unsecured` link
+
+- **Question:** what does an `unsecured` receiver do with a `REKEY` frame, which is defined only for encrypted links?
+- **Decision:** it drops the frame as a link-local frame of unknown type: it records diagnostic ML3007 `UnknownLinkFrameDropped` and keeps the link open, still delivering later frames. Owner decision 2026-11-13; recorded while implementing 0.1.0 ticket 30.
+- **Evidence:** the [Link-local frame summary](link.md#link-local-frame-summary) already requires a receiver to drop an unknown link-local frame without closing the link, and ADR 0020 lists ML3007 for it. An `unsecured` link has no cipher state to rekey, so the frame carries nothing the receiver can act on; closing would let one malformed or future peer frame tear down links that the unknown-type rule keeps open.
+- **Alternatives:** close with `PROTOCOL_ERROR` (stricter, but treats a harmless frame more harshly than an unknown one); ignore it without a diagnostic (hides a misbehaving peer from troubleshooting).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

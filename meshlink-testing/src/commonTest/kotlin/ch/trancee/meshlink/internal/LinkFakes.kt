@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlin.test.assertIs
 
@@ -90,6 +91,14 @@ internal fun TestScope.grantCredits(
             if ((index + 1) % CREDIT_HALF == 0) fake.write(record(LinkFrame.Credit(CREDIT_HALF)))
         }
     }
+}
+
+/** Every link diagnostic [node] reports from now on. */
+@OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
+internal fun TestScope.diagnostics(node: MeshLink): List<LinkDiagnostic> {
+    val seen = mutableListOf<LinkDiagnostic>()
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.linkDiagnostics.collect { seen += it } }
+    return seen
 }
 
 /** The MeshIdDigest of [meshId] in the `unsecured` profile. */
