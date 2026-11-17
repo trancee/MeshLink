@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class UnsupportedRadioPortTest {
@@ -51,6 +52,7 @@ class UnsupportedRadioPortTest {
             // Assert
             results.forEach { assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(it).reason) }
             assertEquals(emptyList(), radio.events.toList())
+            assertNull(radio.peripheralLinkCap)
         }
 
     @Test

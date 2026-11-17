@@ -479,6 +479,7 @@ def gen_link_frames():
         ("RESOLVING_KEY_UPDATE", {"type": "0x0E", "resolving_key": dh("resolving-key-next", 32),
                                   "not_after": 1798934400}),
         ("BEARER_SWITCH", {"type": "0x0F"}),
+        ("CREDIT full window", {"type": "0x10", "credits": m.L("gatt-credit-window")}),
     ]
     enc = {}
     for c, fr in samples:
@@ -511,6 +512,7 @@ def gen_link_frames():
     add_bad(f, g, "SHUFFLE with 6 entries", b"\x08\x06" + bytes(48), "out-of-range", ["BadLength"])
     add_bad(f, g, "CATCH_UP with 129 offered IDs", b"\x0a\x00\x81" + bytes(12 * 129) + bytes(4), "out-of-range",
             ["BadLength"])
+    add_bad(f, g, "CREDIT granting zero", b"\x10\x00\x00", "out-of-range")
     add_bad(f, g, "IHAVE with zero IDs", b"\x0b\x00", "out-of-range", ["BadLength"])
     add_bad(f, g, "IHAVE with 33 IDs", b"\x0b\x21" + bytes(12 * 33), "out-of-range", ["BadLength"])
     f.write()

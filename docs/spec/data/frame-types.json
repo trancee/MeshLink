@@ -123,6 +123,14 @@
       "source": "ADR 0009 decision 1; ADR 0012 decision 3"
     },
     {
+      "code": "0x10",
+      "name": "CREDIT",
+      "class": "link-local",
+      "section": "link.md",
+      "decision": "D-47",
+      "source": "ADR 0009 decision 7"
+    },
+    {
       "code": "0x40",
       "name": "MESSAGE",
       "class": "unicast",

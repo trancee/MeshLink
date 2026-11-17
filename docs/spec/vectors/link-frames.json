@@ -3,7 +3,7 @@
   "algorithm": "MeshLink/1 link-local frames",
   "schema": "link-frames.schema.json",
   "generatorVersion": "1",
-  "numberOfTests": 71,
+  "numberOfTests": 75,
   "notes": {
     "Placeholder": "Noise messages are placeholder bytes: only the framing is tested."
   },
@@ -302,6 +302,17 @@
         },
         {
           "tcId": 21,
+          "comment": "CREDIT full window",
+          "flags": [],
+          "result": "valid",
+          "encoded": "100008",
+          "decoded": {
+            "type": "0x10",
+            "credits": 8
+          }
+        },
+        {
+          "tcId": 22,
           "comment": "PLAIN_HELLO: last byte missing",
           "flags": [
             "Truncated"
@@ -311,7 +322,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 22,
+          "tcId": 23,
           "comment": "PLAIN_HELLO: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -321,7 +332,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 23,
+          "tcId": 24,
           "comment": "CLOSE duplicate link: last byte missing",
           "flags": [
             "Truncated"
@@ -331,7 +342,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 24,
+          "tcId": 25,
           "comment": "CLOSE duplicate link: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -341,7 +352,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 25,
+          "tcId": 26,
           "comment": "CLOSE unknown reason (treated as NORMAL): last byte missing",
           "flags": [
             "Truncated"
@@ -351,7 +362,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 26,
+          "tcId": 27,
           "comment": "CLOSE unknown reason (treated as NORMAL): one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -361,7 +372,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 27,
+          "tcId": 28,
           "comment": "REKEY: last byte missing",
           "flags": [
             "Truncated"
@@ -371,7 +382,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 28,
+          "tcId": 29,
           "comment": "REKEY: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -381,7 +392,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 29,
+          "tcId": 30,
           "comment": "BUSY: last byte missing",
           "flags": [
             "Truncated"
@@ -391,7 +402,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 30,
+          "tcId": 31,
           "comment": "BUSY: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -401,7 +412,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 31,
+          "tcId": 32,
           "comment": "NEIGHBOR_LIST empty: last byte missing",
           "flags": [
             "Truncated"
@@ -411,7 +422,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 32,
+          "tcId": 33,
           "comment": "NEIGHBOR_LIST empty: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -421,7 +432,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 33,
+          "tcId": 34,
           "comment": "NEIGHBOR_LIST three entries: last byte missing",
           "flags": [
             "Truncated"
@@ -431,7 +442,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 34,
+          "tcId": 35,
           "comment": "NEIGHBOR_LIST three entries: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -441,7 +452,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 35,
+          "tcId": 36,
           "comment": "SHUFFLE: last byte missing",
           "flags": [
             "Truncated"
@@ -451,7 +462,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 36,
+          "tcId": 37,
           "comment": "SHUFFLE: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -461,7 +472,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 37,
+          "tcId": 38,
           "comment": "SHUFFLE_REPLY empty: last byte missing",
           "flags": [
             "Truncated"
@@ -471,7 +482,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 38,
+          "tcId": 39,
           "comment": "SHUFFLE_REPLY empty: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -481,7 +492,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 39,
+          "tcId": 40,
           "comment": "CATCH_UP empty: last byte missing",
           "flags": [
             "Truncated"
@@ -491,7 +502,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 40,
+          "tcId": 41,
           "comment": "CATCH_UP empty: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -501,7 +512,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 41,
+          "tcId": 42,
           "comment": "CATCH_UP all sections: last byte missing",
           "flags": [
             "Truncated"
@@ -511,7 +522,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 42,
+          "tcId": 43,
           "comment": "CATCH_UP all sections: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -521,7 +532,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 43,
+          "tcId": 44,
           "comment": "IHAVE two IDs: last byte missing",
           "flags": [
             "Truncated"
@@ -531,7 +542,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 44,
+          "tcId": 45,
           "comment": "IHAVE two IDs: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -541,7 +552,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 45,
+          "tcId": 46,
           "comment": "GRAFT: last byte missing",
           "flags": [
             "Truncated"
@@ -551,7 +562,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 46,
+          "tcId": 47,
           "comment": "GRAFT: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -561,7 +572,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 47,
+          "tcId": 48,
           "comment": "PRUNE: last byte missing",
           "flags": [
             "Truncated"
@@ -571,7 +582,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 48,
+          "tcId": 49,
           "comment": "PRUNE: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -581,7 +592,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 49,
+          "tcId": 50,
           "comment": "RESOLVING_KEY_UPDATE: last byte missing",
           "flags": [
             "Truncated"
@@ -591,7 +602,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 50,
+          "tcId": 51,
           "comment": "RESOLVING_KEY_UPDATE: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -601,7 +612,7 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 51,
+          "tcId": 52,
           "comment": "BEARER_SWITCH: last byte missing",
           "flags": [
             "Truncated"
@@ -611,7 +622,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 52,
+          "tcId": 53,
           "comment": "BEARER_SWITCH: one trailing byte",
           "flags": [
             "TrailingBytes"
@@ -621,7 +632,27 @@
           "error": "trailing-bytes"
         },
         {
-          "tcId": 53,
+          "tcId": 54,
+          "comment": "CREDIT full window: last byte missing",
+          "flags": [
+            "Truncated"
+          ],
+          "result": "invalid",
+          "encoded": "1000",
+          "error": "truncated"
+        },
+        {
+          "tcId": 55,
+          "comment": "CREDIT full window: one trailing byte",
+          "flags": [
+            "TrailingBytes"
+          ],
+          "result": "invalid",
+          "encoded": "10000800",
+          "error": "trailing-bytes"
+        },
+        {
+          "tcId": 56,
           "comment": "CATCH_UP at every section cap",
           "flags": [
             "Limit"
@@ -1935,7 +1966,7 @@
           }
         },
         {
-          "tcId": 54,
+          "tcId": 57,
           "comment": "unknown link-local type 0x3F",
           "flags": [
             "UnknownType"
@@ -1945,7 +1976,7 @@
           "error": "unknown-type"
         },
         {
-          "tcId": 55,
+          "tcId": 58,
           "comment": "reserved type 0x00",
           "flags": [
             "UnknownType"
@@ -1955,7 +1986,7 @@
           "error": "reserved-type"
         },
         {
-          "tcId": 56,
+          "tcId": 59,
           "comment": "reserved type 0xC0",
           "flags": [
             "UnknownType"
@@ -1965,7 +1996,7 @@
           "error": "reserved-type"
         },
         {
-          "tcId": 57,
+          "tcId": 60,
           "comment": "reserved type 0xFF",
           "flags": [
             "UnknownType"
@@ -1975,7 +2006,7 @@
           "error": "reserved-type"
         },
         {
-          "tcId": 58,
+          "tcId": 61,
           "comment": "FRAGMENT with no data",
           "flags": [
             "BadLength"
@@ -1985,7 +2016,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 59,
+          "tcId": 62,
           "comment": "FRAGMENT data larger than a record",
           "flags": [
             "BadLength"
@@ -1995,7 +2026,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 60,
+          "tcId": 63,
           "comment": "HANDSHAKE step 4",
           "flags": [],
           "result": "invalid",
@@ -2003,7 +2034,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 61,
+          "tcId": 64,
           "comment": "HANDSHAKE version 0",
           "flags": [],
           "result": "invalid",
@@ -2011,7 +2042,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 62,
+          "tcId": 65,
           "comment": "HANDSHAKE message over 4,096 B",
           "flags": [
             "BadLength"
@@ -2021,7 +2052,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 63,
+          "tcId": 66,
           "comment": "HANDSHAKE with empty message",
           "flags": [
             "BadLength"
@@ -2031,7 +2062,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 64,
+          "tcId": 67,
           "comment": "PLAIN_HELLO with classical profile",
           "flags": [],
           "result": "invalid",
@@ -2039,7 +2070,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 65,
+          "tcId": 68,
           "comment": "NEIGHBOR_LIST with 33 entries",
           "flags": [
             "BadLength"
@@ -2049,7 +2080,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 66,
+          "tcId": 69,
           "comment": "NEIGHBOR_LIST count says 2, one entry",
           "flags": [
             "Truncated"
@@ -2059,7 +2090,7 @@
           "error": "truncated"
         },
         {
-          "tcId": 67,
+          "tcId": 70,
           "comment": "SHUFFLE with no entries",
           "flags": [
             "BadLength"
@@ -2069,7 +2100,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 68,
+          "tcId": 71,
           "comment": "SHUFFLE with 6 entries",
           "flags": [
             "BadLength"
@@ -2079,7 +2110,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 69,
+          "tcId": 72,
           "comment": "CATCH_UP with 129 offered IDs",
           "flags": [
             "BadLength"
@@ -2089,7 +2120,15 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 70,
+          "tcId": 73,
+          "comment": "CREDIT granting zero",
+          "flags": [],
+          "result": "invalid",
+          "encoded": "100000",
+          "error": "out-of-range"
+        },
+        {
+          "tcId": 74,
           "comment": "IHAVE with zero IDs",
           "flags": [
             "BadLength"
@@ -2099,7 +2138,7 @@
           "error": "out-of-range"
         },
         {
-          "tcId": 71,
+          "tcId": 75,
           "comment": "IHAVE with 33 IDs",
           "flags": [
             "BadLength"

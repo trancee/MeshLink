@@ -30,6 +30,8 @@ internal class UnsupportedRadioPort(
 internal object UnsupportedRadio : RadioPort {
     private val unsupported = RadioResult.Failed(RadioFailure.UNSUPPORTED)
 
+    override val peripheralLinkCap: Int? = null
+
     override val events: Flow<RadioEvent> = emptyFlow()
 
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> = unsupported

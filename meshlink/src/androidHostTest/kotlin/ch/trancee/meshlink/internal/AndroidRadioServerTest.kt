@@ -27,6 +27,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -59,6 +60,19 @@ class AndroidRadioServerTest {
 
     @Before
     fun clearShadows() = resetRadioShadows()
+
+    @Test
+    fun theRadioReportsNoPeripheralLinkCapUntilTheAdapterMapsOne() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+
+            // Act
+            val cap = radio.peripheralLinkCap
+
+            // Assert
+            assertNull(cap)
+        }
 
     @Test
     fun servingOpensAServerWithTheMeshService() =

@@ -332,6 +332,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** `not_after` is an exclusive bound (rule 5 was `now < not_after`), and ADR 0008 tolerates ±30 s of skew. The static private keys are deleted at `not_after + 3,630 s` (ADR 0014 decision 9); a message sealed at the last accepted second, `not_after + 29 s`, expires at most 1 h later, before deletion. The [threat model](../explanation/threat-model.md#certificate-validity-edges) finds no profile guarantee changed. The tier 2 vectors in `certificate-signatures.json` test `not_before − 30`, `− 31`, `not_after + 29` and `+ 30`. Found while implementing 0.1.0 ticket 21.
 - **Alternatives:** skew only for sealing (a peer with a slightly fast clock would drop a link to a certificate it may still seal to); an inclusive end at `not_after + 30 s` (a message sealed then expires at the instant its key is deleted, and the bound would no longer read as one half-open interval).
 
+### D-47 GATT credit frame
+
+- **Question:** how does a GATT peripheral pace its notifications so the platform's own requests still get through (ADR 0009 decision 7)?
+- **Decision:** a link-local `CREDIT` frame (`0x10`, `u16` count). The central grants `gatt-credit-window` = 8 notifications when the link opens and tops up after receiving 4; one credit is one notification. `CLOSE` is exempt. A grant above the window or a `CREDIT` from the peripheral is `PROTOCOL_ERROR`. CoC is not credited. Owner decision 2026-11-16 (ticket 29); reverses [C-09](#c-09).
+- **Evidence:** library rule R14: an Android peripheral's notify burst made it drop an iOS central's GAP name read response, and iOS closed the link 30 s later; `onNotificationSent` means queued, not sent, so the only working signal was an application-level credit from the central. A credit per record would not bound the queue: a 1,024 B record is 52 notifications at ATT MTU 23.
+- **Alternatives:** local pacing only (C-09; failed on R14's evidence); a credit per record (unbounded notifications per credit); per-message acknowledgments (more airtime, and they pace messages, not notifications).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.
@@ -389,6 +396,8 @@ Each entry names the ADR text and the problem found while writing the specificat
 **GATT flow-control credits.** ADR 0009 decision 7 says the peripheral paces notification bursts "with credits or acknowledgments". If credits were exchanged, both sides would have to agree on a frame. The specification treats pacing as local: the peripheral paces its own notifications and no credit frame exists. If a wire mechanism is wanted, it needs a link-local frame type.
 
 **Resolved:** ADR 0009 amended: pacing is local; there is no credit frame.
+
+**Reversed 2026-11-16 by [D-47](#d-47-gatt-credit-frame):** the bake-off evidence (library rule R14) showed local pacing does not keep platform requests flowing, so the central grants `CREDIT`s.
 
 ### C-10
 

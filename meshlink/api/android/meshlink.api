@@ -384,6 +384,13 @@ public abstract interface class ch/trancee/meshlink/internal/LinkDiagnostic {
 	public abstract fun getCode ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/internal/LinkDiagnostic$ConnectFailed : ch/trancee/meshlink/internal/LinkDiagnostic {
+	public fun <init> (Lch/trancee/meshlink/internal/RadioFailure;I)V
+	public final fun getAttempt ()I
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lch/trancee/meshlink/internal/RadioFailure;
+}
+
 public final class ch/trancee/meshlink/internal/LinkDiagnostic$HandshakeFailed : ch/trancee/meshlink/internal/LinkDiagnostic {
 	public fun <init> (Lch/trancee/meshlink/internal/HandshakeFailure;)V
 	public fun getCode ()Ljava/lang/String;
@@ -394,6 +401,12 @@ public final class ch/trancee/meshlink/internal/LinkDiagnostic$HandshakeLimitDro
 	public fun <init> (Lch/trancee/meshlink/internal/HandshakeLimit;)V
 	public fun getCode ()Ljava/lang/String;
 	public final fun getLimit ()Lch/trancee/meshlink/internal/HandshakeLimit;
+}
+
+public final class ch/trancee/meshlink/internal/LinkDiagnostic$LinkCapReached : ch/trancee/meshlink/internal/LinkDiagnostic {
+	public fun <init> (I)V
+	public final fun getCap ()I
+	public fun getCode ()Ljava/lang/String;
 }
 
 public final class ch/trancee/meshlink/internal/LinkRole : java/lang/Enum {

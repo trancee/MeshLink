@@ -55,6 +55,10 @@ class LinkFrameTest {
         assertFailsWith<IllegalArgumentException> { LinkFrame.PlainHello(1, ByteArray(DIGEST - 1), ByteArray(DIGEST)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.PlainHello(1, ByteArray(DIGEST), ByteArray(DIGEST + 1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Close(-1) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Credit(0) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Credit(CREDITS_MAX + 1) }
+        val credit = (LinkFrame.decode(LinkFrame.Credit(CREDITS_MAX).encode()) as Decoded.Valid).value
+        assertEquals(CREDITS_MAX, (credit as LinkFrame.Credit).credits)
         assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(0, 1, ByteArray(1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(256, 1, ByteArray(1)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.Handshake(1, 0, ByteArray(1)) }
@@ -82,6 +86,7 @@ class LinkFrameTest {
     }
 
     private companion object {
+        const val CREDITS_MAX = 0xFFFF
         const val UNKNOWN_REASON = 0x7F
         const val DIGEST = 32
         const val STREAM = 0xFE

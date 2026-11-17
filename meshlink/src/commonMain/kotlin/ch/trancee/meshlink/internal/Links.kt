@@ -34,7 +34,7 @@ import kotlin.time.Instant
  * node calls it, and runs [scope], on its serial dispatcher.
  */
 internal class Links(
-    private val radio: RadioPort,
+    radio: RadioPort,
     private val clock: Clock,
     admission: LinkAdmission,
     private val scope: CoroutineScope,
@@ -44,6 +44,7 @@ internal class Links(
     private val policy = admission.policy
     private val handshakes = admission.handshakes
     private val keys = handshakes?.keys
+    private val limits = LinkLimits(radio, admission.report)
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
 
@@ -59,19 +60,57 @@ internal class Links(
     private val kept = mutableMapOf<NodeId, Peer>()
     private var opening = 0
 
-    /** Opens a link as central to each of [candidates] that has no link and no link opening. */
+    /**
+     * Opens a link as central to each of [candidates] that has no link and no link opening, unless
+     * it refused this node for its link cap (spec "Connect retries and link caps").
+     */
     fun connectTo(candidates: Set<PeerHandle>) {
-        candidates.filter { it !in busy }.forEach { handle -> track(handle) { central(handle) } }
+        limits.dialable(candidates).filter { it !in busy }.forEach { handle -> track(handle) { central(handle) } }
     }
 
-    /** Accepts the link a peer opened in [event]; other events need nothing here. */
+    /**
+     * Accepts the link a peer opened in [event] unless the radio holds its peripheral link cap, and
+     * reconnects as central after a transient loss of a central link; other events need nothing.
+     */
     fun accept(event: RadioEvent) {
-        if (event is RadioEvent.Connected) track(event.link.peer) { serve(event.link, null, policy.versions) }
+        when (event) {
+            is RadioEvent.Connected -> {
+                val link = event.link
+                if (!limits.admit()) {
+                    scope.launch { limits.refuse(link) }
+                } else {
+                    track(link.peer) {
+                        try {
+                            serve(link, null, policy.versions)
+                        } finally {
+                            limits.released()
+                        }
+                    }
+                }
+            }
+
+            is RadioEvent.Disconnected -> {
+                limits.lost(event)?.let { handle -> track(handle) { central(handle) } }
+            }
+
+            else -> {}
+        }
     }
 
     /** Sends this node's [next] resolving key on every kept link (spec "Resolving key update"). */
-    suspend fun announce(next: ResolvingKey) {
-        table.values.toList().forEach { it.send(LinkFrame.ResolvingKeyUpdate(next)) }
+    fun announce(next: ResolvingKey) {
+        table.values.toList().forEach { post(it, LinkFrame.ResolvingKeyUpdate(next)) }
+    }
+
+    /**
+     * Sends [frame] on [conn] apart from the caller: a peripheral's frame waits for credits, which
+     * its link's reader must stay free to read (spec "Flow control").
+     */
+    private fun post(
+        conn: Link,
+        frame: LinkFrame,
+    ) {
+        scope.launch { conn.send(frame) }
     }
 
     private fun track(
@@ -89,11 +128,7 @@ internal class Links(
     }
 
     private suspend fun central(handle: PeerHandle) {
-        val link =
-            when (val connected = radio.connect(handle)) {
-                is RadioResult.Ok -> connected.value
-                is RadioResult.Failed -> return
-            }
+        val link = limits.connect(handle) ?: return
         // The selected version and the record's versions, which a secured handshake binds.
         var selection: Pair<Int, List<Int>>? = null
         try {
@@ -104,12 +139,13 @@ internal class Links(
         } finally {
             if (selection == null) link.disconnect()
         }
-        selection?.let { (version, versions) -> serve(link, version, versions) }
+        val conn = selection?.let { (version, versions) -> serve(link, version, versions) }
+        if (conn != null && conn.peer == null && conn.received == CloseReason.RESOURCE_LIMIT) limits.refusedBy(handle)
     }
 
     /**
      * Runs [link] until it closes: as central once it chose [selected] from the peripheral's
-     * capability record [versions], as peripheral if [selected] is `null`.
+     * capability record [versions], as peripheral if [selected] is `null`. Returns the link.
      */
     private suspend fun serve(
         link: RadioLink,
@@ -140,10 +176,13 @@ internal class Links(
             }
             val reader = RecordReader()
             link.incoming.takeWhile { conn.reading }.collect { chunk ->
+                // An open link's central counts each notification and grants credits back (spec "Flow control").
+                val counted = conn.peer != null
                 when (val records = reader.read(chunk)) {
                     is Decoded.Invalid -> conn.close(null)
                     is Decoded.Valid -> records.value.forEach { if (conn.reading) inbound.receive(conn, it) }
                 }
+                conn.credits.notified(counted)?.let { conn.send(LinkFrame.Credit(it)) }
                 if (conn.peer != null) timer.cancel()
             }
         } catch (e: CancellationException) {
@@ -154,6 +193,7 @@ internal class Links(
             pump.cancel()
             release(conn)
         }
+        conn
     }
 
     /** Reads a link's records: whole frames, reassembled streams and what each asks of [Links]. */
@@ -215,7 +255,7 @@ internal class Links(
                 }
 
                 is Reassembled.Refused -> {
-                    conn.send(result.busy)
+                    post(conn, result.busy)
                 }
 
                 Reassembled.Fatal -> {
@@ -249,6 +289,11 @@ internal class Links(
 
                 frame is LinkFrame.Busy -> {
                     conn.refused(frame.streamId)
+                }
+
+                // Only a central grants credits, and never above the window (spec "Flow control").
+                frame is LinkFrame.Credit -> {
+                    if (!conn.credits.grant(frame.credits)) conn.close(CloseReason.PROTOCOL_ERROR)
                 }
 
                 // Only a gated mesh's secured links learn keys; any other drops the frame
@@ -286,7 +331,7 @@ internal class Links(
                 conn.transport = step.transport
                 val peer = step.peer ?: return conn.close(CloseReason.HANDSHAKE_FAILED)
                 open(conn, peer)
-                keys?.next?.let { conn.send(LinkFrame.ResolvingKeyUpdate(it)) }
+                keys?.next?.let { post(conn, LinkFrame.ResolvingKeyUpdate(it)) }
             }
 
             HandshakeStep.Failed -> {
@@ -326,9 +371,12 @@ internal class Links(
                 it.close(null)
             }
         }
+        // A closing link sends no grant, so only a kept central link grants the window.
+        if (conn.central) conn.send(LinkFrame.Credit(Credits.WINDOW))
     }
 
     private fun release(conn: Link) {
+        conn.credits.stop()
         conn.secure?.end()
         conn.reassembly.clear()
         val id = conn.peer
@@ -380,6 +428,12 @@ internal class Links(
         /** Completes with the peer's NodeId once this is the peer's kept link. */
         val chosen = CompletableDeferred<NodeId>()
 
+        /** The link's GATT notification credits (spec "Flow control"). */
+        val credits = Credits(peripheral = !central)
+
+        // An open link's peripheral sends each frame but CLOSE as credited notifications.
+        private val crediting: Boolean get() = !central && peer != null
+
         // Keeps each record whole on the bearer: a message's records and a CLOSE never interleave.
         private val writing = Mutex()
 
@@ -395,14 +449,18 @@ internal class Links(
          */
         suspend fun send(frame: LinkFrame) {
             val bytes = frame.encode()
+            val credited = crediting && frame !is LinkFrame.Close
             writing.withLock {
-                // Nothing follows a CLOSE, not even a reply to a frame read while draining.
-                if (closing && frame !is LinkFrame.Close) return@withLock
+                // Nothing follows a CLOSE, not even a reply to a frame read while draining, and a
+                // CLOSE never follows a record cut short.
+                if (closing && (frame !is LinkFrame.Close || credits.torn)) return@withLock
                 if (bytes.size <= LinkRecord.BODY_MAX) {
-                    link.write(seal(bytes))
+                    credits.write(link, seal(bytes), credited)
                 } else {
                     val dataMax = LinkRecord.BODY_MAX - LinkFrame.Fragment.HEADER
-                    LinkFrame.Fragment.split(stream(), bytes, dataMax).forEach { link.write(seal(it.encode())) }
+                    LinkFrame.Fragment.split(stream(), bytes, dataMax).forEach {
+                        credits.write(link, seal(it.encode()), credited)
+                    }
                 }
             }
         }
@@ -479,7 +537,8 @@ internal class Links(
 
         private suspend fun record(frame: ByteArray): Written =
             writing.withLock {
-                if (!closing && link.write(seal(frame)) is RadioResult.Ok) Written.SENT else Written.FAILED
+                val written = !closing && credits.write(link, seal(frame), crediting) is RadioResult.Ok
+                if (written) Written.SENT else Written.FAILED
             }
 
         /**
@@ -510,6 +569,7 @@ internal class Links(
                 return
             }
             closing = true
+            credits.stop()
             if (reason == CloseReason.DUPLICATE_LINK) {
                 draining = true
                 send(LinkFrame.Close(reason))
@@ -552,10 +612,15 @@ internal class Links(
     }
 }
 
-/** How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile. */
+/**
+ * How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile; they
+ * [report] diagnostics.
+ */
 internal class LinkAdmission(
     val policy: LinkPolicy,
     val handshakes: Handshakes?,
+    /** Emits the link diagnostics the session's links report. */
+    val report: (LinkDiagnostic) -> Unit,
 )
 
 private fun Clock.now(): Instant = Instant.fromEpochMilliseconds(wallClockMillis())

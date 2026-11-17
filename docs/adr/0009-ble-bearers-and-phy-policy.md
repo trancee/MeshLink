@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 5 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 6 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control).
 
 ## Context
 
@@ -137,3 +137,9 @@ Measured, medians unless noted:
 - **A peripheral can't disconnect (decision 8):** `CBPeripheralManager` has no call that ends a central's connection. Closing a peripheral-side link on iOS drops it from MeshLink only; the connection lasts until the central leaves.
 - **Pacing (decision 7):** central writes wait while `canSendWriteWithoutResponse` is false, until `peripheralIsReady(toSendWriteWithoutResponse:)`. Notifications wait while `updateValue` returns false, until `peripheralManagerIsReady(toUpdateSubscribers:)`.
 - **Deferred:** background advertising and scanning rules and state restoration to ticket 32, the 3-link cap (decision 6) to ticket 29, CoC to ticket 31.
+
+2026-11-16, link limits and flow control (0.1.0 backlog ticket "Enforce link limits, flow control and connect retries"):
+
+- **Flow control (decision 7; reverses [C-09](../spec/decisions.md#c-09) and the 2026-11-08 amendment):** the central grants the peripheral GATT notification credits with the link-local `CREDIT` frame ([D-47](../spec/decisions.md#d-47-gatt-credit-frame)). One credit allows one notification of up to ATT MTU − 3 bytes. The central grants the window `gatt-credit-window` = 8 when the link opens and 4 more after every 4 notifications it receives. `CLOSE` needs no credit. A grant above the window, or a `CREDIT` from the peripheral, closes the link with `PROTOCOL_ERROR`. Central writes and CoC traffic are not credited. Evidence: library rule R14. Owner decision.
+- **Connect retries (decision 4):** implemented in the core. A connect that fails with `RadioFailure.TRANSIENT` is retried up to 3 times, after 500 ms × n, and each failed attempt reports `ML3003`. A link the radio reports lost with `RadioEvent.Disconnected(transient = true)` is reconnected by its central through the same retries. The adapters map status 133 and 147 and the silent 30 s close in ticket 31.
+- **Link limits (decision 6):** implemented in the core against `RadioPort.peripheralLinkCap`. Every bearer held as peripheral counts toward the cap, including those still opening. A bearer beyond the cap gets `CLOSE` `RESOURCE_LIMIT` at once and reports `ML3004`, and the node keeps advertising and dialing as central. A central refused this way before its link opens doesn't dial that address again while it stays a candidate. The iOS adapter reports its cap of 3 in ticket 31.

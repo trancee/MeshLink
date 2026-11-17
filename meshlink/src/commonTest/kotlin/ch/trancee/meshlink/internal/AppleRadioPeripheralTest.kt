@@ -48,6 +48,15 @@ class AppleRadioPeripheralTest {
     }
 
     @Test
+    fun theRadioReportsNoPeripheralLinkCapUntilTheAdapterMapsOne() {
+        // Act
+        val cap = radio.peripheralLinkCap
+
+        // Assert
+        assertNull(cap)
+    }
+
+    @Test
     fun servingPublishesTheMeshServiceOnce() {
         // Act
         val result = radio.serveCapability(record)

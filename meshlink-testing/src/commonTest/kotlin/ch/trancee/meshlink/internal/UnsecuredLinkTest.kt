@@ -659,8 +659,10 @@ class UnsecuredLinkTest {
                         }
                 }
             val node = node(platformWith(virtual, radio)).also { it.start() }
-            connectFake(air, virtual).write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
+            val inbound = connectFake(air, virtual)
+            inbound.write(record(LinkFrame.PlainHello(1, digest(MESH), HIGH_ID)))
             advanceTimeBy(SETTLE_MILLIS)
+            grantCredits(inbound, virtual.radio.ends.single())
             val peer =
                 node.peers.value
                     .single()
@@ -705,6 +707,8 @@ class UnsecuredLinkTest {
             val first = connectFake(air, virtual)
             first.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
             advanceTimeBy(SETTLE_MILLIS)
+            grantCredits(first, virtual.radio.ends.single())
+            advanceTimeBy(SETTLE_MILLIS)
             val status =
                 assertIs<SendResult.Accepted>(
                     node.send(
@@ -720,7 +724,10 @@ class UnsecuredLinkTest {
             // Act
             first.disconnect()
             advanceTimeBy(SETTLE_MILLIS)
-            connectFake(air, virtual).write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            val second = connectFake(air, virtual)
+            second.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            grantCredits(second, virtual.radio.ends[1])
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
@@ -815,36 +822,6 @@ class UnsecuredLinkTest {
         return Instant.fromEpochMilliseconds(millis)
     }
 
-    /** A raw radio that advertises [MESH] and serves a capability record listing [versions]. */
-    private fun advertiseFake(
-        air: VirtualAir,
-        versions: List<Int>,
-    ): VirtualRadio {
-        val record = CapabilityRecord.of(versions, ByteArray(RadioPort.ADVERTISEMENT_LENGTH))
-        return advertiseFake(air, record.encode())
-    }
-
-    /** A raw radio that advertises [MESH] and serves [capability], or no capability characteristic if `null`. */
-    private fun advertiseFake(
-        air: VirtualAir,
-        capability: ByteArray?,
-    ): VirtualRadio {
-        val radio = air.radio()
-        val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), WireProfile.UNSECURED)
-        val payload = discovery.advertisement(Derivations.epoch(TestClock.WALL_CLOCK_START_MILLIS / MILLIS_PER_SECOND))
-        capability?.let { radio.serveCapability(it) }
-        radio.startAdvertising(payload)
-        return radio
-    }
-
-    /** The link-local frames [end] wrote, skipping routed ones. */
-    private fun frames(end: VirtualLinkEnd): List<LinkFrame> {
-        val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
-        return bodies
-            .filter { it[0] != MESSAGE_TYPE }
-            .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
-    }
-
     /** The payloads of the `MESSAGE` frames [end] wrote that [receiver] accepts. */
     private fun TestScope.messages(
         end: VirtualLinkEnd,
@@ -855,11 +832,6 @@ class UnsecuredLinkTest {
         return bodies
             .filter { it[0] == MESSAGE_TYPE }
             .map { assertNotNull(messaging.accept(it, now().epochSeconds)).payload }
-    }
-
-    private fun closes(end: VirtualLinkEnd): List<CloseReason> {
-        val closes = frames(end).filterIsInstance<LinkFrame.Close>()
-        return closes.map { it.reason }
     }
 
     private companion object {

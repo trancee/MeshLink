@@ -177,6 +177,24 @@ class FragmentLinkTest {
         }
 
     @Test
+    fun aBusyWaitingForACreditLetsTheLinkReadTheGrant() =
+        runTest {
+            // Arrange
+            val (_, end, fake) = linkedToFake(granting = false)
+            (0..Reassembly.SLOTS).forEach { fake.write(record(fragment(it, 0))) }
+            advanceTimeBy(SETTLE_MILLIS)
+            val starved = busies(end)
+
+            // Act
+            fake.write(record(LinkFrame.Credit(CREDIT_WINDOW)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(emptyList(), starved)
+            assertEquals(listOf(Reassembly.SLOTS to BusyReason.REASSEMBLY_SLOTS.code), busies(end))
+        }
+
+    @Test
     fun aStreamIdleForTenSecondsIsDiscarded() =
         runTest {
             listOf(Reassembly.IDLE_TIMEOUT_MILLIS - 2 * SETTLE_MILLIS to true, Reassembly.IDLE_TIMEOUT_MILLIS to false)
@@ -281,12 +299,20 @@ class FragmentLinkTest {
             assertTrue(end.open)
         }
 
-    /** A started node on [air] linked to a fake central that said hello as [FAKE_ID]. */
-    private suspend fun TestScope.linkedToFake(air: VirtualAir = air()): Linked {
+    /**
+     * A started node on [air] linked to a fake central that said hello as [FAKE_ID] and grants
+     * credits if [granting].
+     */
+    private suspend fun TestScope.linkedToFake(
+        air: VirtualAir = air(),
+        granting: Boolean = true,
+    ): Linked {
         val alice = air.platform(StandardTestDispatcher(testScheduler))
         val node = node(alice).also { it.start() }
         val fake = connectFake(air, alice)
         fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+        advanceTimeBy(SETTLE_MILLIS)
+        if (granting) grantCredits(fake, alice.radio.ends.single())
         advanceTimeBy(SETTLE_MILLIS)
         return Linked(node, alice.radio.ends.single(), fake, alice)
     }

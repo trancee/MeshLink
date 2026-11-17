@@ -6,13 +6,34 @@ import kotlin.experimental.ExperimentalObjCRefinement
 import kotlin.native.HiddenFromObjC
 
 /**
- * A typed event about a link handshake (ADR 0020). Internal until the diagnostics catalog lands;
+ * A typed event about a link or its handshake (ADR 0020). Internal until the diagnostics catalog lands;
  * its [code] stays the same when the event becomes public.
  */
 @HiddenFromObjC
 public sealed interface LinkDiagnostic {
     /** The catalog code, such as `ML4001`. */
     public val code: String
+
+    /**
+     * `ML3003`: a connect as central failed for [reason]; [attempt] counts from 1, and a
+     * [RadioFailure.TRANSIENT] failure is retried up to `connect-retries` times.
+     */
+    public class ConnectFailed(
+        /** Why the radio failed it. */
+        public val reason: RadioFailure,
+        /** The attempt that failed, from 1. */
+        public val attempt: Int,
+    ) : LinkDiagnostic {
+        override val code: String = "ML3003"
+    }
+
+    /** `ML3004`: a central's bearer was refused with `RESOURCE_LIMIT`, as the node holds [cap] links as peripheral. */
+    public class LinkCapReached(
+        /** The radio's peripheral link cap. */
+        public val cap: Int,
+    ) : LinkDiagnostic {
+        override val code: String = "ML3004"
+    }
 
     /** `ML4001`: a link's handshake failed, and the link closed. */
     public class HandshakeFailed(

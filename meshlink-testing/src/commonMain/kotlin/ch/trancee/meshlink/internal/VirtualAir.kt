@@ -23,7 +23,9 @@ import kotlin.math.min
  *
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
- * the address it was opened to. It models no loss, link caps or advertising and scan windows yet.
+ * the address it was opened to. A radio may report a peripheral link cap, which the core enforces;
+ * a test drops a link as a transient loss with [VirtualLinkEnd.drop]. It models no other loss and
+ * no advertising and scan windows yet.
  *
  * Coroutines run in [scope], which a test passes as `backgroundScope` so they end with the test.
  * When [scope] ends, every radio reports Bluetooth off, so the nodes on the air stop their sessions
@@ -43,12 +45,21 @@ internal class VirtualAir(
         }
     }
 
-    /** Adds a radio and a platform around it whose nodes do their work on [dispatcher]. */
-    fun platform(dispatcher: CoroutineDispatcher): VirtualPlatform = VirtualPlatform(radio(), clock, random, dispatcher)
+    /**
+     * Adds a radio, reporting [peripheralLinkCap], and a platform around it whose nodes do their
+     * work on [dispatcher].
+     */
+    fun platform(
+        dispatcher: CoroutineDispatcher,
+        peripheralLinkCap: Int? = null,
+    ): VirtualPlatform = VirtualPlatform(radio(peripheralLinkCap = peripheralLinkCap), clock, random, dispatcher)
 
-    /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu]. */
-    fun radio(maxAttMtu: Int = DEFAULT_ATT_MTU): VirtualRadio {
-        val radio = VirtualRadio(this, maxAttMtu)
+    /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu] and that reports [peripheralLinkCap]. */
+    fun radio(
+        maxAttMtu: Int = DEFAULT_ATT_MTU,
+        peripheralLinkCap: Int? = null,
+    ): VirtualRadio {
+        val radio = VirtualRadio(this, maxAttMtu, peripheralLinkCap)
         radios += radio
         return radio
     }
@@ -137,6 +148,7 @@ internal class VirtualPeer : PeerHandle
 internal class VirtualRadio(
     private val air: VirtualAir,
     val maxAttMtu: Int,
+    override val peripheralLinkCap: Int? = null,
 ) : RadioPort {
     /** The radio's current address; each [startAdvertising] replaces it. */
     var handle: VirtualPeer = VirtualPeer()
@@ -215,8 +227,18 @@ internal class VirtualRadio(
         eventChannel.trySend(event)
     }
 
+    private val mutablePeripheralLog = mutableListOf<Pair<VirtualLinkEnd, Boolean>>()
+
+    /** Each link this radio held as peripheral, in order: `true` when it opened, `false` when it closed. */
+    internal val peripheralLog: List<Pair<VirtualLinkEnd, Boolean>> get() = mutablePeripheralLog
+
     internal fun track(end: VirtualLinkEnd) {
         mutableEnds += end
+        if (end !is VirtualCentralEnd) mutablePeripheralLog += end to true
+    }
+
+    internal fun untrack(end: VirtualLinkEnd) {
+        if (end !is VirtualCentralEnd) mutablePeripheralLog += end to false
     }
 }
 
@@ -256,6 +278,10 @@ internal open class VirtualLinkEnd(
     /** Whether [write] returns only once the peer received the bytes, as a write with flow control does. */
     var paced: Boolean = false
 
+    /** How many chunks, each one write without response or notification, this end wrote. */
+    var chunks: Int = 0
+        private set
+
     init {
         local.track(this)
     }
@@ -276,6 +302,7 @@ internal open class VirtualLinkEnd(
         while (start < bytes.size) {
             val chunk = bytes.copyOfRange(start, min(start + chunkMax, bytes.size))
             val last = start + chunkMax >= bytes.size
+            chunks++
             pipe.send {
                 target.inbox.trySend(chunk)
                 if (last) received.complete(Unit)
@@ -288,16 +315,23 @@ internal open class VirtualLinkEnd(
 
     override fun disconnect() {
         if (closed) return
-        close()
+        close(false)
         val target = connection.oppositeOf(this)
-        pipe.send { target.close() }
+        pipe.send { target.close(false) }
     }
 
-    private fun close() {
+    /** Closes both ends at once as a transient loss, as a platform reports an unanswered ATT request. */
+    fun drop() {
+        close(true)
+        connection.oppositeOf(this).close(true)
+    }
+
+    private fun close(transient: Boolean) {
         if (closed) return
         closed = true
         inbox.close()
-        local.emit(RadioEvent.Disconnected(this))
+        local.untrack(this)
+        local.emit(RadioEvent.Disconnected(this, transient))
     }
 }
 

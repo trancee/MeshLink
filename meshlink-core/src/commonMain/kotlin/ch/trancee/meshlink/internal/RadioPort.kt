@@ -46,6 +46,12 @@ public interface RadioPort {
     /** Connects to [peer] as central and negotiates the ATT MTU. */
     public suspend fun connect(peer: PeerHandle): RadioResult<CentralLink>
 
+    /**
+     * The most links this radio can hold as peripheral, or `null` if the platform sets no cap
+     * (spec "Connect retries and link caps"). The core refuses a central beyond it.
+     */
+    public val peripheralLinkCap: Int?
+
     public companion object {
         /** The advertisement payload length in bytes (spec `advertisement-length`). */
         public const val ADVERTISEMENT_LENGTH: Int = 16
@@ -83,9 +89,14 @@ public sealed interface RadioEvent {
         public val link: RadioLink,
     ) : RadioEvent
 
-    /** [link] closed, whichever side or the air closed it. Its [RadioLink.incoming] has completed. */
+    /**
+     * [link] closed, whichever side or the air closed it. Its [RadioLink.incoming] has completed.
+     * [transient] marks a loss the platform reported with no error some 30 s in, an unanswered ATT
+     * request (library rule R8), which a central reconnects after.
+     */
     public class Disconnected(
         public val link: RadioLink,
+        public val transient: Boolean = false,
     ) : RadioEvent
 
     /**
@@ -156,4 +167,7 @@ public enum class RadioFailure {
 
     /** The platform radio refused or failed the operation, for example out of resources. */
     RADIO_ERROR,
+
+    /** A connect failed for a cause that often clears on retry, such as Android GATT status 133 or 147. */
+    TRANSIENT,
 }

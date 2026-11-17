@@ -252,6 +252,33 @@ public sealed interface LinkFrame {
         }
     }
 
+    /**
+     * `CREDIT` (spec "Flow control", D-47): the central grants the peripheral [credits] more GATT
+     * notifications.
+     */
+    public class Credit(
+        public val credits: Int,
+    ) : LinkFrame {
+        init {
+            require(credits in 1..U16_MAX) { "credits must be 1 to $U16_MAX, not $credits" }
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + u16(credits)
+
+        internal companion object {
+            const val TYPE = 0x10
+            const val LENGTH = 3
+            private const val U16_MAX = 0xFFFF
+
+            fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+                when {
+                    bytes.size != LENGTH -> Decoded.Invalid(sizeError(bytes, LENGTH))
+                    bytes.u16(1) == 0 -> Decoded.Invalid(DecodeError.OUT_OF_RANGE)
+                    else -> Decoded.Valid(Credit(bytes.u16(1)))
+                }
+        }
+    }
+
     public companion object {
         private const val RESERVED_FROM = 0xC0
 
@@ -267,6 +294,7 @@ public sealed interface LinkFrame {
                 type == Close.TYPE -> Close.decode(bytes)
                 type == Busy.TYPE -> Busy.decode(bytes)
                 type == ResolvingKeyUpdate.TYPE -> ResolvingKeyUpdate.decode(bytes)
+                type == Credit.TYPE -> Credit.decode(bytes)
                 else -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
             }
         }

@@ -390,6 +390,7 @@ def frame_layouts():
         _ft("PRUNE"): [],
         _ft("RESOLVING_KEY_UPDATE"): [("bytes", "resolving_key", 32), ("u32", "not_after")],
         _ft("BEARER_SWITCH"): [],
+        _ft("CREDIT"): [("u16", "credits", 1, None)],
         _ft("MESSAGE"): UNICAST_HEADER + [
             ("bytes", "commitment", 16),
             ("union", "container", _containers([1, 3, 4], fmax))],

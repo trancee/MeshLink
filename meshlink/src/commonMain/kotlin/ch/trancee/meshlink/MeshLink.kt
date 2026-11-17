@@ -303,7 +303,7 @@ public class MeshLink private constructor(
                 } else {
                     null
                 }
-            val admission = LinkAdmission(LinkPolicy(digest, identity.nodeId), handshakes)
+            val admission = LinkAdmission(LinkPolicy(digest, identity.nodeId), handshakes) { diagnostics.tryEmit(it) }
             val session = Links(port.radio, port.clock, admission, this, mutablePeers, post)
             links.value = session
             try {
