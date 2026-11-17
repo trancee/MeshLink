@@ -76,7 +76,10 @@ internal class FakePeer(
     }
 }
 
-/** Runs [fake]'s initiator side of a full handshake on [link] with the node at [end]. */
+/**
+ * Runs [fake]'s initiator side of a full handshake on [link] with the node at [end], then grants the node the credit
+ * window, as a MeshLink central does once the link opens.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal suspend fun TestScope.initiate(
     fake: FakePeer,
@@ -88,8 +91,10 @@ internal suspend fun TestScope.initiate(
     advanceTimeBy(SETTLE_MILLIS)
     fake.received = ok(noise.readMessage(handshakeIn(clearFrames(end).single()).noiseMessage))
     link.write(handshake(3, ok(noise.writeMessage(fake.payload))))
+    val transport = ok(noise.split())
+    link.write(seal(transport, LinkFrame.Credit(CREDIT_WINDOW).encode()))
     advanceTimeBy(SETTLE_MILLIS)
-    return ok(noise.split())
+    return transport
 }
 
 internal fun bodies(end: VirtualLinkEnd): List<ByteArray> {

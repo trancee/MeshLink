@@ -568,6 +568,27 @@
       "unit": "ms",
       "decision": "D-22",
       "source": "ADR 0009 decision 5"
+    },
+    {
+      "name": "gatt-credit-window",
+      "value": 8,
+      "unit": "-",
+      "decision": "D-47",
+      "source": "ADR 0009 decision 7"
+    },
+    {
+      "name": "connect-retries",
+      "value": 3,
+      "unit": "-",
+      "decision": "-",
+      "source": "ADR 0009 decision 4"
+    },
+    {
+      "name": "connect-retry-backoff",
+      "value": 500,
+      "unit": "ms",
+      "decision": "-",
+      "source": "ADR 0009 decision 4"
     }
   ]
 }

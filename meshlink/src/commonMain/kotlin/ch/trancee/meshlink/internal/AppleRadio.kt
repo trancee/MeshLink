@@ -58,6 +58,9 @@ internal class AppleRadio(
             else -> if (bluetooth.authorization == CbAuthorization.NOT_DETERMINED) setOf(DENIED) else null
         }
 
+    // Ticket 31 sets iOS's cap; none until then.
+    override val peripheralLinkCap: Int? = null
+
     override val events: Flow<RadioEvent> = inbox.receiveAsFlow()
 
     /**

@@ -18,7 +18,7 @@ Tier 1 covers every byte layout (encode and decode) and every hash-only derivati
 | [capability.json](capability.json) | 14 | Capability record and TLVs |
 | [certificate.json](certificate.json) | 13 | Certificate layouts |
 | [handshake-payload.json](handshake-payload.json) | 8 | Link handshake payload TLVs |
-| [link-frames.json](link-frames.json) | 71 | Every link-local frame |
+| [link-frames.json](link-frames.json) | 75 | Every link-local frame |
 | [routed-frames.json](routed-frames.json) | 59 | Every routed frame, containers, unknown routed types |
 | [inner-plaintext.json](inner-plaintext.json) | 19 | End-to-end plaintext, extensions and padding |
 

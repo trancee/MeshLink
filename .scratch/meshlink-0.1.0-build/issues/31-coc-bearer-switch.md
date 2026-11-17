@@ -30,6 +30,7 @@ Every link still starts on GATT. When both phones support it, the link moves to 
 - [ ] A tier 2 vector set from the ticket 20 reference shows nonce continuity across `BEARER_SWITCH`, and Kotlin passes it.
 - [ ] Seeded tests show: a channel that fails to open leaves the link on GATT; a channel lost later ends the link and a new GATT link runs a fresh handshake; GATT bytes after the switch are discarded; early CoC bytes are buffered.
 - [ ] T10: a `BEARER_SWITCH` from the peripheral first, a second `BEARER_SWITCH`, a switch with no CoC channel open, and a switch before handshake completion each close the bearer or fail the handshake as the spec requires, with no cipher state reused on a new link.
+- [ ] A seeded test shows CoC traffic is not credited and sends no `CREDIT` frames (moved from ticket 29).
 - [ ] Android 8 and 9 and CoC-off nodes never set `COC_AVAILABLE` or send `L2CAP_PSM`, but still link over GATT with CoC nodes.
 - [ ] Robolectric tests cover the Android CoC listener, channel open, stream I/O and the 133/147 mapping. iOS tests with fakes cover the same paths and the cap of 3, and the adapters are listed in the CI-named `iosMain` file.
 - [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.

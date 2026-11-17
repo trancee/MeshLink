@@ -26,6 +26,9 @@ internal class AndroidRadio(
     private val scanner = BleScanner(adapter, ::emit)
     private val server = GattServerHost(app, manager, scope, ::emit)
 
+    // Ticket 31 maps the platform's cap, if any; none until then.
+    override val peripheralLinkCap: Int? = null
+
     override val events: Flow<RadioEvent> = inbox.receiveAsFlow()
 
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> = advertiser.start(payload)

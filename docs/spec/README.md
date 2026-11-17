@@ -158,6 +158,7 @@ Every frame starts with a 1 B type. The type's range fixes its class, so a relay
 | 0x0D | PRUNE | link-local | routing.md |
 | 0x0E | RESOLVING_KEY_UPDATE | link-local | link.md |
 | 0x0F | BEARER_SWITCH | link-local | link.md |
+| 0x10 | CREDIT | link-local | link.md |
 | 0x40 | MESSAGE | unicast | routing.md |
 | 0x41 | DELIVERY_RECEIPT | unicast | end-to-end.md |
 | 0x42 | READ_RECEIPT | unicast | end-to-end.md |

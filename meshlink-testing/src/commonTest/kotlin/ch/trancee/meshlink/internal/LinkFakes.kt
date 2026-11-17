@@ -8,14 +8,24 @@ import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlin.test.assertIs
 
 /** The mesh ID of the nodes in these tests. */
 internal const val MESH = "Festival"
 
 /** Discovery, connect, capability read and both hellos: a handful of air latencies. */
 internal const val SETTLE_MILLIS = 1_000L
+
+/** The credit window a MeshLink central grants on open (spec "Flow control"). */
+internal const val CREDIT_WINDOW = 8
+
+/** The grant a MeshLink central sends per half-window of chunks it receives. */
+internal const val CREDIT_HALF = 4
 
 /** The NodeId a fake peer claims in its hello. */
 internal val FAKE_ID = ByteArray(32) { 0x7F }
@@ -57,10 +67,29 @@ internal object NoNewKeyPairs : CryptoProvider by SodiumCryptoProvider {
 internal suspend fun TestScope.connectFake(
     air: VirtualAir,
     target: VirtualPlatform,
+    maxAttMtu: Int = VirtualAir.DEFAULT_ATT_MTU,
 ): CentralLink {
-    val link = (air.radio().connect(target.radio.handle) as RadioResult.Ok).value
+    val link = (air.radio(maxAttMtu).connect(target.radio.handle) as RadioResult.Ok).value
     advanceTimeBy(1)
     return link
+}
+
+/**
+ * Makes [fake], a central linked to the node's open [end], grant credits as a MeshLink central does: the window
+ * at once, then half of it after every half-window of chunks the node writes from now on. Consumes the fake's
+ * incoming stream.
+ */
+internal fun TestScope.grantCredits(
+    fake: RadioLink,
+    end: VirtualLinkEnd,
+) {
+    val before = end.chunks
+    backgroundScope.launch {
+        fake.write(record(LinkFrame.Credit(CREDIT_WINDOW)))
+        fake.incoming.drop(before).collectIndexed { index, _ ->
+            if ((index + 1) % CREDIT_HALF == 0) fake.write(record(LinkFrame.Credit(CREDIT_HALF)))
+        }
+    }
 }
 
 /** The MeshIdDigest of [meshId] in the `unsecured` profile. */
@@ -72,3 +101,42 @@ internal fun record(frame: LinkFrame): ByteArray = LinkRecord.encode(frame.encod
 
 /** [bytes] as one link record. */
 internal fun record(bytes: ByteArray): ByteArray = LinkRecord.encode(bytes)
+
+/** A raw radio that advertises [MESH] and serves a capability record listing [versions]. */
+internal fun advertiseFake(
+    air: VirtualAir,
+    versions: List<Int>,
+): VirtualRadio {
+    val record = CapabilityRecord.of(versions, ByteArray(RadioPort.ADVERTISEMENT_LENGTH))
+    return advertiseFake(air, record.encode())
+}
+
+/** A raw radio that advertises [MESH] and serves [capability], or no capability characteristic if `null`. */
+internal fun advertiseFake(
+    air: VirtualAir,
+    capability: ByteArray?,
+): VirtualRadio {
+    val radio = air.radio()
+    val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), WireProfile.UNSECURED)
+    val payload = discovery.advertisement(Derivations.epoch(TestClock.WALL_CLOCK_START_MILLIS / MILLIS_PER_SECOND))
+    capability?.let { radio.serveCapability(it) }
+    radio.startAdvertising(payload)
+    return radio
+}
+
+/** The link-local frames [end] wrote, skipping routed ones. */
+internal fun frames(end: VirtualLinkEnd): List<LinkFrame> {
+    val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+    return bodies
+        .filter { it[0] != ROUTED_MESSAGE }
+        .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
+}
+
+/** The reasons of the `CLOSE` frames [end] wrote. */
+internal fun closes(end: VirtualLinkEnd): List<CloseReason> {
+    val closes = frames(end).filterIsInstance<LinkFrame.Close>()
+    return closes.map { it.reason }
+}
+
+private const val ROUTED_MESSAGE: Byte = 0x40
+private const val MILLIS_PER_SECOND = 1_000L

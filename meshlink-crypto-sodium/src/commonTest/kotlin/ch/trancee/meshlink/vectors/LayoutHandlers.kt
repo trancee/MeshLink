@@ -150,6 +150,11 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["resolving_key"].string, frame.next.key.hex(), "resolving_key")
                 assertEquals(decoded["not_after"].uInt, frame.next.notAfter, "not_after")
             }
+
+            is LinkFrame.Credit -> {
+                assertEquals(decoded["type"].code(), CREDIT, "type")
+                assertEquals(decoded["credits"].int, frame.credits, "credits")
+            }
         }
     }
 
@@ -211,4 +216,5 @@ private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04
 private const val BUSY = 0x06
 private const val RESOLVING_KEY_UPDATE = 0x0E
+private const val CREDIT = 0x10
 private const val LAST_BIT = 0x8000

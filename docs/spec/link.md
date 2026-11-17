@@ -189,6 +189,21 @@ The losing link drains: after its `CLOSE` it writes nothing more, but keeps read
 |---|---|---|---|
 | duplicate-drain-timeout | 10,000 | ms | D-22 |
 
+## Connect retries and link caps
+
+(ADR 0009 decisions 4 and 6.)
+
+- A central whose connect fails with a transient cause (Android GATT status 133 or 147) retries it up to `connect-retries` times, waiting `connect-retry-backoff` × n before retry n. A link that closes with no error about 30 s after it opened (an unanswered ATT request; library rule R8) is a transient loss: its central reconnects through the same retries. Other failures are not retried.
+- A node whose platform caps its peripheral-role links (every iPhone: 3) holds at most that many bearers as peripheral, counting those still opening. It answers a bearer beyond the cap with `CLOSE` `RESOURCE_LIMIT` before any other frame, keeps advertising, and links to further peers as central.
+- A central whose bearer is closed with `RESOURCE_LIMIT` before the link opens does not connect to that address again while it stays a link candidate; the capped peer connects to it instead.
+
+<!-- data: limits.json -->
+
+| Name | Value | Unit | Decision |
+|---|---|---|---|
+| connect-retries | 3 | - | - |
+| connect-retry-backoff | 500 | ms | - |
+
 ## Fragments
 
 (ADR 0012 decision 4; ADR 0015 decisions 3 and 5; [D-19].)
@@ -271,7 +286,7 @@ Total: 2 B. After sending `CLOSE` a node sends nothing more and disconnects the 
 | 0x06 | RESOURCE_LIMIT | D-22 |
 | 0x07 | SHUTTING_DOWN | D-22 |
 
-An unknown reason is accepted and treated as `NORMAL`. Reasons are diagnostic only; they never change the receiver's protocol behavior, except that `DUPLICATE_LINK` keeps the peer's routing state.
+An unknown reason is accepted and treated as `NORMAL`. Reasons are diagnostic only; they never change the receiver's protocol behavior, except that `DUPLICATE_LINK` keeps the peer's routing state and `RESOURCE_LIMIT` before the link opens stops the central reconnecting ([Connect retries and link caps](#connect-retries-and-link-caps)).
 
 ## Rekey
 
@@ -306,7 +321,7 @@ Total: 1 B.
 - To move a link from GATT to an L2CAP CoC channel, the central opens the channel, then sends `BEARER_SWITCH` as its last record on GATT. The peripheral, after receiving it, sends `BEARER_SWITCH` as its last record on GATT. Each side continues its stream on CoC with the next record; cipher states and nonces carry over. Bytes received on CoC before the peer's `BEARER_SWITCH` are buffered.
 - A node MUST discard any GATT stream bytes after the peer's `BEARER_SWITCH`.
 - If the CoC channel fails, the link ends. The nodes MAY reconnect over GATT; that is a new link with a fresh handshake. Routing state is kept by NodeId, and frames lost in flight are recovered by the normal retries ([conflict C-07](decisions.md#c-07)).
-- Flow control on either bearer (ADR 0009 decision 7) is local ([conflict C-09](decisions.md#c-09)).
+- GATT links use `CREDIT` flow control ([below](#flow-control)); CoC has its own credits and uses none.
 
 ## Neighbor list
 
@@ -399,6 +414,31 @@ Total: 37 B. Gated meshes only, on encrypted links.
 
 A node sends its next resolving key on every link at least `resolving-key-lead` before it starts using it, and, once it has one, to each new link as the first encrypted frame after the handshake. A receiver stores it with its `not_after` and starts precomputing its tags ([discovery.md](discovery.md#resolvable-tag)). A receiver drops the frame without storing anything on a cleartext link, in an open mesh, or when `not_after` has passed. A frame of the wrong length closes the link with `PROTOCOL_ERROR`, like any malformed frame.
 
+## Flow control
+
+(ADR 0009 decision 7; [D-47].)
+
+| Offset | Size | Name | Encoding | Notes |
+|---|---|---|---|---|
+| 0 | 1 | type | `u8` | `0x10` |
+| 1 | 2 | credits | `u16` | Credits granted, 1 to 65,535 |
+
+Total: 3 B.
+
+On a GATT link the central grants the peripheral notification credits; one credit allows one GATT notification, which carries up to ATT MTU − 3 bytes of the peripheral's stream. Platform requests such as an iOS GAP name read then still get through the stack's queue (library rule R14).
+
+- The central sends `CREDIT` granting `gatt-credit-window` as soon as the link opens: after the peer's `PLAIN_HELLO` in `unsecured`, after its handshake completes otherwise. Each time it has received half the window in notifications since its last grant, it grants that many again, restoring the peripheral's outstanding credits to the full window.
+- From the moment its link opens, the peripheral never has more notifications sent than credits granted. With none left it queues, never drops, and keeps reading the central's frames, so a grant behind a waiting reply such as `BUSY` still arrives. Grants add to its outstanding credits.
+- `CLOSE` needs no credit: a peripheral with none left still sends it as one notification, then disconnects.
+- A grant that raises the outstanding credits above `gatt-credit-window`, and a `CREDIT` from a peripheral, are protocol errors: the receiver closes with `PROTOCOL_ERROR`.
+- The central's writes, the handshake before the link opens, and every frame on an L2CAP CoC bearer are not credited.
+
+<!-- data: limits.json -->
+
+| Name | Value | Unit | Decision |
+|---|---|---|---|
+| gatt-credit-window | 8 | - | D-47 |
+
 ## Link-local frame summary
 
 | Code | Name | Size | Section |
@@ -415,6 +455,7 @@ A node sends its next resolving key on every link at least `resolving-key-lead` 
 | `0x0B`–`0x0D` | `IHAVE`, `GRAFT`, `PRUNE` | | [routing.md](routing.md#plumtree) |
 | `0x0E` | `RESOLVING_KEY_UPDATE` | 37 B | [Resolving key update](#resolving-key-update) |
 | `0x0F` | `BEARER_SWITCH` | 1 B | [Bearer switch](#bearer-switch) |
+| `0x10` | `CREDIT` | 3 B | [Flow control](#flow-control) |
 
 A receiver MUST drop a link-local frame of unknown type and SHOULD record a diagnostic (ADR 0020). It MUST NOT close the link for it.
 

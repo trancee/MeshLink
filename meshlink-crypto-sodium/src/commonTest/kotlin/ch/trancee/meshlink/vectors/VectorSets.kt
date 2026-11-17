@@ -86,7 +86,7 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "vectors/link-frames.json",
-            listOf("0x01", "0x02", "0x03", "0x04", "0x06", "0x0e", "0x00", "0x3f", "0xc0", "0xff", "empty")
+            listOf("0x01", "0x02", "0x03", "0x04", "0x06", "0x0e", "0x10", "0x00", "0x3f", "0xc0", "0xff", "empty")
                 .associateWith { linkFrame },
             key = frameKey,
         ),

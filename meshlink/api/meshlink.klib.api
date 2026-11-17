@@ -107,6 +107,17 @@ sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.mes
     abstract val code // ch.trancee.meshlink.internal/LinkDiagnostic.code|{}code[0]
         abstract fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.code.<get-code>|<get-code>(){}[0]
 
+    final class ConnectFailed : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed|null[0]
+        constructor <init>(ch.trancee.meshlink.internal/RadioFailure, kotlin/Int) // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.<init>|<init>(ch.trancee.meshlink.internal.RadioFailure;kotlin.Int){}[0]
+
+        final val attempt // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.attempt|{}attempt[0]
+            final fun <get-attempt>(): kotlin/Int // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.attempt.<get-attempt>|<get-attempt>(){}[0]
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.code.<get-code>|<get-code>(){}[0]
+        final val reason // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink.internal/RadioFailure // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.reason.<get-reason>|<get-reason>(){}[0]
+    }
+
     final class HandshakeFailed : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed|null[0]
         constructor <init>(ch.trancee.meshlink.internal/HandshakeFailure) // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeFailed.<init>|<init>(ch.trancee.meshlink.internal.HandshakeFailure){}[0]
 
@@ -123,6 +134,15 @@ sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.mes
             final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.code.<get-code>|<get-code>(){}[0]
         final val limit // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.limit|{}limit[0]
             final fun <get-limit>(): ch.trancee.meshlink.internal/HandshakeLimit // ch.trancee.meshlink.internal/LinkDiagnostic.HandshakeLimitDropped.limit.<get-limit>|<get-limit>(){}[0]
+    }
+
+    final class LinkCapReached : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached|null[0]
+        constructor <init>(kotlin/Int) // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.<init>|<init>(kotlin.Int){}[0]
+
+        final val cap // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.cap|{}cap[0]
+            final fun <get-cap>(): kotlin/Int // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.cap.<get-cap>|<get-cap>(){}[0]
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.code.<get-code>|<get-code>(){}[0]
     }
 }
 

@@ -584,6 +584,8 @@ abstract class SecuredLinkTest(
         when (this) {
             is LinkDiagnostic.HandshakeFailed -> "$code $reason"
             is LinkDiagnostic.HandshakeLimitDropped -> "$code $limit"
+            is LinkDiagnostic.ConnectFailed -> "$code $reason $attempt"
+            is LinkDiagnostic.LinkCapReached -> "$code $cap"
         }
 
     /** The cleartext `CLOSE` reasons [end] wrote. */
