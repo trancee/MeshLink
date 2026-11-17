@@ -1,6 +1,6 @@
 # Rekey long-lived links
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 28
 
