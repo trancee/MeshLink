@@ -139,6 +139,10 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["data"].string, frame.data.hex(), "data")
             }
 
+            LinkFrame.Rekey -> {
+                assertEquals(decoded["type"].code(), REKEY, "type")
+            }
+
             is LinkFrame.Busy -> {
                 assertEquals(decoded["type"].code(), BUSY, "type")
                 assertEquals(decoded["stream_id"].int, frame.streamId, "stream_id")
@@ -214,6 +218,7 @@ private const val FRAGMENT = 0x01
 private const val HANDSHAKE = 0x02
 private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04
+private const val REKEY = 0x05
 private const val BUSY = 0x06
 private const val RESOLVING_KEY_UPDATE = 0x0E
 private const val CREDIT = 0x10

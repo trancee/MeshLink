@@ -36,7 +36,13 @@ impl Document {
 
 #[must_use]
 pub fn all() -> Vec<Document> {
-    vec![certificate_signatures(), handshake_xx(), handshake_hfs(), hpke_seal()]
+    vec![
+        certificate_signatures(),
+        handshake_xx(),
+        handshake_hfs(),
+        hpke_seal(),
+        link_transport(),
+    ]
 }
 
 struct Test {
@@ -598,17 +604,6 @@ fn handshake_document(
     protocols: [&str; 2],
     kems: Option<[(&'static str, usize); 2]>,
 ) -> Document {
-    let side = |kem: Option<(&'static str, usize)>| {
-        let mut required = vec!["static_private", "ephemeral_private"];
-        let mut properties = vec![("static_private", s_hex_of(32)), ("ephemeral_private", s_hex_of(32))];
-        if let Some((field, length)) = kem {
-            required.push(field);
-            properties.push((field, s_hex_of(length)));
-        }
-        required.push("prologue");
-        properties.extend([("prologue", s_hex()), ("mesh_key", s_hex_of(32)), ("psk", s_hex_of(32))]);
-        s_object(&required, properties)
-    };
     let transport = s_object(
         &["direction", "plaintext", "ciphertext"],
         vec![
@@ -639,8 +634,8 @@ fn handshake_document(
         groups,
         vec![
             ("now", s_integer(0)),
-            ("initiator", side(kems.map(|k| k[0]))),
-            ("responder", side(kems.map(|k| k[1]))),
+            ("initiator", side_schema(kems.map(|k| k[0]))),
+            ("responder", side_schema(kems.map(|k| k[1]))),
             ("initiator_node_id", s_hex_of(32)),
             ("responder_node_id", s_hex_of(32)),
             ("payloads", s_list(s_hex(), 3)),
@@ -669,14 +664,15 @@ struct Setup<'a> {
     mesh_keys: Option<(&'a [u8; 32], &'a [u8; 32])>,
 }
 
-fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, flags: &[&'static str]) -> Test {
+/// The payloads each side writes and both sides' inputs.
+fn sides(setup: Setup) -> ([Vec<u8>; 3], Side, Side) {
     let Setup {
-        protocol,
         profile,
         alice,
         bob,
         prologues,
         mesh_keys,
+        ..
     } = setup;
     let gated = mesh_keys.is_some();
     let payload = |who: &Identity, label: &str| {
@@ -712,22 +708,50 @@ fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, f
         prologues.1,
         mesh_keys.map(|k| k.1),
     );
+    (payloads, initiator, responder)
+}
+
+/// One side's inputs as a vector field: `kem_name` names its KEM input.
+fn side_json(side: &Side, kem_name: &'static str, mesh_key: Option<&[u8; 32]>) -> Value {
+    let mut pairs = vec![
+        ("static_private", hex(&side.static_private)),
+        ("ephemeral_private", hex(&side.ephemeral_private)),
+    ];
+    if let Some(kem) = side.kem {
+        pairs.push((kem_name, hex(&kem.bytes())));
+    }
+    pairs.push(("prologue", hex(&side.prologue)));
+    if let (Some(key), Some(psk)) = (mesh_key, side.psk) {
+        pairs.push(("mesh_key", hex(key)));
+        pairs.push(("psk", hex(&psk)));
+    }
+    object(pairs)
+}
+
+/// The schema of one side's inputs; `kem` names its KEM input and that input's length.
+fn side_schema(kem: Option<(&'static str, usize)>) -> Value {
+    let mut required = vec!["static_private", "ephemeral_private"];
+    let mut properties = vec![("static_private", s_hex_of(32)), ("ephemeral_private", s_hex_of(32))];
+    if let Some((field, length)) = kem {
+        required.push(field);
+        properties.push((field, s_hex_of(length)));
+    }
+    required.push("prologue");
+    properties.extend([("prologue", s_hex()), ("mesh_key", s_hex_of(32)), ("psk", s_hex_of(32))]);
+    s_object(&required, properties)
+}
+
+fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, flags: &[&'static str]) -> Test {
+    let Setup {
+        protocol,
+        alice,
+        bob,
+        prologues,
+        mesh_keys,
+        ..
+    } = setup;
+    let (payloads, initiator, responder) = sides(setup);
     let transcript = handshake::run(protocol, &initiator, &responder, &payloads, tamper);
-    let side_json = |side: &Side, kem_name: &'static str, mesh_key: Option<&[u8; 32]>| {
-        let mut pairs = vec![
-            ("static_private", hex(&side.static_private)),
-            ("ephemeral_private", hex(&side.ephemeral_private)),
-        ];
-        if let Some(kem) = side.kem {
-            pairs.push((kem_name, hex(&kem.bytes())));
-        }
-        pairs.push(("prologue", hex(&side.prologue)));
-        if let (Some(key), Some(psk)) = (mesh_key, side.psk) {
-            pairs.push(("mesh_key", hex(key)));
-            pairs.push(("psk", hex(&psk)));
-        }
-        object(pairs)
-    };
     let mut fields = vec![
         ("now", int(NOW)),
         (
@@ -889,6 +913,232 @@ fn hpke_seal() -> Document {
             ("kem_id", s_const(int(0x647a))),
             ("kdf_id", s_const(int(1))),
             ("aead_id", s_const(int(3))),
+        ],
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Link records and REKEY (ticket 30)
+// ---------------------------------------------------------------------------
+
+const REKEY: u8 = 0x05;
+
+/// One record as sent: who sent it, the frame it carries and its bytes on the stream.
+struct Record {
+    from_initiator: bool,
+    plaintext: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+/// `plaintext` sealed by `writer` as one link record: a `u16` length, then the ciphertext.
+/// Sealing a `REKEY` rekeys the writer's sending direction after it.
+fn seal_record(writer: &mut snow::TransportState, plaintext: &[u8]) -> Vec<u8> {
+    let mut ciphertext = vec![0; plaintext.len() + 16];
+    let length = writer.write_message(plaintext, &mut ciphertext).expect("seal");
+    if plaintext == [REKEY] {
+        writer.rekey_outgoing();
+    }
+    let mut record = u16::try_from(length).expect("length").to_be_bytes().to_vec();
+    record.extend_from_slice(&ciphertext[..length]);
+    record
+}
+
+/// Opens each record at its reader, rekeying after a `REKEY`: the 1-based index of the first
+/// record that fails to decrypt, if any.
+fn open_records(sides: &mut [snow::TransportState; 2], records: &[Record]) -> Option<usize> {
+    for (index, record) in records.iter().enumerate() {
+        let reader = &mut sides[usize::from(record.from_initiator)];
+        let mut plaintext = vec![0; record.bytes.len()];
+        match reader.read_message(&record.bytes[2..], &mut plaintext) {
+            Ok(length) => {
+                assert_eq!(
+                    &plaintext[..length],
+                    record.plaintext.as_slice(),
+                    "record {}",
+                    index + 1
+                );
+                if record.plaintext == [REKEY] {
+                    reader.rekey_incoming();
+                }
+            }
+            Err(_) => return Some(index + 1),
+        }
+    }
+    None
+}
+
+/// One side's inputs in a link transport group: the KEM input only for `XXhfs`, no mesh key.
+fn link_side((field, length): (&'static str, usize)) -> Value {
+    s_object(
+        &["static_private", "ephemeral_private", "prologue"],
+        vec![
+            ("static_private", s_hex_of(32)),
+            ("ephemeral_private", s_hex_of(32)),
+            (field, s_hex_of(length)),
+            ("prologue", s_hex()),
+        ],
+    )
+}
+
+fn link_transport() -> Document {
+    let alice = Identity::new("alice");
+    let bob = Identity::new("bob");
+    let groups = [(XX, CLASSICAL), (XXHFS, POST_QUANTUM)]
+        .into_iter()
+        .map(|(protocol, profile)| {
+            let prologue = link_prologue(&[1], 1, profile, &mesh_id_digest(MESH_ID, profile));
+            let setup = Setup {
+                protocol,
+                profile,
+                alice: &alice,
+                bob: &bob,
+                prologues: (&prologue, &prologue),
+                mesh_keys: None,
+            };
+            let (payloads, initiator, responder) = sides(setup);
+            let transports = || handshake::transports(protocol, &initiator, &responder, &payloads);
+            let frame = |from_initiator: bool, n: usize| {
+                let who = if from_initiator { "initiator" } else { "responder" };
+                format!("{who} frame {n}").into_bytes()
+            };
+            // Writes `script` (sender, frame) in order from fresh transports; `tamper` changes the
+            // last record's bytes from the writer's two states (rekeyed and not) before delivery.
+            let records = |script: &[(bool, Vec<u8>)], tamper: &dyn Fn(Vec<u8>, Vec<u8>) -> Vec<u8>| {
+                let [mut i, mut r] = transports();
+                let [mut stale, _] = transports();
+                let mut out: Vec<Record> = Vec::new();
+                for (index, (from_initiator, plaintext)) in script.iter().enumerate() {
+                    let writer = if *from_initiator { &mut i } else { &mut r };
+                    let mut bytes = seal_record(writer, plaintext);
+                    if *from_initiator {
+                        let mut ciphertext = vec![0; plaintext.len() + 16];
+                        let length = stale.write_message(plaintext, &mut ciphertext).expect("stale");
+                        let mut old = u16::try_from(length).expect("length").to_be_bytes().to_vec();
+                        old.extend_from_slice(&ciphertext[..length]);
+                        if index + 1 == script.len() {
+                            bytes = tamper(bytes, old);
+                        }
+                    }
+                    out.push(Record {
+                        from_initiator: *from_initiator,
+                        plaintext: plaintext.clone(),
+                        bytes,
+                    });
+                }
+                out
+            };
+            let rekey = vec![REKEY];
+            let mut valid = Vec::new();
+            for from_initiator in [true, false] {
+                valid.extend((1..=3).map(|n| (from_initiator, frame(from_initiator, n))));
+            }
+            valid.extend([(true, rekey.clone()), (false, rekey.clone())]);
+            for from_initiator in [true, false] {
+                valid.extend((4..=5).map(|n| (from_initiator, frame(from_initiator, n))));
+            }
+            let mut after = (1..=3).map(|n| (true, frame(true, n))).collect::<Vec<_>>();
+            after.extend([(true, rekey.clone()), (true, frame(true, 4))]);
+            let case = |comment: &str,
+                        flags: &[&'static str],
+                        script: &[(bool, Vec<u8>)],
+                        tamper: &dyn Fn(Vec<u8>, Vec<u8>) -> Vec<u8>| {
+                let records = records(script, tamper);
+                let rejected = open_records(&mut transports(), &records);
+                assert_eq!(rejected.is_some(), !flags.is_empty(), "{comment}");
+                let direction = |from_initiator: bool| {
+                    let mine = records
+                        .iter()
+                        .filter(move |record| record.from_initiator == from_initiator);
+                    let frames = mine.clone().map(|record| hex(&record.plaintext)).collect();
+                    (
+                        Value::List(frames),
+                        hex(&mine.flat_map(|record| record.bytes.clone()).collect::<Vec<_>>()),
+                    )
+                };
+                let (initiator_frames, initiator_stream) = direction(true);
+                let (responder_frames, responder_stream) = direction(false);
+                let mut fields = vec![
+                    ("initiator_frames", initiator_frames),
+                    ("initiator_stream", initiator_stream),
+                    ("responder_frames", responder_frames),
+                    ("responder_stream", responder_stream),
+                ];
+                if let Some(index) = rejected {
+                    let index = records[..index].iter().filter(|record| record.from_initiator).count();
+                    fields.push(("rejected_record", int(i64::try_from(index).expect("index"))));
+                }
+                test(comment, flags, fields, rejected.map(|_| "decrypt-failed"))
+            };
+            let handshake_hash = handshake::run(protocol, &initiator, &responder, &payloads, None)
+                .outcome
+                .map(|completed| completed.handshake_hash)
+                .unwrap_or_else(|_| panic!("{protocol}: handshake"));
+            let tests = vec![
+                case(
+                    "three records each way, REKEY each way, then two each way",
+                    &[],
+                    &valid,
+                    &|bytes, _| bytes,
+                ),
+                case(
+                    "a record sealed with the key before REKEY",
+                    &["OldKey"],
+                    &after,
+                    &|_, old| old,
+                ),
+                case(
+                    "a record after REKEY with a flipped tag bit",
+                    &["Tampered"],
+                    &after,
+                    &|bytes, _| flip(&bytes, bytes.len() - 1),
+                ),
+            ];
+            Group {
+                attributes: vec![
+                    ("type", text("LinkTransport")),
+                    ("protocol", text(protocol)),
+                    ("initiator", side_json(&initiator, "kem_keygen_seed", None)),
+                    ("responder", side_json(&responder, "kem_encaps_seed", None)),
+                    ("payloads", Value::List(payloads.iter().map(|p| hex(p)).collect())),
+                    ("handshake_hash", hex(&handshake_hash)),
+                ],
+                tests,
+            }
+        })
+        .collect();
+    document(
+        "link-transport.json",
+        "MeshLink/1 link records and REKEY (Noise XX, XXhfs transport)",
+        &[
+            (
+                "ReferenceKeys",
+                "The handshake inputs are those of the open valid tests in handshake-xx.json and handshake-hfs.json: fixed labels in tools/reference.",
+            ),
+            (
+                "Replay",
+                "Both sides run the group's handshake. Each then seals its frames in order as link records, a u16 length and then the ciphertext of the frame with empty associated data; its stream is those records back to back. After sealing the REKEY frame (05) a writer calls Rekey() on its sending cipher state; after opening one a reader calls Rekey() on its receiving cipher state; the nonce carries on. A writer's own records equal its stream except at rejected_record. The responder must fail to open record rejected_record of initiator_stream and open every earlier one; every other record opens to its frame.",
+            ),
+            (
+                "OldKey",
+                "The last record was sealed at the next nonce under the key before REKEY.",
+            ),
+            ("Tampered", "One tag bit of the last record flipped in transit."),
+        ],
+        groups,
+        vec![
+            ("initiator_frames", s_list(s_hex(), 1)),
+            ("initiator_stream", s_hex()),
+            ("responder_frames", s_list(s_hex(), 0)),
+            ("responder_stream", s_hex()),
+            ("rejected_record?", s_integer(1)),
+        ],
+        vec![
+            ("type", s_const(text("LinkTransport"))),
+            ("protocol", s_enum(&[XX, XXHFS])),
+            ("initiator", link_side(("kem_keygen_seed", 64))),
+            ("responder", link_side(("kem_encaps_seed", 32))),
+            ("payloads", s_list(s_hex(), 3)),
+            ("handshake_hash", s_hex_of(32)),
         ],
     )
 }

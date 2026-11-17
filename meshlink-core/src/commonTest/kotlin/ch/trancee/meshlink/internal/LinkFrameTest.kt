@@ -38,7 +38,7 @@ class LinkFrameTest {
 
     @Test
     fun typesThisDecoderDoesNotHandleAreUnknownAndAnEmptyFrameIsTruncated() {
-        listOf("0500", "40", "80", "bf").forEach {
+        listOf("0700", "40", "80", "bf").forEach {
             assertEquals(DecodeError.UNKNOWN_TYPE, (LinkFrame.decode(it.hex()) as Decoded.Invalid).error, it)
         }
         assertEquals(DecodeError.TRUNCATED, (LinkFrame.decode(ByteArray(0)) as Decoded.Invalid).error)

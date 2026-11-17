@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -399,12 +398,6 @@ class LinkLimitsTest {
                 delay(SLOW_CHUNK_MILLIS)
                 consumed()
             }
-    }
-
-    private fun TestScope.diagnostics(node: MeshLink): List<LinkDiagnostic> {
-        val seen = mutableListOf<LinkDiagnostic>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.linkDiagnostics.collect { seen += it } }
-        return seen
     }
 
     private fun sendTo(

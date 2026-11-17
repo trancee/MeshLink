@@ -14,7 +14,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -355,6 +354,8 @@ abstract class SecuredLinkTest(
                         Pair({ listOf(message1(it), handshake(THIRD, GARBAGE, version = 2)) }, "PROTOCOL"),
                     "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "DECRYPT"),
                     "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "PROTOCOL"),
+                    "rekey" to Pair({ listOf(record(LinkFrame.Rekey)) }, "PROTOCOL"),
+                    "rekey after message 1" to Pair({ listOf(message1(it), record(LinkFrame.Rekey)) }, "PROTOCOL"),
                     "fragmented hello" to
                         Pair(
                             { fragments(0, LinkFrame.PlainHello(1, digest(MESH), FAKE_ID).encode()) },
@@ -529,6 +530,115 @@ abstract class SecuredLinkTest(
         }
 
     @Test
+    fun twoNodesStayLinkedAcrossThreeHoursOfRekeys() =
+        runTest {
+            // Arrange
+            val air = air()
+            val platforms = List(2) { air.platform(StandardTestDispatcher(testScheduler)) }
+            val nodes = platforms.map { securedNode(it, null) }
+            nodes.forEach { it.start() }
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Act
+            advanceTimeBy(HOURS * LinkCipher.REKEY_INTERVAL_MILLIS + SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(1, 1), nodes.map { it.peers.value.size })
+            assertEquals(listOf(1, 1), platforms.map { platform -> platform.radio.ends.count { it.open } })
+        }
+
+    @Test
+    fun eachDirectionRekeysEveryHourAndTheLinkStaysOpen() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = securedNode(alice, null).also { it.start() }
+            val diagnostics = diagnostics(node)
+            val link = connectFake(air, alice)
+            val end = alice.radio.ends.single()
+            val transport = initiate(FakePeer(wire, TestClock(testScheduler)), link, end)
+            val fake = LinkCipher(transport, TestClock(testScheduler))
+            val linkedAt = testScheduler.currentTime
+            val writtenByNode = mutableListOf<Int>()
+
+            // Act
+            (1..HOURS).forEach { hour ->
+                val due = linkedAt + hour * LinkCipher.REKEY_INTERVAL_MILLIS
+                advanceTimeBy(due - SETTLE_MILLIS - 1 - testScheduler.currentTime)
+                writtenByNode += written(end, 1).second.size
+                advanceTimeBy(SETTLE_MILLIS + 2)
+                writtenByNode += written(end, 1).second.size
+                link.write(fake.seal(LinkFrame.Rekey.encode()) + fake.seal(UNKNOWN_FRAME))
+            }
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            val frames = written(end, 1).second.map { assertIs<LinkCipher.Opened.Frame>(fake.open(it)).bytes.toList() }
+            assertEquals(List(HOURS) { LinkFrame.Rekey.encode().toList() }, frames)
+            assertEquals(listOf(0, 1, 1, 2, 2, 3), writtenByNode)
+            assertEquals(List(HOURS) { "ML3007 $UNKNOWN_LINK_LOCAL" }, diagnostics.map { it.label() })
+            assertEquals(1, node.peers.value.size)
+            assertTrue(end.open)
+        }
+
+    @Test
+    fun aRecordUnderTheOldKeyAfterARekeyClosesTheBearer() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = securedNode(alice, null).also { it.start() }
+            val link = connectFake(air, alice)
+            val end = alice.radio.ends.single()
+            val transport = initiate(FakePeer(wire, TestClock(testScheduler)), link, end)
+
+            // Act
+            link.write(seal(transport, LinkFrame.Rekey.encode()) + seal(transport, UNKNOWN_FRAME))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(emptyList(), written(end, 1).second)
+            assertFalse(end.open)
+            assertEquals(emptyList(), node.peers.value)
+        }
+
+    @Test
+    fun aPeerThatNeverRekeysIsClosedAfterTwiceRekeyRecordsAndOneThatRekeysIsNot() =
+        runTest {
+            listOf(true, false).forEach { rekeying ->
+                // Arrange
+                val air = air()
+                val alice = air.platform(StandardTestDispatcher(testScheduler))
+                val node = securedNode(alice, null).also { it.start() }
+                val link = connectFake(air, alice)
+                val end = alice.radio.ends.single()
+                val transport = initiate(FakePeer(wire, TestClock(testScheduler)), link, end)
+                val cipher = LinkCipher(transport, TestClock(testScheduler))
+                val sealer: (ByteArray) -> ByteArray =
+                    if (rekeying) cipher::seal else { frame -> seal(transport, frame) }
+                // The CREDIT that initiate sent is the key's first record.
+                (2..2 * LinkCipher.REKEY_RECORDS).chunked(BATCH).forEach { batch ->
+                    link.write(concat(batch.map { sealer(UNKNOWN_FRAME) }))
+                }
+                advanceTimeBy(SETTLE_MILLIS)
+                val openAtLimit = end.open
+
+                // Act
+                link.write(sealer(UNKNOWN_FRAME))
+                advanceTimeBy(SETTLE_MILLIS)
+
+                // Assert
+                val replies = written(end, 1).second.map { open(transport, it).toList() }
+                val protocolError = LinkFrame.Close(CloseReason.PROTOCOL_ERROR).encode().toList()
+                assertTrue(openAtLimit, "rekeying $rekeying")
+                assertEquals(if (rekeying) emptyList() else listOf(protocolError), replies, "rekeying $rekeying")
+                assertEquals(rekeying, end.open, "rekeying $rekeying")
+                node.close()
+            }
+        }
+
+    @Test
     fun anUnsecuredNodeClosesAHandshakeWithProtocolError() =
         runTest {
             // Arrange
@@ -574,18 +684,13 @@ abstract class SecuredLinkTest(
     /** [noise]'s message 1 as a `HANDSHAKE` record. */
     private fun message1(noise: NoiseHandshake): ByteArray = handshake(1, ok(noise.writeMessage(EMPTY)))
 
-    private fun TestScope.diagnostics(node: MeshLink): List<LinkDiagnostic> {
-        val seen = mutableListOf<LinkDiagnostic>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.linkDiagnostics.collect { seen += it } }
-        return seen
-    }
-
     private fun LinkDiagnostic.label(): String =
         when (this) {
             is LinkDiagnostic.HandshakeFailed -> "$code $reason"
             is LinkDiagnostic.HandshakeLimitDropped -> "$code $limit"
             is LinkDiagnostic.ConnectFailed -> "$code $reason $attempt"
             is LinkDiagnostic.LinkCapReached -> "$code $cap"
+            is LinkDiagnostic.UnknownLinkFrameDropped -> "$code $type"
         }
 
     /** The cleartext `CLOSE` reasons [end] wrote. */
@@ -600,6 +705,17 @@ abstract class SecuredLinkTest(
         frame: ByteArray,
         dataMax: Int = FRAGMENT_DATA,
     ): List<ByteArray> = LinkFrame.Fragment.split(id, frame, dataMax).map { record(it) }
+
+    /** [records] as one byte array. */
+    private fun concat(records: List<ByteArray>): ByteArray {
+        val bytes = ByteArray(records.sumOf { it.size })
+        var at = 0
+        records.forEach {
+            it.copyInto(bytes, at)
+            at += it.size
+        }
+        return bytes
+    }
 
     /** `PostQuantum` only: a certificate with a byte of its X-Wing key flipped after signing. */
     private fun xWingPayloads(): Map<String, (FakePeer) -> ByteArray> =
@@ -646,6 +762,10 @@ abstract class SecuredLinkTest(
         const val UNKNOWN_CRITICAL = 0x8F
         const val UNKNOWN = 0x0F
         const val FRAGMENT_DATA = 20
+        const val HOURS = 3
+        const val BATCH = 4_096
+        const val UNKNOWN_LINK_LOCAL = 0x3F
+        val UNKNOWN_FRAME = byteArrayOf(UNKNOWN_LINK_LOCAL.toByte())
         const val DATA_MAX = LinkFrame.Fragment.DATA_MAX
         val MESH_KEY = ByteArray(MESH_KEY_BYTES) { 0x11 }
         val GARBAGE = ByteArray(48) { 0x5A }

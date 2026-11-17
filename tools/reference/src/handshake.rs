@@ -9,7 +9,7 @@ use ml_kem::{B32, Ciphertext, DecapsulationKey, EncapsulationKey, Key, MlKem768,
 use snow::params::{CipherChoice, DHChoice, HashChoice, KemChoice};
 use snow::resolvers::{CryptoResolver, DefaultResolver};
 use snow::types::{Cipher, Dh, Hash, Kem, Random};
-use snow::{Builder, Error, HandshakeState};
+use snow::{Builder, Error, HandshakeState, TransportState};
 
 const PUBLIC_KEY_LENGTH: usize = 1_184;
 const CIPHERTEXT_LENGTH: usize = 1_088;
@@ -182,16 +182,15 @@ pub struct Completed {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Rejected(pub usize);
 
-/// Runs the three messages, flipping `tamper = (step, byte)` in transit, then one transport
-/// message each way.
-#[must_use]
-pub fn run(
+/// Runs the three messages, flipping `tamper = (step, byte)` in transit: the messages as
+/// delivered, and both finished sides or the step whose message the reader rejected.
+fn exchange(
     protocol: &str,
     initiator: &Side,
     responder: &Side,
     payloads: &[Vec<u8>; 3],
     tamper: Option<(usize, usize)>,
-) -> Transcript {
+) -> (Vec<Vec<u8>>, Result<[HandshakeState; 2], Rejected>) {
     let mut sides = [initiator.build(protocol, true), responder.build(protocol, false)];
     let mut messages = Vec::new();
     for (index, payload) in payloads.iter().enumerate() {
@@ -207,14 +206,41 @@ pub fn run(
         let mut read = vec![0; MAX_MESSAGE];
         match sides[reader].read_message(&message, &mut read) {
             Ok(n) => assert_eq!(&read[..n], payload.as_slice(), "payload {}", index + 1),
-            Err(_) => {
-                return Transcript {
-                    messages,
-                    outcome: Err(Rejected(index + 1)),
-                };
-            }
+            Err(_) => return (messages, Err(Rejected(index + 1))),
         }
     }
+    (messages, Ok(sides))
+}
+
+/// The initiator's and the responder's transport state after an untampered handshake.
+#[must_use]
+pub fn transports(protocol: &str, initiator: &Side, responder: &Side, payloads: &[Vec<u8>; 3]) -> [TransportState; 2] {
+    let (_, sides) = exchange(protocol, initiator, responder, payloads, None);
+    sides
+        .expect("handshake")
+        .map(|side| side.into_transport_mode().expect("transport"))
+}
+
+/// Runs the three messages, flipping `tamper = (step, byte)` in transit, then one transport
+/// message each way.
+#[must_use]
+pub fn run(
+    protocol: &str,
+    initiator: &Side,
+    responder: &Side,
+    payloads: &[Vec<u8>; 3],
+    tamper: Option<(usize, usize)>,
+) -> Transcript {
+    let (messages, sides) = exchange(protocol, initiator, responder, payloads, tamper);
+    let sides = match sides {
+        Ok(sides) => sides,
+        Err(rejected) => {
+            return Transcript {
+                messages,
+                outcome: Err(rejected),
+            };
+        }
+    };
     let [i, r] = sides;
     assert_eq!(
         i.get_handshake_hash(),

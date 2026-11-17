@@ -256,6 +256,7 @@ class UnsecuredLinkTest {
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = node(alice).also { it.start() }
+            val diagnostics = diagnostics(node)
             val fake = connectFake(air, alice)
             fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
             advanceTimeBy(SETTLE_MILLIS)
@@ -266,19 +267,52 @@ class UnsecuredLinkTest {
 
             // Act
             advanceTimeBy(SETTLE_MILLIS)
-            fake.write(LinkRecord.encode(byteArrayOf(0x3F, 0x01)))
+            fake.write(LinkRecord.encode(byteArrayOf(UNKNOWN_LINK_LOCAL.toByte(), 0x01)))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
             val peer = node.peers.value.single()
             assertContentEquals(FAKE_ID, peer.nodeId.toByteArray())
             assertTrue(peer.lastSeen > linkedAt)
+            val dropped = diagnostics.map { assertIs<LinkDiagnostic.UnknownLinkFrameDropped>(it).type }
+            assertEquals(listOf(UNKNOWN_LINK_LOCAL), dropped)
             assertTrue(
                 alice.radio.ends
                     .single()
                     .open,
             )
             assertEquals(listOf<LinkFrame>(), frames(alice.radio.ends.single()).drop(1))
+        }
+
+    @Test
+    fun rekeyIsDroppedWithADiagnosticAndLaterFramesAreDelivered() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(alice).also { it.start() }
+            val diagnostics = diagnostics(node)
+            val received = mutableListOf<ReceivedMessage>()
+            backgroundScope.launch { node.messages.collect { received += it } }
+            val fake = connectFake(air, alice)
+            fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt(), 1)
+
+            // Act
+            fake.write(record(LinkFrame.Rekey) + record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            val dropped = diagnostics.map { assertIs<LinkDiagnostic.UnknownLinkFrameDropped>(it) }
+            assertEquals(listOf("ML3007" to REKEY), dropped.map { it.code to it.type })
+            assertEquals(listOf(PAYLOADS[0].toList()), received.map { it.payload.toList() })
+            assertTrue(
+                alice.radio.ends
+                    .single()
+                    .open,
+            )
         }
 
     @Test
@@ -843,6 +877,8 @@ class UnsecuredLinkTest {
         const val LIFETIME_SECONDS = 1_800
         const val MESSAGE_TYPE: Byte = 0x40
         const val RECORD_LENGTH_BYTES = 2
+        const val UNKNOWN_LINK_LOCAL = 0x3F
+        const val REKEY = 0x05
 
         // Above any real NodeId, so this node keeps the link it dials to the fake.
         val HIGH_ID = ByteArray(32) { 0xFF.toByte() }

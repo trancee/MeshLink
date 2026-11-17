@@ -81,14 +81,17 @@ class RotationTest {
             val clock = TestClock(testScheduler)
             val early = FakePeer(WireProfile.CLASSICAL, clock, MESH_KEY)
             val earlyEnd = alice.radio.ends.size
-            val earlyTransport = initiate(early, connectFake(air, alice), alice.radio.ends[earlyEnd])
+            val earlyLink = connectFake(air, alice)
+            val earlyTransport = initiate(early, earlyLink, alice.radio.ends[earlyEnd])
+            keepGranting(early, earlyLink, earlyTransport)
+            val earlyFrames = Sealed(earlyTransport, alice.radio.ends[earlyEnd], clock)
             val current = assertNotNull(decodePayload(early.received).resolvingKey)
 
             // Act
             var announced: List<LinkFrame> = emptyList()
             while (announced.isEmpty()) {
                 advanceTimeBy(1.minutes)
-                announced = sealedFrames(earlyTransport, alice.radio.ends[earlyEnd])
+                announced = earlyFrames.frames()
             }
             val announcedAt = clock.wallClockMillis()
             val late = FakePeer(WireProfile.CLASSICAL, clock, MESH_KEY)
@@ -99,8 +102,8 @@ class RotationTest {
             // Assert
             val next = assertIs<LinkFrame.ResolvingKeyUpdate>(announced.single()).next
             assertEquals(current.notAfter + DAY_SECONDS, next.notAfter)
-            val sentLater =
-                assertIs<LinkFrame.ResolvingKeyUpdate>(sealedFrames(lateTransport, alice.radio.ends[lateEnd]).first())
+            val lateFrames = Sealed(lateTransport, alice.radio.ends[lateEnd], clock).frames()
+            val sentLater = assertIs<LinkFrame.ResolvingKeyUpdate>(lateFrames.first())
             assertContentEquals(next.key, sentLater.next.key)
             assertContentEquals(current.key, decodePayload(late.received).resolvingKey?.key)
             val firstUse =
@@ -134,7 +137,7 @@ class RotationTest {
 
             // Assert
             assertEquals(listOf(CERTIFICATE_TLV), decodePayload(fake.received).tlvs.map { it.type })
-            val frames = sealedFrames(transport, platforms[0].radio.ends[ends])
+            val frames = Sealed(transport, platforms[0].radio.ends[ends], TestClock(testScheduler)).frames()
             assertTrue(frames.none { it is LinkFrame.ResolvingKeyUpdate })
             val tags = platforms[0].radio.advertisements.map { tagOf(it.second).toList() }
             assertEquals(tags.size, tags.toSet().size)
@@ -209,7 +212,7 @@ class RotationTest {
                         .open
                 },
             )
-            val closed = sealedFrames(gatedTransport, platforms[2].radio.ends.single())
+            val closed = Sealed(gatedTransport, platforms[2].radio.ends.single(), TestClock(testScheduler)).frames()
             assertEquals(CloseReason.PROTOCOL_ERROR, assertIs<LinkFrame.Close>(closed.single()).reason)
         }
 
@@ -256,14 +259,26 @@ class RotationTest {
             (TestClock.WALL_CLOCK_START_MILLIS / MILLIS).toUInt() + DAY_SECONDS,
         )
 
-    /** The frames [end] wrote after its cleartext message 2, decrypted with [transport]. */
-    private fun sealedFrames(
+    /** Reads the frames but `REKEY` [end] writes after its cleartext message 2, decrypted with [transport]. */
+    private class Sealed(
         transport: NoiseTransport,
-        end: VirtualLinkEnd,
-    ): List<LinkFrame> =
-        written(end, 1).second.map { record ->
-            assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(open(transport, record))).value
+        private val end: VirtualLinkEnd,
+        clock: Clock,
+    ) {
+        private val cipher = LinkCipher(transport, clock)
+        private val frames = mutableListOf<LinkFrame>()
+        private var opened = 0
+
+        /** Every frame [end] wrote so far. */
+        fun frames(): List<LinkFrame> {
+            written(end, 1).second.drop(opened).forEach { record ->
+                val frame = assertIs<LinkCipher.Opened.Frame>(cipher.open(record)).bytes
+                frames += assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(frame)).value
+                opened++
+            }
+            return frames.filter { it != LinkFrame.Rekey }
         }
+    }
 
     private fun decodePayload(bytes: ByteArray): HandshakePayload =
         assertIs<Decoded.Valid<HandshakePayload>>(HandshakePayload.decode(bytes)).value
