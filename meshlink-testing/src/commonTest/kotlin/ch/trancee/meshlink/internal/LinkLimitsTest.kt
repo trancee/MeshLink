@@ -322,6 +322,29 @@ class LinkLimitsTest {
         }
 
     @Test
+    fun aRecordStillWaitingForItsFirstCreditIsNotCutShortSoTheLinkClosesWithClose() =
+        runTest {
+            // Arrange
+            val air = air()
+            val waiting = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(platformWith(waiting, NeverDials(waiting.radio))).also { it.start() }
+            val fake = connectFake(air, waiting, SMALL_MTU)
+            fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+            sendTo(node, LARGE_PAYLOAD)
+            advanceTimeBy(SETTLE_MILLIS)
+            val end = waiting.radio.ends.single()
+
+            // Act
+            node.stop()
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(CloseReason.SHUTTING_DOWN), closes(end))
+            assertFalse(end.open)
+        }
+
+    @Test
     fun aSlowCentralStallsOnlyItsOwnLinkAndNeverHasMoreThanTheWindowOutstanding() =
         runTest {
             // Arrange
