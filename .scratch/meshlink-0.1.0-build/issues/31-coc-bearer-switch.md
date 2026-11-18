@@ -1,6 +1,6 @@
 # Upgrade links to L2CAP CoC with GATT fallback
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 17, 29
 
