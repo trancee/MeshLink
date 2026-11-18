@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 7 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 8 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch; 2026-11-18, Android CoC adapter).
 
 ## Context
 
@@ -149,3 +149,9 @@ Measured, medians unless noted:
 - **Switch (decisions 1 and 6):** implemented in the core. Every profile, `unsecured` included, moves a kept link to CoC with `BEARER_SWITCH` once it opens. `BEARER_SWITCH` needs no credit; the central grants no more after its own, and the peripheral's notifications until its own are uncredited. A peripheral waits `coc-accept-timeout` (5 s) for the central's channel, then closes with `PROTOCOL_ERROR` ([D-49](../spec/decisions.md#d-49-bearer-switch-timing-and-credits)). Owner decision.
 - **CoC failure (decision 1):** a channel that fails to open leaves the link on credited GATT and reports `ML3005` `BearerFallback`, unless the platform has no CoC. A lost channel ends the link, and the central links again once, as after a transient loss; the new link runs a fresh hello or handshake ([C-07](../spec/decisions.md#c-07)).
 - **Adapters:** the Android and iOS radios report CoC `UNSUPPORTED` until the backlog's tickets 31a and 31b, which also take over the 133/147 and silent-close mapping and the iOS cap of 3 listed above for ticket 31.
+
+2026-11-18, Android CoC adapter (0.1.0 backlog ticket "Android L2CAP CoC adapter and GATT failure mapping"):
+
+- **CoC (decisions 1 and 6):** on Android 10 (API 29) and later the radio listens on an insecure LE CoC server socket and opens insecure channels to a peer's PSM (library rule R2). Android 8 and 9 report CoC `UNSUPPORTED`, so those nodes offer no PSM and stay on GATT. A server whose `accept` fails, or Bluetooth turning off, closes the server and every channel it accepted without a `RadioEvent.Failed`; centrals that read the old PSM fail to open a channel and fall back with `ML3005`. Owner decision.
+- **Blocking calls:** socket `accept`, `connect` and reads block, and cancelling a coroutine doesn't abort them, so the adapter closes the socket when the caller is cancelled. A collector that stops reading a channel therefore closes it.
+- **Transient failures (decision 4):** a central connect the stack ends with status 133 (`GATT_ERROR`) or 147 (`GATT_CONNECTION_TIMEOUT`), during connection or service discovery, fails with `RadioFailure.TRANSIENT`. The stack closing an open central link with 133, 147 or 22 (`TERMINATED_BY_LOCAL_HOST`) reports `RadioEvent.Disconnected(transient = true)`. AOSP's `gatt_rsp_timeout` drops a link whose ATT request goes unanswered for 30 s (library rule R8), which should arrive as status 22; ticket 33 checks this on phones. Every other status, the app's own disconnect and every peripheral-side close are not transient. Owner decision.

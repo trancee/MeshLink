@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 
 /**
  * This node's link to a peripheral, as GATT client (ADR 0010). [open] connects directly over LE,
@@ -18,16 +19,21 @@ import kotlinx.coroutines.CancellationException
  * arrive on [incoming]. Every GATT request waits for the previous one's callback ([GattExchange]).
  *
  * Requests have no timeout of their own: the stack ends a connection attempt it cannot complete
- * (status 147 after about 30 s), and the core's handshake timer ends a stalled link.
+ * (status 147 after about 30 s), and the core's handshake timer ends a stalled link. A connect the
+ * stack ends with a status worth retrying fails as [RadioFailure.TRANSIENT], and the stack closing
+ * the open link with one is a transient [RadioEvent.Disconnected] ([AndroidGatt.losesTransiently]).
+ * [openChannel] opens L2CAP CoC channels on [io] through [CocChannels]; they close with the link.
  */
 internal class GattCentralLink(
     private val context: Context,
     private val device: BluetoothDevice,
+    io: CoroutineDispatcher,
     private val emit: (RadioEvent) -> Unit,
 ) : StreamLink(AndroidPeer(device)),
     CentralLink {
     private val exchange = GattExchange()
     private val callback = Callback()
+    private val channels = CocChannels(device, io)
 
     @Volatile private var gatt: BluetoothGatt? = null
 
@@ -36,6 +42,9 @@ internal class GattCentralLink(
     @Volatile private var mtu = MeshGatt.DEFAULT_ATT_MTU
 
     @Volatile private var opened = false
+
+    /** The status the stack closed the link with; success until it does. */
+    @Volatile private var lost = BluetoothGatt.GATT_SUCCESS
 
     override val attMtu: Int get() = mtu
 
@@ -50,7 +59,11 @@ internal class GattCentralLink(
             }
         if (failure != null) disconnect()
         opened = failure == null
-        return failure?.let { RadioResult.Failed(it) } ?: RadioResult.Ok(this)
+        return when {
+            failure == null -> RadioResult.Ok(this)
+            AndroidGatt.failsTransiently(lost) -> RadioResult.Failed(RadioFailure.TRANSIENT)
+            else -> RadioResult.Failed(failure)
+        }
     }
 
     override suspend fun readCapability(): RadioResult<ByteArray> {
@@ -62,8 +75,7 @@ internal class GattCentralLink(
         }
     }
 
-    // L2CAP CoC arrives with ticket 31a.
-    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
 
     override suspend fun send(chunk: ByteArray): Boolean {
         val answer =
@@ -82,7 +94,8 @@ internal class GattCentralLink(
     override fun closed() {
         gatt?.close()
         exchange.close()
-        if (opened) emit(RadioEvent.Disconnected(this))
+        channels.close()
+        if (opened) emit(RadioEvent.Disconnected(this, AndroidGatt.losesTransiently(lost)))
     }
 
     private suspend fun establish(): RadioFailure? {
@@ -166,6 +179,7 @@ internal class GattCentralLink(
             if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
                 exchange.answer(GattAnswer(status))
             } else {
+                lost = status
                 close()
             }
         }

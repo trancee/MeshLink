@@ -20,8 +20,8 @@ internal object AndroidGatt {
 
     /**
      * Connects to [device] directly (not auto-connect) over LE. API 26–36 initiate on the 1M and 2M
-     * PHYs (library rule R4); API 37's connection settings have no PHY choice. Retries on status 133
-     * and 147 belong to ticket 29, PHY requests to ticket 32.
+     * PHYs (library rule R4); API 37's connection settings have no PHY choice. The core retries a
+     * connect that [failsTransiently]; PHY requests belong to ticket 32.
      */
     fun connect(
         context: Context,
@@ -39,6 +39,20 @@ internal object AndroidGatt {
         } else {
             LegacyGatt.connect(context, device, callback)
         }
+
+    /**
+     * Whether a connection that ended with [status] before its link was up is worth retrying:
+     * `GATT_ERROR` (133) and `GATT_CONNECTION_TIMEOUT` (147), which retries cleared in the lab
+     * (library rule R7).
+     */
+    fun failsTransiently(status: Int): Boolean = status == GATT_ERROR || status == GATT_CONNECTION_TIMEOUT
+
+    /**
+     * Whether the stack closing an open link with [status] is a transient loss its central
+     * reconnects after: 133, 147, or 22 (terminated by the local host), which the stack reports
+     * after it dropped a link whose ATT request went unanswered for 30 s (library rule R8).
+     */
+    fun losesTransiently(status: Int): Boolean = failsTransiently(status) || status == TERMINATED_BY_LOCAL_HOST
 
     /** Writes [value] to [characteristic] without response. */
     fun write(
@@ -77,3 +91,8 @@ internal object AndroidGatt {
             GattExchange.legacy(LegacyGatt.notify(server, device, characteristic, value))
         }
 }
+
+// The stack's status codes for link failures; the SDK leaves them hidden or adds them late (147 in API 35).
+private const val GATT_ERROR = 133
+private const val GATT_CONNECTION_TIMEOUT = 147
+private const val TERMINATED_BY_LOCAL_HOST = 22

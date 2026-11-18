@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
@@ -92,23 +93,6 @@ class AndroidRadioCentralTest {
         }
 
     @Test
-    fun theRadioOffersNoL2capChannelsYet() =
-        runTest {
-            // Arrange
-            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
-            val link = connected(radio)
-
-            // Act
-            val listening = radio.listenForChannels()
-            radio.stopListening()
-            val opened = link.openChannel(PSM)
-
-            // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(listening).reason)
-            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(opened).reason)
-        }
-
-    @Test
     fun theLinkUsesTheMtuThePeripheralGranted() =
         runTest {
             // Arrange
@@ -164,7 +148,7 @@ class AndroidRadioCentralTest {
             runCurrent()
 
             // Act
-            callback().onConnectionStateChange(gatt(), GATT_ERROR, BluetoothProfile.STATE_DISCONNECTED)
+            callback().onConnectionStateChange(gatt(), FAILED_ESTABLISHMENT, BluetoothProfile.STATE_DISCONNECTED)
 
             // Assert
             assertEquals(RadioFailure.PEER_UNREACHABLE, assertIs<RadioResult.Failed>(result.await()).reason)
@@ -176,7 +160,7 @@ class AndroidRadioCentralTest {
     fun aConnectionThatFailsBeforeConnectGattReturnsClosesTheClient() =
         runTest {
             // Arrange
-            ShadowMeshDevice.connectStatus = GATT_ERROR
+            ShadowMeshDevice.connectStatus = FAILED_ESTABLISHMENT
             val radio = AndroidRadio(context, manager, adapter, backgroundScope)
 
             // Act
@@ -185,6 +169,81 @@ class AndroidRadioCentralTest {
             // Assert
             assertEquals(RadioFailure.PEER_UNREACHABLE, assertIs<RadioResult.Failed>(result).reason)
             assertTrue(shadow().isClosed)
+        }
+
+    @Test
+    fun aConnectionThatEndsWithStatus133Or147IsTransient() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val events = collect(radio)
+
+            // Act
+            val results =
+                listOf(GATT_ERROR, GATT_CONNECTION_TIMEOUT).map { status ->
+                    ShadowMeshDevice.connectStatus = status
+                    radio.connect(peer)
+                }
+
+            // Assert
+            assertEquals(
+                listOf(RadioFailure.TRANSIENT, RadioFailure.TRANSIENT),
+                results.map { assertIs<RadioResult.Failed>(it).reason },
+            )
+            assertTrue(events.isEmpty())
+        }
+
+    @Test
+    fun aStatus133DuringServiceDiscoveryIsTransient() =
+        runTest {
+            // Arrange
+            ShadowMeshGatt.answerDiscovery = false
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val result = async { radio.connect(peer) }
+            runCurrent()
+
+            // Act
+            callback().onConnectionStateChange(gatt(), GATT_ERROR, BluetoothProfile.STATE_DISCONNECTED)
+
+            // Assert
+            assertEquals(RadioFailure.TRANSIENT, assertIs<RadioResult.Failed>(result.await()).reason)
+        }
+
+    @Test
+    fun theStackClosingAnOpenLinkWith133Or147Or22IsATransientLoss() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val events = collect(radio)
+            val statuses = listOf(GATT_ERROR, GATT_CONNECTION_TIMEOUT, TERMINATED_BY_LOCAL_HOST)
+
+            // Act
+            statuses.forEach { status ->
+                connected(radio)
+                callback().onConnectionStateChange(gatt(), status, BluetoothProfile.STATE_DISCONNECTED)
+            }
+
+            // Assert
+            assertEquals(listOf(true, true, true), events.map { assertIs<RadioEvent.Disconnected>(it).transient })
+        }
+
+    @Test
+    fun aPeerOrSupervisionCloseAndOurOwnDisconnectAreNotTransient() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val events = collect(radio)
+
+            // Act
+            listOf(TERMINATED_BY_PEER, SUPERVISION_TIMEOUT).forEach { status ->
+                connected(radio)
+                callback().onConnectionStateChange(gatt(), status, BluetoothProfile.STATE_DISCONNECTED)
+            }
+            connected(radio).disconnect()
+            callback().onConnectionStateChange(gatt(), GATT_ERROR, BluetoothProfile.STATE_DISCONNECTED)
+
+            // Assert
+            assertEquals(listOf(false, false, false), events.map { assertIs<RadioEvent.Disconnected>(it).transient })
         }
 
     @Test
@@ -376,7 +435,7 @@ class AndroidRadioCentralTest {
     fun aLinkThatNeverOpenedCanNeitherReadNorWrite() =
         runTest {
             // Arrange
-            val link = GattCentralLink(context, device) {}
+            val link = GattCentralLink(context, device, Dispatchers.IO) {}
 
             // Act
             val read = link.readCapability()
@@ -549,7 +608,11 @@ class AndroidRadioCentralTest {
         const val GRANTED_MTU = 185
         const val SMALL_MTU = 8
         const val GATT_ERROR = 133
-        const val PSM = 0x0080
+        const val GATT_CONNECTION_TIMEOUT = 147
+        const val TERMINATED_BY_LOCAL_HOST = 22
+        const val TERMINATED_BY_PEER = 19
+        const val SUPERVISION_TIMEOUT = 8
+        const val FAILED_ESTABLISHMENT = 62
         val ENABLE: ByteArray = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
     }
 }

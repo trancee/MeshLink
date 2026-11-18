@@ -21,9 +21,9 @@ Split from ticket 31 (Q1). The Android radio implements the CoC half of the `Rad
 
 ## Acceptance criteria
 
-- [ ] Robolectric tests cover the listener (PSM, accept, stop), channel open success and each failure, stream reads, writes, EOF and close, and the 133/147/silent-close mapping.
-- [ ] Robolectric tests on API 28 show no listener, no `COC_AVAILABLE` and no `L2CAP_PSM`.
-- [ ] `./gradlew check` passes with Kover at 100%.
+- [x] Robolectric tests cover the listener (PSM, accept, stop), channel open success and each failure, stream reads, writes, EOF and close, and the 133/147/silent-close mapping.
+- [x] Robolectric tests on API 26–28 (tested on 26) show no listener, no `COC_AVAILABLE` and no `L2CAP_PSM`. Amended from "API 28" (Q3).
+- [x] `./gradlew check` passes with Kover at 100%.
 
 ## Proof commands
 
@@ -38,3 +38,11 @@ Split from ticket 31 (Q1). The Android radio implements the CoC half of the `Rad
 ## Devices needed
 
 None. Ticket 33 proves CoC on phone pairs.
+
+## Outcome
+
+- **Owner decisions (2026-11-18):** Q1 a central connect the stack ends with 133 or 147, before the link is up (service discovery included), fails as `TRANSIENT`; the stack closing an open central link with 133, 147 or 22 is `Disconnected(transient = true)`; every other status, the app's own disconnect and every peripheral link are not transient. Q2 a failed `accept` or Bluetooth turning off closes the listener and its channels without `RadioEvent.Failed`; centrals fall back with `ML3005`. Q3 Robolectric runs SDK 26 and 37 only, so the Android 8/9 criterion is tested on API 26. Recorded in ADR 0009 (version 8).
+- **Adapter:** `CocListener` accepts channels as peripheral and `CocChannels` opens them as central, both over `CocChannel`, a `RadioStream` on a `BluetoothSocket`. Blocking `accept`, `connect` and reads run on `Dispatchers.IO`; a cancelled caller closes the socket, since cancellation can't abort them. `GattCentralLink` maps 133/147/22 through `AndroidGatt.failsTransiently` and `losesTransiently`.
+- **No COC_AVAILABLE on Android 8/9:** `belowAndroid10TheRadioNeitherListensNorOpensChannels` shows API 26 returns `UNSUPPORTED`; the core test `nodeWithCocOffOrOnARadioWithoutCocOffersNoPsmAndNoFlag` shows such a node offers no PSM and no flag.
+- **CREDIT window:** the core enforces it; `Credits.write` sends one chunk of at most ATT MTU − 3 per credit, and the adapter notifies each chunk as one notification (`aWriteIsNotifiedInChunksOfTheNegotiatedMtuMinus3`). No adapter change was needed.
+- **Unverified:** status 22 for the 30 s ATT timeout follows AOSP `gatt_rsp_timeout`; ticket 33 checks it, and CoC itself, on phones.
