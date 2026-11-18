@@ -21,7 +21,7 @@ internal object AndroidGatt {
     /**
      * Connects to [device] directly (not auto-connect) over LE. API 26–36 initiate on the 1M and 2M
      * PHYs (library rule R4); API 37's connection settings have no PHY choice. The core retries a
-     * connect that [failsTransiently]; PHY requests belong to ticket 32.
+     * connect that [failsTransiently]; [GattCentralLink] asks for 2M once connected.
      */
     fun connect(
         context: Context,

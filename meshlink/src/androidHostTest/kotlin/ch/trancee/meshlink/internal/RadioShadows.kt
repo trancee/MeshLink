@@ -364,7 +364,7 @@ class ShadowMeshDevice : ShadowBluetoothDevice() {
     }
 }
 
-/** Scripts a GATT client's MTU, discovery, read and write answers and records its writes. */
+/** Scripts a GATT client's MTU, discovery, read, write and RSSI answers and records its writes and PHY requests. */
 @Implements(BluetoothGatt::class)
 class ShadowMeshGatt : ShadowBluetoothGatt() {
     @RealObject private lateinit var gatt: BluetoothGatt
@@ -374,6 +374,22 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
         requestedMtus += mtu
         if (refuseMtu) return false
         if (answerMtu) gattCallback.onMtuChanged(gatt, grantedMtu ?: mtu, mtuStatus)
+        return true
+    }
+
+    @Implementation
+    override fun setPreferredPhy(
+        txPhy: Int,
+        rxPhy: Int,
+        phyOptions: Int,
+    ) {
+        phyRequests += listOf(txPhy, rxPhy, phyOptions)
+    }
+
+    @Implementation
+    override fun readRemoteRssi(): Boolean {
+        if (refuseRssi) return false
+        gattCallback.onReadRemoteRssi(gatt, rssi, rssiStatus)
         return true
     }
 
@@ -469,6 +485,12 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
         val written = mutableListOf<ByteArray>()
         val writeTypes = mutableListOf<Int>()
 
+        /** Every `setPreferredPhy` call's transmit PHYs, receive PHYs and options. */
+        val phyRequests = mutableListOf<List<Int>>()
+        var rssi = 0
+        var rssiStatus = BluetoothGatt.GATT_SUCCESS
+        var refuseRssi = false
+
         /** The results of the next write calls; [GattExchange.STARTED] once used up. */
         val writeResults = ArrayDeque<Int>()
 
@@ -490,6 +512,10 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
             descriptorWrites.clear()
             written.clear()
             writeTypes.clear()
+            phyRequests.clear()
+            rssi = 0
+            rssiStatus = BluetoothGatt.GATT_SUCCESS
+            refuseRssi = false
             writeResults.clear()
             writeStatuses.clear()
         }
