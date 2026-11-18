@@ -183,6 +183,15 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - To corrupt a layout vector in a T10 test, flip its last byte: the first byte is the frame type, which selects the handler, so flipping it moves the test into a skip.
 - libsodium's ML-KEM-768 decapsulation doesn't run the FIPS 203 decapsulation-key hash check; Wycheproof's `InvalidDecapsulationKey` tests pass through it.
 
+## Fuzzing
+
+- Code: `meshlink-core/src/androidHostTest/kotlin/ch/trancee/meshlink/fuzz/` (targets, registry, launcher, completeness test), `meshlink-core/src/androidHostTest/fuzz/` (committed corpus), `tools/fuzz/seed_corpus.py`, `.github/workflows/fuzz.yml`.
+- Verified: `./gradlew :meshlink-core:fuzz -Pfuzz.seconds=30` runs all 10 targets (0.1 to 1.4 million inputs/s each on an M-series Mac); a target that throws fails the task with `fuzz targets failed: <name>` and writes `build/fuzz/crashes/<name>-crash-<sha1>`.
+- Reproduce a crash: make it a regression input in the deterministic mutation tier (`meshlink-crypto-sodium` vector handlers) or a focused `commonTest`, fix the decoder, then rerun the target.
+- A new decoder fails `FuzzTargetsTest` until a registry entry in `FuzzTargets.kt` names it; add its seeds to `seed_corpus.py` and rerun the merge (`PROJECT.md`).
+- The host test loads the main classes from AGP's `classes.jar`, not a directory; walking a directory found nothing and the test passed vacuously, so it now asserts that it finds decoders.
+- `testAndroidHostTest` is registered after the build script runs; `tasks.named` fails there, so the fuzz task reaches it through `tasks.withType<Test>().matching`.
+
 ## Rust reference
 
 - Code: `tools/reference/` (test-only crate, Rust 1.100.0 from its `rust-toolchain.toml`); writes the tier 2 files in `docs/spec/vectors/`.

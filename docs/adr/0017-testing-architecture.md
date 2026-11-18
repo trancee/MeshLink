@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 11 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 12 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness; 2026-11-18, fuzzing).
 
 ## Context
 
@@ -191,3 +191,10 @@ Inputs:
 2026-11-16, production randomness (0.1.0 backlog ticket "Rotate advertisements and recognize rotated peers"):
 
 - **Production randomness (decision 1):** a platform injects `SystemRandom` from `:meshlink-core` through `PlatformPort.random`, as it injects `SystemClock`. It wraps `kotlin.random.Random.Default` for non-cryptographic draws such as a node's rotation phase; key material still comes from `CryptoProvider`. `RandomSource.kt` now holds both `SeededRandom` and `SystemRandom`, and both detekt rules exempt it. A `VirtualPlatform` injects its air's `SeededRandom`, so one seed still replays one run.
+
+2026-11-18, fuzzing (0.1.0 backlog ticket "Fuzz every decoder on a schedule with Jazzer"):
+
+- **One JVM per target (decision 9):** the standalone driver fuzzes one `--target_class` per process, so `:meshlink-core:fuzz` is one `JavaExec` whose main class, `FuzzLauncher` in `androidHostTest`, starts `com.code_intelligence.jazzer.Jazzer` once per target on the same classpath: the `jazzer` configuration plus the Android host-test runtime classpath. Each target runs for `-Pfuzz.seconds` (30 by default) with a 5 s per-input timeout and a 1 GiB heap, so a throw, a hang or an unbounded allocation is a finding; any finding fails the task.
+- **Targets:** one per top-level decoder, in `meshlink-core/src/androidHostTest/kotlin/ch/trancee/meshlink/fuzz/`, outside the Kover-measured sources. Each checks that a decoded value re-encodes to its input, the invariant the deterministic tier already holds. `FuzzTargetsTest` in the default suite reads the main classes and fails when a public or internal method that takes bytes and returns `Decoded` belongs to no target, and runs every target over its committed corpus.
+- **Corpus:** committed in `meshlink-core/src/androidHostTest/fuzz/<target>/`. `tools/fuzz/seed_corpus.py` writes every `encoded` value of the matching vector file as a seed, and `-Pfuzz.seeds=DIR` replaces each target's corpus with the libFuzzer merge of the seeds and the old corpus. A fuzz run reads the committed corpus and writes new inputs only under `build/fuzz/`.
+- **CI:** `.github/workflows/fuzz.yml` runs weekly with 300 s per target and on pull requests that change the targets, the corpus or the task, with 15 s per target; it uploads any crash input. It is not a required check.

@@ -1,0 +1,50 @@
+# Coverage-guided fuzzing of every decoder (ticket 34; ADR 0017 decision 9, ADR 0005 "CI").
+# Scheduled and not a required check. A pull request that touches the fuzz targets, the corpus or
+# this workflow gets a short run; the weekly run gives each target five minutes. A crash fails the
+# job and uploads the crashing input; docs/agents/lessons.md ("Fuzzing") says how to reproduce it.
+name: Fuzz
+
+on:
+  pull_request:
+    paths:
+      - meshlink-core/src/androidHostTest/**
+      - meshlink-core/build.gradle.kts
+      - tools/fuzz/**
+      - .github/workflows/fuzz.yml
+  schedule:
+    - cron: "17 2 * * 4" # weekly, Thursday 02:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Jazzer decoder fuzzing (scheduled, not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+      # Auto-download is off; point Gradle at the image's JDK 21 (toolchain) and JDK 25 (daemon).
+      - name: Use the image's JDKs
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64" >> ~/.gradle/gradle.properties
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      - run: ./gradlew :meshlink-core:fuzz -Pfuzz.seconds=${{ github.event_name == 'pull_request' && '15' || '300' }}
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crashes
+          path: meshlink-core/build/fuzz/crashes/
+          if-no-files-found: ignore

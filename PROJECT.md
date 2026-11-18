@@ -117,6 +117,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Android shim symbol and size gates (also in `check`) | `./gradlew checkSodiumJniSymbols checkSodiumJniSize` |
 | iOS gates: libsodium archive size per slice, and `MeshLinkKit` symbols (macOS only) | `./gradlew checkSodiumAppleSize :meshlink:checkFrameworkSymbols` |
 | Thin-adapter list (also in `check`) | `./gradlew checkThinAdapters` |
+| Fuzz every decoder for 30 s each (not in `check`; `-Pfuzz.seconds=N` per target); crash inputs land in `meshlink-core/build/fuzz/crashes/` | `./gradlew :meshlink-core:fuzz` |
+| Reseed and minimize the committed fuzz corpus from the vector files | `python3 tools/fuzz/seed_corpus.py build/fuzz-seeds && ./gradlew :meshlink-core:fuzz -Pfuzz.seeds=build/fuzz-seeds` |
 | Lab tools' unit tests (also in `docs.yml`) | `python3 -m unittest discover -s tools/lab/tests` |
 | One device scenario on two lab phones, from a dedicated clean worktree; `--profile` is `unsecured` (default), `classical` (needs ticket 24) or `post-quantum` (needs ticket 25) | `python3 tools/lab/lab.py run --scenario direct-message --devices <alias>,<alias> --profile unsecured` |
 | Turn runs into one T9 evidence record (repeat `--run`; several runs need `--name`) | `python3 tools/lab/lab.py evidence --run build/lab/<run> [--name <name>]` |
@@ -137,6 +139,7 @@ The `buildSodiumJni<Target>` tasks link `meshlink-crypto-sodium/native/meshlink_
 | iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, install `minisign` (Homebrew), restore the libsodium cache, `./gradlew buildLibsodiumApple buildLibsodiumHostMacos`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh`, install the pinned NDK, `./gradlew buildLibsodiumAndroid`, `tools/maven-consumer/test.sh`, `./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols` | Yes |
 | Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | As the macOS job, without the NDK install and the Maven consumer | No; weekly and on manual dispatch |
 | Reference vectors (`reference-vectors.yml`, scheduled, not required) | `ubuntu-24.04` | `rustup toolchain install`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, `cargo run --locked`, diff `docs/spec/vectors/` | No; weekly and on manual dispatch |
+| Fuzz (`fuzz.yml`, scheduled, not required) | `ubuntu-24.04` | `./gradlew :meshlink-core:fuzz` with 300 s per target; 15 s on a pull request that changes the fuzz targets, corpus, `meshlink-core/build.gradle.kts`, `tools/fuzz/` or the workflow; uploads `meshlink-core/build/fuzz/crashes/` on failure | No; weekly, on manual dispatch and on those pull requests |
 
 Measured on PR 12 (2026-11-14), with no Gradle cache, because pull requests only read the cache that `main` writes: Linux 4 min 14 s; macOS 9 min 13 s and 11 min 53 s (about 5.5 min each for `iosSimulatorArm64Test` and `test.sh`). Both stay under ADR 0017's 15 min limit. The basic provider doesn't cache `~/.konan`, so every macOS run downloads the Kotlin/Native LLVM bundle.
 
