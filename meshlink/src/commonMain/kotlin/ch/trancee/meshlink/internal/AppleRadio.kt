@@ -23,10 +23,13 @@ internal class AppleRadio(
 
     private val central = AppleCentral(bluetooth) { inbox.trySend(it) }
 
-    private val host = ApplePeripheralHost(bluetooth) { inbox.trySend(it) }
+    private val host: ApplePeripheralHost =
+        ApplePeripheralHost(bluetooth, onPowerLoss = { channels.powerLost() }) { inbox.trySend(it) }
+
+    private val channels = AppleChannelListener(bluetooth, host.managerState) { inbox.trySend(it) }
 
     /** Where the thin layer passes CoreBluetooth's callbacks on. */
-    val delegates = CoreBluetoothDelegates(central, central.links, host)
+    val delegates = CoreBluetoothDelegates(central, central.links, host, channels)
 
     private var opened = false
 
@@ -58,8 +61,8 @@ internal class AppleRadio(
             else -> if (bluetooth.authorization == CbAuthorization.NOT_DETERMINED) setOf(DENIED) else null
         }
 
-    // Ticket 31 sets iOS's cap; none until then.
-    override val peripheralLinkCap: Int? = null
+    /** An iPhone holds at most 3 incoming links on every iOS version (ADR 0009 decision 6; library rule R16). */
+    override val peripheralLinkCap: Int = PERIPHERAL_LINK_CAP
 
     override val events: Flow<RadioEvent> = inbox.receiveAsFlow()
 
@@ -88,15 +91,16 @@ internal class AppleRadio(
 
     override fun serveCapability(record: ByteArray): RadioResult<Unit> = host.serve(record)
 
-    // L2CAP CoC arrives with ticket 31b; until then a node offers no channel and stays on GATT.
-    override suspend fun listenForChannels(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+    override suspend fun listenForChannels(): RadioResult<Int> = channels.listen()
 
-    override fun stopListening() = Unit
+    override fun stopListening() = channels.stop()
 
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = central.connect(peer)
 }
 
 private val DENIED = Requirement.PermissionDenied(PermissionKind.Bluetooth)
+
+private const val PERIPHERAL_LINK_CAP = 3
 
 /** The MeshLink GATT service and advertisement UUIDs as `CBUUID.data` (spec D-12 and D-13). */
 internal object AppleGatt {

@@ -10,11 +10,13 @@ import kotlinx.coroutines.flow.first
  * unsubscribes, which CoreBluetooth also reports when the central disconnects. A whole capability
  * read from a subscribed central replaces its link, because an unbonded Android central that
  * reconnects subscribes no more (library rule R17). Notifications wait while `updateValue` reports
- * a full queue, until `peripheralManagerIsReady(toUpdateSubscribers:)`. The cap of 3 inbound links
- * (ADR 0009 decision 6) belongs to ticket 29.
+ * a full queue, until `peripheralManagerIsReady(toUpdateSubscribers:)`. The core caps the inbound
+ * links at [AppleRadio.peripheralLinkCap] (ADR 0009 decision 6). [onPowerLoss] runs whenever the
+ * peripheral manager reports a state other than powered on.
  */
 internal class ApplePeripheralHost(
     private val bluetooth: CoreBluetooth,
+    private val onPowerLoss: () -> Unit,
     private val emit: (RadioEvent) -> Unit,
 ) : PeripheralManagerEvents {
     private var record = ByteArray(0)
@@ -49,12 +51,13 @@ internal class ApplePeripheralHost(
         return RadioResult.Ok(Unit)
     }
 
-    /** Unless powered on, the peripheral manager's service and links are gone. */
+    /** Unless powered on, the peripheral manager's service, channel and links are gone. */
     override fun peripheralState(state: Long) {
         if (state != CbState.POWERED_ON) {
             published = false
             subscribed.clear()
             links.values.toList().forEach { it.close() }
+            onPowerLoss()
         }
         managerState.value = state
     }

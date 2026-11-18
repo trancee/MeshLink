@@ -75,6 +75,12 @@ internal interface PeripheralCalls {
 
     /** `CBPeripheral.maximumWriteValueLength(for: .withoutResponse)` of [peripheral]. */
     fun maximumWriteLength(peripheral: CbPeripheral): Int
+
+    /** Opens an L2CAP channel to [psm] on [peripheral]. */
+    fun openChannel(
+        peripheral: CbPeripheral,
+        psm: Int,
+    )
 }
 
 /** The `CBPeripheralManager` calls. */
@@ -105,6 +111,12 @@ internal interface PeripheralManagerCalls {
 
     /** `CBCentral.maximumUpdateValueLength` of [central]. */
     fun maximumNotifyLength(central: CbCentral): Int
+
+    /** Publishes an L2CAP channel without encryption (library rule R2). */
+    fun publishChannel()
+
+    /** Unpublishes the L2CAP channel on [psm]. */
+    fun unpublishChannel(psm: Int)
 }
 
 /**
@@ -115,6 +127,7 @@ internal class CoreBluetoothDelegates(
     val central: CentralManagerEvents,
     val peripheral: PeripheralEvents,
     val peripheralManager: PeripheralManagerEvents,
+    val channels: ChannelListenerEvents,
 )
 
 /** What the `CBCentralManagerDelegate` reports. */
@@ -174,6 +187,12 @@ internal interface PeripheralEvents {
         peripheral: CbPeripheral,
         services: List<ByteArray>,
     )
+
+    /** `didOpen` an L2CAP channel to [peripheral], or null on an error. */
+    fun channelOpened(
+        peripheral: CbPeripheral,
+        channel: CbChannel?,
+    )
 }
 
 /** What the `CBPeripheralManagerDelegate` reports. */
@@ -211,6 +230,56 @@ internal interface PeripheralManagerEvents {
 
     /** `peripheralManagerIsReady(toUpdateSubscribers:)`. */
     fun readyToNotify()
+}
+
+/** What the `CBPeripheralManagerDelegate` reports about the published L2CAP channel. */
+internal interface ChannelListenerEvents {
+    /** `didPublishL2CAPChannel`: the PSM, or null on an error. */
+    fun channelPublished(psm: Int?)
+
+    /** `didOpen` an L2CAP channel from a central, or null on an error. */
+    fun channelOpened(channel: CbChannel?)
+}
+
+/**
+ * An open `CBL2CAPChannel`, which the thin layer keeps, with its input and output streams; [peerId]
+ * is its peer's `identifier`. Closing it releases the channel, which closes it at both ends.
+ */
+internal interface CbChannel {
+    val peerId: String
+
+    /** `inputStream.hasBytesAvailable`. */
+    val hasBytes: Boolean
+
+    /** `outputStream.hasSpaceAvailable`. */
+    val hasSpace: Boolean
+
+    /** Opens both streams; their events reach [events] on the CoreBluetooth queue. */
+    fun open(events: CbChannelEvents)
+
+    /** `inputStream.read` into [buffer]: the count read, 0 at the end, or a negative count on an error. */
+    fun read(buffer: ByteArray): Int
+
+    /** `outputStream.write` of [bytes] from [offset]: the count written, or 0 or less if it failed. */
+    fun write(
+        bytes: ByteArray,
+        offset: Int,
+    ): Int
+
+    /** Closes both streams and stops their events. */
+    fun close()
+}
+
+/** The `NSStreamDelegate` events of a [CbChannel]'s streams. */
+internal interface CbChannelEvents {
+    /** `hasBytesAvailable` on the input stream. */
+    fun readable()
+
+    /** `hasSpaceAvailable` on the output stream. */
+    fun writable()
+
+    /** `endEncountered` or `errorOccurred` on either stream. */
+    fun ended()
 }
 
 /** A remote peripheral, a `CBPeripheral`, which the thin layer keeps; [id] is its `identifier`. */

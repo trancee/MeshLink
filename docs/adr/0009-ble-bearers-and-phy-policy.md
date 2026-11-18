@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 8 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch; 2026-11-18, Android CoC adapter).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 9 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch; 2026-11-18, Android CoC adapter; 2026-11-18, iOS CoC adapter).
 
 ## Context
 
@@ -155,3 +155,11 @@ Measured, medians unless noted:
 - **CoC (decisions 1 and 6):** on Android 10 (API 29) and later the radio listens on an insecure LE CoC server socket and opens insecure channels to a peer's PSM (library rule R2). Android 8 and 9 report CoC `UNSUPPORTED`, so those nodes offer no PSM and stay on GATT. A server whose `accept` fails, or Bluetooth turning off, closes the server and every channel it accepted without a `RadioEvent.Failed`; centrals that read the old PSM fail to open a channel and fall back with `ML3005`. Owner decision.
 - **Blocking calls:** socket `accept`, `connect` and reads block, and cancelling a coroutine doesn't abort them, so the adapter closes the socket when the caller is cancelled. A collector that stops reading a channel therefore closes it.
 - **Transient failures (decision 4):** a central connect the stack ends with status 133 (`GATT_ERROR`) or 147 (`GATT_CONNECTION_TIMEOUT`), during connection or service discovery, fails with `RadioFailure.TRANSIENT`. The stack closing an open central link with 133, 147 or 22 (`TERMINATED_BY_LOCAL_HOST`) reports `RadioEvent.Disconnected(transient = true)`. AOSP's `gatt_rsp_timeout` drops a link whose ATT request goes unanswered for 30 s (library rule R8), which should arrive as status 22; ticket 33 checks this on phones. Every other status, the app's own disconnect and every peripheral-side close are not transient. Owner decision.
+
+2026-11-18, iOS CoC adapter (0.1.0 backlog ticket "iOS L2CAP CoC adapter and peripheral link cap"):
+
+- **CoC (decisions 1 and 6):** the iOS radio publishes an unencrypted L2CAP channel (`publishL2CAPChannel(withEncryption: false)`, library rule R2) and opens channels to a peer's PSM with `openL2CAPChannel`. A channel accepted as peripheral carries the peer of the same central's GATT link.
+- **Stream run loop:** a channel's `NSInputStream` and `NSOutputStream` are scheduled on the main run loop in its common modes, as in the bake-off, and each stream event moves to the Bluetooth queue. `CFReadStreamSetDispatchQueue` would avoid the main thread, but no device run has used it. Owner decision.
+- **Open timeout:** CoreBluetooth never times out `openL2CAPChannel`, so the iOS central fails an open with `RADIO_ERROR` after 30 s, the same as its connect timeout, and closes a channel that opens later. Owner decision.
+- **Listener and power:** CoreBluetooth ignores a publish while the peripheral manager isn't powered on, so `listenForChannels` fails at once with `RADIO_ERROR` and the node stays on GATT. Bluetooth turning off forgets the PSM, fails a pending publish and closes the accepted channels. Owner decision.
+- **Link limits (decision 6):** the iOS radio reports `peripheralLinkCap` = 3.

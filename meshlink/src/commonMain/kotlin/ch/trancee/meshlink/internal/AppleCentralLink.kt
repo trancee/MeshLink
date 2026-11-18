@@ -14,7 +14,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * reads the capability record and then subscribes to the peripheral's stream. Writes go without
  * response, waiting while `canSendWriteWithoutResponse` is false until
  * `peripheralIsReady(toSendWriteWithoutResponse:)`. Every request waits for the previous one's
- * callback. CoreBluetooth negotiates the ATT MTU by itself.
+ * callback. CoreBluetooth negotiates the ATT MTU by itself. [channels] opens the link's L2CAP CoC
+ * channels.
  *
  * A connection attempt never times out in CoreBluetooth, so [open] cancels it after
  * [CONNECT_TIMEOUT_MILLIS], about when Android's stack gives up. CoreBluetooth callbacks name the
@@ -34,6 +35,9 @@ internal class AppleCentralLink(
 
     /** Counts the moments the peripheral may take more writes, or the link closed. */
     private val wakeups = MutableStateFlow(0)
+
+    /** The link's L2CAP CoC channels, which close with it. */
+    val channels = AppleChannelOpener(bluetooth, peripheral)
 
     override val attMtu: Int get() = bluetooth.maximumWriteLength(peripheral) + RadioPort.ATT_HEADER
 
@@ -79,8 +83,7 @@ internal class AppleCentralLink(
         wakeups.value++
     }
 
-    // L2CAP CoC arrives with ticket 31b.
-    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
 
     override suspend fun send(chunk: ByteArray): Boolean {
         while (!isClosed) {
@@ -98,6 +101,7 @@ internal class AppleCentralLink(
 
     override fun closed() {
         fail()
+        channels.close()
         wakeups.value++
         closing(this)
         if (opened) emit(RadioEvent.Disconnected(this))

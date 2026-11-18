@@ -23,6 +23,8 @@ import platform.CoreBluetooth.CBCharacteristicPropertyNotify
 import platform.CoreBluetooth.CBCharacteristicPropertyRead
 import platform.CoreBluetooth.CBCharacteristicPropertyWriteWithoutResponse
 import platform.CoreBluetooth.CBCharacteristicWriteWithoutResponse
+import platform.CoreBluetooth.CBL2CAPChannel
+import platform.CoreBluetooth.CBL2CAPPSM
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBMutableCharacteristic
 import platform.CoreBluetooth.CBMutableService
@@ -45,7 +47,8 @@ import platform.posix.memcpy
  * The thin layer over CoreBluetooth (Constitution T3, `config/thin-adapters.txt`): each call calls
  * one CoreBluetooth method, and each delegate callback passes its arguments on to the
  * [CoreBluetoothDelegates]. Both managers run on [queue] and never show the power alert; there is
- * no state restoration (ticket 32). Device runs prove it (ticket 17).
+ * no state restoration (ticket 32). L2CAP channels arrive as [IosChannel]s. Device runs prove it
+ * (ticket 17).
  */
 internal class IosCoreBluetooth private constructor(
     private val queue: dispatch_queue_t,
@@ -54,16 +57,16 @@ internal class IosCoreBluetooth private constructor(
     CentralManagerCalls by IosCentralManagerCalls(managers),
     PeripheralCalls by IosPeripheralCalls(managers),
     PeripheralManagerCalls by IosPeripheralManagerCalls(managers) {
-    constructor(queue: dispatch_queue_t) : this(queue, Managers())
+    constructor(queue: dispatch_queue_t) : this(queue, Managers(queue))
 
     override val authorization: Long get() = CBManager.authorization
 
     override fun open(delegates: CoreBluetoothDelegates) {
         val central = CentralDelegate(delegates.central)
-        val peripheralManager = PeripheralManagerDelegate(delegates.peripheralManager)
+        val peripheralManager = PeripheralManagerDelegate(delegates.peripheralManager, delegates.channels, queue)
         managers.delegates = listOf(central, peripheralManager)
         managers.events = delegates
-        managers.peripheralDelegate = PeripheralDelegate(delegates.peripheral)
+        managers.peripheralDelegate = PeripheralDelegate(delegates.peripheral, queue)
         managers.central =
             CBCentralManager(central, queue, mapOf<Any?, Any>(CBCentralManagerOptionShowPowerAlertKey to false))
         managers.peripheralManager =
@@ -76,10 +79,12 @@ internal class IosCoreBluetooth private constructor(
 }
 
 /**
- * The managers, and the delegates they and the peripherals hold weakly, which this keeps alive;
- * [IosCoreBluetooth.open] sets them.
+ * The managers on [queue], and the delegates they and the peripherals hold weakly, which this keeps
+ * alive; [IosCoreBluetooth.open] sets them.
  */
-private class Managers {
+private class Managers(
+    val queue: dispatch_queue_t,
+) {
     lateinit var central: CBCentralManager
     lateinit var peripheralManager: CBPeripheralManager
     lateinit var events: CoreBluetoothDelegates
@@ -174,6 +179,11 @@ private class IosPeripheralCalls(
             .peripheral
             .maximumWriteValueLengthForType(CBCharacteristicWriteWithoutResponse)
             .toInt()
+
+    override fun openChannel(
+        peripheral: CbPeripheral,
+        psm: Int,
+    ) = peripheral.remote.openL2CAPChannel(psm.toUShort())
 }
 
 private class IosPeripheralManagerCalls(
@@ -237,6 +247,10 @@ private class IosPeripheralManagerCalls(
         } ?: false
 
     override fun maximumNotifyLength(central: CbCentral): Int = central.remote.maximumUpdateValueLength.toInt()
+
+    override fun publishChannel() = managers.peripheralManager.publishL2CAPChannelWithEncryption(false)
+
+    override fun unpublishChannel(psm: Int) = managers.peripheralManager.unpublishL2CAPChannel(psm.toUShort())
 }
 
 private class CentralDelegate(
@@ -281,6 +295,7 @@ private class CentralDelegate(
 
 private class PeripheralDelegate(
     private val events: PeripheralEvents,
+    private val queue: dispatch_queue_t,
 ) : NSObject(),
     CBPeripheralDelegateProtocol {
     override fun peripheral(
@@ -340,10 +355,19 @@ private class PeripheralDelegate(
         IosPeripheral(peripheral),
         didModifyServices.map { (it as CBService).UUID.toByteArray() },
     )
+
+    @ObjCSignatureOverride
+    override fun peripheral(
+        peripheral: CBPeripheral,
+        didOpenL2CAPChannel: CBL2CAPChannel?,
+        error: NSError?,
+    ) = events.channelOpened(IosPeripheral(peripheral), didOpenL2CAPChannel.opened(error, queue))
 }
 
 private class PeripheralManagerDelegate(
     private val events: PeripheralManagerEvents,
+    private val channels: ChannelListenerEvents,
+    private val queue: dispatch_queue_t,
 ) : NSObject(),
     CBPeripheralManagerDelegateProtocol {
     override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) {
@@ -393,7 +417,26 @@ private class PeripheralManagerDelegate(
     ) = events.unsubscribed(IosCentral(central), didUnsubscribeFromCharacteristic.UUID.toByteArray())
 
     override fun peripheralManagerIsReadyToUpdateSubscribers(peripheral: CBPeripheralManager) = events.readyToNotify()
+
+    override fun peripheralManager(
+        peripheral: CBPeripheralManager,
+        didPublishL2CAPChannel: CBL2CAPPSM,
+        error: NSError?,
+    ) = channels.channelPublished(if (error == null) didPublishL2CAPChannel.toInt() else null)
+
+    @ObjCSignatureOverride
+    override fun peripheralManager(
+        peripheral: CBPeripheralManager,
+        didOpenL2CAPChannel: CBL2CAPChannel?,
+        error: NSError?,
+    ) = channels.channelOpened(didOpenL2CAPChannel.opened(error, queue))
 }
+
+/** The channel `didOpen` reported, or null on an error. */
+private fun CBL2CAPChannel?.opened(
+    error: NSError?,
+    queue: dispatch_queue_t,
+): CbChannel? = if (error == null) this?.let { IosChannel(it, queue) } else null
 
 private class IosPeripheral(
     val peripheral: CBPeripheral,
