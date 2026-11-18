@@ -10,6 +10,8 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
@@ -26,14 +28,21 @@ import org.robolectric.shadows.ShadowBluetoothDevice
 import org.robolectric.shadows.ShadowBluetoothGatt
 import org.robolectric.shadows.ShadowBluetoothGattServer
 import org.robolectric.shadows.ShadowBluetoothManager
+import org.robolectric.shadows.ShadowBluetoothServerSocket
+import org.robolectric.shadows.ShadowBluetoothSocket
+import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.reflector.Direct
 import org.robolectric.util.reflector.ForType
 import org.robolectric.util.reflector.Reflector.reflector
+import java.io.IOException
+import java.io.InputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicInteger
 
 // Robolectric's own Bluetooth shadows leave out the calls below or answer them with fixed
 // results; these record the radio's requests and script the stack's answers. Their state is static,
-// so every test resets it with resetRadioShadows and registers all five shadows.
+// so every test resets it with resetRadioShadows and registers the shadows it drives.
 
 /** Clears every radio shadow's recorded calls and scripted answers. */
 fun resetRadioShadows() {
@@ -43,6 +52,8 @@ fun resetRadioShadows() {
     ShadowMeshGattServer.clear()
     ShadowMeshDevice.clear()
     ShadowMeshGatt.clear()
+    ShadowMeshServerSocket.clear()
+    ShadowMeshSocket.clear()
 }
 
 /**
@@ -57,6 +68,13 @@ class ShadowMeshAdapter : ShadowBluetoothAdapter() {
     fun getBluetoothLeAdvertiser(): BluetoothLeAdvertiser? =
         if (withoutAdvertiser) null else reflector(AdapterReflector::class.java, adapter).getBluetoothLeAdvertiser()
 
+    @Implementation(minSdk = Build.VERSION_CODES.Q)
+    override fun listenUsingInsecureL2capChannel(): BluetoothServerSocket {
+        listens.incrementAndGet()
+        if (refuseListen) throw IOException("no L2CAP server")
+        return super.listenUsingInsecureL2capChannel()
+    }
+
     @ForType(BluetoothAdapter::class)
     private interface AdapterReflector {
         @Direct
@@ -65,9 +83,15 @@ class ShadowMeshAdapter : ShadowBluetoothAdapter() {
 
     companion object {
         var withoutAdvertiser = false
+        var refuseListen = false
+
+        /** How often the radio asked for an insecure L2CAP CoC server. */
+        val listens = AtomicInteger()
 
         fun clear() {
             withoutAdvertiser = false
+            refuseListen = false
+            listens.set(0)
         }
     }
 }
@@ -262,6 +286,21 @@ class ShadowMeshDevice : ShadowBluetoothDevice() {
         return open(callback)
     }
 
+    @Implementation(minSdk = Build.VERSION_CODES.Q)
+    override fun createInsecureL2capChannel(psm: Int): BluetoothSocket {
+        if (refuseChannel) throw IOException("no L2CAP socket")
+        // The real method needs a Bluetooth service; this is the factory the shadow server uses.
+        val socket: BluetoothSocket =
+            ReflectionHelpers.callStaticMethod(
+                ShadowBluetoothSocket::class.java,
+                "create",
+                ReflectionHelpers.ClassParameter.from(BluetoothDevice::class.java, device),
+            )
+        channels += Channel(psm, socket)
+        onChannel()
+        return socket
+    }
+
     private fun open(callback: BluetoothGattCallback): BluetoothGatt? {
         if (refuseConnect) return null
         val gatt = ShadowBluetoothGatt.newInstance(device)
@@ -286,8 +325,21 @@ class ShadowMeshDevice : ShadowBluetoothDevice() {
         val phy: Int? = null,
     )
 
+    /** One `createInsecureL2capChannel` call: the [psm] asked for and the [socket] created. */
+    class Channel(
+        val psm: Int,
+        val socket: BluetoothSocket,
+    ) {
+        val shadow: ShadowMeshSocket get() = Shadow.extract(socket)
+    }
+
     companion object {
         val connections = mutableListOf<Connection>()
+        val channels = CopyOnWriteArrayList<Channel>()
+        var refuseChannel = false
+
+        /** Runs as each channel socket is created, before the radio gets it. */
+        var onChannel: () -> Unit = {}
         var refuseConnect = false
         var connectOnRequest = true
 
@@ -305,6 +357,9 @@ class ShadowMeshDevice : ShadowBluetoothDevice() {
             connectStatus = null
             discoverable.clear()
             gatts.clear()
+            channels.clear()
+            refuseChannel = false
+            onChannel = {}
         }
     }
 }
@@ -437,6 +492,112 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
             writeTypes.clear()
             writeResults.clear()
             writeStatuses.clear()
+        }
+    }
+}
+
+/**
+ * Lets a closed socket end its reads with EOF, as closing a platform socket aborts them, and lets a
+ * test replace its input stream or fail its writes.
+ */
+@Implements(BluetoothSocket::class)
+class ShadowMeshSocket : ShadowBluetoothSocket() {
+    /** Replaces the socket's input stream when set before the first read. */
+    @Volatile var input: InputStream? = null
+
+    /** How often the socket was closed. */
+    val closes = AtomicInteger()
+
+    @Implementation
+    public override fun getInputStream(): InputStream = input ?: super.getInputStream()
+
+    @Implementation
+    public override fun connect() {
+        if (refuseConnect) throw IOException("connection refused")
+        if (blockConnect) blockConnect()
+        super.connect()
+    }
+
+    @Implementation
+    public override fun close() {
+        closes.incrementAndGet()
+        super.close()
+        inputStreamFeeder.close()
+    }
+
+    companion object {
+        /** Fails every `connect`, as a peer that refuses the PSM does. */
+        @Volatile var refuseConnect = false
+
+        /** Holds every `connect` until its socket closes. */
+        @Volatile var blockConnect = false
+
+        fun clear() {
+            refuseConnect = false
+            blockConnect = false
+        }
+    }
+}
+
+/**
+ * Assigns each server a distinct PSM, aborts `accept` when the server closes, as the platform does,
+ * and lets a test fail a waiting `accept`.
+ */
+@Implements(BluetoothServerSocket::class)
+class ShadowMeshServerSocket : ShadowBluetoothServerSocket() {
+    private val psm = nextPsm.getAndIncrement()
+
+    @Volatile private var closed = false
+
+    @Volatile private var failed = false
+
+    @Volatile var closes = 0
+        private set
+
+    init {
+        servers += this
+    }
+
+    @Implementation(minSdk = Build.VERSION_CODES.Q)
+    fun getPsm(): Int = psm
+
+    @Implementation
+    public override fun accept(timeout: Int): BluetoothSocket {
+        while (true) {
+            if (closed || failed) throw IOException("accept ended")
+            val socket = runCatching { super.accept(POLL_MILLIS) }.getOrNull()
+            if (socket != null) return socket
+        }
+    }
+
+    @Implementation
+    public override fun close() {
+        closes++
+        closed = true
+        super.close()
+    }
+
+    /** A central on [device] opens a channel; returns this end's accepted socket. */
+    fun connect(device: BluetoothDevice): BluetoothSocket = deviceConnected(device)
+
+    /** Fails the waiting `accept` as a stack fault would, without closing the server. */
+    fun fail() {
+        failed = true
+    }
+
+    companion object {
+        const val FIRST_PSM = 0x0080
+        private const val POLL_MILLIS = 10
+        private val nextPsm = AtomicInteger(FIRST_PSM)
+
+        /** Every server created, in order. */
+        val servers = CopyOnWriteArrayList<ShadowMeshServerSocket>()
+
+        /** Ends every waiting `accept` so no test leaves a thread behind. */
+        fun clear() {
+            servers.forEach { it.failed = true }
+            servers.clear()
+            nextPsm.set(FIRST_PSM)
         }
     }
 }
