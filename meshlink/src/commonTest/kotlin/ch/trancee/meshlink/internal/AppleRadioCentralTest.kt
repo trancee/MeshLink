@@ -74,17 +74,53 @@ class AppleRadioCentralTest {
         }
 
     @Test
-    fun theRadioClaimsNoLe2MPhyAndTheLinkReadsNoRssi() =
+    fun theRadioClaimsNoLe2MPhy() {
+        // Assert
+        assertFalse(radio.supportsLe2MPhy)
+    }
+
+    @Test
+    fun theLinkReadsTheRssiOfItsPeripheral() =
         runTest {
             // Arrange
             val link = linked()
+            val reading = start { link.readRssi() }
 
             // Act
-            val rssi = link.readRssi()
+            bluetooth.events.rssiRead(peripheral, -55)
 
             // Assert
-            assertFalse(radio.supportsLe2MPhy)
-            assertEquals(RadioFailure.UNSUPPORTED, failure(rssi))
+            assertEquals(-55, assertIs<RadioResult.Ok<Int>>(reading.await()).value)
+            assertEquals("readRssi A", bluetooth.calls.last())
+        }
+
+    @Test
+    fun aFailedRssiReadIsARadioError() =
+        runTest {
+            // Arrange
+            val link = linked()
+            val reading = start { link.readRssi() }
+
+            // Act
+            bluetooth.events.rssiRead(peripheral, null)
+
+            // Assert
+            assertEquals(RadioFailure.RADIO_ERROR, failure(reading.await()))
+        }
+
+    @Test
+    fun readingTheRssiOfAClosedLinkIsAClosedLink() =
+        runTest {
+            // Arrange
+            val link = linked()
+            link.disconnect()
+
+            // Act
+            val result = link.readRssi()
+
+            // Assert
+            assertEquals(RadioFailure.LINK_CLOSED, failure(result))
+            assertFalse("readRssi A" in bluetooth.calls)
         }
 
     @Test
@@ -446,6 +482,8 @@ class AppleRadioCentralTest {
             bluetooth.events.subscribeAnswered(stranger, ok = true)
             bluetooth.events.subscribeAnswered(stranger, ok = false)
             bluetooth.events.readyToWrite(stranger)
+            bluetooth.events.rssiRead(stranger, -55)
+            bluetooth.events.rssiRead(stranger, null)
             bluetooth.events.servicesInvalidated(stranger, listOf(AppleGatt.SERVICE))
             bluetooth.events.disconnected(stranger)
 

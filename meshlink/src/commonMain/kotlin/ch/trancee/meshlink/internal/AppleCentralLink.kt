@@ -73,8 +73,15 @@ internal class AppleCentralLink(
 
     override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
 
-    // Ticket 32b reads the link's RSSI; unsupported until then.
-    override suspend fun readRssi(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+    /** `CBPeripheral.readRSSI()`, answered by `didReadRSSI`. */
+    override suspend fun readRssi(): RadioResult<Int> {
+        val answer = requests.request { bluetooth.readRssi(peripheral) }
+        return when {
+            answer != null -> RadioResult.Ok(answer.rssi)
+            isClosed -> RadioResult.Failed(RadioFailure.LINK_CLOSED)
+            else -> RadioResult.Failed(RadioFailure.RADIO_ERROR)
+        }
+    }
 
     override suspend fun send(chunk: ByteArray): Boolean {
         while (!isClosed) {
@@ -152,12 +159,16 @@ internal class AppleRequests(
             }
         }
 
-    /** Answers the pending request: `didConnect`, a discovery with [uuids], a read with [value], or a subscription. */
+    /**
+     * Answers the pending request: `didConnect`, a discovery with [uuids], a read with [value], a
+     * subscription, or an RSSI read with [rssi].
+     */
     fun answer(
         value: ByteArray? = null,
         uuids: List<ByteArray> = emptyList(),
+        rssi: Int = 0,
     ) {
-        pending?.complete(Answer(value, uuids))
+        pending?.complete(Answer(value, uuids, rssi))
     }
 
     /** Fails the pending request, as a callback with an error does. */
@@ -165,10 +176,11 @@ internal class AppleRequests(
         pending?.complete(null)
     }
 
-    /** A callback's successful answer, with the value or UUIDs it carried. */
+    /** A callback's successful answer, with the value, UUIDs or RSSI it carried. */
     class Answer(
         val value: ByteArray?,
         val uuids: List<ByteArray>,
+        val rssi: Int,
     )
 }
 

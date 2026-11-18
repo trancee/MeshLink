@@ -130,6 +130,10 @@ internal class FakeCoreBluetooth : CoreBluetooth {
 
     override fun maximumWriteLength(peripheral: CbPeripheral): Int = writeLength
 
+    override fun readRssi(peripheral: CbPeripheral) {
+        calls += "readRssi ${peripheral.id}"
+    }
+
     override fun openChannel(
         peripheral: CbPeripheral,
         psm: Int,

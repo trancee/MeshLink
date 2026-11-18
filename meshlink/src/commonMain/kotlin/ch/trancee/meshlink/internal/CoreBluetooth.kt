@@ -76,6 +76,9 @@ internal interface PeripheralCalls {
     /** `CBPeripheral.maximumWriteValueLength(for: .withoutResponse)` of [peripheral]. */
     fun maximumWriteLength(peripheral: CbPeripheral): Int
 
+    /** `CBPeripheral.readRSSI()` of the connected [peripheral]. */
+    fun readRssi(peripheral: CbPeripheral)
+
     /** Opens an L2CAP channel to [psm] on [peripheral]. */
     fun openChannel(
         peripheral: CbPeripheral,
@@ -181,6 +184,12 @@ internal interface PeripheralEvents {
 
     /** `peripheralIsReady(toSendWriteWithoutResponse:)`. */
     fun readyToWrite(peripheral: CbPeripheral)
+
+    /** `didReadRSSI`: the signal strength in dBm, or null on an error. */
+    fun rssiRead(
+        peripheral: CbPeripheral,
+        rssi: Int?,
+    )
 
     /** `didModifyServices`: the UUIDs of the invalidated services. */
     fun servicesInvalidated(

@@ -22,8 +22,8 @@ Split from ticket 32 (Q1). The Core Bluetooth radio carries out the ticket 32 po
 
 ## Acceptance criteria
 
-- [ ] iOS tests with fakes show stop/start rotation, the 10 s background scan restart, overflow-bit sightings reported with a null payload, `readRssi` success and failure, and no 2M support.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] iOS tests with fakes show stop/start rotation, the 10 s background scan restart, overflow-bit sightings reported with a null payload, `readRssi` success and failure, and no 2M support.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -39,3 +39,13 @@ Split from ticket 32 (Q1). The Core Bluetooth radio carries out the ticket 32 po
 ## Devices needed
 
 None. Ticket 33 proves rotation and background discovery on phones.
+
+## Outcome
+
+- **Rotation:** `advertisingStopsAnyEarlierAdvertisementAndAdvertisesTheMeshServiceAndThePayload` already shows `stopAdvertising` before each `advertise`; the `AppleRadio.startAdvertising` KDoc now names decisions 3, 5 and 7.
+- **10 s restart:** no adapter timer. Each core scan window starts a fresh `scanForPeripherals` and lasts 4 s in every schedule (ticket 36 changes only the gap). `aCentralScannerRestartsTheScanWithinTenSeconds` runs the core `Scanner` over `AppleRadio` and the fake and sees `scan`, `stopScan`, `scan` within 10 s. Recorded in the ADR 0010 amendment "iOS scanning" (version 12). This test passed before any change: it pins existing behavior, not new code.
+- **Null-payload sightings:** every discovery while scanning is a sighting; one without the rotating UUID (MESH only, or no `CBAdvertisementDataServiceUUIDsKey` UUID at all, as for an overflow-only background iPhone) has a null payload (`aMeshSightingWithoutAPayloadIsASightingWithoutPayload`).
+- **RSSI:** `PeripheralCalls.readRssi` calls `CBPeripheral.readRSSI()`, and `peripheral(_:didReadRSSI:error:)` answers through `PeripheralEvents.rssiRead`. A failed read is `RADIO_ERROR`, a closed link `LINK_CLOSED` (`theLinkReadsTheRssiOfItsPeripheral`, `aFailedRssiReadIsARadioError`, `readingTheRssiOfAClosedLinkIsAClosedLink`).
+- **No 2M:** `theRadioClaimsNoLe2MPhy`.
+- **Tests:** the full gate passes with Kover at 100 % line and branch coverage; `:meshlink:compileKotlinIosArm64` compiles the thin layer.
+- **Unverified:** the thin layer's `readRSSI` and overflow discovery run only on phones; ticket 33 proves rotation and background discovery there.

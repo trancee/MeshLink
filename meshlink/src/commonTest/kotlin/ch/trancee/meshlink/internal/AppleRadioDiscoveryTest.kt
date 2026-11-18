@@ -1,10 +1,14 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -119,7 +123,7 @@ class AppleRadioDiscoveryTest {
         }
 
     @Test
-    fun anAdvertisementWithoutAPayloadIsNoSighting() =
+    fun aMeshSightingWithoutAPayloadIsASightingWithoutPayload() =
         runTest {
             // Arrange
             val seen = events()
@@ -127,10 +131,32 @@ class AppleRadioDiscoveryTest {
 
             // Act
             bluetooth.events.discovered(other, listOf(AppleGatt.MESH_SHORT), rssi = -60)
-            bluetooth.events.discovered(other, listOf(AppleGatt.MESH_FULL), rssi = -60)
+            bluetooth.events.discovered(other, listOf(AppleGatt.MESH_FULL), rssi = -61)
+            bluetooth.events.discovered(other, emptyList(), rssi = -62)
 
             // Assert
-            assertEquals(emptyList(), seen)
+            val sightings = seen.map { assertIs<RadioEvent.Sighted>(it).sighting }
+            assertEquals(listOf(null, null, null), sightings.map { it.payload })
+            assertEquals(listOf(-60, -61, -62), sightings.map { it.rssi })
+            assertEquals(setOf(ApplePeer(other)), sightings.map { it.peer }.toSet())
+        }
+
+    @Test
+    fun aCentralScannerRestartsTheScanWithinTenSeconds() =
+        runTest {
+            // Arrange
+            val discovery = Discovery(SodiumCryptoProvider, MESH_ID, WireProfile.UNSECURED)
+            val scanner = Scanner(radio, SystemClock, SeededRandom(1L), discovery)
+            backgroundScope.launch(StandardTestDispatcher(testScheduler)) {
+                scanner.run(LinkRole.CENTRAL, null, coc = false, onLinkEvent = {}, onSighting = { _, _, _ -> })
+            }
+            runCurrent()
+
+            // Act
+            advanceTimeBy(BACKGROUND_RESTART_MILLIS)
+
+            // Assert
+            assertEquals(listOf("scan 4d455348", "stopScan", "scan 4d455348"), bluetooth.calls)
         }
 
     @Test
@@ -155,5 +181,12 @@ class AppleRadioDiscoveryTest {
         assertEquals(ApplePeer(FakePeripheral("A")).hashCode(), ApplePeer(FakePeripheral("A")).hashCode())
         assertNotEquals(ApplePeer(FakePeripheral("A")), ApplePeer(other))
         assertNotEquals<Any>(ApplePeer(other), other)
+    }
+
+    private companion object {
+        val MESH_ID = "Festival".encodeToByteArray()
+
+        /** ADR 0010 decision 6: background iOS scans restart at least this often. */
+        const val BACKGROUND_RESTART_MILLIS = 10_000L
     }
 }

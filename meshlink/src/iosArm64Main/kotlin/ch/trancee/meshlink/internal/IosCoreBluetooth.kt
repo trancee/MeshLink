@@ -172,6 +172,8 @@ private class IosPeripheralCalls(
         }
     }
 
+    override fun readRssi(peripheral: CbPeripheral) = peripheral.remote.readRSSI()
+
     override fun canWrite(peripheral: CbPeripheral): Boolean = peripheral.remote.canSendWriteWithoutResponse
 
     override fun maximumWriteLength(peripheral: CbPeripheral): Int =
@@ -343,6 +345,13 @@ private class PeripheralDelegate(
         didUpdateNotificationStateForCharacteristic: CBCharacteristic,
         error: NSError?,
     ) = events.subscribeAnswered(IosPeripheral(peripheral), error == null)
+
+    @ObjCSignatureOverride
+    override fun peripheral(
+        peripheral: CBPeripheral,
+        didReadRSSI: NSNumber,
+        error: NSError?,
+    ) = events.rssiRead(IosPeripheral(peripheral), if (error == null) didReadRSSI.intValue else null)
 
     override fun peripheralIsReadyToSendWriteWithoutResponse(peripheral: CBPeripheral) {
         events.readyToWrite(IosPeripheral(peripheral))

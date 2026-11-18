@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 11 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance; 2026-11-18, core scanning and background iPhones; 2026-11-18, Android manufacturer data).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 12 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance; 2026-11-18, core scanning and background iPhones; 2026-11-18, Android manufacturer data; 2026-11-18, iOS scanning).
 
 ## Context
 
@@ -145,3 +145,8 @@ Measured:
 
 - **Apple filter (decisions 5 and 6):** the second Android hardware filter matches Apple's company ID `0x004C` with empty data and no mask. The scanner then walks the raw AD structures of each result for an `ff 4c 00 01` overflow area whose MESH bit is set. A data mask can't do this: since [`android-15.0.0_r1`](https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/tags/android-15.0.0_r1/framework/java/android/bluetooth/le/ScanRecord.java), `ScanRecord` concatenates every manufacturer data entry of a company, and `ScanController.matchesFilters` re-checks each filter in software against that array. A background iPhone's Nearby Info (`10 05 …`) then comes before the overflow area, so a filter expecting `0x01` at byte 0 drops it on Android 15 and later. Android 14 and earlier keep only the last entry, which is why the Android 9 XCover 4 in the field run matched. The data must be empty, not null: `ScanFilter.matches` skips the manufacturer check for null data.
 - **Risk "Android 17 scan limits" (addition):** with the screen off, an Android phone now wakes for every nearby iPhone's advertisement, not only MeshLink's. The extra callbacks and their energy cost are unmeasured; ticket 33 measures them on a phone running Android 15 or later.
+
+2026-11-18, iOS scanning (0.1.0 backlog ticket "iOS advertising, background and scanning rules"):
+
+- **Background scan restart (decision 6):** the iOS radio adds no restart timer of its own. Each core scan window starts a fresh `scanForPeripherals` and lasts 4 s in every schedule (ticket 36 changes only the gap), so no iOS scan runs longer than 10 s. A schedule with a longer window must restart the scan within it.
+- **Background iPhones (decision 5):** the iOS scan looks only for the MESH service, so every discovery is a sighting. One without the rotating UUID, such as a background iPhone whose MESH UUID iOS reports only under `CBAdvertisementDataOverflowServiceUUIDsKey`, reaches the core without a payload, as on Android.
