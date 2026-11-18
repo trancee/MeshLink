@@ -1,6 +1,6 @@
 # iOS L2CAP CoC adapter and peripheral link cap
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 31
 
