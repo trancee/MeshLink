@@ -28,14 +28,14 @@ Later decoder tickets add their own target to this job when they land their deco
 
 ## Acceptance criteria
 
-- [ ] `com.code-intelligence:jazzer` 0.30.0 and `jazzer-api` are in `gradle/libs.versions.toml`, used only by the fuzz task, and match the register row.
-- [ ] One Gradle `JavaExec` task, `:meshlink-core:fuzz`, runs every target for a bounded time on the Android host-test runtime classpath of `:meshlink-core`, where the decoders live. It is not part of `./gradlew check`. If the decoders turn out to live in another module, the task moves there and this ticket updates the spine and every citing ticket in the same PR (spine rename rule).
-- [ ] One target exists per decoder listed in the PR, and a test fails if a decoder in `commonMain` has no target.
-- [ ] The committed corpus is seeded from the matching vector files and minimized.
-- [ ] A scheduled workflow runs the task on Linux. Actions are the latest stable release, pinned by commit SHA with a version comment. It is not a required check.
-- [ ] A crash fails the job and uploads the crashing input. A short local run of every target finds no crash, or each crash found is fixed with a regression input in the default suite.
-- [ ] If the standalone driver cannot be wired as decided, the choice returns to the owner (ADR 0017 decision 9) rather than switching tools.
-- [ ] `./gradlew check` passes with Kover at 100%; fuzz targets sit outside the Kover-measured sources.
+- [x] `com.code-intelligence:jazzer` 0.30.0 and `jazzer-api` are in `gradle/libs.versions.toml`, used only by the fuzz task, and match the register row.
+- [x] One Gradle `JavaExec` task, `:meshlink-core:fuzz`, runs every target for a bounded time on the Android host-test runtime classpath of `:meshlink-core`, where the decoders live. It is not part of `./gradlew check`. If the decoders turn out to live in another module, the task moves there and this ticket updates the spine and every citing ticket in the same PR (spine rename rule).
+- [x] One target exists per decoder listed in the PR, and a test fails if a decoder in `commonMain` has no target.
+- [x] The committed corpus is seeded from the matching vector files and minimized.
+- [x] A scheduled workflow runs the task on Linux. Actions are the latest stable release, pinned by commit SHA with a version comment. It is not a required check.
+- [x] A crash fails the job and uploads the crashing input. A short local run of every target finds no crash, or each crash found is fixed with a regression input in the default suite.
+- [x] If the standalone driver cannot be wired as decided, the choice returns to the owner (ADR 0017 decision 9) rather than switching tools.
+- [x] `./gradlew check` passes with Kover at 100%; fuzz targets sit outside the Kover-measured sources.
 
 ## Proof commands
 
@@ -56,3 +56,13 @@ Later decoder tickets add their own target to this job when they land their deco
 ## Devices needed
 
 None. Host only.
+
+## Outcome
+
+Decoders found (24 public methods returning `Decoded` from a `ByteArray`, all in `:meshlink-core`): `Advertisement`, `CapabilityRecord`, `Container`, `Content` (`unframe`, `extensions`), `HandshakePayload`, `IdentityCertificate`, the ten nested `LinkFrame` decoders, `LinkRecord`, `RecordReader.read`, `MessageContent`, `MessageFrame`, `ReceiptContent`, `ResolvingKey` and `Tlv`. Ten targets cover them; `FuzzTargetsTest.everyDecoderHasATarget` scans the compiled main classes and fails on any uncovered or stale decoder.
+
+- `FuzzLauncher` starts one Jazzer JVM per target (Jazzer runs one target class per process) and exits 1 if any target fails. Crashing inputs and `Crash_<sha>.java` reproducers land in `meshlink-core/build/fuzz/crashes/`, which the workflow uploads as `fuzz-crashes`.
+- Each target also checks that a `Valid` decode re-encodes to its input; `LinkRecord` feeds `RecordReader` in 1-, 7- and 64-byte chunks.
+- Corpus: `tools/fuzz/seed_corpus.py` writes the vector `encoded` values, and merge mode minimizes them into `meshlink-core/src/androidHostTest/fuzz/` (Advertisement 3, CapabilityRecord 13, HandshakePayload 7, IdentityCertificate 8, LinkFrame 30, LinkRecord 7, MessageContent 10, MessageFrame 9, ReceiptContent 4, ResolvingKey 3). The default host suite replays it.
+- A 30 s run of every target found no crash. An injected crash proved the failure path: exit 1, `fuzz targets failed: ResolvingKey`, and the crash input plus reproducer in `build/fuzz/crashes/`.
+- `.github/workflows/fuzz.yml` runs weekly, on demand, and on PRs touching the fuzz sources (15 s per target); it is not a required check.

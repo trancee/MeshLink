@@ -20,6 +20,8 @@ robolectric = "4.18"
 robolectric-sdk26 = "8.0.0_r4-robolectric-r1-i7"
 robolectric-sdk37 = "17-robolectric-16653203-i7"
 androidx-test-core = "1.7.0"
+# The scheduled fuzz task only (ADR 0017 decision 9); never on a test or published classpath.
+jazzer = "0.30.0"
 # Lab apps only (labapp/, ADR 0005 2026-11-15 lab apps amendment); never in a published artifact.
 compose-bom = "2026.09.00"
 androidx-activity-compose = "1.13.0"
@@ -42,6 +44,8 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 robolectric-android-all-sdk26 = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectric-sdk26" }
 robolectric-android-all-sdk37 = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectric-sdk37" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
+jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
+jazzer-api = { module = "com.code-intelligence:jazzer-api", version.ref = "jazzer" }
 compose-compiler-gradle-plugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
