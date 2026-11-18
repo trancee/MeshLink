@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -70,6 +71,20 @@ class AppleRadioCentralTest {
             )
             assertEquals(peer, link.peer)
             assertEquals(bluetooth.writeLength + RadioPort.ATT_HEADER, link.attMtu)
+        }
+
+    @Test
+    fun theRadioClaimsNoLe2MPhyAndTheLinkReadsNoRssi() =
+        runTest {
+            // Arrange
+            val link = linked()
+
+            // Act
+            val rssi = link.readRssi()
+
+            // Assert
+            assertFalse(radio.supportsLe2MPhy)
+            assertEquals(RadioFailure.UNSUPPORTED, failure(rssi))
         }
 
     @Test

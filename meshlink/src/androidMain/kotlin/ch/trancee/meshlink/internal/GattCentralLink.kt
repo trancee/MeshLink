@@ -67,7 +67,7 @@ internal class GattCentralLink(
     }
 
     override suspend fun readCapability(): RadioResult<ByteArray> {
-        val record = ready?.let { read(it) }
+        val record = ready?.readCapability(exchange)
         return when {
             record != null -> RadioResult.Ok(record)
             isClosed -> RadioResult.Failed(RadioFailure.LINK_CLOSED)
@@ -76,6 +76,9 @@ internal class GattCentralLink(
     }
 
     override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
+
+    // Ticket 32a reads the link's RSSI; unsupported until then.
+    override suspend fun readRssi(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
 
     override suspend fun send(chunk: ByteArray): Boolean {
         val answer =
@@ -129,19 +132,6 @@ internal class GattCentralLink(
         }
     }
 
-    private suspend fun read(ready: Ready): ByteArray? {
-        val answer = exchange.request { GattExchange.legacy(ready.gatt.readCharacteristic(ready.capability)) }
-        val record = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.bytes
-        return record?.takeIf { subscribe(ready) }
-    }
-
-    private suspend fun subscribe(ready: Ready): Boolean {
-        val local = ready.gatt.setCharacteristicNotification(ready.toCentral, true)
-        val enable = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        val answer = if (local) exchange.request { AndroidGatt.write(ready.gatt, ready.cccd, enable) } else null
-        return answer?.status == BluetoothGatt.GATT_SUCCESS
-    }
-
     /** The discovered MeshLink service's attributes on [gatt]. */
     private class Ready(
         val gatt: BluetoothGatt,
@@ -150,6 +140,20 @@ internal class GattCentralLink(
         val toCentral: BluetoothGattCharacteristic,
         val cccd: BluetoothGattDescriptor,
     ) {
+        /** Reads the capability record through [exchange], then subscribes to the stream; null if either fails. */
+        suspend fun readCapability(exchange: GattExchange): ByteArray? {
+            val answer = exchange.request { GattExchange.legacy(gatt.readCharacteristic(capability)) }
+            val record = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.bytes
+            return record?.takeIf { subscribe(exchange) }
+        }
+
+        private suspend fun subscribe(exchange: GattExchange): Boolean {
+            val local = gatt.setCharacteristicNotification(toCentral, true)
+            val enable = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            val answer = if (local) exchange.request { AndroidGatt.write(gatt, cccd, enable) } else null
+            return answer?.status == BluetoothGatt.GATT_SUCCESS
+        }
+
         companion object {
             /** The attributes of [service], or `null` if one is missing. */
             fun of(

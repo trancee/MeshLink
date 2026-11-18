@@ -32,6 +32,8 @@ internal object UnsupportedRadio : RadioPort {
 
     override val peripheralLinkCap: Int? = null
 
+    override val supportsLe2MPhy: Boolean = false
+
     override val events: Flow<RadioEvent> = emptyFlow()
 
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> = unsupported

@@ -35,6 +35,9 @@ internal class AndroidRadio(
     // Ticket 31 maps the platform's cap, if any; none until then.
     override val peripheralLinkCap: Int? = null
 
+    // Ticket 32a maps the adapter's LE 2M PHY support; none until then.
+    override val supportsLe2MPhy: Boolean = false
+
     override val events: Flow<RadioEvent> = inbox.receiveAsFlow()
 
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> = advertiser.start(payload)

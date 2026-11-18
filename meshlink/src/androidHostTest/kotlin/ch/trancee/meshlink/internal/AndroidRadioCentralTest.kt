@@ -107,6 +107,21 @@ class AndroidRadioCentralTest {
         }
 
     @Test
+    fun theRadioClaimsNoLe2MPhyAndTheLinkReadsNoRssi() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val link = connected(radio)
+
+            // Act
+            val rssi = link.readRssi()
+
+            // Assert
+            assertFalse(radio.supportsLe2MPhy)
+            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(rssi).reason)
+        }
+
+    @Test
     fun aFailedMtuExchangeKeepsTheDefaultMtu() =
         runTest {
             // Arrange

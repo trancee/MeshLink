@@ -64,6 +64,9 @@ internal class AppleRadio(
     /** An iPhone holds at most 3 incoming links on every iOS version (ADR 0009 decision 6; library rule R16). */
     override val peripheralLinkCap: Int = PERIPHERAL_LINK_CAP
 
+    /** Core Bluetooth neither reports nor selects the PHY, so an iPhone never claims 2M (ticket 32 Q9). */
+    override val supportsLe2MPhy: Boolean = false
+
     override val events: Flow<RadioEvent> = inbox.receiveAsFlow()
 
     /**

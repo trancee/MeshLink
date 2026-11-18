@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
+import ch.trancee.meshlink.Proximity
 import ch.trancee.meshlink.Reachability
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +56,9 @@ internal class Links(
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
 
+    /** The proximity of each kept link's peer, which the scanner's sightings feed. */
+    val proximities = Proximities(clock, scope, ::publish)
+
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
 
@@ -70,10 +74,20 @@ internal class Links(
 
     /**
      * Opens a link as central to each of [candidates] that has no link and no link opening, unless
-     * it refused this node for its link cap (spec "Connect retries and link caps").
+     * it refused this node for its link cap (spec "Connect retries and link caps"). An identifier-less
+     * candidate, without an advertisement, links only if [vet] accepts the advertisement its
+     * capability record carries, or `null` when the connect or the read fails.
      */
-    fun connectTo(candidates: Set<PeerHandle>) {
-        limits.dialable(candidates).filter { it !in busy }.forEach { handle -> track(handle) { central(handle) } }
+    fun connectTo(
+        candidates: Map<PeerHandle, Advertisement?>,
+        vet: (PeerHandle, ByteArray?) -> Boolean,
+    ) {
+        limits.dialable(candidates.keys).filter { it !in busy }.forEach { handle ->
+            val identified = candidates[handle] != null
+            val vetting: ((ByteArray?) -> Boolean)? =
+                if (identified) null else { advertisement -> vet(handle, advertisement) }
+            track(handle) { central(handle, vetting) }
+        }
     }
 
     /**
@@ -140,15 +154,25 @@ internal class Links(
         }
     }
 
-    private suspend fun central(handle: PeerHandle) {
-        val link = limits.connect(handle) ?: return
+    /** Links as central to [handle] once [vet], if any, accepts the advertisement in its capability record. */
+    private suspend fun central(
+        handle: PeerHandle,
+        vet: ((ByteArray?) -> Boolean)? = null,
+    ) {
+        val link = limits.connect(handle)
+        if (link == null) {
+            vet?.invoke(null)
+            return
+        }
         // The selected version and the record, whose versions a secured handshake binds.
         var selection: Pair<Int, CapabilityRecord>? = null
         try {
-            selection =
+            val record =
                 (link.readCapability() as? RadioResult.Ok)
                     ?.let { CapabilityRecord.decode(it.value) as? Decoded.Valid }
-                    ?.let { record -> policy.selectVersion(record.value)?.let { it to record.value } }
+                    ?.value
+            val vetted = vet?.invoke(record?.advertisement) != false
+            selection = record?.takeIf { vetted }?.let { r -> policy.selectVersion(r)?.let { it to r } }
         } finally {
             if (selection == null) link.disconnect()
         }
@@ -540,6 +564,7 @@ internal class Links(
         val keepNew = other == null || (other.central != conn.central && conn.central == ownCentral)
         if (keepNew) {
             table[id] = conn
+            proximities.linked(id, conn.link.peer, (conn.link as? CentralLink)?.let { it::readRssi })
             conn.chosen.complete(id)
         }
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
@@ -567,14 +592,15 @@ internal class Links(
         if (id != null && table[id] === conn) {
             table.remove(id)
             mail.unlinked(id)
-            if (conn.received == CloseReason.DUPLICATE_LINK) kept[id] = conn.toPeer(id)
+            if (conn.received == CloseReason.DUPLICATE_LINK) kept[id] = conn.toPeer(id, proximities.of(id))
+            proximities.unlinked(id)
         }
         publish()
     }
 
     private fun publish() {
         if (opening == 0) kept.clear()
-        val listed = table.map { (id, conn) -> conn.toPeer(id) } + kept.values
+        val listed = table.map { (id, conn) -> conn.toPeer(id, proximities.of(id)) } + kept.values
         mutableRoles.value =
             table.mapValues { (_, conn) -> if (conn.central) LinkRole.CENTRAL else LinkRole.PERIPHERAL }
         peers.value = listed.sortedBy { it.nodeId.toString() }
@@ -788,7 +814,10 @@ internal class Links(
             }
         }
 
-        fun toPeer(id: NodeId): Peer = Peer(id, Reachability.Direct, secured = secure != null, lastSeen)
+        fun toPeer(
+            id: NodeId,
+            proximity: Proximity,
+        ): Peer = Peer(id, Reachability.Direct, secured = secure != null, lastSeen, proximity)
     }
 
     /** A stream this link sent, started at [startedMillis] monotonic time, and its message's [settle]. */

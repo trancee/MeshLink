@@ -67,7 +67,7 @@ internal class AppleCentral(
     }
 
     override fun connected(peripheral: CbPeripheral) {
-        open[peripheral.id]?.answer()
+        open[peripheral.id]?.let { it.requests.answer() }
     }
 
     override fun connectFailed(peripheral: CbPeripheral) {
@@ -97,8 +97,8 @@ internal class AppleLinkEvents(
         peripheral: CbPeripheral,
         uuids: List<ByteArray>?,
     ) {
-        val link = links[peripheral.id]
-        if (uuids != null) link?.answer(uuids = uuids) else link?.fail()
+        val requests = links[peripheral.id]?.requests
+        if (uuids != null) requests?.answer(uuids = uuids) else requests?.fail()
     }
 
     /** A read answer of the capability, or a notification of the stream. */
@@ -107,14 +107,14 @@ internal class AppleLinkEvents(
         characteristic: ByteArray,
         value: ByteArray?,
     ) {
-        val link = links[peripheral.id]
+        val link = links[peripheral.id] ?: return
         when {
             characteristic.contentEquals(AppleGatt.CAPABILITY) -> {
-                if (value != null) link?.answer(value) else link?.fail()
+                if (value != null) link.requests.answer(value) else link.requests.fail()
             }
 
             characteristic.contentEquals(AppleGatt.TO_CENTRAL) && value != null -> {
-                link?.receive(value)
+                link.receive(value)
             }
         }
     }
@@ -123,8 +123,8 @@ internal class AppleLinkEvents(
         peripheral: CbPeripheral,
         ok: Boolean,
     ) {
-        val link = links[peripheral.id]
-        if (ok) link?.answer() else link?.fail()
+        val requests = links[peripheral.id]?.requests
+        if (ok) requests?.answer() else requests?.fail()
     }
 
     override fun readyToWrite(peripheral: CbPeripheral) {

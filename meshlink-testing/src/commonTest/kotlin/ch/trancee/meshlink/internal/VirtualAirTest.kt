@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -301,6 +302,80 @@ class VirtualAirTest {
             (third.inbound as VirtualLinkEnd).drop()
             assertEquals(emptyList(), lost.incoming.toList())
             assertEquals(emptyList(), lostAccepted.incoming.toList())
+        }
+
+    @Test
+    fun aPairsSetSignalStrengthReachesSightingsAndLinkReadsBothWays() =
+        runTest {
+            val air = air()
+            val (central, peripheral, link) = linked(air)
+            air.setRssi(central, peripheral, -60)
+            central.startScanning().ok()
+            peripheral.startScanning().ok()
+            central.startAdvertising(PAYLOAD_A).ok()
+
+            assertEquals(
+                -60,
+                central.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.rssi,
+            )
+            assertEquals(
+                -60,
+                peripheral.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.rssi,
+            )
+            assertEquals(-60, link.readRssi().ok())
+            air.setRssi(peripheral, central, -80)
+            assertEquals(-80, link.readRssi().ok())
+            link.disconnect()
+            assertEquals(RadioFailure.LINK_CLOSED, link.readRssi().failure())
+        }
+
+    @Test
+    fun aBackgroundRadioIsSightedWithoutItsPayloadAndKeepsItsAddress() =
+        runTest {
+            val air = air()
+            val scanner = air.radio()
+            val background = air.radio()
+            background.background = true
+            background.startAdvertising(PAYLOAD_B).ok()
+            val address = background.handle
+
+            scanner.startScanning().ok()
+            background.stopAdvertising()
+            background.startAdvertising(PAYLOAD_A).ok()
+
+            val sighting = scanner.events.next<RadioEvent.Sighted>().sighting
+            assertNull(sighting.payload)
+            assertSame(address, sighting.peer)
+            assertSame(address, background.handle)
+        }
+
+    @Test
+    fun aRadioSupportsTheLe2MPhyOnlyWhenAddedWithIt() =
+        runTest {
+            val air = air()
+
+            assertTrue(air.radio(le2MPhy = true).supportsLe2MPhy)
+            assertEquals(false, air.radio().supportsLe2MPhy)
+        }
+
+    @Test
+    fun aRadioLogsWhenItStartsAndStopsScanning() =
+        runTest {
+            val clock = TestClock(testScheduler)
+            val air = VirtualAir(backgroundScope, clock, SeededRandom(1))
+            val radio = air.radio()
+            val start = clock.monotonicMillis()
+
+            radio.startScanning().ok()
+            delay(4_000)
+            radio.stopScanning()
+            radio.stopScanning()
+
+            assertEquals(listOf(start to true, start + 4_000 to false), radio.scanLog)
         }
 
     @Test

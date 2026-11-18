@@ -24,8 +24,14 @@ import kotlin.math.min
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
  * the address it was opened to. A radio may report a peripheral link cap, which the core enforces;
- * a test drops a link as a transient loss with [VirtualLinkEnd.drop]. It models no other loss and
- * no advertising and scan windows yet.
+ * a test drops a link as a transient loss with [VirtualLinkEnd.drop]. It models no other loss.
+ * A scanning radio sees every advertisement in range at once and again each time it starts
+ * scanning, and logs its scan starts and stops in [VirtualRadio.scanLog].
+ *
+ * Each sighting and RSSI read draws a signal strength from [random] unless a test fixes one for the
+ * pair with [setRssi]. A test makes a radio advertise as a backgrounded iPhone with
+ * [VirtualRadio.background], so its sightings carry no payload and it keeps its address, and
+ * adds a radio that supports the LE 2M PHY with `le2MPhy = true`.
  *
  * A radio supports L2CAP CoC only when a test adds it with `coc = true`; any other radio behaves as
  * an Android 8 or 9 phone, whose listener and channel opening are unsupported. A listening radio
@@ -39,11 +45,12 @@ import kotlin.math.min
  */
 internal class VirtualAir(
     private val scope: CoroutineScope,
-    private val clock: Clock,
+    internal val clock: Clock,
     private val random: RandomSource,
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
 ) {
     private val radios = mutableListOf<VirtualRadio>()
+    private val rssis = mutableMapOf<Set<VirtualRadio>, Int>()
 
     init {
         scope.coroutineContext.job.invokeOnCompletion {
@@ -52,31 +59,51 @@ internal class VirtualAir(
     }
 
     /**
-     * Adds a radio, reporting [peripheralLinkCap], and a platform around it whose nodes do their
-     * work on [dispatcher].
+     * Adds a radio, reporting [peripheralLinkCap], supporting L2CAP CoC if [coc] and the LE 2M PHY if
+     * [le2MPhy], and a platform around it whose nodes do their work on [dispatcher].
      */
     fun platform(
         dispatcher: CoroutineDispatcher,
         peripheralLinkCap: Int? = null,
         coc: Boolean = false,
+        le2MPhy: Boolean = false,
     ): VirtualPlatform {
-        val radio = radio(peripheralLinkCap = peripheralLinkCap, coc = coc)
+        val radio = radio(peripheralLinkCap = peripheralLinkCap, coc = coc, le2MPhy = le2MPhy)
         return VirtualPlatform(radio, clock, random, dispatcher)
     }
 
     /**
      * Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu], that reports
-     * [peripheralLinkCap] and supports L2CAP CoC if [coc].
+     * [peripheralLinkCap], supports L2CAP CoC if [coc] and reports LE 2M PHY support if [le2MPhy].
      */
     fun radio(
         maxAttMtu: Int = DEFAULT_ATT_MTU,
         peripheralLinkCap: Int? = null,
         coc: Boolean = false,
+        le2MPhy: Boolean = false,
     ): VirtualRadio {
-        val radio = VirtualRadio(this, maxAttMtu, peripheralLinkCap, coc)
+        val radio = VirtualRadio(this, maxAttMtu, peripheralLinkCap, coc, le2MPhy)
         radios += radio
         return radio
     }
+
+    /**
+     * Fixes the signal strength between [a] and [b], both ways, at [dBm] for every later sighting and
+     * RSSI read, until set again.
+     */
+    fun setRssi(
+        a: VirtualRadio,
+        b: VirtualRadio,
+        dBm: Int,
+    ) {
+        rssis[setOf(a, b)] = dBm
+    }
+
+    /** The signal strength between [a] and [b]: as set, or drawn from [random] in [RSSI_MIN]..[RSSI_MAX]. */
+    internal fun rssi(
+        a: VirtualRadio,
+        b: VirtualRadio,
+    ): Int = rssis[setOf(a, b)] ?: random.nextInt(RSSI_MIN, RSSI_MAX + 1)
 
     internal fun latency(): Long = random.nextInt(latencyMillis.first, latencyMillis.last + 1).toLong()
 
@@ -117,7 +144,8 @@ internal class VirtualAir(
         advertiser: VirtualRadio,
         payload: ByteArray,
     ) {
-        val sighting = Sighting(payload, advertiser.handle, random.nextInt(RSSI_MIN, RSSI_MAX + 1))
+        val sighted = payload.takeUnless { advertiser.background }
+        val sighting = Sighting(sighted, advertiser.handle, rssi(scanner, advertiser))
         val delayMillis = latency()
         scope.launch {
             delay(delayMillis)
@@ -164,8 +192,9 @@ internal class VirtualRadio(
     val maxAttMtu: Int,
     override val peripheralLinkCap: Int? = null,
     val coc: Boolean = false,
+    override val supportsLe2MPhy: Boolean = false,
 ) : RadioPort {
-    /** The radio's current address; each [startAdvertising] replaces it. */
+    /** The radio's current address; each [startAdvertising] replaces it unless the radio is [background]. */
     var handle: VirtualPeer = VirtualPeer()
         private set
 
@@ -182,6 +211,18 @@ internal class VirtualRadio(
 
     internal var scanning: Boolean = false
         private set
+
+    /**
+     * Whether the radio advertises as a backgrounded iPhone does, with only the MESH bit of Apple's
+     * overflow area, so scanners see its sightings without a payload. Like an iPhone, it keeps its
+     * address when it starts advertising again (ADR 0010 decision 7).
+     */
+    var background: Boolean = false
+
+    private val mutableScanLog = mutableListOf<Pair<Long, Boolean>>()
+
+    /** When the radio started (`true`) and stopped (`false`) scanning, in monotonic milliseconds. */
+    val scanLog: List<Pair<Long, Boolean>> get() = mutableScanLog.toList()
 
     internal var capability: ByteArray? = null
         private set
@@ -203,7 +244,7 @@ internal class VirtualRadio(
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)
         val copy = payload.copyOf()
-        handle = VirtualPeer()
+        if (!background) handle = VirtualPeer()
         advertisement = copy
         mutableAdvertisements += air.wallClockMillis() to copy
         air.announce(this, copy)
@@ -216,11 +257,13 @@ internal class VirtualRadio(
 
     override fun startScanning(): RadioResult<Unit> {
         scanning = true
+        mutableScanLog += air.clock.monotonicMillis() to true
         air.listen(this)
         return RadioResult.Ok(Unit)
     }
 
     override fun stopScanning() {
+        if (scanning) mutableScanLog += air.clock.monotonicMillis() to false
         scanning = false
     }
 
@@ -445,7 +488,7 @@ internal open class VirtualLinkEnd(
     }
 }
 
-/** The central's end of a [VirtualConnection], which can read the peripheral's capability. */
+/** The central's end of a [VirtualConnection], which can read the peripheral's capability and the link's RSSI. */
 internal class VirtualCentralEnd(
     private val air: VirtualAir,
     private val connection: VirtualConnection,
@@ -477,6 +520,11 @@ internal class VirtualCentralEnd(
         connection.peripheralEnd.add(channel.peripheralEnd)
         remote.emit(RadioEvent.ChannelOpened(channel.peripheralEnd))
         return channel.centralEnd
+    }
+
+    override suspend fun readRssi(): RadioResult<Int> {
+        delay(air.latency())
+        return if (closed) RadioResult.Failed(RadioFailure.LINK_CLOSED) else RadioResult.Ok(air.rssi(local, remote))
     }
 
     override suspend fun readCapability(): RadioResult<ByteArray> {

@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 9 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 10 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance; 2026-11-18, core scanning and background iPhones).
 
 ## Context
 
@@ -133,3 +133,10 @@ Measured:
 
 - **Advertising capability (decision 1):** an Android phone can't advertise only when `getBluetoothLeAdvertiser()` returns null while Bluetooth is on, and MeshLink reports that as `Unsupported`. `isMultipleAdvertisementSupported` false means fewer than 5 advertising instances, and MeshLink needs one, so it no longer gates on that flag. An advertising start that fails surfaces as a radio failure.
 - **Risk "Coverage" (replaces the bullet above):** Android 8.0 and 8.1 (API 26–27) drop the upper 16 bits of an advertised 32-bit UUID ([AOSP 8.x `BluetoothUuid`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-8.1.0_r1/core/java/android/bluetooth/BluetoothUuid.java#227) masks with `0x0000FFFF00000000L`; Android 9 fixed the mask). On the P10 lite `0x4D455348` arrived as `0x00005348`, while 128-bit UUIDs off the Base UUID arrived intact. Every start reports success, so the phone can't detect it. Such a phone links as a central but no scanner finds it. Layout E keeps the 32-bit UUID: a 128-bit MESH UUID plus the payload UUID would take 39 B, beyond the 31 B legacy budget. Unpatched API 26–27 phones reach the mesh only as centrals; ticket 66 stops them advertising.
+
+2026-11-18, core scanning and background iPhones (0.1.0 backlog ticket "Apply the PHY policy, advertising and scanning rules", owner decisions):
+
+- **Scan windows (decision 6):** the core, not each adapter, drives the scan schedule. A central scans in windows of 4 s on and 4 s off, the low-density `Balanced` schedule, so at most 4 starts fall in any 30 s, until density classes (ticket 36) change it. It stops scanning on every exit.
+- **Hardware filters (decision 6):** Android scans with both hardware filters, the MESH UUID and the Apple overflow bit, in the foreground too, not only with the screen off; ticket 32a applies it.
+- **Background iPhones (decision 5):** a sighting that matched only the overflow bit reaches the core without a payload. The core dials it, reads the advertisement from the `ADVERTISEMENT` TLV of the capability record rather than a separate characteristic, and links only if it belongs to this mesh. An address whose connect fails, that serves no capability or no `ADVERTISEMENT`, or whose advertisement belongs to another mesh is stale. Sightings of a stale address are ignored until it goes 10 min without one, rather than until the address changes: an iPhone keeps its address across rotations (decision 7), so its address may never change. A version mismatch doesn't make an address stale. The bridge rule's limit of one dial per 60 s applies once the bridge rule exists (ticket 35).
+- **Rotation on Android (decision 3):** every rotation starts a new `AdvertisingSet`. The stop/start fallback for phones without the API is dropped: `AdvertisingSet` is API 26, MeshLink's minSdk.
