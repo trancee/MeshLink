@@ -1,6 +1,6 @@
 # iOS advertising, background and scanning rules
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 32
 
