@@ -1,6 +1,6 @@
 # Fuzz every decoder on a schedule with Jazzer
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 28
 
