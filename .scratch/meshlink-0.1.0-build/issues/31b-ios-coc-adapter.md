@@ -20,8 +20,8 @@ Split from ticket 31 (Q1). The Core Bluetooth radio implements the CoC half of t
 
 ## Acceptance criteria
 
-- [ ] Tests with Core Bluetooth fakes cover the listener, channel open success and failures, stream reads, writes, end and close, and the cap of 3; the adapters are listed in the CI-named `iosMain` file.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] Tests with Core Bluetooth fakes cover the listener, channel open success and failures, stream reads, writes, end and close, and the cap of 3; the adapters are listed in the CI-named `iosMain` file.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -37,3 +37,11 @@ Split from ticket 31 (Q1). The Core Bluetooth radio implements the CoC half of t
 ## Devices needed
 
 None. Ticket 33 proves CoC on phone pairs.
+
+## Outcome
+
+- **Owner decisions (2026-11-18):** Q1 a channel's streams run on the main run loop (common modes) and each event moves to the Bluetooth queue, as in the bake-off. Q2 an open unanswered for 30 s fails with `RADIO_ERROR`, and a channel that opens later is closed. Q3 `listenForChannels` fails at once with `RADIO_ERROR` unless the peripheral manager is powered on; Bluetooth turning off forgets the PSM, fails a pending listen and closes the accepted channels. Recorded in ADR 0009 (version 9).
+- **Adapter:** `AppleChannelListener` publishes and accepts as peripheral, `AppleChannelOpener` opens per central link, both over `AppleChannel`, a `RadioStream` on the `CbChannel` seam. `IosChannel` is the thin `CBL2CAPChannel` adapter, listed in `config/thin-adapters.txt`. An accepted channel's peer is `AppleCentralPeer` of the central, the same peer as its GATT link.
+- **Cap:** `peripheralLinkCap` is 3 (`theRadioCapsPeripheralLinksAtThree`).
+- **Tests:** `AppleRadioChannelTest` (20) and `AppleRadioChannelOpenTest` (9) run with Core Bluetooth fakes on every host target.
+- **Unverified:** the stream run-loop handoff and the publish and open behavior on real iPhones; ticket 33 checks CoC on phone pairs.

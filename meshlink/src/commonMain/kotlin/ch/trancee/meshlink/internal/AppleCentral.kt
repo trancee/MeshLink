@@ -138,4 +138,13 @@ internal class AppleLinkEvents(
     ) {
         if (services.any { it.contentEquals(AppleGatt.SERVICE) }) links[peripheral.id]?.disconnect()
     }
+
+    /** `didOpen` an L2CAP channel; one to a peripheral without a link is closed. */
+    override fun channelOpened(
+        peripheral: CbPeripheral,
+        channel: CbChannel?,
+    ) {
+        val link = links[peripheral.id]
+        if (link != null) link.channels.opened(channel) else channel?.close()
+    }
 }

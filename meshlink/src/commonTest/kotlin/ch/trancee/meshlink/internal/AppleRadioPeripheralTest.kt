@@ -48,12 +48,12 @@ class AppleRadioPeripheralTest {
     }
 
     @Test
-    fun theRadioReportsNoPeripheralLinkCapUntilTheAdapterMapsOne() {
+    fun theRadioCapsPeripheralLinksAtThree() {
         // Act
         val cap = radio.peripheralLinkCap
 
         // Assert
-        assertNull(cap)
+        assertEquals(3, cap)
     }
 
     @Test

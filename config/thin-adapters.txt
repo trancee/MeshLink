@@ -9,6 +9,7 @@ meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/Sodi
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/MeshPlatform.ios.kt
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/internal/IosPort.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosPort.iosArm64.kt
+meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosChannel.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosCoreBluetooth.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/QueueDispatcher.kt
 meshlink/src/iosSimulatorArm64Main/kotlin/ch/trancee/meshlink/internal/IosPort.iosSimulatorArm64.kt

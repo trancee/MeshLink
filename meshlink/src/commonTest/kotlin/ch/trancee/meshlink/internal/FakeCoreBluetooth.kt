@@ -130,6 +130,21 @@ internal class FakeCoreBluetooth : CoreBluetooth {
 
     override fun maximumWriteLength(peripheral: CbPeripheral): Int = writeLength
 
+    override fun openChannel(
+        peripheral: CbPeripheral,
+        psm: Int,
+    ) {
+        calls += "openChannel ${peripheral.id} $psm"
+    }
+
+    override fun publishChannel() {
+        calls += "publishChannel"
+    }
+
+    override fun unpublishChannel(psm: Int) {
+        calls += "unpublishChannel $psm"
+    }
+
     private companion object {
         /** An iPhone's notification payload at ATT MTU 185. */
         const val NOTIFY_LENGTH = 182
@@ -153,9 +168,59 @@ internal class FakeReadRequest(
     override val offset: Int,
 ) : CbReadRequest
 
-/** The three [delegates] in one, so a test calls any callback on it. */
+/**
+ * A scripted `CBL2CAPChannel` from [peerId]: [read] hands out [readable] in turn, then reports the
+ * end; [write] takes at most [writeLimit] bytes at a time into [written] while [hasSpace], or fails
+ * once [writeFails]. [events] is what the radio opened it with.
+ */
+internal class FakeChannel(
+    override val peerId: String,
+) : CbChannel {
+    val readable = ArrayDeque<ByteArray>()
+
+    val written = mutableListOf<ByteArray>()
+
+    var writeLimit = Int.MAX_VALUE
+
+    var writeFails = false
+
+    var events: CbChannelEvents? = null
+
+    var closed = 0
+
+    override var hasSpace = true
+
+    override val hasBytes: Boolean get() = readable.isNotEmpty()
+
+    override fun open(events: CbChannelEvents) {
+        this.events = events
+    }
+
+    override fun read(buffer: ByteArray): Int {
+        val next = readable.removeFirst()
+        next.copyInto(buffer)
+        return next.size
+    }
+
+    override fun write(
+        bytes: ByteArray,
+        offset: Int,
+    ): Int {
+        if (writeFails) return -1
+        val count = minOf(writeLimit, bytes.size - offset)
+        written += bytes.copyOfRange(offset, offset + count)
+        return count
+    }
+
+    override fun close() {
+        closed++
+    }
+}
+
+/** The four [delegates] in one, so a test calls any callback on it. */
 internal class FakeEvents(
     delegates: CoreBluetoothDelegates,
 ) : CentralManagerEvents by delegates.central,
     PeripheralEvents by delegates.peripheral,
-    PeripheralManagerEvents by delegates.peripheralManager
+    PeripheralManagerEvents by delegates.peripheralManager,
+    ChannelListenerEvents by delegates.channels

@@ -73,22 +73,6 @@ class AppleRadioCentralTest {
         }
 
     @Test
-    fun theRadioOffersNoL2capChannelsYet() =
-        runTest {
-            // Arrange
-            val link = linked()
-
-            // Act
-            val listening = radio.listenForChannels()
-            radio.stopListening()
-            val opened = link.openChannel(PSM)
-
-            // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, failure(listening))
-            assertEquals(RadioFailure.UNSUPPORTED, failure(opened))
-        }
-
-    @Test
     fun aPeerThatServesOnlyTheAdvertisedUuidLacksTheCapability() =
         runTest {
             // Arrange
@@ -470,8 +454,4 @@ class AppleRadioCentralTest {
             assertTrue(reading.isActive)
             reading.cancel()
         }
-
-    private companion object {
-        const val PSM = 0x0080
-    }
 }
