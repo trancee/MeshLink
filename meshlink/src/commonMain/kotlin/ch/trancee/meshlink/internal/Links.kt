@@ -13,11 +13,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Instant
 
@@ -28,7 +31,9 @@ import kotlin.time.Instant
  * `PLAIN_HELLO`s in `unsecured`, or with a Noise handshake and encrypted records once
  * [LinkAdmission.handshakes] is set. Each kept link writes the messages [mail] has for its peer and
  * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
- * every link reassembles within the node's shared large-stream [budget] (spec "Fragments").
+ * every link reassembles within the node's shared large-stream [budget] (spec "Fragments"). With
+ * [LinkAdmission.coc], each kept link this node opens to a peer that offers a PSM moves to L2CAP CoC
+ * (spec "Bearer switch").
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
@@ -46,6 +51,7 @@ internal class Links(
     private val keys = handshakes?.keys
     private val report = admission.report
     private val limits = LinkLimits(radio, admission.report)
+    private val coc = admission.coc
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
 
@@ -54,6 +60,7 @@ internal class Links(
 
     private val budget = ReassemblyBudget()
     private val inbound = Inbound()
+    private val channels = Channels()
     private val table = mutableMapOf<NodeId, Link>()
     private val busy = mutableMapOf<PeerHandle, Int>()
 
@@ -71,7 +78,8 @@ internal class Links(
 
     /**
      * Accepts the link a peer opened in [event] unless the radio holds its peripheral link cap, and
-     * reconnects as central after a transient loss of a central link; other events need nothing.
+     * the L2CAP CoC channel a peer opened to switch to; reconnects as central after a transient loss of
+     * a central link. Other events need nothing.
      */
     fun accept(event: RadioEvent) {
         when (event) {
@@ -82,7 +90,7 @@ internal class Links(
                 } else {
                     track(link.peer) {
                         try {
-                            serve(link, null, policy.versions)
+                            serve(link, null, policy.versions, null)
                         } finally {
                             limits.released()
                         }
@@ -92,6 +100,10 @@ internal class Links(
 
             is RadioEvent.Disconnected -> {
                 limits.lost(event)?.let { handle -> track(handle) { central(handle) } }
+            }
+
+            is RadioEvent.ChannelOpened -> {
+                channels.accept(event.channel)
             }
 
             else -> {}
@@ -130,30 +142,39 @@ internal class Links(
 
     private suspend fun central(handle: PeerHandle) {
         val link = limits.connect(handle) ?: return
-        // The selected version and the record's versions, which a secured handshake binds.
-        var selection: Pair<Int, List<Int>>? = null
+        // The selected version and the record, whose versions a secured handshake binds.
+        var selection: Pair<Int, CapabilityRecord>? = null
         try {
             selection =
                 (link.readCapability() as? RadioResult.Ok)
                     ?.let { CapabilityRecord.decode(it.value) as? Decoded.Valid }
-                    ?.let { record -> policy.selectVersion(record.value)?.let { it to record.value.versions } }
+                    ?.let { record -> policy.selectVersion(record.value)?.let { it to record.value } }
         } finally {
             if (selection == null) link.disconnect()
         }
-        val conn = selection?.let { (version, versions) -> serve(link, version, versions) }
+        val conn =
+            selection?.let { (version, record) ->
+                val offer = record.l2capPsm?.takeIf { coc }?.let { ChannelOffer(link, it) }
+                serve(link, version, record.versions, offer)
+            }
         if (conn != null && conn.peer == null && conn.received == CloseReason.RESOURCE_LIMIT) limits.refusedBy(handle)
+        // A kept link whose channel was lost links again, like a transient loss (spec "Bearer switch").
+        if (conn?.lost == true) track(handle) { central(handle) }
     }
 
     /**
      * Runs [link] until it closes: as central once it chose [selected] from the peripheral's
-     * capability record [versions], as peripheral if [selected] is `null`. Returns the link.
+     * capability record [versions], and switches to the channel the record may [offer]; as
+     * peripheral if [selected] is `null`. Returns the link.
      */
     private suspend fun serve(
         link: RadioLink,
         selected: Int?,
         versions: List<Int>,
+        offer: ChannelOffer?,
     ) = coroutineScope {
-        val conn = Link(link, selected, handshakes?.link(link.peer, versions), Reassembly(budget, clock), clock)
+        val secure = handshakes?.link(link.peer, versions)
+        val conn = Link(link, selected, secure, Reassembly(budget, clock), clock, offer)
         opening++
         val timer =
             launch {
@@ -178,16 +199,18 @@ internal class Links(
                 else -> handshake(conn, conn.secure.start(selected))
             }
             val reader = RecordReader()
-            link.incoming.takeWhile { conn.reading }.collect { chunk ->
-                // An open link's central counts each notification and grants credits back (spec "Flow control").
-                val counted = conn.peer != null
-                when (val records = reader.read(chunk)) {
-                    is Decoded.Invalid -> conn.close(null)
-                    is Decoded.Valid -> records.value.forEach { if (conn.reading) inbound.receive(conn, it) }
-                }
+            // Reads GATT until the link closes or the peer's BEARER_SWITCH moves it to CoC.
+            link.incoming.firstOrNull { chunk ->
+                // An open link's central counts each notification and grants credits back until it
+                // switches (spec "Flow control").
+                val counted = conn.peer != null && conn.bearer.channel == null
+                inbound.read(conn, reader, chunk, onChannel = false)
                 conn.credits.notified(counted)?.let { conn.send(LinkFrame.Credit(it)) }
                 if (conn.peer != null) timer.cancel()
+                !conn.reading || conn.bearer.moved
             }
+            val channel = conn.bearer.incoming
+            if (conn.reading && channel != null) channels.read(conn, channel)
         } catch (e: CancellationException) {
             withContext(NonCancellable) { conn.close(CloseReason.SHUTTING_DOWN) }
             throw e
@@ -202,6 +225,29 @@ internal class Links(
 
     /** Reads a link's records: whole frames, reassembled streams and what each asks of [Links]. */
     private inner class Inbound {
+        /**
+         * Handles the records in [chunk], read from the channel if [onChannel], else from GATT;
+         * records on GATT after the peer's `BEARER_SWITCH` are dropped. Bytes [reader] can't frame
+         * close the bearer.
+         */
+        suspend fun read(
+            conn: Link,
+            reader: RecordReader,
+            chunk: ByteArray,
+            onChannel: Boolean,
+        ) {
+            when (val records = reader.read(chunk)) {
+                is Decoded.Invalid -> {
+                    conn.close(null)
+                }
+
+                is Decoded.Valid -> {
+                    val bearer = conn.bearer
+                    records.value.forEach { if (conn.reading && bearer.moved == onChannel) receive(conn, it) }
+                }
+            }
+        }
+
         /**
          * Handles one record [body]: a fatal one, or one that fails to decrypt, closes the bearer; a
          * peer overdue its rekey is closed with `PROTOCOL_ERROR`.
@@ -326,23 +372,128 @@ internal class Links(
                 }
 
                 else -> {
-                    unexpected(conn, frame)
+                    other(conn, frame)
                 }
             }
         }
 
         /**
-         * A frame [frame] has no rule for. A `REKEY` was already applied by the cipher, and an
-         * `Unsecured` link drops it as an unknown link-local frame (D-48); anything else closes the link.
+         * A frame the rules above don't cover. `BEARER_SWITCH` on an open link moves it (spec "Bearer
+         * switch"). A `REKEY` was already applied by the cipher, and an `Unsecured` link drops it as
+         * an unknown link-local frame (D-48); anything else closes the link with `PROTOCOL_ERROR`.
          */
-        private suspend fun unexpected(
+        private suspend fun other(
             conn: Link,
             frame: LinkFrame,
         ) {
             when {
+                frame == LinkFrame.BearerSwitch && conn.peer != null -> channels.switched(conn)
                 frame != LinkFrame.Rekey -> conn.close(CloseReason.PROTOCOL_ERROR)
                 conn.cipher == null -> report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
             }
+        }
+    }
+
+    /**
+     * Moves links to L2CAP CoC (spec "Bearer switch", D-49): the central opens a channel to the PSM
+     * the peer offered and writes `BEARER_SWITCH`; the peripheral answers with its own on the
+     * channel the central opened. Each end then reads the channel once the peer's switch arrives.
+     */
+    private inner class Channels {
+        // The channels peers opened that no link has claimed yet, by peer.
+        private val opened = MutableStateFlow<Map<PeerHandle, RadioStream>>(emptyMap())
+
+        /** Keeps [channel] for its peer's link to claim; disconnects it if no link or another channel waits. */
+        fun accept(channel: RadioStream) {
+            val handle = channel.peer
+            if (handle !in busy || handle in opened.value) {
+                channel.disconnect()
+            } else {
+                opened.value += handle to channel
+            }
+        }
+
+        /** Opens the channel [offer] names for central [conn] and switches to it, or reports why it stayed on GATT. */
+        suspend fun upgrade(
+            conn: Link,
+            offer: ChannelOffer,
+        ) {
+            when (val result = offer.link.openChannel(offer.psm)) {
+                is RadioResult.Ok -> {
+                    switchTo(conn, result.value)
+                }
+
+                // A radio without L2CAP CoC was never going to switch: nothing fell back.
+                is RadioResult.Failed -> {
+                    if (result.reason != RadioFailure.UNSUPPORTED) report(LinkDiagnostic.BearerFallback(result.reason))
+                }
+            }
+        }
+
+        /**
+         * The peer's `BEARER_SWITCH` arrived on [conn]. A central reads its channel from now on. A
+         * peripheral claims the channel the central opened, within `coc-accept-timeout`, and answers
+         * with its own switch. A second switch, a switch from a peripheral first, or no channel
+         * close the link with `PROTOCOL_ERROR`.
+         */
+        suspend fun switched(conn: Link) {
+            val bearer = conn.bearer
+            val ready =
+                when {
+                    bearer.moved -> false
+                    conn.central -> bearer.channel != null
+                    else -> claim(conn)
+                }
+            if (ready) bearer.moved = true else conn.close(CloseReason.PROTOCOL_ERROR)
+        }
+
+        /**
+         * Reads [conn]'s channel until the link closes. A channel that ends first closes the link,
+         * which counts as [Link.lost] if it was the peer's kept link.
+         */
+        suspend fun read(
+            conn: Link,
+            channel: RadioStream,
+        ) {
+            val reader = RecordReader()
+            channel
+                .incoming
+                .takeWhile { conn.reading }
+                .collect { inbound.read(conn, reader, it, true) }
+            if (conn.reading) {
+                conn.lost = table[conn.peer] === conn
+                conn.close(null)
+            }
+        }
+
+        /** Disconnects any channel peripheral [conn]'s peer opened that it never claimed. */
+        fun release(conn: Link) {
+            val handle = conn.link.peer
+            if (conn.central) return
+            opened.value[handle]?.disconnect()
+            opened.value -= handle
+        }
+
+        // A peripheral's switch: the central sent its last credit-counted notification, so this
+        // end's own notifications until its switch go uncredited (D-49).
+        private suspend fun claim(conn: Link): Boolean {
+            conn.credits.waive()
+            val handle = conn.link.peer
+            val channel = withTimeoutOrNull(COC_ACCEPT_TIMEOUT_MILLIS) { opened.first { handle in it }[handle] }
+            opened.value -= handle
+            return channel != null && switchTo(conn, channel)
+        }
+
+        /** Writes `BEARER_SWITCH` on [conn] and moves its writes to [channel]; disconnects it if the link closed. */
+        private suspend fun switchTo(
+            conn: Link,
+            channel: RadioStream,
+        ): Boolean {
+            conn.bearer.offer(channel)
+            conn.send(LinkFrame.BearerSwitch)
+            val switched = conn.bearer.channel === channel
+            if (!switched) channel.disconnect()
+            return switched
         }
     }
 
@@ -394,6 +545,7 @@ internal class Links(
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
         // The loser drains until the peer's CLOSE, at most DRAIN_TIMEOUT_MILLIS (spec "Duplicate links").
         val loser = if (keepNew) other else conn
+        conn.offer?.takeIf { keepNew }?.let { scope.launch { channels.upgrade(conn, it) } }
         loser?.let {
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 it.close(CloseReason.DUPLICATE_LINK)
@@ -407,6 +559,7 @@ internal class Links(
 
     private fun release(conn: Link) {
         conn.credits.stop()
+        channels.release(conn)
         conn.secure?.end()
         conn.reassembly.clear()
         val id = conn.peer
@@ -436,6 +589,8 @@ internal class Links(
         val secure: LinkHandshake?,
         val reassembly: Reassembly,
         private val clock: Clock,
+        /** The channel a central's peer offers, or `null`. */
+        val offer: ChannelOffer?,
     ) {
         val central: Boolean get() = selected != null
         var peer: NodeId? = null
@@ -463,6 +618,12 @@ internal class Links(
         /** The link's GATT notification credits (spec "Flow control"). */
         val credits = Credits(peripheral = !central)
 
+        /** Where the link's records travel: GATT, then L2CAP CoC once switched (spec "Bearer switch"). */
+        val bearer = Bearer(link, credits)
+
+        /** Whether the peer's kept link ended as its channel did, without a `CLOSE`. */
+        var lost = false
+
         // An open link's peripheral sends each frame but CLOSE as credited notifications.
         private val crediting: Boolean get() = !central && peer != null
 
@@ -487,13 +648,14 @@ internal class Links(
                 // CLOSE never follows a record cut short.
                 if (closing && (frame !is LinkFrame.Close || credits.torn)) return@withLock
                 if (bytes.size <= LinkRecord.BODY_MAX) {
-                    credits.write(link, seal(bytes), credited)
+                    bearer.write(seal(bytes), credited)
                 } else {
                     val dataMax = LinkRecord.BODY_MAX - LinkFrame.Fragment.HEADER
                     LinkFrame.Fragment.split(stream(), bytes, dataMax).forEach {
-                        credits.write(link, seal(it.encode()), credited)
+                        bearer.write(seal(it.encode()), credited)
                     }
                 }
+                if (frame == LinkFrame.BearerSwitch) bearer.switched()
             }
         }
 
@@ -581,7 +743,7 @@ internal class Links(
 
         private suspend fun record(frame: ByteArray): Written =
             writing.withLock {
-                val written = !closing && credits.write(link, seal(frame), crediting) is RadioResult.Ok
+                val written = !closing && bearer.write(seal(frame), crediting) is RadioResult.Ok
                 if (written) Written.SENT else Written.FAILED
             }
 
@@ -608,7 +770,7 @@ internal class Links(
             if (closing) {
                 if (draining) {
                     draining = false
-                    link.disconnect()
+                    bearer.disconnect()
                 }
                 return
             }
@@ -622,7 +784,7 @@ internal class Links(
             try {
                 reason?.let { send(LinkFrame.Close(it)) }
             } finally {
-                link.disconnect()
+                bearer.disconnect()
             }
         }
 
@@ -640,12 +802,21 @@ internal class Links(
 
     private enum class Written { SENT, REFUSED, FAILED }
 
+    /** The L2CAP CoC [psm] a central's [link] can open a channel to. */
+    private class ChannelOffer(
+        val link: CentralLink,
+        val psm: Int,
+    )
+
     companion object {
         /** How long a link may take to exchange hellos before the node closes the bearer (spec `handshake-timeout`). */
         const val HANDSHAKE_TIMEOUT_MILLIS: Long = 10_000
 
         /** How long a link closed as a duplicate waits for the peer's `CLOSE` (spec `duplicate-drain-timeout`). */
         const val DRAIN_TIMEOUT_MILLIS: Long = 10_000
+
+        /** A peripheral's wait for the channel after the central's `BEARER_SWITCH` (spec `coc-accept-timeout`). */
+        const val COC_ACCEPT_TIMEOUT_MILLIS: Long = 5_000
 
         /**
          * The first routed frame type: unicast `0x40`–`0x7F` and flood `0x80`–`0xBF` (spec
@@ -657,12 +828,14 @@ internal class Links(
 }
 
 /**
- * How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile; they
- * [report] diagnostics.
+ * How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile; with
+ * [coc], a central moves each link it opens to a peer that offers a PSM to L2CAP CoC. They [report]
+ * diagnostics.
  */
 internal class LinkAdmission(
     val policy: LinkPolicy,
     val handshakes: Handshakes?,
+    val coc: Boolean,
     /** Emits the link diagnostics the session's links report. */
     val report: (LinkDiagnostic) -> Unit,
 )

@@ -54,6 +54,7 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
 	public final fun awaitSendCapacity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun close ()V
+	public final fun getCoc ()Z
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
 	public final fun getLinkDiagnostics ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getLinkRoles ()Ljava/util/Map;
@@ -65,6 +66,7 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun radioFailure ()Lch/trancee/meshlink/internal/RadioFailure;
 	public final fun resetIdentity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send (Lch/trancee/meshlink/NodeId;[B)Lch/trancee/meshlink/SendResult;
+	public final fun setCoc (Z)V
 	public final fun setRestrictedLinkRole (Lch/trancee/meshlink/internal/LinkRole;)V
 	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -382,6 +384,12 @@ public final class ch/trancee/meshlink/internal/InMemoryIdentityStore : ch/tranc
 
 public abstract interface class ch/trancee/meshlink/internal/LinkDiagnostic {
 	public abstract fun getCode ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/internal/LinkDiagnostic$BearerFallback : ch/trancee/meshlink/internal/LinkDiagnostic {
+	public fun <init> (Lch/trancee/meshlink/internal/RadioFailure;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lch/trancee/meshlink/internal/RadioFailure;
 }
 
 public final class ch/trancee/meshlink/internal/LinkDiagnostic$ConnectFailed : ch/trancee/meshlink/internal/LinkDiagnostic {

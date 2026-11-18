@@ -92,6 +92,23 @@ class AndroidRadioCentralTest {
         }
 
     @Test
+    fun theRadioOffersNoL2capChannelsYet() =
+        runTest {
+            // Arrange
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val link = connected(radio)
+
+            // Act
+            val listening = radio.listenForChannels()
+            radio.stopListening()
+            val opened = link.openChannel(PSM)
+
+            // Assert
+            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(listening).reason)
+            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(opened).reason)
+        }
+
+    @Test
     fun theLinkUsesTheMtuThePeripheralGranted() =
         runTest {
             // Arrange
@@ -532,6 +549,7 @@ class AndroidRadioCentralTest {
         const val GRANTED_MTU = 185
         const val SMALL_MTU = 8
         const val GATT_ERROR = 133
+        const val PSM = 0x0080
         val ENABLE: ByteArray = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
     }
 }

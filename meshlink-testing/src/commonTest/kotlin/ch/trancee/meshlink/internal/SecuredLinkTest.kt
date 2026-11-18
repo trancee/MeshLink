@@ -355,6 +355,7 @@ abstract class SecuredLinkTest(
                     "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "DECRYPT"),
                     "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "PROTOCOL"),
                     "rekey" to Pair({ listOf(record(LinkFrame.Rekey)) }, "PROTOCOL"),
+                    "bearer switch" to Pair({ listOf(record(LinkFrame.BearerSwitch)) }, "PROTOCOL"),
                     "rekey after message 1" to Pair({ listOf(message1(it), record(LinkFrame.Rekey)) }, "PROTOCOL"),
                     "fragmented hello" to
                         Pair(
@@ -548,6 +549,33 @@ abstract class SecuredLinkTest(
         }
 
     @Test
+    fun twoCocNodesSwitchToCocAndRekeyThereEveryHour() =
+        runTest {
+            // Arrange
+            val air = air()
+            val platforms = List(2) { air.platform(StandardTestDispatcher(testScheduler), coc = true) }
+            val nodes = platforms.map { securedNode(it, null) }
+            nodes.forEach { it.start() }
+            advanceTimeBy(SETTLE_MILLIS)
+            val channels =
+                platforms.map { platform ->
+                    platform.radio.ends
+                        .single { it.open }
+                        .channels
+                        .single()
+                }
+            val switched = channels.map { it.written.size }
+
+            // Act
+            advanceTimeBy(HOURS * LinkCipher.REKEY_INTERVAL_MILLIS + SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(1, 1), nodes.map { it.peers.value.size })
+            assertEquals(listOf(1, 1), platforms.map { platform -> platform.radio.ends.count { it.open } })
+            channels.zip(switched).forEach { (channel, before) -> assertTrue(channel.written.size > before) }
+        }
+
+    @Test
     fun eachDirectionRekeysEveryHourAndTheLinkStaysOpen() =
         runTest {
             // Arrange
@@ -690,6 +718,7 @@ abstract class SecuredLinkTest(
             is LinkDiagnostic.HandshakeLimitDropped -> "$code $limit"
             is LinkDiagnostic.ConnectFailed -> "$code $reason $attempt"
             is LinkDiagnostic.LinkCapReached -> "$code $cap"
+            is LinkDiagnostic.BearerFallback -> "$code $reason"
             is LinkDiagnostic.UnknownLinkFrameDropped -> "$code $type"
         }
 

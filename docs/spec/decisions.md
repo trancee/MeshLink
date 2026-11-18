@@ -346,6 +346,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** the [Link-local frame summary](link.md#link-local-frame-summary) already requires a receiver to drop an unknown link-local frame without closing the link, and ADR 0020 lists ML3007 for it. An `unsecured` link has no cipher state to rekey, so the frame carries nothing the receiver can act on; closing would let one malformed or future peer frame tear down links that the unknown-type rule keeps open.
 - **Alternatives:** close with `PROTOCOL_ERROR` (stricter, but treats a harmless frame more harshly than an unknown one); ignore it without a diagnostic (hides a misbehaving peer from troubleshooting).
 
+### D-49 Bearer switch timing and credits
+
+- **Question:** how do `BEARER_SWITCH` and `CREDIT` interact, how long does a peripheral wait for the central's channel, and what happens when the channel can't open or is lost?
+- **Decision:** `BEARER_SWITCH` needs no credit. Once the central has written its `BEARER_SWITCH` it grants no more credits; the peripheral, from receiving it until its own `BEARER_SWITCH`, sends its GATT notifications uncredited, finishing any record in progress first. The peripheral waits `coc-accept-timeout` (5 s) for the central's channel, then closes with `PROTOCOL_ERROR`. `unsecured` links switch too. A channel that fails to open leaves the link on credited GATT and records ML3005 `BearerFallback`, except when the platform has no CoC. A lost channel ends the link; the central links again once, as after a transient loss. Owner decisions 2026-11-18 (ticket 31, grilling Q2, Q3, Q5, Q6, Q9 and Q10).
+- **Evidence:** after its `BEARER_SWITCH` the central writes nothing more on GATT, so it can't send the grant a credited peripheral would wait for: crediting the peripheral's last GATT records, or its `BEARER_SWITCH`, could stall the switch forever. CoC setup took about 160–380 ms on top of GATT in the lab ([ADR 0009](../adr/0009-ble-bearers-and-phy-policy.md)); 5 s bounds a central that sent `BEARER_SWITCH` without a channel.
+- **Alternatives:** credit `BEARER_SWITCH` (can deadlock with no credits left); keep granting on GATT after the switch (the central no longer writes on GATT); fall back to GATT after a lost channel with the old cipher state (ADR 0009 forbids moving cipher state after a failure, C-07).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

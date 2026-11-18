@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -60,6 +61,56 @@ class DiscoveryTest {
             assertTrue(whileRunning)
             assertNull(platform.radio.advertisement)
             assertFalse(platform.radio.scanning)
+        }
+
+    @Test
+    fun nodeOnACocRadioListensAndOffersItsPsmAndTheFlagUntilStopped() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler), coc = true)
+            val node = node(platform, "Festival")
+
+            // Act
+            node.start()
+            runCurrent()
+            val listening = platform.radio.listening
+            val offer = offer(platform.radio)
+            advanceTimeBy(EPOCH_MILLIS)
+            val rotated = offer(platform.radio)
+            node.stop()
+
+            // Assert
+            assertTrue(listening)
+            assertEquals(Offer(VirtualRadio.PSM, Advertisement.COC_AVAILABLE), offer)
+            assertEquals(offer, rotated)
+            assertEquals(2, platform.radio.advertisements.size)
+            assertFalse(platform.radio.listening)
+        }
+
+    @Test
+    fun nodeWithCocOffOrOnARadioWithoutCocOffersNoPsmAndNoFlag() =
+        runTest {
+            // Arrange
+            val air = air()
+            val off = air.platform(StandardTestDispatcher(testScheduler), coc = true)
+            val unsupported = air.platform(StandardTestDispatcher(testScheduler))
+            val central = air.platform(StandardTestDispatcher(testScheduler), coc = true)
+            val nodes =
+                listOf(
+                    node(off, "Festival").apply { coc = false },
+                    node(unsupported, "Festival"),
+                    node(central, "Festival").apply { restrictedLinkRole = LinkRole.CENTRAL },
+                )
+
+            // Act
+            nodes.forEach { it.start() }
+            runCurrent()
+
+            // Assert
+            assertEquals(Offer(null, 0), offer(off.radio))
+            assertFalse(off.radio.listening)
+            assertEquals(Offer(null, 0), offer(unsupported.radio))
+            assertFalse(central.radio.listening)
         }
 
     @Test
@@ -224,6 +275,18 @@ class DiscoveryTest {
             assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
             assertFalse(virtual.radio.scanning)
         }
+
+    /** What [radio] offers peers: the PSM in its capability record and the flags of its latest advertisement. */
+    private data class Offer(
+        val psm: Int?,
+        val flags: Int,
+    )
+
+    private fun offer(radio: VirtualRadio): Offer {
+        val record = (CapabilityRecord.decode(assertNotNull(radio.capability)) as Decoded.Valid).value
+        val advertisement = (Advertisement.decode(radio.advertisements.last().second) as Decoded.Valid).value
+        return Offer(record.l2capPsm, advertisement.flags)
+    }
 
     private fun TestScope.air(): VirtualAir = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1))
 

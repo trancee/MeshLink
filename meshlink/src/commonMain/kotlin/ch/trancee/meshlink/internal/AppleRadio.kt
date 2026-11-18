@@ -88,6 +88,11 @@ internal class AppleRadio(
 
     override fun serveCapability(record: ByteArray): RadioResult<Unit> = host.serve(record)
 
+    // L2CAP CoC arrives with ticket 31b; until then a node offers no channel and stays on GATT.
+    override suspend fun listenForChannels(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+
+    override fun stopListening() = Unit
+
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = central.connect(peer)
 }
 

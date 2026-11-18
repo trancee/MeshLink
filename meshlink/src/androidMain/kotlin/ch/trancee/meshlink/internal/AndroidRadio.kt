@@ -41,6 +41,11 @@ internal class AndroidRadio(
 
     override fun serveCapability(record: ByteArray): RadioResult<Unit> = server.serve(record)
 
+    // L2CAP CoC arrives with ticket 31a; until then a node offers no channel and stays on GATT.
+    override suspend fun listenForChannels(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+
+    override fun stopListening() = Unit
+
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> =
         when (peer) {
             is AndroidPeer -> GattCentralLink(app, peer.device, ::emit).open()

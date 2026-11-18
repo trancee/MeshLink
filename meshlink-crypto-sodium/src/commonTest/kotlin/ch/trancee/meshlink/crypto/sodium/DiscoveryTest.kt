@@ -84,6 +84,15 @@ class DiscoveryTest {
     }
 
     @Test
+    fun advertisementCarriesTheFlagsItIsGiven() {
+        val payload = node.advertisement(EPOCH, flags = Advertisement.COC_AVAILABLE)
+
+        val advertisement = (Advertisement.decode(payload) as Decoded.Valid).value
+        assertEquals(Advertisement.COC_AVAILABLE, advertisement.flags)
+        assertNotNull(member.accept(payload, EPOCH))
+    }
+
+    @Test
     fun eachAdvertisementDrawsAFreshResolvableTagAndRandomFill() {
         val first = Advertisement.decode(node.advertisement(EPOCH)) as Decoded.Valid
         val second = Advertisement.decode(node.advertisement(EPOCH)) as Decoded.Valid

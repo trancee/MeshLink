@@ -27,6 +27,12 @@ import kotlin.math.min
  * a test drops a link as a transient loss with [VirtualLinkEnd.drop]. It models no other loss and
  * no advertising and scan windows yet.
  *
+ * A radio supports L2CAP CoC only when a test adds it with `coc = true`; any other radio behaves as
+ * an Android 8 or 9 phone, whose listener and channel opening are unsupported. A listening radio
+ * always gets [VirtualRadio.PSM], accepts every channel opened to it unless the test sets
+ * [VirtualRadio.refuseChannels], and each channel write arrives whole, after a latency, in order. A
+ * channel closes with its link; a test drops one with [VirtualChannelEnd.drop].
+ *
  * Coroutines run in [scope], which a test passes as `backgroundScope` so they end with the test.
  * When [scope] ends, every radio reports Bluetooth off, so the nodes on the air stop their sessions
  * and periodic timers and the test scheduler can go idle.
@@ -52,14 +58,22 @@ internal class VirtualAir(
     fun platform(
         dispatcher: CoroutineDispatcher,
         peripheralLinkCap: Int? = null,
-    ): VirtualPlatform = VirtualPlatform(radio(peripheralLinkCap = peripheralLinkCap), clock, random, dispatcher)
+        coc: Boolean = false,
+    ): VirtualPlatform {
+        val radio = radio(peripheralLinkCap = peripheralLinkCap, coc = coc)
+        return VirtualPlatform(radio, clock, random, dispatcher)
+    }
 
-    /** Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu] and that reports [peripheralLinkCap]. */
+    /**
+     * Adds a radio whose links negotiate an ATT MTU of at most [maxAttMtu], that reports
+     * [peripheralLinkCap] and supports L2CAP CoC if [coc].
+     */
     fun radio(
         maxAttMtu: Int = DEFAULT_ATT_MTU,
         peripheralLinkCap: Int? = null,
+        coc: Boolean = false,
     ): VirtualRadio {
-        val radio = VirtualRadio(this, maxAttMtu, peripheralLinkCap)
+        val radio = VirtualRadio(this, maxAttMtu, peripheralLinkCap, coc)
         radios += radio
         return radio
     }
@@ -149,6 +163,7 @@ internal class VirtualRadio(
     private val air: VirtualAir,
     val maxAttMtu: Int,
     override val peripheralLinkCap: Int? = null,
+    val coc: Boolean = false,
 ) : RadioPort {
     /** The radio's current address; each [startAdvertising] replaces it. */
     var handle: VirtualPeer = VirtualPeer()
@@ -176,10 +191,14 @@ internal class VirtualRadio(
     /** Every payload this radio started advertising, with the wall-clock milliseconds it started at. */
     internal val advertisements: List<Pair<Long, ByteArray>> get() = mutableAdvertisements.toList()
 
-    private val mutableEnds = mutableListOf<VirtualLinkEnd>()
+    /** The radio's link ends, which add and log themselves. */
+    internal val log = VirtualEnds()
 
     /** This radio's end of every link it took part in, open or closed, in the order they opened. */
-    internal val ends: List<VirtualLinkEnd> get() = mutableEnds.toList()
+    internal val ends: List<VirtualLinkEnd> get() = log.ends
+
+    /** Each link this radio held as peripheral, in order: `true` when it opened, `false` when it closed. */
+    internal val peripheralLog: List<Pair<VirtualLinkEnd, Boolean>> get() = log.peripheral
 
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)
@@ -213,6 +232,23 @@ internal class VirtualRadio(
 
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = air.connect(this, peer)
 
+    /** Whether the radio accepts channels; see [listenForChannels]. */
+    internal var listening: Boolean = false
+        private set
+
+    /** Whether the radio refuses every channel opened to it, as a platform out of channels does. */
+    var refuseChannels: Boolean = false
+
+    override suspend fun listenForChannels(): RadioResult<Int> {
+        if (!coc) return RadioResult.Failed(RadioFailure.UNSUPPORTED)
+        listening = true
+        return RadioResult.Ok(PSM)
+    }
+
+    override fun stopListening() {
+        listening = false
+    }
+
     /** Reports [missing] as the radio's requirements, as a real radio does when Bluetooth turns off. */
     fun report(missing: Set<Requirement>) {
         this.missing.value = missing
@@ -227,18 +263,27 @@ internal class VirtualRadio(
         eventChannel.trySend(event)
     }
 
-    private val mutablePeripheralLog = mutableListOf<Pair<VirtualLinkEnd, Boolean>>()
+    companion object {
+        /** The PSM every listening radio gets, the first of the LE dynamic range. */
+        const val PSM: Int = 0x0080
+    }
+}
 
-    /** Each link this radio held as peripheral, in order: `true` when it opened, `false` when it closed. */
-    internal val peripheralLog: List<Pair<VirtualLinkEnd, Boolean>> get() = mutablePeripheralLog
+/** One radio's link ends, in the order they opened, and when each it held as peripheral opened and closed. */
+internal class VirtualEnds {
+    private val mutableEnds = mutableListOf<VirtualLinkEnd>()
+    private val mutablePeripheral = mutableListOf<Pair<VirtualLinkEnd, Boolean>>()
 
-    internal fun track(end: VirtualLinkEnd) {
+    val ends: List<VirtualLinkEnd> get() = mutableEnds.toList()
+    val peripheral: List<Pair<VirtualLinkEnd, Boolean>> get() = mutablePeripheral
+
+    fun opened(end: VirtualLinkEnd) {
         mutableEnds += end
-        if (end !is VirtualCentralEnd) mutablePeripheralLog += end to true
+        if (end !is VirtualCentralEnd) mutablePeripheral += end to true
     }
 
-    internal fun untrack(end: VirtualLinkEnd) {
-        if (end !is VirtualCentralEnd) mutablePeripheralLog += end to false
+    fun closed(end: VirtualLinkEnd) {
+        if (end !is VirtualCentralEnd) mutablePeripheral += end to false
     }
 }
 
@@ -253,6 +298,61 @@ internal class VirtualConnection(
     val peripheralEnd: VirtualLinkEnd = VirtualLinkEnd(air, this, peripheral, central)
 
     fun oppositeOf(end: VirtualLinkEnd): VirtualLinkEnd = if (end === centralEnd) peripheralEnd else centralEnd
+}
+
+/** One L2CAP CoC channel between the two ends of a [VirtualConnection], holding both of its ends. */
+internal class VirtualChannel(
+    air: VirtualAir,
+    connection: VirtualConnection,
+) {
+    val centralEnd: VirtualChannelEnd = VirtualChannelEnd(air, this, connection.centralEnd.peer)
+    val peripheralEnd: VirtualChannelEnd = VirtualChannelEnd(air, this, connection.peripheralEnd.peer)
+
+    fun oppositeOf(end: VirtualChannelEnd): VirtualChannelEnd = if (end === centralEnd) peripheralEnd else centralEnd
+}
+
+/** One radio's end of a [VirtualChannel]. */
+internal class VirtualChannelEnd(
+    air: VirtualAir,
+    private val channel: VirtualChannel,
+    override val peer: PeerHandle,
+) : RadioStream {
+    private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
+    private val pipe = air.pipe()
+    private var closed = false
+
+    /** Every byte this end wrote, in order. */
+    var written: ByteArray = ByteArray(0)
+        private set
+
+    override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()
+
+    override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
+        if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
+        written += bytes
+        val target = channel.oppositeOf(this)
+        val copy = bytes.copyOf()
+        pipe.send { target.inbox.trySend(copy) }
+        return RadioResult.Ok(Unit)
+    }
+
+    override fun disconnect() {
+        if (closed) return
+        close()
+        val target = channel.oppositeOf(this)
+        pipe.send { target.close() }
+    }
+
+    /** Closes both ends at once, as a channel lost to the air. */
+    fun drop() {
+        close()
+        channel.oppositeOf(this).close()
+    }
+
+    internal fun close() {
+        closed = true
+        inbox.close()
+    }
 }
 
 /** One radio's end of a [VirtualConnection]. */
@@ -282,8 +382,17 @@ internal open class VirtualLinkEnd(
     var chunks: Int = 0
         private set
 
+    private val mutableChannels = mutableListOf<VirtualChannelEnd>()
+
+    /** This end of every channel opened on the link, in the order they opened. */
+    val channels: List<VirtualChannelEnd> get() = mutableChannels.toList()
+
+    internal fun add(channel: VirtualChannelEnd) {
+        mutableChannels += channel
+    }
+
     init {
-        local.track(this)
+        local.log.opened(this)
     }
 
     override val peer: PeerHandle = remote.handle
@@ -330,7 +439,8 @@ internal open class VirtualLinkEnd(
         if (closed) return
         closed = true
         inbox.close()
-        local.untrack(this)
+        mutableChannels.forEach { it.close() }
+        local.log.closed(this)
         local.emit(RadioEvent.Disconnected(this, transient))
     }
 }
@@ -338,11 +448,37 @@ internal open class VirtualLinkEnd(
 /** The central's end of a [VirtualConnection], which can read the peripheral's capability. */
 internal class VirtualCentralEnd(
     private val air: VirtualAir,
-    connection: VirtualConnection,
-    local: VirtualRadio,
+    private val connection: VirtualConnection,
+    private val local: VirtualRadio,
     remote: VirtualRadio,
 ) : VirtualLinkEnd(air, connection, local, remote),
     CentralLink {
+    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> {
+        if (!local.coc) return RadioResult.Failed(RadioFailure.UNSUPPORTED)
+        delay(air.latency())
+        return when {
+            closed -> {
+                RadioResult.Failed(RadioFailure.LINK_CLOSED)
+            }
+
+            !remote.listening || remote.refuseChannels || psm != VirtualRadio.PSM -> {
+                RadioResult.Failed(RadioFailure.RADIO_ERROR)
+            }
+
+            else -> {
+                RadioResult.Ok(open())
+            }
+        }
+    }
+
+    private fun open(): RadioStream {
+        val channel = VirtualChannel(air, connection)
+        add(channel.centralEnd)
+        connection.peripheralEnd.add(channel.peripheralEnd)
+        remote.emit(RadioEvent.ChannelOpened(channel.peripheralEnd))
+        return channel.centralEnd
+    }
+
     override suspend fun readCapability(): RadioResult<ByteArray> {
         delay(air.latency())
         val record = remote.capability

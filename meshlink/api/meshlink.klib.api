@@ -107,6 +107,15 @@ sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.mes
     abstract val code // ch.trancee.meshlink.internal/LinkDiagnostic.code|{}code[0]
         abstract fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.code.<get-code>|<get-code>(){}[0]
 
+    final class BearerFallback : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback|null[0]
+        constructor <init>(ch.trancee.meshlink.internal/RadioFailure) // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback.<init>|<init>(ch.trancee.meshlink.internal.RadioFailure){}[0]
+
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback.code.<get-code>|<get-code>(){}[0]
+        final val reason // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink.internal/RadioFailure // ch.trancee.meshlink.internal/LinkDiagnostic.BearerFallback.reason.<get-reason>|<get-reason>(){}[0]
+    }
+
     final class ConnectFailed : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed|null[0]
         constructor <init>(ch.trancee.meshlink.internal/RadioFailure, kotlin/Int) // ch.trancee.meshlink.internal/LinkDiagnostic.ConnectFailed.<init>|<init>(ch.trancee.meshlink.internal.RadioFailure;kotlin.Int){}[0]
 
@@ -341,6 +350,9 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
     final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
 
+    final var coc // ch.trancee.meshlink/MeshLink.coc|{}coc[0]
+        final fun <get-coc>(): kotlin/Boolean // ch.trancee.meshlink/MeshLink.coc.<get-coc>|<get-coc>(){}[0]
+        final fun <set-coc>(kotlin/Boolean) // ch.trancee.meshlink/MeshLink.coc.<set-coc>|<set-coc>(kotlin.Boolean){}[0]
     final var restrictedLinkRole // ch.trancee.meshlink/MeshLink.restrictedLinkRole|{}restrictedLinkRole[0]
         final fun <get-restrictedLinkRole>(): ch.trancee.meshlink.internal/LinkRole? // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<get-restrictedLinkRole>|<get-restrictedLinkRole>(){}[0]
         final fun <set-restrictedLinkRole>(ch.trancee.meshlink.internal/LinkRole?) // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<set-restrictedLinkRole>|<set-restrictedLinkRole>(ch.trancee.meshlink.internal.LinkRole?){}[0]

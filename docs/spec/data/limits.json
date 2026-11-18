@@ -570,6 +570,13 @@
       "source": "ADR 0009 decision 5"
     },
     {
+      "name": "coc-accept-timeout",
+      "value": 5000,
+      "unit": "ms",
+      "decision": "D-49",
+      "source": "ADR 0009 decision 1"
+    },
+    {
       "name": "gatt-credit-window",
       "value": 8,
       "unit": "-",

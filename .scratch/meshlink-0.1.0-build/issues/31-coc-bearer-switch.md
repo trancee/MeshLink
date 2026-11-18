@@ -32,7 +32,7 @@ Every link still starts on GATT. When both phones support it, the link moves to 
 - [ ] T10: a `BEARER_SWITCH` from the peripheral first, a second `BEARER_SWITCH`, a switch with no CoC channel open, and a switch before handshake completion each close the bearer or fail the handshake as the spec requires, with no cipher state reused on a new link.
 - [ ] A seeded test shows CoC traffic is not credited and sends no `CREDIT` frames (moved from ticket 29).
 - [ ] Android 8 and 9 and CoC-off nodes never set `COC_AVAILABLE` or send `L2CAP_PSM`, but still link over GATT with CoC nodes.
-- [ ] Robolectric tests cover the Android CoC listener, channel open, stream I/O and the 133/147 mapping. iOS tests with fakes cover the same paths and the cap of 3, and the adapters are listed in the CI-named `iosMain` file.
+- [ ] ~~Robolectric tests cover the Android CoC listener, channel open, stream I/O and the 133/147 mapping. iOS tests with fakes cover the same paths and the cap of 3, and the adapters are listed in the CI-named `iosMain` file.~~ Moved to tickets 31a (Android) and 31b (iOS), Q1.
 - [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
@@ -50,3 +50,11 @@ cargo test --manifest-path tools/reference/Cargo.toml
 ## Devices needed
 
 None for this ticket. Ticket 33 proves CoC on phone pairs.
+
+## Outcome
+
+- **Owner decisions (2026-11-18):** Q1 the Android and iOS adapters move to tickets 31a and 31b; ticket 33 waits for both. Q2 `BEARER_SWITCH` needs no credit. Q3 `coc-accept-timeout` is 5 s, then `PROTOCOL_ERROR`. Q4 the T10 close reasons below. Q5 `Unsecured` links switch too. Q6 `BearerFallback` (ML3005) and an internal toggle. Q7 `Unsecured` messages are tested across the switch; the secured profiles test the switch and `REKEY` on CoC, and secured messages across the switch move to ticket 46. Q8 `VirtualAir` CoC is opt-in per radio. Q9 once the central has switched it stops granting; the peripheral's notifications until its own switch are uncredited, finishing the record in progress. Q10 a central re-dials once after its kept link's channel is lost. Q11 the internal `MeshLink.coc` toggle. Recorded as D-49.
+- **Spec:** link.md "Bearer switch" states who switches, `coc-accept-timeout`, the protocol errors, unclaimed and second channels and the re-dial; "Flow control" states the credit rules around the switch (D-49). `link-transport.json` gains four `BEARER_SWITCH` continuity tests from the Rust reference, and `check_spec.py` checks their placement.
+- **Core:** `LinkFrame.BearerSwitch`; `RadioPort` gains `RadioStream`, `CentralLink.openChannel`, `listenForChannels`/`stopListening` and `RadioEvent.ChannelOpened`; the capability record carries the PSM and the advertisement the `COC_AVAILABLE` flag while the listener is up. `Links` switches each kept link through `Bearer` and `Channels`, waives credits on the central's switch, reports `BearerFallback` and re-dials after a lost channel.
+- **T10:** `BEARER_SWITCH` before the hello, from the peripheral first, a second one, and one with no channel within 5 s each close with `PROTOCOL_ERROR`; a lost channel ends the link and the next link runs a fresh hello or handshake.
+- **Adapters:** the Android and iOS radios report `UNSUPPORTED` for CoC until tickets 31a and 31b, so real nodes stay on GATT and the Android 8/9 criterion is met for now; 31a keeps it.

@@ -9,8 +9,9 @@ import kotlinx.coroutines.flow.Flow
  *
  * It covers the GATT bearer as `docs/spec/link.md` "Roles and bearers" describes it: advertise
  * and scan for the MESH service, connect as central, serve and read the capability characteristic,
- * and an ordered byte stream per link. Every operation reports failure as a [RadioResult], never as
- * an exception.
+ * and an ordered byte stream per link. It also covers the L2CAP CoC bearer a link may switch to
+ * (spec "Bearer switch"): listen for channels as peripheral, open one as central. Every operation
+ * reports failure as a [RadioResult], never as an exception.
  */
 public interface RadioPort {
     /**
@@ -42,6 +43,17 @@ public interface RadioPort {
      * @param record at most [CAPABILITY_RECORD_MAX] bytes.
      */
     public fun serveCapability(record: ByteArray): RadioResult<Unit>
+
+    /**
+     * Starts accepting unencrypted, unbonded L2CAP CoC channels and returns the PSM the platform
+     * assigned, which the node offers in its capability record. Each channel a central opens
+     * arrives as [RadioEvent.ChannelOpened]. Returns the same PSM if the radio already listens.
+     * Fails with [RadioFailure.UNSUPPORTED] where the platform has no LE CoC.
+     */
+    public suspend fun listenForChannels(): RadioResult<Int>
+
+    /** Stops accepting channels; open channels stay open. Does nothing if the radio is not listening. */
+    public fun stopListening()
 
     /** Connects to [peer] as central and negotiates the ATT MTU. */
     public suspend fun connect(peer: PeerHandle): RadioResult<CentralLink>
@@ -100,6 +112,14 @@ public sealed interface RadioEvent {
     ) : RadioEvent
 
     /**
+     * A central opened [channel] to this radio, which listens for channels. Its [RadioStream.peer]
+     * equals the [RadioLink.peer] of that central's GATT link.
+     */
+    public class ChannelOpened(
+        public val channel: RadioStream,
+    ) : RadioEvent
+
+    /**
      * Advertising, scanning or serving the capability record failed for [reason] after its start
      * returned [RadioResult.Ok], as platforms that answer through a later callback report it.
      */
@@ -108,31 +128,45 @@ public sealed interface RadioEvent {
     ) : RadioEvent
 }
 
-/**
- * One GATT link and its ordered byte stream in each direction (spec: the central writes without
- * response, the peripheral notifies).
- */
-public interface RadioLink {
-    /** The other end of the link. */
+/** An ordered byte stream in each direction between this radio and one peer. */
+public interface RadioStream {
+    /** The other end of the stream. */
     public val peer: PeerHandle
 
-    /** The negotiated ATT MTU; each chunk of the stream carries at most `attMtu - 3` bytes. */
-    public val attMtu: Int
-
-    /** The peer's stream, in order, one chunk per write or notification. Completes on disconnect. */
+    /** The peer's stream, in order, in chunks of any size. Completes when the stream closes. */
     public val incoming: Flow<ByteArray>
 
-    /** Sends [bytes] as the next bytes of this side's stream, chunked by [attMtu]. */
+    /** Sends [bytes] as the next bytes of this side's stream. */
     public suspend fun write(bytes: ByteArray): RadioResult<Unit>
 
-    /** Closes the link; both sides then get [RadioEvent.Disconnected]. Does nothing if closed. */
+    /** Closes the stream at both ends. Does nothing if closed. */
     public fun disconnect()
 }
 
-/** A link this radio opened as central, which can also read the peer's capability characteristic. */
+/**
+ * One GATT link and its ordered byte stream in each direction (spec: the central writes without
+ * response, the peripheral notifies). Each chunk of [incoming] is one write or notification;
+ * [disconnect] gives both sides [RadioEvent.Disconnected].
+ */
+public interface RadioLink : RadioStream {
+    /** The negotiated ATT MTU; each chunk of the stream carries at most `attMtu - 3` bytes. */
+    public val attMtu: Int
+}
+
+/**
+ * A link this radio opened as central, which can also read the peer's capability characteristic
+ * and open an L2CAP CoC channel to it.
+ */
 public interface CentralLink : RadioLink {
     /** The value the peripheral serves through [RadioPort.serveCapability]. */
     public suspend fun readCapability(): RadioResult<ByteArray>
+
+    /**
+     * Opens an unencrypted, unbonded L2CAP CoC channel to [psm] on this link's peer. The channel
+     * closes when this link closes. Fails with [RadioFailure.UNSUPPORTED] where the platform has no
+     * LE CoC.
+     */
+    public suspend fun openChannel(psm: Int): RadioResult<RadioStream>
 }
 
 /** The outcome of a [RadioPort] operation: [Ok], or [Failed] with the reason. */

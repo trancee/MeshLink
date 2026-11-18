@@ -45,11 +45,18 @@ public class CapabilityRecord(
         private const val PSM_LENGTH = 2
         private val KNOWN = mapOf(L2CAP_PSM to PSM_LENGTH, ADVERTISEMENT to RadioPort.ADVERTISEMENT_LENGTH)
 
-        /** The record a node serves: [versions] and its current [advertisement], and no CoC. */
+        /**
+         * The record a node serves: [versions], the [psm] of its CoC listener if it listens, and its
+         * current [advertisement].
+         */
         public fun of(
             versions: List<Int>,
             advertisement: ByteArray,
-        ): CapabilityRecord = CapabilityRecord(versions, listOf(Tlv(ADVERTISEMENT, advertisement.copyOf())))
+            psm: Int? = null,
+        ): CapabilityRecord {
+            val listener = if (psm == null) emptyList() else listOf(Tlv(L2CAP_PSM, u16(psm)))
+            return CapabilityRecord(versions, listener + Tlv(ADVERTISEMENT, advertisement.copyOf()))
+        }
 
         /** Decodes [bytes]; never throws. */
         public fun decode(bytes: ByteArray): Decoded<CapabilityRecord> {

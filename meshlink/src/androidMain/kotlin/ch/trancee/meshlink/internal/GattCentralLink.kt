@@ -62,6 +62,9 @@ internal class GattCentralLink(
         }
     }
 
+    // L2CAP CoC arrives with ticket 31a.
+    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+
     override suspend fun send(chunk: ByteArray): Boolean {
         val answer =
             ready?.let { ready ->
@@ -84,7 +87,9 @@ internal class GattCentralLink(
 
     private suspend fun establish(): RadioFailure? {
         val gatt = connect() ?: return RadioFailure.PEER_UNREACHABLE
-        negotiate(gatt)
+        // Asks for the largest MTU; a refused or failed exchange keeps the default, and a closed link fails discovery.
+        val answer = exchange.request { GattExchange.legacy(gatt.requestMtu(MeshGatt.REQUESTED_ATT_MTU)) }
+        mtu = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.number ?: MeshGatt.DEFAULT_ATT_MTU
         return discover(gatt)
     }
 
@@ -100,12 +105,6 @@ internal class GattCentralLink(
                     else -> GattExchange.STARTED
                 }
             }?.let { gatt }
-
-    /** Asks for the largest MTU; a refused or failed exchange keeps the default, and a closed link fails discovery. */
-    private suspend fun negotiate(gatt: BluetoothGatt) {
-        val answer = exchange.request { GattExchange.legacy(gatt.requestMtu(MeshGatt.REQUESTED_ATT_MTU)) }
-        mtu = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.number ?: MeshGatt.DEFAULT_ATT_MTU
-    }
 
     private suspend fun discover(gatt: BluetoothGatt): RadioFailure? {
         val answer = exchange.request { GattExchange.legacy(gatt.discoverServices()) }

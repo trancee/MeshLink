@@ -79,6 +79,9 @@ internal class AppleCentralLink(
         wakeups.value++
     }
 
+    // L2CAP CoC arrives with ticket 31b.
+    override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+
     override suspend fun send(chunk: ByteArray): Boolean {
         while (!isClosed) {
             val seen = wakeups.value
