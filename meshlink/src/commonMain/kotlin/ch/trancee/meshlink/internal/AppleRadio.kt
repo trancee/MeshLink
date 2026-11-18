@@ -72,8 +72,10 @@ internal class AppleRadio(
     /**
      * Advertises the MESH service in its 32-bit form and [payload] as a 128-bit service UUID, after
      * stopping any earlier advertisement: CoreBluetooth refuses a second one with
-     * `CBError.alreadyAdvertising`. iOS chooses the advertising parameters and moves service UUIDs
-     * that don't fit into an overflow area while the app is in the background (ticket 32).
+     * `CBError.alreadyAdvertising`; each epoch's rotation is this stop and start, and iOS keeps the
+     * address (ADR 0010 decisions 3 and 7). iOS chooses the advertising parameters, and in the
+     * background moves both UUIDs into Apple's overflow area, where only the MESH bit is found
+     * (ADR 0010 decision 5).
      */
     override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
         if (payload.size != RadioPort.ADVERTISEMENT_LENGTH) return RadioResult.Failed(RadioFailure.INVALID_ARGUMENT)

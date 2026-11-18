@@ -20,7 +20,11 @@ internal class AppleCentral(
     /** Routes the `CBPeripheral` callbacks to the link of their peripheral. */
     val links = AppleLinkEvents(open)
 
-    /** Scans for the MESH service, reporting duplicates; ticket 32 owns duty cycles and background scans. */
+    /**
+     * Scans for the MESH service, reporting duplicates. Each call starts a fresh scan: the core's scan
+     * windows ([Scanner]) restart it at least every 10 s, as background iOS scans need (ADR 0010
+     * decision 6).
+     */
     fun startScanning(): RadioResult<Unit> {
         bluetooth.scan(AppleGatt.MESH_SHORT)
         scanning = true
@@ -57,13 +61,19 @@ internal class AppleCentral(
         managerState.value = state
     }
 
+    /**
+     * The scan looks only for the MESH service, so every discovery while scanning is a [Sighting]. A
+     * backgrounded iPhone carries the MESH UUID only in Apple's overflow area, which
+     * `CBAdvertisementDataServiceUUIDsKey` leaves out, so its sighting has a null payload (ADR 0010
+     * decision 5).
+     */
     override fun discovered(
         peripheral: CbPeripheral,
         services: List<ByteArray>,
         rssi: Int,
     ) {
         val payload = services.firstOrNull { it.size == RadioPort.ADVERTISEMENT_LENGTH && !it.isMesh() }
-        if (scanning && payload != null) emit(RadioEvent.Sighted(Sighting(payload, ApplePeer(peripheral), rssi)))
+        if (scanning) emit(RadioEvent.Sighted(Sighting(payload, ApplePeer(peripheral), rssi)))
     }
 
     override fun connected(peripheral: CbPeripheral) {
@@ -129,6 +139,14 @@ internal class AppleLinkEvents(
 
     override fun readyToWrite(peripheral: CbPeripheral) {
         links[peripheral.id]?.readyToWrite()
+    }
+
+    override fun rssiRead(
+        peripheral: CbPeripheral,
+        rssi: Int?,
+    ) {
+        val requests = links[peripheral.id]?.requests
+        if (rssi != null) requests?.answer(rssi = rssi) else requests?.fail()
     }
 
     /** `didModifyServices`: a link whose MeshLink service went away is over. */
