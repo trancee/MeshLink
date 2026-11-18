@@ -207,6 +207,103 @@ class VirtualAirTest {
         }
 
     @Test
+    fun aCentralOpensAChannelToAListeningPeripheralAndBothStreamWholeWrites() =
+        runTest {
+            val pair = linked(air(), coc = true)
+            val peripheral = pair.peripheral
+            val link = pair.link
+            val inbound = pair.inbound
+            val psm = peripheral.listenForChannels().ok()
+
+            val channel = link.openChannel(psm).ok()
+            val accepted = peripheral.events.next<RadioEvent.ChannelOpened>().channel
+            val big = ByteArray(VirtualAir.DEFAULT_ATT_MTU * 2) { it.toByte() }
+            channel.write(big).ok()
+            channel.write(PAYLOAD_A).ok()
+            accepted.write(PAYLOAD_B).ok()
+
+            assertEquals(psm, peripheral.listenForChannels().ok())
+            assertSame(inbound.peer, accepted.peer)
+            assertSame(peripheral.handle, channel.peer)
+            assertEquals(
+                listOf(big.toList(), PAYLOAD_A.toList()),
+                accepted.incoming
+                    .take(2)
+                    .toList()
+                    .map { it.toList() },
+            )
+            assertContentEquals(PAYLOAD_B, channel.incoming.first())
+            assertContentEquals(big + PAYLOAD_A, (channel as VirtualChannelEnd).written)
+            assertSame(channel, (link as VirtualLinkEnd).channels.single())
+            assertSame(accepted, (inbound as VirtualLinkEnd).channels.single())
+        }
+
+    @Test
+    fun aChannelOpensOnlyToAListeningPeripheralAtItsPsm() =
+        runTest {
+            val air = air()
+            val plain = linked(air)
+            val coc = linked(air, coc = true)
+            val peripheral = coc.peripheral
+            val link = coc.link
+
+            assertEquals(RadioFailure.UNSUPPORTED, plain.peripheral.listenForChannels().failure())
+            assertEquals(RadioFailure.UNSUPPORTED, plain.link.openChannel(VirtualRadio.PSM).failure())
+            assertEquals(RadioFailure.RADIO_ERROR, link.openChannel(VirtualRadio.PSM).failure())
+            val psm = peripheral.listenForChannels().ok()
+            assertEquals(RadioFailure.RADIO_ERROR, link.openChannel(psm + 1).failure())
+            peripheral.refuseChannels = true
+            assertEquals(RadioFailure.RADIO_ERROR, link.openChannel(psm).failure())
+            peripheral.refuseChannels = false
+            peripheral.stopListening()
+            peripheral.stopListening()
+            assertEquals(RadioFailure.RADIO_ERROR, link.openChannel(psm).failure())
+            peripheral.listenForChannels().ok()
+            link.disconnect()
+            assertEquals(RadioFailure.LINK_CLOSED, link.openChannel(psm).failure())
+        }
+
+    @Test
+    fun aChannelClosesWithItsLinkOrOnItsOwn() =
+        runTest {
+            val air = air()
+            val first = linked(air, coc = true)
+            val psm = first.peripheral.listenForChannels().ok()
+            val channel = first.link.openChannel(psm).ok()
+            val accepted =
+                first.peripheral.events
+                    .next<RadioEvent.ChannelOpened>()
+                    .channel
+
+            channel.disconnect()
+            channel.disconnect()
+
+            assertEquals(RadioFailure.LINK_CLOSED, channel.write(PAYLOAD_A).failure())
+            assertEquals(emptyList(), accepted.incoming.toList())
+            assertEquals(emptyList(), channel.incoming.toList())
+            assertTrue(first.inbound.let { it as VirtualLinkEnd }.open)
+
+            val second = linked(air, coc = true)
+            val dropped = second.link.openChannel(second.peripheral.listenForChannels().ok()).ok()
+            val other =
+                second.peripheral.events
+                    .next<RadioEvent.ChannelOpened>()
+                    .channel
+            (dropped as VirtualChannelEnd).drop()
+            assertEquals(emptyList(), other.incoming.toList())
+
+            val third = linked(air, coc = true)
+            val lost = third.link.openChannel(third.peripheral.listenForChannels().ok()).ok()
+            val lostAccepted =
+                third.peripheral.events
+                    .next<RadioEvent.ChannelOpened>()
+                    .channel
+            (third.inbound as VirtualLinkEnd).drop()
+            assertEquals(emptyList(), lost.incoming.toList())
+            assertEquals(emptyList(), lostAccepted.incoming.toList())
+        }
+
+    @Test
     fun theSameSeedYieldsTheSameEventLog() =
         runTest {
             assertEquals(hubScenario(seed = 1), hubScenario(seed = 1))
@@ -256,9 +353,10 @@ class VirtualAirTest {
         air: VirtualAir,
         centralMtu: Int = VirtualAir.DEFAULT_ATT_MTU,
         peripheralMtu: Int = VirtualAir.DEFAULT_ATT_MTU,
+        coc: Boolean = false,
     ): Linked {
-        val central = air.radio(maxAttMtu = centralMtu)
-        val peripheral = air.radio(maxAttMtu = peripheralMtu)
+        val central = air.radio(maxAttMtu = centralMtu, coc = coc)
+        val peripheral = air.radio(maxAttMtu = peripheralMtu, coc = coc)
         peripheral.startAdvertising(PAYLOAD_B).ok()
         peripheral.serveCapability(CAPABILITY).ok()
         val link = central.connect(peripheral.handle).ok()

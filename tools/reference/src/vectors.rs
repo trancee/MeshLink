@@ -918,10 +918,15 @@ fn hpke_seal() -> Document {
 }
 
 // ---------------------------------------------------------------------------
-// Link records and REKEY (ticket 30)
+// Link records, REKEY (ticket 30) and BEARER_SWITCH (ticket 31)
 // ---------------------------------------------------------------------------
 
 const REKEY: u8 = 0x05;
+const BEARER_SWITCH: u8 = 0x0F;
+
+/// Changes the last record's bytes: given its bytes, its bytes from a state that never rekeyed, and
+/// its bytes from a fresh state at nonce 0.
+type Tamper = dyn Fn(Vec<u8>, Vec<u8>, Vec<u8>) -> Vec<u8>;
 
 /// One record as sent: who sent it, the frame it carries and its bytes on the stream.
 struct Record {
@@ -1002,10 +1007,12 @@ fn link_transport() -> Document {
                 format!("{who} frame {n}").into_bytes()
             };
             // Writes `script` (sender, frame) in order from fresh transports; `tamper` changes the
-            // last record's bytes from the writer's two states (rekeyed and not) before delivery.
-            let records = |script: &[(bool, Vec<u8>)], tamper: &dyn Fn(Vec<u8>, Vec<u8>) -> Vec<u8>| {
+            // last record's bytes before delivery, given its bytes from the writer's state, from a
+            // state that never rekeyed and from a fresh state at nonce 0.
+            let records = |script: &[(bool, Vec<u8>)], tamper: &Tamper| {
                 let [mut i, mut r] = transports();
                 let [mut stale, _] = transports();
+                let [mut fresh, _] = transports();
                 let mut out: Vec<Record> = Vec::new();
                 for (index, (from_initiator, plaintext)) in script.iter().enumerate() {
                     let writer = if *from_initiator { &mut i } else { &mut r };
@@ -1016,7 +1023,7 @@ fn link_transport() -> Document {
                         let mut old = u16::try_from(length).expect("length").to_be_bytes().to_vec();
                         old.extend_from_slice(&ciphertext[..length]);
                         if index + 1 == script.len() {
-                            bytes = tamper(bytes, old);
+                            bytes = tamper(bytes, old, seal_record(&mut fresh, plaintext));
                         }
                     }
                     out.push(Record {
@@ -1038,10 +1045,20 @@ fn link_transport() -> Document {
             }
             let mut after = (1..=3).map(|n| (true, frame(true, n))).collect::<Vec<_>>();
             after.extend([(true, rekey.clone()), (true, frame(true, 4))]);
-            let case = |comment: &str,
-                        flags: &[&'static str],
-                        script: &[(bool, Vec<u8>)],
-                        tamper: &dyn Fn(Vec<u8>, Vec<u8>) -> Vec<u8>| {
+            // The central (initiator) switches first; each side's records after its own
+            // BEARER_SWITCH travel on CoC at the next nonce.
+            let switch = vec![BEARER_SWITCH];
+            let mut switched = Vec::new();
+            for from_initiator in [true, false] {
+                switched.extend((1..=3).map(|n| (from_initiator, frame(from_initiator, n))));
+            }
+            switched.extend([(true, switch.clone()), (false, switch.clone())]);
+            for from_initiator in [true, false] {
+                switched.extend((4..=5).map(|n| (from_initiator, frame(from_initiator, n))));
+            }
+            let mut moved = (1..=3).map(|n| (true, frame(true, n))).collect::<Vec<_>>();
+            moved.extend([(true, switch.clone()), (true, frame(true, 4))]);
+            let case = |comment: &str, flags: &[&'static str], script: &[(bool, Vec<u8>)], tamper: &Tamper| {
                 let records = records(script, tamper);
                 let rejected = open_records(&mut transports(), &records);
                 assert_eq!(rejected.is_some(), !flags.is_empty(), "{comment}");
@@ -1078,19 +1095,31 @@ fn link_transport() -> Document {
                     "three records each way, REKEY each way, then two each way",
                     &[],
                     &valid,
-                    &|bytes, _| bytes,
+                    &|bytes, _, _| bytes,
                 ),
                 case(
                     "a record sealed with the key before REKEY",
                     &["OldKey"],
                     &after,
-                    &|_, old| old,
+                    &|_, old, _| old,
                 ),
                 case(
                     "a record after REKEY with a flipped tag bit",
                     &["Tampered"],
                     &after,
-                    &|bytes, _| flip(&bytes, bytes.len() - 1),
+                    &|bytes, _, _| flip(&bytes, bytes.len() - 1),
+                ),
+                case(
+                    "three records each way on GATT, BEARER_SWITCH each way, then two each way on CoC",
+                    &[],
+                    &switched,
+                    &|bytes, _, _| bytes,
+                ),
+                case(
+                    "the first CoC record after BEARER_SWITCH sealed at nonce 0",
+                    &["NonceReset"],
+                    &moved,
+                    &|_, _, reset| reset,
                 ),
             ];
             Group {
@@ -1108,7 +1137,7 @@ fn link_transport() -> Document {
         .collect();
     document(
         "link-transport.json",
-        "MeshLink/1 link records and REKEY (Noise XX, XXhfs transport)",
+        "MeshLink/1 link records, REKEY and BEARER_SWITCH (Noise XX, XXhfs transport)",
         &[
             (
                 "ReferenceKeys",
@@ -1116,13 +1145,17 @@ fn link_transport() -> Document {
             ),
             (
                 "Replay",
-                "Both sides run the group's handshake. Each then seals its frames in order as link records, a u16 length and then the ciphertext of the frame with empty associated data; its stream is those records back to back. After sealing the REKEY frame (05) a writer calls Rekey() on its sending cipher state; after opening one a reader calls Rekey() on its receiving cipher state; the nonce carries on. A writer's own records equal its stream except at rejected_record. The responder must fail to open record rejected_record of initiator_stream and open every earlier one; every other record opens to its frame.",
+                "Both sides run the group's handshake. Each then seals its frames in order as link records, a u16 length and then the ciphertext of the frame with empty associated data; its stream is those records back to back. After sealing the REKEY frame (05) a writer calls Rekey() on its sending cipher state; after opening one a reader calls Rekey() on its receiving cipher state; the nonce carries on. A BEARER_SWITCH frame (0f) changes no cipher state: the records after it continue the stream on the L2CAP CoC channel at the next nonce. A writer's own records equal its stream except at rejected_record. The responder must fail to open record rejected_record of initiator_stream and open every earlier one; every other record opens to its frame.",
             ),
             (
                 "OldKey",
                 "The last record was sealed at the next nonce under the key before REKEY.",
             ),
             ("Tampered", "One tag bit of the last record flipped in transit."),
+            (
+                "NonceReset",
+                "The first record after BEARER_SWITCH was sealed at nonce 0 with the same key, as if the cipher state restarted on the new bearer.",
+            ),
         ],
         groups,
         vec![

@@ -30,6 +30,17 @@ class CapabilityRecordTest {
     }
 
     @Test
+    fun buildsTheRecordANodeServesWithItsPsm() {
+        val advertisement = ByteArray(RadioPort.ADVERTISEMENT_LENGTH) { it.toByte() }
+
+        val record = CapabilityRecord.of(listOf(1), advertisement, psm = 0x00C3)
+
+        assertEquals(0x00C3, record.l2capPsm)
+        assertContentEquals(advertisement, record.advertisement)
+        assertEquals("0101" + "01000200c3" + "020010" + advertisement.hex(), record.encode().hex())
+    }
+
+    @Test
     fun rejectsRecordsTheCodecWouldRefuse() {
         val psm = Tlv(CapabilityRecord.L2CAP_PSM, ByteArray(2))
         val advertisement = Tlv(CapabilityRecord.ADVERTISEMENT, ByteArray(RadioPort.ADVERTISEMENT_LENGTH))

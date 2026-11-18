@@ -35,6 +35,7 @@ In `Classical` and `PostQuantum`, a first message opens an end-to-end session. L
 - [ ] A seeded test wipes E's session state and shows A's fallback to a first message with a new `message_id` after the second retry.
 - [ ] A seeded test across an epoch change keeps delivery through the e − 1 / e + 1 tag window.
 - [ ] T10: a replayed nonce, a nonce below the window, a tampered transport frame and a message 2 for an unknown first message are dropped without delivery or state change.
+- [ ] A seeded `VirtualAir` test in `Classical` and `PostQuantum` switches a link to CoC with `BEARER_SWITCH` and shows direct messages before and after the switch delivered once each, in order (moved from ticket 31, Q7).
 - [ ] A seeded `VirtualAir` test holds a `Classical` and a `PostQuantum` link for 3 virtual hours and shows direct messages delivered before and after each hourly link `REKEY` (moved from ticket 30, Q5).
 - [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 

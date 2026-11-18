@@ -36,6 +36,17 @@ public sealed interface LinkDiagnostic {
     }
 
     /**
+     * `ML3005`: a central's L2CAP CoC channel to a peer that offered one failed to open for [reason],
+     * so the link stays on GATT (spec "Bearer switch").
+     */
+    public class BearerFallback(
+        /** Why the radio failed to open the channel. */
+        public val reason: RadioFailure,
+    ) : LinkDiagnostic {
+        override val code: String = "ML3005"
+    }
+
+    /**
      * `ML3007`: an open link dropped a link-local frame of [type] it doesn't handle: an unknown
      * type, or a `REKEY` on an `Unsecured` link (D-48). The link stays open.
      */

@@ -27,17 +27,18 @@ public class Discovery(
     /**
      * A fresh advertisement payload for [epoch]: the mesh tag of [epoch], then the resolvable tag of
      * [resolvingKey] for [epoch], or random bytes without one, and random fill drawn from the crypto
-     * provider, so an observer can't link two epochs' payloads. Flags are zero until links can
-     * upgrade. It becomes the payload [accept] treats as this node's.
+     * provider, so an observer can't link two epochs' payloads, with [flags] such as
+     * [Advertisement.COC_AVAILABLE]. It becomes the payload [accept] treats as this node's.
      */
     public fun advertisement(
         epoch: UInt,
         resolvingKey: ByteArray? = null,
+        flags: Int = 0,
     ): ByteArray {
         val fill = crypto.randomBytes(Advertisement.RESOLVABLE_TAG_LENGTH + Advertisement.RANDOM_LENGTH)
         own =
             Advertisement(
-                flags = 0,
+                flags = flags,
                 meshTag = derivations.meshTag(tagKey, epoch),
                 resolvableTag =
                     if (resolvingKey == null) {

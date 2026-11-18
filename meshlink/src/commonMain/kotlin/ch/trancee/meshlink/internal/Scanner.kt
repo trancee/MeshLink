@@ -51,16 +51,21 @@ internal class Scanner(
      * recording [failure], if the radio refuses any of the three or a rotation, or reports a
      * [RadioEvent.Failed].
      * Restricted to [role], it neither serves nor advertises as [LinkRole.CENTRAL] and doesn't scan as
-     * [LinkRole.PERIPHERAL]. A gated mesh passes its [recognition].
+     * [LinkRole.PERIPHERAL]. A gated mesh passes its [recognition]. With [coc], a peripheral listens
+     * for L2CAP CoC channels and, if the radio can, offers the PSM in its capability record and sets
+     * [Advertisement.COC_AVAILABLE] (spec "Bearer switch").
      */
     suspend fun run(
         role: LinkRole?,
         recognition: Recognition?,
+        coc: Boolean,
         onLinkEvent: (RadioEvent) -> Unit,
     ) {
         try {
             val peripheral = role != LinkRole.CENTRAL
             val central = role != LinkRole.PERIPHERAL
+            val listened = if (peripheral && coc) radio.listenForChannels() else null
+            psm = (listened as? RadioResult.Ok<Int>)?.value
             val refused =
                 (if (peripheral) advertise(recognition) else null)
                     ?: (if (central) radio.startScanning() else null) as? RadioResult.Failed
@@ -74,14 +79,20 @@ internal class Scanner(
         } finally {
             radio.stopScanning()
             radio.stopAdvertising()
+            radio.stopListening()
             mutableCandidates.value = emptyMap()
         }
     }
 
+    /** The PSM this run listens on, or `null`. */
+    private var psm: Int? = null
+
     /** Serves the capability record and advertises a fresh payload for the current epoch; `null` if both succeed. */
     private fun advertise(recognition: Recognition?): RadioResult.Failed? {
-        val payload = discovery.advertisement(epoch(), recognition?.let { it.keys.own(clock.wallClockMillis()).key })
-        val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload)
+        val key = recognition?.let { it.keys.own(clock.wallClockMillis()).key }
+        val flags = if (psm == null) 0 else Advertisement.COC_AVAILABLE
+        val payload = discovery.advertisement(epoch(), key, flags)
+        val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload, psm)
         return radio.serveCapability(capability.encode()) as? RadioResult.Failed
             ?: radio.startAdvertising(payload) as? RadioResult.Failed
     }
@@ -117,7 +128,7 @@ internal class Scanner(
     ): Boolean {
         when (event) {
             is RadioEvent.Sighted -> sighted(event.sighting, recognition)
-            is RadioEvent.Connected, is RadioEvent.Disconnected -> onLinkEvent(event)
+            is RadioEvent.Connected, is RadioEvent.Disconnected, is RadioEvent.ChannelOpened -> onLinkEvent(event)
             is RadioEvent.Failed -> Unit
         }
         return event is RadioEvent.Failed

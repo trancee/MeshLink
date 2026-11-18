@@ -235,6 +235,15 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public var restrictedLinkRole: LinkRole? = null
 
+    /**
+     * Whether this node moves its links to L2CAP CoC where both ends can (spec "Bearer switch"),
+     * from its next start: as peripheral it listens and offers its PSM, as central it opens a
+     * channel to a peer that offers one. Off, it links over GATT only. Ticket 53 makes it a toggle.
+     */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public var coc: Boolean = true
+
     /** This node's role on each of its current links, by peer; for the lab apps. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -303,7 +312,8 @@ public class MeshLink private constructor(
                 } else {
                     null
                 }
-            val admission = LinkAdmission(LinkPolicy(digest, identity.nodeId), handshakes) { diagnostics.tryEmit(it) }
+            val policy = LinkPolicy(digest, identity.nodeId)
+            val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
             val session = Links(port.radio, port.clock, admission, this, mutablePeers, post)
             links.value = session
             try {
@@ -318,7 +328,7 @@ public class MeshLink private constructor(
                         }
                     }
                 val recognition = keys?.let { Recognition(it) { id -> id in session.roles.value } }
-                scanner.run(restrictedLinkRole, recognition, session::accept)
+                scanner.run(restrictedLinkRole, recognition, coc, session::accept)
                 linking.cancel()
                 announcing.cancel()
             } finally {

@@ -45,9 +45,11 @@ class UnsupportedRadioPortTest {
                     radio.startScanning(),
                     radio.serveCapability(ByteArray(0)),
                     radio.connect(object : PeerHandle {}),
+                    radio.listenForChannels(),
                 )
             radio.stopAdvertising()
             radio.stopScanning()
+            radio.stopListening()
 
             // Assert
             results.forEach { assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(it).reason) }

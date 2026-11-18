@@ -314,7 +314,7 @@ Total: 1 B. Encrypted links only.
 
 ## Bearer switch
 
-(ADR 0009 decisions 1 and 6; [D-43].)
+(ADR 0009 decisions 1 and 6; [D-43]; [D-49](decisions.md#d-49-bearer-switch-timing-and-credits).)
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
@@ -324,8 +324,17 @@ Total: 1 B.
 
 - To move a link from GATT to an L2CAP CoC channel, the central opens the channel, then sends `BEARER_SWITCH` as its last record on GATT. The peripheral, after receiving it, sends `BEARER_SWITCH` as its last record on GATT. Each side continues its stream on CoC with the next record; cipher states and nonces carry over. Bytes received on CoC before the peer's `BEARER_SWITCH` are buffered.
 - A node MUST discard any GATT stream bytes after the peer's `BEARER_SWITCH`.
-- If the CoC channel fails, the link ends. The nodes MAY reconnect over GATT; that is a new link with a fresh handshake. Routing state is kept by NodeId, and frames lost in flight are recovered by the normal retries ([conflict C-07](decisions.md#c-07)).
-- GATT links use `CREDIT` flow control ([below](#flow-control)); CoC has its own credits and uses none.
+- Every profile switches, `unsecured` included. The central switches once its link is open; a central whose channel fails to open stays on GATT and records ML3005 `BearerFallback`, unless the platform has no CoC.
+- A peripheral that receives the central's `BEARER_SWITCH` waits up to `coc-accept-timeout` for the central's channel, then closes with `PROTOCOL_ERROR`. A channel no open link claims, and a second channel from the same peer, are closed.
+- `BEARER_SWITCH` before the link opens, a peripheral's `BEARER_SWITCH` before the central's, and a second `BEARER_SWITCH` from the same peer are protocol errors: the receiver closes with `PROTOCOL_ERROR`.
+- If the CoC channel fails, the link ends. The nodes MAY reconnect over GATT; that is a new link with a fresh handshake. A central whose kept link ended this way links again once, as after a transient loss. Routing state is kept by NodeId, and frames lost in flight are recovered by the normal retries ([conflict C-07](decisions.md#c-07)).
+- GATT links use `CREDIT` flow control ([below](#flow-control)) until the switch; CoC has its own credits and uses none.
+
+<!-- data: limits.json -->
+
+| Name | Value | Unit | Decision |
+|---|---|---|---|
+| coc-accept-timeout | 5,000 | ms | D-49 |
 
 ## Neighbor list
 
@@ -436,6 +445,7 @@ On a GATT link the central grants the peripheral notification credits; one credi
 - `CLOSE` needs no credit: a peripheral with none left still sends it as one notification, then disconnects.
 - A grant that raises the outstanding credits above `gatt-credit-window`, and a `CREDIT` from a peripheral, are protocol errors: the receiver closes with `PROTOCOL_ERROR`.
 - The central's writes, the handshake before the link opens, and every frame on an L2CAP CoC bearer are not credited.
+- `BEARER_SWITCH` needs no credit. Once the central has written its `BEARER_SWITCH` it grants no more; the peripheral, from receiving it until its own `BEARER_SWITCH`, sends its notifications uncredited, finishing any record in progress first ([D-49](decisions.md#d-49-bearer-switch-timing-and-credits)).
 
 <!-- data: limits.json -->
 

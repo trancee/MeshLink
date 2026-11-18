@@ -216,6 +216,20 @@ public sealed interface LinkFrame {
             if (bytes.size == LENGTH) Decoded.Valid(Rekey) else Decoded.Invalid(DecodeError.TRAILING_BYTES)
     }
 
+    /**
+     * `BEARER_SWITCH` (spec "Bearer switch", D-43): the sender's last record on GATT; its stream
+     * continues on the link's L2CAP CoC channel with the next record.
+     */
+    public data object BearerSwitch : LinkFrame {
+        internal const val TYPE = 0x0F
+        private const val LENGTH = 1
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte())
+
+        internal fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+            if (bytes.size == LENGTH) Decoded.Valid(BearerSwitch) else Decoded.Invalid(DecodeError.TRAILING_BYTES)
+    }
+
     /** `BUSY` (spec "Busy"): the receiver refused stream [streamId]. [code] is kept as received. */
     public class Busy(
         public val streamId: Int,
@@ -296,21 +310,29 @@ public sealed interface LinkFrame {
     public companion object {
         private const val RESERVED_FROM = 0xC0
 
+        // Each link-local frame type's decoder.
+        private val decoders: Map<Int, (ByteArray) -> Decoded<LinkFrame>> =
+            mapOf(
+                Fragment.TYPE to { Fragment.decode(it) },
+                Handshake.TYPE to { Handshake.decode(it) },
+                PlainHello.TYPE to { PlainHello.decode(it) },
+                Close.TYPE to { Close.decode(it) },
+                Rekey.TYPE to { Rekey.decode(it) },
+                Busy.TYPE to { Busy.decode(it) },
+                ResolvingKeyUpdate.TYPE to { ResolvingKeyUpdate.decode(it) },
+                BearerSwitch.TYPE to { BearerSwitch.decode(it) },
+                Credit.TYPE to { Credit.decode(it) },
+            )
+
         /** Decodes one frame; never throws. */
         public fun decode(bytes: ByteArray): Decoded<LinkFrame> {
             val type = if (bytes.isEmpty()) -1 else bytes.u8(0)
+            val decoder = decoders[type]
             return when {
                 type < 0 -> Decoded.Invalid(DecodeError.TRUNCATED)
                 type == 0 || type >= RESERVED_FROM -> Decoded.Invalid(DecodeError.RESERVED_TYPE)
-                type == Fragment.TYPE -> Fragment.decode(bytes)
-                type == Handshake.TYPE -> Handshake.decode(bytes)
-                type == PlainHello.TYPE -> PlainHello.decode(bytes)
-                type == Close.TYPE -> Close.decode(bytes)
-                type == Rekey.TYPE -> Rekey.decode(bytes)
-                type == Busy.TYPE -> Busy.decode(bytes)
-                type == ResolvingKeyUpdate.TYPE -> ResolvingKeyUpdate.decode(bytes)
-                type == Credit.TYPE -> Credit.decode(bytes)
-                else -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
+                decoder == null -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
+                else -> decoder(bytes)
             }
         }
 

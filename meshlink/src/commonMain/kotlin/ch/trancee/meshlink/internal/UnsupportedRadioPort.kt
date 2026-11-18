@@ -45,4 +45,8 @@ internal object UnsupportedRadio : RadioPort {
     override fun serveCapability(record: ByteArray): RadioResult<Unit> = unsupported
 
     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> = unsupported
+
+    override suspend fun listenForChannels(): RadioResult<Int> = unsupported
+
+    override fun stopListening() = Unit
 }

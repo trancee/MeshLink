@@ -1,15 +1,16 @@
 {
   "$schema": "./link-transport.schema.json",
   "tier": 2,
-  "algorithm": "MeshLink/1 link records and REKEY (Noise XX, XXhfs transport)",
+  "algorithm": "MeshLink/1 link records, REKEY and BEARER_SWITCH (Noise XX, XXhfs transport)",
   "schema": "link-transport.schema.json",
   "generatorVersion": "1",
-  "numberOfTests": 6,
+  "numberOfTests": 10,
   "notes": {
     "ReferenceKeys": "The handshake inputs are those of the open valid tests in handshake-xx.json and handshake-hfs.json: fixed labels in tools/reference.",
-    "Replay": "Both sides run the group's handshake. Each then seals its frames in order as link records, a u16 length and then the ciphertext of the frame with empty associated data; its stream is those records back to back. After sealing the REKEY frame (05) a writer calls Rekey() on its sending cipher state; after opening one a reader calls Rekey() on its receiving cipher state; the nonce carries on. A writer's own records equal its stream except at rejected_record. The responder must fail to open record rejected_record of initiator_stream and open every earlier one; every other record opens to its frame.",
+    "Replay": "Both sides run the group's handshake. Each then seals its frames in order as link records, a u16 length and then the ciphertext of the frame with empty associated data; its stream is those records back to back. After sealing the REKEY frame (05) a writer calls Rekey() on its sending cipher state; after opening one a reader calls Rekey() on its receiving cipher state; the nonce carries on. A BEARER_SWITCH frame (0f) changes no cipher state: the records after it continue the stream on the L2CAP CoC channel at the next nonce. A writer's own records equal its stream except at rejected_record. The responder must fail to open record rejected_record of initiator_stream and open every earlier one; every other record opens to its frame.",
     "OldKey": "The last record was sealed at the next nonce under the key before REKEY.",
-    "Tampered": "One tag bit of the last record flipped in transit."
+    "Tampered": "One tag bit of the last record flipped in transit.",
+    "NonceReset": "The first record after BEARER_SWITCH was sealed at nonce 0 with the same key, as if the cipher state restarted on the new bearer."
   },
   "testGroups": [
     {
@@ -95,6 +96,50 @@
           "responder_stream": "",
           "rejected_record": 5,
           "error": "decrypt-failed"
+        },
+        {
+          "tcId": 4,
+          "comment": "three records each way on GATT, BEARER_SWITCH each way, then two each way on CoC",
+          "flags": [],
+          "result": "valid",
+          "initiator_frames": [
+            "696e69746961746f72206672616d652031",
+            "696e69746961746f72206672616d652032",
+            "696e69746961746f72206672616d652033",
+            "0f",
+            "696e69746961746f72206672616d652034",
+            "696e69746961746f72206672616d652035"
+          ],
+          "initiator_stream": "0021b3db5a8785da5292ec6c0a67195c0cb5deba24018be7ecac9743c818705ce5fe5b0021899f685c67a1b6a02ee7732cc3acf48071f1578ca1d83fabc17faf97c80f32f4e800219846642c7c890737dc5af46e0d4d0daf2df508e500db991be3b84d4f5e1532fccb0011da1ff5e16155877a3dc1b039af07af675e00213c7115398ecd6d7b6a4a91d6c69b01110002635a3b30eac38785e74ba53e65be5500216c004a27d5cf943bce65b6bcd3b24df78dd4062b46b9a922598f44bd61dc1e4f8a",
+          "responder_frames": [
+            "726573706f6e646572206672616d652031",
+            "726573706f6e646572206672616d652032",
+            "726573706f6e646572206672616d652033",
+            "0f",
+            "726573706f6e646572206672616d652034",
+            "726573706f6e646572206672616d652035"
+          ],
+          "responder_stream": "002180c5f8b403b9fd295740f5e50e9737f14b50e32b394c232feb7db2a9ec7c8eb79900210ff61fa2c0dfd8bfff44310c87b38269fc5fa33b0029cd06b036946a084f08903a0021a28918fb9cc08fb60ca010c7a45670b9d4f15fadff641e0d8d2a1b885abc9dcf4a0011db04920e38e1c345e14071389e34e04e0c00218d3a326c30a9a7ea037c0b511997c3ccf75fa2debd114ec159f3fe96b814dcc26c0021ef4eba059bacc1c142d58e2f1a22158ce4f5d373bc6a105c882e10cec36edef306"
+        },
+        {
+          "tcId": 5,
+          "comment": "the first CoC record after BEARER_SWITCH sealed at nonce 0",
+          "flags": [
+            "NonceReset"
+          ],
+          "result": "invalid",
+          "initiator_frames": [
+            "696e69746961746f72206672616d652031",
+            "696e69746961746f72206672616d652032",
+            "696e69746961746f72206672616d652033",
+            "0f",
+            "696e69746961746f72206672616d652034"
+          ],
+          "initiator_stream": "0021b3db5a8785da5292ec6c0a67195c0cb5deba24018be7ecac9743c818705ce5fe5b0021899f685c67a1b6a02ee7732cc3acf48071f1578ca1d83fabc17faf97c80f32f4e800219846642c7c890737dc5af46e0d4d0daf2df508e500db991be3b84d4f5e1532fccb0011da1ff5e16155877a3dc1b039af07af675e0021b3db5a8785da5292ec6c0a67195c0cb5db034083bf97bb20093656619823619a54",
+          "responder_frames": [],
+          "responder_stream": "",
+          "rejected_record": 5,
+          "error": "decrypt-failed"
         }
       ]
     },
@@ -121,7 +166,7 @@
       "handshake_hash": "3ea422a7890f12723fcf6f8e19cb1c0ff3e62906dcedd5c4b586a73e12e0162a",
       "tests": [
         {
-          "tcId": 4,
+          "tcId": 6,
           "comment": "three records each way, REKEY each way, then two each way",
           "flags": [],
           "result": "valid",
@@ -145,7 +190,7 @@
           "responder_stream": "002183acbd67d1718e1c3085275cba849b0c2dfc59422c8877efc8bdff79066732dac7002159e3c45880d7cd28a7214bb3ec1eaa92132f28aaffea0d66a67b08bd006d41000500219545b803116729e236141f6a030b679e6e81edfeec5d8e9c714b5bf0997ba91958001185292f086486192de6cf247d192925aba800217d37b16c849fed08925893dd3838e0f344be0b14d6828d05a72ad537c15f03667f00213e2032ebd3f18d4b6b31a37717b836c2b5c8a0bf9b854861e30d0bd9bb3fbb5b6b"
         },
         {
-          "tcId": 5,
+          "tcId": 7,
           "comment": "a record sealed with the key before REKEY",
           "flags": [
             "OldKey"
@@ -165,7 +210,7 @@
           "error": "decrypt-failed"
         },
         {
-          "tcId": 6,
+          "tcId": 8,
           "comment": "a record after REKEY with a flipped tag bit",
           "flags": [
             "Tampered"
@@ -179,6 +224,50 @@
             "696e69746961746f72206672616d652034"
           ],
           "initiator_stream": "0021a8d27f16e082a94cfb47112ffd85d51c0c5a2a26cd955da0ae346a9bdd4573f46a0021b0d5c11aaf922c57a66dc21e850d830f2495db84244f3cca808098d8a15a9f6b030021095f75958df1920a7eb6a6cb3edbcba32cbcdf27be7bf348352fcedb8f05a3923b00116e8c709895c14776e88789483be8e6ff990021f6d9a35ccc465855a50ceb9ccc6f747772231d27dc68706c3ea3d521fba43276da",
+          "responder_frames": [],
+          "responder_stream": "",
+          "rejected_record": 5,
+          "error": "decrypt-failed"
+        },
+        {
+          "tcId": 9,
+          "comment": "three records each way on GATT, BEARER_SWITCH each way, then two each way on CoC",
+          "flags": [],
+          "result": "valid",
+          "initiator_frames": [
+            "696e69746961746f72206672616d652031",
+            "696e69746961746f72206672616d652032",
+            "696e69746961746f72206672616d652033",
+            "0f",
+            "696e69746961746f72206672616d652034",
+            "696e69746961746f72206672616d652035"
+          ],
+          "initiator_stream": "0021a8d27f16e082a94cfb47112ffd85d51c0c5a2a26cd955da0ae346a9bdd4573f46a0021b0d5c11aaf922c57a66dc21e850d830f2495db84244f3cca808098d8a15a9f6b030021095f75958df1920a7eb6a6cb3edbcba32cbcdf27be7bf348352fcedb8f05a3923b0011644be2b4a2bb05b23f12918775350d09fb0021d6b766da6b5abc459e15d5cede657b68c15a2d3473385423884ebe9285df6fc34b00216f2251bca52119c04ae6e5985a6568d32aaa33a96c40af3273697d23eb16d03c15",
+          "responder_frames": [
+            "726573706f6e646572206672616d652031",
+            "726573706f6e646572206672616d652032",
+            "726573706f6e646572206672616d652033",
+            "0f",
+            "726573706f6e646572206672616d652034",
+            "726573706f6e646572206672616d652035"
+          ],
+          "responder_stream": "002183acbd67d1718e1c3085275cba849b0c2dfc59422c8877efc8bdff79066732dac7002159e3c45880d7cd28a7214bb3ec1eaa92132f28aaffea0d66a67b08bd006d41000500219545b803116729e236141f6a030b679e6e81edfeec5d8e9c714b5bf0997ba9195800118f75b6286fb34cd61cd1be866ad79e3c510021a980482b36d264b3da95a560d250ee4cfde5ec0f67b6bdf97705e8ed1e001a51690021a9f6093cf741dc2f230867fd608863a371988036aa003267c9674f62e72f56c3a4"
+        },
+        {
+          "tcId": 10,
+          "comment": "the first CoC record after BEARER_SWITCH sealed at nonce 0",
+          "flags": [
+            "NonceReset"
+          ],
+          "result": "invalid",
+          "initiator_frames": [
+            "696e69746961746f72206672616d652031",
+            "696e69746961746f72206672616d652032",
+            "696e69746961746f72206672616d652033",
+            "0f",
+            "696e69746961746f72206672616d652034"
+          ],
+          "initiator_stream": "0021a8d27f16e082a94cfb47112ffd85d51c0c5a2a26cd955da0ae346a9bdd4573f46a0021b0d5c11aaf922c57a66dc21e850d830f2495db84244f3cca808098d8a15a9f6b030021095f75958df1920a7eb6a6cb3edbcba32cbcdf27be7bf348352fcedb8f05a3923b0011644be2b4a2bb05b23f12918775350d09fb0021a8d27f16e082a94cfb47112ffd85d51c0942b8042c3bf69d50fa2167913ed0f0d0",
           "responder_frames": [],
           "responder_stream": "",
           "rejected_record": 5,

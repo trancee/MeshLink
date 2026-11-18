@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 6 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 7 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch).
 
 ## Context
 
@@ -143,3 +143,9 @@ Measured, medians unless noted:
 - **Flow control (decision 7; reverses [C-09](../spec/decisions.md#c-09) and the 2026-11-08 amendment):** the central grants the peripheral GATT notification credits with the link-local `CREDIT` frame ([D-47](../spec/decisions.md#d-47-gatt-credit-frame)). One credit allows one notification of up to ATT MTU − 3 bytes. The central grants the window `gatt-credit-window` = 8 when the link opens and 4 more after every 4 notifications it receives. `CLOSE` needs no credit. A grant above the window, or a `CREDIT` from the peripheral, closes the link with `PROTOCOL_ERROR`. Central writes and CoC traffic are not credited. Evidence: library rule R14. Owner decision.
 - **Connect retries (decision 4):** implemented in the core. A connect that fails with `RadioFailure.TRANSIENT` is retried up to 3 times, after 500 ms × n, and each failed attempt reports `ML3003`. A link the radio reports lost with `RadioEvent.Disconnected(transient = true)` is reconnected by its central through the same retries. The adapters map status 133 and 147 and the silent 30 s close in ticket 31.
 - **Link limits (decision 6):** implemented in the core against `RadioPort.peripheralLinkCap`. Every bearer held as peripheral counts toward the cap, including those still opening. A bearer beyond the cap gets `CLOSE` `RESOURCE_LIMIT` at once and reports `ML3004`, and the node keeps advertising and dialing as central. A central refused this way before its link opens doesn't dial that address again while it stays a candidate. The iOS adapter reports its cap of 3 in ticket 31.
+
+2026-11-18, bearer switch (0.1.0 backlog ticket "Upgrade links to L2CAP CoC with GATT fallback"):
+
+- **Switch (decisions 1 and 6):** implemented in the core. Every profile, `unsecured` included, moves a kept link to CoC with `BEARER_SWITCH` once it opens. `BEARER_SWITCH` needs no credit; the central grants no more after its own, and the peripheral's notifications until its own are uncredited. A peripheral waits `coc-accept-timeout` (5 s) for the central's channel, then closes with `PROTOCOL_ERROR` ([D-49](../spec/decisions.md#d-49-bearer-switch-timing-and-credits)). Owner decision.
+- **CoC failure (decision 1):** a channel that fails to open leaves the link on credited GATT and reports `ML3005` `BearerFallback`, unless the platform has no CoC. A lost channel ends the link, and the central links again once, as after a transient loss; the new link runs a fresh hello or handshake ([C-07](../spec/decisions.md#c-07)).
+- **Adapters:** the Android and iOS radios report CoC `UNSUPPORTED` until the backlog's tickets 31a and 31b, which also take over the 133/147 and silent-close mapping and the iOS cap of 3 listed above for ticket 31.

@@ -16,6 +16,7 @@ internal class Credits(
 ) {
     private var available = 0
     private var stopped = false
+    private var waived = false
     private val granted = Channel<Unit>(Channel.CONFLATED)
     private var unacknowledged = 0
 
@@ -31,6 +32,15 @@ internal class Credits(
             granted.trySend(Unit)
         }
         return within
+    }
+
+    /**
+     * Ends the need for credits: the central sent `BEARER_SWITCH` and grants no more, so this end's
+     * notifications until its own switch go uncredited (D-49).
+     */
+    fun waive() {
+        waived = true
+        granted.trySend(Unit)
     }
 
     /** Ends every wait for a credit: the link is closing. */
@@ -76,8 +86,8 @@ internal class Credits(
     }
 
     private suspend fun take(): Boolean {
-        while (available == 0 && !stopped) granted.receive()
-        if (!stopped) available--
+        while (available == 0 && !stopped && !waived) granted.receive()
+        if (available > 0) available--
         return !stopped
     }
 

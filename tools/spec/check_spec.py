@@ -462,7 +462,11 @@ def tier2_link(g, t, where):
         fail("%s: KEM inputs belong to KEM patterns only" % where)
     if tier2_prologue(i, profile, where) != tier2_prologue(r, profile, where):
         fail("%s: both sides hold the same prologue" % where)
-    rekey = bytes([int(next(e["code"] for e in entries("frame-types.json") if e["name"] == "REKEY"), 16)])
+    def frame(name):
+        return bytes([int(next(e["code"] for e in entries("frame-types.json") if e["name"] == name), 16)])
+
+    # A stream turns once: REKEY moves to the next key, BEARER_SWITCH to CoC with the same nonces.
+    turns = (frame("REKEY"), frame("BEARER_SWITCH"))
     lo, hi = m.L("record-body-min"), m.L("record-body-max")
     for name in ("initiator", "responder"):
         frames, stream, at = [b(x) for x in t[name + "_frames"]], b(t[name + "_stream"]), 0
@@ -473,15 +477,23 @@ def tier2_link(g, t, where):
             at += 2 + length
         if at != len(stream):
             fail("%s: %s stream is not exactly its frames' records" % (where, name))
-        if t["result"] == "valid" and frames and frames.count(rekey) != 1:
-            fail("%s: a valid %s stream carries one REKEY" % (where, name))
+        if t["result"] == "valid" and frames and sum(map(frames.count, turns)) != 1:
+            fail("%s: a valid %s stream carries one REKEY or BEARER_SWITCH" % (where, name))
     sent = [b(x) for x in t["initiator_frames"]]
     step = t.get("rejected_record")
     if t["result"] == "valid":
         if step is not None or "error" in t:
             fail("%s: a valid stream has nothing to reject" % where)
-    elif t.get("error") != "decrypt-failed" or step != len(sent) or rekey not in sent[:-1] or t["responder_frames"]:
-        fail("%s: an invalid stream ends at rejected_record, after a REKEY, and the responder sends nothing" % where)
+    elif (
+        t.get("error") != "decrypt-failed"
+        or step != len(sent)
+        or not any(turn in sent[:-1] for turn in turns)
+        or t["responder_frames"]
+    ):
+        fail(
+            "%s: an invalid stream ends at rejected_record, after a REKEY or BEARER_SWITCH, and the responder"
+            " sends nothing" % where
+        )
 
 
 TIER2 = {"CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
