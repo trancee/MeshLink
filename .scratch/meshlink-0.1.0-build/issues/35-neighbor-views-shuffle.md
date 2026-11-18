@@ -1,6 +1,6 @@
 # Exchange neighbor lists and announce the next identifier
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 27
 
