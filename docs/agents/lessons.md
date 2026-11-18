@@ -77,6 +77,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - **The Android lab app truncated its JSONL on relaunch,** which lost whole cells. Logs must append.
 - **`AdvertisingSet.getOwnAddress()` is not callable** by apps on Android 17 (`NoSuchMethodException`); measure addresses from a scanner instead.
 - **Pixel 6 system updates install during runs.** Disable automatic updates before multi-hour runs.
+- **Android 15 and later concatenate a company's manufacturer data** in `ScanRecord` (AOSP `android-15.0.0_r1`); Android 14 and earlier keep the last entry. Every `ScanFilter` is re-checked in software against that array, so a fixed-offset data mask misses a background iPhone whose Nearby Info precedes the overflow area. Filter on the company ID with empty (not null) data and parse the raw AD structures (ADR 0010, 2026-11-18 amendment). The field run's filtering phone ran Android 9 and could not show this.
 
 **Rejected ideas:**
 
@@ -152,6 +153,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 
 - Each SDK's android-all pin needs its own Gradle configuration. All pins share the module `org.robolectric:android-all-instrumented`, so one configuration resolves only the newest version and the older SDK fails with `no artifacts found for DependencyJar{...}`.
 - Robolectric 4.18 on the JDK 21 test toolchain needs neither `--add-exports` nor `--add-opens` (ADR 0005, 2026-11-14 amendment).
+- A JUnit `Timeout` rule runs each test on another thread, and the main looper can then not be driven (`Main looper can only be controlled from its thread in PAUSED mode`). Time adapter retries and budgets with a coroutine `delay` in the radio's scope and an injected `TimeSource`, and advance the `TestScope` scheduler instead (`BleScanner`, `GattServerHost`).
 
 ## Apple packaging
 

@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import java.util.UUID
@@ -107,18 +108,89 @@ class AndroidRadioCentralTest {
         }
 
     @Test
-    fun theRadioClaimsNoLe2MPhyAndTheLinkReadsNoRssi() =
+    fun aPhoneWith2MRequestsItAfterConnectingFromAndroid10() =
         runTest {
             // Arrange
+            Shadows.shadowOf(adapter).setIsLe2MPhySupported(true)
             val radio = AndroidRadio(context, manager, adapter, backgroundScope)
-            val link = connected(radio)
+
+            // Act
+            connected(radio)
+
+            // Assert
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                assertTrue(radio.supportsLe2MPhy)
+                val twoM = BluetoothDevice.PHY_LE_2M_MASK
+                val request = listOf(twoM, twoM, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
+                assertEquals(listOf(request), ShadowMeshGatt.phyRequests)
+            } else {
+                assertFalse(radio.supportsLe2MPhy)
+                assertTrue(ShadowMeshGatt.phyRequests.isEmpty())
+            }
+        }
+
+    @Test
+    fun aPhoneWithout2MSendsNoPhyCommand() =
+        runTest {
+            // Arrange
+            Shadows.shadowOf(adapter).setIsLe2MPhySupported(false)
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+
+            // Act
+            connected(radio)
+
+            // Assert
+            assertFalse(radio.supportsLe2MPhy)
+            assertTrue(ShadowMeshGatt.phyRequests.isEmpty())
+        }
+
+    @Test
+    fun readingTheRssiReturnsTheStacksValue() =
+        runTest {
+            // Arrange
+            ShadowMeshGatt.rssi = RSSI
+            val link = connected(AndroidRadio(context, manager, adapter, backgroundScope))
 
             // Act
             val rssi = link.readRssi()
 
             // Assert
-            assertFalse(radio.supportsLe2MPhy)
-            assertEquals(RadioFailure.UNSUPPORTED, assertIs<RadioResult.Failed>(rssi).reason)
+            assertEquals(RSSI, assertIs<RadioResult.Ok<Int>>(rssi).value)
+        }
+
+    @Test
+    fun aRefusedOrFailedRssiReadFails() =
+        runTest {
+            // Arrange
+            val link = connected(AndroidRadio(context, manager, adapter, backgroundScope))
+
+            // Act
+            ShadowMeshGatt.refuseRssi = true
+            val refused = link.readRssi()
+            ShadowMeshGatt.refuseRssi = false
+            ShadowMeshGatt.rssiStatus = BluetoothGatt.GATT_FAILURE
+            val failed = link.readRssi()
+
+            // Assert
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioResult.Failed>(refused).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioResult.Failed>(failed).reason)
+        }
+
+    @Test
+    fun readingTheRssiOfAClosedOrUnopenedLinkFails() =
+        runTest {
+            // Arrange
+            val closed = connected(AndroidRadio(context, manager, adapter, backgroundScope))
+            closed.disconnect()
+            val unopened = GattCentralLink(context, device, false, Dispatchers.IO) {}
+
+            // Act
+            val afterClose = closed.readRssi()
+            val beforeOpen = unopened.readRssi()
+
+            // Assert
+            assertEquals(RadioFailure.LINK_CLOSED, assertIs<RadioResult.Failed>(afterClose).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioResult.Failed>(beforeOpen).reason)
         }
 
     @Test
@@ -450,7 +522,7 @@ class AndroidRadioCentralTest {
     fun aLinkThatNeverOpenedCanNeitherReadNorWrite() =
         runTest {
             // Arrange
-            val link = GattCentralLink(context, device, Dispatchers.IO) {}
+            val link = GattCentralLink(context, device, false, Dispatchers.IO) {}
 
             // Act
             val read = link.readCapability()
@@ -620,6 +692,7 @@ class AndroidRadioCentralTest {
 
     private companion object {
         const val RECORD_SIZE = 12
+        const val RSSI = -61
         const val GRANTED_MTU = 185
         const val SMALL_MTU = 8
         const val GATT_ERROR = 133

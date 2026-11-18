@@ -1,6 +1,6 @@
 # 0010: Discovery, advertising and identifier rotation
 
-Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 10 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance; 2026-11-18, core scanning and background iPhones).
+Status: accepted (2026-11-02; ticket "How do nodes discover each other, and what goes in the advertisement?"). Version: 11 (amended 2026-11-02, ADR 0012; 2026-11-08, energy measurements; 2026-11-08, protocol spec; 2026-11-09, iOS Power Profiler; 2026-11-13, 0.1.0 scope; 2026-11-14, random fill source; 2026-11-15, radio tracer device proof; 2026-11-15, single advertising instance; 2026-11-18, core scanning and background iPhones; 2026-11-18, Android manufacturer data).
 
 ## Context
 
@@ -52,7 +52,7 @@ Measured:
    - The bridge rule (ADR 0008) skips sightings that resolve to known peers.
 5. **Background iPhones:** a backgrounded iPhone advertises only the MESH bit in Apple's overflow bitmap.
    - iOS scanners find it with a MESH service scan.
-   - Android scanners match the Apple manufacturer data (company `0x004C`, type `0x01`) and check the MESH bit. A screen-off scan uses this as a second hardware filter, with the bit as the mask.
+   - Android scanners filter on Apple manufacturer data (company `0x004C`) and check each AD structure for the overflow area (type `0x01`) with the MESH bit. A screen-off scan uses this as a second hardware filter (amended 2026-11-18, Android manufacturer data).
    - Such a sighting carries no identifier. MeshLink connects and reads the current identifier from a GATT characteristic. This counts against the bridge rule's limit of one dial per 60 s.
    - A connect that fails, or a phone without the MeshLink service, marks that address as stale; MeshLink does not dial it again until its address changes. That covers other apps' UUIDs that hash to the same bit and iPhones whose app has stopped (decision 7).
    - Background ↔ background discovery between iPhones is a degraded mode: 62% of 40 s trials. Apps that need better keep MeshLink in the foreground.
@@ -140,3 +140,8 @@ Measured:
 - **Hardware filters (decision 6):** Android scans with both hardware filters, the MESH UUID and the Apple overflow bit, in the foreground too, not only with the screen off; ticket 32a applies it.
 - **Background iPhones (decision 5):** a sighting that matched only the overflow bit reaches the core without a payload. The core dials it, reads the advertisement from the `ADVERTISEMENT` TLV of the capability record rather than a separate characteristic, and links only if it belongs to this mesh. An address whose connect fails, that serves no capability or no `ADVERTISEMENT`, or whose advertisement belongs to another mesh is stale. Sightings of a stale address are ignored until it goes 10 min without one, rather than until the address changes: an iPhone keeps its address across rotations (decision 7), so its address may never change. A version mismatch doesn't make an address stale. The bridge rule's limit of one dial per 60 s applies once the bridge rule exists (ticket 35).
 - **Rotation on Android (decision 3):** every rotation starts a new `AdvertisingSet`. The stop/start fallback for phones without the API is dropped: `AdvertisingSet` is API 26, MeshLink's minSdk.
+
+2026-11-18, Android manufacturer data (0.1.0 backlog ticket "Android PHY, advertising and scanning rules", owner decision):
+
+- **Apple filter (decisions 5 and 6):** the second Android hardware filter matches Apple's company ID `0x004C` with empty data and no mask. The scanner then walks the raw AD structures of each result for an `ff 4c 00 01` overflow area whose MESH bit is set. A data mask can't do this: since [`android-15.0.0_r1`](https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/tags/android-15.0.0_r1/framework/java/android/bluetooth/le/ScanRecord.java), `ScanRecord` concatenates every manufacturer data entry of a company, and `ScanController.matchesFilters` re-checks each filter in software against that array. A background iPhone's Nearby Info (`10 05 …`) then comes before the overflow area, so a filter expecting `0x01` at byte 0 drops it on Android 15 and later. Android 14 and earlier keep only the last entry, which is why the Android 9 XCover 4 in the field run matched. The data must be empty, not null: `ScanFilter.matches` skips the manufacturer check for null data.
+- **Risk "Android 17 scan limits" (addition):** with the screen off, an Android phone now wakes for every nearby iPhone's advertisement, not only MeshLink's. The extra callbacks and their energy cost are unmeasured; ticket 33 measures them on a phone running Android 15 or later.

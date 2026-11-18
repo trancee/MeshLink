@@ -13,10 +13,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 
 /**
  * This node's link to a peripheral, as GATT client (ADR 0010). [open] connects directly over LE,
- * asks for an ATT MTU of [MeshGatt.REQUESTED_ATT_MTU] and discovers the MeshLink service;
+ * prefers the LE 2M PHY if [le2M] (ADR 0009 decision 3, library rules R5 and R6), asks for an ATT
+ * MTU of [MeshGatt.REQUESTED_ATT_MTU] and discovers the MeshLink service;
  * [readCapability] reads the capability record and then subscribes to the peripheral's stream.
  * Writes go without response to [MeshGatt.TO_PERIPHERAL]; notifications on [MeshGatt.TO_CENTRAL]
- * arrive on [incoming]. Every GATT request waits for the previous one's callback ([GattExchange]).
+ * arrive on [incoming]. Every GATT request, and [readRssi]'s `readRemoteRssi`, waits for the
+ * previous one's callback ([GattExchange]).
  *
  * Requests have no timeout of their own: the stack ends a connection attempt it cannot complete
  * (status 147 after about 30 s), and the core's handshake timer ends a stalled link. A connect the
@@ -27,6 +29,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 internal class GattCentralLink(
     private val context: Context,
     private val device: BluetoothDevice,
+    private val le2M: Boolean,
     io: CoroutineDispatcher,
     private val emit: (RadioEvent) -> Unit,
 ) : StreamLink(AndroidPeer(device)),
@@ -77,8 +80,15 @@ internal class GattCentralLink(
 
     override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
 
-    // Ticket 32a reads the link's RSSI; unsupported until then.
-    override suspend fun readRssi(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
+    override suspend fun readRssi(): RadioResult<Int> {
+        val answer =
+            ready?.let { ready -> exchange.request { GattExchange.legacy(ready.gatt.readRemoteRssi()) } }
+        return when {
+            answer?.status == BluetoothGatt.GATT_SUCCESS -> RadioResult.Ok(answer.number)
+            isClosed -> RadioResult.Failed(RadioFailure.LINK_CLOSED)
+            else -> RadioResult.Failed(RadioFailure.RADIO_ERROR)
+        }
+    }
 
     override suspend fun send(chunk: ByteArray): Boolean {
         val answer =
@@ -103,6 +113,8 @@ internal class GattCentralLink(
 
     private suspend fun establish(): RadioFailure? {
         val gatt = connect() ?: return RadioFailure.PEER_UNREACHABLE
+        // An HCI request, not ATT: nothing waits for onPhyUpdate, and a refusal keeps the link on 1M.
+        if (le2M) gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, NO_PREFERRED)
         // Asks for the largest MTU; a refused or failed exchange keeps the default, and a closed link fails discovery.
         val answer = exchange.request { GattExchange.legacy(gatt.requestMtu(MeshGatt.REQUESTED_ATT_MTU)) }
         mtu = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.number ?: MeshGatt.DEFAULT_ATT_MTU
@@ -221,6 +233,14 @@ internal class GattCentralLink(
             exchange.answer(GattAnswer(status, bytes = LegacyGatt.value(characteristic)))
         }
 
+        override fun onReadRemoteRssi(
+            gatt: BluetoothGatt,
+            rssi: Int,
+            status: Int,
+        ) {
+            exchange.answer(GattAnswer(status, number = rssi))
+        }
+
         override fun onCharacteristicWrite(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -254,3 +274,5 @@ internal class GattCentralLink(
         }
     }
 }
+
+private const val NO_PREFERRED = BluetoothDevice.PHY_OPTION_NO_PREFERRED
