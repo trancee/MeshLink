@@ -148,7 +148,8 @@ class AppleRadioDiscoveryTest {
             val discovery = Discovery(SodiumCryptoProvider, MESH_ID, WireProfile.UNSECURED)
             val scanner = Scanner(radio, SystemClock, SeededRandom(1L), discovery)
             backgroundScope.launch(StandardTestDispatcher(testScheduler)) {
-                scanner.run(LinkRole.CENTRAL, null, coc = false, onLinkEvent = {}, onSighting = { _, _, _ -> })
+                val recognition = Recognition(null, NeighborLists(SystemClock, backgroundScope) {}) { false }
+                scanner.run(LinkRole.CENTRAL, recognition, coc = false, onLinkEvent = {}, onSighting = { _, _, _ -> })
             }
             runCurrent()
 

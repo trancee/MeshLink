@@ -9,6 +9,7 @@ import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import ch.trancee.meshlink.internal.CloseReason.SHUTTING_DOWN
 import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -107,9 +108,8 @@ abstract class SecuredLinkTest(
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val sealed = written(end, 1).second.single()
-            assertFalse(sealed.contentEquals(LinkFrame.Close(CloseReason.SHUTTING_DOWN).encode()))
-            assertContentEquals(LinkFrame.Close(CloseReason.SHUTTING_DOWN).encode(), open(transport, sealed))
+            // sealedFrames authenticates each record, so a cleartext CLOSE fails here.
+            assertContentEquals(LinkFrame.Close(SHUTTING_DOWN).encode(), sealedFrames(end, transport).single())
         }
 
     @Test
@@ -192,7 +192,7 @@ abstract class SecuredLinkTest(
             // Assert
             assertEquals(DeliveryStatus.Queued, assertIs<SendResult.Accepted>(result).message.status.value)
             assertEquals(emptyList(), received)
-            assertEquals(emptyList(), written(end, 1).second)
+            assertEquals(emptyList(), sealedFrames(end, transport))
             assertTrue(end.open)
         }
 
@@ -520,7 +520,7 @@ abstract class SecuredLinkTest(
                 advanceTimeBy(SETTLE_MILLIS)
 
                 // Assert
-                val replies = written(end, 1).second.map { open(transport, it).toList() }
+                val replies = sealedFrames(end, transport).map { it.toList() }
                 val protocolError = LinkFrame.Close(CloseReason.PROTOCOL_ERROR).encode().toList()
                 val expected = if (handshakeFrame) listOf(protocolError) else emptyList()
                 assertEquals(expected, replies)
@@ -585,7 +585,7 @@ abstract class SecuredLinkTest(
             val diagnostics = diagnostics(node)
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
-            val transport = initiate(FakePeer(wire, TestClock(testScheduler)), link, end)
+            val transport = initiateGranting(FakePeer(wire, TestClock(testScheduler)), link, end)
             val fake = LinkCipher(transport, TestClock(testScheduler))
             val linkedAt = testScheduler.currentTime
             val writtenByNode = mutableListOf<Int>()
@@ -602,9 +602,10 @@ abstract class SecuredLinkTest(
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val frames = written(end, 1).second.map { assertIs<LinkCipher.Opened.Frame>(fake.open(it)).bytes.toList() }
+            val opened = written(end, 1).second.map { assertIs<LinkCipher.Opened.Frame>(fake.open(it)).bytes.copyOf() }
+            val frames = opened.withoutNeighborLists().map { it.toList() }
             assertEquals(List(HOURS) { LinkFrame.Rekey.encode().toList() }, frames)
-            assertEquals(listOf(0, 1, 1, 2, 2, 3), writtenByNode)
+            assertEquals(listOf(0, 1, 1, 2, 2, 3), writtenByNode.map { opened.take(it).withoutNeighborLists().size })
             assertEquals(List(HOURS) { "ML3007 $UNKNOWN_LINK_LOCAL" }, diagnostics.map { it.label() })
             assertEquals(1, node.peers.value.size)
             assertTrue(end.open)
@@ -626,7 +627,7 @@ abstract class SecuredLinkTest(
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            assertEquals(emptyList(), written(end, 1).second)
+            assertEquals(emptyList(), sealedFrames(end, transport))
             assertFalse(end.open)
             assertEquals(emptyList(), node.peers.value)
         }
@@ -657,7 +658,7 @@ abstract class SecuredLinkTest(
                 advanceTimeBy(SETTLE_MILLIS)
 
                 // Assert
-                val replies = written(end, 1).second.map { open(transport, it).toList() }
+                val replies = sealedFrames(end, transport).map { it.toList() }
                 val protocolError = LinkFrame.Close(CloseReason.PROTOCOL_ERROR).encode().toList()
                 assertTrue(openAtLimit, "rekeying $rekeying")
                 assertEquals(if (rekeying) emptyList() else listOf(protocolError), replies, "rekeying $rekeying")

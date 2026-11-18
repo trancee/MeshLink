@@ -400,7 +400,7 @@ internal class VirtualChannelEnd(
 
 /** One radio's end of a [VirtualConnection]. */
 internal open class VirtualLinkEnd(
-    air: VirtualAir,
+    private val air: VirtualAir,
     private val connection: VirtualConnection,
     private val local: VirtualRadio,
     protected val remote: VirtualRadio,
@@ -417,6 +417,11 @@ internal open class VirtualLinkEnd(
     /** Every byte this end wrote, in order. */
     var written: ByteArray = ByteArray(0)
         private set
+
+    private val mutableWrites = mutableListOf<Pair<Long, ByteArray>>()
+
+    /** Each write's bytes, with its wall-clock time. */
+    val writes: List<Pair<Long, ByteArray>> get() = mutableWrites.toList()
 
     /** Whether [write] returns only once the peer received the bytes, as a write with flow control does. */
     var paced: Boolean = false
@@ -447,6 +452,7 @@ internal open class VirtualLinkEnd(
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
         written += bytes
+        mutableWrites += air.wallClockMillis() to bytes.copyOf()
         val target = connection.oppositeOf(this)
         val chunkMax = attMtu - RadioPort.ATT_HEADER
         val received = CompletableDeferred<Unit>()

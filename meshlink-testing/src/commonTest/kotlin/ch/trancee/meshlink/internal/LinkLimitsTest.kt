@@ -137,6 +137,8 @@ class LinkLimitsTest {
 
     @Test
     fun aCappedPeripheralRefusesBearersBeyondItsCapAndLinksToTheRestAsCentral() {
+        // Whether peers dial the capped node beyond its cap depends on the seed's timing.
+        var refusals = 0
         for (seed in 1L..CAP_SEEDS) {
             runTest {
                 // Arrange
@@ -154,12 +156,13 @@ class LinkLimitsTest {
                 assertTrue(nodes.all { it.peers.value.size == NODES - 1 }, "seed $seed: full mesh")
                 assertTrue(held(capped.radio) <= CAP, "seed $seed: ${held(capped.radio)}")
                 val refused = capped.radio.ends.filter { closes(it) == listOf(CloseReason.RESOURCE_LIMIT) }
-                assertTrue(refused.isNotEmpty(), "seed $seed: no bearer refused")
+                refusals += refused.size
                 val reached = seen.filterIsInstance<LinkDiagnostic.LinkCapReached>()
                 assertEquals(refused.size, reached.size, "seed $seed")
                 assertTrue(reached.all { it.cap == CAP && it.code == "ML3004" }, "seed $seed")
             }
         }
+        assertTrue(refusals > 0, "no bearer refused")
     }
 
     @Test
@@ -306,7 +309,8 @@ class LinkLimitsTest {
             listOf(idleFake, starvedFake).forEach { it.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID))) }
             advanceTimeBy(SETTLE_MILLIS)
             sendTo(nodes[1], LARGE_PAYLOAD)
-            starvedFake.write(record(LinkFrame.Credit(1)))
+            // One credit for the neighbor list's chunk, one for the message record's first chunk.
+            starvedFake.write(record(LinkFrame.Credit(2)))
             advanceTimeBy(SETTLE_MILLIS)
             val starvedEnd = starved.radio.ends.single()
             val written = starvedEnd.written.size

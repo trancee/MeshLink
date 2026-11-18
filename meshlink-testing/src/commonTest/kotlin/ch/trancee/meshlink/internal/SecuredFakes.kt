@@ -104,11 +104,18 @@ internal suspend fun TestScope.initiate(
     return transport
 }
 
+/** [initiate], then [keepGranting]: for a fake that reads the node's records for longer than one credit window. */
+internal suspend fun TestScope.initiateGranting(
+    fake: FakePeer,
+    link: RadioLink,
+    end: VirtualLinkEnd,
+): NoiseTransport = initiate(fake, link, end).also { keepGranting(fake, link, it) }
+
 /**
  * Makes [fake], linked to a node by [initiate] on [link], keep granting credits as a MeshLink central
  * does: half the window again after every half-window of chunks the node writes. Consumes [link]'s incoming stream.
  */
-internal fun TestScope.keepGranting(
+private fun TestScope.keepGranting(
     fake: FakePeer,
     link: RadioLink,
     transport: NoiseTransport,
@@ -176,6 +183,15 @@ internal fun handshake(
     return records.reduce(ByteArray::plus)
 }
 
+/** [this] frames without the neighbor lists a node sends on each link it keeps (spec "Neighbor list"). */
+internal fun List<ByteArray>.withoutNeighborLists(): List<ByteArray> = filter { it[0] != NEIGHBOR_LIST_TYPE }
+
+/** The frames [end] wrote after its handshake, opened with [transport], without neighbor lists. */
+internal fun sealedFrames(
+    end: VirtualLinkEnd,
+    transport: NoiseTransport,
+): List<ByteArray> = written(end, 1).second.map { open(transport, it) }.withoutNeighborLists()
+
 internal fun seal(
     transport: NoiseTransport,
     frame: ByteArray,
@@ -187,3 +203,5 @@ internal fun open(
 ): ByteArray = ok(transport.decrypt(body))
 
 internal fun <T> ok(result: NoiseResult<T>): T = assertIs<NoiseResult.Ok<T>>(result).value
+
+private const val NEIGHBOR_LIST_TYPE: Byte = 0x07

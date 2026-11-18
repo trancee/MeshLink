@@ -368,8 +368,9 @@ class FragmentLinkTest {
     private fun join(fragments: List<LinkFrame.Fragment>): ByteArray =
         fragments.fold(ByteArray(0)) { frame, fragment -> frame + fragment.data }
 
+    /** The record bodies [end] wrote, neighbor lists aside. */
     private fun bodies(end: VirtualLinkEnd): List<ByteArray> =
-        assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+        assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value.withoutNeighborLists()
 
     /** The link-local frames [end] wrote, fragments aside. */
     private fun frames(end: VirtualLinkEnd): List<LinkFrame> =

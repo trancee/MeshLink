@@ -38,7 +38,7 @@ class LinkFrameTest {
 
     @Test
     fun typesThisDecoderDoesNotHandleAreUnknownAndAnEmptyFrameIsTruncated() {
-        listOf("0700", "40", "80", "bf").forEach {
+        listOf("0a00", "40", "80", "bf").forEach {
             assertEquals(DecodeError.UNKNOWN_TYPE, (LinkFrame.decode(it.hex()) as Decoded.Invalid).error, it)
         }
         assertEquals(DecodeError.TRUNCATED, (LinkFrame.decode(ByteArray(0)) as Decoded.Invalid).error)
@@ -85,7 +85,29 @@ class LinkFrameTest {
         assertFailsWith<IllegalArgumentException> { LinkFrame.Busy(0, -1) }
     }
 
+    @Test
+    fun identifierFramesRejectWrongSizesAndCounts() {
+        val id = ByteArray(ID)
+        val full = List(LinkFrame.NeighborList.NEIGHBORS_MAX) { ByteArray(ID) { _ -> it.toByte() } }
+
+        val list = (LinkFrame.decode(LinkFrame.NeighborList(id, id, full).encode()) as Decoded.Valid).value
+
+        assertEquals(full.map { it.toList() }, (list as LinkFrame.NeighborList).neighbors.map { it.toList() })
+        assertFailsWith<IllegalArgumentException> { LinkFrame.NeighborList(ByteArray(ID - 1), id, emptyList()) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.NeighborList(id, ByteArray(ID + 1), emptyList()) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.NeighborList(id, id, full + listOf(id)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.NeighborList(id, id, listOf(ByteArray(ID - 1))) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Shuffle(emptyList()) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Shuffle(List(LinkFrame.Shuffle.ENTRIES_MAX + 1) { id }) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Shuffle(listOf(ByteArray(ID + 1))) }
+        assertFailsWith<IllegalArgumentException> {
+            LinkFrame.ShuffleReply(List(LinkFrame.Shuffle.ENTRIES_MAX + 1) { id })
+        }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.ShuffleReply(listOf(ByteArray(ID - 1))) }
+    }
+
     private companion object {
+        const val ID = 8
         const val CREDITS_MAX = 0xFFFF
         const val UNKNOWN_REASON = 0x7F
         const val DIGEST = 32

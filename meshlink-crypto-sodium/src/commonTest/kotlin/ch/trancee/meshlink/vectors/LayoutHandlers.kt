@@ -153,6 +153,24 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["reason"].int, frame.code, "reason")
             }
 
+            is LinkFrame.NeighborList -> {
+                assertEquals(decoded["type"].code(), NEIGHBOR_LIST, "type")
+                assertEquals(decoded["own_id"].string, frame.ownId.hex(), "own_id")
+                assertEquals(decoded["next_id"].string, frame.nextId.hex(), "next_id")
+                val neighbors = decoded["neighbors"].list.map { it["id"].string }
+                assertEquals(neighbors, frame.neighbors.map { it.hex() }, "neighbors")
+            }
+
+            is LinkFrame.Shuffle -> {
+                assertEquals(decoded["type"].code(), SHUFFLE, "type")
+                assertEquals(decoded["entries"].list.map { it["id"].string }, frame.entries.map { it.hex() }, "entries")
+            }
+
+            is LinkFrame.ShuffleReply -> {
+                assertEquals(decoded["type"].code(), SHUFFLE_REPLY, "type")
+                assertEquals(decoded["entries"].list.map { it["id"].string }, frame.entries.map { it.hex() }, "entries")
+            }
+
             is LinkFrame.ResolvingKeyUpdate -> {
                 assertEquals(decoded["type"].code(), RESOLVING_KEY_UPDATE, "type")
                 assertEquals(decoded["resolving_key"].string, frame.next.key.hex(), "resolving_key")
@@ -224,6 +242,9 @@ private const val PLAIN_HELLO = 0x03
 private const val CLOSE = 0x04
 private const val REKEY = 0x05
 private const val BUSY = 0x06
+private const val NEIGHBOR_LIST = 0x07
+private const val SHUFFLE = 0x08
+private const val SHUFFLE_REPLY = 0x09
 private const val RESOLVING_KEY_UPDATE = 0x0E
 private const val BEARER_SWITCH = 0x0F
 private const val CREDIT = 0x10

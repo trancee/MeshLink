@@ -59,6 +59,9 @@ internal class Links(
     /** The proximity of each kept link's peer, which the scanner's sightings feed. */
     val proximities = Proximities(clock, scope, ::publish)
 
+    /** This node's neighbor lists, sent on every kept link (spec "Neighbor list"). */
+    val neighbors = NeighborLists(clock, scope) { list -> table.values.toList().forEach { post(it, list) } }
+
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
 
@@ -403,17 +406,41 @@ internal class Links(
 
         /**
          * A frame the rules above don't cover. `BEARER_SWITCH` on an open link moves it (spec "Bearer
-         * switch"). A `REKEY` was already applied by the cipher, and an `Unsecured` link drops it as
-         * an unknown link-local frame (D-48); anything else closes the link with `PROTOCOL_ERROR`.
+         * switch"). A kept link's `NEIGHBOR_LIST` is its peer's latest (spec "Neighbor list"); an open
+         * link answers a `SHUFFLE` with an empty `SHUFFLE_REPLY` and drops a `SHUFFLE_REPLY`, as a node
+         * without a passive view (spec "Shuffle"). A `REKEY` was already applied by the cipher, and an
+         * `Unsecured` link drops it as an unknown link-local frame (D-48); anything else closes the
+         * link with `PROTOCOL_ERROR`.
          */
         private suspend fun other(
             conn: Link,
             frame: LinkFrame,
         ) {
+            val peer = conn.peer
             when {
-                frame == LinkFrame.BearerSwitch && conn.peer != null -> channels.switched(conn)
-                frame != LinkFrame.Rekey -> conn.close(CloseReason.PROTOCOL_ERROR)
-                conn.cipher == null -> report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
+                peer != null && frame is LinkFrame.NeighborList -> {
+                    if (table[peer] === conn) neighbors.received(peer, frame)
+                }
+
+                peer != null && frame is LinkFrame.Shuffle -> {
+                    post(conn, LinkFrame.ShuffleReply(emptyList()))
+                }
+
+                peer != null && frame is LinkFrame.ShuffleReply -> {
+                    // Without a passive view, nothing takes the entries.
+                }
+
+                peer != null && frame == LinkFrame.BearerSwitch -> {
+                    channels.switched(conn)
+                }
+
+                frame != LinkFrame.Rekey -> {
+                    conn.close(CloseReason.PROTOCOL_ERROR)
+                }
+
+                conn.cipher == null -> {
+                    report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
+                }
             }
         }
     }
@@ -566,6 +593,7 @@ internal class Links(
             table[id] = conn
             proximities.linked(id, conn.link.peer, (conn.link as? CentralLink)?.let { it::readRssi })
             conn.chosen.complete(id)
+            neighbors.changed()
         }
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
         // The loser drains until the peer's CLOSE, at most DRAIN_TIMEOUT_MILLIS (spec "Duplicate links").
@@ -592,6 +620,8 @@ internal class Links(
         if (id != null && table[id] === conn) {
             table.remove(id)
             mail.unlinked(id)
+            neighbors.unlinked(id)
+            neighbors.changed()
             if (conn.received == CloseReason.DUPLICATE_LINK) kept[id] = conn.toPeer(id, proximities.of(id))
             proximities.unlinked(id)
         }
