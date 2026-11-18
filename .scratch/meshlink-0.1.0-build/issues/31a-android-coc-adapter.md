@@ -1,6 +1,6 @@
 # Android L2CAP CoC adapter and GATT failure mapping
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 31
 
