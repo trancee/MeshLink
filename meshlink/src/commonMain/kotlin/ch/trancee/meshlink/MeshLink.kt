@@ -327,7 +327,7 @@ public class MeshLink private constructor(
                             session.announce(keys.announce(port.clock.wallClockMillis()))
                         }
                     }
-                val recognition = keys?.let { Recognition(it) { id -> id in session.roles.value } }
+                val recognition = Recognition(keys, session.neighbors) { id -> id in session.roles.value }
                 scanner.run(restrictedLinkRole, recognition, coc, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()

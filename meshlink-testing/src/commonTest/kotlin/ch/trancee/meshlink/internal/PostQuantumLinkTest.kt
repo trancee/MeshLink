@@ -34,8 +34,9 @@ class PostQuantumLinkTest : SecuredLinkTest(SecurityProfile.PostQuantum, WirePro
                     assertEquals(listOf(1, 2, 3), bySteps.map { it.step })
                     assertEquals(sizes, bySteps.map { it.noiseMessage.size })
                     assertTrue(bySteps.all { it.noiseMessage.size <= LinkFrame.Handshake.NOISE_MESSAGE_MAX })
-                    assertEquals(RECORDS_1 + RECORDS_3 + CREDIT_RECORDS, bodies(initiator).size)
-                    assertEquals(RECORDS_2, bodies(responder).size)
+                    val sealed = written(initiator, clear = 2).second.size to written(responder, clear = 1).second.size
+                    assertEquals(RECORDS_1 + RECORDS_3, bodies(initiator).size - sealed.first)
+                    assertEquals(RECORDS_2, bodies(responder).size - sealed.second)
                     assertTrue(
                         nodes.all { node ->
                             node.peers.value
@@ -60,9 +61,6 @@ class PostQuantumLinkTest : SecuredLinkTest(SecurityProfile.PostQuantum, WirePro
         const val RECORDS_1 = 2
         const val RECORDS_2 = 3
         const val RECORDS_3 = 2
-
-        // The initiator, the central, grants its first credits in one encrypted record once the link opens.
-        const val CREDIT_RECORDS = 1
         val MESH_KEY = ByteArray(32) { 0x11 }
     }
 }

@@ -36,6 +36,15 @@ internal class ResolvingKeys(
         return current
     }
 
+    /**
+     * The key [own] will return at [atMillis], without switching to it: [next] once it is due, if
+     * this node announced one, else the current key.
+     */
+    fun at(atMillis: Long): ResolvingKey {
+        val due = atMillis / MILLIS + EPOCH_SECONDS >= current.notAfter.toLong()
+        return next?.takeIf { due } ?: current
+    }
+
     /** When this node must next [announce] a key. */
     fun nextAnnouncementMillis(): Long = ((next ?: current).notAfter.toLong() - LEAD_SECONDS - EPOCH_SECONDS) * MILLIS
 

@@ -25,28 +25,39 @@ public class Discovery(
     private var window: List<ByteArray> = emptyList()
 
     /**
-     * A fresh advertisement payload for [epoch]: the mesh tag of [epoch], then the resolvable tag of
-     * [resolvingKey] for [epoch], or random bytes without one, and random fill drawn from the crypto
-     * provider, so an observer can't link two epochs' payloads, with [flags] such as
-     * [Advertisement.COC_AVAILABLE]. It becomes the payload [accept] treats as this node's.
+     * The advertisement identifier, the resolvable tag, for [epoch]: [resolvingKey]'s tag for
+     * [epoch], or 8 random bytes from the crypto provider without one. A node draws its next one
+     * ahead of its rotation and announces it in its neighbor list (spec "Neighbor list").
+     */
+    public fun identifier(
+        epoch: UInt,
+        resolvingKey: ByteArray? = null,
+    ): ByteArray =
+        if (resolvingKey == null) {
+            crypto.randomBytes(Advertisement.RESOLVABLE_TAG_LENGTH)
+        } else {
+            derivations.resolvableTag(resolvingKey, epoch)
+        }
+
+    /**
+     * A fresh advertisement payload for [epoch]: the mesh tag of [epoch], then [identifier], by
+     * default [resolvingKey]'s resolvable tag for [epoch] or random bytes without one, and random
+     * fill drawn from the crypto provider, so an observer can't link two epochs' payloads, with
+     * [flags] such as [Advertisement.COC_AVAILABLE]. It becomes the payload [accept] treats as this
+     * node's.
      */
     public fun advertisement(
         epoch: UInt,
         resolvingKey: ByteArray? = null,
         flags: Int = 0,
+        identifier: ByteArray = identifier(epoch, resolvingKey),
     ): ByteArray {
-        val fill = crypto.randomBytes(Advertisement.RESOLVABLE_TAG_LENGTH + Advertisement.RANDOM_LENGTH)
         own =
             Advertisement(
                 flags = flags,
                 meshTag = derivations.meshTag(tagKey, epoch),
-                resolvableTag =
-                    if (resolvingKey == null) {
-                        fill.copyOf(Advertisement.RESOLVABLE_TAG_LENGTH)
-                    } else {
-                        derivations.resolvableTag(resolvingKey, epoch)
-                    },
-                random = fill.copyOfRange(Advertisement.RESOLVABLE_TAG_LENGTH, fill.size),
+                resolvableTag = identifier,
+                random = crypto.randomBytes(Advertisement.RANDOM_LENGTH),
             ).encode()
         return own.copyOf()
     }

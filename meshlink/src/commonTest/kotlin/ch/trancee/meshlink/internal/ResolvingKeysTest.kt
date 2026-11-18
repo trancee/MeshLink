@@ -48,6 +48,27 @@ class ResolvingKeysTest {
     }
 
     @Test
+    fun theKeyAtATimeIsTheAnnouncedKeyOnceItIsDueWithoutSwitching() {
+        // Arrange
+        val keys = ResolvingKeys(SodiumCryptoProvider, START)
+        val first = keys.own(START)
+        val switch = (first.notAfter.toLong() - EPOCH) * MILLIS
+        val unannounced = keys.at(switch)
+        val next = keys.announce(keys.nextAnnouncementMillis())
+
+        // Act
+        val before = keys.at(switch - 1)
+        val after = keys.at(switch)
+
+        // Assert
+        assertSame(first, unannounced)
+        assertSame(first, before)
+        assertSame(next, after)
+        assertSame(next, keys.next)
+        assertSame(first, keys.own(switch - 1))
+    }
+
+    @Test
     fun anOwnKeyNobodyAnnouncedIsReplacedByAFreshOne() {
         // Arrange
         val keys = ResolvingKeys(SodiumCryptoProvider, START)

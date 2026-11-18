@@ -93,6 +93,37 @@ class DiscoveryTest {
     }
 
     @Test
+    fun anIdentifierIsTheResolvableTagOfTheEpochWithAKeyAndFreshRandomBytesWithout() {
+        // Arrange
+        val resolvingKey = ByteArray(32) { 0x22 }
+
+        // Act
+        val resolvable = node.identifier(EPOCH, resolvingKey)
+        val first = node.identifier(EPOCH)
+        val second = node.identifier(EPOCH)
+
+        // Assert
+        assertContentEquals(Derivations(SodiumCryptoProvider).resolvableTag(resolvingKey, EPOCH), resolvable)
+        assertEquals(Advertisement.RESOLVABLE_TAG_LENGTH, first.size)
+        assertFalse(first.contentEquals(second))
+    }
+
+    @Test
+    fun anAdvertisementCarriesTheIdentifierItIsGivenWithFreshFill() {
+        // Arrange
+        val identifier = node.identifier(EPOCH)
+
+        // Act
+        val first = Advertisement.decode(node.advertisement(EPOCH, identifier = identifier)) as Decoded.Valid
+        val second = Advertisement.decode(node.advertisement(EPOCH, identifier = identifier)) as Decoded.Valid
+
+        // Assert
+        assertContentEquals(identifier, first.value.resolvableTag)
+        assertContentEquals(identifier, second.value.resolvableTag)
+        assertFalse(first.value.random.contentEquals(second.value.random))
+    }
+
+    @Test
     fun eachAdvertisementDrawsAFreshResolvableTagAndRandomFill() {
         val first = Advertisement.decode(node.advertisement(EPOCH)) as Decoded.Valid
         val second = Advertisement.decode(node.advertisement(EPOCH)) as Decoded.Valid

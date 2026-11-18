@@ -82,8 +82,7 @@ class RotationTest {
             val early = FakePeer(WireProfile.CLASSICAL, clock, MESH_KEY)
             val earlyEnd = alice.radio.ends.size
             val earlyLink = connectFake(air, alice)
-            val earlyTransport = initiate(early, earlyLink, alice.radio.ends[earlyEnd])
-            keepGranting(early, earlyLink, earlyTransport)
+            val earlyTransport = initiateGranting(early, earlyLink, alice.radio.ends[earlyEnd])
             val earlyFrames = Sealed(earlyTransport, alice.radio.ends[earlyEnd], clock)
             val current = assertNotNull(decodePayload(early.received).resolvingKey)
 
@@ -117,7 +116,7 @@ class RotationTest {
         }
 
     @Test
-    fun anOpenMeshSendsNoResolvingKeyAndRecognizesARotatedPeerOnlyByHandshake() =
+    fun anOpenMeshSendsNoResolvingKeyAndRecognizesARotatedPeerByItsAnnouncedIdentifier() =
         runTest {
             // Arrange
             val air = air()
@@ -131,6 +130,7 @@ class RotationTest {
             val ends = platforms[0].radio.ends.size
             val transport = initiate(fake, connectFake(air, platforms[0]), platforms[0].radio.ends[ends])
             val linked = nodes.map { node -> node.peers.value.size }
+            val bobEnds = platforms[1].radio.ends.size
 
             // Act
             advanceTimeBy(2.hours)
@@ -142,7 +142,7 @@ class RotationTest {
             val tags = platforms[0].radio.advertisements.map { tagOf(it.second).toList() }
             assertEquals(tags.size, tags.toSet().size)
             assertEquals(listOf(2, 1), linked)
-            assertTrue(platforms[1].radio.ends.size > ends + HOUR_EPOCHS, "redials: ${platforms[1].radio.ends.size}")
+            assertEquals(bobEnds, platforms[1].radio.ends.size, "redials")
             assertEquals(listOf(1), nodes.drop(1).map { node -> node.peers.value.size })
             assertTrue(nodes.all { it.linkCandidates().size <= WINDOW_EPOCHS }, "candidates bounded")
         }
@@ -259,7 +259,10 @@ class RotationTest {
             (TestClock.WALL_CLOCK_START_MILLIS / MILLIS).toUInt() + DAY_SECONDS,
         )
 
-    /** Reads the frames but `REKEY` [end] writes after its cleartext message 2, decrypted with [transport]. */
+    /**
+     * Reads the frames but `REKEY` and `NEIGHBOR_LIST` [end] writes after its cleartext message 2, decrypted with
+     * [transport].
+     */
     private class Sealed(
         transport: NoiseTransport,
         private val end: VirtualLinkEnd,
@@ -276,7 +279,7 @@ class RotationTest {
                 frames += assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(frame)).value
                 opened++
             }
-            return frames.filter { it != LinkFrame.Rekey }
+            return frames.filter { it != LinkFrame.Rekey && it !is LinkFrame.NeighborList }
         }
     }
 
@@ -296,7 +299,6 @@ class RotationTest {
     private companion object {
         const val EPOCH_MILLIS = 300_000L
         const val DAY_EPOCHS = 288
-        const val HOUR_EPOCHS = 12
         const val WINDOW_EPOCHS = 3
         const val DAY_SECONDS = 86_400u
         const val LEAD_MILLIS = 3_600_000L

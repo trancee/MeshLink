@@ -261,6 +261,82 @@ public sealed interface LinkFrame {
     }
 
     /**
+     * `NEIGHBOR_LIST` (spec "Neighbor list", D-24): the sender's current advertisement identifier
+     * [ownId], the one it advertises after its next rotation [nextId], and the current identifiers
+     * of up to [NEIGHBORS_MAX] link peers. Each identifier is an advertisement's resolvable tag.
+     */
+    public class NeighborList(
+        public val ownId: ByteArray,
+        public val nextId: ByteArray,
+        public val neighbors: List<ByteArray>,
+    ) : LinkFrame {
+        init {
+            require(ownId.size == ID && nextId.size == ID) { "own_id and next_id must be $ID bytes" }
+            require(neighbors.size <= NEIGHBORS_MAX) { "at most $NEIGHBORS_MAX neighbors, not ${neighbors.size}" }
+            requireIds(neighbors)
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + ownId + nextId + entries(neighbors)
+
+        public companion object {
+            /** The most neighbor identifiers one list carries (spec `neighbor-list-max`). */
+            public const val NEIGHBORS_MAX: Int = 32
+            internal const val TYPE = 0x07
+            private const val OWN = 1
+            private const val NEXT = OWN + ID
+            private const val COUNT = NEXT + ID
+
+            internal fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+                entries(bytes, COUNT, 0..NEIGHBORS_MAX) {
+                    NeighborList(bytes.copyOfRange(OWN, NEXT), bytes.copyOfRange(NEXT, COUNT), it)
+                }
+        }
+    }
+
+    /**
+     * `SHUFFLE` (spec "Shuffle"): 1 to [ENTRIES_MAX] advertisement identifiers from the sender's
+     * passive view. The receiver answers with [ShuffleReply] on the same link.
+     */
+    public class Shuffle(
+        public val entries: List<ByteArray>,
+    ) : LinkFrame {
+        init {
+            require(entries.size in COUNTS) { "a shuffle carries 1 to $ENTRIES_MAX entries, not ${entries.size}" }
+            requireIds(entries)
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + entries(entries)
+
+        public companion object {
+            /** The most identifiers a shuffle or its reply carries (spec `shuffle-entries-max`). */
+            public const val ENTRIES_MAX: Int = 5
+            internal const val TYPE = 0x08
+            private val COUNTS = 1..ENTRIES_MAX
+
+            internal fun decode(bytes: ByteArray): Decoded<LinkFrame> = entries(bytes, 1, COUNTS) { Shuffle(it) }
+        }
+    }
+
+    /** `SHUFFLE_REPLY` (spec "Shuffle"): 0 to [Shuffle.ENTRIES_MAX] identifiers from the replier's passive view. */
+    public class ShuffleReply(
+        public val entries: List<ByteArray>,
+    ) : LinkFrame {
+        init {
+            require(entries.size <= Shuffle.ENTRIES_MAX) { "a reply carries at most ${Shuffle.ENTRIES_MAX} entries" }
+            requireIds(entries)
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + entries(entries)
+
+        internal companion object {
+            const val TYPE = 0x09
+            private val COUNTS = 0..Shuffle.ENTRIES_MAX
+
+            fun decode(bytes: ByteArray): Decoded<LinkFrame> = entries(bytes, 1, COUNTS) { ShuffleReply(it) }
+        }
+    }
+
+    /**
      * `RESOLVING_KEY_UPDATE` (spec "Resolving key update", D-41): the sender's next resolving key
      * [next] with the Unix second it expires.
      */
@@ -319,6 +395,9 @@ public sealed interface LinkFrame {
                 Close.TYPE to { Close.decode(it) },
                 Rekey.TYPE to { Rekey.decode(it) },
                 Busy.TYPE to { Busy.decode(it) },
+                NeighborList.TYPE to { NeighborList.decode(it) },
+                Shuffle.TYPE to { Shuffle.decode(it) },
+                ShuffleReply.TYPE to { ShuffleReply.decode(it) },
                 ResolvingKeyUpdate.TYPE to { ResolvingKeyUpdate.decode(it) },
                 BearerSwitch.TYPE to { BearerSwitch.decode(it) },
                 Credit.TYPE to { Credit.decode(it) },
@@ -333,6 +412,37 @@ public sealed interface LinkFrame {
                 type == 0 || type >= RESERVED_FROM -> Decoded.Invalid(DecodeError.RESERVED_TYPE)
                 decoder == null -> Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
                 else -> decoder(bytes)
+            }
+        }
+
+        // An advertisement identifier: the resolvable tag, payload bytes 5–12.
+        private const val ID = Advertisement.RESOLVABLE_TAG_LENGTH
+
+        private fun requireIds(ids: List<ByteArray>) {
+            require(ids.all { it.size == ID }) { "every identifier must be $ID bytes" }
+        }
+
+        // A count byte and its identifiers.
+        private fun entries(ids: List<ByteArray>): ByteArray {
+            val count = byteArrayOf(ids.size.toByte())
+            return ids.fold(count) { bytes, id -> bytes + id }
+        }
+
+        // The identifiers after the count byte at [count], if their number is in [counts] and fills the frame.
+        private fun entries(
+            bytes: ByteArray,
+            count: Int,
+            counts: IntRange,
+            frame: (List<ByteArray>) -> LinkFrame,
+        ): Decoded<LinkFrame> {
+            if (bytes.size <= count) return Decoded.Invalid(DecodeError.TRUNCATED)
+            val number = bytes.u8(count)
+            val first = count + 1
+            val length = first + number * ID
+            return when {
+                number !in counts -> Decoded.Invalid(DecodeError.OUT_OF_RANGE)
+                bytes.size != length -> Decoded.Invalid(sizeError(bytes, length))
+                else -> Decoded.Valid(frame(List(number) { bytes.copyOfRange(first + it * ID, first + (it + 1) * ID) }))
             }
         }
 

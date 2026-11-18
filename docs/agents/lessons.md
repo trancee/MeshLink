@@ -155,6 +155,10 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Robolectric 4.18 on the JDK 21 test toolchain needs neither `--add-exports` nor `--add-opens` (ADR 0005, 2026-11-14 amendment).
 - A JUnit `Timeout` rule runs each test on another thread, and the main looper can then not be driven (`Main looper can only be controlled from its thread in PAUSED mode`). Time adapter retries and budgets with a coroutine `delay` in the radio's scope and an injected `TimeSource`, and advance the `TestScope` scheduler instead (`BleScanner`, `GattServerHost`).
 
+## VirtualAir link tests
+
+- Neighbor lists use link credits. A fake central that reads a node's records for longer than one credit window must keep granting (`initiateGranting` in `SecuredFakes.kt`), or the node stalls; secured tests that count frames filter lists out with `sealedFrames` (2026-11-18).
+
 ## Apple packaging
 
 - Kotlin/Native links no framework, and KGP writes no iOS klib, for a module without Kotlin source: the link task is `NO-SOURCE` and publishing fails in `generateMetadataFileFor<Target>Publication` with `FileNotFoundException`. Never add a placeholder file; give the module real source or wait for the ticket that does (ticket 65).
@@ -173,6 +177,8 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Plain `./gradlew detekt` analyzes no Kotlin Multiplatform source set and passes vacuously. Only `check` runs the per-source-set tasks (`detektCommonTestSourceSet`, `detektAndroidMainSourceSet`, `detektIosMainSourceSet`, …); prove detekt with `check` (2026-11-15).
 - ktlint (Spotless, no `.editorconfig`) allows 140 characters and rejoins wrapped lines up to that length, which detekt's `MaxLineLength` 120 then rejects; it also turns block bodies back into expression bodies. Shorten identifiers or extract locals instead of wrapping by hand.
 - detekt's `TooManyFunctions` counts top-level functions per file, and members per object, class or interface. Split by cohesive family (as `SodiumCryptoProvider` delegates to `SodiumHashing`, `SodiumClassical`, `SodiumKems`), never suppress (Q2).
+- detekt's `LargeClass` (600 lines) also applies to test classes; `SecuredLinkTest` sits at the limit, so move shared steps into `SecuredFakes.kt` helpers before adding tests there.
+- A chain like `keys?.own(now)?.key` with a non-null `own` compiles to a second null check that never fails, which leaves a Kover branch uncovered. Write `keys?.let { it.own(now).key }` (2026-11-18).
 - Default methods in an interface compile to `$DefaultImpls` bridges that no test executes, so Kover drops below 100 % even when every implementation is covered. Keep interface members abstract (ADR 0004, 2026-11-15 amendment).
 
 ## Vector runner
@@ -188,7 +194,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Code: `meshlink-core/src/androidHostTest/kotlin/ch/trancee/meshlink/fuzz/` (targets, registry, launcher, completeness test), `meshlink-core/src/androidHostTest/fuzz/` (committed corpus), `tools/fuzz/seed_corpus.py`, `.github/workflows/fuzz.yml`.
 - Verified: `./gradlew :meshlink-core:fuzz -Pfuzz.seconds=30` runs all 10 targets (0.1 to 1.4 million inputs/s each on an M-series Mac); a target that throws fails the task with `fuzz targets failed: <name>` and writes `build/fuzz/crashes/<name>-crash-<sha1>`.
 - Reproduce a crash: make it a regression input in the deterministic mutation tier (`meshlink-crypto-sodium` vector handlers) or a focused `commonTest`, fix the decoder, then rerun the target.
-- A new decoder fails `FuzzTargetsTest` until a registry entry in `FuzzTargets.kt` names it; add its seeds to `seed_corpus.py` and rerun the merge (`PROJECT.md`).
+- A new decoder fails `FuzzTargetsTest` until a registry entry in `FuzzTarget.kt` names it; add its seeds to `seed_corpus.py` and rerun the merge (`PROJECT.md`).
 - The host test loads the main classes from AGP's `classes.jar`, not a directory; walking a directory found nothing and the test passed vacuously, so it now asserts that it finds decoders.
 - `testAndroidHostTest` is registered after the build script runs; `tasks.named` fails there, so the fuzz task reaches it through `tasks.withType<Test>().matching`.
 
