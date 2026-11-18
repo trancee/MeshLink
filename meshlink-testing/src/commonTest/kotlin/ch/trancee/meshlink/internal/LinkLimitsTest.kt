@@ -126,7 +126,8 @@ class LinkLimitsTest {
             alice.radio.ends
                 .last()
                 .disconnect()
-            advanceTimeBy(RETRIES_MILLIS)
+            // Ends before the next scan window, whose sighting of Bob is discovery, not a reconnect.
+            advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
             assertEquals(listOf(false, true), afterLoss)

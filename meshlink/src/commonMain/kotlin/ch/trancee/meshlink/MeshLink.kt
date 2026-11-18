@@ -317,7 +317,7 @@ public class MeshLink private constructor(
             val session = Links(port.radio, port.clock, admission, this, mutablePeers, post)
             links.value = session
             try {
-                val linking = launch { scanner.candidates.collect { session.connectTo(it.keys) } }
+                val linking = launch { scanner.candidates.collect { session.connectTo(it, scanner::vet) } }
                 val keys = handshakes?.keys
                 // Announces each next resolving key a lead before use (spec "Resolving key update").
                 val announcing =
@@ -328,7 +328,7 @@ public class MeshLink private constructor(
                         }
                     }
                 val recognition = keys?.let { Recognition(it) { id -> id in session.roles.value } }
-                scanner.run(restrictedLinkRole, recognition, coc, session::accept)
+                scanner.run(restrictedLinkRole, recognition, coc, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()
             } finally {

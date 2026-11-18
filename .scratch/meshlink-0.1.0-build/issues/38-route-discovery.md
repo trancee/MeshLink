@@ -34,6 +34,7 @@ This ticket adds the flood header codec unless ticket 39 merged it first.
 - [ ] A seeded test shows an intermediate reply from a node with a fresh enough route, and no reply from one with an older sequence.
 - [ ] A seeded test breaks a link on the route, lets the route expire, and shows the resend by a new search reaching the destination over another path.
 - [ ] A seeded test shows `peers` reporting `Routed(hops)` with the right hop count in `Unsecured`, and `Unreachable` after the route expires.
+- [ ] A routed peer has no `proximity` (moved from ticket 32, which had no routed peers to test).
 - [ ] T10: `origin_sequence` 0, `target_sequence` 0 in a reply, truncated and over-long frames, and a replayed request `message_id` are dropped without state change.
 - [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 

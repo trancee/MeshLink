@@ -6,6 +6,8 @@ Blocked by: 17, 27
 
 ## Behavior
 
+Split on 2026-11-18 (Q1): this ticket covers the core, the `RadioPort` contract and `VirtualAir`; ticket 32a applies the rules in the Android adapter and ticket 32b in the iOS adapter. The rules below are the whole policy; the criteria say which ticket proves each.
+
 The Android and iOS adapters apply the radio rules that ADR 0009 and ADR 0010 fix, and each direct `Peer` gets its `proximity`. The core decides; the adapters carry it out through `RadioPort`.
 
 - **PHY (ADR 0009 decision 3):** connect with the 1M|2M initiating mask, never 2M only, then request 2M. Keep 1M when the peer can't do 2M. Send PHY commands (`setPreferredPhy`, `readPhy`) only when the phone reports 2M support, so `p10lite` gets none. No Coded PHY. The `PHY_2M` advertisement flag reflects local 2M support.
@@ -27,16 +29,18 @@ The Android and iOS adapters apply the radio rules that ADR 0009 and ADR 0010 fi
 
 ## Acceptance criteria
 
-- [ ] Robolectric tests show the 1M|2M connect mask, a 2M request after connect, and no PHY command on a device that reports no 2M support.
-- [ ] Robolectric tests show a new `AdvertisingSet` per epoch, and the stop/start path on devices without the API.
-- [ ] Robolectric tests show scan windows with a period of at least 6 s, never more than 5 starts in any 30 s, an unfiltered restart within 4 min, hardware filters when the screen is off, and a `stopScan` on every error, timeout and cancellation path.
-- [ ] iOS tests with fakes show stop/start rotation, the 10 s background scan restart, and overflow-bit sightings leading to a capability read.
-- [ ] A seeded `VirtualAir` test shows a background-iPhone sighting resolving to its identifier through the `ADVERTISEMENT` TLV, and a stale address marked.
-- [ ] The `PHY_2M` flag cases in `advertisement.json` pass in the one runner.
-- [ ] `Peer.proximity` for each direct peer holds the EWMA-smoothed RSSI (α = 0.25), its bucket and the time it was measured. Seeded `VirtualAir` tests cover each bucket edge (−55 and −56 dBm, −75 and −76 dBm), smoothing of a step change, `Unknown` after 30 s without a sample, and no proximity for routed peers. No frame or advertisement carries it.
-- [ ] A dated ADR 0007 amendment (version bump) records α = 0.25, the −55/−75 dBm thresholds and the 30 s staleness; `python3 tools/check_adrs.py` passes.
-- [ ] No extended-advertising code path, Live Activity hook or toggle for either exists.
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [ ] ~~Robolectric tests show the 1M|2M connect mask, a 2M request after connect, and no PHY command on a device that reports no 2M support.~~ Moved to ticket 32a (Q1).
+- [ ] ~~Robolectric tests show a new `AdvertisingSet` per epoch, and the stop/start path on devices without the API.~~ Moved to ticket 32a (Q1); the stop/start path is dropped, because `AdvertisingSet` is API 26, the minSdk (Q7).
+- [ ] ~~Robolectric tests show scan windows with a period of at least 6 s, never more than 5 starts in any 30 s, an unfiltered restart within 4 min, hardware filters when the screen is off, and a `stopScan` on every error, timeout and cancellation path.~~ Moved to ticket 32a (Q1, Q8).
+- [ ] ~~iOS tests with fakes show stop/start rotation, the 10 s background scan restart, and overflow-bit sightings leading to a capability read.~~ Moved to ticket 32b (Q1).
+- [x] `RadioPort` contract: `Sighting.payload` is null for a sighting that matched only the MESH overflow bit (Q3), `CentralLink.readRssi()` reads the link's RSSI (Q5), and the radio reports whether it supports the 2M PHY. `VirtualAir` implements all three, and the platform adapters compile against them.
+- [x] Seeded `VirtualAir` tests show the core scanning in start/stop windows of 4 s on and 4 s off, the low-class `Balanced` schedule until ticket 36 (Q2), so at most 4 starts in any 30 s, and stopping the scan on every exit.
+- [x] A seeded `VirtualAir` test shows a background-iPhone sighting resolving to its identifier through the `ADVERTISEMENT` TLV, and a stale address marked: an identifier-less candidate whose connect fails, that serves no capability or no `ADVERTISEMENT`, or whose advertisement is not this mesh's is not dialed again, and is forgotten after 10 min without a sighting (Q4).
+- [x] The `PHY_2M` flag follows the radio's 2M support, and the `PHY_2M` flag cases in `advertisement.json` pass in the one runner.
+- [x] `Peer.proximity` for each direct peer holds the EWMA-smoothed RSSI (α = 0.25), its bucket and the time it was measured (Q6). Samples come from `readRssi` every 10 s on links this node opened as central, and from sightings matched to a linked peer by handle or resolvable tag (Q5). Seeded `VirtualAir` tests cover each bucket edge (−55 and −56 dBm, −75 and −76 dBm), smoothing of a step change, `Unknown` after 30 s without a sample~~, and no proximity for routed peers~~ (moved to ticket 38, which adds routed peers). No frame or advertisement carries it.
+- [x] A dated ADR 0007 amendment (version bump) records α = 0.25, the −55/−75 dBm thresholds and the 30 s staleness; `python3 tools/check_adrs.py` passes.
+- [x] No extended-advertising code path, Live Activity hook or toggle for either exists.
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -56,3 +60,11 @@ python3 tools/check_adrs.py
 ## Devices needed
 
 None for this ticket. Ticket 33 proves PHY, rotation and the proximity buckets on phones.
+
+## Outcome
+
+- **Owner decisions (2026-11-18):** Q1 split into 32 (core, contract, `VirtualAir`), 32a (Android) and 32b (iOS). Q2 the core scans in windows of 4 s on and 4 s off. Q3 `Sighting.payload` is nullable. Q4 stale addresses are not dialed again and are forgotten after 10 min unseen. Q5 samples come from `readRssi` every 10 s and from matched sightings. Q6 `Peer.proximity` is a `Proximity` with `rssi`, `bucket` and `measuredAt`. Q7 no stop/start rotation fallback. Q8 Android always uses two hardware filters (ticket 32a). Q9 iOS never sets `PHY_2M`. Recorded in the ADR 0007 and ADR 0010 amendments of 2026-11-18.
+- **Contract:** `Sighting.payload` is `ByteArray?`; `RadioPort.supportsLe2MPhy` and `CentralLink.readRssi()` are abstract, so every adapter states them. The Android and iOS radios report no 2M support and fail `readRssi()` with `UNSUPPORTED` until 32a and 32b. On iOS a link's requests moved to `AppleRequests` and on Android the capability read moved onto the discovered attributes, keeping both central links within detekt's function limit.
+- **Core:** `Scanner` runs the windows, sets `PHY_2M` from the radio, keeps identifier-less candidates, and vets them through `Links` after the capability read; `Proximities` smooths the samples and republishes peers on each reading, bucket change and expiry.
+- **Tests:** `BackgroundDiscoveryTest` (7), `ProximitiesTest` (10) and `ProximityTest` (2) are new; `DiscoveryTest` (+4), `VirtualAirTest` (+4), `AndroidRadioCentralTest` (+1), `AppleRadioCentralTest` (+1) and `UnsupportedRadioPortTest` cover the rest. The `PHY_2M` cases of `advertisement.json` pass in `VectorSets`. No extended-advertising or Live Activity code exists.
+- **Unverified:** radio behavior on phones and the bucket thresholds' fit, left to ticket 33; the adapters' `readRssi`, 2M report, overflow-bit sightings, rotation and scan rules, left to 32a and 32b.

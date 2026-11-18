@@ -14,8 +14,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * reads the capability record and then subscribes to the peripheral's stream. Writes go without
  * response, waiting while `canSendWriteWithoutResponse` is false until
  * `peripheralIsReady(toSendWriteWithoutResponse:)`. Every request waits for the previous one's
- * callback. CoreBluetooth negotiates the ATT MTU by itself. [channels] opens the link's L2CAP CoC
- * channels.
+ * callback, through [requests]. CoreBluetooth negotiates the ATT MTU by itself. [channels] opens
+ * the link's L2CAP CoC channels.
  *
  * A connection attempt never times out in CoreBluetooth, so [open] cancels it after
  * [CONNECT_TIMEOUT_MILLIS], about when Android's stack gives up. CoreBluetooth callbacks name the
@@ -29,8 +29,8 @@ internal class AppleCentralLink(
     private val closing: (AppleCentralLink) -> Unit,
 ) : StreamLink(ApplePeer(peripheral)),
     CentralLink {
-    private val requests = Mutex()
-    private var pending: CompletableDeferred<Answer?>? = null
+    /** The link's requests, which the delegate callbacks answer. */
+    val requests = AppleRequests { isClosed }
     private var opened = false
 
     /** Counts the moments the peripheral may take more writes, or the link closed. */
@@ -56,26 +56,14 @@ internal class AppleCentralLink(
     }
 
     override suspend fun readCapability(): RadioResult<ByteArray> {
-        val record = request { bluetooth.read(peripheral, AppleGatt.CAPABILITY) }?.value
-        val subscribed = record != null && request { bluetooth.subscribe(peripheral, AppleGatt.TO_CENTRAL) } != null
+        val record = requests.request { bluetooth.read(peripheral, AppleGatt.CAPABILITY) }?.value
+        val subscribed =
+            record != null && requests.request { bluetooth.subscribe(peripheral, AppleGatt.TO_CENTRAL) } != null
         return when {
             subscribed -> RadioResult.Ok(record)
             isClosed -> RadioResult.Failed(RadioFailure.LINK_CLOSED)
             else -> RadioResult.Failed(RadioFailure.RADIO_ERROR)
         }
-    }
-
-    /** Answers the pending request: `didConnect`, a discovery with [uuids], a read with [value], or a subscription. */
-    fun answer(
-        value: ByteArray? = null,
-        uuids: List<ByteArray> = emptyList(),
-    ) {
-        pending?.complete(Answer(value, uuids))
-    }
-
-    /** Fails the pending request, as a callback with an error does. */
-    fun fail() {
-        pending?.complete(null)
     }
 
     /** `peripheralIsReady(toSendWriteWithoutResponse:)`. */
@@ -84,6 +72,9 @@ internal class AppleCentralLink(
     }
 
     override suspend fun openChannel(psm: Int): RadioResult<RadioStream> = channels.open(psm)
+
+    // Ticket 32b reads the link's RSSI; unsupported until then.
+    override suspend fun readRssi(): RadioResult<Int> = RadioResult.Failed(RadioFailure.UNSUPPORTED)
 
     override suspend fun send(chunk: ByteArray): Boolean {
         while (!isClosed) {
@@ -100,7 +91,7 @@ internal class AppleCentralLink(
     override fun release() = bluetooth.cancel(peripheral)
 
     override fun closed() {
-        fail()
+        requests.fail()
         channels.close()
         wakeups.value++
         closing(this)
@@ -109,12 +100,13 @@ internal class AppleCentralLink(
 
     private suspend fun establish(): RadioFailure? {
         val connected =
-            withTimeoutOrNull(CONNECT_TIMEOUT_MILLIS) { request { bluetooth.connect(peripheral) } }
-        val services = connected?.let { request { bluetooth.discoverServices(peripheral, AppleGatt.SERVICE) } }
+            withTimeoutOrNull(CONNECT_TIMEOUT_MILLIS) { requests.request { bluetooth.connect(peripheral) } }
+        val services =
+            connected?.let { requests.request { bluetooth.discoverServices(peripheral, AppleGatt.SERVICE) } }
         val service = services?.uuids.orEmpty().any { it.contentEquals(AppleGatt.SERVICE) }
         val characteristics =
             if (service) {
-                request { bluetooth.discoverCharacteristics(peripheral, AppleGatt.SERVICE, CHARACTERISTICS) }
+                requests.request { bluetooth.discoverCharacteristics(peripheral, AppleGatt.SERVICE, CHARACTERISTICS) }
             } else {
                 null
             }
@@ -130,10 +122,26 @@ internal class AppleCentralLink(
         }
     }
 
+    companion object {
+        /** How long [open] waits for `didConnect`, as Android's stack does (status 147 after about 30 s). */
+        const val CONNECT_TIMEOUT_MILLIS: Long = 30_000
+    }
+}
+
+/**
+ * One CoreBluetooth request at a time on a link: [request] starts one and waits until a delegate
+ * callback calls [answer] or [fail]. A link that is [closed] starts none.
+ */
+internal class AppleRequests(
+    private val closed: () -> Boolean,
+) {
+    private val mutex = Mutex()
+    private var pending: CompletableDeferred<Answer?>? = null
+
     /** Starts one request with [action] and waits for its answer; null if it failed or the link closed. */
-    private suspend fun request(action: () -> Unit): Answer? =
-        requests.withLock {
-            if (isClosed) return null
+    suspend fun request(action: () -> Unit): Answer? =
+        mutex.withLock {
+            if (closed()) return null
             val answer = CompletableDeferred<Answer?>()
             pending = answer
             action()
@@ -144,16 +152,24 @@ internal class AppleCentralLink(
             }
         }
 
+    /** Answers the pending request: `didConnect`, a discovery with [uuids], a read with [value], or a subscription. */
+    fun answer(
+        value: ByteArray? = null,
+        uuids: List<ByteArray> = emptyList(),
+    ) {
+        pending?.complete(Answer(value, uuids))
+    }
+
+    /** Fails the pending request, as a callback with an error does. */
+    fun fail() {
+        pending?.complete(null)
+    }
+
     /** A callback's successful answer, with the value or UUIDs it carried. */
-    private class Answer(
+    class Answer(
         val value: ByteArray?,
         val uuids: List<ByteArray>,
     )
-
-    companion object {
-        /** How long [open] waits for `didConnect`, as Android's stack does (status 147 after about 30 s). */
-        const val CONNECT_TIMEOUT_MILLIS: Long = 30_000
-    }
 }
 
 private val CHARACTERISTICS = listOf(AppleGatt.CAPABILITY, AppleGatt.TO_PERIPHERAL, AppleGatt.TO_CENTRAL)

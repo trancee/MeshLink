@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 13 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 14 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles).
 
 ## Context
 
@@ -181,7 +181,7 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **No `Unreachable` (amends decision 10):** a peer leaves `peers` when its last link closes, whether it sent `CLOSE`, stopped or went out of range. `Reachability` holds only `Direct` until routing adds `Routed(hops)`. Why: `peers` lists the nodes this node can reach now; keeping unreachable entries would grow the list without bound in a busy place, and an app that wants history keeps its own.
 - **Peer shape (decision 10):** `NodeId` and `Peer` are regular classes with internal constructors, not data or value classes (decision 11 rules out value classes). `NodeId` compares by content, prints as lowercase hex and returns a copy of its 32 bytes from `toByteArray()`. `lastSeen` is a `kotlin.time.Instant` from the platform's wall clock, refreshed when the link opens and on every frame received.
-- **Not yet in place:** `proximity` arrives with ticket 32 (RSSI smoothing and buckets); `secured = true` with the secured profiles.
+- **Not yet in place:** `proximity` arrives with ticket 32 (RSSI smoothing and buckets); `secured = true` with the secured profiles. (Proximity landed; see the amendment of 2026-11-18.)
 
 2026-11-14, direct messages (0.1.0 backlog ticket "Send and receive a direct message between two nodes"):
 
@@ -204,3 +204,12 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 2026-11-15, lab link roles (0.1.0 backlog ticket "Drive the lab apps from `tools/lab/`"):
 
 - **Link-role hook (internal API):** `var restrictedLinkRole: LinkRole?` and `val linkRoles: Map<NodeId, LinkRole>` on `MeshLink` need the `InternalMeshLinkApi` opt-in, which now marks properties too, and are hidden from Objective-C, like `MeshPlatform.of(port)`. Only the lab app uses them, to run a scenario in a chosen role and record the role each link took. A node restricted to `CENTRAL` neither advertises nor serves its capability record; one restricted to `PERIPHERAL` doesn't scan; `null` lifts the restriction. A restriction takes effect at the next `start()` (owner decision). The roles map is empty while the node isn't running and drops a peer when its link closes.
+
+2026-11-18, proximity (0.1.0 backlog ticket "Apply the PHY policy, advertising and scanning rules"):
+
+- **Proximity (decision 10):** `Peer.proximity` is a `Proximity` with `rssi: Double?`, `bucket: ProximityBucket` and `measuredAt: Instant?`, and is `null` for a peer that isn't direct (owner decision). `Proximity` is a regular class with an internal constructor; `ProximityBucket` is an enum of `Immediate`, `Near`, `Far` and `Unknown`.
+- **Smoothing:** an exponentially weighted moving average, `smoothed = 0.25 × sample + 0.75 × smoothed`. The first sample, and the first after the average went stale, is taken as is.
+- **Buckets:** `Immediate` at −55 dBm or more, `Near` at −75 dBm or more, otherwise `Far`. `Unknown` once the latest sample is 30 s old; `rssi` and `measuredAt` keep the last values.
+- **Samples (owner decision):** the RSSI of each link this node opened as central, read every 10 s, and every sighting of a linked peer, matched by address or by the NodeId its resolvable tag resolves to. A peripheral whose central doesn't advertise, or isn't recognizable in an open mesh, may stay `Unknown`.
+- **Republishing:** `peers` updates after every 10 s reading, when a sighting moves a peer to another bucket, and when a peer's sample goes stale.
+- **Why:** α = 0.25 lets one sample move the average by a quarter of the step, so a single faded sample rarely changes the bucket alone, while six 10 s readings (60 s) still move it 82% of the way (1 − 0.75⁶). The thresholds are starting values without device evidence yet: ticket 33 checks the buckets on lab phone pairs and may change α, the thresholds or the staleness through a later amendment.

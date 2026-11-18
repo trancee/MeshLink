@@ -276,6 +276,87 @@ class DiscoveryTest {
             assertFalse(virtual.radio.scanning)
         }
 
+    @Test
+    fun runningNodeScansFourSecondsInEveryEightSoAtMostFourStartsIn30Seconds() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler))
+            val node = node(platform, "Festival")
+            node.start()
+            runCurrent()
+            val start = testScheduler.currentTime
+
+            // Act
+            advanceTimeBy(30_000)
+            node.stop()
+
+            // Assert
+            val windows =
+                listOf(0L, 8_000, 16_000, 24_000).flatMap { listOf(start + it to true, start + it + 4_000 to false) }
+            assertEquals(windows, platform.radio.scanLog)
+        }
+
+    @Test
+    fun nodeStoppedWithinAScanWindowStopsScanning() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler))
+            val node = node(platform, "Festival")
+            node.start()
+            runCurrent()
+            val start = testScheduler.currentTime
+
+            // Act
+            advanceTimeBy(10_000)
+            node.stop()
+
+            // Assert
+            assertEquals(start + 10_000 to false, platform.radio.scanLog.last())
+            assertEquals(4, platform.radio.scanLog.size)
+        }
+
+    @Test
+    fun refusedScanWindowStopsDiscoveryAndIsRecorded() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            var scans = 0
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override fun startScanning() =
+                        if (scans++ == 0) {
+                            virtual.radio.startScanning()
+                        } else {
+                            RadioResult.Failed(RadioFailure.RADIO_ERROR)
+                        }
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+            node.start()
+            runCurrent()
+
+            // Act
+            advanceTimeBy(8_001)
+
+            // Assert
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertNull(virtual.radio.advertisement)
+        }
+
+    @Test
+    fun nodeOnARadioWithLe2MSetsThePhy2MFlag() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler), le2MPhy = true)
+            val node = node(platform, "Festival")
+
+            // Act
+            node.start()
+            runCurrent()
+
+            // Assert
+            assertEquals(Offer(null, Advertisement.PHY_2M), offer(platform.radio))
+        }
+
     /** What [radio] offers peers: the PSM in its capability record and the flags of its latest advertisement. */
     private data class Offer(
         val psm: Int?,
@@ -308,7 +389,7 @@ class DiscoveryTest {
         )
 
     private companion object {
-        // VirtualAir models no scan windows yet: a sighting arrives within one maximum air latency.
+        // A sighting arrives within one maximum air latency of the first scan window's start.
         val FIRST_SCAN_WINDOW_MILLIS: Long = VirtualAir.DEFAULT_LATENCY_MILLIS.last + 1L
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * 1_000L
     }

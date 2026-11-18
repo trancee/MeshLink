@@ -31,7 +31,11 @@ public interface RadioPort {
     /** Stops advertising; does nothing if the radio is not advertising. */
     public fun stopAdvertising()
 
-    /** Starts reporting [RadioEvent.Sighted] for every MESH advertisement in range. */
+    /**
+     * Starts reporting [RadioEvent.Sighted] for every MESH advertisement in range, and for every
+     * advertisement that carries only the MESH bit of Apple's overflow area. The core scans in
+     * windows: it calls this at the start of each and [stopScanning] at its end.
+     */
     public fun startScanning(): RadioResult<Unit>
 
     /** Stops scanning; does nothing if the radio is not scanning. */
@@ -64,6 +68,13 @@ public interface RadioPort {
      */
     public val peripheralLinkCap: Int?
 
+    /**
+     * Whether the radio can use the LE 2M PHY (ADR 0009 decision 3). The core sets
+     * [Advertisement.PHY_2M] in its advertisement from it; an adapter that can't tell reports
+     * `false`.
+     */
+    public val supportsLe2MPhy: Boolean
+
     public companion object {
         /** The advertisement payload length in bytes (spec `advertisement-length`). */
         public const val ADVERTISEMENT_LENGTH: Int = 16
@@ -82,9 +93,14 @@ public interface RadioPort {
  */
 public interface PeerHandle
 
-/** An advertisement the radio received: its 16-byte [payload], who sent it, and the signal strength. */
+/**
+ * An advertisement the radio received: its 16-byte [payload], who sent it, and the signal strength
+ * in dBm. [payload] is `null` when the advertisement carried only the MESH bit of Apple's overflow
+ * area, as a backgrounded iPhone advertises (ADR 0010 decision 5); the core then learns the payload
+ * from the peer's capability record.
+ */
 public class Sighting(
-    public val payload: ByteArray,
+    public val payload: ByteArray?,
     public val peer: PeerHandle,
     public val rssi: Int,
 )
@@ -167,6 +183,13 @@ public interface CentralLink : RadioLink {
      * LE CoC.
      */
     public suspend fun openChannel(psm: Int): RadioResult<RadioStream>
+
+    /**
+     * Reads the link's received signal strength in dBm. An adapter that can't fails with
+     * [RadioFailure.UNSUPPORTED]; the core then learns the peer's signal strength from sightings
+     * alone.
+     */
+    public suspend fun readRssi(): RadioResult<Int>
 }
 
 /** The outcome of a [RadioPort] operation: [Ok], or [Failed] with the reason. */

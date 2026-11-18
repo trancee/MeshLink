@@ -22,9 +22,17 @@ import kotlinx.coroutines.launch
  * the wall clock passes a multiple of the epoch length plus that phase. A candidate whose mesh tag
  * left the accepted epochs is dropped with the next sighting.
  *
+ * A central scans in windows of [SCAN_ON_MILLIS] every [SCAN_PERIOD_MILLIS], the low-density
+ * `Balanced` schedule, and stops scanning whenever the run ends.
+ *
  * In a gated mesh a run's [Recognition] puts the node's own resolvable tag in each payload, and a
  * sighting whose resolvable tag resolves to a peer this node has a link to is no candidate (spec
  * "Resolvable tag").
+ *
+ * A sighting without a payload, as a backgrounded iPhone advertises (ADR 0010 decision 5), makes
+ * its address an identifier-less candidate, which the links dial to read the advertisement from the
+ * capability record and [vet]. An address that fails vetting is stale: sightings of it add no
+ * candidate until it goes unseen for [STALE_FORGET_MILLIS].
  */
 internal class Scanner(
     private val radio: RadioPort,
@@ -32,10 +40,16 @@ internal class Scanner(
     private val random: RandomSource,
     private val discovery: Discovery,
 ) {
-    private val mutableCandidates = MutableStateFlow<Map<PeerHandle, Advertisement>>(emptyMap())
+    private val mutableCandidates = MutableStateFlow<Map<PeerHandle, Advertisement?>>(emptyMap())
 
-    /** The peers whose latest advertisement belongs to this mesh, with that advertisement. */
-    val candidates: StateFlow<Map<PeerHandle, Advertisement>> = mutableCandidates
+    /**
+     * The peers whose latest advertisement belongs to this mesh, with that advertisement, and the
+     * identifier-less candidates, with `null`.
+     */
+    val candidates: StateFlow<Map<PeerHandle, Advertisement?>> = mutableCandidates
+
+    /** The stale addresses, with when each was last sighted on the monotonic clock. */
+    private val stale = mutableMapOf<PeerHandle, Long>()
 
     /**
      * Why the radio last refused or failed to serve the capability record, advertise or scan, or
@@ -53,15 +67,18 @@ internal class Scanner(
      * Restricted to [role], it neither serves nor advertises as [LinkRole.CENTRAL] and doesn't scan as
      * [LinkRole.PERIPHERAL]. A gated mesh passes its [recognition]. With [coc], a peripheral listens
      * for L2CAP CoC channels and, if the radio can, offers the PSM in its capability record and sets
-     * [Advertisement.COC_AVAILABLE] (spec "Bearer switch").
+     * [Advertisement.COC_AVAILABLE] (spec "Bearer switch"). Passes every sighting's address, the
+     * NodeId its resolvable tag resolved to, if any, and its RSSI to [onSighting].
      */
     suspend fun run(
         role: LinkRole?,
         recognition: Recognition?,
         coc: Boolean,
         onLinkEvent: (RadioEvent) -> Unit,
+        onSighting: (PeerHandle, NodeId?, Int) -> Unit,
     ) {
         try {
+            stale.clear()
             val peripheral = role != LinkRole.CENTRAL
             val central = role != LinkRole.PERIPHERAL
             val listened = if (peripheral && coc) radio.listenForChannels() else null
@@ -72,7 +89,9 @@ internal class Scanner(
             failure = refused?.reason
             if (refused == null) {
                 val failed =
-                    events(peripheral, recognition).firstOrNull { dispatch(it, recognition, onLinkEvent) }
+                    events(peripheral, central, recognition).firstOrNull {
+                        dispatch(it, recognition, onLinkEvent, onSighting)
+                    }
                         as RadioEvent.Failed?
                 failure = failed?.reason
             }
@@ -90,22 +109,43 @@ internal class Scanner(
     /** Serves the capability record and advertises a fresh payload for the current epoch; `null` if both succeed. */
     private fun advertise(recognition: Recognition?): RadioResult.Failed? {
         val key = recognition?.let { it.keys.own(clock.wallClockMillis()).key }
-        val flags = if (psm == null) 0 else Advertisement.COC_AVAILABLE
+        val coc = if (psm == null) 0 else Advertisement.COC_AVAILABLE
+        val flags = coc or if (radio.supportsLe2MPhy) Advertisement.PHY_2M else 0
         val payload = discovery.advertisement(epoch(), key, flags)
         val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload, psm)
         return radio.serveCapability(capability.encode()) as? RadioResult.Failed
             ?: radio.startAdvertising(payload) as? RadioResult.Failed
     }
 
-    /** The radio's events, and as [peripheral] the failures of [rotations] until the radio's events end. */
+    /**
+     * The radio's events, as [peripheral] the failures of [rotations] and as [central] those of
+     * [windows], until the radio's events end.
+     */
     private fun events(
         peripheral: Boolean,
+        central: Boolean,
         recognition: Recognition?,
     ): Flow<RadioEvent> =
         channelFlow {
             val rotating = launch { if (peripheral) rotations(recognition).collect { send(it) } }
+            val windowing = launch { if (central) windows().collect { send(it) } }
             radio.events.collect { send(it) }
             rotating.cancel()
+            windowing.cancel()
+        }
+
+    /**
+     * Ends the scan window [run] started after [SCAN_ON_MILLIS], then scans again in a window of
+     * that length every [SCAN_PERIOD_MILLIS]; emits a [RadioEvent.Failed] if the radio refuses a start.
+     */
+    private fun windows(): Flow<RadioEvent> =
+        flow {
+            while (true) {
+                delay(SCAN_ON_MILLIS)
+                radio.stopScanning()
+                delay(SCAN_PERIOD_MILLIS - SCAN_ON_MILLIS)
+                (radio.startScanning() as? RadioResult.Failed)?.let { emit(RadioEvent.Failed(it.reason)) }
+            }
         }
 
     /** Re-advertises at this run's phase in every epoch; emits a [RadioEvent.Failed] if the radio refuses. */
@@ -125,9 +165,10 @@ internal class Scanner(
         event: RadioEvent,
         recognition: Recognition?,
         onLinkEvent: (RadioEvent) -> Unit,
+        onSighting: (PeerHandle, NodeId?, Int) -> Unit,
     ): Boolean {
         when (event) {
-            is RadioEvent.Sighted -> sighted(event.sighting, recognition)
+            is RadioEvent.Sighted -> sighted(event.sighting, recognition, onSighting)
             is RadioEvent.Connected, is RadioEvent.Disconnected, is RadioEvent.ChannelOpened -> onLinkEvent(event)
             is RadioEvent.Failed -> Unit
         }
@@ -137,23 +178,69 @@ internal class Scanner(
     private fun sighted(
         sighting: Sighting,
         recognition: Recognition?,
+        onSighting: (PeerHandle, NodeId?, Int) -> Unit,
     ) {
         val epoch = epoch()
-        val linked = { advertisement: Advertisement ->
-            recognition?.let {
-                it.keys.resolve(advertisement.resolvableTag, epoch, clock.wallClockMillis())?.let(it.linked)
-            } == true
-        }
-        val sighted = discovery.accept(sighting.payload, epoch)?.takeUnless(linked)
+        val payload = sighting.payload
+        val accepted = payload?.let { discovery.accept(it, epoch) }
+        val id =
+            recognition?.let { known ->
+                accepted?.let { known.keys.resolve(it.resolvableTag, epoch, clock.wallClockMillis()) }
+            }
+        onSighting(sighting.peer, id, sighting.rssi)
+        val linked = recognition != null && id != null && recognition.linked(id)
+        val sighted = accepted?.takeUnless { linked }
+        val anonymous = payload == null && fresh(sighting.peer)
         mutableCandidates.update { candidates ->
-            val current = candidates.filterValues { discovery.accept(it.encode(), epoch) != null }
-            if (sighted == null) current else current + (sighting.peer to sighted)
+            val current = candidates.filterValues { it == null || discovery.accept(it.encode(), epoch) != null }
+            when {
+                sighted != null -> current + (sighting.peer to sighted)
+                anonymous -> current + (sighting.peer to null)
+                else -> current
+            }
         }
+    }
+
+    /**
+     * Whether [handle] is not stale. Forgets the stale addresses unseen for [STALE_FORGET_MILLIS]
+     * first, and records this sighting of a stale one.
+     */
+    private fun fresh(handle: PeerHandle): Boolean {
+        val now = clock.monotonicMillis()
+        stale.values.removeAll { now - it > STALE_FORGET_MILLIS }
+        val known = handle in stale
+        if (known) stale[handle] = now
+        return !known
+    }
+
+    /**
+     * Vets the identifier-less candidate [handle] by the [advertisement] its capability record
+     * carries, `null` if the links couldn't read one: returns whether it belongs to this mesh, and
+     * otherwise marks the address stale and drops the candidate.
+     */
+    fun vet(
+        handle: PeerHandle,
+        advertisement: ByteArray?,
+    ): Boolean {
+        val accepted = advertisement?.let { discovery.accept(it, epoch()) } != null
+        if (!accepted) {
+            stale[handle] = clock.monotonicMillis()
+            mutableCandidates.update { it - handle }
+        }
+        return accepted
     }
 
     private fun epoch(): UInt = Derivations.epoch(clock.wallClockMillis() / MILLIS_PER_SECOND)
 
     private companion object {
+        /** How long each scan window lasts: the `Balanced` low-density schedule (ADR 0010 decision 6). */
+        const val SCAN_ON_MILLIS = 4_000L
+
+        /** How often a scan window starts, so at most four start in any 30 s (library rule R11). */
+        const val SCAN_PERIOD_MILLIS = 8_000L
+
+        /** How long a stale address stays stale without a sighting (ticket 32, Q4). */
+        const val STALE_FORGET_MILLIS = 600_000L
         const val MILLIS_PER_SECOND = 1_000
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS_PER_SECOND.toLong()
     }

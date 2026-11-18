@@ -189,6 +189,7 @@ public final class ch/trancee/meshlink/OutgoingMessage {
 public final class ch/trancee/meshlink/Peer {
 	public final fun getLastSeen ()Lkotlin/time/Instant;
 	public final fun getNodeId ()Lch/trancee/meshlink/NodeId;
+	public final fun getProximity ()Lch/trancee/meshlink/Proximity;
 	public final fun getReachability ()Lch/trancee/meshlink/Reachability;
 	public final fun getSecured ()Z
 }
@@ -241,6 +242,22 @@ public final class ch/trancee/meshlink/Preset$ProximityDiscovery : ch/trancee/me
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Proximity {
+	public final fun getBucket ()Lch/trancee/meshlink/ProximityBucket;
+	public final fun getMeasuredAt ()Lkotlin/time/Instant;
+	public final fun getRssi ()Ljava/lang/Double;
+}
+
+public final class ch/trancee/meshlink/ProximityBucket : java/lang/Enum {
+	public static final field Far Lch/trancee/meshlink/ProximityBucket;
+	public static final field Immediate Lch/trancee/meshlink/ProximityBucket;
+	public static final field Near Lch/trancee/meshlink/ProximityBucket;
+	public static final field Unknown Lch/trancee/meshlink/ProximityBucket;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/ProximityBucket;
+	public static fun values ()[Lch/trancee/meshlink/ProximityBucket;
 }
 
 public abstract interface class ch/trancee/meshlink/Reachability {

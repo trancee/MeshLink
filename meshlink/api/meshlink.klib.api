@@ -70,6 +70,19 @@ final enum class ch.trancee.meshlink/PermissionKind : kotlin/Enum<ch.trancee.mes
     final fun values(): kotlin/Array<ch.trancee.meshlink/PermissionKind> // ch.trancee.meshlink/PermissionKind.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink/ProximityBucket : kotlin/Enum<ch.trancee.meshlink/ProximityBucket> { // ch.trancee.meshlink/ProximityBucket|null[0]
+    enum entry Far // ch.trancee.meshlink/ProximityBucket.Far|null[0]
+    enum entry Immediate // ch.trancee.meshlink/ProximityBucket.Immediate|null[0]
+    enum entry Near // ch.trancee.meshlink/ProximityBucket.Near|null[0]
+    enum entry Unknown // ch.trancee.meshlink/ProximityBucket.Unknown|null[0]
+
+    final val entries // ch.trancee.meshlink/ProximityBucket.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/ProximityBucket> // ch.trancee.meshlink/ProximityBucket.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/ProximityBucket // ch.trancee.meshlink/ProximityBucket.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/ProximityBucket> // ch.trancee.meshlink/ProximityBucket.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.meshlink/RejectionReason> { // ch.trancee.meshlink/RejectionReason|null[0]
     enum entry NotRunning // ch.trancee.meshlink/RejectionReason.NotRunning|null[0]
     enum entry QueueFull // ch.trancee.meshlink/RejectionReason.QueueFull|null[0]
@@ -422,10 +435,21 @@ final class ch.trancee.meshlink/Peer { // ch.trancee.meshlink/Peer|null[0]
         final fun <get-lastSeen>(): kotlin.time/Instant // ch.trancee.meshlink/Peer.lastSeen.<get-lastSeen>|<get-lastSeen>(){}[0]
     final val nodeId // ch.trancee.meshlink/Peer.nodeId|{}nodeId[0]
         final fun <get-nodeId>(): ch.trancee.meshlink/NodeId // ch.trancee.meshlink/Peer.nodeId.<get-nodeId>|<get-nodeId>(){}[0]
+    final val proximity // ch.trancee.meshlink/Peer.proximity|{}proximity[0]
+        final fun <get-proximity>(): ch.trancee.meshlink/Proximity? // ch.trancee.meshlink/Peer.proximity.<get-proximity>|<get-proximity>(){}[0]
     final val reachability // ch.trancee.meshlink/Peer.reachability|{}reachability[0]
         final fun <get-reachability>(): ch.trancee.meshlink/Reachability // ch.trancee.meshlink/Peer.reachability.<get-reachability>|<get-reachability>(){}[0]
     final val secured // ch.trancee.meshlink/Peer.secured|{}secured[0]
         final fun <get-secured>(): kotlin/Boolean // ch.trancee.meshlink/Peer.secured.<get-secured>|<get-secured>(){}[0]
+}
+
+final class ch.trancee.meshlink/Proximity { // ch.trancee.meshlink/Proximity|null[0]
+    final val bucket // ch.trancee.meshlink/Proximity.bucket|{}bucket[0]
+        final fun <get-bucket>(): ch.trancee.meshlink/ProximityBucket // ch.trancee.meshlink/Proximity.bucket.<get-bucket>|<get-bucket>(){}[0]
+    final val measuredAt // ch.trancee.meshlink/Proximity.measuredAt|{}measuredAt[0]
+        final fun <get-measuredAt>(): kotlin.time/Instant? // ch.trancee.meshlink/Proximity.measuredAt.<get-measuredAt>|<get-measuredAt>(){}[0]
+    final val rssi // ch.trancee.meshlink/Proximity.rssi|{}rssi[0]
+        final fun <get-rssi>(): kotlin/Double? // ch.trancee.meshlink/Proximity.rssi.<get-rssi>|<get-rssi>(){}[0]
 }
 
 final class ch.trancee.meshlink/ReceivedMessage { // ch.trancee.meshlink/ReceivedMessage|null[0]

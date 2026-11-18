@@ -15,7 +15,37 @@ public class Peer internal constructor(
     public val secured: Boolean,
     /** When this node last heard from the peer, by the platform's wall clock. */
     public val lastSeen: Instant,
+    /** How close the peer is by received signal strength, for a [Reachability.Direct] peer; else `null`. */
+    public val proximity: Proximity?,
 )
+
+/**
+ * How close a direct [Peer] is, from the strength of its signal (ADR 0007 decision 10): never a
+ * distance, and never sent to other nodes.
+ */
+public class Proximity internal constructor(
+    /** The smoothed received signal strength in dBm, or `null` before the first measurement. */
+    public val rssi: Double?,
+    /** The band [rssi] falls in, or [ProximityBucket.Unknown] once it is 30 s old. */
+    public val bucket: ProximityBucket,
+    /** When the last measurement went into [rssi], by the platform's wall clock; `null` before the first. */
+    public val measuredAt: Instant?,
+)
+
+/** A coarse band of [Proximity.rssi]. */
+public enum class ProximityBucket {
+    /** At least −55 dBm: within arm's reach, typically. */
+    Immediate,
+
+    /** From −75 dBm to below −55 dBm: in the same room, typically. */
+    Near,
+
+    /** Below −75 dBm. */
+    Far,
+
+    /** No measurement in the last 30 s. */
+    Unknown,
+}
 
 /** How a node reaches a [Peer]. */
 public sealed interface Reachability {
