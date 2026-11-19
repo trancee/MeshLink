@@ -1,6 +1,6 @@
 # Adapt to low, medium and high local density
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 35b, 35c
 
