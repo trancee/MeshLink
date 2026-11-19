@@ -205,3 +205,27 @@ internal fun open(
 internal fun <T> ok(result: NoiseResult<T>): T = assertIs<NoiseResult.Ok<T>>(result).value
 
 private const val NEIGHBOR_LIST_TYPE: Byte = 0x07
+
+/** Reads the frames [end] writes after its cleartext message 2, decrypted with [transport] across its rekeys. */
+internal class Sealed(
+    transport: NoiseTransport,
+    private val end: VirtualLinkEnd,
+    clock: Clock,
+) {
+    private val cipher = LinkCipher(transport, clock)
+    private val all = mutableListOf<LinkFrame>()
+    private var opened = 0
+
+    /** Every frame [end] wrote so far. */
+    fun all(): List<LinkFrame> {
+        written(end, 1).second.drop(opened).forEach { record ->
+            val frame = assertIs<LinkCipher.Opened.Frame>(cipher.open(record)).bytes
+            all += assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(frame)).value
+            opened++
+        }
+        return all.toList()
+    }
+
+    /** [all] but `REKEY` and `NEIGHBOR_LIST`. */
+    fun frames(): List<LinkFrame> = all().filter { it != LinkFrame.Rekey && it !is LinkFrame.NeighborList }
+}

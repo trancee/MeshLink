@@ -123,7 +123,7 @@ class ScannerCandidateTest {
         val clock = SchedulerClock(this)
         val scanner = Scanner(radio, clock, SeededRandom(1L), discovery)
         backgroundScope.launch(StandardTestDispatcher(testScheduler)) {
-            val recognition = Recognition(keys, NeighborLists(clock, backgroundScope) {}) { false }
+            val recognition = Recognition(keys, NeighborLists(clock, backgroundScope) {}) { emptyMap() }
             scanner.run(LinkRole.CENTRAL, recognition, coc = false, onLinkEvent = {}, onSighting = { _, _, _ -> })
         }
         runCurrent()

@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 12 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 13 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -185,3 +185,13 @@ Results for the v1 configuration:
 
 - **RSSI floor (decision 1):** the −85 dBm dialing floor and the bridge rule's relaxed −88 dBm floor apply to a smoothed signal, not one sighting. Each sighting moves it 0.25 of the way to its own value, as proximity does. The smoothing restarts whenever the candidate's first-heard time does: a new identifier, or 60 s unheard. One weak sighting then can't hide a strong peer, nor one strong sighting admit a weak one. The owner chose this over the latest sighting alone.
 - **Former neighbor list reuse (decision 1):** a closed link's last list counts for 120 s in the bridge test ("no linked peer's list names it") and in the count of lists naming a candidate. It doesn't count in a link's redundancy, which describes current links. A peer that links again replaces its former list at once.
+
+2026-11-19, density classes built (ticket 36; host simulation in `VirtualAir`):
+
+- **Scan schedule (decision 3):** `Responsive` low scans 4 s on / 2.5 s off, not 4/2 (duty 0.62). Scan starts then stay 6.5 s apart, under AOSP's limit of 5 starts per 30 s (library rule R11). The owner chose this over 4/2. `Balanced` and the other classes are unchanged.
+- **Estimate (decision 2):** a node estimates at the end of each scan window. One estimate may move it two classes, from low to high or back.
+  - An identifier-less address that belongs to a linked peer, such as a linked backgrounded iPhone, counts once, as that peer.
+  - An identifier-less address that fails vetting (its capability record carries no advertisement of the mesh) no longer counts.
+  - The node resolves each heard identifier again when it estimates. A peer that links during the window is heard before its neighbor list resolves its identifier, so it counted twice: as an identifier and as a linked peer not heard. A 6-node cluster's first estimate was then about 10, which held every node at medium for the 60 s dwell.
+- **Link budget (decision 1):** a switch that lowers d closes no link at once. A node holding the new d frees a random link after 30 s, as any full node does for newcomers. The passive view holds 4·d and drops random entries once d shrinks.
+- **Adaptation (decision 2):** in `VirtualAir`, a low and a medium node exchange every cleartext link frame type on one link, and a medium node sends its handshake, hourly rekeys and next resolving key over 25 h. `BUSY` has no sender yet, so it isn't exchanged. The 2 → 70 → 2 node mesh keeps each node's scan schedule and peer count within its class's settings.

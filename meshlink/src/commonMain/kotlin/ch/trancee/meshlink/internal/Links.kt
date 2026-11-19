@@ -34,8 +34,8 @@ import kotlin.time.Instant
  * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
  * every link reassembles within the node's shared large-stream [budget] (spec "Fragments"). With
  * [LinkAdmission.coc], each kept link this node opens to a peer that offers a PSM moves to L2CAP CoC
- * (spec "Bearer switch"). Its [Views] bound the bearers it dials and accepts, and it shuffles its
- * [PassiveView] with its peers (spec "Shuffle").
+ * (spec "Bearer switch"). Its [Views] bound the bearers it dials and accepts to the budget
+ * [links] gives, and it shuffles its [PassiveView] with its peers (spec "Shuffle").
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
@@ -46,6 +46,7 @@ internal class Links(
     private val scope: CoroutineScope,
     private val peers: MutableStateFlow<List<Peer>>,
     private val mail: Mail,
+    private val links: () -> Int,
 ) {
     private val clock = port.clock
     private val policy = admission.policy
@@ -62,6 +63,9 @@ internal class Links(
 
     /** This node's neighbor lists, sent on every kept link (spec "Neighbor list"). */
     val neighbors = NeighborLists(clock, scope) { list -> table.values.toList().forEach { post(it, list) } }
+
+    /** The peer of each kept link, by its handle. */
+    val handles: Map<PeerHandle, NodeId> get() = table.entries.associate { (id, conn) -> conn.link.peer to id }
 
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
@@ -87,8 +91,8 @@ internal class Links(
         views.backoff.coolDown(conn.link.peer)
         scope.launch { conn.close(CloseReason.NORMAL) }
     }
-    private val views = Views(clock, port.random, neighbors, linked, free)
-    private val passive = PassiveView(port.random, neighbors, linked)
+    private val views = Views(clock, port.random, neighbors, linked, links, free)
+    private val passive = PassiveView(port.random, neighbors, links, linked)
 
     init {
         scope.launch { passive.shuffle(::post) }
@@ -110,6 +114,8 @@ internal class Links(
         this.candidates = candidates
         this.vet = vet
         passive.merge(candidates.values.mapNotNull { it.advertisement?.resolvableTag })
+        // A node over its budget since its density class went down frees a link like a full one.
+        views.held(busy.values.sum(), scope)
         if (dialing != null) return
         val dialable = limits.dialable(candidates.keys).filter { it !in busy }
         val handle = views.dial(dialable, candidates, busy.values.sum()) ?: return
@@ -137,7 +143,7 @@ internal class Links(
             is RadioEvent.Connected -> {
                 val link = event.link
                 val within = views.accepts(busy.values.sum())
-                if (!within) report(LinkDiagnostic.LinkCapReached(Views.LINKS))
+                if (!within) report(LinkDiagnostic.LinkCapReached(links()))
                 if (!within || !limits.admit()) {
                     scope.launch { limits.refuse(link) }
                 } else {

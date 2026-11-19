@@ -138,8 +138,11 @@ internal fun advertiseFake(
 }
 
 /** The link-local frames [end] wrote, skipping routed ones. */
-internal fun frames(end: VirtualLinkEnd): List<LinkFrame> {
-    val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value
+internal fun frames(end: VirtualLinkEnd): List<LinkFrame> = frames(end.written)
+
+/** The link-local frames in the records [written], skipping routed ones. */
+internal fun frames(written: ByteArray): List<LinkFrame> {
+    val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(written)).value
     return bodies
         .filter { it[0] != ROUTED_MESSAGE }
         .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
@@ -153,3 +156,10 @@ internal fun closes(end: VirtualLinkEnd): List<CloseReason> {
 
 private const val ROUTED_MESSAGE: Byte = 0x40
 private const val MILLIS_PER_SECOND = 1_000L
+
+/** The last gap, in ms, between a scan window of [platform]'s radio and the next: its scan off time. */
+internal fun lastGap(platform: VirtualPlatform): Long? =
+    platform.radio.scanLog
+        .zipWithNext()
+        .lastOrNull { (stop, start) -> !stop.second && start.second }
+        ?.let { (stop, start) -> start.first - stop.first }
