@@ -314,7 +314,7 @@ public class MeshLink private constructor(
                 }
             val policy = LinkPolicy(digest, identity.nodeId)
             val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
-            val session = Links(port.radio, port.clock, admission, this, mutablePeers, post)
+            val session = Links(port, admission, this, mutablePeers, post)
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it, scanner::vet) } }

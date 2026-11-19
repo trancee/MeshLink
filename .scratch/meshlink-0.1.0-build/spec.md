@@ -149,7 +149,8 @@ Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop 
 | 35 | [Exchange neighbor lists and announce the next identifier](issues/35-neighbor-views-shuffle.md) | AFK | 27 |
 | 35a | [Keep active and passive neighbor views with shuffles](issues/35a-neighbor-views-shuffle.md) | AFK | 35 |
 | 35b | [Repair split meshes and diversify links](issues/35b-bridge-diversity.md) | AFK | 35a |
-| 36 | [Adapt to low, medium and high local density](issues/36-density-classes.md) | AFK | 35b |
+| 35c | [Back off dials and free a slot on a full node](issues/35c-dial-backoff-full-node.md) | AFK | 35a |
+| 36 | [Adapt to low, medium and high local density](issues/36-density-classes.md) | AFK | 35b, 35c |
 | 37 | [Forward unicast messages over multiple hops](issues/37-routed-unicast.md) | AFK | 36 |
 | 38 | [Discover routes on demand](issues/38-route-discovery.md) | AFK | 37 |
 | 39 | [Flood and sign mesh broadcasts](issues/39-flood-broadcast.md) | AFK | 21, 36 |

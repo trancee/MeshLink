@@ -34,24 +34,25 @@ import kotlin.time.Instant
  * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
  * every link reassembles within the node's shared large-stream [budget] (spec "Fragments"). With
  * [LinkAdmission.coc], each kept link this node opens to a peer that offers a PSM moves to L2CAP CoC
- * (spec "Bearer switch").
+ * (spec "Bearer switch"). Its [Views] bound the bearers it dials and accepts, and shuffle its passive
+ * view with its peers (spec "Shuffle").
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
  */
 internal class Links(
-    radio: RadioPort,
-    private val clock: Clock,
+    port: PlatformPort,
     admission: LinkAdmission,
     private val scope: CoroutineScope,
     private val peers: MutableStateFlow<List<Peer>>,
     private val mail: Mail,
 ) {
+    private val clock = port.clock
     private val policy = admission.policy
     private val handshakes = admission.handshakes
     private val keys = handshakes?.keys
     private val report = admission.report
-    private val limits = LinkLimits(radio, admission.report)
+    private val limits = LinkLimits(port.radio, admission.report)
     private val coc = admission.coc
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
@@ -61,6 +62,8 @@ internal class Links(
 
     /** This node's neighbor lists, sent on every kept link (spec "Neighbor list"). */
     val neighbors = NeighborLists(clock, scope) { list -> table.values.toList().forEach { post(it, list) } }
+
+    private val views = Views(clock, port.random, neighbors::advertises)
 
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
@@ -75,26 +78,53 @@ internal class Links(
     private val kept = mutableMapOf<NodeId, Peer>()
     private var opening = 0
 
+    // The latest candidates and how to vet them, which a closed link's slot dials again.
+    private var candidates = emptyMap<PeerHandle, Candidate>()
+    private var vet: (PeerHandle, ByteArray?) -> Boolean = { _, _ -> false }
+    private var dialing: PeerHandle? = null
+
+    init {
+        scope.launch { views.shuffle({ table.values.toList() }, ::post) }
+    }
+
     /**
-     * Opens a link as central to each of [candidates] that has no link and no link opening, unless
-     * it refused this node for its link cap (spec "Connect retries and link caps"). An identifier-less
-     * candidate, without an advertisement, links only if [vet] accepts the advertisement its
-     * capability record carries, or `null` when the connect or the read fails.
+     * Adds the identifiers of [candidates] to the passive view and, unless a dial is in flight, opens
+     * a link as central to the one the [Views] pick among those that have no link and no link opening,
+     * unless they refused this node for their link cap (spec "Connect retries and link caps"). The
+     * next dial follows once the link opens or the dial fails. An identifier-less candidate,
+     * without an advertisement, links only if [vet] accepts the advertisement its capability record
+     * carries, or `null` when the connect or the read fails.
      */
     fun connectTo(
-        candidates: Map<PeerHandle, Advertisement?>,
+        candidates: Map<PeerHandle, Candidate>,
         vet: (PeerHandle, ByteArray?) -> Boolean,
     ) {
-        limits.dialable(candidates.keys).filter { it !in busy }.forEach { handle ->
-            val identified = candidates[handle] != null
-            val vetting: ((ByteArray?) -> Boolean)? =
-                if (identified) null else { advertisement -> vet(handle, advertisement) }
-            track(handle) { central(handle, vetting) }
+        this.candidates = candidates
+        this.vet = vet
+        views.merge(candidates.values.mapNotNull { it.advertisement?.resolvableTag })
+        if (dialing != null) return
+        val dialable = limits.dialable(candidates.keys).filter { it !in busy }
+        val handle = views.dial(dialable, candidates, busy.values.sum()) ?: return
+        dialing = handle
+        val identified = candidates.getValue(handle).advertisement != null
+        val vetting: ((ByteArray?) -> Boolean)? =
+            if (identified) null else { advertisement -> vet(handle, advertisement) }
+        track(handle) {
+            try {
+                central(handle, vetting)
+            } finally {
+                // A failed dial tries the other candidates; a kept link's end redials in track.
+                if (dialing === handle) {
+                    dialing = null
+                    scope.launch { connectTo(this@Links.candidates - handle, this@Links.vet) }
+                }
+            }
         }
     }
 
     /**
-     * Accepts the link a peer opened in [event] unless the radio holds its peripheral link cap, and
+     * Accepts the link a peer opened in [event] unless the node holds its link budget or the radio its
+     * peripheral link cap, and
      * the L2CAP CoC channel a peer opened to switch to; reconnects as central after a transient loss of
      * a central link. Other events need nothing.
      */
@@ -102,12 +132,14 @@ internal class Links(
         when (event) {
             is RadioEvent.Connected -> {
                 val link = event.link
-                if (!limits.admit()) {
+                val within = views.accepts(busy.values.sum())
+                if (!within) report(LinkDiagnostic.LinkCapReached(Views.LINKS))
+                if (!within || !limits.admit()) {
                     scope.launch { limits.refuse(link) }
                 } else {
                     track(link.peer) {
                         try {
-                            serve(link, null, policy.versions, null)
+                            serve(link, null, policy.versions, null).peer != null
                         } finally {
                             limits.released()
                         }
@@ -143,29 +175,38 @@ internal class Links(
         scope.launch { conn.send(frame) }
     }
 
+    /**
+     * Runs [block] for [handle] and counts it against the link budget until it ends. A [block] that
+     * returns whether its link was kept frees that slot for the next dial.
+     */
     private fun track(
         handle: PeerHandle,
-        block: suspend () -> Unit,
+        block: suspend () -> Boolean,
     ) {
         busy[handle] = (busy[handle] ?: 0) + 1
         scope.launch {
-            try {
-                block()
-            } finally {
-                busy.decrement(handle)
-            }
+            val kept =
+                try {
+                    block()
+                } finally {
+                    busy.decrement(handle)
+                }
+            if (kept) connectTo(candidates, vet)
         }
     }
 
-    /** Links as central to [handle] once [vet], if any, accepts the advertisement in its capability record. */
+    /**
+     * Links as central to [handle] once [vet], if any, accepts the advertisement in its capability
+     * record. Returns whether the link was kept.
+     */
     private suspend fun central(
         handle: PeerHandle,
         vet: ((ByteArray?) -> Boolean)? = null,
-    ) {
+    ): Boolean {
         val link = limits.connect(handle)
         if (link == null) {
             vet?.invoke(null)
-            return
+            return false
         }
         // The selected version and the record, whose versions a secured handshake binds.
         var selection: Pair<Int, CapabilityRecord>? = null
@@ -187,6 +228,7 @@ internal class Links(
         if (conn != null && conn.peer == null && conn.received == CloseReason.RESOURCE_LIMIT) limits.refusedBy(handle)
         // A kept link whose channel was lost links again, like a transient loss (spec "Bearer switch").
         if (conn?.lost == true) track(handle) { central(handle) }
+        return conn?.peer != null
     }
 
     /**
@@ -407,8 +449,8 @@ internal class Links(
         /**
          * A frame the rules above don't cover. `BEARER_SWITCH` on an open link moves it (spec "Bearer
          * switch"). A kept link's `NEIGHBOR_LIST` is its peer's latest (spec "Neighbor list"); an open
-         * link answers a `SHUFFLE` with an empty `SHUFFLE_REPLY` and drops a `SHUFFLE_REPLY`, as a node
-         * without a passive view (spec "Shuffle"). A `REKEY` was already applied by the cipher, and an
+         * link answers a `SHUFFLE` with a `SHUFFLE_REPLY` sampled before it merges the entries, and
+         * merges a `SHUFFLE_REPLY`'s (spec "Shuffle"). A `REKEY` was already applied by the cipher, and an
          * `Unsecured` link drops it as an unknown link-local frame (D-48); anything else closes the
          * link with `PROTOCOL_ERROR`.
          */
@@ -423,11 +465,12 @@ internal class Links(
                 }
 
                 peer != null && frame is LinkFrame.Shuffle -> {
-                    post(conn, LinkFrame.ShuffleReply(emptyList()))
+                    post(conn, LinkFrame.ShuffleReply(views.sample()))
+                    views.merge(frame.entries)
                 }
 
                 peer != null && frame is LinkFrame.ShuffleReply -> {
-                    // Without a passive view, nothing takes the entries.
+                    views.merge(frame.entries)
                 }
 
                 peer != null && frame == LinkFrame.BearerSwitch -> {
@@ -582,6 +625,10 @@ internal class Links(
     ) {
         conn.peer = id
         conn.lastSeen = clock.now()
+        if (conn.central && dialing === conn.link.peer) {
+            dialing = null
+            scope.launch { connectTo(candidates, vet) }
+        }
         opening--
         kept.remove(id)
         mail.linked(id)

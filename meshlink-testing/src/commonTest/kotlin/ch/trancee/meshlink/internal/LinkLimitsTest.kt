@@ -194,6 +194,30 @@ class LinkLimitsTest {
         }
 
     @Test
+    fun aNodeHoldingItsLinkBudgetRefusesTheNextBearerBeforeAnyFrame() =
+        runTest {
+            // Arrange
+            val air = air()
+            val virtual = air.platform(StandardTestDispatcher(testScheduler))
+            val node = node(virtual).also { it.start() }
+            val seen = diagnostics(node)
+            repeat(BUDGET) { connectFake(air, virtual) }
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Act
+            connectFake(air, virtual)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            val ends = virtual.radio.ends
+            assertTrue(ends.take(BUDGET).all { it.open })
+            assertEquals(record(LinkFrame.Close(RESOURCE_LIMIT)).toList(), ends.last().written.toList())
+            assertFalse(ends.last().open)
+            val reached = seen.filterIsInstance<LinkDiagnostic.LinkCapReached>()
+            assertEquals(listOf("ML3004" to BUDGET), reached.map { it.code to it.cap })
+        }
+
+    @Test
     fun aCentralRefusedForTheCapDoesNotDialThatAddressAgain() =
         runTest {
             // Arrange
@@ -444,14 +468,17 @@ class LinkLimitsTest {
     }
 
     private companion object {
-        const val CAP = 3
+        const val CAP = 2
+        const val BUDGET = 6
         const val NODES = 6
         const val FLOOD = 10
         const val CAP_SEEDS = 4L
         const val MESSAGES = 3
         const val SMALL_MTU = 23
         const val RETRIES_MILLIS = 5_000L
-        const val MESH_SETTLE_MILLIS = 3_000L
+
+        // One dial at a time: the mesh completes in the second 8 s scan window.
+        const val MESH_SETTLE_MILLIS = 10_000L
         const val HANDSHAKE_TIMEOUT_MILLIS = 10_000L
         const val SLOW_CHUNK_MILLIS = 500L
         const val SAMPLES = 100

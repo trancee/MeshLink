@@ -420,35 +420,6 @@ abstract class SecuredLinkTest(
         }
 
     @Test
-    fun theNinthHalfOpenHandshakeIsDroppedOnEitherSide() =
-        runTest {
-            // Arrange
-            val air = air()
-            val alice = air.platform(StandardTestDispatcher(testScheduler))
-            val node = securedNode(alice, null).also { it.start() }
-            val diagnostics = diagnostics(node)
-            repeat(HALF_OPEN_GLOBAL) {
-                val noise = FakePeer(wire, TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
-                connectFake(air, alice).write(handshake(1, ok(noise.writeMessage(EMPTY))))
-            }
-            advanceTimeBy(SETTLE_MILLIS)
-            val noise = FakePeer(wire, TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
-
-            // Act
-            connectFake(air, alice).write(handshake(1, ok(noise.writeMessage(EMPTY))))
-            advanceTimeBy(SETTLE_MILLIS)
-            advertise(air)
-            advanceTimeBy(SETTLE_MILLIS)
-
-            // Assert
-            val (answered, dropped) = alice.radio.ends.partition { it.written.isNotEmpty() }
-            assertEquals(HALF_OPEN_GLOBAL, answered.size)
-            assertEquals(2, dropped.size)
-            assertTrue(dropped.none { it.open })
-            assertEquals(List(2) { "ML4002 GLOBAL" }, diagnostics.map { it.label() })
-        }
-
-    @Test
     fun aHandshakeNotCompleteTenSecondsAfterTheBearerOpenedTimesOut() =
         runTest {
             // Arrange
@@ -782,7 +753,6 @@ abstract class SecuredLinkTest(
         const val X_WING_OFFSET = 66
         const val SECOND = 2
         const val THIRD = 3
-        const val HALF_OPEN_GLOBAL = 8
         const val HANDSHAKE_TIMEOUT_MILLIS = 10_000L
         const val NEIGHBOR_INTERVAL_MILLIS = 2_000L
         const val MILLIS_PER_SECOND = 1_000L
